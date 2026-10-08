@@ -37,8 +37,15 @@ from fakes import drm_tree
 from jsonschema import Draft202012Validator
 
 from postarr import manifest
-from postarr.client import ClientDocumentUnreadable, client_heartbeat, client_outputs, parse_client_document
+from postarr.client import (
+    ClientDocumentUnreadable,
+    LabelOutputReport,
+    client_heartbeat,
+    client_outputs,
+    parse_client_document,
+)
 from postarr.heartbeat import DisplayReport, Health, ScreenState
+from postarr.label_rule import STATES, LabelDocumentUnreadable, Outcome, outcome, parse_label_document
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
@@ -254,3 +261,100 @@ def test_what_a_player_with_nothing_to_draw_on_writes_conforms(tmp_path, client_
 
     assert written["outputs"] == []
     assert _client_heartbeat_errors(written) == []
+
+
+def _panel(connected: bool = True) -> LabelOutputReport:
+    return LabelOutputReport(name="epd-0", kind="epaper", connected=connected, size=(1448, 1072))
+
+
+def test_what_a_player_with_an_identified_frame_and_a_panel_writes_is_the_fixtures_shape(tmp_path, client_settings):
+    """The fixture `frame-with-identity-and-a-panel`, written by the Player's own code."""
+    fixture = json.loads((CONTRACT / "fixtures/client-heartbeat.v1/valid/frame-with-identity-and-a-panel.json").read_text())
+    frame_fixture = next(output for output in fixture["outputs"] if output["kind"] == "frame")
+
+    written = client_heartbeat(
+        client_outputs(client_settings, drm_root=tmp_path / "no-drm", frame_identity=frame_fixture["identity"]),
+        label_outputs=[_panel()],
+        reported_at=datetime(2026, 10, 8, 14, 0, 5, tzinfo=UTC),
+    )
+
+    assert _client_heartbeat_errors(written) == []
+    # The Player reports no size for the Frame (its render arrives composed for
+    # it), where the fixture's writer knew one.
+    assert written["outputs"] == [{**frame_fixture, "screen": None}]
+    assert written["label_outputs"] == [{"name": "epd-0", "kind": "epaper", "connected": True, "size": [1448, 1072]}]
+
+
+def test_what_a_player_with_a_panel_and_no_display_writes_conforms(tmp_path, client_settings):
+    written = client_heartbeat(
+        client_outputs(replace(client_settings, frame=None), drm_root=tmp_path / "no-drm"),
+        label_outputs=[_panel(connected=False)],
+        reported_at=datetime(2026, 10, 8, 14, 0, 5, tzinfo=UTC),
+    )
+
+    assert _client_heartbeat_errors(written) == []
+    assert written["outputs"] == []
+    assert written["label_outputs"][0]["connected"] is False
+
+
+def test_a_frame_whose_id_could_not_be_read_is_written_without_the_key(tmp_path, client_settings):
+    """Absent, never empty or null: the schema refuses an empty identity, and the
+    server keys an output with none on the client and its name."""
+    written = client_heartbeat(
+        client_outputs(client_settings, drm_root=tmp_path / "no-drm", frame_identity=None),
+        reported_at=datetime(2026, 10, 8, 14, 0, 5, tzinfo=UTC),
+    )
+
+    assert _client_heartbeat_errors(written) == []
+    assert "identity" not in written["outputs"][0]
+    assert "label_outputs" not in written, "a client with no panel wrote a label_outputs key"
+
+
+# -- the label document, which a label renderer reads -------------------------------------------
+
+LABEL_DOCUMENTS = [row for row in INDEX if row["schema"] == "schemas/label.v1.schema.json"]
+
+#: The invalid label fixtures this reader refuses. The others break writer
+#: obligations it tolerates: an unknown state is read as unreachable (the
+#: contract's instruction for a later minor), a work named beside a state that
+#: names none is ignored by the rule, and a label without a title is drawn as the
+#: facts it does carry.
+REFUSED_LABEL_DOCUMENTS = {
+    "fixtures/label.v1/invalid/schema-major-2.json",
+    "fixtures/label.v1/invalid/since-without-offset.json",
+    "fixtures/label.v1/invalid/wall-name-missing.json",
+}
+
+
+def test_the_index_holds_label_documents_of_both_kinds():
+    assert {row["valid"] for row in LABEL_DOCUMENTS} == {True, False}
+    assert {row["path"] for row in LABEL_DOCUMENTS if not row["valid"]} >= REFUSED_LABEL_DOCUMENTS
+
+
+@pytest.mark.parametrize("row", [row for row in LABEL_DOCUMENTS if row["valid"]], ids=lambda row: row["path"])
+def test_every_valid_label_document_is_read_whole(row):
+    document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+
+    read = parse_label_document((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+
+    assert (read.wall_id, read.wall_name, read.state, read.work_id, read.label) == (
+        document["wall_id"],
+        document["wall_name"],
+        document["display_state"]["state"],
+        document["display_state"]["work_id"],
+        document["label"],
+    )
+    assert (read.since is None) is (document["display_state"]["since"] is None)
+
+
+@pytest.mark.parametrize("path", sorted(REFUSED_LABEL_DOCUMENTS))
+def test_every_label_document_this_reader_enforces_is_refused(path):
+    with pytest.raises(LabelDocumentUnreadable):
+        parse_label_document((CONTRACT / path).read_text(encoding="utf-8"))
+
+
+def test_a_label_document_in_a_state_this_reader_does_not_know_is_read_as_unreachable():
+    document = parse_label_document((CONTRACT / "fixtures/label.v1/invalid/state-unknown.json").read_text(encoding="utf-8"))
+
+    assert document.state not in STATES
+    assert outcome(document, datetime(2100, 1, 1, tzinfo=UTC)) is Outcome.BLANK

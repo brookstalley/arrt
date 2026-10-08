@@ -11,6 +11,12 @@ and runs a worker for each on its output: `run_frame_wall` for the Frame, which
 is the Frame's loop and its pull exactly as they ran when a Player served one
 wall, and `run_screen_wall` for a screen this host draws on.
 
+**And one label renderer per mapped label output** (`labels-and-surfaces.md`):
+`run_label` for the e-paper panel, which this module opens once per process
+(`label_panel`) because it is the client's, not any wall's. The Frame's identity
+is read here too, at the client, so a Frame with no wall on it still says who it
+is (`FrameIdentity`).
+
 **A dead pull ends its own wall's worker, and the supervisor starts it again.**
 A pull that stops leaves its wall rotating its cache, taking no updates and
 sending no heartbeat, which is invisible from the wall. So the worker stops with
@@ -33,14 +39,15 @@ from collections.abc import Awaitable, Callable
 from functools import partial
 
 from postarr import logs
-from postarr.client import FRAME_KIND, OutputReport, Supervisor, client_outputs
-from postarr.config import ClientSettings, ConfigError, FrameSettings, Settings, WallSettings, load
+from postarr.client import FRAME_KIND, FrameIdentity, LabelAssignment, OutputReport, Supervisor, client_outputs
+from postarr.config import PANEL_OUTPUT, ClientSettings, ConfigError, FrameSettings, PanelSettings, Settings, WallSettings, load
 from postarr.daemon import Clock, Daemon
 from postarr.kms import KmsOutput
+from postarr.label_renderer import LabelPanel, LabelRenderer
 from postarr.manifest import Watcher
 from postarr.panel import Geometry, LabelSurface, SurfaceUnavailable
 from postarr.panel.legibility import TypeScale, ViewingConditionsUnknown, margin_for, type_scale_for
-from postarr.pull import ClientPull, Pull
+from postarr.pull import ClientPull, LabelPull, Pull
 from postarr.screen import ScreenOutput, ScreenWall
 from postarr.state import DisplayState, StateSchemaTooNew
 from postarr.tv.samsung import SamsungTv
@@ -48,10 +55,10 @@ from postarr.tv.samsung import SamsungTv
 log = logging.getLogger(__name__)
 
 
-def label_surface(settings: FrameSettings) -> LabelSurface | None:
+def label_surface(settings: PanelSettings) -> LabelSurface | None:
     """This device's label surface, None when it has none, raising when it has a broken one.
 
-    **The three outcomes are three different things and the daemon reports them
+    **The three outcomes are three different things and are reported
     differently.** No `EPD_DEVICE` means this device draws no label, which
     `architecture.md` § Direction makes a supported deployment rather than a
     fault — `None`, and nothing said. A configured panel that will not open is a
@@ -128,7 +135,7 @@ def label_surface(settings: FrameSettings) -> LabelSurface | None:
     )
 
 
-def label_geometry(settings: FrameSettings, scale: TypeScale) -> Geometry:
+def label_geometry(settings: PanelSettings, scale: TypeScale) -> Geometry:
     """This panel's usable area, with a border derived from the type on it.
 
     **Separate from `label_surface` because it is the only part of that function
@@ -152,19 +159,34 @@ def label_geometry(settings: FrameSettings, scale: TypeScale) -> Geometry:
     )
 
 
-async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
-    """One wall on the Frame: the Frame's loop and the wall's pull, until stopped.
+def label_panel(settings: PanelSettings) -> LabelPanel | None:
+    """This client's label output, or None for a client with no panel configured.
 
-    The label panel is opened here, because it belongs to the wall on the Frame:
-    one worker decides both the picture and its label, so they cannot disagree.
+    **A panel that will not open is reported, not fatal**, and not dropped
+    either: it is a `LabelPanel` with no surface, which the client heartbeat
+    reports as a label output that is not connected. Without it a
+    configured-but-broken panel would read on the server exactly like a client
+    that never had one.
     """
-    settings.wall_dir.mkdir(parents=True, exist_ok=True)
-    watcher = Watcher(
-        settings.manifest_path,
-        rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
-        shuffle_fallback=settings.rotation_shuffle_fallback,
-    )
-    tv = SamsungTv(
+    if not settings.epd_device:
+        return None
+    size = (settings.epd_panel_width_px, settings.epd_panel_height_px)
+    try:
+        surface = label_surface(settings)
+    except SurfaceUnavailable as exc:
+        log.warning(
+            "this device has a panel configured (%s) and no label will be drawn (%s); the walls are unaffected",
+            settings.epd_device,
+            exc,
+            extra={"event": "panel.unavailable", "output": PANEL_OUTPUT},
+        )
+        return LabelPanel(name=PANEL_OUTPUT, surface=None, error=str(exc), size=size)
+    return LabelPanel(name=PANEL_OUTPUT, surface=surface, error=None, size=size)
+
+
+def frame_tv(settings: FrameSettings) -> SamsungTv:
+    """The Frame's television client, as every reader of it is built."""
+    return SamsungTv(
         host=settings.tv_address,
         port=settings.tv_port,
         token_file=settings.tv_token_file,
@@ -174,24 +196,40 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
         select_confirm_seconds=settings.select_confirm_seconds,
     )
 
-    # **A panel that will not open is reported, not fatal.** The television is the
-    # product and the label annotates it, so a broken panel costs the label and
-    # nothing else — but it is carried into the daemon rather than logged and
-    # dropped, because the journal is on the Pi and the heartbeat is what curation
-    # can see. Without it a configured-but-broken panel reads on the health surface
-    # exactly like a device that never had one.
-    surface: LabelSurface | None = None
-    surface_error: str | None = None
-    try:
-        surface = label_surface(settings)
-    except SurfaceUnavailable as exc:
-        surface_error = str(exc)
-        log.warning(
-            "this device has a panel configured (%s) and no label will be drawn (%s); the wall keeps rotating",
-            settings.epd_device,
-            exc,
-            extra={"event": "panel.unavailable"},
-        )
+
+async def run_label(
+    settings: ClientSettings,
+    panel: LabelPanel,
+    assignment: LabelAssignment,
+    stop: asyncio.Event,
+    retired: asyncio.Event,
+    *,
+    clock: Clock | None = None,
+) -> None:
+    """The supervisor's label worker: one renderer on this client's panel, until stopped."""
+    renderer = LabelRenderer(
+        assignment=assignment,
+        link=LabelPull(settings, assignment.label_id),
+        panel=panel,
+        now=(clock if clock is not None else Clock.system()).now,
+        poll_seconds=settings.label_poll_seconds,
+    )
+    await renderer.run(stop, retired)
+
+
+async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
+    """One wall on the Frame: the Frame's loop and the wall's pull, until stopped.
+
+    The Frame's loop draws no label: the panel is a label output of the client,
+    mapped to a wall by the server and drawn by `run_label`.
+    """
+    settings.wall_dir.mkdir(parents=True, exist_ok=True)
+    watcher = Watcher(
+        settings.manifest_path,
+        rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
+        shuffle_fallback=settings.rotation_shuffle_fallback,
+    )
+    tv = frame_tv(settings)
 
     # One clock for both, because the daemon measures an upload's retry wait
     # against a timestamp the store wrote. Two sources here would be two answers
@@ -221,8 +259,6 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
             state=state,
             watcher=watcher,
             clock=clock,
-            surface=surface,
-            surface_error=surface_error,
         )
         await _beside_its_pull(settings, stop, daemon.run)
 
@@ -312,15 +348,26 @@ async def _run() -> int:
         loop.add_signal_handler(received, stop.set)
 
     clock = Clock.system()
+    identity = FrameIdentity(frame_tv(settings.frame).read_identity) if settings.frame is not None else None
+    panel = label_panel(settings.panel)
     supervisor = Supervisor(
         settings=settings,
         link=ClientPull(settings),
         worker=partial(run_wall, settings),
-        outputs=partial(client_outputs, settings),
+        outputs=lambda: client_outputs(settings, frame_identity=identity.value if identity is not None else None),
         now=clock.now,
         monotonic=clock.monotonic,
+        label_worker=partial(run_label, settings, panel) if panel is not None else None,
+        label_outputs=lambda: [panel.report()] if panel is not None else [],
+        frame_identity=identity,
     )
-    await supervisor.run(stop)
+    try:
+        await supervisor.run(stop)
+    finally:
+        # After every renderer has stopped, so no draw is in flight. On e-paper
+        # this is the panel's power-down.
+        if panel is not None:
+            panel.close()
     return 0
 
 

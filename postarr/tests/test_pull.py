@@ -34,6 +34,7 @@ from postarr.pull import (
     CLIENT_ROUTE,
     ETAG_FILENAME,
     HEARTBEAT_ROUTE,
+    LABEL_ROUTE,
     MANIFEST_ROUTE,
     MEDIA_DIRNAME,
     Pull,
@@ -98,6 +99,8 @@ def test_the_client_requests_the_routes_the_contract_names():
     assert ROUTES["heartbeat"]["method"] == "POST"
     assert ROUTES["client"]["method"] == "GET"
     assert ROUTES["client_heartbeat"]["method"] == "POST"
+    assert ROUTES["label"]["path"] == LABEL_ROUTE
+    assert ROUTES["label"]["method"] == "GET"
 
 
 def test_a_wall_reads_and_renders_from_its_own_directory_in_the_cache(http_settings, cache_dir):
