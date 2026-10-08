@@ -391,6 +391,16 @@ class CatalogueService:
             page = self._store.list_artworks(query, limit=total, offset=0, order=resolved_order)
         return [artwork.id for artwork in page.artworks]
 
+    def original_sizes(self, artwork_ids: Sequence[str] | frozenset[str]) -> Mapping[str, tuple[int, int]]:
+        """The held master's pixel width and height for each of these works that has one.
+
+        One read for the lot, so a facet over a few thousand works costs one
+        statement rather than one per work. A work with no master is absent from
+        the answer, which is how a caller tells "no size known" from a size.
+        """
+        wanted = set(artwork_ids)
+        return {work_id: size for work_id, size in self._store.original_sizes().items() if work_id in wanted}
+
     def archive_artworks(self, artwork_ids: Sequence[str]) -> Sequence[str]:
         """Archive each of these works that is in circulation, in one transaction.
 

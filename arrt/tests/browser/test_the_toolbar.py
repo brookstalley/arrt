@@ -51,7 +51,10 @@ def test_artworks_has_view_sort_and_filter_on_its_toolbar(ui, seeded_service):
     controls = ui.page.locator(".page-toolbar-controls")
     assert controls.locator("button", has_text="View:").count() == 1
     assert controls.locator("button", has_text="Sort:").count() == 1
-    assert controls.locator("button", has_text="Filter").get_attribute("aria-pressed") == "true"
+    # Named for what pressing it does (#288), where it was a *Filter* toggle
+    # read by its pressed state; with the rails out, it puts them away.
+    assert controls.locator("button", has_text="Hide filters").count() == 1
+    assert controls.locator("button", has_text="Show filters").count() == 0
 
 
 def test_the_table_view_lists_every_work_and_opens_one(ui, seeded_service):
@@ -117,14 +120,14 @@ def test_filter_puts_the_rails_away_and_brings_them_back(ui, seeded_service):
     ui.open("#collection")
     ui.page.wait_for_selector("aside.rails")
 
-    ui.page.click(".page-toolbar-controls button:has-text('Filter')")
+    ui.page.click(".page-toolbar-controls button:has-text('Hide filters')")
     ui.page.wait_for_function("() => window.location.hash.includes('filters=hidden')")
     # The rails going is the repaint; waiting on the grid would find the old one.
     ui.page.wait_for_selector("aside.rails", state="detached")
     ui.page.wait_for_selector("ul.grid")
-    assert ui.page.locator(".page-toolbar-controls button:has-text('Filter')").get_attribute("aria-pressed") == "false"
+    assert ui.page.locator(".page-toolbar-controls button:has-text('Hide filters')").count() == 0
 
-    ui.page.click(".page-toolbar-controls button:has-text('Filter')")
+    ui.page.click(".page-toolbar-controls button:has-text('Show filters')")
     ui.page.wait_for_selector("aside.rails")
     assert "filters=" not in ui.page.evaluate("() => window.location.hash")
 

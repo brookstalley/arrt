@@ -39,7 +39,7 @@ import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { selectionMode } from "../core/selecting.js";
 import { state } from "../core/state.js";
-import { menuButton, toggleButton, toolbar } from "../core/toolbar.js";
+import { menuButton, toolbar } from "../core/toolbar.js";
 
 /* The typed vocabulary, in vocabulary order, and the words the rail puts on it.
  *
@@ -56,6 +56,26 @@ const FACET_LABELS = {
   medium: "Medium",
   palette: "Palette",
 };
+
+/* *Size on the wall*: the fit bands `GET /api/works` counts (`fit`), in the
+ * words a card's fit badge uses (`core/badges.js`), and `unknown` for a work
+ * with no master yet. Carried in `chosen` beside the six kinds, under the
+ * route's own parameter name, so the query and *Select all*'s filter body both
+ * spell it the way the server reads it. */
+const FIT = "fit";
+const FIT_LABELS = {
+  native: "Native",
+  matted_small: "Matted small",
+  below_floor: "Below floor",
+  unknown: "No size known",
+};
+
+/* *Not on any wall*, in the address as `?wall=none`: works no wall plays now,
+ * through the theme or selection hanging on it (the owner's ruling of
+ * 2026-10-08 on #288). Not "never hung", which nothing records. */
+function notOnWall() {
+  return state.params.wall === "none";
+}
 
 const CONTACT = "contact";
 const CATALOGUE = "catalogue";
@@ -144,11 +164,14 @@ function joinValues(values) {
 function facetsFor(params) {
   const chosen = {};
   for (const kind of FACET_KINDS) chosen[kind] = splitValues(params[kind]);
+  chosen[FIT] = splitValues(params[FIT]);
   return chosen;
 }
 
+/* Whether any rail narrowing is chosen: a facet, a size on the wall, or *Not on
+ * any wall*. The theme is asked about separately, since the heading names it. */
 function anyFacetChosen(chosen) {
-  return FACET_KINDS.some((kind) => chosen[kind].length);
+  return FACET_KINDS.some((kind) => chosen[kind].length) || chosen[FIT].length > 0 || notOnWall();
 }
 
 /* The change to the address that turns one facet value on or off. The rest of
@@ -390,7 +413,7 @@ function facetRail(groups, chosen) {
   return rails;
 }
 
-function facetOption(kind, option, chosen) {
+function facetOption(kind, option, chosen, label = option.value) {
   // The count is inside the control's own text, not beside it. A disabled control
   // is skipped by the tab sequence, so a count living in adjacent text is a count
   // a screen-reader user never hears — and the count is the whole difference
@@ -403,7 +426,7 @@ function facetOption(kind, option, chosen) {
     // would read as the collection having lost values rather than as an empty
     // intersection.
     disabled: option.disabled,
-    text: `${option.value} (${option.count})`,
+    text: `${label} (${option.count})`,
     // What finds this option again after the repaint its click causes, so the
     // keyboard stays on it (`core/router.js`).
     "data-focus-key": `facet:${kind}:${option.value}`,
@@ -411,6 +434,49 @@ function facetOption(kind, option, chosen) {
     // and View are: it changes what the page shows, not which page it is.
     onclick: () => goWithParams(facetChange(chosen, kind, option.value)),
   });
+}
+
+/* The clean-up facets (#288), counted by the server like the rest.
+ *
+ * *Size on the wall* offers the fit bands, several at once meaning either, as
+ * a facet's values do. Drawn only once it can narrow — two bands holding works,
+ * or one chosen: a catalogue whose works all fall in one band has nothing to
+ * choose between, and a group that selects everything is a control with nothing
+ * behind it. */
+function fitRail(fits, chosen) {
+  const holding = fits.filter((option) => option.count > 0).length;
+  if (holding < 2 && !fits.some((option) => option.selected)) return null;
+  return el("div", { class: "rail" }, [
+    el("h2", { text: "Size on the wall" }),
+    el(
+      "ul",
+      { class: "rail-options" },
+      fits.map((option) => el("li", {}, [facetOption(FIT, option, chosen, FIT_LABELS[option.value] || option.value)])),
+    ),
+  ]);
+}
+
+/* *Not on any wall*: one toggle, drawn once some work is on a wall (its count
+ * is below the works the rest of the filter selects) or it is chosen. Before
+ * anything hangs, every work is on no wall and the option would select them all. */
+function wallRail(option, total) {
+  if (!option || (option.count >= total && !option.selected)) return null;
+  return el("div", { class: "rail" }, [
+    el("h2", { text: "Walls" }),
+    el("ul", { class: "rail-options" }, [
+      el("li", {}, [
+        el("button", {
+          class: "facet-option",
+          type: "button",
+          "aria-pressed": option.selected ? "true" : "false",
+          disabled: option.disabled,
+          text: `Not on any wall (${option.count})`,
+          "data-focus-key": "wall:none",
+          onclick: () => goWithParams({ wall: option.selected ? "" : "none" }),
+        }),
+      ]),
+    ]),
+  ]);
 }
 
 /* The rail's Theme group: one theme at a time, beside the facets.
@@ -505,10 +571,13 @@ function pageToolbar(density, selection) {
       current: offeredSort() || "title",
       onChoose: (value) => goWithParams({ sort: value === "title" ? "" : value }),
     }),
-    toggleButton({
-      label: "Filter",
-      pressed: !railsHidden(),
-      onToggle: (show) => goWithParams({ filters: show ? "" : "hidden" }),
+    // Its label says what pressing it does, *Show filters* or *Hide filters*,
+    // rather than a pressed state on a word that reads the same either way (#288).
+    el("button", {
+      class: "action quiet filters-toggle",
+      type: "button",
+      text: railsHidden() ? "Show filters" : "Hide filters",
+      onclick: () => goWithParams({ filters: railsHidden() ? "" : "hidden" }),
     }),
   ];
   return toolbar({ actions: selection ? [selection.toggle] : [], controls });
@@ -530,7 +599,9 @@ function nothingShown(query, chosen, shownTheme) {
     !query &&
     !shownTheme &&
     artists.length === 1 &&
-    !FACET_KINDS.filter((kind) => kind !== "artist").some((kind) => chosen[kind].length);
+    !FACET_KINDS.filter((kind) => kind !== "artist").some((kind) => chosen[kind].length) &&
+    !chosen[FIT].length &&
+    !notOnWall();
 
   if (onlyAnArtist) {
     return emptyState(
@@ -574,6 +645,10 @@ function filterPhrase(query, chosen, shownTheme) {
       parts.push(`${FACET_LABELS[kind].toLowerCase()} ${chosen[kind].map((value) => `“${value}”`).join(" or ")}`);
     }
   }
+  if (chosen[FIT].length) {
+    parts.push(`size on the wall ${chosen[FIT].map((value) => `“${FIT_LABELS[value] || value}”`).join(" or ")}`);
+  }
+  if (notOnWall()) parts.push("not on any wall");
   return parts.join(", and ");
 }
 
@@ -621,7 +696,7 @@ export async function viewCollection(generation) {
         if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
       },
       offeredSort(),
-      { theme },
+      { theme, notOnWall: notOnWall() },
     );
   // A bookmark can outlive the theme it names. The server refuses an unknown
   // theme, rightly, since answering with the whole catalogue under its name
@@ -666,7 +741,7 @@ export async function viewCollection(generation) {
   const recountRail = async () => {
     const rail = document.querySelector("aside.rails");
     if (!rail) return;
-    const counts = await fetchFilterCounts(query, chosen, { theme });
+    const counts = await fetchFilterCounts(query, chosen, { theme, notOnWall: notOnWall() });
     fill(rail, ...railContents(counts, chosen));
   };
   const tileOf = (artworkId) => grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
@@ -682,7 +757,7 @@ export async function viewCollection(generation) {
     held: {
       themes: themes.map((option) => ({ theme_id: option.theme_id, name: option.name })),
       shownTheme,
-      filter: worksFilterBody(query, chosen, offeredSort(), { theme }),
+      filter: worksFilterBody(query, chosen, offeredSort(), { theme, notOnWall: notOnWall() }),
       total: page.total,
       onAdded: (into, added) => moveThemeCount(into, added),
       onArchived: (ids) => {
@@ -756,7 +831,12 @@ function staleThemeNote() {
  * drawn empty when there is neither, since a rail with no group in it reads as
  * a screen that failed to load its filters. */
 function railContents(page, chosen) {
-  const groups = [themeRail(page.themes), ...facetRail(page.facets, chosen)].filter(Boolean);
+  const groups = [
+    themeRail(page.themes),
+    fitRail(page.fits || [], chosen),
+    wallRail(page.not_on_wall, page.total),
+    ...facetRail(page.facets, chosen),
+  ].filter(Boolean);
   return groups.length
     ? groups
     : [el("p", { class: "rail-note", text: "Nothing to filter by yet. Themes and facets appear here as works gain them." })];

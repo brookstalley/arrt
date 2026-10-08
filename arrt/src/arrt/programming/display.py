@@ -457,6 +457,27 @@ class DisplayService:
                 if not theme.hidden or theme.id == selected
             ]
 
+    def work_ids_on_walls(self) -> frozenset[str]:
+        """The ids of every work some wall plays now, through the theme or selection hanging there.
+
+        What Artworks' *Not on any wall* facet leaves out (the owner's ruling of
+        2026-10-08 on #288): a work is on a wall when a theme or selection
+        hanging on one holds it and it is not kept off every wall. **Not what a
+        wall has shown**: which works a wall actually displayed is not
+        recorded, so "never hung" cannot be answered, and this does not pretend
+        to. Nor is it readiness: a held work a wall would skip for want of a
+        render still counts as on it, since the curator's act — hanging the
+        theme — is what this answers for.
+
+        Ids, opaque to this plane, for the bindings to hand the Library, as
+        `theme_work_ids` are. One read scope.
+        """
+        with self._store.reading():
+            hung = {assignment.theme_id for assignment in self._store.list_assignments()}
+            kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
+            playing = {membership.artwork_id for theme_id in hung for membership in self._store.list_memberships(theme_id)}
+        return frozenset(playing - kept_off)
+
     def theme_work_ids(self, theme_id: str) -> Sequence[str]:
         """The ids of the theme's works, in curated order.
 

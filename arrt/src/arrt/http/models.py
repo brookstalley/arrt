@@ -585,6 +585,14 @@ class WorkPageOut(BaseModel):
     #: time, so there are tens of them. If that stops being true, so does the
     #: case for sending them whole with each page.
     themes: list[ThemeOptionOut] = []
+    #: *Size on the wall*: one option per fit band, always all four in the order
+    #: `native`, `matted_small`, `below_floor`, `unknown` (no master yet), each
+    #: counted over every other filter but the bands, as a facet is.
+    fits: list[FacetOptionOut] = []
+    #: *Not on any wall*: the works no wall plays now, through the theme or
+    #: selection hanging on it, counted over every other filter. Null only on
+    #: a page built before the facet existed.
+    not_on_wall: FacetOptionOut | None = None
 
 
 class SourceOut(BaseModel):
@@ -2195,6 +2203,8 @@ class WorksFilter(BaseModel):
     subject: list[str] = []
     medium: list[str] = []
     palette: list[str] = []
+    fit: list[str] = []
+    not_on_wall: bool = False
 
 
 class WorkSelection(BaseModel):

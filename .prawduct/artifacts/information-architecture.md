@@ -481,11 +481,23 @@ listed below so it can be disputed.
   added, and applies to a theme filtered here as to any filter (a theme's
   curated order is its own page's; #169). **Filter shows and hides the rails rather than replacing
   them with a dropdown**, so the facet counts stay in view while browsing
-  (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). With
-  the rails away, a facet or a theme still narrowing the works says so above
+  (ruled by the owner 2026-09-30, departing from Radarr's Filter menu). Its
+  label says what it does, *Hide filters* or *Show filters* (2026-10-08, #288).
+  With the rails away, a facet or a theme still narrowing the works says so above
   them and offers the rails back, since the grid would otherwise read as the
-  whole collection. Other list pages have no toolbar yet, because they have no
-  actions or views to put in one.
+  whole collection. An Artist's page, the search results and a Topic's page
+  have a toolbar holding *Select* alone (2026-10-08, Chunk 05); other list
+  pages have none yet, because they have no actions or views to put in one.
+- **Two clean-up facets in the rail** *(2026-10-08,
+  `build-plan-lists-settings-and-scale.md` Chunk 06, #288)*: *Size on the
+  wall*, the fit bands a card's badge names (Native, Matted small, Below floor,
+  and No size known for a work with no master), and *Walls › Not on any wall*,
+  the works no wall plays now through the theme or selection hanging on it
+  (the owner's ruling: which works a wall has shown is not recorded, so "never
+  hung" is not offered). Both are counted by the server like a facet and
+  compose with the search, the theme and the facets. Each group is drawn only
+  once it can narrow: *Size on the wall* when two bands hold works, *Not on any
+  wall* once something hangs.
 - **Wanted holds the works the curator wants** *(shown since 2026-10-02, the
   owner's ruling on #168, `build-plan-after-review.md` Chunk 05)*: a work wanted
   on a no-scan review card, or whose scan on offer was turned down, which is one
@@ -937,7 +949,7 @@ who did not edit this table.
 | Screen | Primary | Secondary | Actions | Status |
 |---|---|---|---|---|
 | Walls | What each wall's screen is doing, from the server's `display_state` *(2026-10-08, `build-plan-display-state.md` Chunk 04; `current_work_id` alone is no longer read)*: showing art leads with the work, large, under "On the wall now", and a picture the wall did not put there says "A picture {wall} did not put there"; "Somebody is using the screen", "Its screen is off", "No screen", "Not assigned to a screen" or "Not known", each with since when where known; a wall silent past three heartbeats says "Not heard from since {date} ({age})" and leads with the work it last reported, or says what it last reported. "Its screen is off" rather than "The screen is off", because a short string opening "The" reads as a label (§ Labels) | Title, artist, date and medium; what the wall draws from and "until changed"; which wall; which client shows it, on which output ("Shown by Hall Pi on hdmi-a-1"), or "No client shows this wall" with a link to Settings › Clients *(2026-10-02, `build-plan-clients.md` Chunk 02)*; "Shown by" only where the client reports a screen detected on that output, else "Assigned to…" with no screen detected (off or unplugged), or why that is not known *(2026-10-07, #274; `core/outputs.js`)*; a client report older than three heartbeats is not known now, with its age, on Walls and Clients alike *(#295)* | Skip, Not this one again, Change, History, open work *(Skip was "next" until 2026-10-07; the wall token panel, added 2026-09-30, was retired 2026-10-02 with wall tokens; a wall is assigned to a client in Settings › Clients)* | Panel + TV health, quietly |
-| Artworks | The grid of images | Counts, active filters | Search; filter by facet and by theme, which compose; *Select* mode (`core/selecting.js`, one model on every list), whose bar at the foot of the window offers *Select all* — every work the filter matches, loaded or not — and adds the ticked works to a theme or to a *New theme…*, removes them from the theme being filtered, or archives them | Total, and what is filtered out |
+| Artworks | The grid of images | Counts, active filters | Search; filter by facet, by theme, by size on the wall and by *Not on any wall*, which compose; *Hide filters* / *Show filters*; *Select* mode (`core/selecting.js`, one model on every list), whose bar at the foot of the window offers *Select all* — every work the filter matches, loaded or not — and adds the ticked works to a theme or to a *New theme…*, removes them from the theme being filtered, or archives them | Total, and what is filtered out |
 | Work | The image at full size; for a work not held, the image Wikidata found, else the first picture an image source answers with (2026-10-06) | Artist, facets, mat colour, rendition size; for a work not held, its date, medium, and holder with number, and *What the image sources hold* (2026-10-06): a row per source as a glyph and a word (◌ Asking…, ● N found, ○ Holds none, ○ Holds this work but gives no size for it; not shown, ⊘ Holds a work by this title by another artist; not shown, ▲ Could not be asked; trying again in 10 minutes, — Can't look this work up), then its finds best first, each with its pixels, fit, source and why a Get would keep it, six and then *Show N more*, and one status line saying only what changed | *Hang…* on a wall, *Allow on walls again* when kept off every wall (2026-10-07), theme membership, re-mat, archive (secondary), change the Wikidata item or say there is none, Retry a failed fetch; for a work not held, *Get this work*, its artist, and the rest of their work | The walls and themes it is on, or kept off every wall since when (2026-10-07); fit verdict, image state, and while the acquisition queue owes it one, where it stands there; for a work not held, *Wanted* (◑), *Not held · Image found* (◐) or *Not held* (○) |
 | Search results | The artists, works and topics the words find, *Held* then *Not held*, artists first in each | Each artist's years; each work's maker; each topic's kind, and Wikidata's description for its own; how many library works match beyond those listed | Open any result; open the library's matches in Artworks (*All N in Artworks*); in *Select* mode, the one model every list shares, tick works not held (or *Select all*) and get them; *Ask about* when Wikidata has nothing | Each artist's and work's mark; the group each result is in; whether Wikidata answered |
 | Ask | The intent box and the conversations | Samples inline | Type, react, commit, *Get* with its tier | A Get's progress, spend |
