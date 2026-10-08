@@ -138,6 +138,10 @@ def test_words_and_fractions_around_a_measurement_are_read_as_written(source, im
         "30 cm × 40 cm",
         # A figure outside any measurement: "Sheet 3" is not a dimension.
         "Sheet 3: 10 × 12 cm",
+        # A thousands separator or a decimal comma? "1,200" was read as 1.2.
+        "1,200 × 800 mm",
+        # A fraction over nought raised out of the manifest build.
+        "2 1/0 × 3 in",
     ],
 )
 def test_a_part_not_wholly_read_is_left_as_the_source_wrote_it(source):

@@ -85,9 +85,17 @@ def for_label(dimensions: str | None, units: Units) -> str | None:
 
 
 def _wholly_read(part: str, found: list[re.Match[str]]) -> bool:
-    """At most one measurement per system, and no figure left outside them."""
+    """At most one measurement per system, no figure left outside them, and no
+    number this cannot read for certain.
+
+    A comma followed by three digits ("1,200") may be a thousands separator or a
+    decimal comma, and a fraction over nought states nothing; either is the
+    source's to state, not this function's to guess.
+    """
     systems = [_system(_unit(match.group("unit"))) for match in found]
     if len(systems) != len(set(systems)):
+        return False
+    if any(re.search(r"\d,\d{3}(?!\d)|/0+(?!\d)", match.group(0)) for match in found):
         return False
     outside = part
     for match in found:
