@@ -62,6 +62,28 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Get and review clarity, chunk 04: Queue's Retry, and the walk
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** "Retry all" on one failure group read as retrying every failure on
+the page (`build-plan-get-and-review-clarity.md` chunk 04).
+
+**What:**
+- A failure group's button says how many it retries: *Retry 3*, or *Retry*
+  for a group of one. Its spoken name is "Retry the 3 works that failed:
+  <cause>". The line above the groups says each group's Retry puts its works
+  back in line. `information-architecture.md` and `api-contract.md` say so.
+- The walk was re-run on the synthetic corpus (`.ux-walk/clarity-synthetic`):
+  84 captures, 21 screens, no accessibility violations, console errors or
+  dead ends. The corpus holds no Gets, so a Get's page and Review were seen
+  from stubbed pages only. The owner's look at the whole plan is queued in
+  `operator-verification.md`.
+
+**Tests:** the two Queue tests that pressed *Retry all* now assert the label,
+*Retry* for one and *Retry 4* for four, and press it by that label. Both
+failed before the change.
+
 ## 2026-10-08: Get and review clarity, chunk 03: Review
 
 <!-- prawduct: scope=get-and-review-clarity -->

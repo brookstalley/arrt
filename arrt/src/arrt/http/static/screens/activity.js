@@ -143,7 +143,7 @@ function acquisitionPanel(listing, causes, opened, generation) {
   ]);
 }
 
-/* What Retry all last did, said once on the repaint it caused and then gone. */
+/* What a group's Retry last did, said once on the repaint it caused and then gone. */
 let retryAllSaid = null;
 
 function takeRetryAllSaid() {
@@ -159,8 +159,10 @@ function retryAllSentence(result) {
 }
 
 /* The works that failed, one row per cause. A cause opens into its works at its
- * own address (`#queue?cause=…`), which is navigation and so a link; Retry all
- * is an act and so a button, retrying the whole group in one request. */
+ * own address (`#queue?cause=…`), which is navigation and so a link; its Retry
+ * is an act and so a button, retrying the whole group in one request. The
+ * button says how many it retries ("Retry 3"), or just "Retry" for one, so it
+ * never reads as retrying every failure on the page. */
 function failurePanel(listing, causes, opened, generation) {
   const repaint = () => viewQueue(generation);
   const params = state.params;
@@ -188,8 +190,8 @@ function failurePanel(listing, causes, opened, generation) {
           el("button", {
             class: "action",
             type: "button",
-            text: "Retry all",
-            "aria-label": `Retry all ${counted(group.works, "work")} that failed: ${group.cause}`,
+            text: group.works === 1 ? "Retry" : `Retry ${group.works}`,
+            "aria-label": `Retry the ${counted(group.works, "work")} that failed: ${group.cause}`,
             onclick: (event) =>
               attempt(
                 event.currentTarget,
@@ -210,7 +212,7 @@ function failurePanel(listing, causes, opened, generation) {
   });
   return el("section", { class: "failures", "aria-label": "Failed" }, [
     el("h3", { text: `Failed (${listing.failing})` }),
-    el("p", { class: "muted", text: "Grouped by why the last try failed. Retry all puts every work of a group back in line." }),
+    el("p", { class: "muted", text: "Grouped by why the last try failed. Each group's Retry puts its works back in line." }),
     el("ul", { class: "failure-causes" }, rows),
     pager(causes, "causes_offset", causes.causes.length, "causes"),
   ]);

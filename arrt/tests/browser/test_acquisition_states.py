@@ -189,7 +189,8 @@ def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_its_own_
     head = ui.page.inner_text(".failure-cause")
     assert "refused." in head
     assert "1 work" in head
-    assert ui.page.locator(".failure-cause button:has-text('Retry all')").count() == 1
+    # A group of one says "Retry": "Retry all" over one work promised more than it did.
+    assert ui.page.locator(".failure-cause button").all_text_contents() == ["Retry"]
 
     ui.page.click(".failure-cause a:has-text('Show the works')")
     ui.page.wait_for_selector(".failure-cause-works tbody tr")
@@ -249,12 +250,14 @@ def test_retry_all_retries_the_group_in_one_request_and_says_what_it_did(ui, acc
     ui.open("#queue")
     ui.page.wait_for_selector(".failure-cause")
 
-    ui.page.click(".failure-cause button:has-text('Retry all')")
+    # The button says how many it retries: the whole group, four works.
+    assert ui.page.locator(".failure-cause button").all_text_contents() == ["Retry 4"]
+    ui.page.click(".failure-cause button:text-is('Retry 4')")
     said = ui.page.wait_for_selector(".retry-all-said")
 
     assert said.inner_text() == "3 works put back in line. 1 work not: The work has no source to acquire from."
     assert len(ui.requests_matching("/api/acquisitions/causes/retry")) == 1
-    assert ui.requests_matching("/acquisition/retry") == [], "Retry all asked once per work"
+    assert ui.requests_matching("/acquisition/retry") == [], "a group's Retry asked once per work"
     assert {store.get_queued_acquisition(work.id).failures for work in retried} == {0}
     # The one refused stays under its cause; the three are back in line.
     assert ui.page.locator(".failure-cause").count() == 1
