@@ -320,8 +320,15 @@ function stateLead(wall, shown, said, silent) {
       ? [el("p", { class: "wall-now-when", text: "On the wall now" }), el("p", { class: "wall-now-state", text: words })]
       : [
           el("p", { class: "wall-now-state", text: words }),
+          // A Player before display state has a work or nothing to say; one
+          // that reports state and says unreachable has lost its screen.
           said.state === "unreachable"
-            ? el("p", { class: "muted", text: `${wall.name}'s display is reporting, and has not said which work it is showing.` })
+            ? el("p", {
+                class: "muted",
+                text: shown.since
+                  ? `${wall.name}'s display is reporting, and cannot reach its screen.`
+                  : `${wall.name}'s display is reporting, and has not said which work it is showing.`,
+              })
             : null,
           shown.since ? el("p", { class: "muted", text: `Since ${readable(shown.since)}` }) : null,
         ];

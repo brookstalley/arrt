@@ -301,7 +301,9 @@ for a picture this wall did not put there; the schema refuses a work beside any
 other state. Every label of the wall reads this record and shows a caption only
 while it says `showing_art`. A heartbeat without it is a Player before minor 3,
 whose `current_work_id` the server reads as `showing_art`.
-`television_showing_art` stays for older readers.
+`television_showing_art` stays for older readers. **A reader reads a state name
+it does not know as `unreachable`**, naming no work, and keeps the rest of the
+heartbeat: a later minor may add a state, and Players upgrade before the server.
 
 ### The cutover
 

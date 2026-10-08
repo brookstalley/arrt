@@ -144,18 +144,22 @@ def _problem_with_display_state(value: object) -> str | None:
     """Minor 3's `display_state`, checked as the schema states it.
 
     Refused rather than stored, because Walls and every label read this record:
-    a state the server does not know, or a work named beside a screen that is
-    not showing art, would be shown as a fact about the room.
+    a malformed one, or a work named beside a screen that is not showing art,
+    would be shown as a fact about the room. **A state name this server does
+    not know is not refused**: minors only add, and Players upgrade before the
+    server (`player-contract.md`), so refusing it would turn every heartbeat of
+    an upgraded Player into a silent wall. It is read as unreachable instead
+    (`display_state.reported_state`), and the rest of the heartbeat stands.
     """
     if not isinstance(value, dict) or set(value) != {"state", "work_id", "since"}:
         return "'display_state' is an object of exactly 'state', 'work_id' and 'since'."
     state = value["state"]
-    if state not in REPORTED_DISPLAY_STATES:
-        return f"'display_state.state' is one of {', '.join(sorted(REPORTED_DISPLAY_STATES))}."
+    if not isinstance(state, str) or not state:
+        return "'display_state.state' is a state name."
     work_id = value["work_id"]
     if work_id is not None and not isinstance(work_id, str):
         return "'display_state.work_id' is a work id, or null."
-    if work_id is not None and state != "showing_art":
+    if work_id is not None and state in REPORTED_DISPLAY_STATES and state != "showing_art":
         return "'display_state.work_id' names a work only while the state is showing_art."
     since = value["since"]
     if not isinstance(since, str) or _INSTANT.fullmatch(since) is None:
@@ -166,10 +170,14 @@ def _problem_with_display_state(value: object) -> str | None:
 def read(path: Path, *, now: datetime | None = None) -> HeartbeatReading:
     """Observe the heartbeat file. Absent is an answer, not a failure."""
     seen = observations.observe(path, key=REPORTED_AT_KEY, now=now)
+    # The same test the HTTP route applies, so a file written some other way
+    # reads as unreadable on every screen alike, never current on one and
+    # silent on another.
+    problem = seen.problem or (problem_with(seen.contents) if seen.contents is not None else None)
     return HeartbeatReading(
         path=seen.path,
         reported_at=seen.at,
         age_seconds=seen.age_seconds,
         contents=seen.contents,
-        problem=seen.problem,
+        problem=problem,
     )

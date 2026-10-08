@@ -115,8 +115,16 @@ def test_no_report_is_silent_with_nothing_last(tmp_path):
     assert (shown.since, shown.reported_at, shown.age_seconds, shown.last) == (None, None, None, None)
 
 
-@pytest.mark.parametrize("fixture", sorted((CONTRACT / "invalid").glob("display-state-*.json")), ids=lambda path: path.name)
-def test_a_file_carrying_a_display_state_the_contract_refuses_is_silent(tmp_path, fixture):
+# The unknown-state fixture is schema-invalid (the writer's contract) and read,
+# not refused, by the server: a later minor may add a state, and Players upgrade
+# first, so refusing it would silence an upgraded Player's wall.
+MALFORMED = sorted(
+    path for path in (CONTRACT / "invalid").glob("display-state-*.json") if path.name != "display-state-unknown.json"
+)
+
+
+@pytest.mark.parametrize("fixture", MALFORMED, ids=lambda path: path.name)
+def test_a_file_carrying_a_malformed_display_state_is_silent(tmp_path, fixture):
     """The file channel is not checked on the way in, so the read refuses what POST would."""
     document = json.loads(fixture.read_text())
     shown = display_state_of(ASSIGNED, reading_of(tmp_path, document))
@@ -125,9 +133,18 @@ def test_a_file_carrying_a_display_state_the_contract_refuses_is_silent(tmp_path
     assert shown.last is None
 
 
-@pytest.mark.parametrize("fixture", sorted((CONTRACT / "invalid").glob("display-state-*.json")), ids=lambda path: path.name)
-def test_the_contract_refuses_each_invalid_display_state_and_so_does_the_server(fixture):
+@pytest.mark.parametrize("fixture", MALFORMED, ids=lambda path: path.name)
+def test_the_server_refuses_each_malformed_display_state(fixture):
     assert heartbeat.problem_with(json.loads(fixture.read_text())) is not None
+
+
+def test_a_state_a_later_minor_added_is_read_as_unreachable_naming_no_work(tmp_path):
+    document = json.loads((CONTRACT / "invalid" / "display-state-unknown.json").read_text())
+    document["display_state"]["work_id"] = "w-dali-1"
+
+    assert heartbeat.problem_with(document) is None
+    shown = display_state_of(ASSIGNED, reading_of(tmp_path, document))
+    assert (shown.state, shown.work_id) == (ScreenState.UNREACHABLE, None)
 
 
 @pytest.mark.parametrize("fixture", sorted((CONTRACT / "valid").glob("*.json")), ids=lambda path: path.name)
@@ -155,3 +172,16 @@ def test_survey_walls_carries_each_walls_state(services, wall_settings):
 
     assert states == {hall.id: ScreenState.IN_USE, study.id: ScreenState.UNASSIGNED}
     assert services.display.get_wall_view(hall.id).display_state.state is ScreenState.IN_USE
+
+
+def test_the_server_knows_exactly_the_states_the_schema_names():
+    """Copied by hand from the schema, so a state added there and not here is caught by name.
+
+    The server's own two (unassigned, silent) are the only states it has that a
+    controller cannot report.
+    """
+    schema = json.loads((Path(__file__).parents[3] / "contract" / "schemas" / "heartbeat.v1.schema.json").read_text())
+    named = set(schema["properties"]["display_state"]["properties"]["state"]["enum"])
+
+    assert set(heartbeat.REPORTED_DISPLAY_STATES) == named
+    assert {state.value for state in ScreenState} - named == {"unassigned", "silent"}

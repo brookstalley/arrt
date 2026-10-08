@@ -134,8 +134,9 @@ Nothing here is built for it, and these rules keep it possible:
 1. **Display state** (a small build, ahead of wave 4). The controllers report it on
    change; the server keeps it; Walls reads it in place of `current_work_id` alone;
    today's panel, still on the Frame loop, follows the table above.
-   Contract: a minor bump of the heartbeat, or a document of its own beside it,
-   decided in that plan.
+   Contract: heartbeat minor 3's `display_state` (`player-contract.md` § The
+   heartbeat, minor 3), written on change; a reader takes a state name it does
+   not know as unreachable.
 2. **Label outputs and their mapping** (#188, after #181). Clients report label
    outputs; the server maps a wall's labels; a label renderer runs per label output
    on any client; `EPD_DEVICE`'s refusal without a Frame goes

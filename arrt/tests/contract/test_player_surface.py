@@ -14,6 +14,7 @@ holds that a token issued under the old scheme opens nothing.
 import hashlib
 import json
 import logging
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -228,11 +229,21 @@ def test_a_heartbeat_the_panel_could_not_read_is_refused_and_not_written(server_
 
 @pytest.mark.parametrize(
     "fixture",
-    sorted((CONTRACT / "fixtures" / "heartbeat.v1" / "invalid").glob("display-state-*.json")),
+    sorted(
+        path
+        for path in (CONTRACT / "fixtures" / "heartbeat.v1" / "invalid").glob("display-state-*.json")
+        if path.name != "display-state-unknown.json"
+    ),
     ids=lambda path: path.name,
 )
-def test_a_display_state_the_contract_refuses_is_refused_and_not_written(server_url, services, token, wall_id, fixture):
-    """Walls and every label read this record, so the server stores no state the schema refuses."""
+def test_a_malformed_display_state_is_refused_and_not_written(server_url, services, token, wall_id, fixture):
+    """Walls and every label read this record, so the server stores no malformed state.
+
+    The unknown-state fixture is the one schema-invalid display state the server
+    reads instead (the test below): the schema is the writer's contract, and a
+    reader that refused a state a later minor added would silence every upgraded
+    Player's wall.
+    """
     response = httpx.post(
         server_url + _path("heartbeat", wall_id=wall_id), json=json.loads(fixture.read_text()), headers=_bearer(token)
     )
@@ -241,6 +252,19 @@ def test_a_display_state_the_contract_refuses_is_refused_and_not_written(server_
     assert "display_state" in response.json()["error"]
     reading = next(entry for entry in services.display.survey_wall_status() if entry.wall.id == wall_id).heartbeat
     assert reading.absent
+
+
+def test_a_display_state_a_later_minor_added_is_read_as_unreachable(server_url, services, token, wall_id):
+    document = json.loads((CONTRACT / "fixtures" / "heartbeat.v1" / "invalid" / "display-state-unknown.json").read_text())
+    # Stamped now, so the wall is current rather than silent and the state is what is read.
+    document["reported_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+
+    response = httpx.post(server_url + _path("heartbeat", wall_id=wall_id), json=document, headers=_bearer(token))
+
+    assert response.status_code == 204, response.text
+    walls = httpx.get(server_url + "/api/walls").json()["walls"]
+    state = next(wall for wall in walls if wall["wall_id"] == wall_id)["display_state"]
+    assert (state["state"], state["work_id"]) == ("unreachable", None)
 
 
 # -- admission --------------------------------------------------------------------------

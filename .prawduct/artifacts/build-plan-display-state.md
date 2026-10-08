@@ -112,7 +112,7 @@ Done when:
 2. `/api/walls` and the MCP walls read carry it; a pre-minor-3 heartbeat maps
    `current_work_id` to `showing_art` so today's Players still read.
 3. Walls' card leads with the state: the work when `showing_art`; "Somebody is
-   using the screen", "The screen is off", "No screen", "Not known" otherwise,
+   using the screen", "Its screen is off" (the labels rule refuses a short label opening "The "), "No screen", "Not known" otherwise,
    in the product's voice; `current_work_id` alone is no longer read.
 4. Browser tests seed real heartbeats for each state.
 

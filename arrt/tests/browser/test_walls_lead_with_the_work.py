@@ -280,6 +280,11 @@ def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_
     assert lead.get_attribute("data-state") == state
     assert lead.locator(".wall-now-state").inner_text() == words
     assert "Since " in lead.inner_text()
+    # The sentence for a Player before display state is not said of one that
+    # reports state: an unreachable Frame has lost its set, not its words.
+    assert "has not said which work it is showing" not in lead.inner_text()
+    if state == "unreachable":
+        assert "cannot reach its screen" in lead.inner_text()
     assert lead.locator("img").count() == 0
     assert "On the wall now" not in lead.inner_text()
     # The lead still leads the card.

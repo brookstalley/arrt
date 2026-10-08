@@ -86,6 +86,10 @@ def reported_state(contents: dict[str, object]) -> ReportedState:
     stated = contents.get("display_state")
     if isinstance(stated, dict):
         work_id = stated["work_id"]
+        if stated["state"] not in heartbeat.REPORTED_DISPLAY_STATES:
+            # A state a later minor added: the controller said something this
+            # server cannot name, so it shows as not known and names no work.
+            return ReportedState(state=ScreenState.UNREACHABLE, work_id=None, since=observations.instant(stated["since"]))
         return ReportedState(
             state=ScreenState(stated["state"]),
             work_id=work_id if isinstance(work_id, str) else None,
@@ -101,7 +105,7 @@ def display_state_of(wall: Wall, reading: HeartbeatReading) -> DisplayState:
     """The wall's state: unassigned, else silent, else what its controller reported."""
     if wall.client_id is None or wall.output is None:
         return DisplayState(state=ScreenState.UNASSIGNED, work_id=None, since=None, reported_at=None, age_seconds=None, last=None)
-    readable = reading.contents is not None and reading.problem is None and heartbeat.problem_with(reading.contents) is None
+    readable = reading.contents is not None and reading.problem is None
     last = reported_state(reading.contents) if readable and reading.contents is not None else None
     stale = reading.age_seconds is not None and reading.age_seconds > STALE_AFTER_SECONDS
     if last is None or stale:
