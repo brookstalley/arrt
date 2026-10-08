@@ -62,6 +62,64 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: One selection model, clean-up facets, every work reachable, Queue by cause, Topics before any are held
+
+<!-- prawduct: scope=lists-settings-and-scale -->
+
+**Why:** Chunks 05–09 of `build-plan-lists-settings-and-scale.md`: review
+findings 17, 18, 23, 28 and 29 (#131, #281, #285, #288, #289).
+
+**What:**
+- **Chunk 05.** One selection module, `core/selecting.js` (`core/selection.js`
+  was already the hang-a-selection act), on Artworks, Artist, Search and Topic:
+  a Select toggle that reads *Select* / *Stop selecting*, ticks hidden outside
+  select mode, and a sticky bar with Select all / Select none and every act
+  valid for the selection: a theme picker with *New theme…*, Add, Remove from
+  the shown theme, Archive (asks first), or Get for works not held. Select all
+  sends `{filter, except_ids}`, so it acts on every match, loaded or not
+  (`POST /api/themes/{id}/works/bulk`, `/works/remove`, `POST /api/works/archive`).
+- **Chunk 06.** `GET /api/works` takes `fit` (native, matted small, below floor,
+  no size known) and `not_on_wall`, each counted like the other facets. *Not on
+  any wall* is the owner's ruling for "never hung": what no hung theme or
+  selection plays now, less works kept off every wall. The planes meet as id
+  sets in the HTTP layer only (`DisplayService.work_ids_on_walls`), so neither
+  imports the other. The rail toggle reads *Show filters* / *Hide filters*.
+  Backlog item filed for recording which works a wall shows.
+- **Chunk 07.** Artworks pages from the server as the curator scrolls, with
+  *Show more* for the keyboard; `PAGE_CEILING` no longer limits it. Back
+  restores the pages loaded and focuses the card opened (card 900 stays card
+  900). A Posters tile with no image now opens its work.
+- **Chunk 08.** Queue groups failed fetches by cause on the server (a cause is
+  the reason with the work's own id or title taken out), largest first, each
+  with *Retry all* in one request; a group opens into its works, 25 a page,
+  named by title. Works in line page too. Retry's refusals name the work by
+  title, over MCP as well. `tools/ux_walk.py` wrote spaces as `+` in addresses,
+  which the client reads literally; it writes `%20` now.
+- **Chunk 09.** Topics always offers the 13th–21st centuries and twelve major
+  movements (`OFFERED_TOPICS`, QIDs checked 2026-10-08), each a link, a held one
+  never twice. A topic's works stream (NDJSON on `Accept`) so they show before
+  their makers are known, and the TopicSweep thread keeps the offered list's
+  answers warm, a week at most, one topic at a time, stopped by any refusal
+  (at most 63 queries a week). Topic names start with a capital.
+
+**Tests:** new `test_one_selection_model.py`, `test_acting_on_a_selection.py`,
+`test_clean_up_facets.py` (browser), `test_clean_up_facet_routes.py`,
+`test_acquisition_queue.py`, `test_acquisition_routes.py`, `test_topics_offered.py`,
+`test_topics_offered_surface.py`, `test_topics_before_any_are_held.py`,
+`test_wikidata_topics.py`, and new cases in `test_the_grid.py`,
+`test_navigation.py`, `test_acquisition_states.py`, each watched failing first or
+by mutation. Changed, not weakened: Select-toggle assertions read the label (no
+`aria-pressed`); the "no themes" tests now expect Select with *New theme…* and
+Archive; Get tests on Artist, Search and Topic enter select mode first; grid
+paging tests reach the end through *Show more*, and the runaway-guard test is
+replaced by one paging past the old ceiling (the 2,000-work test asserts every
+work is reachable); Queue's listing tests read failed works from their cause;
+Topics' held-list selector is narrowed now that a kind also holds the offered
+list, and two expectations capitalise the topic name; the three search-typing
+helpers wait for the dropdown's answer to all the words, because under load it
+opened on a mid-word pause (seen twice); a modifier-click test waits for the new
+tab's address rather than reading `about:blank`.
+
 ## 2026-10-08: Themes as cards, Settings as an index, Status as a table, and the #297 follow-ups
 
 <!-- prawduct: scope=lists-settings-and-scale -->

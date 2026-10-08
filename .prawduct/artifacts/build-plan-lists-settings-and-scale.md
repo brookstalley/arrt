@@ -151,11 +151,11 @@ back a version per wall under Clients.
 - [x] Chunk 02: Follow-ups and an Ask turn's tier
 - [x] Chunk 03: Themes index as cards
 - [x] Chunk 04: Settings index
-- [ ] Chunk 05: One selection model
-- [ ] Chunk 06: Clean-up facets
-- [ ] Chunk 07: Artworks reaches every work
-- [ ] Chunk 08: Queue at thousands
-- [ ] Chunk 09: Topics before any are held
+- [x] Chunk 05: One selection model
+- [x] Chunk 06: Clean-up facets
+- [x] Chunk 07: Artworks reaches every work
+- [x] Chunk 08: Queue at thousands
+- [x] Chunk 09: Topics before any are held
 - [x] Chunk 10: Status sources table
 - [ ] Chunk 11: Walk and re-photograph
 
@@ -230,7 +230,7 @@ Done when:
 Done when:
 
 1. Artworks, Artist, Search and Topic share one selection module
-   (`core/selection.js`): a Select toggle labelled with its state, Select all,
+   (new `core/selecting.js`; `core/selection.js` was already the hang-a-selection act): a Select toggle labelled with its state, Select all,
    and a fixed action bar with every action valid for the selection.
 2. Add to theme offers New theme…, so S7 runs without leaving Artworks.
 3. Select all on a filter larger than what has loaded acts on every match (the

@@ -10,6 +10,24 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Selection, clean-up, Artworks paging, Queue by cause, Topics — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunks 05–09.** Visual change: yes.
+
+Checked by the builders against seeded and synthetic libraries (Queue at 4,000
+works with `arrt/tools/ux_walk.py --synthetic 4000`); not yet deployed.
+
+- **Look at:** every list (Artworks, an artist, Search, a topic) has one Select
+  toggle and one bar at the foot of the window. Artworks' rail has *Size on the
+  wall* and *Walls › Not on any wall* once they would narrow anything. Topics
+  lists centuries and movements on its own.
+- **Try:** S7: on Artworks, Select, tick three, New theme…, name it, Add,
+  without leaving the page. S9: *Size on the wall › matted small* or *Not on any
+  wall*, Select all, Archive. S12: Topics › 16th century opens with works
+  already there (warmed), or fills as they arrive.
+- **Worth watching:** scrolling Artworks loads more without a jump; Back from a
+  work deep in the grid lands on it.
+
 ### Themes as cards, Settings as an index, Status as a table — added 2026-10-08
 
 **`build-plan-lists-settings-and-scale.md` Chunks 03, 04, 10.** Visual change: yes.
