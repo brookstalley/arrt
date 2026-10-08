@@ -56,6 +56,7 @@ The palette does not change. Both schemes keep their tokens, and
 | 03 | The Artworks grid and its filter rail |
 | 04 | A work's page |
 | 05 | Ruled sections everywhere, and the walk |
+| 06 | Controls: button rows, a size scale, touch heights, the cost in the button |
 
 **Not in this plan.** Colour: the palette stays. A dark-scheme redesign: the
 dark scheme gets the new type and layout, and nothing more. Postarr's caption
@@ -151,6 +152,7 @@ the real library.
 - [x] Chunk 03: The Artworks grid
 - [x] Chunk 04: A work's page
 - [x] Chunk 05: Ruled sections everywhere, and the walk
+- [ ] Chunk 06: Controls
 
 ### Chunk 01: Typefaces and type scale
 
@@ -241,8 +243,11 @@ Done when:
 
 ### Chunk 05: Ruled sections everywhere, and the walk
 
-**Type:** cumulative-final
 **Visual change:** yes
+*(Was the cumulative-final chunk. Its cumulative review ran and was clear
+(`rev-20261008T204828Z-ce07f6e1`, then verify-resolutions). The marker
+moved to chunk 06, which the owner added on 2026-10-08 after walking the
+result.)*
 
 Done when:
 
@@ -259,6 +264,40 @@ Done when:
    (`tests/preferences`, including `test_screen_tables.py`) pass.
 4. An entry in `.prawduct/operator-verification.md` asks the owner to walk
    the real library in both schemes.
+
+### Chunk 06: Controls
+
+**Type:** cumulative-final
+**Visual change:** yes
+
+Added by the owner on 2026-10-08, after walking the redesign: "buttons are
+spaced erratically", "a jumble of font sizes and button sizes", and "unclear
+if $ is a button". Investigated: a row of acts after anything but a
+paragraph sat flush against it (only `p + .row` spaced it). There was no
+control size scale, and several places set their own padding.
+`design-direction.md` promised 2.75rem controls under `@media (pointer:
+coarse)`, but `app.css` never implemented it and no test checked it. The
+cost tier is a boxed badge beside the button it prices, which reads as a
+button itself.
+
+Done when:
+
+1. One action-row rule: a row of acts sits one step below whatever precedes
+   it, whatever that element is, and its controls align on one line. The
+   Artist page's Wikidata line, taste reactions and Select are spaced alike.
+2. A control size scale in tokens: `--control-h` (2.5rem) for every act and
+   field, and a compact size for toolbar menus and the menu button. Under
+   `@media (pointer: coarse)`, every control is at least 2.75rem. The ad hoc
+   paddings are folded into the scale. § Component Patterns records the
+   scale.
+3. A cost is part of the act it prices: the tier mark is no longer a boxed
+   badge beside a button, and on the Ask page the Get button carries its
+   bound ("Get · up to $0.01"), replacing the separate note. Every priced act
+   still carries its tier (the IA ruling "a cost tier on every action").
+4. Tests: rows of acts are spaced from what precedes them on every sidebar
+   page; every `.action` meets `--control-h`, and 2.75rem in a coarse-pointer
+   context; no tier mark is drawn as a box. Each is watched failing once.
+5. The walk is re-run, and the cumulative review covers the branch.
 
 ## Verification
 
