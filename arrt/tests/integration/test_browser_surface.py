@@ -134,7 +134,9 @@ class TestTheClientIsServed:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "<title>Arrt</title>" in response.text
-        assert '<h1 class="brand">Arrt</h1>' in response.text
+        assert '<p class="brand">Arrt</p>' in response.text
+        # Each screen's heading is its h1, so the shell itself carries none.
+        assert "<h1" not in response.text
 
     def test_a_deep_link_survives_a_reload(self, http):
         """In-page navigation writes a fragment, but a bookmark is a real path.
