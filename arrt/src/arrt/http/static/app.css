@@ -2683,3 +2683,113 @@ input[type="checkbox"] {
     inset: 0;
   }
 }
+
+/* -- Status: the image sources table ------------------------------------------
+   One row per source (`screens/health.js`, `SOURCE_COLUMNS`). Keyed on the
+   table's own width rather than the viewport's, since the sidebar and the
+   panel's padding decide how much of the screen it gets. As it narrows the
+   columns leave in the owner's order: Median long edge, Last fault, Only here,
+   then Faults since startup, whose count then moves into the State cell so a
+   fault is on screen at every width. Source, State, Offered and Chosen stay,
+   and on a phone each row stacks into a card. Each width is where the columns
+   still showing fit with glyphs spaced wider than this Mac's, as CI's are;
+   `tests/browser/test_the_status_sources_table.py` holds the order, and that
+   the table never needs its sideways scroll. */
+
+.source-table {
+  container-type: inline-size;
+  container-name: source-table;
+}
+
+.source-table .source-reason {
+  display: block;
+  font-size: var(--text-xs);
+}
+
+/* A reason names a setting (`WIKIDATA_USER_AGENT`) and a fault an exception,
+   neither with a space to break at: without this either sets the table's width. */
+.source-table .source-reason,
+.source-table .col-last-fault {
+  overflow-wrap: anywhere;
+}
+
+.source-table .state-faults {
+  display: none;
+}
+
+@container source-table (max-width: 52rem) {
+  .source-table .col-median {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 44rem) {
+  .source-table .col-last-fault {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 37rem) {
+  .source-table .col-only-here {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 31rem) {
+  .source-table .col-faults {
+    display: none;
+  }
+
+  .source-table .state-faults {
+    display: inline;
+  }
+}
+
+/* A phone: four columns of words do not fit across, so each source becomes a
+   card of its own, every cell under its column's name, as Activity's rows do
+   (`table.stacked`). The four kept columns are all still there. */
+@container source-table (max-width: 26rem) {
+  .source-table table,
+  .source-table caption,
+  .source-table tbody,
+  .source-table td {
+    display: block;
+  }
+
+  .source-table .col-source {
+    grid-column: 1 / -1;
+  }
+
+  .source-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* The source's name across the card, and its three figures side by side
+     beneath it, so ten sources stay ten short cards rather than a long column. */
+  .source-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .source-table td {
+    border: none;
+    padding: var(--space-1) 0;
+  }
+
+  .source-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+}

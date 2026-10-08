@@ -1044,7 +1044,6 @@ _STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
 #: The panel's readings this action leaves out, and why.
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
-    "artwork_box": "the deployment's geometry; every size a tool reports is already in inches on this wall",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
 }
 

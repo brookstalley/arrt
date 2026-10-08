@@ -40,7 +40,6 @@ from arrt.http.models import (
     ArtistListOut,
     ArtistOut,
     ArtistRegistryOut,
-    ArtworkBoxOut,
     AssignWall,
     BackupOut,
     BudgetOut,
@@ -129,6 +128,8 @@ from arrt.http.models import (
     SourceOut,
     SourcePluginOut,
     SourcesOut,
+    SourceYieldOut,
+    SourceYieldsOut,
     Speak,
     SpendOut,
     StartGet,
@@ -173,7 +174,7 @@ from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment
+from arrt.library.services.display_fit import FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
@@ -1184,6 +1185,28 @@ def get_sources(request: Request) -> SourcesOut:
     )
 
 
+@router.get("/sources/yields")
+def get_source_yields(request: Request) -> SourceYieldsOut:
+    """What each installed source plugin has given the library: offered, chosen, only here, median size.
+
+    Status's sources table reads it beside `GET /api/health`'s `sources`. Its own
+    route rather than a field of the health reading, because the top bar reads
+    that on every page and these are counts across the whole library.
+    """
+    return SourceYieldsOut(
+        sources=[
+            SourceYieldOut(
+                name=each.provider,
+                offered=each.offered,
+                chosen=each.chosen,
+                only_here=each.only_here,
+                median_long_edge=each.median_long_edge,
+            )
+            for each in _services(request).health.observe_yields()
+        ]
+    )
+
+
 # -- discovery runs -----------------------------------------------------------
 
 
@@ -2133,7 +2156,6 @@ def _health(reading: HealthReading) -> HealthOut:
         ],
         description=reading.describe(),
         backup=_backup(reading.backup),
-        artwork_box=_artwork_box(reading.artwork_box),
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
     )
@@ -2239,15 +2261,6 @@ def _fit(fit: FitAssessment) -> FitOut:
         rendered_width=fit.rendered_width,
         rendered_height=fit.rendered_height,
         rendered_long_edge_inches=fit.rendered_long_edge_inches,
-    )
-
-
-def _artwork_box(box: ArtworkBox) -> ArtworkBoxOut:
-    return ArtworkBoxOut(
-        width=box.width,
-        height=box.height,
-        pixels_per_inch=box.pixels_per_inch,
-        floor_inches=box.floor_inches,
     )
 
 

@@ -1335,7 +1335,8 @@ the client with them.
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
 | `GET /api/sources` | Every installed source plugin, most preferred first, as `GET /api/health`'s `sources` reads it, with `interface_version` (`major.minor`, the plugin interface this Arrt provides). Settings › Sources reads it; `art_discovery(action='source_plugins')` answers the same. Added 2026-10-06. |
-| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
+| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06). There is deliberately no budget balance, settled 2026-08-04. **No `artwork_box`** since 2026-10-08 (#266): the geometry was one television's, and Status was its only reader (`art_display(action='status')` had left it off by name); a wall's own geometry returns per wall in wave 4. Shape below. |
+| `GET /api/sources/yields` | What each installed source plugin has given the library, one row per plugin in `GET /api/health`'s `sources` order: `name`, `offered` (distinct image addresses it has offered to a search or as a held work's source; a turned-down image still counts), `chosen` (works whose primary source is it), `only_here` (of those, works no other provider offered any image for, across the work's catalogue sources and every proposal of the same work), `median_long_edge` (pixels, over its offered images whose size is known; null when none is). A plugin with nothing recorded reads as zeros; a provider no longer installed has no row. Counted from the records on each read in one SQL statement, so it survives a restart; its own route rather than a field of the health reading because the top bar reads that on every page. Status's sources table reads it; no tool carries it. Added 2026-10-08 (#265). |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
 `arrt/tests/integration/test_browser_discovery.py`:
@@ -1601,7 +1602,6 @@ response is:
   ],
   "description": "Every wall has reported; the least recent is 'The study', 4 minutes ago.",
   "backup": { "…": "unchanged" },
-  "artwork_box": { "…": "unchanged" },
   "sources": [
     {
       "name": "artic",

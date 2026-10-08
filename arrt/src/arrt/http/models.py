@@ -1028,20 +1028,6 @@ class HeartbeatOut(BaseModel):
     reported: dict[str, Any] | None
 
 
-class ArtworkBoxOut(BaseModel):
-    """The space this deployment renders a work into, as resolved at startup.
-
-    Shown because a wrong mat or floor is otherwise visible only as works being
-    labelled oddly in the grid, which reads as a catalogue problem rather than a
-    configuration one.
-    """
-
-    width: int
-    height: int
-    pixels_per_inch: float
-    floor_inches: float
-
-
 class BackupOut(BaseModel):
     """When the catalogue was last safely copied, or that nothing has copied it.
 
@@ -1136,7 +1122,10 @@ class PicturesOut(BaseModel):
 
 
 class HealthOut(BaseModel):
-    """Observations about the walls, the backup, and this deployment's geometry.
+    """Observations about the walls, the backup, the source plugins and the picture store.
+
+    **No geometry**, since 2026-10-08 (#266): there is no longer one television
+    to state it for. A wall's own geometry is wave 4's, under Clients.
 
     **The heartbeat is a list, one entry per wall**, since 2026-08-12. Each wall's
     display writes its own file, so "has the display plane reported" stopped being
@@ -1156,11 +1145,38 @@ class HealthOut(BaseModel):
     #: says how long ago rather than whether that is too long.
     description: str
     backup: BackupOut
-    artwork_box: ArtworkBoxOut
     #: Every installed source plugin, most preferred first. Empty when none is
     #: installed, which the panel says in words.
     sources: list[SourcePluginOut]
     pictures: PicturesOut
+
+
+class SourceYieldOut(BaseModel):
+    """What one installed source has given the library, counted from the records.
+
+    An observation, never a ranking, and it survives a restart because nothing
+    here is a tally: every figure is counted again from the catalogue and the
+    search records on each read.
+    """
+
+    #: The plugin's name, as `SourcePluginOut.name` carries it.
+    name: str
+    #: Distinct images, by address, it has offered to a search or as a held
+    #: work's source; one the curator turned down still counts.
+    offered: int
+    #: Works held by an image from it: their primary source is this one.
+    chosen: int
+    #: Of those, the works no other source offered any image for.
+    only_here: int
+    #: The median long edge, in pixels, of its offered images whose size is
+    #: known; null when none is.
+    median_long_edge: int | None
+
+
+class SourceYieldsOut(BaseModel):
+    """Every installed source plugin's yield, most preferred first, as `GET /api/health` lists the plugins."""
+
+    sources: list[SourceYieldOut]
 
 
 class RunOut(BaseModel):

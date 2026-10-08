@@ -21,7 +21,6 @@ from arrt.http.api import _health
 from arrt.library.discovery.browse import CollectionBrowseFailure
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.pictures import PictureStore
 from arrt.library.sources import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.loading import (
@@ -582,8 +581,8 @@ def _health_of(roster, *, now: datetime | None = None) -> HealthReading:
     service = HealthService(
         _NoWalls(),
         backup_receipt_path=pathlib.Path("/nonexistent/backup-receipt.json"),
-        box=ArtworkBox(width=3000, height=2000, pixels_per_inch=88.0, floor_inches=12.0),
         sources=roster,
+        yields=dict,
         pictures=PictureStore(pathlib.Path("/nonexistent/art/pictures"), art_root=pathlib.Path("/nonexistent/art")),
         now=lambda: moment,
     )
