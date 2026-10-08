@@ -22,12 +22,13 @@
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
-import { getSelection } from "../core/getting.js";
+import { selectionMode } from "../core/selecting.js";
 import { gettable, lifeDates, named, reviewMark, stateMark, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, link, setTitle } from "../core/router.js";
 import { asksWikidata, fold } from "../core/search.js";
 import { state } from "../core/state.js";
+import { toolbar } from "../core/toolbar.js";
 
 /* How many of the library's works the page lists. Artworks, one click away,
  * holds the rest and the tools to act on them. */
@@ -101,11 +102,17 @@ export async function viewSearch(generation) {
   // The Not held group's one line, whatever Wikidata did: asking, found,
   // nothing more, or why it could not be asked.
   const registryNote = el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" });
+  // One selection for the page (`core/selecting.js`), its toggle shown once a
+  // work the library does not hold is listed to tick. Painted once: the works
+  // are drawn when the artist and work search answers, and the topic search
+  // arriving later does not redraw them, so a box already ticked stays ticked.
+  const selection = selectionMode({ notHeld: {} });
   setTitle(generation, `Results for “${query}”`);
   render(
     generation,
     el("p", {}, [backLink()]),
     el("h1", { text: `Results for “${query}”` }),
+    toolbar({ actions: [selection.toggle] }),
     top,
     el("section", { class: "panel", "aria-labelledby": "results-held" }, [
       el("h2", { id: "results-held", text: "Held" }),
@@ -118,26 +125,17 @@ export async function viewSearch(generation) {
       registryNote,
       ...KINDS.map(([kind]) => sections["not-held"][kind]),
     ]),
+    selection.bar,
   );
 
-  // One selection for the page, painted once: the works are drawn when the
-  // artist and work search answers, and the topic search arriving later does
-  // not redraw them, so a box already ticked stays ticked.
-  const getting = getSelection();
   const registry = { found: null, named: null };
   const paintFound = () => {
     const artists = artistRows(library, registry.found);
     paintKind(sections.held.artists, "held", "artists", artists.held.map(artistRow));
     paintKind(sections["not-held"].artists, "not-held", "artists", artists.notHeld.map(artistRow));
-    const works = workRows(library, registry.found, getting);
+    const works = workRows(library, registry.found, selection);
     paintKind(sections.held.works, "held", "works", works.held.map(workRow), artworksLink(query, library));
-    paintKind(
-      sections["not-held"].works,
-      "not-held",
-      "works",
-      works.notHeld.map(workRow),
-      works.notHeld.some((row) => row.box) ? getting.node : null,
-    );
+    paintKind(sections["not-held"].works, "not-held", "works", works.notHeld.map(workRow));
     paintTop(top, query, [...artists.held, ...artists.notHeld]);
   };
   const paintNamed = () => {
@@ -257,7 +255,7 @@ function artistRow(row) {
 
 /* The works: the library's first, and Wikidata's split the same way. A work the
  * library does not hold can be ticked and got from here. */
-function workRows(library, found, getting) {
+function workRows(library, found, selection) {
   const shown = new Set(library.works.map((work) => work.artwork_id));
   const held = library.works.map((work) => ({
     title: work.title,
@@ -275,7 +273,7 @@ function workRows(library, found, getting) {
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
         mark: workState(work, { opens: false, grouped: true }),
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
-        box: gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null,
+        box: gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null,
       };
       (isHeld ? held : notHeld).push(row);
     }

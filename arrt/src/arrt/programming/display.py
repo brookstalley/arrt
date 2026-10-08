@@ -897,6 +897,60 @@ class DisplayService:
             self._renumber([*others[:index], membership, *others[index:]], new=membership)
         return replace(membership, position=index)
 
+    def add_works_to_theme(self, *, theme_id: str, artwork_ids: Sequence[str]) -> tuple[int, int]:
+        """Put many works at the end of a theme's order, in the order given, in one transaction.
+
+        Answers how many joined and how many the theme already held. A work
+        already in the theme is passed over rather than refused, unlike
+        `add_to_theme`: a selection made by a filter routinely holds some, and
+        refusing the act for them would make *Add to theme* on a whole filter
+        fail exactly when it is most useful.
+
+        **One renumber, not one per work.** `add_to_theme` renumbers the whole
+        theme on every insert, which over a few thousand works is millions of
+        row writes. Here the existing order is made dense once and the newcomers
+        are written after it, which is the same order a loop of single adds
+        would leave, reached in one pass.
+
+        Every id has to name a work the Library holds, asked of the facade in
+        one question, and the whole act is refused otherwise, in the catalogue's
+        words — so nothing is half-added.
+        """
+        self.get_listed_theme(theme_id)
+        chosen = list(dict.fromkeys(artwork_ids))
+        for answer in self._library.playable(chosen).values():
+            if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
+                raise ServiceError(answer.detail)
+        now = datetime.now(UTC)
+        with self._store.transaction():
+            others = list(self._store.list_memberships(theme_id))
+            held = {membership.artwork_id for membership in others}
+            joining = [artwork_id for artwork_id in chosen if artwork_id not in held]
+            self._renumber(others)
+            for place, artwork_id in enumerate(joining, start=len(others)):
+                store_write(
+                    self._store.add_membership,
+                    ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=now, position=place),
+                )
+        return len(joining), len(chosen) - len(joining)
+
+    def remove_works_from_theme(self, *, theme_id: str, artwork_ids: Sequence[str]) -> Sequence[str]:
+        """Take many works out of a theme in one transaction, and answer which left.
+
+        A work the theme does not hold is passed over: the selection was made
+        by a filter, and the theme is what it is now. The order left behind is
+        not renumbered, as a single removal does not renumber it.
+        """
+        self.get_theme(theme_id)
+        removed: list[str] = []
+        with self._store.transaction():
+            for artwork_id in dict.fromkeys(artwork_ids):
+                if self._store.get_membership(theme_id, artwork_id) is None:
+                    continue
+                store_write(self._store.remove_membership, theme_id, artwork_id)
+                removed.append(artwork_id)
+        return removed
+
     def move_in_theme(self, *, theme_id: str, artwork_id: str, position: int | None) -> ThemeMembership:
         """Move a work to a place in the curated order, or return it to unplaced.
 

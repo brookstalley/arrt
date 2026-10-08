@@ -22,23 +22,22 @@
  *     and nothing by one named artist are three different facts leading to three
  *     different next moves.
  *   - **Organising happens against the works being organised.** A theme is one
- *     more filter in the rail, composing with the facets and the search, and
- *     membership is edited in *Select* mode — Radarr's mass editor — in place,
- *     without leaving the screen.
+ *     more filter in the rail, composing with the facets and the search, and a
+ *     selection is added to a theme, a new one included, taken out of the theme
+ *     being filtered, or archived in *Select* mode — the one selection model
+ *     every list shares (`core/selecting.js`) — in place, without leaving the
+ *     screen.
  *
- * What is deliberately NOT here: archiving a work (it is an act against one work,
- * whose confirmation has to name which walls lose the picture, and it lives on the
- * Work screen this grid links to) and reordering a theme (which is about the theme
+ * What is deliberately NOT here: reordering a theme (which is about the theme
  * rather than about the works, and lives on the Theme screen).
  */
 
-import { attempt } from "../core/acting.js";
-import { api, fetchAllWorks, fetchFilterCounts } from "../core/api.js";
+import { fetchAllWorks, fetchFilterCounts, worksFilterBody } from "../core/api.js";
 import { absentImage, shortfallNote, statusBadge, tileFitBadge, workName } from "../core/badges.js";
-import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
+import { selectionMode } from "../core/selecting.js";
 import { state } from "../core/state.js";
 import { menuButton, toggleButton, toolbar } from "../core/toolbar.js";
 
@@ -114,21 +113,6 @@ const FACET_SEPARATOR = "|";
  * screenful at the contact sheet's tile size: fewer leaves the page looking
  * finished and short, more paints a screen of grey the curator scrolls. */
 const SKELETON_TILES = 12;
-
-/* Which works the curator has ticked, and the navigation that was current when
- * they did.
- *
- * Module-level rather than in `state`, because it is not addressable: a selection
- * is a thing being done, not a place. It is cleared when the generation changes,
- * which is exactly a navigation — the works on screen have changed, so a
- * selection over the old ones would silently act on works nobody can see. A
- * repaint within one navigation keeps it. */
-const selected = new Set();
-let selectionGeneration = -1;
-/* Whether *Select* mode is on: the ticks on the tiles and the action bar that
- * adds them to a theme or removes them from one. Not addressable, for the
- * reason the selection is not; a navigation leaves it. */
-let selecting = false;
 
 /* -- reading the address ---------------------------------------------------- */
 
@@ -218,34 +202,20 @@ function cardImage(work, { inTabOrder = true } = {}) {
   return link({ view: "work", id: work.artwork_id }, { class: "card-image", ...named }, [image]);
 }
 
-/* The tick that puts a work in a selection.
+/* The tick that puts a work in a selection (`core/selecting.js`).
  *
  * Shown in *Select* mode on every tile, at every density, rather than revealed
  * on hover with the rest of the contact sheet's metadata: a control that only
- * exists once you are pointing at it is one a keyboard cannot find. Outside
- * the mode the CSS hides it (`.collection:not(.selecting)`). And **not drawn at
- * all where it cannot act** — with no theme to put a work into, a tick on every
- * tile is a control with nothing behind it, which is the same dead end the
- * facet rail is forbidden from offering. */
-function selectBox(work, onChange) {
-  const box = el("input", {
-    type: "checkbox",
-    class: "tile-select",
-    checked: selected.has(work.artwork_id),
-    "aria-label": `Select ${workName(work)}`,
-  });
-  box.addEventListener("change", () => {
-    if (box.checked) selected.add(work.artwork_id);
-    else selected.delete(work.artwork_id);
-    onChange();
-  });
-  return box;
+ * exists once you are pointing at it is one a keyboard cannot find. Outside the
+ * mode it is hidden, which takes it out of the tab order too. */
+function selectBox(work, selection) {
+  return selection.heldBox(work, { className: "tile-select" });
 }
 
 /* The catalogue tile: the built card, unchanged in shape. */
 function workCard(work, selection) {
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
-    selection ? selectBox(work, selection.settle) : null,
+    selection ? selectBox(work, selection) : null,
     cardImage(work, { inTabOrder: false }),
     el("div", { class: "card-body" }, [
       el("h2", { class: "card-title" }, [
@@ -280,7 +250,7 @@ function artistName(work) {
 function contactTile(work, selection) {
   const status = statusBadge(work);
   return el("li", { class: "tile", "data-artwork": work.artwork_id }, [
-    selection ? selectBox(work, selection.settle) : null,
+    selection ? selectBox(work, selection) : null,
     status ? el("div", { class: "tile-status" }, [status]) : null,
     cardImage(work),
     el("div", { class: "tile-caption" }, [
@@ -297,7 +267,7 @@ function contactTile(work, selection) {
  * in the body it is handed. */
 function workRow(work, selection) {
   return el("tr", { "data-artwork": work.artwork_id }, [
-    selection ? el("td", { class: "row-select" }, [selectBox(work, selection.settle)]) : null,
+    selection ? el("td", { class: "row-select" }, [selectBox(work, selection)]) : null,
     el("td", {}, [link({ view: "work", id: work.artwork_id }, { class: "row-title", text: work.title, "aria-label": workName(work) })]),
     el("td", {}, [artistName(work)]),
     el("td", { text: work.date_created || "—" }),
@@ -479,7 +449,7 @@ function themeOption(option) {
  *
  * Those works are on screen, so every other filter selects them and the count
  * moves by exactly how many went. Changed in place, because nothing here
- * repaints (`membershipControls`), and a count left stale beside the rail is
+ * repaints (`core/selecting.js`), and a count left stale beside the rail is
  * the silent lie the counts exist to refuse. */
 function moveThemeCount(option, by) {
   const button = document.querySelector(`button.facet-option[data-theme="${CSS.escape(option.theme_id)}"]`);
@@ -515,8 +485,9 @@ function railsHidden() {
   return state.params.filters === "hidden";
 }
 
-/* The *arr toolbar over the works: *Select* and its action bar on the left;
- * View, Sort and Filter on the right (`core/toolbar.js`).
+/* The *arr toolbar over the works: *Select* on the left, its action bar at the
+ * foot of the window while it is on; View, Sort and Filter on the right
+ * (`core/toolbar.js`).
  *
  * A theme filtered here is in the Sort menu's order, as any filter is; its
  * curated order is its own page's. */
@@ -540,204 +511,7 @@ function pageToolbar(density, selection) {
       onToggle: (show) => goWithParams({ filters: show ? "" : "hidden" }),
     }),
   ];
-  return toolbar({ actions: selection ? [selection.toggle, selection.node] : [], controls });
-}
-
-function uncheck(grid, artworkId) {
-  const box = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"] input.tile-select`);
-  if (box) box.checked = false;
-}
-
-function clearSelection(grid) {
-  selected.clear();
-  for (const box of grid.querySelectorAll("input.tile-select")) box.checked = false;
-}
-
-/* *Select* mode: the toggle, and the action bar that adds the ticked works to
- * a theme or removes them from the theme being filtered — Radarr's mass
- * editor, which is the owner's ruling on #169. Outside it no tick and no theme
- * control shows, so filtering by a theme and changing a theme's members are
- * never the same-looking control.
- *
- * **Nothing here repaints the screen**, and that is the rule rather than an
- * optimisation: a curator standing on "Add" who is handed a new page has lost
- * their place and their focus. The outcome is announced in a live region and
- * the tiles that left are taken out one at a time. After an add the rail's
- * theme count moves in place (`moveThemeCount`); after a removal the rail
- * alone is recounted and redrawn, since every facet count beside it moved.
- *
- * **There is no bulk route, so this is a loop, and a loop can stop halfway.**
- * `POST /api/themes/{id}/works` takes one work and the store refuses a work the
- * theme already holds, so the two things that make a partial edit unrecoverable
- * are both dealt with before the loop starts: what the theme already has is read
- * and skipped, and each work leaves the selection as it lands. A refusal partway
- * therefore leaves exactly the works that did not go still ticked, with the
- * button still live — the retry is pressing it again, and it does not re-send
- * what already succeeded.
- *
- * Returns `null` when there is nothing a selection could be used for, which is
- * what keeps *Select* off a collection with no themes. */
-function membershipControls({ themes, shownTheme, grid, heading, recount, recountRail, whenEmpty }) {
-  // The theme being filtered is not offered: every work on screen is already
-  // in it, so the only thing that control could do is refuse. Excluding it is
-  // also what stops the picker's own default being a one-click error.
-  const addable = themes.filter((option) => !(shownTheme && option.theme_id === shownTheme.theme_id));
-  if (!addable.length && !shownTheme) return null;
-
-  // Focusable, and focused when an edit completes. Finishing the edit disables
-  // the button the curator is standing on, and a browser blurs a control it
-  // disables — which drops the keyboard to the top of the document, several
-  // hundred tiles above where the work was happening. The outcome sentence is
-  // where focus belongs: it is what just happened, and Tab continues from the
-  // toolbar into the grid.
-  const announcement = el("p", { class: "muted selection-status", "aria-live": "polite", tabindex: "-1" });
-
-  // A visible name, not only an `aria-label`: the picker is the one control
-  // here whose purpose a sighted curator could otherwise only guess.
-  const picker = addable.length ? el("select", { id: "add-to-theme" }) : null;
-  for (const option of addable) {
-    picker.append(el("option", { value: option.theme_id, text: option.name }));
-  }
-  const pickerField = picker
-    ? el("span", { class: "selection-field" }, [el("label", { for: "add-to-theme", text: "Theme" }), picker])
-    : null;
-
-  // Each button says the whole act — how many, and into or out of what — so
-  // it reads the same to a screen reader moving control by control.
-  const add = picker ? el("button", { class: "action selection-add", type: "button" }) : null;
-  const remove = shownTheme ? el("button", { class: "action quiet selection-remove", type: "button" }) : null;
-  let removedSoFar = 0;
-
-  const say = (words) => {
-    // Not rewritten unchanged: a live region reassigned the same sentence
-    // announces it again, which trains a listener to tune the region out.
-    if (announcement.textContent !== words) announcement.textContent = words;
-  };
-
-  const settle = () => {
-    const count = selected.size;
-    const works = `${count} ${count === 1 ? "work" : "works"}`;
-    if (add) {
-      add.disabled = count === 0;
-      const into = picker.options[picker.selectedIndex].text;
-      add.textContent = count ? `Add ${works} to ${into}` : `Add to ${into}`;
-    }
-    if (remove) {
-      remove.disabled = count === 0;
-      remove.textContent = count ? `Remove ${works} from ${shownTheme.name}` : `Remove from ${shownTheme.name}`;
-    }
-    say(count === 0 ? "No works selected." : `${count} selected.`);
-  };
-  if (picker) picker.addEventListener("change", settle);
-
-  const bar = el("div", { class: "selection", hidden: !selecting }, [announcement, pickerField, add, remove]);
-  const toggle = el("button", {
-    class: "action quiet select-toggle",
-    type: "button",
-    "aria-pressed": selecting ? "true" : "false",
-    text: "Select",
-  });
-  toggle.addEventListener("click", () => {
-    selecting = !selecting;
-    toggle.setAttribute("aria-pressed", selecting ? "true" : "false");
-    bar.hidden = !selecting;
-    const layout = grid.closest(".collection");
-    if (layout) layout.classList.toggle("selecting", selecting);
-    // Leaving *Select* drops the ticks: a selection nobody can see would be
-    // acted on the next time the mode is entered.
-    if (!selecting) clearSelection(grid);
-    settle();
-  });
-
-  if (add) {
-    add.addEventListener("click", () => {
-      const themeId = picker.value;
-      const option = addable.find((candidate) => candidate.theme_id === themeId);
-      const asked = selected.size;
-      return attempt(add, `add ${asked} ${asked === 1 ? "work" : "works"} to ${option.name}`, async () => {
-        let outcome;
-        try {
-          outcome = await addWorksToTheme(themeId, [...selected], {
-            onAdded: (artworkId) => {
-              selected.delete(artworkId);
-              uncheck(grid, artworkId);
-            },
-          });
-        } catch (failure) {
-          if (failure.progress) moveThemeCount(option, failure.progress.added);
-          settle();
-          if (failure.progress) say(stoppedSentence(failure.progress, option.name));
-          // Rethrown so the server's own words for the refusal are said beside
-          // Add. The sentence above says how far it got; only the server can
-          // say why it stopped.
-          throw failure;
-        }
-        moveThemeCount(option, outcome.added);
-        clearSelection(grid);
-        settle();
-        say(addedSentence(outcome, option.name));
-        announcement.focus();
-      });
-    });
-  }
-
-  if (remove) {
-    remove.addEventListener("click", async () => {
-      const going = [...selected];
-      let removed = 0;
-      const removedAll = await attempt(
-        remove,
-        `remove ${going.length} ${going.length === 1 ? "work" : "works"} from ${shownTheme.name}`,
-        async () => {
-          for (const artworkId of going) {
-            await api(`/api/themes/${encodeURIComponent(shownTheme.theme_id)}/works/${encodeURIComponent(artworkId)}`, {
-              method: "DELETE",
-            });
-            removed += 1;
-            selected.delete(artworkId);
-            const tile = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
-            if (tile) tile.remove();
-          }
-        },
-      );
-      removedSoFar += removed;
-      settle();
-      // The heading counted what was there before the removal, and a count
-      // that no longer matches the tiles under it is the silent lie this
-      // surface exists to refuse.
-      heading.textContent = recount(grid.children.length, removedSoFar);
-      // A theme whose last member has just gone is empty, and an empty grid
-      // with no sentence reads as a broken screen rather than as a theme
-      // holding nothing.
-      if (!grid.children.length) whenEmpty();
-      // The works that left were inside the theme's slice, so every facet
-      // count beside it fell, and a value they alone carried now selects
-      // nothing — an enabled option leading to an empty grid, the dead end
-      // the rail forbids. Recounted after a partial removal too. Adding
-      // cannot do that (the works stay on screen), so only a removal
-      // recounts, and only the rail is redrawn.
-      //
-      // A recount that fails is a read, so it is the banner's — unless the
-      // removal was refused, when the refusal beside Remove is what the
-      // curator must read and the banner stays quiet rather than compete.
-      if (removed && removedAll) await guard(recountRail);
-      else if (removed) {
-        try {
-          await recountRail();
-        } catch (failure) {
-          // Its own trace, since nothing else says so: the rail's counts are
-          // now stale.
-          console.warn("The filter rail could not be recounted after the refused removal:", failure);
-        }
-      }
-      if (!removedAll) return;
-      say(`Removed ${removed} ${removed === 1 ? "work" : "works"} from ${shownTheme.name}.`);
-      announcement.focus();
-    });
-  }
-
-  settle();
-  return { settle, toggle, node: bar };
+  return toolbar({ actions: selection ? [selection.toggle] : [], controls });
 }
 
 /* -- the three empty states -------------------------------------------------- */
@@ -823,12 +597,6 @@ function headingText(shown, total, query, shownTheme) {
 /* -- the screen -------------------------------------------------------------- */
 
 export async function viewCollection(generation) {
-  if (generation !== selectionGeneration) {
-    selected.clear();
-    selecting = false;
-    selectionGeneration = generation;
-  }
-
   const query = (state.params.q || "").trim();
   const chosen = facetsFor(state.params);
 
@@ -891,30 +659,86 @@ export async function viewCollection(generation) {
     return;
   }
 
-  // The selection works on whatever holds one element per work: the grid's list,
-  // or the table's body. Its counts and removals read that container directly.
+  // One element per work: the grid's list, or the table's body.
   const grid = density === TABLE ? el("tbody") : el("ul", { class: density === CONTACT ? "grid contact-sheet" : "grid" });
-  const selection = membershipControls({
-    themes,
-    shownTheme,
-    grid,
-    heading,
-    recount,
-    recountRail: async () => {
-      const rail = document.querySelector("aside.rails");
-      if (!rail) return;
-      const counts = await fetchFilterCounts(query, chosen, { theme });
-      fill(rail, ...railContents(counts, chosen));
-    },
-    whenEmpty: () => (grid.closest("table") || grid).replaceWith(nothingShown(query, chosen, shownTheme)),
-  });
   const tile = density === TABLE ? workRow : density === CONTACT ? contactTile : workCard;
+  let removedSoFar = 0;
+  const recountRail = async () => {
+    const rail = document.querySelector("aside.rails");
+    if (!rail) return;
+    const counts = await fetchFilterCounts(query, chosen, { theme });
+    fill(rail, ...railContents(counts, chosen));
+  };
+  const tileOf = (artworkId) => grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
+  const shownWorks = new Map(page.works.map((work) => [work.artwork_id, work]));
+
+  // *Select* mode (`core/selecting.js`). **Nothing here repaints the screen**,
+  // and that is the rule rather than an optimisation: a curator standing on
+  // "Add" who is handed a new page has lost their place and their focus. The
+  // outcome is announced in the bar's live region; tiles that leave a theme are
+  // taken out, archived ones are redrawn with their badge, and the rail's theme
+  // count moves in place after an add.
+  const selection = selectionMode({
+    held: {
+      themes: themes.map((option) => ({ theme_id: option.theme_id, name: option.name })),
+      shownTheme,
+      filter: worksFilterBody(query, chosen, offeredSort(), { theme }),
+      total: page.total,
+      onAdded: (into, added) => moveThemeCount(into, added),
+      onArchived: (ids) => {
+        for (const artworkId of ids) {
+          const work = shownWorks.get(artworkId);
+          const node = tileOf(artworkId);
+          if (!work || !node) continue;
+          work.status = "archived";
+          node.replaceWith(tile(work, selection));
+        }
+      },
+      onRemoved: (artworkId) => {
+        const node = tileOf(artworkId);
+        if (node) node.remove();
+      },
+      afterRemoval: async ({ removed, complete }) => {
+        removedSoFar += removed.length;
+        // The heading counted what was there before the removal, and a count
+        // that no longer matches the tiles under it is the silent lie this
+        // surface exists to refuse.
+        heading.textContent = recount(grid.children.length, removedSoFar);
+        // A theme whose last member has just gone is empty, and an empty grid
+        // with no sentence reads as a broken screen rather than as a theme
+        // holding nothing.
+        if (!grid.children.length) (grid.closest("table") || grid).replaceWith(nothingShown(query, chosen, shownTheme));
+        // The works that left were inside the theme's slice, so every facet
+        // count beside it fell, and a value they alone carried now selects
+        // nothing — an enabled option leading to an empty grid, the dead end
+        // the rail forbids. Recounted after a partial removal too.
+        //
+        // A recount that fails is a read, so it is the banner's — unless the
+        // removal was refused, when the refusal beside Remove is what the
+        // curator must read and the banner stays quiet rather than compete.
+        if (removed.length && complete) await guard(recountRail);
+        else if (removed.length) {
+          try {
+            await recountRail();
+          } catch (failure) {
+            // Its own trace, since nothing else says so: the rail's counts are
+            // now stale.
+            console.warn("The filter rail could not be recounted after the refused removal:", failure);
+          }
+        }
+      },
+    },
+    onToggle: (on) => {
+      const layout = grid.closest(".collection");
+      if (layout) layout.classList.toggle("selecting", on);
+    },
+  });
   for (const work of page.works) grid.append(tile(work, selection));
   const shown = density === TABLE ? tableAround(grid, selection) : grid;
   render(
     generation,
     heading,
-    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shortfallNote(page), shown]),
+    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shortfallNote(page), shown, selection.bar]),
   );
 }
 
@@ -960,7 +784,7 @@ function collectionLayout(page, chosen, shownTheme, density, selection, main) {
           }),
         ])
       : null;
-  const classes = ["collection", shown ? null : "rails-hidden", selection && selecting ? "selecting" : null];
+  const classes = ["collection", shown ? null : "rails-hidden", selection && selection.selecting() ? "selecting" : null];
   return el("div", { class: classes.filter(Boolean).join(" ") }, [
     shown ? el("aside", { class: "rails", "aria-label": "Filters" }, rails) : null,
     el("div", { class: "collection-main" }, [pageToolbar(density, selection), narrowedOutOfSight, ...main]),

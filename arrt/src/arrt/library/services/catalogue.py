@@ -358,6 +358,58 @@ class CatalogueService:
         )
         return self._store.artwork_ids_matching(query)
 
+    def matching_ids_in_order(
+        self,
+        *,
+        status: str | None = None,
+        q: str | None = None,
+        facets: Mapping[str, Sequence[str]] | None = None,
+        artist_id: str | None = None,
+        within: Sequence[str] | frozenset[str] | None = None,
+        sort: str | None = None,
+    ) -> Sequence[str]:
+        """Every work these narrowings select, by id, in the order a listing would show them.
+
+        For an act on a whole filter — *Select all* on Artworks, then Add to
+        theme — where the works join a theme in the order the curator saw
+        them, rather than in whatever order a set happens to iterate. The same
+        narrowings and the same `sort` as `list_artworks`, unpaged, because the
+        act is on every work the filter matches and not on the ones loaded.
+        """
+        resolved_order = WorkOrder.TITLE if sort is None else require_member(sort, enum=WorkOrder, field="sort")
+        query = WorkQuery(
+            status=self._parse_status(status),
+            terms=self._parse_terms(q),
+            facets=self._parse_facets(facets),
+            artist_id=artist_id,
+            within=None if within is None else frozenset(within),
+        )
+        with self._store.reading():
+            total = len(self._store.artwork_ids_matching(query))
+            if not total:
+                return []
+            page = self._store.list_artworks(query, limit=total, offset=0, order=resolved_order)
+        return [artwork.id for artwork in page.artworks]
+
+    def archive_artworks(self, artwork_ids: Sequence[str]) -> Sequence[str]:
+        """Archive each of these works that is in circulation, in one transaction.
+
+        Returns the ids archived now. A work already archived is passed over
+        rather than refused: a selection made by a filter can hold archived
+        works, and refusing the whole act for one of them would make *Archive*
+        on a selection unusable exactly when the curator is tidying. An id the
+        catalogue does not hold refuses the whole act, in `archive_artwork`'s
+        words, so nothing is half-done.
+        """
+        archived: list[str] = []
+        with self._store.transaction():
+            for artwork_id in dict.fromkeys(artwork_ids):
+                if self._require_artwork(artwork_id).status is ArtworkStatus.ARCHIVED:
+                    continue
+                self.archive_artwork(artwork_id)
+                archived.append(artwork_id)
+        return archived
+
     def _facet_groups(self, query: WorkQuery) -> Sequence[FacetGroup]:
         """Every facet kind, with each value's count and whether it is chosen.
 

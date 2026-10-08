@@ -2173,3 +2173,62 @@ class SetAffinity(BaseModel):
     #: Required by the service when `derivation` is `inferred`, and meaningless
     #: otherwise: a curator saying a thing is the whole provenance.
     source_turn_id: str | None = None
+
+
+class WorksFilter(BaseModel):
+    """The narrowing `GET /api/works` takes, as a body: which works an act on a whole filter means.
+
+    The same names and the same meanings as that route's query parameters, so
+    *Select all* on Artworks acts on exactly the works the grid beside it is
+    counting, including the ones not yet loaded. `sort` decides only the order
+    the works are acted on in, which is the order a theme they join keeps.
+    """
+
+    q: str | None = None
+    status: str | None = None
+    artist_id: str | None = None
+    theme: str | None = None
+    sort: str | None = None
+    artist: list[str] = []
+    movement: list[str] = []
+    era: list[str] = []
+    subject: list[str] = []
+    medium: list[str] = []
+    palette: list[str] = []
+
+
+class WorkSelection(BaseModel):
+    """Which works an act on a selection is for: by id, or every work a filter matches.
+
+    Exactly one of `artwork_ids` and `filter`. `except_ids` takes works out of a
+    filter's set — the ones the curator unticked after *Select all*.
+    """
+
+    artwork_ids: list[str] | None = None
+    filter: WorksFilter | None = None
+    except_ids: list[str] = []
+
+
+class ThemeAdditionOut(BaseModel):
+    """What adding a selection to a theme did."""
+
+    #: How many joined the theme now.
+    added: int
+    #: How many the theme already held, and so were passed over.
+    already: int
+
+
+class ThemeRemovalOut(BaseModel):
+    """What taking a selection out of a theme did."""
+
+    #: The ids that left, so a screen can take exactly those tiles away.
+    removed: list[str]
+
+
+class ArchivedWorksOut(BaseModel):
+    """What archiving a selection did."""
+
+    #: The ids archived now, so a screen can mark exactly those.
+    archived: list[str]
+    #: How many were archived already, and so were passed over.
+    already: int

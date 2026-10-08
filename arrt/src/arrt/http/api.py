@@ -22,6 +22,7 @@ that safe.
 """
 
 import logging
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -36,6 +37,7 @@ from arrt.http.models import (
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArchivedWorksOut,
     ArtistCandidateOut,
     ArtistListOut,
     ArtistOut,
@@ -137,11 +139,13 @@ from arrt.http.models import (
     StartRun,
     StepDisplay,
     SuggestionOut,
+    ThemeAdditionOut,
     ThemeDetailOut,
     ThemeListOut,
     ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
+    ThemeRemovalOut,
     ThemeSummaryOut,
     TopicArtistsOut,
     TopicFoundOut,
@@ -169,6 +173,8 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
     WorkPlacementsOut,
+    WorkSelection,
+    WorksFilter,
 )
 from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
@@ -211,6 +217,7 @@ from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
 from arrt.services.container import Services
+from arrt.services.errors import ServiceError
 from arrt.services.health import HealthReading, PicturesReading, SourceHealth
 
 log = logging.getLogger(__name__)
@@ -318,6 +325,56 @@ def list_works(
         facets=[_facet_group(group) for group in page.facets],
         themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
     )
+
+
+def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
+    """Every work `narrowing` selects, in the order its listing shows them.
+
+    Composed as `list_works` composes it: Programming names a theme's works
+    and the Library lists them, so a filter that names a theme is the theme's
+    ids handed to the Library as opaque references.
+    """
+    within = None if narrowing.theme is None else services.display.theme_work_ids(narrowing.theme)
+    chosen = {
+        "artist": narrowing.artist,
+        "movement": narrowing.movement,
+        "era": narrowing.era,
+        "subject": narrowing.subject,
+        "medium": narrowing.medium,
+        "palette": narrowing.palette,
+    }
+    return services.catalogue.matching_ids_in_order(
+        status=narrowing.status,
+        q=narrowing.q,
+        facets={kind: values for kind, values in chosen.items() if values},
+        artist_id=narrowing.artist_id,
+        within=within,
+        sort=narrowing.sort,
+    )
+
+
+def _selected_ids(services: Services, selection: WorkSelection) -> Sequence[str]:
+    """The works a selection means, by id, with the ones it leaves out taken away."""
+    if (selection.artwork_ids is None) == (selection.filter is None):
+        raise ServiceError("Name the works either by their ids or by a filter, and not both.")
+    named = selection.artwork_ids if selection.artwork_ids is not None else _filtered_ids(services, selection.filter)
+    leaving = set(selection.except_ids)
+    return [artwork_id for artwork_id in dict.fromkeys(named) if artwork_id not in leaving]
+
+
+@router.post("/works/archive")
+def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
+    """Archive a selection: by id, or every work a filter matches.
+
+    *Select all* on Artworks means every work the filter matches, loaded or
+    not, so the filter travels rather than the ids the screen happens to hold.
+    One transaction: an id the catalogue does not hold refuses the whole act.
+    A work already archived is passed over and counted.
+    """
+    services = _services(request)
+    ids = _selected_ids(services, body)
+    archived = services.catalogue.archive_artworks(ids)
+    return ArchivedWorksOut(archived=list(archived), already=len(ids) - len(archived))
 
 
 @router.get("/works/{artwork_id}")
@@ -868,6 +925,27 @@ def add_to_theme(request: Request, theme_id: str, body: AddWork) -> ThemeDetailO
     services = _services(request)
     services.display.add_to_theme(theme_id=theme_id, artwork_id=body.artwork_id, position=body.position)
     return _theme_detail(services, theme_id)
+
+
+@router.post("/themes/{theme_id}/works/bulk")
+def add_selection_to_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeAdditionOut:
+    """Put a selection at the end of a theme, in the order its listing shows it.
+
+    The selection is by id or by a filter, so *Select all* on Artworks reaches
+    every work the filter matches rather than the ones loaded. Works the theme
+    already holds are passed over and counted; one transaction.
+    """
+    services = _services(request)
+    added, already = services.display.add_works_to_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeAdditionOut(added=added, already=already)
+
+
+@router.post("/themes/{theme_id}/works/remove")
+def remove_selection_from_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeRemovalOut:
+    """Take a selection out of a theme, by id or by a filter, and say which works left."""
+    services = _services(request)
+    removed = services.display.remove_works_from_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeRemovalOut(removed=list(removed))
 
 
 @router.delete("/themes/{theme_id}/works/{artwork_id}")

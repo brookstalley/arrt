@@ -118,6 +118,23 @@ function worksFilter(query, chosen, sort, { artistId = null, status = null, them
   );
 }
 
+/* The same narrowing as a body, for an act on every work it matches: the
+ * `filter` the selection routes take (`POST /api/works/archive`, a theme's
+ * `works/bulk` and `works/remove`). One function beside `worksFilter` so the
+ * grid and *Select all* cannot come to mean different works. */
+export function worksFilterBody(query, chosen, sort, { artistId = null, status = null, theme = null } = {}) {
+  const body = {};
+  if (query) body.q = query;
+  for (const kind of Object.keys(chosen || {})) {
+    if ((chosen[kind] || []).length) body[kind] = [...chosen[kind]];
+  }
+  if (sort) body.sort = sort;
+  if (artistId) body.artist_id = artistId;
+  if (status) body.status = status;
+  if (theme) body.theme = theme;
+  return body;
+}
+
 /* The facet and theme controls for a filter, without its works: one page of
  * one work, since the counts come with every page. For a screen that changed
  * the works under its rail in place and must recount it. */
