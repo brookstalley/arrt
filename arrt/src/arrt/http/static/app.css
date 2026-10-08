@@ -2274,3 +2274,13 @@ dialog.confirm::backdrop {
   width: 8rem;
   border-radius: var(--radius-sm);
 }
+
+/* Search and the Artist page: a registry work or artist waiting for review. A
+   link to the review it waits on, so it reads as a mark to act on, between
+   held and not held; glyph and word carry the state. */
+.badge-in-review {
+  text-decoration: none;
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+  color: var(--text-strong);
+}

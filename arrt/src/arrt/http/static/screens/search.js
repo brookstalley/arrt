@@ -23,7 +23,7 @@
 
 import { api } from "../core/api.js";
 import { getSelection } from "../core/getting.js";
-import { lifeDates, named, stateMark, topicKinds, topicName, workState } from "../core/registry.js";
+import { gettable, lifeDates, named, reviewMark, stateMark, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, link, setTitle } from "../core/router.js";
 import { asksWikidata, fold } from "../core/search.js";
@@ -136,7 +136,7 @@ export async function viewSearch(generation) {
       "not-held",
       "works",
       works.notHeld.map(workRow),
-      works.notHeld.length ? getting.node : null,
+      works.notHeld.some((row) => row.box) ? getting.node : null,
     );
     paintTop(top, query, [...artists.held, ...artists.notHeld]);
   };
@@ -234,6 +234,7 @@ function artistRows(library, found) {
         life: lifeDates(person),
         held: Boolean(person.artist_id),
         open: { view: "artist", id: person.artist_id || person.qid },
+        inReview: person.artist_id ? null : person.in_review || null,
       };
       (row.held ? held : notHeld).push(row);
     }
@@ -241,13 +242,16 @@ function artistRows(library, found) {
   return { held, notHeld };
 }
 
-/* No mark: the group heading the row sits under says whether the library holds
- * them, and a mark beside it said it again (the owner, 2026-10-06). The top
- * result, which sits under no group, keeps its mark. */
+/* No held mark: the group heading the row sits under says whether the library
+ * holds them, and a mark beside it said it again (the owner, 2026-10-06). The
+ * top result, which sits under no group, keeps its mark. *Waiting for review*
+ * is a state no heading says, so a not-held artist a run proposed a work of
+ * carries it. */
 function artistRow(row) {
   return el("li", {}, [
     link(row.open, { class: "row-title", text: row.name }),
     row.life ? el("span", { class: "muted", text: ` ${row.life}` }) : null,
+    row.inReview ? reviewMark(row.inReview) : null,
   ]);
 }
 
@@ -271,7 +275,7 @@ function workRows(library, found, getting) {
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
         mark: workState(work, { opens: false, grouped: true }),
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
-        box: isHeld ? null : getting.box(work.qid, named(work.title, work.qid)),
+        box: gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null,
       };
       (isHeld ? held : notHeld).push(row);
     }

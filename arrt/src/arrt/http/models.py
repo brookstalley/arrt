@@ -1549,7 +1549,7 @@ class StartGet(BaseModel):
 
 
 class SkippedOut(BaseModel):
-    """An item a Get left out, and why: `held`, `being_got` or `not_found`."""
+    """An item a Get left out, and why: `held`, `being_got`, `in_review` or `not_found`."""
 
     qid: str
     reason: str

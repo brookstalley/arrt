@@ -664,6 +664,7 @@ picture in the image style of its state, then glyph and word:
 | State | Picture | Glyph and word |
 |---|---|---|
 | Held | The library's own thumbnail, in the held style; the mark opens the work | ● *Held* (*Held ×n* for a duplicate) |
+| Waiting for review (a run found it and it has no verdict; `in_review`) | None | ◔ *Waiting for review*; the mark opens that review (`#review/<run>`), except inside a search suggestion, and the row has no Get *(2026-10-07, #275)* |
 | Wanted (the Wanted section, matched to the item) | Wikidata's picture where it has one, in the wanted style | ◑ *Wanted* |
 | Not held, with a picture | Wikidata's picture, in the not-held style | ◐ *Not held · Image found* (*Image found* under a *Not held* heading) |
 | Not held, no picture | None | ○ *Not held* (*No image known* on the Topic page and under a *Not held* heading) |
@@ -673,8 +674,11 @@ picture in the image style of its state, then glyph and word:
 sense when the whole section is 'not held'"): the search typeahead and the Search
 results page drop *Not held* from a not-held work's mark, and mark no artist at
 all; the Search results page's top result, under no heading, keeps its mark.
+*Waiting for review* is the exception for artists: no heading says it, so a
+not-held artist a run proposed a work of carries it, in the typeahead and on the
+Search results page alike (2026-10-07, #275).
 
-Held wins over wanted. **The three image styles are one block in `app.css`**,
+Held wins over waiting for review, which wins over wanted. **The three image styles are one block in `app.css`**,
 to be tuned against one another: the owner asked to "css style held, wanted,
 not held as image styles and then iterate on what's most clear". The first try
 is held plain with a quiet outline, wanted with a dashed accent outline, and not

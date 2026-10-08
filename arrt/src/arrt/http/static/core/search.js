@@ -13,7 +13,7 @@
  */
 
 import { api } from "./api.js";
-import { named, topicKinds, topicName, workState } from "./registry.js";
+import { named, reviewMark, topicKinds, topicName, workState } from "./registry.js";
 import { el, fill } from "./render.js";
 import { go, goWithParams, openedFrom } from "./router.js";
 import { state } from "./state.js";
@@ -471,7 +471,10 @@ export function clearSearchLink(text = "Clear the search") {
  * own artist rows beside it never carried one. */
 function registryPersonRow(person) {
   const years = person.born || person.died ? ` (${person.born || "?"}–${person.died || ""})` : "";
-  return [`${named(person.name, person.qid)}${years} — artist`];
+  // Waiting for review is said, as the group cannot say it: a run proposed a
+  // work of theirs and nobody has judged it.
+  const waiting = !person.artist_id && person.in_review ? reviewMark(person.in_review, { inOption: true }) : null;
+  return [`${named(person.name, person.qid)}${years} — artist`, waiting];
 }
 
 /* A registry topic as a row: its name, its kinds, and Wikidata's description,
@@ -487,5 +490,5 @@ function registryTopicRow(topic) {
  * carries one, glyph and word and colour (`accessibility-spec.md`). */
 function registryWorkRow(work) {
   const maker = work.creator ? ` — ${named(work.creator.name, work.creator.qid)}` : "";
-  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false, grouped: true })];
+  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false, grouped: true, inOption: true })];
 }

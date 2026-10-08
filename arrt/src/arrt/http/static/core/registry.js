@@ -100,6 +100,8 @@ const FOUND_WIDTH = 250;
  * image style of its state, then glyph and word.
  *
  *   ● *Held*: the library's own thumbnail, and a link to the work.
+ *   ◔ *Waiting for review*: a run found it and nobody has judged it yet
+ *     (`in_review`); a link to that review, unless `inOption`.
  *   ◑ *Wanted*: Wikidata's picture, where it has one (the Wanted section).
  *   ◐ *Not held · Image found*: Wikidata's picture.
  *   ○ *Not held* (or `noImage`'s words): no picture.
@@ -117,8 +119,13 @@ const FOUND_WIDTH = 250;
  * results and the dropdown): the words say only what the heading does not, so
  * ◐ *Image found*, and ○ *No image known* as the Topic page says it. "Not held"
  * on every row of a group headed *Not held* was noise (the owner, 2026-10-06).
- * `noImage`, where given, is the no-picture word whichever. */
-export function workState(work, { noImage = null, opens = true, grouped = false } = {}) {
+ * `noImage`, where given, is the no-picture word whichever.
+ *
+ * **`inOption`, where the mark sits inside a search suggestion**: nothing in
+ * it is a link, since a control inside an option is what ARIA forbids. Waiting
+ * for review links to a page other than the row's own, so the row's `opens`
+ * does not stand in for it. */
+export function workState(work, { noImage = null, opens = true, grouped = false, inOption = false } = {}) {
   const held = work.held_artwork_ids || [];
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
@@ -136,10 +143,26 @@ export function workState(work, { noImage = null, opens = true, grouped = false 
     if (!opens) return el("span", { class: "badge badge-held state-mark" }, parts);
     return link({ view: "work", id: held[0] }, { class: "badge badge-held state-mark" }, parts);
   }
+  if (work.in_review) return reviewMark(work.in_review, { inOption });
   const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
   if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
   if (found) return stateBadge("badge-image-found", "◐", grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
   return stateBadge("badge-not-held", "○", noImage || (grouped ? "No image known" : "Not held"));
+}
+
+/* Whether a registry row can be ticked for a Get: not when the library holds
+ * it, and not when a run already found it and it waits for a verdict, which a
+ * second Get would pay for again (the server skips it too, as `in_review`). */
+export function gettable(work) {
+  return !(work.held_artwork_ids || []).length && !work.in_review;
+}
+
+/* *Waiting for review*, for a registry work or artist a run proposed and
+ * nobody has judged: glyph, words, and the way to the review it waits on. */
+export function reviewMark(inReview, { inOption = false } = {}) {
+  const parts = [el("span", { class: "glyph", text: "◔", "aria-hidden": true }), el("span", { text: "Waiting for review" })];
+  if (inOption) return el("span", { class: "badge badge-in-review state-mark" }, parts);
+  return link({ view: "review", id: inReview.run_id }, { class: "badge badge-in-review state-mark" }, parts);
 }
 
 /* A picture in the image style of a state. In a frame, because the not-held

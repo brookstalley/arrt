@@ -145,6 +145,7 @@ function destinationControl({ defaultName = null } = {}) {
 export const SKIP_WORDS = {
   held: ["is already in your library", "are already in your library"],
   being_got: ["is already being got", "are already being got"],
+  in_review: ["is already waiting for review", "are already waiting for review"],
   not_found: ["is not a work Wikidata has", "are not works Wikidata has"],
 };
 
