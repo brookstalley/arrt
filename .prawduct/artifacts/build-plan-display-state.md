@@ -48,10 +48,11 @@ panel applies it to `unreachable` here.
   set's content id through the Player's bindings; a content id with no binding is
   showing_art with work_id null (a picture this wall did not put there) | builder's
   call]`
-- `[ASSUMPTION: the Frame's in_use and dark readings come from the readings the
-  daemon already takes (get_artmode on announcement; PowerState), without new
-  polling of the set; samsung-tv-state-findings.md is the authority, re-read before
-  building chunk 02.]`
+- `[ASSUMPTION, corrected while building: the daemon never read PowerState, and
+  television and dark read alike except by it. So the Frame takes one read-only
+  PowerState read (a REST GET, never a key press) only right after a get_artmode read
+  says off: standby is dark, on is in_use, a failed read is in_use. Unmeasured on the
+  set until chunk 05 (samsung-tv-state-findings.md § What is still owed).]`
 - `[ASSUMPTION: an HDMI connector reported "no screen detected" (#274's reading) is
   dark; an output absent from the client is no_screen.]`
 

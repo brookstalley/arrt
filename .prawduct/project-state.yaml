@@ -3111,6 +3111,10 @@ artifact_manifest:
       file_path: .prawduct/artifacts/clients.md
       version: 1
       depends_on: [re-architecture, player-contract, data-model, nonfunctional-requirements]
+    - name: labels-and-surfaces
+      file_path: .prawduct/artifacts/labels-and-surfaces.md
+      version: 1
+      depends_on: [re-architecture, clients, player-contract, samsung-tv-state-findings, accessibility-spec]
     - name: upgrades
       file_path: .prawduct/artifacts/upgrades.md
       version: 1
