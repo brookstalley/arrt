@@ -394,8 +394,8 @@ class Services:
             health=HealthService(
                 display_service,
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
-                box=artwork_box,
                 sources=sources,
+                yields=discovery.source_yields,
                 pictures=pictures,
             ),
             runner=runner_service,

@@ -544,16 +544,28 @@ class TestHealth:
         # installed source plugins, added with them; its own keys are covered by
         # the word check above. `pictures` is the picture store's files and bytes,
         # added 2026-10-06 by the owner's ruling that the store has no ceiling and
-        # is watched here instead.
-        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "artwork_box", "sources", "pictures"}
+        # is watched here instead. There is no `artwork_box`: the geometry was one
+        # television's, and the owner removed it on 2026-10-08 (#266).
+        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "sources", "pictures"}
 
-    def test_the_panel_shows_the_geometry_every_size_in_the_grid_is_judged_against(self, http):
-        box = http.get("/api/health").json()["artwork_box"]
-        # The reference 42" 4K panel with the shipped 1.5" mat: 3840 less two
-        # mats of 157 px, and 2160 less a top mat plus a bottom weighted 1.15x.
-        assert box["width"] == 3526
-        assert box["height"] == 1822
-        assert box["floor_inches"] == 12.0
+    def test_each_installed_sources_yield_is_counted_from_the_library(self, http, hold):
+        """`GET /api/sources/yields`, one row per plugin the health reading lists, in its order.
+
+        Read twice around holding a work, so the figures are shown to come from
+        the records behind this server rather than from a constant that happens
+        to match a fresh library.
+        """
+        before = http.get("/api/sources/yields").json()["sources"]
+        names = [source["name"] for source in http.get("/api/health").json()["sources"]]
+        assert [row["name"] for row in before] == names == ["artic"]
+        assert set(before[0]) == {"name", "offered", "chosen", "only_here", "median_long_edge"}
+
+        hold("A work held from the Art Institute")
+        after = http.get("/api/sources/yields").json()["sources"][0]
+
+        assert after["offered"] == before[0]["offered"] + 1
+        assert after["chosen"] == before[0]["chosen"] + 1
+        assert after["only_here"] == before[0]["only_here"] + 1
 
 
 class TestTheWholeLoop:
