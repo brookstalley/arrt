@@ -238,6 +238,64 @@ lead's exact words instead of a trailing space, and its absence check keys on
 anything); `test_wanted.py` reads `.empty`; in `test_client_vocabulary.py` the
 sentiment-glyph check verifies each shape names a meaning `core/glyphs.js`
 holds, since the values are no longer string literals.
+## 2026-10-08: Plan displays and label outputs; the Apple platform findings
+
+<!-- prawduct: scope=displays-and-label-outputs -->
+
+**Why:** #188 is next in `labels-and-surfaces.md`'s order, and the owner widened it
+on 2026-10-08 (`feeds-and-players.md` rulings 1 and 9) so displays become server
+records too. The platform facts in `feeds-and-players.md` § Platforms were the
+builder's recollection until a spike measured or sourced them.
+
+**What:** Planning and findings; no code.
+- `build-plan-displays-and-label-outputs.md` (new): seven chunks. A contract with
+  display identity, label outputs, a label document and the label rule as
+  conformance vectors. Display and LabelOutput records with a migration that keeps
+  every wall on its screen. The label route and the duplicate-display fault. The
+  interface, held until `feature/lists-settings-and-scale` merges. The Player's
+  reports. A label renderer per label output, with the Frame loop no longer
+  drawing the panel. The operator on the wall, after #181. Four observations from
+  the display-state review are carried in.
+- `apple-platform-findings.md` (new): what a macOS screensaver and a tvOS app can
+  do as Players, each fact labelled measured, sourced or unverified.
+- `feeds-and-players.md` § Platforms corrected from it: a backgrounded tvOS app
+  goes silent rather than reporting `in_use`; tvOS has no local-network permission
+  and the Frame's certificate is the obstacle; the macOS saver host must be torn
+  down on `willstop`, and whether a saver can reach the LAN is its largest risk;
+  `UIScreen` gives no physical size, so the relative mat width applies on Apple
+  TV; CoreText can do the label's measuring; and unverified facts are verified
+  on hardware before each platform's plan is written.
+- `labels-and-surfaces.md` § What changes, in order: #181 now blocks only the
+  plan's last chunk, the operator's.
+- `apple-platform-findings.md` registered in `project-state.yaml`.
+
+## 2026-10-08: Feeds and players: one Player core for private walls and public channels
+
+<!-- prawduct: scope=feeds-and-players -->
+
+**Why:** The owner set the Player's next shape: Players on several platforms (the Pi,
+Apple TV, Mac and Windows screensavers), a display controller kept apart from the
+wall it shows, the Player in its own repository, and logic and documentation
+reused across platforms. A second use case came with it: public channels of
+public-domain art that any number of Apple TV apps read, with the server neither
+knowing nor caring how many. Major 2 is still a draft, so this is the cheapest
+moment to reshape it.
+
+**What:** Design only; no code.
+- `feeds-and-players.md` (new): the owner's direction in their words, and ten
+  rulings, each marked with whose proposal it was. Major 2 becomes a **feed** (schedule, works,
+  default presentation settings) plus an optional **control** layer; each major at
+  its own URL; displays as server records with one client each, configured on the
+  host and never discovered; rendering always on the client; presentation settings
+  in three layers (feed, wall, device), including which facts about a work show;
+  the feed carries only the mat colour and the client decides mode and width;
+  public channels published to static hosting, public-domain only, 4K at most,
+  listed in a published index; reuse through a Player spec and conformance
+  vectors, with no shared native core until a stated trigger.
+- Dated pointers in `re-architecture.md`, `player-contract.md` (§ Major 2 and
+  § The cutover), `data-model.md` constraint 13 (reopened for public channels
+  only) and `nonfunctional-requirements.md` § The mat is geometric.
+- Registered in `project-state.yaml`'s artifact manifest.
 
 ## 2026-10-08: Labels as outputs, and each wall reports its display state
 
