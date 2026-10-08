@@ -220,6 +220,20 @@ Four properties of the rule, all of them load-bearing:
   surface is too small for the corpus, rather than leaving somebody to notice
   missing dimensions by eye.
 
+### Dimensions on the label
+
+*(2026-10-08, the owner's ruling.)* **A label states a work's dimensions in one
+system of units, rounded to whole units, and only the first measurement.** "76.5
+× 97.3 cm (30 1/8 × 38 1/4 in.)" is "30 × 38 in". The system is the deployment's
+(`LABEL_UNITS`, imperial or metric, imperial by default); a Settings › General
+control for it waits on the interface redesign. Where the source states several
+measurements (image and mount, unframed and framed, a repeat, side panels) the
+first is kept with its qualifier ("Image/paper: 8 × 10 in") and the rest dropped.
+The source's own figures in the chosen system are read rather than converted
+from the other's, a half rounds up, and a string with no measurement the server
+recognises is shown as the source wrote it. The stored string never changes
+(`data-model.md`, `dimensions`).
+
 ### The type floor is derived from viewing distance, not chosen for a panel
 
 **Practised** — `postarr/src/postarr/panel/legibility.py`, built 2026-08-11 as
