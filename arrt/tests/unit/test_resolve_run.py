@@ -231,6 +231,8 @@ def test_a_re_search_is_priced_on_the_works_it_covers_not_the_ids_it_was_sent(se
     assert estimate.cost_usd == Decimal(0), "phase 2 asks museum APIs, which are free"
     assert "1 work this run covers" in estimate.basis
     assert "proposed" not in estimate.basis, "a re-search proposed nothing; that sentence belongs to its parent"
+    # Said to a curator or by an agent; the engine's phases are internal.
+    assert "phase" not in estimate.basis.lower(), estimate.basis
 
 
 @pytest.mark.parametrize(

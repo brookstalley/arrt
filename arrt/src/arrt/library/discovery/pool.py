@@ -37,6 +37,7 @@ from arrt.library.discovery.images import (
     ImageSearchFailure,
     offers_images,
 )
+from arrt.library.sources.names import museum_name
 
 log = logging.getLogger(__name__)
 
@@ -199,8 +200,11 @@ class ImageSourcePool:
             # is down. The pages found are dropped with the answer, and a later
             # search of the work finds them again.
             if unreachable:
-                raise ImageSearchFailure(f"No image source could be asked: {', '.join(unreachable)}.")
-            cannot = [*(f"{name} cannot" for name in declined), *(f"{name} finds pages only" for name in pages_only)]
+                raise ImageSearchFailure(f"No image source could be asked: {', '.join(map(museum_name, unreachable))}.")
+            cannot = [
+                *(f"{museum_name(name)} cannot" for name in declined),
+                *(f"{museum_name(name)} finds pages only" for name in pages_only),
+            ]
             raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
         return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
 

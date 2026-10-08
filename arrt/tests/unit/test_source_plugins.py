@@ -374,7 +374,9 @@ def test_the_health_reading_states_each_plugin_with_the_age_of_its_last_fault():
     assert out["raising"].state == "failed"
     assert "was not loaded: its factory raised RuntimeError" in out["raising"].description
     assert out["configured"].state == "declined"
-    assert out["configured"].description == "configured is installed and not configured here: FAKE_SOURCE_KEY is unset."
+    assert (
+        out["configured"].description == "The configured plugin is installed and not configured here: FAKE_SOURCE_KEY is unset."
+    )
 
 
 def test_a_loaded_plugin_with_no_faults_says_so_and_carries_no_fault_age():
@@ -382,7 +384,7 @@ def test_a_loaded_plugin_with_no_faults_says_so_and_carries_no_fault_age():
 
     (good,) = _health(_health_of(roster)).sources
 
-    assert good.description == "good is loaded, with no faults since startup."
+    assert good.description == "The good plugin is loaded, with no faults since startup."
     assert (good.last_fault_at, good.last_fault_age_seconds, good.last_fault) == (None, None, None)
 
 

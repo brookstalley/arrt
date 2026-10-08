@@ -63,6 +63,10 @@ log = logging.getLogger(__name__)
 #: The name these instances are recorded under.
 PROVIDER: Final[str] = "navigart"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "Navigart (French public collections)"
+
 _SITE_HOST: Final[str] = "www.navigart.fr"
 _API_HOST: Final[str] = "api.navigart.fr"
 _IMAGE_HOST: Final[str] = "images.navigart.fr"

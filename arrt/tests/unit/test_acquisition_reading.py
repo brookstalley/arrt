@@ -205,7 +205,7 @@ class TestAClaimedUrlIsReadBeforeItIsFetched:
         result = _acquisition(service, acq_settings, roster).acquire(work.id)
 
         assert result.outcome is AcquisitionOutcome.FAILED
-        assert "the artic plugin could not read this source" in result.detail
+        assert "the Art Institute of Chicago plugin could not read this source" in result.detail
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
         assert refreshed.last_fetch_status is FetchStatus.FAILED
 
@@ -313,7 +313,7 @@ class TestAClaimedUrlWhosePluginIsNotLoaded:
         with pytest.raises(SourcePluginUnavailable) as refusal:
             _acquisition(service, acq_settings, roster).acquire(work.id)
 
-        assert "the artic source plugin is installed and not loaded" in str(refusal.value)
+        assert "the Art Institute of Chicago source plugin is installed and not loaded" in str(refusal.value)
         assert "ARTIC_USER_AGENT is unset" in str(refusal.value)
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
         assert refreshed.last_fetch_status is None, "a deployment fault must not be recorded against the source"
@@ -332,7 +332,7 @@ class TestAClaimedUrlWhosePluginIsNotLoaded:
         with pytest.raises(SourcePluginUnavailable) as refusal:
             _acquisition(service, acq_settings, roster).acquire(work.id)
 
-        assert "the artic source plugin is installed and could not be loaded" in str(refusal.value)
+        assert "the Art Institute of Chicago source plugin is installed and could not be loaded" in str(refusal.value)
         assert "could not be imported" in str(refusal.value)
         refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
         assert refreshed.last_fetch_status is None, "a deployment fault must not be recorded against the source"

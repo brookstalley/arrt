@@ -7,7 +7,9 @@
  *
  * Keyed by the `PROVIDER` each built-in plugin declares under
  * `library/sources/`, and held to them by `tests/unit/test_client_vocabulary.py`,
- * so a new built-in source fails there until it has a name. A plugin installed
+ * so a new built-in source fails there until it has a name. Each name is the
+ * one that plugin declares as its `MUSEUM`, which the server's own sentences
+ * use (`library/sources/names.py`); the same test holds the two to one spelling. A plugin installed
  * from elsewhere is not known here and is named by its id, which is still what
  * it called itself. Imports nothing, so `node` can run it. */
 
