@@ -10,3 +10,4 @@ paths:
 - When a requirement is about perception, record the physical quantity (viewing distance, angular size, luminance) beside any px/pt — because legibility is a fact about a person at a distance.
 - When a double stands in for a stateful client, fail where the real one fails and let it model accepted-but-ignored — because a double failing early, or holding only your beliefs, makes every later assertion vacuous.
 - When a test advances an injected clock, step by amounts that are not multiples of the interval under test — because an equal step can't tell wrongly consumed from correctly withheld.
+- When you time events from a journal, read whether each line logs the start or the end of its act (a draw logs after a 2–3 s refresh) — because ordering two events by log time inverts when one carries a long act.

@@ -244,8 +244,13 @@ class _Look:
     watchers: int = 0
 
 
+#: The name every thread draining a look is started under, for the reason
+#: `runner.RUN_THREAD_NAME` is named.
+LOOK_THREAD_NAME: Final = "look"
+
+
 def _daemon_thread(work: Callable[[], None]) -> None:
-    threading.Thread(target=work, name="look", daemon=True).start()
+    threading.Thread(target=work, name=LOOK_THREAD_NAME, daemon=True).start()
 
 
 class LookService:
