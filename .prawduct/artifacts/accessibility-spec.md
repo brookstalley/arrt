@@ -234,7 +234,8 @@ from the other's, and a half rounds up. A value under one whole unit keeps one
 decimal place, never less than 0.1, rather than stating a size of nothing.
 **What the server does not wholly read is shown as the source wrote it**: a
 string with no measurement it recognises, and a first measurement it reads only
-in part (two measurements in one system, or a figure outside any measurement),
+in part (two measurements in one system, a figure outside any measurement, a
+comma that may be a thousands separator as in "1,200", or a fraction over nought),
 because converting what it could read would drop a dimension silently. The stored string never changes
 (`data-model.md`, `dimensions`).
 
