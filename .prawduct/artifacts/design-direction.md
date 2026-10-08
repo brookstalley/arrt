@@ -264,7 +264,7 @@ classes the client never had.*
   2026-10-08 only `p + .row` was spaced, so the Artist page spaced its three
   rows of acts three different ways.)* A row inside a flex column is spaced
   by that column's gap. One line of words that says what pressing an act
-  costs or starts sits under that act, centred, small and muted
+  costs or starts sits under that act, starting where it starts, small and muted
   (`captioned`, `.act-caption`), and is read with it by a screen reader.
 - **Controls** *(2026-10-08)* — one height for every act and field,
   `--control-h` (2.5rem), and a compact one, `--control-h-compact` (2rem),

@@ -76,7 +76,7 @@ it is decided (hide it, or move it to the end).
 
 ## Status
 
-- [ ] Chunk 01: Ask: one act and a quieter alternative
+- [x] Chunk 01: Ask: one act and a quieter alternative
 - [ ] Chunk 02: A Get's page: asked-for and offered, with pictures and counts
 - [ ] Chunk 03: Review: pictures first, "found none" collapsed
 - [ ] Chunk 04: Queue's retry says what it retries, and the walk
@@ -98,11 +98,16 @@ their tier mark; whether they move to the same form is not in this plan.
 
 ### Chunk 02: A Get's page
 
-**Exposed API:** `/api/runs/{id}` gains the offering source per offered work.
+**Exposed API:** none, after all. The plan said `/api/runs/{id}` would gain
+the offering source per offered work, because `CandidateWorkOut` carries no
+provider. But each work's review card (`/api/runs/{id}/candidates`) carries
+the scan it arrived with, `shown`, and an offered work's scan is the
+offering museum's. The page reads the cards for the pictures anyway, so it
+takes the museum from the same place (builder, 2026-10-08).
 
 Done when: the summary is three counts; works are under *Asked for* and *Also
 offered by <museum>*, each row with a thumbnail where one was found; offered
-rows carry no reason column; `api-contract.md` has the new field.
+rows carry no reason column.
 
 ### Chunk 03: Review
 

@@ -2629,6 +2629,23 @@ dialog.confirm::backdrop {
   border-radius: var(--radius-sm);
 }
 
+/* A Get's works: a picture in each row, the size Wanted's rows use, at every
+   width, so a phone's stacked row stays a row and not a poster. Each section
+   after the first starts a step below the table it follows. */
+.row-picture,
+.row-picture .card-image {
+  width: 8rem;
+}
+
+.row-picture .card-image {
+  border-radius: var(--radius-sm);
+}
+
+section.asked-for + section.offered,
+section.offered + section.offered {
+  margin-top: var(--space-6);
+}
+
 /* -- the Work page ------------------------------------------------------------
 
    The picture is the largest thing on the page: the wall render, mat and all,

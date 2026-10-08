@@ -62,6 +62,45 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Get and review clarity, chunk 02: a Get's page
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The owner found a finished Get's page hard to read: one paragraph
+holding two different counts that are often the same number, and one table
+mixing the works asked for with works a museum volunteered, each offered row
+repeating a long stored sentence (`build-plan-get-and-review-clarity.md`
+chunk 02).
+
+**What:**
+- A finished Get from words says "This Get finished." and three counts:
+  *Asked for*, *Found with an image*, *Not matched*. The pending clause
+  ("could not be looked up at all…") still follows when there is one.
+- Its works are listed under *Asked for (N)*, with why the run named each,
+  then under *Also offered by <museum> (N)*, one section per museum, with no
+  reason column. Every row carries the picture found for it (`rowPicture`),
+  8rem wide at every width.
+- The page reads every run's review cards for the pictures, not only a Get
+  of chosen works'. The museum comes from the same card's `shown` scan, so
+  the plan's API change (a provider on `CandidateWorkOut`) was not needed.
+- Chunk 01's review observations are fixed here: `design-direction.md` no
+  longer says the caption is centred; `captioned` sits above `render`'s doc
+  comment rather than inside it; `aboutCost` says "Cost unknown just now"
+  for a figure that is not one, and its zero and non-figure branches are
+  tested.
+
+**Tests:** `test_a_finished_get_says_three_counts_rather_than_a_paragraph`,
+`test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason`,
+`test_each_row_shows_the_picture_found_for_it` and
+`test_a_row_s_picture_stays_small_on_a_phone` were watched failing first.
+Four tests pinned the paragraph and now pin what replaced it: the provenance
+test asserts the two section headings instead of the words "asked for" and
+"offered by the collection"; the count-of-one test asserts the counts; the
+singular-verb test keeps its re-search case and drops the discovery one,
+which no longer has a verb; the does-not-deny test asserts the museum
+heading instead of "the collection offered 1 more work". The run-view
+fixtures now stub the cards listing, as a real run has one.
+
 ## 2026-10-08: Get and review clarity, chunk 01: Ask
 
 <!-- prawduct: scope=get-and-review-clarity -->

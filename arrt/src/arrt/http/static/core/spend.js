@@ -54,7 +54,8 @@ export function dollars(value) {
  * the nearest power of ten, never below a cent; nothing at all reads "Free". */
 export function aboutCost(value) {
   const number = Number(value);
-  if (value === null || value === undefined || !Number.isFinite(number)) return `About $${value}`;
+  // A figure that is not one says so, rather than reading as a price or as free.
+  if (value === null || value === undefined || value === "" || !Number.isFinite(number)) return "Cost unknown just now";
   if (number <= 0) return "Free";
   const scale = 10 ** Math.max(-2, Math.round(Math.log10(number)));
   return `About $${scale < 1 ? scale.toFixed(2) : String(scale)}`;

@@ -131,6 +131,7 @@ CAPTION = """(button) => {
         ("0.04", "About $0.10"),
         ("0.90", "About $1"),
         ("4.00", "About $10"),
+        ("0.00", "Free"),
     ],
 )
 def test_ask_says_about_what_a_get_costs_under_it(ui, bound, said):
@@ -149,6 +150,15 @@ def test_ask_says_about_what_a_get_costs_under_it(ui, bound, said):
     # The bound sentence and the tier mark are gone, not shown beside it.
     assert "costs at most" not in ui.text()
     assert ui.page.locator("#view .badge-tier").count() == 0
+
+
+def test_an_estimate_that_is_not_a_figure_reads_as_unknown_not_as_a_price(ui):
+    """Served by hand: the server's model cannot build one, and the client says so anyway."""
+    ui.serve("**/api/estimate", {"phase": "phase_1", "estimated_cost_usd": None, "basis": "", "run_id": None, "tier": "$"})
+    ui.open("#discover")
+
+    caption = ui.page.locator("#view button:text-is('Get')").evaluate(CAPTION)
+    assert caption["text"] == "Cost unknown just now"
 
 
 def test_ask_still_opens_when_the_estimate_cannot_be_read(ui):

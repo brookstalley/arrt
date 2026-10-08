@@ -72,6 +72,21 @@ export function fill(node, ...children) {
   node.replaceChildren(...children.filter((child) => child !== null && child !== undefined && child !== false));
 }
 
+let captions = 0;
+
+/* An act with one line of words under it, tied to it for a screen reader.
+ *
+ * The words say something about pressing — what it costs, what it starts — so
+ * they sit under the act they belong to and are read with it
+ * (`aria-describedby`), and they are plain text: nothing about them looks or
+ * behaves like a second act. */
+export function captioned(act, words) {
+  captions += 1;
+  const id = `caption-${captions}`;
+  act.setAttribute("aria-describedby", id);
+  return el("div", { class: "captioned" }, [act, el("span", { class: "act-caption", id, text: words })]);
+}
+
 /* Write a view's nodes to the page, unless the curator has moved on.
  *
  * `generation` is `state.nav` as it stood when this paint began, and passing it
@@ -91,21 +106,6 @@ export function fill(node, ...children) {
  * It is also why the argument comes first and is required: a view that forgets
  * it passes a DOM node where a number belongs, and the check below throws
  * instead of silently painting whatever it was handed. */
-let captions = 0;
-
-/* An act with one line of words under it, tied to it for a screen reader.
- *
- * The words say something about pressing — what it costs, what it starts — so
- * they sit under the act they belong to and are read with it
- * (`aria-describedby`), and they are plain text: nothing about them looks or
- * behaves like a second act. */
-export function captioned(act, words) {
-  captions += 1;
-  const id = `caption-${captions}`;
-  act.setAttribute("aria-describedby", id);
-  return el("div", { class: "captioned" }, [act, el("span", { class: "act-caption", id, text: words })]);
-}
-
 export function render(generation, ...nodes) {
   if (typeof generation !== "number") {
     throw new TypeError("render() takes the navigation generation first; a view that omits it cannot be superseded.");
