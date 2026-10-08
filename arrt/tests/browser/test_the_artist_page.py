@@ -323,7 +323,7 @@ class TestTheArtistPage:
         artist, work = rothko
         _page(ui, artist)
 
-        ui.page.check(f"input[aria-label='Select {work.title}']")
+        ui.page.check(f"input[aria-label^='Select {work.title},']")
         ui.page.click("section[aria-labelledby='in-your-library'] button:has-text('Add to theme')")
         ui.page.wait_for_selector("text=Added 1 work to Colour fields.")
 

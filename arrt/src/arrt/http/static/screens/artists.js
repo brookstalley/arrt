@@ -21,7 +21,7 @@
 
 import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks } from "../core/api.js";
-import { absentImage, facts } from "../core/badges.js";
+import { absentImage, facts, workName } from "../core/badges.js";
 import { identityControl, storeIdentity } from "../core/identity.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { getSelection } from "../core/getting.js";
@@ -381,7 +381,7 @@ function heldSection(works, themes) {
 }
 
 function heldCard(work, chosen, settle) {
-  const box = el("input", { type: "checkbox", "aria-label": `Select ${work.title}` });
+  const box = el("input", { type: "checkbox", "aria-label": `Select ${workName(work)}` });
   box.addEventListener("change", () => {
     if (box.checked) chosen.add(work.artwork_id);
     else chosen.delete(work.artwork_id);
@@ -394,7 +394,7 @@ function heldCard(work, chosen, settle) {
     el("label", { class: "card-select" }, [box]),
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [
-      el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title })]),
+      el("h3", { class: "card-title" }, [link({ view: "work", id: work.artwork_id }, { text: work.title, "aria-label": workName(work) })]),
       el("p", { class: "card-meta", text: work.date_created || " " }),
     ]),
   ]);

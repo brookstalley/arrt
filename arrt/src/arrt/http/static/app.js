@@ -23,6 +23,7 @@
 
 import { OPTIONAL_ID } from "./core/route.js";
 import { install, go, refresh } from "./core/router.js";
+import { installScrollRegions } from "./core/scrolling.js";
 import { installSearch, paintSearch } from "./core/search.js";
 import { installStatus, paintStatus } from "./core/status.js";
 import { paintAwaiting, paintWanted } from "./core/awaiting.js";
@@ -160,6 +161,7 @@ const ROUTES = {
 
 installStatus();
 installSearch();
+installScrollRegions();
 install(ROUTES, {
   sections: SECTIONS,
   onNavigate: () => {

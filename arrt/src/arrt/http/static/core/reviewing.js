@@ -688,7 +688,12 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
 
   const controls = el("div", { class: "row" }, [
     el("div", { class: "field" }, [
-      el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }),
+      // The work's title, heard and not seen: every card on the grid carries
+      // this field, and a name shared by all of them says nothing about which
+      // card the keyboard is in.
+      el("label", { for: `reason-${work.work_id}`, text: "Why (optional)" }, [
+        el("span", { class: "visually-hidden", text: `, for ${work.title}` }),
+      ]),
       reason,
     ]),
     // **A work nothing was ever found for offers Want and Forget**, not

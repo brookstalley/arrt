@@ -2510,3 +2510,153 @@ dialog.confirm::backdrop {
   width: 3.5rem;
   height: 3.5rem;
 }
+
+/* -- keyboard and phone ------------------------------------------------------
+   The focus ring on a card's picture is drawn inside it. The default ring sits
+   2px outside the control, and a picture fills its card edge to edge inside two
+   boxes that clip (`.card`, `.tile` and `.card-image` all hide overflow, for
+   the rounded corners and the caption), so on one Tab stop in three the ring
+   was clipped on three sides (`ux-review-2026-10.md` finding 15). Painted over
+   the picture by a layer above it, in the focus colour with a band of the
+   card's ground inside, so it reads against a dark painting and a light one. */
+.card-image:focus-visible {
+  outline: none;
+}
+
+.card-image:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--focus),
+    inset 0 0 0 4px var(--surface-1);
+}
+
+/* A tick a finger and a tremor can land on; the browser's 13px box was the
+   smallest target on the page. */
+input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* The browser's placeholder grey measured 3.7:1; the muted text token is one
+   of the pairs the contrast test holds above 4.5:1. */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* A picker as wide as its longest option was what made Themes 497 px wide on a
+   390 px phone: *Add a work* lists every title in the library. A field and its
+   picker never outgrow the row they sit in; a long option is cut in the closed
+   picker and read whole in the open one. */
+.field {
+  min-width: 0;
+}
+
+.field select {
+  max-width: 100%;
+}
+
+@media (max-width: 40rem) {
+  /* The top bar on one row: the search field takes what the menu, the name
+     and the indicator leave, the Search button is Enter's (still there for a
+     screen reader), and an indicator naming a long trouble shows its start,
+     its glyph first, with the whole sentence a tap away on Status. */
+  header.topbar {
+    flex-wrap: nowrap;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .topbar .search {
+    flex: 1 1 auto;
+  }
+
+  .topbar .search input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .topbar .search button[type="submit"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .status-indicator {
+    flex: 0 1 auto;
+    max-width: 7rem;
+    overflow: hidden;
+    margin-left: 0;
+  }
+
+  .status-indicator > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Activity's tables as stacked cards: a phone reads a run one row at a time,
+     each value under the heading that says what it is, and the row's own link
+     covers the card so the whole card opens it (`table(..., { stacked })` in
+     `core/badges.js`). */
+  table.stacked,
+  table.stacked caption,
+  table.stacked tbody,
+  table.stacked tr,
+  table.stacked td {
+    display: block;
+  }
+
+  table.stacked thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.stacked tr {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  table.stacked td {
+    border: none;
+    padding: var(--space-1) 0;
+    overflow-wrap: anywhere;
+  }
+
+  table.stacked td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  table.stacked .row-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  /* The act's hover brightening is a filter, and a filter makes the link the
+     box its own cover is placed in: the cover shrank to the link under the
+     pointer, and a press on the card hit the row instead. */
+  table.stacked .row-link:hover {
+    filter: none;
+  }
+}

@@ -108,6 +108,16 @@ export function statusBadge(work) {
   ]);
 }
 
+/* A held work's accessible name where several works are listed: its title, and
+ * who made it and when, so two works sharing a title ("Untitled", "Water
+ * Lilies") are two different things to somebody moving through the links one at
+ * a time. It starts with the visible title, so a voice command that says what
+ * it sees still finds the control. */
+export function workName(work) {
+  const artist = work.artist ? work.artist.name : null;
+  return [work.title, artist, work.date_created].filter(Boolean).join(", ");
+}
+
 export function absentImage(note) {
   return el("div", { class: "card-image-absent", text: note || "No image held." });
 }
@@ -124,13 +134,22 @@ export function facts(pairs) {
 
 /* A table that scrolls sideways inside its panel rather than widening the page.
  * Its cells hold file paths and museum URLs with no break in them, which on a
- * phone made the whole Work page wider than the screen. */
-export function table(caption, headers, rows) {
-  return el("div", { class: "table-scroll" }, [el("table", {}, [
+ * phone made the whole Work page wider than the screen.
+ *
+ * `stacked`: below 40rem each row becomes a card of its own, every cell under
+ * its column's heading (`data-label`), for a list a phone reads one row at a
+ * time rather than scans across — Activity's (`ux-review-2026-10.md` finding
+ * 14). A cell link marked `row-link` then covers its whole card, so the row is
+ * the link (`app.css`). */
+export function table(caption, headers, rows, { stacked = false } = {}) {
+  const cell = (c, index) => {
+    const label = headers[index] ? { "data-label": headers[index] } : {};
+    return c instanceof Node ? el("td", label, [c]) : el("td", { ...label, text: c === null || c === undefined ? "—" : String(c) });
+  };
+  return el("div", { class: "table-scroll" }, [el("table", { class: stacked ? "stacked" : null }, [
     el("caption", { text: caption }),
     el("thead", {}, [el("tr", {}, headers.map((h) => el("th", { scope: "col", text: h })))]),
-    el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map((c) => (c instanceof Node ? el("td", {}, [c]) : el("td", { text: c === null || c === undefined ? "—" : String(c) }))))),
-    ),
+    el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map(cell)))),
   ])]);
 }
 

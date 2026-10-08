@@ -446,7 +446,13 @@ listed below so it can be disputed.
   go under Settings.
 - **On phones the sidebar becomes a drawer** behind a menu button, as it does in
   the *arr apps. This replaces the bottom bar in `design-direction.md`'s layout
-  table.
+  table. **The top bar is one row on a phone** — menu, name, search, indicator —
+  with the search field taking what the others leave and an indicator naming a
+  long trouble showing its start. **Below 40rem Activity's tables (To review,
+  Queue, a run's works) are stacked cards**, each value under its heading, and
+  where the row opens one page the whole card is that link. No page scrolls
+  sideways at 390 px, pinned per route from the route table by
+  `arrt/tests/browser/test_keyboard_and_phone.py`. *(2026-10-07, #279.)*
 
 ## Navigation Structure
 
