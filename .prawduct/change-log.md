@@ -181,7 +181,7 @@ System-page feedback of 2026-10-07 (#265, #266).
   from `GET /api/sources/yields` (one SQL statement): Source, State, Offered,
   Chosen, Only here, Median long edge, Faults since startup, Last fault. Columns
   drop by the table's width in the ruled order, and the fault count moves into
-  State when its column goes, so it shows once at every width; below 26rem a
+  State when its column goes, so it shows once at every width; below 31rem a
   row stacks. The geometry panel and `artwork_box` on `/api/health` are gone
   (#266); nothing else read the field.
 

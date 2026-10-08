@@ -2745,8 +2745,10 @@ input[type="checkbox"] {
    columns leave in the owner's order: Median long edge, Last fault, Only here,
    then Faults since startup, whose count then moves into the State cell so a
    fault is on screen at every width. Source, State, Offered and Chosen stay,
-   and on a phone each row stacks into a card. Each width is where the columns
-   still showing fit with glyphs spaced wider than this Mac's, as CI's are;
+   and on a phone each row stacks into a card. Each width leaves the columns
+   still showing room at letter-spacing 0.25em on this Mac, because CI's fonts
+   are wider than this Mac's: 0.16em here reproduced the overflow CI saw at
+   the narrower widths first chosen;
    `tests/browser/test_the_status_sources_table.py` holds the order, and that
    the table never needs its sideways scroll. */
 
@@ -2771,25 +2773,25 @@ input[type="checkbox"] {
   display: none;
 }
 
-@container source-table (max-width: 52rem) {
+@container source-table (max-width: 60rem) {
   .source-table .col-median {
     display: none;
   }
 }
 
-@container source-table (max-width: 44rem) {
+@container source-table (max-width: 52rem) {
   .source-table .col-last-fault {
     display: none;
   }
 }
 
-@container source-table (max-width: 37rem) {
+@container source-table (max-width: 45rem) {
   .source-table .col-only-here {
     display: none;
   }
 }
 
-@container source-table (max-width: 31rem) {
+@container source-table (max-width: 38rem) {
   .source-table .col-faults {
     display: none;
   }
@@ -2802,7 +2804,7 @@ input[type="checkbox"] {
 /* A phone: four columns of words do not fit across, so each source becomes a
    card of its own, every cell under its column's name, as Activity's rows do
    (`table.stacked`). The four kept columns are all still there. */
-@container source-table (max-width: 26rem) {
+@container source-table (max-width: 31rem) {
   .source-table table,
   .source-table caption,
   .source-table tbody,
@@ -2835,7 +2837,10 @@ input[type="checkbox"] {
     margin-bottom: var(--space-3);
   }
 
+  /* A word wider than its third of the card breaks rather than pushing the
+     card past the screen, on the narrowest phones and the widest fonts. */
   .source-table td {
+    overflow-wrap: anywhere;
     border: none;
     padding: var(--space-1) 0;
   }
