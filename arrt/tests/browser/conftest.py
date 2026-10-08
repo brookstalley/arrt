@@ -28,13 +28,13 @@ Payload builders live in `payloads.py` beside this file, and the rule they follo
 stated there.
 
 **A wait must name something that is true only in the state being waited for.**
-`wait_for_selector("h2")` after a click that leaves a screen already carrying an
-`h2`, or `[role=alert]` on a screen whose first paint puts one there, matches
+`wait_for_selector("h1")` after a click that leaves a screen already carrying an
+`h1`, or `[role=alert]` on a screen whose first paint puts one there, matches
 instantly and waits for nothing — after which the assertions under it read the
 state that was there beforehand, and the test passes for exactly as long as the
 write happens to win a race nothing is holding open. Four have been found here:
 two heading waits that stopped meaning "the grid painted" once Collection grew a
-loading placeholder with an `h2` of its own, one over the live region the
+loading placeholder with an `h1` of its own, one over the live region the
 unanswered-turn panel puts up at first paint, and one over a heading the hang
 navigates away from. Every one passed alone and failed in the full suite, where a
 heavier test ran ahead of it and moved the timing. Wait for the *new* thing — the
@@ -347,6 +347,24 @@ class Ui:
         return self.page.evaluate(
             "() => { const a = document.activeElement;" " return a ? (a.id || a.textContent || a.tagName) : 'none'; }"
         )
+
+    def said_beside(self, control) -> str:
+        """The failure `core/acting.js` put directly after `control`, once said.
+
+        Asserted to be the alert beside the control and not the page's banner,
+        which a failed act no longer uses: where the sentence is, is the claim.
+        """
+        # The element directly after the control, and only once it is the
+        # failure with words in it: the control's own neighbour (Reject beside
+        # Accept) has text too, and waiting on "the next sibling has text" would
+        # pass on that before the failure arrived.
+        beside = control.locator(
+            "xpath=following-sibling::*[1][contains(concat(' ', @class, ' '), ' act-failure ')]"
+            "[@role='alert'][normalize-space(.) != '']"
+        )
+        beside.wait_for(state="visible")
+        assert self.page.locator("#error").is_hidden(), "a failed act was reported in the banner as well"
+        return beside.inner_text()
 
     def requests_matching(self, needle: str) -> list[str]:
         return [url for url in self.requests if needle in url]

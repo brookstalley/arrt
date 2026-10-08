@@ -10,6 +10,7 @@
  */
 
 import { acquisitionLine } from "./acquiring.js";
+import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { paintAwaiting, paintWanted } from "./awaiting.js";
 import { agree, counted } from "./counting.js";
@@ -25,7 +26,7 @@ import {
 } from "./badges.js";
 import { enlarge } from "./enlarge.js";
 import { el, fill, guard } from "./render.js";
-import { go } from "./router.js";
+import { go, link } from "./router.js";
 
 /* What the curator has decided about a work, in words.
  *
@@ -205,15 +206,16 @@ function scanName(instance, work) {
 
 function instanceRows(instance, work, after, decided = false) {
   const title = work.title;
-  const act = (path, body, message = null) =>
-    guard(async () => {
-      await api(path, { method: "POST", body: JSON.stringify(body || {}) });
-      // Turning a scan down can leave the work with no image to accept, which
-      // takes it off To review; choosing one can put it back. Turning down the
-      // scan on offer also makes the work wanted, which Wanted's count shows.
-      paintAwaiting();
-      paintWanted();
-      await after(message);
+  const act = (control, words, path, message = null) =>
+    attempt(control, words, () => api(path, { method: "POST", body: JSON.stringify({}) }), {
+      then: async () => {
+        // Turning a scan down can leave the work with no image to accept, which
+        // takes it off To review; choosing one can put it back. Turning down the
+        // scan on offer also makes the work wanted, which Wanted's count shows.
+        paintAwaiting();
+        paintWanted();
+        await after(message);
+      },
     });
   const chosen = instanceStateBadges(instance).filter(Boolean);
   const detail = facts([
@@ -256,7 +258,8 @@ function instanceRows(instance, work, after, decided = false) {
                 // that identifies nothing, on a row whose whole purpose is
                 // choosing between scans of a painting the curator can see.
                 "aria-label": `Use this scan for ${title}`,
-                onclick: () => act(`/api/candidate-images/${encodeURIComponent(instance.image_id)}/select`),
+                onclick: (event) =>
+                  act(event.currentTarget, `use this scan for ${title}`, `/api/candidate-images/${encodeURIComponent(instance.image_id)}/select`),
               }),
           decided || instance.rejected
             ? null
@@ -269,10 +272,11 @@ function instanceRows(instance, work, after, decided = false) {
                 "aria-label": instance.is_selected
                   ? `Turn down this scan for ${title}; the work will wait in Wanted for a better one`
                   : `Turn down this scan for ${title}`,
-                onclick: () =>
+                onclick: (event) =>
                   act(
+                    event.currentTarget,
+                    `turn down this scan for ${title}`,
                     `/api/candidate-images/${encodeURIComponent(instance.image_id)}/reject`,
-                    null,
                     instance.is_selected ? WANTED_AFTER_TURNING_DOWN : null,
                   ),
               }),
@@ -427,17 +431,25 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   if (acquisitionSlot) guard(() => paintAcquisition(acquisitionSlot, work));
 
   const reason = el("input", { type: "text", id: `reason-${work.work_id}` });
-  const decide = (verdict) =>
-    guard(async () => {
-      const outcome = await api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
-        method: "POST",
-        body: JSON.stringify({ verdict, reason: reason.value || null }),
-      });
-      // A verdict is one fewer work to review: the sidebar's count is read again
-      // as soon as it is recorded, whatever happens to the card's repaint.
-      paintAwaiting();
-      await repaint(outcome.notice);
-    });
+  // `words` is the act as the failure would name it: "accept Nighthawks".
+  const decide = (verdict, words) => (event) =>
+    attempt(
+      event.currentTarget,
+      `${words} ${work.title}`,
+      () =>
+        api(`/api/candidates/${encodeURIComponent(work.work_id)}/verdict`, {
+          method: "POST",
+          body: JSON.stringify({ verdict, reason: reason.value || null }),
+        }),
+      {
+        then: async (outcome) => {
+          // A verdict is one fewer work to review: the sidebar's count is read
+          // again as soon as it is recorded, whatever happens to the repaint.
+          paintAwaiting();
+          await repaint(outcome.notice);
+        },
+      },
+    );
 
   const alternates = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Loading this work's scans…" })]);
   // **"Scans", not "other scans", and the count is deliberately every scan the
@@ -481,32 +493,32 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
   const decided = work.decided;
   const acceptOrReject = () => [
     card.held_artwork_id
-      ? el("button", {
-          class: "action",
-          type: "button",
-          text: "Open it in Artworks",
-          "aria-label": `Open ${work.title} in Artworks`,
-          onclick: () => go("work", card.held_artwork_id),
-        })
-      : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: () => decide("accepted") }),
+      ? link({ view: "work", id: card.held_artwork_id }, { class: "action", text: "Open it in Artworks", "aria-label": `Open ${work.title} in Artworks` })
+      : el("button", { class: "action", type: "button", text: "Accept", "aria-label": `Accept ${work.title}`, onclick: decide("accepted", "accept") }),
     card.held_artwork_id
       ? el("button", {
           class: "action quiet",
           type: "button",
           text: "Accept anyway",
           "aria-label": `Accept ${work.title} anyway, as a second artwork`,
-          onclick: () => decide("accepted"),
+          onclick: decide("accepted", "accept"),
         })
       : null,
-    el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: () => decide("rejected") }),
+    el("button", { class: "action quiet", type: "button", text: "Reject", "aria-label": `Reject ${work.title}`, onclick: decide("rejected", "reject") }),
   ];
-  const want = () =>
-    guard(async () => {
-      await api(`/api/candidates/${encodeURIComponent(work.work_id)}/want`, { method: "POST", body: JSON.stringify({}) });
-      paintAwaiting();
-      paintWanted();
-      await repaint(WANTED_NO_SCAN);
-    });
+  const want = (event) =>
+    attempt(
+      event.currentTarget,
+      `want ${work.title}`,
+      () => api(`/api/candidates/${encodeURIComponent(work.work_id)}/want`, { method: "POST", body: JSON.stringify({}) }),
+      {
+        then: async () => {
+          paintAwaiting();
+          paintWanted();
+          await repaint(WANTED_NO_SCAN);
+        },
+      },
+    );
   const wantOrForget = () => [
     // Already wanted: Want would change nothing, so only Forget is offered.
     work.verdict === "wanted"
@@ -519,7 +531,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       type: "button",
       text: "Forget",
       "aria-label": `Forget ${work.title}: stop proposing it`,
-      onclick: () => decide("rejected"),
+      onclick: decide("rejected", "forget"),
     }),
   ];
 
@@ -532,7 +544,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
         })
       : el("div", { class: "card-image" }, [absentImage(absentScanReason(card))]),
     el("div", { class: "card-body" }, [
-      el("h3", { class: "card-title", text: work.title }),
+      el("h2", { class: "card-title", text: work.title }),
       el("p", { class: "card-artist", text: work.artist || "Artist unrecorded" }),
       // The shown scan's own size, above the fold: the one fact a picture at
       // card size cannot convey, and the first thing asked of a scan.
@@ -550,7 +562,7 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       work.wikidata_qid
         ? el("p", { class: "card-meta" }, [
             "You chose this from Wikidata: ",
-            el("button", { class: "link", type: "button", text: work.wikidata_qid, onclick: () => go("work", work.wikidata_qid) }),
+            link({ view: "work", id: work.wikidata_qid }, { class: "link", text: work.wikidata_qid }),
           ])
         : el("p", { class: "card-meta", text: work.rationale }),
       // The picture is not the one a verdict would accept on, and saying so is
@@ -610,13 +622,7 @@ function decidedLine(work) {
   return el("div", { class: "row decided" }, [
     el("p", { class: "muted", text: accepted ? "Accepted. It is in your library." : "Rejected. It will not be proposed again." }),
     accepted && work.artwork_id
-      ? el("button", {
-          class: "action quiet",
-          type: "button",
-          text: "Open it in Artworks",
-          "aria-label": `Open ${work.title} in Artworks`,
-          onclick: () => go("work", work.artwork_id),
-        })
+      ? link({ view: "work", id: work.artwork_id }, { class: "action quiet", text: "Open it in Artworks", "aria-label": `Open ${work.title} in Artworks` })
       : null,
   ]);
 }
@@ -658,7 +664,7 @@ function reSearchOffer(wanted) {
   // it did something.
   if (works.length === 0) return null;
   return el("div", { class: "panel" }, [
-    el("h3", { text: "Wanted" }),
+    el("h2", { text: "Wanted" }),
     el("p", {
       class: "muted",
       // Says that nothing is looking, which is the fact a curator cannot
@@ -672,14 +678,13 @@ function reSearchOffer(wanted) {
         class: "action",
         type: "button",
         text: "Look again for these",
-        onclick: () =>
-          guard(async () => {
-            const run = await api("/api/runs/resolve", {
-              method: "POST",
-              body: JSON.stringify({ work_ids: wanted() }),
-            });
-            go("run", run.run_id);
-          }),
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            "start the re-search",
+            () => api("/api/runs/resolve", { method: "POST", body: JSON.stringify({ work_ids: wanted() }) }),
+            { then: (run) => go("run", run.run_id) },
+          ),
       }),
     ]),
   ]);
@@ -879,7 +884,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
         "data-offer-artist": group.artist,
         "aria-label": group.artist ? `Offered by the collection: ${group.artist}` : "Offered by the collection",
       }, [
-        el("h3", { text: group.artist ? `Offered by the collection — ${group.artist}` : "Offered by the collection" }),
+        el("h2", { text: group.artist ? `Offered by the collection — ${group.artist}` : "Offered by the collection" }),
         el("p", { class: "muted", text: offeredGroupSentence(group, page.works) }),
         gridOf(group.cards),
       ]),

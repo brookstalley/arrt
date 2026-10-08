@@ -47,7 +47,7 @@ function heartbeatPanel(wall) {
   const reading = wall.heartbeat;
   if (!reading) {
     return el("div", { class: "panel wall-reading" }, [
-      el("h3", { text: name }),
+      el("h2", { text: name }),
       el("p", { class: "note", text: "The health reading carries no heartbeat for this wall." }),
     ]);
   }
@@ -59,7 +59,7 @@ function heartbeatPanel(wall) {
   return el("div", { class: "panel wall-reading" }, [
     // The wall's own name is the heading. "The display plane" was right while
     // there was one of it, and is a sentence that silently becomes wrong.
-    el("h3", { text: name }),
+    el("h2", { text: name }),
     // An observation with its age, never a verdict. A green dot computed from
     // a file that may simply be young is how a health surface starts lying.
     el("p", { class: "reading-sentence", text: reading.description }),
@@ -87,7 +87,7 @@ function heartbeatPanel(wall) {
           text: "Nothing has ever written a heartbeat for this wall. Where no display is pointed at it, that is the correct reading rather than a fault.",
         })
       : null,
-    reading.reported ? el("h4", { text: "What it reported" }) : null,
+    reading.reported ? el("h3", { text: "What it reported" }) : null,
     reportedFacts(reading.reported),
   ]);
 }
@@ -103,7 +103,7 @@ function heartbeatPanels(health) {
   if (!Array.isArray(health.walls)) {
     return [
       el("div", { class: "panel" }, [
-        el("h3", { text: "The walls" }),
+        el("h2", { text: "The walls" }),
         el("p", {
           class: "note",
           text: "This health reading carries no walls, so nothing can be said about what is showing them. That is a fault in the reading rather than in any wall.",
@@ -114,7 +114,7 @@ function heartbeatPanels(health) {
   if (health.walls.length === 0) {
     return [
       el("div", { class: "panel" }, [
-        el("h3", { text: "The walls" }),
+        el("h2", { text: "The walls" }),
         el("p", { class: "note", text: "No wall is recorded, so there is no heartbeat to read." }),
       ]),
     ];
@@ -130,7 +130,7 @@ function heartbeatPanels(health) {
 function sourcesPanel(health) {
   const sources = Array.isArray(health.sources) ? health.sources : null;
   return el("div", { class: "panel" }, [
-    el("h3", { text: "Image sources" }),
+    el("h2", { text: "Image sources" }),
     sources === null
       ? el("p", { class: "note", text: "This health reading carries no image sources. That is a fault in the reading, not in any source." })
       : sources.length === 0
@@ -159,12 +159,12 @@ function picturesPanel(health) {
   const pictures = health.pictures;
   if (!pictures) {
     return el("div", { class: "panel" }, [
-      el("h3", { text: "Kept pictures" }),
+      el("h2", { text: "Kept pictures" }),
       el("p", { class: "note", text: "This health reading carries no count of kept pictures. That is a fault in the reading, not in the store." }),
     ]);
   }
   return el("div", { class: "panel pictures-reading" }, [
-    el("h3", { text: "Kept pictures" }),
+    el("h2", { text: "Kept pictures" }),
     el("p", { class: "reading-sentence", text: pictures.description }),
     facts([
       ["Files", pictures.pictures_files.toLocaleString()],
@@ -183,7 +183,7 @@ export async function viewHealth(generation) {
   render(
     generation,
     backRow(),
-    el("h2", { text: "Status" }),
+    el("h1", { text: "Status" }),
     // The server's own summary of the readings below it. Shown as prose and
     // used for nothing else: it applies no threshold and reaches no verdict, so
     // deriving a state from it here would be inventing a judgement the plane
@@ -193,7 +193,7 @@ export async function viewHealth(generation) {
     sourcesPanel(health),
     picturesPanel(health),
     el("div", { class: "panel" }, [
-      el("h3", { text: "The backup" }),
+      el("h2", { text: "The backup" }),
       el("p", { class: "reading-sentence", text: health.backup.description }),
       facts([
         ["Backup record", health.backup.path],
@@ -212,11 +212,11 @@ export async function viewHealth(generation) {
             text: "No backup has recorded itself here. The catalogue is the irreplaceable asset — the images can all be fetched again — so this is the reading to watch.",
           })
         : null,
-      health.backup.reported ? el("h4", { text: "What it recorded" }) : null,
+      health.backup.reported ? el("h3", { text: "What it recorded" }) : null,
       reportedFacts(health.backup.reported),
     ]),
     el("div", { class: "panel" }, [
-      el("h3", { text: "This deployment's geometry" }),
+      el("h2", { text: "This deployment's geometry" }),
       el("p", {
         class: "muted",
         text: "The space a work is rendered into on this television, after the mat. Every size shown in the grid is judged against it.",

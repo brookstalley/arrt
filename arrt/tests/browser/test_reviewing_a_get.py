@@ -128,7 +128,7 @@ def test_a_discovery_run_s_page_is_unchanged(ui):
     ui.open(f"#run/{RUN_ID}")
     ui.page.wait_for_selector("#view table")
 
-    assert ui.page.locator("button:text-is('Review these works')").count() == 1
+    assert ui.page.locator("a:text-is('Review these works')").count() == 1
     assert ui.page.locator("li.card").count() == 0
     assert ui.requests_matching(f"/api/runs/{RUN_ID}/candidates") == []
 
@@ -139,7 +139,7 @@ def test_review_still_answers_for_a_get(ui):
     ui.open(f"#review/{GET_ID}")
 
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
-    assert ui.page.locator("#view button:text-is('← The Get')").count() == 1
+    assert ui.page.locator("#view a:text-is('← The Get')").count() == 1
 
 
 def test_a_work_opened_from_a_get_s_card_returns_to_the_get(ui):
@@ -148,11 +148,11 @@ def test_a_work_opened_from_a_get_s_card_returns_to_the_get(ui):
     ui.open(f"#run/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    ui.page.click("li.card .card-meta button:text-is('Q3226397')")
-    ui.page.wait_for_selector("#view button:has-text('← The Get')")
+    ui.page.click("li.card .card-meta a:text-is('Q3226397')")
+    ui.page.wait_for_selector("#view a:has-text('← The Get')")
     assert ui.page.evaluate("() => window.location.hash") == f"#work/Q3226397?from=run%2F{GET_ID}"
 
-    ui.page.click("#view button:has-text('← The Get')")
+    ui.page.click("#view a:has-text('← The Get')")
     ui.page.wait_for_function(f"() => window.location.hash === '#run/{GET_ID}'")
 
 
@@ -547,7 +547,7 @@ def test_a_card_kept_across_a_redraw_still_reaches_the_offer_to_look_again(ui):
     )
     ui.page.click("li.card[data-work='work-1'] tr.alternate >> nth=0 >> button:text-is('Turn it down')")
 
-    ui.page.wait_for_selector("#view h3:text-is('Wanted')")
+    ui.page.wait_for_selector("#view h2:text-is('Wanted')")
     assert "1 work is wanted." in ui.text()
 
 
@@ -563,9 +563,9 @@ def test_a_get_s_page_opened_again_is_built_afresh(ui):
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
-    ui.page.click("li.card .card-meta button:text-is('Q3226397')")
-    ui.page.wait_for_selector("#view button:has-text('← The Get')")
-    ui.page.click("#view button:has-text('← The Get')")
+    ui.page.click("li.card .card-meta a:text-is('Q3226397')")
+    ui.page.wait_for_selector("#view a:has-text('← The Get')")
+    ui.page.click("#view a:has-text('← The Get')")
     ui.page.wait_for_selector("li.card summary")
 
     assert ui.page.input_value("#reason-work-1") == ""

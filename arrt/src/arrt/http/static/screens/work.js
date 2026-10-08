@@ -30,6 +30,7 @@
  */
 
 import { acquisitionLine } from "../core/acquiring.js";
+import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, fitBadge, pixelSize, sourceBadge, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
@@ -37,9 +38,9 @@ import { counted } from "../core/counting.js";
 import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
-import { backLink, go, redirect } from "../core/router.js";
+import { backLink, link, redirect, setTitle } from "../core/router.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
  *
@@ -118,12 +119,13 @@ async function viewRegistryWork(qid, generation) {
     render(
       generation,
       el("p", {}, [backLink()]),
-      el("h2", { text: page.state === "not_found" ? "Wikidata has no such work" : `Wikidata ${qid}` }),
+      el("h1", { text: page.state === "not_found" ? "Wikidata has no such work" : `Wikidata ${qid}` }),
       el("p", { class: "note", text: page.note }),
     );
     return;
   }
   const title = named(page.title, qid);
+  setTitle(generation, title);
   const maker = page.creators[0];
   const picture = page.image
     ? el("img", {
@@ -152,7 +154,7 @@ async function viewRegistryWork(qid, generation) {
       el("div", { class: "card-footer" }, [stateMark({ wanted: page.wanted, image: Boolean(page.image) })]),
     ]),
     el("div", { class: "panel" }, [
-      el("h2", { text: title }),
+      el("h1", { text: title }),
       facts([
         ["Artist", page.creators.length ? el("span", {}, page.creators.flatMap((person, at) => (at ? [", ", personLink(person)] : [personLink(person)]))) : null],
         ["Date", page.year === null ? null : year(page.year)],
@@ -249,7 +251,7 @@ async function watchLook(section, qid, context) {
     const target = first && first.querySelector("button, [tabindex]");
     if (target) target.focus();
   });
-  fill(section, el("h3", { id: "look-heading", text: "What the image sources hold" }), status, rows, grid, more);
+  fill(section, el("h2", { id: "look-heading", text: "What the image sources hold" }), status, rows, grid, more);
   say(status, "Asking the image sources…");
   for (;;) {
     let look;
@@ -423,7 +425,7 @@ function holderLine(holder) {
 /* The rest of the artist's work, the next thing to look at: what the Artist
  * page lists, without this one, asked after the page is drawn. */
 async function paintTheirWork(section, maker, qid) {
-  const heading = el("h3", { id: "more-by", text: `More by ${named(maker.name, maker.qid)}` });
+  const heading = el("h2", { id: "more-by", text: `More by ${named(maker.name, maker.qid)}` });
   fill(section, heading, el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" }));
   let view;
   try {
@@ -468,6 +470,7 @@ async function paintTheirWork(section, maker, qid) {
  * answer to a button they pressed. */
 function paint(detail, generation, focusAction = false) {
   const work = detail.work;
+  setTitle(generation, work.title);
   const image = work.image.available
     ? el("img", {
         class: "detail-image",
@@ -485,7 +488,7 @@ function paint(detail, generation, focusAction = false) {
       work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
     ]),
     el("div", { class: "panel" }, [
-      el("h2", { text: work.title }),
+      el("h1", { text: work.title }),
       facts([
         ["Artist", work.artist ? artistLink(work.artist) : null],
         ["Nationality", work.artist ? work.artist.nationality : null],
@@ -512,7 +515,7 @@ function paint(detail, generation, focusAction = false) {
 
   panels.push(
     el("div", { class: "panel" }, [
-      el("h3", { text: "The master image" }),
+      el("h2", { text: "The master image" }),
       detail.original
         ? facts([
             ["File", detail.original.relative_path],
@@ -536,7 +539,7 @@ function paint(detail, generation, focusAction = false) {
 
   panels.push(
     el("div", { class: "panel" }, [
-      el("h3", { text: "Where it can be obtained" }),
+      el("h2", { text: "Where it can be obtained" }),
       detail.sources.length
         ? table(
             "Every recorded source, the primary one first.",
@@ -555,7 +558,7 @@ function paint(detail, generation, focusAction = false) {
 
   panels.push(
     el("div", { class: "panel" }, [
-      el("h3", { text: "What has been rendered" }),
+      el("h2", { text: "What has been rendered" }),
       detail.renditions.length
         ? table(
             "A rendition is stale when the master it was made from is no longer the master this work holds.",
@@ -602,7 +605,7 @@ function facetPanel(facets) {
     list.append(el("dt", { text: FACET_KIND_WORDS[kind] || kind }), el("dd", {}, facetValues(held)));
   }
   return el("div", { class: "panel" }, [
-    el("h3", { text: "What this work is" }),
+    el("h2", { text: "What this work is" }),
     list,
     el("p", { class: "note", text: DERIVATION_FOOTNOTE }),
   ]);
@@ -650,7 +653,7 @@ function facetValues(held) {
 function matPanel(matColors) {
   const current = matColors.find((mat) => mat.is_current);
   return el("div", { class: "panel" }, [
-    el("h3", { text: "Mat colour" }),
+    el("h2", { text: "Mat colour" }),
     current
       ? el("p", { class: "mat" }, [
           // The swatch is the only place in this client that puts data in a style
@@ -677,28 +680,40 @@ function circulationControl(work, generation) {
     class: "action",
     type: "button",
     text: archived ? "Restore" : "Archive",
-    onclick: () => guard(() => (archived ? restore(work, generation) : archive(work, generation))),
+    onclick: (event) => (archived ? restore(event.currentTarget, work, generation) : archive(event.currentTarget, work, generation)),
   });
 }
 
-async function archive(work, generation) {
+async function archive(control, work, generation) {
+  const act = `archive ${work.title}`;
+  let showing = null;
+  // The walls are asked before the question, which needs them; a failure there
+  // is this act failing, and is said beside it.
+  const asked = await attempt(control, act, async () => {
+    showing = await wallsShowing(work.artwork_id);
+  });
+  if (!asked) return;
   const agreed = await confirmAct({
     title: `Archive ${work.title}?`,
-    consequence: wallConsequence(await wallsShowing(work.artwork_id)),
+    consequence: wallConsequence(showing),
     confirmLabel: "Archive",
   });
   if (!agreed) return;
-  paint(await api(`${workPath(work.artwork_id)}/archive`, { method: "POST" }), generation, true);
+  await attempt(control, act, () => api(`${workPath(work.artwork_id)}/archive`, { method: "POST" }), {
+    then: (detail) => paint(detail, generation, true),
+  });
 }
 
-async function restore(work, generation) {
+async function restore(control, work, generation) {
   const agreed = await confirmAct({
     title: `Restore ${work.title}?`,
     consequence: RESTORE_CONSEQUENCE,
     confirmLabel: "Restore",
   });
   if (!agreed) return;
-  paint(await api(`${workPath(work.artwork_id)}/restore`, { method: "POST" }), generation, true);
+  await attempt(control, `restore ${work.title}`, () => api(`${workPath(work.artwork_id)}/restore`, { method: "POST" }), {
+    then: (detail) => paint(detail, generation, true),
+  });
 }
 
 /* Which walls are showing this work, asked of the walls themselves.
@@ -758,5 +773,5 @@ function wallConsequence(names) {
 
 /* The artist's name as the way to their page, `#artist/<id>`. */
 function artistLink(artist) {
-  return el("button", { class: "link", type: "button", text: artist.name, onclick: () => go("artist", artist.artist_id) });
+  return link({ view: "artist", id: artist.artist_id }, { class: "link", text: artist.name });
 }

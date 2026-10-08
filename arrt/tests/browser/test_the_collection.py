@@ -65,7 +65,7 @@ def test_a_collection_holding_nothing_at_all_invites_the_curator_into_discover(u
     assert "Nothing by" not in ui.text()
     # The invitation, not merely the statement: an empty state that names no next
     # move is a dead end with better wording.
-    assert ui.page.locator("button:has-text('Go to Ask')").count() == 1
+    assert ui.page.locator("a:has-text('Go to Ask')").count() == 1
 
 
 def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
@@ -79,7 +79,7 @@ def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
     # The filter itself, said back. "No results" without saying what was asked
     # for leaves a curator guessing which narrowing did it.
     assert "the search “aubergine”" in ui.text()
-    assert ui.page.locator("button:has-text('Show everything')").count() == 1
+    assert ui.page.locator("a:has-text('Show everything')").count() == 1
 
 
 def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
@@ -99,7 +99,7 @@ def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
     # Named as normal rather than broken, and the offer is the search that would
     # actually find some — the collection holds none, so searching the collection
     # is not it.
-    assert ui.page.locator("button:has-text('Ask for some')").count() == 1
+    assert ui.page.locator("a:has-text('Ask for some')").count() == 1
 
 
 def test_an_artist_filter_with_a_search_beside_it_is_the_filter_empty(ui):
@@ -226,7 +226,7 @@ def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, serv
 
     shown = ui.page.locator("ul.grid li.tile").count()
     assert 0 < shown < held, "the guard did not bite, so this test is no longer about what it says"
-    assert ui.page.inner_text("h2") == f"{shown} of {held} works"
+    assert ui.page.inner_text("h1") == f"{shown} of {held} works"
     assert f"{held - shown} more are held and are not on this page" in ui.text()
 
     # Legible: every tile the same size, and big enough to judge a picture in.
@@ -262,7 +262,7 @@ def test_the_loading_state_does_not_guess_a_geometry_it_cannot_know(ui):
     )
 
     ui.open("#collection")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
     assert "Loading the collection" in ui.text()
     assert ui.page.locator("ul.grid-skeleton").count() == 0, "the placeholder guessed a geometry it could not know"
@@ -520,7 +520,7 @@ def test_a_theme_in_the_filter_rail_narrows_the_grid(ui, a_theme_holding_one_wor
     theme_option(ui, theme).click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert ui.page.inner_text("h2") == "1 work in “Baroque”"
+    assert ui.page.inner_text("h1") == "1 work in “Baroque”"
     assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
     # Pressing it again is how it is turned off.
     theme_option(ui, theme).click()
@@ -602,7 +602,7 @@ def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_s
     # Both narrowings still in force and still shown as chosen.
     assert ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism").count() == 1
     assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
-    assert ui.page.inner_text("h2") == "1 work in “Baroque”"
+    assert ui.page.inner_text("h1") == "1 work in “Baroque”"
     # A theme filtered here is in the Sort menu's order, so the menu is offered.
     assert ui.page.locator(".page-toolbar button", has_text="Sort").count() == 1
 
@@ -722,7 +722,7 @@ def test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left(ui, dis
     ui.page.click("button.selection-remove")
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert ui.page.inner_text("h2") == "1 work in “Baroque”"
+    assert ui.page.inner_text("h1") == "1 work in “Baroque”"
     # The rail is recounted by the server after the tile goes, so its count is
     # waited for: read at once, it races the recount and can see the old one.
     # A rail that never recounts still fails here, by timing out.
@@ -790,8 +790,9 @@ def test_a_refused_removal_keeps_its_own_reason_when_the_recount_fails_too(ui, d
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.click("button.selection-remove")
 
-    ui.page.wait_for_selector(f'#error:has-text("{refusal}")')
-    assert "The recount failed." not in ui.page.inner_text("#error")
+    said = ui.said_beside(ui.page.locator("button.selection-remove"))
+    assert refusal in said
+    assert "The recount failed." not in said
 
 
 def test_a_collection_with_no_themes_draws_no_tick_it_cannot_act_on(ui, seeded_service):
@@ -901,9 +902,12 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     )
 
     # Why it stopped is the server's sentence, not one composed here: the failure
-    # is rethrown precisely so the banner can carry the server's own words beside
-    # the region's account of how far the loop got.
-    ui.page.wait_for_selector(f'#error:has-text("{refusal}")')
+    # is rethrown precisely so it is said beside Add, in the server's own words,
+    # under the region's account of how far the loop got.
+    assert (
+        ui.said_beside(ui.page.locator("button.selection-add"))
+        == f"Couldn't add 2 works to Baroque: {refusal} Nothing was changed."
+    )
 
     # Exactly the work that did not go, and only it. Clearing the selection and
     # leaving it whole both satisfy "something is ticked"; neither is this.
@@ -945,7 +949,7 @@ def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_them
 
     assert NOTHING_MATCHES in ui.text()
     assert "the theme \u201cBaroque\u201d" in ui.text()
-    assert ui.page.inner_text("h2") == "0 works in \u201cBaroque\u201d"
+    assert ui.page.inner_text("h1") == "0 works in \u201cBaroque\u201d"
 
 
 def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):

@@ -52,7 +52,7 @@ def hang(services):
 
 def open_work(ui, work):
     ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
 
 
 def ask(ui, label):
@@ -286,7 +286,7 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
 
 def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service):
-    """The catalogue's own sentence, in the surface's one failure channel.
+    """The catalogue's own sentence, said beside the button that was pressed.
 
     The work is archived out from under the open screen — which is what a second
     tab, or an agent over MCP, does — so the button the curator presses is
@@ -298,9 +298,10 @@ def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service
 
     ask(ui, "Archive")
     ui.page.click(".confirm-actions button:has-text('Archive')")
-    ui.page.wait_for_selector("#error:not([hidden])")
+    said = ui.said_beside(ui.page.locator("#view button:text-is('Archive')"))
 
-    assert "already archived" in ui.page.inner_text("#error")
+    assert said.startswith("Couldn't archive Chop Suey: ")
+    assert "already archived" in said
 
 
 # -- what the work is said to be -----------------------------------------------

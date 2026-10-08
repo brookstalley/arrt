@@ -24,10 +24,11 @@
  * and an affinity's value is a name a model produced.
  */
 
+import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { confirmAct } from "../core/confirm.js";
-import { el, guard, render } from "../core/render.js";
-import { backRow, go, refresh } from "../core/router.js";
+import { el, render } from "../core/render.js";
+import { backRow, link, refresh } from "../core/router.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
 /* The six kinds, in the words a curator reads rather than the enum's.
@@ -89,7 +90,7 @@ export async function viewTaste(generation) {
 }
 
 function paint(taste, generation) {
-  const panels = [backRow(), el("h2", { text: "What this product thinks you like" })];
+  const panels = [backRow(), el("h1", { text: "What this product thinks you like" })];
 
   if (!taste.count) {
     panels.push(empty());
@@ -123,7 +124,7 @@ function paint(taste, generation) {
  * way. */
 function empty() {
   return el("div", { class: "stack empty" }, [
-    el("h3", { text: "Nothing is known about your taste yet." }),
+    el("h2", { text: "Nothing is known about your taste yet." }),
     el("p", {
       class: "muted",
       text:
@@ -131,14 +132,14 @@ function empty() {
         "tell me more — is what records a judgment here.",
     }),
     el("div", { class: "row" }, [
-      el("button", { class: "action", type: "button", text: "Start a conversation in Ask", onclick: () => go("discover") }),
+      link({ view: "discover" }, { class: "action", text: "Start a conversation in Ask" }),
     ]),
   ]);
 }
 
 function group(kind, affinities) {
   return el("div", { class: "panel" }, [
-    el("h3", { text: TASTE_KIND_WORDS[kind] || kind }),
+    el("h2", { text: TASTE_KIND_WORDS[kind] || kind }),
     el(
       "ul",
       { class: "taste-list" },
@@ -175,7 +176,7 @@ function row(affinity) {
           // shared by every row on the page: a screen reader moving through the
           // list would otherwise hear "not this" nine times with no referent.
           "aria-label": `${correctionLabel(reaction)}: ${affinity.value}`,
-          onclick: () => guard(() => correct(affinity, reaction)),
+          onclick: (event) => correct(event.currentTarget, affinity, reaction),
         }),
       ),
       el("button", {
@@ -183,7 +184,7 @@ function row(affinity) {
         type: "button",
         text: "Forget this",
         "aria-label": `Forget what this product knows about ${affinity.value}`,
-        onclick: () => guard(() => forget(affinity)),
+        onclick: (event) => forget(event.currentTarget, affinity),
       }),
     ]),
   ]);
@@ -214,16 +215,17 @@ function provenance(affinity) {
   ];
   if (affinity.source_turn_id) {
     parts.push(
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "See the conversation",
-        "aria-label": `Open the conversation that produced this judgment about ${affinity.value}`,
-        // The turn's own thread, addressed by the conversation the client is
-        // told about. A row whose thread is gone has no `source_turn_id` at all,
-        // so this button is never offered onto a conversation that is not there.
-        onclick: () => go("conversation", affinity.conversation_id),
-      }),
+      // The turn's own thread, addressed by the conversation the client is
+      // told about. A row whose thread is gone has no `source_turn_id` at all,
+      // so this link is never offered onto a conversation that is not there.
+      link(
+        { view: "conversation", id: affinity.conversation_id },
+        {
+          class: "action quiet",
+          text: "See the conversation",
+          "aria-label": `Open the conversation that produced this judgment about ${affinity.value}`,
+        },
+      ),
     );
   }
   return el("div", { class: "affinity-provenance" }, [
@@ -242,12 +244,13 @@ function provenance(affinity) {
  * Repainted by re-reading rather than from the response, because a correction
  * can move a row between groups — changing what this whole page shows, not one
  * row of it. */
-async function correct(affinity, reaction) {
-  await recordReaction({ kind: affinity.kind, value: affinity.value, reaction });
-  await refresh();
+function correct(control, affinity, reaction) {
+  return attempt(control, `record ${reaction} for ${affinity.value}`, () => recordReaction({ kind: affinity.kind, value: affinity.value, reaction }), {
+    then: () => refresh(),
+  });
 }
 
-async function forget(affinity) {
+async function forget(control, affinity) {
   const agreed = await confirmAct({
     title: `Forget ${affinity.value}?`,
     // The consequence, not the row count, and the distinction is the one this
@@ -259,6 +262,7 @@ async function forget(affinity) {
     confirmLabel: "Forget it",
   });
   if (!agreed) return;
-  await api(`/api/affinities/${encodeURIComponent(affinity.affinity_id)}`, { method: "DELETE" });
-  await refresh();
+  await attempt(control, `forget ${affinity.value}`, () => api(`/api/affinities/${encodeURIComponent(affinity.affinity_id)}`, { method: "DELETE" }), {
+    then: () => refresh(),
+  });
 }

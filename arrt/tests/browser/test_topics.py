@@ -173,7 +173,7 @@ def all_works(services):
 
 def open_topic(ui, qid=SIXTEENTH):
     ui.open(f"#topic/{qid}")
-    ui.page.wait_for_selector(f"{HELD} h3")
+    ui.page.wait_for_selector(f"{HELD} h2")
 
 
 def works_answered(ui):
@@ -201,9 +201,9 @@ def record_gets(ui) -> list[dict]:
 class TestTheIndex:
     def test_it_lists_every_kind_and_each_topic_with_its_count(self, ui, held):
         ui.open("#topics")
-        ui.page.wait_for_selector("#view h2:text-is('Topics')")
+        ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
-        headings = ui.page.locator("#view section h3").all_inner_texts()
+        headings = ui.page.locator("#view section h2").all_inner_texts()
         assert headings == ["Periods", "Movements", "Subjects", "Media"]
         periods = ui.page.locator("section[aria-labelledby='topics-period'] li").all_inner_texts()
         assert [" ".join(row.split()) for row in periods] == ["16th century · 2 works"]
@@ -264,18 +264,18 @@ class TestTheIndex:
 
     def test_a_topic_opens_its_page(self, ui, held):
         ui.open("#topics")
-        ui.page.click("section[aria-labelledby='topics-period'] button:text-is('16th century')")
+        ui.page.click("section[aria-labelledby='topics-period'] a:text-is('16th century')")
 
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=SIXTEENTH)
-        ui.page.wait_for_selector(f"{HELD} h3")
-        assert ui.page.locator("#view button", has_text="←").first.inner_text() == "← Topics"
+        ui.page.wait_for_selector(f"{HELD} h2")
+        assert ui.page.locator("#view a", has_text="←").first.inner_text() == "← Topics"
 
     def test_the_sidebar_offers_topics_under_artworks_after_themes(self, ui, held):
         ui.open("#collection")
-        ui.page.wait_for_selector("#view h2")
+        ui.page.wait_for_selector("#view h1")
 
         ui.page.get_by_role("link", name="Topics").click()
-        ui.page.wait_for_selector("#view h2:text-is('Topics')")
+        ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
     def test_find_a_topic_asks_wikidata_and_tells_like_names_apart(self, ui, held):
         ui.open("#topics")
@@ -288,7 +288,7 @@ class TestTheIndex:
         assert ui.page.input_value("#search") == ""
         rows = [" ".join(t.split()) for t in ui.page.locator("section[aria-labelledby='topic-search'] li").all_inner_texts()]
         assert rows == ["Impressionism — movement art movement", "Impressionism — movement music movement"]
-        ui.page.click("section[aria-labelledby='topic-search'] li:has-text('art movement') button")
+        ui.page.click("section[aria-labelledby='topic-search'] li:has-text('art movement') a")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
 
     def test_a_search_finding_nothing_says_so(self, ui, held):
@@ -313,12 +313,12 @@ class TestTheTopicPage:
             )
         open_topic(ui)
 
-        assert ui.page.locator(f"{HELD} h3").inner_text() == "In your library (2)"
+        assert ui.page.locator(f"{HELD} h2").inner_text() == "In your library (2)"
         assert sorted(ui.page.locator(f"{HELD} .card-title").all_inner_texts()) == sorted([hunters.title, corn.title])
         assert ui.page.locator(f"{WORKS} [aria-live]").inner_text() == "Asking Wikidata…"
         assert ui.page.locator(f"{ARTISTS} [aria-live]").inner_text() == "Asking Wikidata…"
         # The head is Wikidata's too, and is not held back by the slow sections.
-        ui.page.wait_for_selector("#view h2:text-is('16th century')")
+        ui.page.wait_for_selector("#view h1:text-is('16th century')")
         assert ui.page.locator("#view dl.facts dd").inner_text() == "period"
 
         while len(waiting) < 2:
@@ -333,14 +333,14 @@ class TestTheTopicPage:
         open_topic(ui)
         works_answered(ui)
 
-        assert ui.page.locator(f"{WORKS} h3").inner_text() == "Works from 1501–1600"
+        assert ui.page.locator(f"{WORKS} h2").inner_text() == "Works from 1501–1600"
 
     @pytest.mark.parametrize("qid", [WINTER, BAROQUE], ids=["a subject", "a movement that is also a period"])
     def test_works_found_by_anything_but_a_period_claim_no_years(self, ui, held, qid):
         open_topic(ui, qid)
         works_answered(ui)
 
-        assert ui.page.locator(f"{WORKS} h3").inner_text() == "Representative works"
+        assert ui.page.locator(f"{WORKS} h2").inner_text() == "Representative works"
 
     def test_each_work_carries_its_state_as_glyph_and_word(self, ui, held):
         open_topic(ui)
@@ -380,13 +380,13 @@ class TestTheTopicPage:
         assert flammarion.locator(".by-under").inner_text() == "Unknown maker"
         assert not flammarion.locator("td.by-col").is_visible()
         harvesters = ui.page.locator(f"{WORKS} tbody tr", has_text="The Harvesters")
-        harvesters.locator(".by-under button:text-is('Pieter Bruegel the Elder')").click()
-        ui.page.wait_for_selector("#view h2:has-text('Pieter Bruegel the Elder')")
+        harvesters.locator(".by-under a:text-is('Pieter Bruegel the Elder')").click()
+        ui.page.wait_for_selector("#view h1:has-text('Pieter Bruegel the Elder')")
 
     def _marks(self, ui):
         # Keyed by the title's own button: on a phone the cell also holds the year.
         return {
-            row.locator("td.work-title button.row-title").inner_text(): row.locator("td").nth(4)
+            row.locator("td.work-title a.row-title").inner_text(): row.locator("td").nth(4)
             for row in ui.page.locator(f"{WORKS} tbody tr").all()
         }
 
@@ -465,8 +465,8 @@ class TestTheTopicPage:
         assert makers["Flammarion engraving"] == "Unknown maker"
         assert makers[f"No English title ({NAMELESS})"] == "—"
         # The By column's own link: the row also carries a copy under the title, shown only on a phone.
-        ui.page.click(f"{WORKS} tr:has-text('The Harvesters') td.by-col button:text-is('Pieter Bruegel the Elder')")
-        ui.page.wait_for_selector("#view h2:has-text('Pieter Bruegel the Elder')")
+        ui.page.click(f"{WORKS} tr:has-text('The Harvesters') td.by-col a:text-is('Pieter Bruegel the Elder')")
+        ui.page.wait_for_selector("#view h1:has-text('Pieter Bruegel the Elder')")
 
     def test_a_held_work_offers_no_tick_box(self, ui, held):
         open_topic(ui)
@@ -493,12 +493,12 @@ class TestTheTopicPage:
             "Pieter Bruegel the Elder 1525–1569 · 40 works with an image ● In your library",
             "Rembrandt 1606–1669 · 1 work with an image ○ Not held",
         ]
-        ui.page.click(f"{ARTISTS} button:text-is('Pieter Bruegel the Elder')")
+        ui.page.click(f"{ARTISTS} a:text-is('Pieter Bruegel the Elder')")
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#artist/${id}`)", arg=bruegel.id)
 
     def test_registry_text_arrives_as_words_and_the_link_is_built_from_the_qid(self, ui, held):
         open_topic(ui)
-        ui.page.wait_for_selector("#view h2:text-is('16th century')")
+        ui.page.wait_for_selector("#view h1:text-is('16th century')")
         # The heading can paint before the description does, so the description
         # is waited for in its own right before it is counted.
         escaped = ui.page.get_by_text('century <img src=x onerror="window.pwned=1">')
@@ -525,14 +525,14 @@ class TestTheTopicPage:
         open_topic(ui, IMPRESSIONISM)
 
         assert ui.page.locator(f"{HELD} p").inner_text() == "None of your works in circulation is in this topic."
-        ui.page.wait_for_selector("#view h2:text-is('Impressionism')")
+        ui.page.wait_for_selector("#view h1:text-is('Impressionism')")
         assert ui.page.locator("#view dl.facts dd").inner_text() == "movement"
 
     def test_an_address_that_is_not_a_qid_says_so(self, ui):
         ui.open("#topic/nonsense")
-        ui.page.wait_for_selector('#view h2:text-is("That is not a topic\'s address")')
-        ui.page.click("#view button:text-is('All topics')")
-        ui.page.wait_for_selector("#view h2:text-is('Topics')")
+        ui.page.wait_for_selector('#view h1:text-is("That is not a topic\'s address")')
+        ui.page.click("#view a:text-is('All topics')")
+        ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
 
 # -- Get, into a theme named after the topic ---------------------------------------
@@ -554,7 +554,7 @@ def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, h
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
     ui.page.click(f"{WORKS} .get-control button.action")
 
-    ui.page.wait_for_selector(f"{WORKS} .get-status button:text-is('Open the Get')")
+    ui.page.wait_for_selector(f"{WORKS} .get-status a:text-is('Open the Get')")
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
     assert (
@@ -572,7 +572,7 @@ def test_get_from_a_topic_whose_name_is_a_theme_joins_it(ui, services, held, all
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
     ui.page.click(f"{WORKS} .get-control button.action")
 
-    ui.page.wait_for_selector(f"{WORKS} .get-status button:text-is('Open the Get')")
+    ui.page.wait_for_selector(f"{WORKS} .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": theme.id}]
 
 
@@ -581,7 +581,7 @@ def test_get_from_a_topic_whose_name_is_a_theme_joins_it(ui, services, held, all
 
 def _type(ui, words):
     ui.open("#walls")
-    ui.page.wait_for_selector("#view h2")
+    ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type(words)
     ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']")
@@ -666,7 +666,7 @@ def test_the_results_page_lists_the_librarys_topic_under_held_once(ui, held):
 
     assert _result_rows(ui, "held") == ["16th century — period"]
     assert _result_rows(ui, "not-held") == []
-    ui.page.click("section[aria-labelledby='results-held-topics'] button:has-text('16th century')")
+    ui.page.click("section[aria-labelledby='results-held-topics'] a:has-text('16th century')")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=SIXTEENTH)
 
 
@@ -678,7 +678,7 @@ def test_the_results_page_lists_wikidatas_topics_under_not_held(ui, held):
         "Impressionism — movement · music movement",
     ]
     assert ui.page.locator("#view .results-none").inner_text() == "Nothing you hold matches."
-    ui.page.click("section[aria-labelledby='results-not-held-topics'] li:has-text('art movement') button")
+    ui.page.click("section[aria-labelledby='results-not-held-topics'] li:has-text('art movement') a")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
 
 
@@ -700,7 +700,7 @@ class TestWithNoRegistryConfigured:
 
     def test_library_topics_says_topics_need_it_and_offers_no_search(self, ui):
         ui.open("#topics")
-        ui.page.wait_for_selector("#view h2:text-is('Topics')")
+        ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
         assert "WIKIDATA_USER_AGENT" in ui.page.locator("#view p.note").first.inner_text()
         assert ui.page.locator("#view").get_by_label("Find a topic", exact=True).count() == 0
@@ -712,7 +712,7 @@ class TestWithNoRegistryConfigured:
 
         # The head is the first panel, and says it in its own words, not a section's.
         head = ui.page.locator("#view .panel").first
-        assert head.locator("h2").inner_text() == f"Wikidata {SIXTEENTH}"
+        assert head.locator("h1").inner_text() == f"Wikidata {SIXTEENTH}"
         assert "WIKIDATA_USER_AGENT" in head.locator("p.note").inner_text()
         for where in (WORKS, ARTISTS):
             assert "WIKIDATA_USER_AGENT" in ui.page.locator(f"{where} p.note").inner_text()

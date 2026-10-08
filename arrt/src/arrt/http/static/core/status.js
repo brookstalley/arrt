@@ -144,6 +144,13 @@ export async function paintStatus() {
   paint(statusReading(health));
 }
 
+/* A plain click goes through the router, as the sidebar's links do, so the
+ * indicator still opens Status from Status itself; a click with a modifier is
+ * the browser's, a new tab. */
 export function installStatus() {
-  document.getElementById("status").addEventListener("click", () => go("health"));
+  document.getElementById("status").addEventListener("click", (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    go("health");
+  });
 }

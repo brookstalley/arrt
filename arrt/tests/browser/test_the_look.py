@@ -114,7 +114,7 @@ def test_the_line_under_get_says_what_the_panel_is_and_what_a_get_adds(ui):
 
     line = "These are what the sources hold now; getting the work records them and spends nothing."
     assert ui.page.locator("#view p.muted", has_text=line).count() == 1
-    assert ui.page.locator("#view h3#look-heading").inner_text() == "What the image sources hold"
+    assert ui.page.locator("#view h2#look-heading").inner_text() == "What the image sources hold"
 
 
 # -- across polls ------------------------------------------------------------------------

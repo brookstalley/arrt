@@ -163,7 +163,7 @@ def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, th
     ui.page.wait_for_selector("section.wall")
 
     assert "No theme has been created yet" in ui.text()
-    assert ui.page.locator("button", has_text="Create a theme").count() == 1
+    assert ui.page.locator("a", has_text="Create a theme").count() == 1
     assert ui.page.locator("select").count() == 0
 
 
@@ -184,7 +184,7 @@ def test_an_empty_theme_says_the_theme_is_empty_and_offers_to_fill_it(ui, servic
 
     assert _reasons_named(ui) == ["an empty theme"]
     assert f"{a_theme.name} holds no works yet, so nothing is on {the_wall.name}." in ui.text()
-    assert ui.page.locator("button", has_text=f"Add works to {a_theme.name}").count() == 1
+    assert ui.page.locator("a", has_text=f"Add works to {a_theme.name}").count() == 1
 
 
 def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, services, a_theme, the_wall):
@@ -202,15 +202,15 @@ def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, s
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
-    ui.page.click(f"button:has-text('Add works to {a_theme.name}')")
-    ui.page.wait_for_selector(f"h2:has-text('{a_theme.name}')")
+    ui.page.click(f"a:has-text('Add works to {a_theme.name}')")
+    ui.page.wait_for_selector(f"h1:has-text('{a_theme.name}')")
 
     # The id, and the opener beside it. Theme's default return is Collection, so
     # arriving from a wall is the case `?from=` exists for — without it the back
     # link would send a curator to the grid from a screen they reached by asking
     # about a wall.
     assert ui.page.evaluate("() => window.location.hash") == f"#theme/{a_theme.id}?from=walls"
-    assert ui.page.locator("button:has-text('← Walls')").count() == 1
+    assert ui.page.locator("a:has-text('← Walls')").count() == 1
     assert ui.page.locator("text=Winter").count() == 0
 
 
@@ -227,7 +227,7 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.page.wait_for_selector("section.wall")
 
     # The manifest's three panels, and nothing else.
-    assert ui.page.locator("section.wall .panel h4").count() == 3
+    assert ui.page.locator("section.wall .panel h3").count() == 3
     assert "Showing (0)" in ui.text()
 
 
@@ -246,7 +246,7 @@ def test_a_wall_whose_display_has_never_reported_says_so_and_points_at_the_readi
 
     assert _reasons_named(ui) == ["the display plane silent"]
     assert f"No display has ever reported for {a_hung_wall.name}." in ui.text()
-    assert ui.page.locator("button", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
+    assert ui.page.locator("a", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
 
 
 def test_a_heartbeat_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_hung_wall, a_health_reading, a_wall_reading):
@@ -266,7 +266,7 @@ def test_a_heartbeat_that_cannot_be_read_is_the_same_reason_in_different_words(u
 
     assert _reasons_named(ui) == ["the display plane silent"]
     assert f"{a_hung_wall.name}'s heartbeat cannot be read: the file is not JSON." in ui.text()
-    assert ui.page.locator("button", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
+    assert ui.page.locator("a", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
 
 
 def test_a_reading_that_names_no_heartbeat_for_this_wall_is_never_read_as_well(ui, a_hung_wall, a_health_reading):
@@ -349,7 +349,7 @@ def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(
     ui.serve("**/api/walls", (500, {"error": "the catalogue is locked"}))
 
     ui.open("#walls")
-    ui.page.wait_for_selector("h2")
+    ui.page.wait_for_selector("h1")
 
     assert _reasons_named(ui) == ["a plane out of reach"]
     assert "The curation plane did not answer" in ui.text()
@@ -406,7 +406,7 @@ def test_confirming_hangs_it_and_the_wall_repaints_from_what_was_published(ui, s
     ui.page.click(f"button:has-text('Hang on {the_wall.name}')")
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
-    ui.page.wait_for_selector(f"h3.wall-title:has-text('{the_wall.name}: {a_full_theme.name}')")
+    ui.page.wait_for_selector(f"h2.wall-title:has-text('{the_wall.name}: {a_full_theme.name}')")
 
     assert services.display.hanging_on(the_wall.id).id == a_full_theme.id
     assert "All 1 work in this theme is on the wall." in ui.text()
@@ -553,7 +553,7 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
     ui.page.wait_for_selector("section.wall")
 
     assert ui.page.locator("section.wall").count() == 1
-    assert ui.page.locator("h3.wall-title").all_inner_texts() == [the_wall.name]
+    assert ui.page.locator("h2.wall-title").all_inner_texts() == [the_wall.name]
     assert ui.page.locator("button", has_text="Hang on ").all_inner_texts() == [f"Hang on {the_wall.name}"]
 
     services.display.add_wall(name="Study")
@@ -564,7 +564,7 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
     ui.page.wait_for_selector("section.wall")
 
     assert ui.page.locator("section.wall").count() == 2
-    assert ui.page.locator("h3.wall-title").all_inner_texts() == ["Study", the_wall.name]
+    assert ui.page.locator("h2.wall-title").all_inner_texts() == ["Study", the_wall.name]
     assert sorted(ui.page.locator("button", has_text="Hang on ").all_inner_texts()) == [
         "Hang on Study",
         f"Hang on {the_wall.name}",
@@ -669,7 +669,7 @@ def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_
 
 
 def _client_line(ui, wall_name):
-    section = ui.page.locator("section.wall", has=ui.page.locator(f"h3.wall-title:has-text('{wall_name}')"))
+    section = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{wall_name}')"))
     return section.locator("p.wall-client")
 
 
@@ -769,7 +769,7 @@ def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_as
     assert link.get_attribute("href") == "#clients"
 
     link.click()
-    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    ui.page.wait_for_selector("#view h1:has-text('Clients')")
     assert ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']").count() == 1
 
 

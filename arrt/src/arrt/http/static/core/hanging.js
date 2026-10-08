@@ -26,10 +26,12 @@
  * result, the Walls screen repaints in place. That is the parameter.
  */
 
+import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
 
-/* Ask, and hang if the answer is yes.
+/* Ask, and hang if the answer is yes. `control` is what was pressed, and a
+ * preview or a hang that fails is said beside it (`core/acting.js`).
  *
  * Returns whether it hung, so a caller can tell a declined question from a
  * completed one without inferring it from the screen not having changed.
@@ -38,10 +40,13 @@ import { confirmAct } from "./confirm.js";
  * sentence that reads correctly today only because there is a single possible
  * target is the last place a mistake could have been caught, and it silently
  * stops being true when the second display arrives. */
-export async function hangTheme({ themeId, themeName, wall, then }) {
-  const preview = await api(
-    `/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}&theme_id=${encodeURIComponent(themeId)}`,
-  );
+export async function hangTheme({ control, themeId, themeName, wall, then }) {
+  const act = `hang ${themeName} on ${wall.name}`;
+  let preview = null;
+  const previewed = await attempt(control, act, async () => {
+    preview = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}&theme_id=${encodeURIComponent(themeId)}`);
+  });
+  if (!previewed) return false;
   const confirmed = await confirmAct({
     title: `Hang ${themeName} on ${wall.name}?`,
     consequence: `${preview.summary} Everyone in the house sees ${wall.name} change.`,
@@ -49,10 +54,14 @@ export async function hangTheme({ themeId, themeName, wall, then }) {
   });
   if (!confirmed) return false;
 
-  await api(`/api/themes/${encodeURIComponent(themeId)}/activate`, {
-    method: "POST",
-    body: JSON.stringify({ wall_id: wall.wall_id }),
-  });
-  await then();
-  return true;
+  return attempt(
+    control,
+    act,
+    () =>
+      api(`/api/themes/${encodeURIComponent(themeId)}/activate`, {
+        method: "POST",
+        body: JSON.stringify({ wall_id: wall.wall_id }),
+      }),
+    { then },
+  );
 }

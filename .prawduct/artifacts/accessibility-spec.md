@@ -1131,6 +1131,21 @@ convenient".
   and leaves the address alone**, because the hash router reads `#view` as a
   page called "view" and a plain link sent the reader to the home page instead
   (`core/router.js`, found and fixed 2026-09-30).
+- **A navigation lands at the top of the screen it opens, with focus on the
+  view and the page not scrolled by the focus** (`preventScroll`). **Back returns
+  to where the page it went back to was scrolled, with focus on the link that was
+  followed** — card 20 of Artworks, not the top of the grid. A screen's own *← …*
+  link is Back when the entry behind is the screen it names. Pinned by
+  `arrt/tests/browser/test_navigation.py` (`core/router.js`, `rememberPlace`).
+- **Every page has its own title and its own `h1`.** `document.title` is the
+  page's name and the product's ("Artworks - Arrt"), and a detail page's is the
+  thing it shows ("Nighthawks - Arrt"); the screen's heading is the document's
+  only `h1`, and the product name in the top bar is not a heading. Section
+  headings sit one rank under it. Pinned per route, from the route table, by
+  the same file.
+- **Navigation is a link and an act is a button** (`information-architecture.md`
+  § Direction), so a screen reader announces "link" for what moves the reader
+  and "button" for what does something.
 - **The sidebar is a `nav` landmark labelled "Sections"**, and exactly one of its
   links carries `aria-current="page"`: the page's own link, never its section's
   as well. Below 40rem it is a drawer behind a menu button with
@@ -1174,8 +1189,13 @@ verdict that did not concern it.
 
 ### Announcement and semantics
 
-**Practised:** `lang="en"` on the document; a `<nav>` labelled *Sections*; failures
-announced through a `role="alert"` banner rather than shown as a colour; the
+**Practised:** `lang="en"` on the document; a `<nav>` labelled *Sections*; a page
+that could not load announced through a `role="alert"` banner rather than shown
+as a colour; **a failed act announced through a `role="alert"` sentence placed
+directly after the control that sent it**, naming the act and what became of it
+("Couldn't reject *Nighthawks*: … Nothing was changed."), with the control left
+as it was so the retry is one press (`core/acting.js`; pinned by
+`arrt/tests/browser/test_failures_beside_the_control.py`); the
 re-search offer as a `role="status"` region, polite rather than assertive because
 an offer appearing is news and not an emergency.
 

@@ -121,15 +121,36 @@ A control is never both.
 > Each screen's button was a locally reasonable choice, which is the shape a
 > norm exists for.
 >
-> **Enforcement:** a browser-suite guard, landing with #273, that no in-content
-> control navigates without being a link; until it lands, the Critic.
+> **How a link is built:** `link()` in `core/router.js` — an `href` from the
+> same `formatRoute` the router writes, and a plain click still routed through
+> `go`, which remembers where the page it leaves was scrolled and which link left
+> it, so Back returns there with that link focused. A click with a modifier is
+> the browser's (a new tab). Arriving at a screen scrolls to its top and focuses
+> the view without scrolling it; a change of state on the same screen (a sort, a
+> filter) keeps the place.
 >
-> **Status:** in-transition. **Interim rule:** a new or changed screen follows
-> the norm; existing `go(` buttons in `static/screens/` and `static/core/` are
-> migrated by #273, which also carries focus and scroll on navigation.
+> **What stays a button, and why it is not navigation:** an act that lands
+> somewhere afterwards (Ask's *Start the search* opens the run it started); a
+> filter, View, Sort or Theme toggle on the page showing, which changes that
+> page's state rather than which page it is (`goWithParams`). **And one recorded
+> exception:** the top-bar search's suggestions are `role="option"` rows of a
+> combobox, chosen with the arrow keys and Enter, which ARIA does not allow to
+> be links; *All results for "…"* among them opens the results page, whose
+> address is a link everywhere else. *(Builder's decision, 2026-10-07 —
+> challenge it if the combobox is ever replaced.)*
 >
-> **Retroactivity:** migrate. The residual sites are every in-content `go(`
-> call bound to a `<button>`'s click; #273 enumerates them from the code.
+> **Enforcement:** `arrt/tests/unit/test_navigation_is_a_link.py` reads every
+> client module and fails on `go(` bound straight to a click or a row's `open`
+> handler — the shape every list was built from — naming the file and line. It
+> is a pattern over the source, so a navigation reached some other way (a handler
+> that calls a helper that calls `go`) passes it; the Critic covers that. The
+> browser suite holds the behaviour: `arrt/tests/browser/test_navigation.py`.
+>
+> **Status:** steady-state. #273 migrated every site (`build-plan-walls-work-and-trust.md`
+> Chunk 01).
+>
+> **Retroactivity:** migrate, completed: no in-content `go(` call is bound to a
+> click.
 
 **A working prototype of everything below is committed beside this file:**
 `prototypes/curation-ia-prototype.html` — one self-contained page, no build step,

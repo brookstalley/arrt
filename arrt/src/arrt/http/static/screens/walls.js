@@ -39,12 +39,13 @@
  * decision on it. This screen has a decision on it.
  */
 
+import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, guard, render } from "../core/render.js";
 import { screenState, wallScreenLine } from "../core/outputs.js";
-import { go, refresh } from "../core/router.js";
+import { link, refresh } from "../core/router.js";
 
 export async function viewWalls(generation) {
   let walls;
@@ -96,7 +97,7 @@ export async function viewWalls(generation) {
  * which is this one: the page about what the product exists to produce saying
  * so, at a size nothing else on the client reaches. */
 function heading() {
-  return el("h2", { class: "walls-heading", text: "Walls" });
+  return el("h1", { class: "walls-heading", text: "Walls" });
 }
 
 /* The fact the MCP surface already states after an unhang, said here too: taking
@@ -144,7 +145,7 @@ function assignmentLine(wall, shownBy) {
   if (!wall.client_id) {
     return el("p", { class: "muted wall-client" }, [
       el("span", { text: "No client shows this wall. " }),
-      el("a", { href: "#clients", text: "Assign it in Settings › Clients" }),
+      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
     ]);
   }
   const client = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
@@ -216,12 +217,12 @@ function wallSection(wall, build, beats, themes, shownBy) {
   const manifest = build.manifest;
   const reason = reasonFor(wall, build, beats);
   return el("section", { class: "wall" }, [
-    // `h3` for the wall and `h4` for its panels, so the nesting survives a second
-    // wall: with two walls hung, sibling `h3`s would give a reader navigating by
+    // `h2` for the wall and `h3` for its panels, so the nesting survives a second
+    // wall: with two walls hung, sibling `h2`s would give a reader navigating by
     // heading six headings in a row and no signal for which counts belong to
     // which room. The single-wall view read correctly by accident, having only
     // one room's worth of headings to confuse.
-    el("h3", { class: "wall-title", text: manifest ? `${wall.name}: ${manifest.theme.name}` : wall.name }),
+    el("h2", { class: "wall-title", text: manifest ? `${wall.name}: ${manifest.theme.name}` : wall.name }),
     assignmentLine(wall, shownBy),
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
@@ -271,17 +272,12 @@ function emptyTheme(wall, manifest) {
       text: `${manifest.theme.name} holds no works yet, so nothing is on ${wall.name}.`,
     }),
     el("div", { class: "row" }, [
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: `Add works to ${manifest.theme.name}`,
-        // The theme's own address, not the index. `information-architecture.md`
-        // § Screen Inventory lists "a wall's theme control" as an entry point to
-        // the Theme screen, and a button naming one theme that lands on a list
-        // of all of them makes the curator find it again — on the one screen
-        // whose sentence directly above says which theme is the problem.
-        onclick: () => go("theme", manifest.theme.theme_id),
-      }),
+      // The theme's own address, not the index. `information-architecture.md`
+      // § Screen Inventory lists "a wall's theme control" as an entry point to
+      // the Theme screen, and a link naming one theme that lands on a list of
+      // all of them makes the curator find it again — on the one screen whose
+      // sentence directly above says which theme is the problem.
+      link({ view: "theme", id: manifest.theme.theme_id }, { class: "action quiet", text: `Add works to ${manifest.theme.name}` }),
     ]),
   ];
 }
@@ -300,12 +296,7 @@ function planeSilent(wall, beat) {
   return [
     el("p", { class: "note", text: silence(wall, beat) }),
     el("div", { class: "row" }, [
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: `Open the reading for ${wall.name}`,
-        onclick: () => go("health"),
-      }),
+      link({ view: "health" }, { class: "action quiet", text: `Open the reading for ${wall.name}` }),
     ]),
   ];
 }
@@ -368,7 +359,7 @@ function controls(wall, themes, reason, manifest) {
   if (!themes.length) {
     return el("div", { class: "row wall-controls" }, [
       el("p", { class: "muted", text: "No theme has been created yet, so there is nothing to hang here." }),
-      el("button", { class: "action", type: "button", text: "Create a theme", onclick: () => go("theme") }),
+      link({ view: "theme" }, { class: "action", text: "Create a theme" }),
     ]);
   }
 
@@ -387,7 +378,7 @@ function controls(wall, themes, reason, manifest) {
       class: "action",
       type: "button",
       text: `Hang on ${wall.name}`,
-      onclick: () => guard(() => hang(wall, themes, picker.value)),
+      onclick: (event) => hang(event.currentTarget, wall, themes, picker.value),
     }),
     // Only where something is actually up. Stepping a wall that is showing
     // nothing writes a directive nobody can act on, and offering it would say
@@ -412,9 +403,9 @@ function controls(wall, themes, reason, manifest) {
  *
  * The question, the preview and the request are `core/hanging.js`'s — the Theme
  * screen asks the same one, and one act must not have two wordings. */
-function hang(wall, themes, themeId) {
+function hang(control, wall, themes, themeId) {
   const chosen = themes.find((placement) => placement.theme.theme_id === themeId);
-  return hangTheme({ themeId, themeName: chosen.theme.name, wall, then: refresh });
+  return hangTheme({ control, themeId, themeName: chosen.theme.name, wall, then: refresh });
 }
 
 /* Moving one wall on, and only that wall.
@@ -429,21 +420,20 @@ function nextButton(wall) {
     class: "action quiet",
     type: "button",
     text: `Move ${wall.name} on to the next work`,
-    onclick: () =>
-      guard(async () => {
-        await api("/api/directives", {
-          method: "POST",
-          body: JSON.stringify({ wall_id: wall.wall_id }),
-        });
-        await refresh();
-      }),
+    onclick: (event) =>
+      attempt(
+        event.currentTarget,
+        `move ${wall.name} on`,
+        () => api("/api/directives", { method: "POST", body: JSON.stringify({ wall_id: wall.wall_id }) }),
+        { then: refresh },
+      ),
   });
 }
 
 function manifestPanels(manifest) {
   return [
     el("div", { class: "panel" }, [
-      el("h4", { text: `Showing (${manifest.entries.length})` }),
+      el("h3", { text: `Showing (${manifest.entries.length})` }),
       // The pictures, not a list of paths. The artwork is the primary content on
       // every screen that shows one, and this is the screen the product exists
       // to produce — a table of render paths under this heading was an inventory
@@ -455,7 +445,7 @@ function manifestPanels(manifest) {
     el("div", { class: "panel" }, [
       // Never omitted when empty: a section that appeared only on trouble would
       // train a reader to take its absence as "everything is fine".
-      el("h4", { text: `Not showing (${manifest.exclusions.length})` }),
+      el("h3", { text: `Not showing (${manifest.exclusions.length})` }),
       manifest.exclusions.length
         ? table(
             "Every work this theme holds that is not on the wall, and exactly why.",
@@ -465,7 +455,7 @@ function manifestPanels(manifest) {
         : el("p", { class: "muted", text: "Every work in this theme reached the wall." }),
     ]),
     el("div", { class: "panel" }, [
-      el("h4", { text: "How it rotates" }),
+      el("h3", { text: "How it rotates" }),
       facts([
         ["Interval", `${manifest.rotation_interval_seconds} seconds`],
         ["Order", manifest.shuffle ? "shuffled" : "as curated"],
@@ -498,10 +488,10 @@ function hungWork(entry) {
   });
   return el("li", { class: "hung" }, [
     el("div", { class: "card-image" }, [image]),
-    // `h5`, a rank below the panel's `h4`, so a reader navigating by heading gets
+    // `h4`, a rank below the panel's `h3`, so a reader navigating by heading gets
     // the works nested inside the wall's Showing section rather than beside it.
-    el("h5", { class: "card-title" }, [
-      el("button", { type: "button", text: entry.title, onclick: () => go("work", entry.artwork_id) }),
+    el("h4", { class: "card-title" }, [
+      link({ view: "work", id: entry.artwork_id }, { text: entry.title }),
     ]),
     el("p", { class: "card-artist", text: entry.artist || "Artist unrecorded" }),
   ]);

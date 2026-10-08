@@ -32,11 +32,12 @@
  * rather than about the works, and lives on the Theme screen).
  */
 
+import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks, fetchFilterCounts } from "../core/api.js";
 import { absentImage, fitBadge, shortfallNote, sourceBadge, statusBadge } from "../core/badges.js";
 import { addedSentence, addWorksToTheme, stoppedSentence } from "../core/membership.js";
 import { el, fill, guard, render } from "../core/render.js";
-import { go, goWithParams } from "../core/router.js";
+import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
 import { state } from "../core/state.js";
 import { menuButton, toggleButton, toolbar } from "../core/toolbar.js";
@@ -166,13 +167,13 @@ function anyFacetChosen(chosen) {
   return FACET_KINDS.some((kind) => chosen[kind].length);
 }
 
-/* The address that results from turning one facet value on or off. A theme
- * in the address stays: the server composes the two. */
-function withFacet(chosen, kind, value) {
+/* The change to the address that turns one facet value on or off. The rest of
+ * the address stays, a theme in it included: the server composes the two. */
+function facetChange(chosen, kind, value) {
   const values = chosen[kind].includes(value)
     ? chosen[kind].filter((held) => held !== value)
     : [...chosen[kind], value];
-  return { ...state.params, [kind]: joinValues(values) };
+  return { [kind]: joinValues(values) };
 }
 
 /* Which density to draw, given how much there is.
@@ -196,7 +197,7 @@ function cardImage(work) {
   }
   const image = el("img", {
     src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`,
-    // Empty on purpose. The button around it is already named "Open <title>",
+    // Empty on purpose. The link around it is already named "Open <title>",
     // and the tile's own text carries artist, date and medium — describing the
     // picture here as well would make every tile announce its title twice.
     alt: "",
@@ -208,16 +209,7 @@ function cardImage(work) {
   image.addEventListener("error", () => {
     image.replaceWith(absentImage("Its image could not be loaded just now."));
   });
-  return el(
-    "button",
-    {
-      class: "card-image",
-      type: "button",
-      "aria-label": `Open ${work.title}`,
-      onclick: () => go("work", work.artwork_id),
-    },
-    [image],
-  );
+  return link({ view: "work", id: work.artwork_id }, { class: "card-image", "aria-label": `Open ${work.title}` }, [image]);
 }
 
 /* The tick that puts a work in a selection.
@@ -250,8 +242,8 @@ function workCard(work, selection) {
     selection ? selectBox(work, selection.settle) : null,
     cardImage(work),
     el("div", { class: "card-body" }, [
-      el("h3", { class: "card-title" }, [
-        el("button", { type: "button", text: work.title, onclick: () => go("work", work.artwork_id) }),
+      el("h2", { class: "card-title" }, [
+        link({ view: "work", id: work.artwork_id }, { text: work.title }),
       ]),
       el("p", { class: "card-artist" }, [artistName(work)]),
       el("p", {
@@ -266,7 +258,7 @@ function workCard(work, selection) {
 /* The artist's name, as the way to their page; plain words when unrecorded. */
 function artistName(work) {
   if (!work.artist) return el("span", { text: "Artist unrecorded" });
-  return el("button", { class: "link", type: "button", text: work.artist.name, onclick: () => go("artist", work.artist.artist_id) });
+  return link({ view: "artist", id: work.artist.artist_id }, { class: "link", text: work.artist.name });
 }
 
 /* The contact-sheet tile: the picture, and the words behind hover and focus.
@@ -300,7 +292,7 @@ function contactTile(work, selection) {
 function workRow(work, selection) {
   return el("tr", { "data-artwork": work.artwork_id }, [
     selection ? el("td", { class: "row-select" }, [selectBox(work, selection.settle)]) : null,
-    el("td", {}, [el("button", { class: "row-title", type: "button", text: work.title, onclick: () => go("work", work.artwork_id) })]),
+    el("td", {}, [link({ view: "work", id: work.artwork_id }, { class: "row-title", text: work.title })]),
     el("td", {}, [artistName(work)]),
     el("td", { text: work.date_created || "—" }),
     el("td", { text: work.medium || "—" }),
@@ -376,7 +368,7 @@ function skeletonGrid(density) {
 function skeletonScreen(density) {
   const railsShown = !railsHidden();
   return [
-    el("h2", { text: "Loading the collection…" }),
+    el("h1", { text: "Loading the collection…" }),
     el("div", { class: railsShown ? "collection" : "collection rails-hidden" }, [
       railsShown ? el("aside", { class: "rails", "aria-hidden": true }) : null,
       el("div", { class: "collection-main" }, [
@@ -402,7 +394,7 @@ function facetRail(groups, chosen) {
     if (!group || !group.options.length) continue;
     rails.push(
       el("div", { class: "rail" }, [
-        el("h3", { text: FACET_LABELS[kind] || kind }),
+        el("h2", { text: FACET_LABELS[kind] || kind }),
         el(
           "ul",
           { class: "rail-options" },
@@ -436,7 +428,9 @@ function facetOption(kind, option, chosen) {
     // intersection.
     disabled: option.disabled,
     text: `${option.value} (${option.count})`,
-    onclick: () => go("collection", null, withFacet(chosen, kind, option.value)),
+    // A toggle on this page's filter, so a button (`aria-pressed`), as Sort
+    // and View are: it changes what the page shows, not which page it is.
+    onclick: () => goWithParams(facetChange(chosen, kind, option.value)),
   });
 }
 
@@ -450,7 +444,7 @@ function facetOption(kind, option, chosen) {
 function themeRail(themes) {
   if (!themes.length) return null;
   return el("div", { class: "rail" }, [
-    el("h3", { text: "Theme" }),
+    el("h2", { text: "Theme" }),
     el("ul", { class: "rail-options" }, themes.map((option) => el("li", {}, [themeOption(option)]))),
   ]);
 }
@@ -465,7 +459,7 @@ function themeOption(option) {
     text: `${option.name} (${option.count})`,
     // One theme at a time: choosing another replaces it, and choosing the
     // chosen one clears it.
-    onclick: () => go("collection", null, { ...state.params, theme: option.selected ? "" : option.theme_id }),
+    onclick: () => goWithParams({ theme: option.selected ? "" : option.theme_id }),
   });
   button.dataset.count = String(option.count);
   return button;
@@ -646,10 +640,11 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
   });
 
   if (add) {
-    add.addEventListener("click", () =>
-      guard(async () => {
-        const themeId = picker.value;
-        const option = addable.find((candidate) => candidate.theme_id === themeId);
+    add.addEventListener("click", () => {
+      const themeId = picker.value;
+      const option = addable.find((candidate) => candidate.theme_id === themeId);
+      const asked = selected.size;
+      return attempt(add, `add ${asked} ${asked === 1 ? "work" : "works"} to ${option.name}`, async () => {
         let outcome;
         try {
           outcome = await addWorksToTheme(themeId, [...selected], {
@@ -662,10 +657,9 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
           if (failure.progress) moveThemeCount(option, failure.progress.added);
           settle();
           if (failure.progress) say(stoppedSentence(failure.progress, option.name));
-          announcement.focus();
-          // Rethrown so `guard` shows the server's own words for the refusal.
-          // The sentence above says how far it got; only the server can say why
-          // it stopped.
+          // Rethrown so the server's own words for the refusal are said beside
+          // Add. The sentence above says how far it got; only the server can
+          // say why it stopped.
           throw failure;
         }
         moveThemeCount(option, outcome.added);
@@ -673,30 +667,18 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
         settle();
         say(addedSentence(outcome, option.name));
         announcement.focus();
-      }),
-    );
+      });
+    });
   }
 
   if (remove) {
-    remove.addEventListener("click", () =>
-      guard(async () => {
-        const going = [...selected];
-        let removed = 0;
-        let refused = false;
-        // After a refusal, the refusal is the error the curator must see: a
-        // recount failing too would otherwise replace the server's reason for
-        // stopping with its own. With no refusal, a failed recount is the error.
-        const recountQuietlyIfRefused = async () => {
-          try {
-            await recountRail();
-          } catch (failure) {
-            if (!refused) throw failure;
-            // Its own trace, since the banner is the refusal's: the rail's
-            // counts are now stale, and nothing on the page says so.
-            console.warn("The filter rail could not be recounted after the refused removal:", failure);
-          }
-        };
-        try {
+    remove.addEventListener("click", async () => {
+      const going = [...selected];
+      let removed = 0;
+      const removedAll = await attempt(
+        remove,
+        `remove ${going.length} ${going.length === 1 ? "work" : "works"} from ${shownTheme.name}`,
+        async () => {
           for (const artworkId of going) {
             await api(`/api/themes/${encodeURIComponent(shownTheme.theme_id)}/works/${encodeURIComponent(artworkId)}`, {
               method: "DELETE",
@@ -706,32 +688,42 @@ function membershipControls({ themes, shownTheme, grid, heading, recount, recoun
             const tile = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
             if (tile) tile.remove();
           }
+        },
+      );
+      removedSoFar += removed;
+      settle();
+      // The heading counted what was there before the removal, and a count
+      // that no longer matches the tiles under it is the silent lie this
+      // surface exists to refuse.
+      heading.textContent = recount(grid.children.length, removedSoFar);
+      // A theme whose last member has just gone is empty, and an empty grid
+      // with no sentence reads as a broken screen rather than as a theme
+      // holding nothing.
+      if (!grid.children.length) whenEmpty();
+      // The works that left were inside the theme's slice, so every facet
+      // count beside it fell, and a value they alone carried now selects
+      // nothing — an enabled option leading to an empty grid, the dead end
+      // the rail forbids. Recounted after a partial removal too. Adding
+      // cannot do that (the works stay on screen), so only a removal
+      // recounts, and only the rail is redrawn.
+      //
+      // A recount that fails is a read, so it is the banner's — unless the
+      // removal was refused, when the refusal beside Remove is what the
+      // curator must read and the banner stays quiet rather than compete.
+      if (removed && removedAll) await guard(recountRail);
+      else if (removed) {
+        try {
+          await recountRail();
         } catch (failure) {
-          refused = true;
-          throw failure;
-        } finally {
-          removedSoFar += removed;
-          settle();
-          // The heading counted what was there before the removal, and a count
-          // that no longer matches the tiles under it is the silent lie this
-          // surface exists to refuse.
-          heading.textContent = recount(grid.children.length, removedSoFar);
-          // A theme whose last member has just gone is empty, and an empty grid
-          // with no sentence reads as a broken screen rather than as a theme
-          // holding nothing.
-          if (!grid.children.length) whenEmpty();
-          // The works that left were inside the theme's slice, so every facet
-          // count beside it fell, and a value they alone carried now selects
-          // nothing — an enabled option leading to an empty grid, the dead end
-          // the rail forbids. Recounted after a partial removal too. Adding
-          // cannot do that (the works stay on screen), so only a removal
-          // recounts, and only the rail is redrawn.
-          if (removed) await recountQuietlyIfRefused();
+          // Its own trace, since nothing else says so: the rail's counts are
+          // now stale.
+          console.warn("The filter rail could not be recounted after the refused removal:", failure);
         }
-        say(`Removed ${removed} ${removed === 1 ? "work" : "works"} from ${shownTheme.name}.`);
-        announcement.focus();
-      }),
-    );
+      }
+      if (!removedAll) return;
+      say(`Removed ${removed} ${removed === 1 ? "work" : "works"} from ${shownTheme.name}.`);
+      announcement.focus();
+    });
   }
 
   settle();
@@ -758,7 +750,7 @@ function emptyState(query, chosen, shownTheme) {
 
   if (onlyAnArtist) {
     return el("div", { class: "stack empty" }, [
-      el("h3", { text: `Nothing by ${artists[0]} yet.` }),
+      el("h2", { text: `Nothing by ${artists[0]} yet.` }),
       el("p", {
         class: "muted",
         text:
@@ -766,32 +758,27 @@ function emptyState(query, chosen, shownTheme) {
           "not everything that exists. Ask, or Get from a search, is where more comes from.",
       }),
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: "Ask for some", onclick: () => go("discover") }),
-        el("button", {
-          class: "action quiet",
-          type: "button",
-          text: "Show everything",
-          onclick: () => go("collection", null, viewing()),
-        }),
+        link({ view: "discover" }, { class: "action", text: "Ask for some" }),
+        link({ view: "collection", params: viewing() }, { class: "action quiet", text: "Show everything" }),
       ]),
     ]);
   }
 
   if (!query && !shownTheme && !anyFacetChosen(chosen)) {
     return el("div", { class: "stack empty" }, [
-      el("h3", { text: "Nothing is held yet." }),
+      el("h2", { text: "Nothing is held yet." }),
       el("p", {
         class: "muted",
         text: "Artworks fill from Ask and Get: ask for something, or get works you find, judge what comes back, and what you accept lands here.",
       }),
       el("div", { class: "row" }, [
-        el("button", { class: "action", type: "button", text: "Go to Ask", onclick: () => go("discover") }),
+        link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
       ]),
     ]);
   }
 
   return el("div", { class: "stack empty" }, [
-    el("h3", { text: "Nothing held matches this filter." }),
+    el("h2", { text: "Nothing held matches this filter." }),
     // The filter itself, named. "No results" without saying what was asked for
     // leaves a curator guessing which of three narrowings did it.
     el("p", { class: "muted", text: `The filter is ${filterPhrase(query, chosen, shownTheme)}.` }),
@@ -801,12 +788,7 @@ function emptyState(query, chosen, shownTheme) {
       // been called since the search landed, and it says where the control goes
       // rather than what it undoes. It drops every narrowing, which is the only
       // honest reading of the words.
-      el("button", {
-        class: "action",
-        type: "button",
-        text: "Show everything",
-        onclick: () => go("collection", null, viewing()),
-      }),
+      link({ view: "collection", params: viewing() }, { class: "action", text: "Show everything" }),
       query ? clearSearchLink("Clear only the search") : null,
     ]),
   ]);
@@ -858,7 +840,7 @@ export async function viewCollection(generation) {
   // answered can only guess — see `skeletonGrid` for what that cost when it did.
   // The heading is the one thing that can be painted now, and it is the same
   // element the real heading replaces, so it holds its own place.
-  render(generation, el("h2", { text: "Loading the collection…" }));
+  render(generation, el("h1", { text: "Loading the collection…" }));
 
   // The search, the facets and the theme go to the server, which is what makes
   // the count in the heading a statement about the catalogue rather than about
@@ -899,7 +881,7 @@ export async function viewCollection(generation) {
   const themes = page.themes;
   const shownTheme = themes.find((option) => option.selected) || null;
   const density = resolveDensity(page.total);
-  const heading = el("h2", { text: headingText(page.works.length, page.total, query, shownTheme) });
+  const heading = el("h1", { text: headingText(page.works.length, page.total, query, shownTheme) });
   // After a removal: the tiles left, out of what the filter now holds.
   const recount = (shown, gone) => headingText(shown, page.total - gone, query, shownTheme);
 

@@ -7,10 +7,11 @@
  * owner ruled, and the conversations. The searches they start are listed under
  * Activity — Queue while they work, History once they end. */
 
+import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { table } from "../core/badges.js";
-import { el, guard, render } from "../core/render.js";
-import { go } from "../core/router.js";
+import { el, render } from "../core/render.js";
+import { go, link } from "../core/router.js";
 import { state } from "../core/state.js";
 
 export async function viewDiscover(generation) {
@@ -28,8 +29,8 @@ export async function viewDiscover(generation) {
     class: "action",
     type: "button",
     text: "Start the search",
-    onclick: () =>
-      guard(async () => {
+    onclick: (event) =>
+      attempt(event.currentTarget, "start the search", async () => {
         const run = await api("/api/runs", {
           method: "POST",
           body: JSON.stringify({ intent: intent.value }),
@@ -46,8 +47,8 @@ export async function viewDiscover(generation) {
     class: "action quiet",
     type: "button",
     text: "Talk it through first",
-    onclick: () =>
-      guard(async () => {
+    onclick: (event) =>
+      attempt(event.currentTarget, "start a conversation", async () => {
         const conversation = await api("/api/conversations", { method: "POST" });
         go("conversation", conversation.conversation.conversation_id);
       }),
@@ -59,15 +60,10 @@ export async function viewDiscover(generation) {
    * the two ways of asking for something because it is the thing that shapes
    * what comes back — a curator wondering why they keep being offered pale grids
    * looks for the answer where they do the asking. */
-  const taste = el("button", {
-    class: "action quiet",
-    type: "button",
-    text: "See what this product thinks you like",
-    onclick: () => go("taste"),
-  });
+  const taste = link({ view: "taste" }, { class: "action quiet", text: "See what this product thinks you like" });
 
   const entry = el("div", { class: "panel" }, [
-    el("h3", { text: "Ask for something" }),
+    el("h2", { text: "Ask for something" }),
     el("div", { class: "field" }, [
       el("label", { for: "intent", text: "What are you looking for?" }),
       intent,
@@ -82,7 +78,7 @@ export async function viewDiscover(generation) {
     el("div", { class: "row" }, [start, talk, taste]),
   ]);
 
-  const panels = [el("h2", { text: "Ask" }), entry];
+  const panels = [el("h1", { text: "Ask" }), entry];
 
   // The conversations, where the searches listed under Activity come from.
   // Every row opens the thread it names — there is no summary line yet, because
@@ -91,20 +87,14 @@ export async function viewDiscover(generation) {
   if (conversations.count) {
     panels.push(
       el("div", { class: "panel" }, [
-        el("h3", { text: `Conversations (${conversations.count})` }),
+        el("h2", { text: `Conversations (${conversations.count})` }),
         table(
           "Every conversation, the most recently spoken in first.",
           ["Last said", "Where it got to", "Open"],
           conversations.conversations.map((conversation) => [
             conversation.last_turn_at,
             conversation.summary || "—",
-            el("button", {
-              class: "action quiet",
-              type: "button",
-              text: "Open",
-              "aria-label": `Open the conversation last spoken in at ${conversation.last_turn_at}`,
-              onclick: () => go("conversation", conversation.conversation_id),
-            }),
+            link({ view: "conversation", id: conversation.conversation_id }, { class: "action quiet", text: "Open", "aria-label": `Open the conversation last spoken in at ${conversation.last_turn_at}` }),
           ]),
         ),
       ]),

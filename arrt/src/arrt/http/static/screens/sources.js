@@ -36,7 +36,7 @@ export async function viewSources(generation) {
   const interfaceMajor = String(listing.interface_version).split(".")[0];
   render(
     generation,
-    el("h2", { text: "Sources" }),
+    el("h1", { text: "Sources" }),
     el("p", {
       class: "muted",
       text:
@@ -55,7 +55,7 @@ export async function viewSources(generation) {
 
 function sourcePanel(source, index, count, interfaceMajor) {
   return el("li", { class: "panel source-entry" }, [
-    el("h3", { text: source.name }),
+    el("h2", { text: source.name }),
     el("p", { class: "reading-sentence", text: source.description }),
     facts([
       ["Package", packageWords(source)],

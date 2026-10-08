@@ -77,7 +77,7 @@ def test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour(ui, a_them
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
     # Waited on the wall view the hang lands on, not on a heading. The theme
-    # screen already has an `h2`, so waiting for one waits for nothing — and the
+    # screen already has an `h1`, so waiting for one waits for nothing — and the
     # reload below is then free to overtake the POST, after which the theme is
     # not hanging anywhere and the badge this test is about never appears. The
     # walls screen is painted only once the activate has come back, which is
@@ -120,7 +120,7 @@ def test_a_wall_with_nothing_hanging_says_so_instead_of_showing_an_empty_manifes
     "no theme has been chosen", and the two lead to different actions.
     """
     ui.open("#walls")
-    ui.page.wait_for_selector("h2")
+    ui.page.wait_for_selector("h1")
 
     assert "Nothing is hanging on The wall" in ui.text()
     # And the fact the MCP surface states after an unhang, which the human
@@ -142,7 +142,7 @@ def test_the_take_down_note_is_said_once_however_many_walls_are_empty(ui, servic
     services.display.add_wall(name="Study")
 
     ui.open("#walls")
-    ui.page.wait_for_selector("h2")
+    ui.page.wait_for_selector("h1")
 
     assert ui.page.locator("p", has_text="goes on showing what it was showing").count() == 1
     # Both rooms are named, so the one note is standing for two walls rather
@@ -155,7 +155,7 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     """Two hung walls, and a reader navigating by heading can still tell the rooms apart.
 
     The wall view renders one section per wall, each with its own Showing / Not
-    showing / How it rotates panels. When every one of those was an `h3` the
+    showing / How it rotates panels. When every one of those was an `h2` the
     single-wall case read correctly by accident — with two walls hung it is six
     sibling headings in a row and no structural signal for which counts belong to
     which room. Asserted rather than left to the eye because nothing else
@@ -172,15 +172,15 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     services.display.activate_theme(a_theme.id, wall_id=study.id)
 
     ui.open("#walls")
-    ui.page.wait_for_selector("h3")
+    ui.page.wait_for_selector("h2")
 
-    # One h3 per wall, and every panel heading a rank below it.
-    assert sorted(ui.page.locator("h3").all_inner_texts()) == ["Study: Late night", "The wall: Late night"]
-    assert ui.page.locator("h3.wall-title").count() == 2
-    assert ui.page.locator(".panel h3").count() == 0
+    # One h2 per wall, and every panel heading a rank below it.
+    assert sorted(ui.page.locator("h2").all_inner_texts()) == ["Study: Late night", "The wall: Late night"]
+    assert ui.page.locator("h2.wall-title").count() == 2
+    assert ui.page.locator(".panel h2").count() == 0
     # Three per wall: the manifest's three panels.
-    assert ui.page.locator(".panel h4").count() == 6
-    assert ui.page.locator("section.wall").nth(0).locator(".panel h4").count() == 3
+    assert ui.page.locator(".panel h3").count() == 6
+    assert ui.page.locator("section.wall").nth(0).locator(".panel h3").count() == 3
     # And with nothing empty there is no take-down note: a caption with nothing
     # to caption. This is the other half of the guard the sibling test above
     # exercises, and without it the guard could be deleted with the suite green.

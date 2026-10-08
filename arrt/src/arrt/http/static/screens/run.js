@@ -9,6 +9,7 @@
  * is no second page to go to (the owner's ruling, 2026-10-02).
  */
 
+import { attempt } from "../core/acting.js";
 import { api, fetchAllCandidates } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
 import { agree, agreePartitive, counted } from "../core/counting.js";
@@ -16,7 +17,7 @@ import { destinationOf, destinationSentence, readThemes } from "../core/destinat
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { reviewSection } from "../core/reviewing.js";
-import { backLink, go, refresh } from "../core/router.js";
+import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
 import { state } from "../core/state.js";
 
@@ -330,10 +331,10 @@ export async function viewRun(runId, generation) {
           class: "action",
           type: "button",
           text: "Approve the list",
-          onclick: () => guard(async () => {
-            await api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" });
-            await refresh();
-          }),
+          onclick: (event) =>
+            attempt(event.currentTarget, "approve the list", () => api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" }), {
+              then: () => refresh(),
+            }),
         })
       : null,
     run.status === "awaiting_approval"
@@ -341,10 +342,10 @@ export async function viewRun(runId, generation) {
           class: "action quiet",
           type: "button",
           text: "Decline it",
-          onclick: () => guard(async () => {
-            await api(`/api/runs/${encodeURIComponent(runId)}/decline`, { method: "POST" });
-            await refresh();
-          }),
+          onclick: (event) =>
+            attempt(event.currentTarget, "decline the list", () => api(`/api/runs/${encodeURIComponent(runId)}/decline`, { method: "POST" }), {
+              then: () => refresh(),
+            }),
         })
       : null,
     run.is_terminal
@@ -353,16 +354,17 @@ export async function viewRun(runId, generation) {
           class: "action quiet",
           type: "button",
           text: "Cancel this run",
-          onclick: () => guard(async () => {
-            await api(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
-            await refresh();
-          }),
+          onclick: (event) =>
+            attempt(event.currentTarget, "cancel this run", () => api(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" }), {
+              then: () => refresh(),
+            }),
         }),
   ]);
 
+  setTitle(generation, runTitle(run));
   const panels = [
     el("p", {}, [backLink()]),
-    el("h2", { text: runTitle(run) }),
+    el("h1", { text: runTitle(run) }),
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
       // Why the worker ended it, in its own words, under the sentence saying
@@ -386,7 +388,7 @@ export async function viewRun(runId, generation) {
       decisions,
     ]),
     el("div", { class: "panel" }, [
-      el("h3", { text: "What it cost" }),
+      el("h2", { text: "What it cost" }),
       facts([
         // Named for what it actually is. This figure is written when phase 1
         // finishes and the work count is known, so it prices *resolving the work
@@ -423,7 +425,7 @@ export async function viewRun(runId, generation) {
   let section = null;
   if (run.kind === "get") {
     section = el("section", { class: "get-review", "aria-label": "This Get's works" }, [
-      el("h3", { text: `Works (${tally.total})` }),
+      el("h2", { text: `Works (${tally.total})` }),
       el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
       reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
       ...(reviewPage ? reviewSection(reviewPage, { keptFrom }) : []),
@@ -432,18 +434,13 @@ export async function viewRun(runId, generation) {
     panels.push(section);
   } else panels.push(
     el("div", { class: "panel" }, [
-      el("h3", { text: `Works (${tally.total})` }),
+      el("h2", { text: `Works (${tally.total})` }),
       // The way from watching a run to judging what it brought back. Offered
       // only once the run holds works: a button onto an empty grid is a promise
       // the next screen cannot keep.
       view.works.length
         ? el("p", {}, [
-            el("button", {
-              class: "action",
-              type: "button",
-              text: "Review these works",
-              onclick: () => go("review", runId),
-            }),
+            link({ view: "review", id: runId }, { class: "action", text: "Review these works" }),
           ])
         : null,
       el("p", {

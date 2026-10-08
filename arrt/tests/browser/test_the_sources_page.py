@@ -22,7 +22,7 @@ def a_listing(sources, interface_version="1.1"):
 
 
 def panels(ui):
-    ui.page.wait_for_selector("h2:has-text('Sources')")
+    ui.page.wait_for_selector("h1:has-text('Sources')")
     return ui.page.locator(".source-entry")
 
 
@@ -46,7 +46,7 @@ def test_every_installed_plugin_is_listed_in_order_with_its_package_and_version(
     ui.open("#sources")
     entries = panels(ui)
 
-    assert entries.locator("h3").all_inner_texts() == ["commons", "artic", "moma", "wikidata"]
+    assert entries.locator("h2").all_inner_texts() == ["commons", "artic", "moma", "wikidata"]
     moma = entries.nth(2)
     assert "arrt-sources 0.4.1" in moma.inner_text()
     assert "Finds images of a work; reads the addresses it claims." in moma.inner_text()
@@ -105,7 +105,7 @@ def test_a_plugins_text_is_shown_as_text(ui, a_source_reading):
     ui.open("#sources")
     entry = panels(ui).nth(0)
 
-    assert entry.locator("h3").inner_text() == "<img src=x onerror=window.__ran=1>"
+    assert entry.locator("h2").inner_text() == "<img src=x onerror=window.__ran=1>"
     assert "<i>pkg</i> 0.3.0" in entry.inner_text()
     assert ui.page.evaluate("window.__ran") is None
     assert entry.locator("img, b, i").count() == 0
@@ -115,7 +115,7 @@ def test_no_plugin_installed_is_said(ui):
     ui.serve("**/api/sources", a_listing([]))
 
     ui.open("#sources")
-    ui.page.wait_for_selector("h2:has-text('Sources')")
+    ui.page.wait_for_selector("h1:has-text('Sources')")
 
     assert "No source plugin is installed" in ui.page.locator("main").inner_text()
 
@@ -124,7 +124,7 @@ def test_the_page_is_under_settings_after_clients(ui):
     ui.serve("**/api/sources", a_listing([]))
 
     ui.open("#sources")
-    ui.page.wait_for_selector("h2:has-text('Sources')")
+    ui.page.wait_for_selector("h1:has-text('Sources')")
 
     links = ui.page.locator("nav a").all_inner_texts()
     assert links.index("Sources") == links.index("Clients") + 1

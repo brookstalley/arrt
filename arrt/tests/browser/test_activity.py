@@ -36,7 +36,7 @@ EVERY_KIND = a_listing(WORKING, AT_THE_GATE, DONE, BROKE)
 def test_queue_shows_the_searches_that_have_not_ended(ui):
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('In flight')")
+    ui.page.wait_for_selector("h2:has-text('In flight')")
 
     text = ui.text()
     assert "Working on it" in text
@@ -49,7 +49,7 @@ def test_queue_shows_the_searches_that_have_not_ended(ui):
 def test_history_shows_the_searches_that_ended_and_how(ui):
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#history")
-    ui.page.wait_for_selector("h3:has-text('Finished')")
+    ui.page.wait_for_selector("h2:has-text('Finished')")
 
     text = ui.text()
     assert "All done" in text
@@ -71,11 +71,11 @@ def test_the_split_follows_the_server_flag_not_the_status_name(ui):
     ui.serve("**/api/runs", a_listing(WORKING, novel))
 
     ui.open("#history")
-    ui.page.wait_for_selector("h3:has-text('Finished')")
+    ui.page.wait_for_selector("h2:has-text('Finished')")
     assert "A state from the future" in ui.text()
 
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('In flight')")
+    ui.page.wait_for_selector("h2:has-text('In flight')")
     assert "A state from the future" not in ui.text()
 
 
@@ -85,8 +85,8 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.page.wait_for_selector("#view .empty")
 
     assert "No search is in flight" in ui.text()
-    ui.page.click("#view button:has-text('Go to Ask')")
-    ui.page.wait_for_selector("#view h2:text-is('Ask')")
+    ui.page.click("#view a:has-text('Go to Ask')")
+    ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
 
 def test_an_empty_history_says_so(ui):
@@ -101,7 +101,7 @@ def test_add_new_no_longer_lists_the_searches(ui):
     """They moved to Activity; a second copy on Ask would be two lists of one thing."""
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#discover")
-    ui.page.wait_for_selector("#view h2:text-is('Ask')")
+    ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
     assert "Working on it" not in ui.text()
     assert "All done" not in ui.text()
@@ -111,9 +111,9 @@ def test_a_search_opened_from_history_returns_to_history(ui):
     """History is not a run's default return, so the opener travels in the address."""
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#history")
-    ui.page.wait_for_selector("h3:has-text('Finished')")
+    ui.page.wait_for_selector("h2:has-text('Finished')")
 
-    ui.page.click("#view button[aria-label='Open the search for All done']")
+    ui.page.click("#view a[aria-label='Open the search for All done']")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#run/')")
 
     assert ui.page.evaluate("() => window.location.hash") == "#run/r-done?from=history"
@@ -123,9 +123,9 @@ def test_a_search_opened_from_the_queue_carries_no_opener(ui):
     """The Queue is a run's default return, so the address leaves it out."""
     ui.serve("**/api/runs", EVERY_KIND)
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('In flight')")
+    ui.page.wait_for_selector("h2:has-text('In flight')")
 
-    ui.page.click("#view button[aria-label='Open the search for Working on it']")
+    ui.page.click("#view a[aria-label='Open the search for Working on it']")
     ui.page.wait_for_function("() => window.location.hash.startsWith('#run/')")
 
     assert ui.page.evaluate("() => window.location.hash") == "#run/r-working"
