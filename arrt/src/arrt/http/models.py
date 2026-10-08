@@ -777,6 +777,38 @@ class ThemeListOut(BaseModel):
     themes: list[ThemePlacementOut]
 
 
+class ReportedStateOut(BaseModel):
+    """What a wall's controller last said its screen was doing."""
+
+    #: `showing_art`, `in_use`, `dark`, `no_screen` or `unreachable`.
+    state: str
+    work_id: str | None
+    #: Null from a Player before heartbeat minor 3, which never said.
+    since: str | None
+
+
+class DisplayStateOut(BaseModel):
+    """What a wall's screen is doing (`labels-and-surfaces.md` § Display state).
+
+    The controller's five states, read from the wall's heartbeat (a Player before
+    minor 3 is read as `showing_art` with its `current_work_id`), and the
+    server's own two: `unassigned`, no client output shows the wall; `silent`,
+    no readable report, or one older than three heartbeat intervals.
+    """
+
+    state: str
+    #: The work on screen, only with `showing_art`; null there for a picture this
+    #: wall did not put there.
+    work_id: str | None
+    #: When the wall entered this state, where known; for `silent`, the last report's instant.
+    since: str | None
+    #: The wall's last readable heartbeat: when it was written and how old it is.
+    reported_at: str | None
+    age_seconds: float | None
+    #: For `silent`, what the last readable report said; null otherwise.
+    last: ReportedStateOut | None
+
+
 class WallOut(BaseModel):
     """A place where art hangs, and what is hanging there.
 
@@ -804,6 +836,8 @@ class WallOut(BaseModel):
     #: The name of that client's output the wall is shown on. Null exactly when
     #: `client_id` is.
     output: str | None
+    #: What the wall's screen is doing now, as far as the server can say.
+    display_state: DisplayStateOut
 
 
 class ClientWallOut(BaseModel):

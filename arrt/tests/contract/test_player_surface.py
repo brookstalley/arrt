@@ -226,6 +226,23 @@ def test_a_heartbeat_the_panel_could_not_read_is_refused_and_not_written(server_
     assert reading.absent
 
 
+@pytest.mark.parametrize(
+    "fixture",
+    sorted((CONTRACT / "fixtures" / "heartbeat.v1" / "invalid").glob("display-state-*.json")),
+    ids=lambda path: path.name,
+)
+def test_a_display_state_the_contract_refuses_is_refused_and_not_written(server_url, services, token, wall_id, fixture):
+    """Walls and every label read this record, so the server stores no state the schema refuses."""
+    response = httpx.post(
+        server_url + _path("heartbeat", wall_id=wall_id), json=json.loads(fixture.read_text()), headers=_bearer(token)
+    )
+
+    assert response.status_code == 400
+    assert "display_state" in response.json()["error"]
+    reading = next(entry for entry in services.display.survey_wall_status() if entry.wall.id == wall_id).heartbeat
+    assert reading.absent
+
+
 # -- admission --------------------------------------------------------------------------
 
 
