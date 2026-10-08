@@ -30,15 +30,16 @@ and its rules are testable without HTTP, and so the surface stays the thin
 binding the architecture requires.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.pictures import PictureStore
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
+from arrt.library.sources.names import museum_name
 from arrt.persistence import backup
+from arrt.persistence.discovery_records import SourceYield
 from arrt.persistence.records import BackupReading
 from arrt.programming.display import DisplayService, WallHeartbeat, describe_wall_status
 
@@ -54,15 +55,18 @@ class SourceHealth:
     def describe(self) -> str:
         """What happened to this plugin, in a sentence: an observation, never a verdict."""
         reading = self.reading
+        # By the museum, not the plugin id: the id is a key, and a curator
+        # reading "smk is loaded" learns nothing about which collection.
+        museum = museum_name(reading.name)
         if reading.state is PluginState.DECLINED:
-            return f"{reading.name} is installed and not configured here: {reading.reason}."
+            return f"The {museum} plugin is installed and not configured here: {reading.reason}."
         if reading.state is PluginState.FAILED:
-            return f"{reading.name} is installed and was not loaded: {reading.reason}."
+            return f"The {museum} plugin is installed and was not loaded: {reading.reason}."
         if reading.faults == 0:
-            return f"{reading.name} is loaded, with no faults since startup."
+            return f"The {museum} plugin is loaded, with no faults since startup."
         plural = "fault" if reading.faults == 1 else "faults"
         return (
-            f"{reading.name} is loaded, with {reading.faults} {plural} since startup, the last "
+            f"The {museum} plugin is loaded, with {reading.faults} {plural} since startup, the last "
             f"{self.last_fault_age_seconds:.0f} seconds ago ({reading.last_fault}). Each was recorded as the "
             "source not being reachable, so works it would have answered wait instead of being settled."
         )
@@ -122,11 +126,6 @@ class HealthReading:
     walls: Sequence[WallHeartbeat]
     #: When the catalogue was last safely copied, or that nothing has copied it.
     backup: BackupReading
-    #: The space this deployment renders into. Not a failure signal — it is here
-    #: because a wrong mat or floor shows up only as works being labelled oddly in
-    #: the grid, which reads as a catalogue problem rather than a configuration
-    #: one.
-    artwork_box: ArtworkBox
     #: Every picture fetched from outside, kept for good: how many files and how
     #: many bytes, and how old the count is.
     pictures: PicturesReading
@@ -155,8 +154,8 @@ class HealthService:
         display: DisplayService,
         *,
         backup_receipt_path: Path,
-        box: ArtworkBox,
         sources: SourceRoster,
+        yields: Callable[[], Mapping[str, SourceYield]],
         pictures: PictureStore,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
@@ -169,7 +168,9 @@ class HealthService:
         #: gives: a service that read its own configuration could not be tested
         #: against two deployments and would make every caller share one.
         self._backup_receipt_path = backup_receipt_path
-        self._box = box
+        #: What each provider has offered and what the library holds from it,
+        #: counted from the records (`DiscoveryStore.source_yields`).
+        self._yields = yields
 
     def observe(self) -> HealthReading:
         """Read every signal the panel shows, now.
@@ -182,7 +183,6 @@ class HealthService:
         return HealthReading(
             walls=self._display.survey_wall_status(),
             backup=backup.read(self._backup_receipt_path),
-            artwork_box=self._box,
             sources=self.observe_sources(),
             pictures=self.observe_pictures(),
         )
@@ -200,6 +200,21 @@ class HealthService:
     def observe_sources(self) -> tuple[SourceHealth, ...]:
         """Every installed source plugin, now, most preferred first: the part of the panel Settings › Sources shows."""
         return tuple(self._source_health())
+
+    def observe_yields(self) -> tuple[SourceYield, ...]:
+        """What each installed source plugin has given the library, most preferred first.
+
+        **Not part of `observe()`**, which the top bar reads on every page: these
+        are counts across the whole library, and only Status's sources table
+        reads them. One row per installed plugin, so a source that has offered
+        nothing reads as zeros rather than going missing; a provider the records
+        name that is no longer installed has no row, as it has none in `sources`.
+        """
+        found = self._yields()
+        return tuple(
+            found.get(reading.name) or SourceYield(provider=reading.name, offered=0, chosen=0, only_here=0, median_long_edge=None)
+            for reading in self._sources.observe()
+        )
 
     def _source_health(self) -> list[SourceHealth]:
         now = self._now()

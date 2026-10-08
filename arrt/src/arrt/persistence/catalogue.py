@@ -339,6 +339,14 @@ class CatalogueStore(Protocol):
         """Overwrite a stored master image with this one. Raises if the id is absent."""
         ...
 
+    def original_sizes(self) -> Mapping[str, tuple[int, int]]:
+        """Every held master's pixel width and height, by work id, in one read.
+
+        For a count over thousands of works — Artworks' *Size on the wall*
+        facet — where one `get_original` per work would be one statement each.
+        """
+        ...
+
     # -- renditions -----------------------------------------------------------
 
     def add_rendition(self, rendition: Rendition) -> None:

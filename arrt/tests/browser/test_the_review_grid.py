@@ -1414,7 +1414,7 @@ def test_a_work_opened_from_a_review_card_returns_to_that_review(ui, service):
 @pytest.mark.parametrize(
     ("provenance", "glyph", "word", "styled"),
     [
-        pytest.param(WorkProvenance.CHOSEN.value, "◇", "you chose", "badge-chosen", id="chosen"),
+        pytest.param(WorkProvenance.CHOSEN.value, "◎", "you chose", "badge-chosen", id="chosen"),
         pytest.param(WorkProvenance.OFFERED.value, "◈", "offered", "badge-offered", id="offered"),
         pytest.param(WorkProvenance.PROPOSED.value, "◆", "asked for", None, id="proposed"),
     ],

@@ -13,6 +13,20 @@
 
 import { state } from "./state.js";
 
+/* A page with nothing in it: what is missing, then why or what fills it, then
+ * the way on. One shape on every page (`design-direction.md` § Component
+ * Patterns, Empty states), so an empty page reads as a state rather than as
+ * a page that failed to load. The lead is a paragraph, not a heading: it is
+ * what the page says, and a reader moving by headings should not meet it as
+ * a section. `next` holds links and acts, the first the one most worth taking. */
+export function emptyState(lead, why = null, next = []) {
+  return el("div", { class: "empty" }, [
+    el("p", { class: "empty-lead", text: lead }),
+    why ? el("p", { class: "muted", text: why }) : null,
+    next.length ? el("div", { class: "row" }, next) : null,
+  ]);
+}
+
 export function showError(message) {
   const box = document.getElementById("error");
   box.textContent = message;

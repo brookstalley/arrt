@@ -116,7 +116,7 @@ def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "No Get is in flight. " in ui.text()
+    assert ui.page.inner_text("#view .empty-lead") == "No Get is in flight."
     assert "most recent" not in ui.text()
 
 
@@ -133,4 +133,4 @@ def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
     assert "Nothing has happened yet" not in ui.page.inner_text("body")
     # Keyed on the empty state's element as well as its words, so a rewording
     # cannot leave this asserting the absence of a sentence nothing can produce.
-    assert ui.page.locator("#view .panel.empty").count() == 0
+    assert ui.page.locator("#view .empty").count() == 0

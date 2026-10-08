@@ -78,6 +78,10 @@ log = logging.getLogger(__name__)
 #: The name these instances are recorded under.
 PROVIDER: Final[str] = "getty"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "J. Paul Getty Museum"
+
 _PAGE_HOST: Final[str] = "www.getty.edu"
 _PAGE_PATH: Final[re.Pattern[str]] = re.compile(r"/art/collection/object/([0-9A-Z]{6})/?")
 

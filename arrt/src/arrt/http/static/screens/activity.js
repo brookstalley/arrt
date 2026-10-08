@@ -23,8 +23,9 @@ import { paintWanted } from "../core/awaiting.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { hold, heldFor, showHold } from "../core/holding.js";
-import { el, fill, guard, render } from "../core/render.js";
+import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
 import { go, link } from "../core/router.js";
 import { KIND_WORDS, STATE_WORDS } from "../core/runs.js";
@@ -81,11 +82,7 @@ export async function viewToReview(generation) {
   const panels = [el("h1", { text: "To review" })];
   if (!runs.runs.length) {
     panels.push(
-      el("div", { class: "panel empty" }, [
-        el("p", {
-          text: "Nothing waits for you. When a Get finds images, its works wait here until you accept or reject them.",
-        }),
-      ]),
+      emptyState("Nothing waits for you.", "When a Get finds images, its works wait here until you accept or reject them."),
     );
   } else {
     panels.push(
@@ -120,11 +117,128 @@ export async function viewToReview(generation) {
 
 /* The images being fetched: Radarr's Queue holds downloads, and this is ours.
  *
- * Every work the acquisition queue owes something, in the order it will try
- * them, with the pause first when there is one, since a pause holds every row
- * beneath it. Not counted on Activity's link: that count is To review's, the
- * one queue that needs the curator, and a fetch needs only time. */
-function acquisitionPanel(listing, generation) {
+ * Two lists, because thousands of works failing for one reason are one
+ * problem: the works that failed, one row per cause with its count and Retry
+ * all, and the works still in line, in the order the queue will try them. The
+ * server groups and pages both, so the page never holds more than a page of
+ * either. The pause comes first when there is one, since it holds every work
+ * in line. Not counted on Activity's link: that count is To review's, the one
+ * queue that needs the curator, and a fetch needs only time. */
+function acquisitionPanel(listing, causes, opened, generation) {
+  const owed = listing.total + listing.failing;
+  return el("div", { class: "panel acquisitions" }, [
+    el("h2", { text: `Fetching images (${owed})` }),
+    retryAllSaid ? el("p", { class: "note retry-all-said", role: "status", text: takeRetryAllSaid() }) : null,
+    listing.pause
+      ? el("p", { class: "note acquisition-pause" }, [
+          el("span", { class: "glyph", text: GLYPHS.paused, "aria-hidden": true }),
+          ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
+        ])
+      : null,
+    owed
+      ? null
+      : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
+    listing.failing ? failurePanel(listing, causes, opened, generation) : null,
+    listing.total ? inLinePanel(listing, generation) : null,
+  ]);
+}
+
+/* What Retry all last did, said once on the repaint it caused and then gone. */
+let retryAllSaid = null;
+
+function takeRetryAllSaid() {
+  const sentence = retryAllSaid;
+  retryAllSaid = null;
+  return sentence;
+}
+
+function retryAllSentence(result) {
+  const parts = [result.retried ? `${counted(result.retried, "work")} put back in line.` : "No work was put back in line."];
+  for (const each of result.refused) parts.push(`${counted(each.works, "work")} not: ${each.reason}`);
+  return parts.join(" ");
+}
+
+/* The works that failed, one row per cause. A cause opens into its works at its
+ * own address (`#queue?cause=…`), which is navigation and so a link; Retry all
+ * is an act and so a button, retrying the whole group in one request. */
+function failurePanel(listing, causes, opened, generation) {
+  const repaint = () => viewQueue(generation);
+  const params = state.params;
+  const rows = causes.causes.map((group) => {
+    const isOpen = opened && opened.cause === group.cause;
+    const split = group.gave_up && group.failed ? ` (${group.failed} failed, ${group.gave_up} gave up)` : "";
+    return el("li", { class: "failure-cause" }, [
+      el("div", { class: "failure-cause-head" }, [
+        el("p", { class: "failure-cause-why" }, [
+          el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
+          " ",
+          el("span", { text: group.cause }),
+        ]),
+        el("p", { class: "muted failure-cause-count", text: `${counted(group.works, "work")}${split}` }),
+        el("div", { class: "row" }, [
+          link(
+            { view: "queue", params: { ...params, cause: isOpen ? "" : group.cause, cause_offset: "" } },
+            {
+              class: "action quiet",
+              text: isOpen ? "Hide the works" : "Show the works",
+              "aria-expanded": isOpen ? "true" : "false",
+              "aria-label": `${isOpen ? "Hide" : "Show"} the ${counted(group.works, "work")} that failed: ${group.cause}`,
+            },
+          ),
+          el("button", {
+            class: "action",
+            type: "button",
+            text: "Retry all",
+            "aria-label": `Retry all ${counted(group.works, "work")} that failed: ${group.cause}`,
+            onclick: (event) =>
+              attempt(
+                event.currentTarget,
+                `retry the ${counted(group.works, "work")} that failed`,
+                () => api("/api/acquisitions/causes/retry", { method: "POST", body: JSON.stringify({ cause: group.cause }) }),
+                {
+                  then: (result) => {
+                    retryAllSaid = retryAllSentence(result);
+                    return repaint();
+                  },
+                },
+              ),
+          }),
+        ]),
+      ]),
+      isOpen ? causeWorks(opened, repaint) : null,
+    ]);
+  });
+  return el("section", { class: "failures", "aria-label": "Failed" }, [
+    el("h3", { text: `Failed (${listing.failing})` }),
+    el("p", { class: "muted", text: "Grouped by why the last try failed. Retry all puts every work of a group back in line." }),
+    el("ul", { class: "failure-causes" }, rows),
+    pager(causes, "causes_offset", causes.causes.length, "causes"),
+  ]);
+}
+
+/* One cause's works, a page at a time, each named by its title and opening its
+ * Work page, with its own Retry. The cause is the group's heading, so each
+ * row's sentence leaves it out. */
+function causeWorks(page, repaint) {
+  if (!page.works.length) {
+    return el("p", { class: "muted", text: "None of them is waiting for this reason any more: the queue tried them again." });
+  }
+  const rows = page.works.map(({ title, acquisition }) => [
+    link({ view: "work", id: acquisition.artwork_id }, { class: "link", text: title }),
+    acquisitionBadge(acquisition),
+    el("div", { class: "stack-tight" }, [
+      el("span", { text: acquisitionSentence(acquisition, { cause: false }) }),
+      retryButton(acquisition, title, repaint),
+    ]),
+  ]);
+  return el("div", { class: "failure-cause-works" }, [
+    table(`Failed works: ${page.cause}`, ["Work", "State", "What happened"], rows, { stacked: true }),
+    pager(page, "cause_offset", page.works.length, "works"),
+  ]);
+}
+
+/* The works still in line, a page at a time, in the order the queue will try them. */
+function inLinePanel(listing, generation) {
   const repaint = () => viewQueue(generation);
   const rows = listing.works.map(({ title, acquisition }) => [
     link({ view: "work", id: acquisition.artwork_id }, { class: "link", text: title }),
@@ -134,22 +248,49 @@ function acquisitionPanel(listing, generation) {
       retryButton(acquisition, title, repaint),
     ]),
   ]);
-  return el("div", { class: "panel acquisitions" }, [
-    el("h2", { text: `Fetching images (${listing.works.length})` }),
-    listing.pause
-      ? el("p", { class: "note acquisition-pause" }, [
-          el("span", { class: "glyph", text: "‖", "aria-hidden": true }),
-          ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
-        ])
-      : null,
-    listing.works.length
-      ? table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows, { stacked: true })
-      : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
+  return el("section", { class: "in-line", "aria-label": "In line" }, [
+    el("h3", { text: `In line (${listing.total})` }),
+    table("Every accepted work still owed its image or its preparation, in the order the queue will try them.", ["Work", "State", "What happened"], rows, { stacked: true }),
+    pager(listing, "offset", listing.works.length, "works"),
   ]);
 }
 
+/* Previous and next pages of one of Queue's lists, as links, so a page is an
+ * address; `key` is the parameter that list's offset travels in. */
+function pager(page, key, shown, things) {
+  const later = page.offset + shown < page.total;
+  const earlier = page.offset > 0;
+  if (!later && !earlier) return null;
+  const at = (offset) => ({ view: "queue", params: { ...state.params, [key]: offset ? String(offset) : "" } });
+  return el("div", { class: "row queue-paging" }, [
+    earlier ? link(at(Math.max(0, page.offset - page.limit)), { class: "action quiet", text: "Previous", "aria-label": `Previous ${things}` }) : null,
+    later ? link(at(page.offset + page.limit), { class: "action quiet", text: "Next", "aria-label": `Next ${things}` }) : null,
+    el("span", { class: "muted", text: `${page.offset + 1}–${page.offset + shown} of ${page.total}` }),
+  ]);
+}
+
+/* A page offset from the address, or the first page. */
+function offsetParam(name) {
+  return Math.max(0, Number.parseInt(state.params[name] || "0", 10) || 0);
+}
+
+/* A listing's address with its offset, leaving the first page's bare. */
+function paged(path, offset, extra = {}) {
+  const query = new URLSearchParams(extra);
+  if (offset) query.set("offset", String(offset));
+  const text = query.toString();
+  return text ? `${path}?${text}` : path;
+}
+
 export async function viewQueue(generation) {
-  const [runs, themes, acquisitions] = await Promise.all([api("/api/runs"), readThemes(), api("/api/acquisitions")]);
+  const cause = state.params.cause || null;
+  const [runs, themes, acquisitions, causes, opened] = await Promise.all([
+    api("/api/runs"),
+    readThemes(),
+    api(paged("/api/acquisitions", offsetParam("offset"))),
+    api(paged("/api/acquisitions/causes", offsetParam("causes_offset"))),
+    cause ? api(paged("/api/acquisitions/causes/works", offsetParam("cause_offset"), { cause })) : null,
+  ]);
   const active = runs.runs.filter((run) => !run.is_terminal);
   const panels = [el("h1", { text: "Queue" })];
   if (!active.length) {
@@ -161,11 +302,7 @@ export async function viewQueue(generation) {
       ? `No Get is in flight among the ${runs.count} most recent Gets.`
       : "No Get is in flight.";
     panels.push(
-      el("div", { class: "panel empty" }, [
-        el("p", {
-          text:
-            `${nothing} A Get you start in Ask, or on works you chose, shows here while it works.`,
-        }),
+      emptyState(nothing, "A Get you start in Ask, or on works you chose, shows here while it works.", [
         link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
       ]),
     );
@@ -178,7 +315,7 @@ export async function viewQueue(generation) {
     );
   }
   panels.push(truncation(runs, "Checked"));
-  panels.push(acquisitionPanel(acquisitions, generation));
+  panels.push(acquisitionPanel(acquisitions, causes, opened, generation));
   render(generation, ...panels);
 }
 
@@ -222,14 +359,14 @@ export async function viewHistory(generation) {
   }
   if (!page.events.length) {
     panels.push(
-      el("p", {
-        class: "muted empty",
-        text: offset
-          ? "Nothing older than this."
-          : group || wallName
-            ? "Nothing of this kind has happened yet."
-            : "Nothing has happened yet. Gets, verdicts, archives, restores and hangs are recorded here as they happen; nothing from before the history began is.",
-      }),
+      offset
+        ? emptyState("Nothing older than this.")
+        : group || wallName
+          ? emptyState("Nothing of this kind has happened yet.")
+          : emptyState(
+              "Nothing has happened yet.",
+              "Gets, verdicts, archives, restores and hangs are recorded here as they happen; nothing from before the history began is.",
+            ),
     );
   } else {
     panels.push(
@@ -390,18 +527,16 @@ export async function viewWanted(generation) {
   const panels = [el("h1", { text: "Wanted" }), picker];
   if (!works.length) {
     panels.push(
-      el("div", { class: "panel empty" }, [
-        el("p", {
-          // The two controls that put a work here, by the words they carry: a
-          // review card's Want, offered where a Get found no scan of the work,
-          // and Turn it down on the scan a card offers, under Scans.
-          text:
-            "Nothing is wanted. A work comes here when a Get finds no scan of it and you press Want on its review " +
-            "card, or when you turn down the scan its card offers (Scans, then Turn it down). It waits here until " +
-            "you get it again.",
-        }),
-        link({ view: "to_review" }, { class: "action quiet", text: "Open To review" }),
-      ]),
+      emptyState(
+        "Nothing is wanted.",
+        // The two controls that put a work here, by the words they carry: a
+        // review card's Want, offered where a Get found no scan of the work,
+        // and Turn it down on the scan a card offers, under Scans.
+        "A work comes here when a Get finds no scan of it and you press Want on its review " +
+          "card, or when you turn down the scan its card offers (Scans, then Turn it down). It waits here until " +
+          "you get it again.",
+        [link({ view: "to_review" }, { class: "action quiet", text: "Open To review" })],
+      ),
     );
     render(generation, ...panels);
     return;
@@ -434,6 +569,9 @@ export async function viewWanted(generation) {
         "Every work you want, newest Get first.",
         ["Picture", "Work", "Why", "Wikidata", "From", ""],
         works.map((work) => wantedRow(work, picker, repaint)),
+        // Cards on a phone, as Activity's other tables are. No row link: a
+        // row holds several acts, and a link over the card would cover them.
+        { stacked: true },
       ),
     ]),
   );

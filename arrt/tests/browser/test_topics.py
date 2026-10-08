@@ -52,6 +52,9 @@ COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg"
 BY_BRUEGEL = RegistryCreator(qid=ItemId(BRUEGEL), name=RegistryText("Pieter Bruegel the Elder"))
 
 WORKS = "section[aria-labelledby='representative-works']"
+#: The page's selection bar (`core/selecting.js`), where a Get from the topic's
+#: works lives since every list shares one selection model.
+BAR = "#view .selection"
 ARTISTS = "section[aria-labelledby='topic-artists']"
 HELD = "section[aria-labelledby='in-your-library']"
 LISTBOX = "#search-suggestions"
@@ -205,10 +208,12 @@ class TestTheIndex:
 
         headings = ui.page.locator("#view section h2").all_inner_texts()
         assert headings == ["Periods", "Movements", "Subjects", "Media"]
-        periods = ui.page.locator("section[aria-labelledby='topics-period'] li").all_inner_texts()
+        periods = ui.page.locator("section[aria-labelledby='topics-period'] ul.topic-held li").all_inner_texts()
         assert [" ".join(row.split()) for row in periods] == ["16th century · 2 works"]
         subjects = ui.page.locator("section[aria-labelledby='topics-subject'] li").all_inner_texts()
-        assert [" ".join(row.split()) for row in subjects] == ["winter · 1 work"]
+        assert [" ".join(row.split()) for row in subjects] == [
+            "Winter · 1 work"
+        ]  # a name on its own starts with a capital (`topicName`)
         assert (
             ui.page.locator("section[aria-labelledby='topics-movement'] p").inner_text() == "None of your works is in a movement."
         )
@@ -248,7 +253,7 @@ class TestTheIndex:
         assert heights["columned"] <= heights["single"] / 3
         # Each count stays beside its name.
         first = ui.page.locator("section[aria-labelledby='topics-subject'] li").first.inner_text()
-        assert " ".join(first.split()) == "subject number 00 · 1 work"
+        assert " ".join(first.split()) == "Subject number 00 · 1 work"
 
     def test_on_a_phone_a_kind_is_one_column(self, ui):
         self.thirty_subjects(ui)
@@ -570,19 +575,20 @@ def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, h
     bodies = record_gets(ui)
     open_topic(ui)
     works_answered(ui)
-    ui.page.wait_for_selector(f"{WORKS} .get-into option[value='new']", state="attached")
+    ui.page.click("#view button.select-toggle")
+    ui.page.wait_for_selector(f"{BAR} .get-into option[value='new']", state="attached")
 
-    picker = ui.page.locator(WORKS).get_by_label("Add to", exact=True)
+    picker = ui.page.locator(BAR).get_by_label("Add to", exact=True)
     assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
-    assert not ui.page.locator(WORKS).get_by_label("New theme's name").is_visible()
+    assert not ui.page.locator(BAR).get_by_label("New theme's name").is_visible()
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
-    ui.page.click(f"{WORKS} .get-control button.action")
+    ui.page.click(f"{BAR} .get-control button.action")
 
-    ui.page.wait_for_selector(f"{WORKS} .get-status a:text-is('Open the Get')")
+    ui.page.wait_for_selector(f"{BAR} .get-status a:text-is('Open the Get')")
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
     assert (
-        " ".join(ui.page.locator(f"{WORKS} .get-status").inner_text().split()) == "Getting 1 work into 16th century. Open the Get"
+        " ".join(ui.page.locator(f"{BAR} .get-status").inner_text().split()) == "Getting 1 work into 16th century. Open the Get"
     )
 
 
@@ -591,12 +597,13 @@ def test_get_from_a_topic_whose_name_is_a_theme_joins_it(ui, services, held, all
     bodies = record_gets(ui)
     open_topic(ui)
     works_answered(ui)
-    ui.page.wait_for_selector(f"{WORKS} .get-into option[value='new']", state="attached")
+    ui.page.click("#view button.select-toggle")
+    ui.page.wait_for_selector(f"{BAR} .get-into option[value='new']", state="attached")
 
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
-    ui.page.click(f"{WORKS} .get-control button.action")
+    ui.page.click(f"{BAR} .get-control button.action")
 
-    ui.page.wait_for_selector(f"{WORKS} .get-status a:text-is('Open the Get')")
+    ui.page.wait_for_selector(f"{BAR} .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": theme.id}]
 
 
@@ -608,7 +615,8 @@ def _type(ui, words):
     ui.page.wait_for_selector("#view h1")
     ui.page.click("#search")
     ui.page.keyboard.type(words)
-    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']")
+    # The answer to all the words, not to where typing paused on a loaded machine.
+    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']:text-is('All results for “{words}”')")
 
 
 def _options(ui, group):

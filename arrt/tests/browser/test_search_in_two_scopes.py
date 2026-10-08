@@ -22,7 +22,10 @@ LISTBOX = "#search-suggestions"
 def type_into_search(ui, words: str) -> None:
     ui.page.click("#search")
     ui.page.keyboard.type(words)
-    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']")
+    # The dropdown answers the words as they stood when typing paused, and a
+    # loaded machine pauses mid-word: wait for the answer to all of them, which
+    # the last row names, not for the first dropdown to open.
+    ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']:text-is('All results for “{words}”')")
 
 
 def options(ui) -> list[str]:

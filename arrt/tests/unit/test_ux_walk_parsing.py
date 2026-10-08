@@ -77,6 +77,13 @@ def test_what_is_not_a_route_is_refused(fragment):
     assert ux_walk.parse_fragment(fragment, {}) is None
 
 
+def test_a_space_in_a_parameter_travels_as_the_client_writes_it():
+    """The client's links say %20 and read `+` as itself, so a walk that wrote `+` opened a different address."""
+    address = ux_walk.parse_fragment("#queue?cause=The%20work%20has%20no%20source.", {})
+
+    assert address.fragment == "#queue?cause=The%20work%20has%20no%20source."
+
+
 def test_the_home_address_is_the_bare_shell():
     assert ux_walk.Address("").fragment == ""
     assert ux_walk.Address("").slug == "home"

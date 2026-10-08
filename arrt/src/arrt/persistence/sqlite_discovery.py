@@ -54,6 +54,7 @@ from arrt.persistence.discovery_records import (
     RunKind,
     RunStatus,
     Sighting,
+    SourceYield,
     SpendCategory,
     SpendRecord,
     TurnRole,
@@ -67,6 +68,71 @@ from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClas
 #: How many ids one `IN (...)` binds. Well under SQLite's bound on a statement's
 #: parameters, which is 999 on builds older than 3.32.
 _IDS_PER_STATEMENT: Final[int] = 500
+
+#: Every provider's offers and holdings, one row per provider (`source_yields`).
+#:
+#: - **offers**: one row per (provider, address), from candidate images and the
+#:   catalogue's sources alike, so a work held from before searching recorded
+#:   candidates still counts its source as having offered. An address offered
+#:   again by a later search is one offer. The long edge is known only from a
+#:   candidate image's estimate.
+#: - **chosen**: each work's primary source, which is its chosen image.
+#: - **work_offers**: which providers offered anything for each held work: its
+#:   catalogue sources, and the candidate images of every proposal of the same
+#:   work (by `work_dedup_key`) as the one acceptance minted it from, since a
+#:   search that found the work again in another run offered it too.
+#: - The median is the middle offer by long edge, or the mean of the two
+#:   middle ones, over the offers whose size is known.
+_SOURCE_YIELDS: Final[str] = """
+WITH offers AS (
+    SELECT provider, url, MAX(long_edge) AS long_edge FROM (
+        SELECT provider, url,
+               CASE WHEN estimated_width IS NULL AND estimated_height IS NULL THEN NULL
+                    ELSE MAX(COALESCE(estimated_width, 0), COALESCE(estimated_height, 0)) END AS long_edge
+          FROM candidate_images
+        UNION ALL
+        SELECT provider, url, NULL FROM sources
+    ) GROUP BY provider, url
+),
+offered AS (
+    SELECT provider, COUNT(*) AS offered FROM offers GROUP BY provider
+),
+ranked AS (
+    SELECT provider, long_edge,
+           ROW_NUMBER() OVER (PARTITION BY provider ORDER BY long_edge) AS position,
+           COUNT(*) OVER (PARTITION BY provider) AS sized
+      FROM offers WHERE long_edge IS NOT NULL
+),
+medians AS (
+    SELECT provider, AVG(long_edge) AS median_long_edge FROM ranked
+     WHERE position IN ((sized + 1) / 2, (sized + 2) / 2) GROUP BY provider
+),
+chosen AS (
+    SELECT artwork_id, provider FROM sources WHERE is_primary = 1
+),
+work_offers AS (
+    SELECT artwork_id, provider FROM sources
+    UNION
+    SELECT minted.artwork_id, ci.provider
+      FROM candidate_works minted
+      JOIN candidate_works proposal ON proposal.work_dedup_key = minted.work_dedup_key
+      JOIN candidate_images ci ON ci.candidate_work_id = proposal.id
+     WHERE minted.artwork_id IS NOT NULL
+),
+holdings AS (
+    SELECT c.provider, COUNT(*) AS chosen,
+           SUM(CASE WHEN EXISTS (
+                   SELECT 1 FROM work_offers o WHERE o.artwork_id = c.artwork_id AND o.provider <> c.provider
+               ) THEN 0 ELSE 1 END) AS only_here
+      FROM chosen c GROUP BY c.provider
+)
+SELECT o.provider AS provider, o.offered AS offered,
+       COALESCE(h.chosen, 0) AS chosen, COALESCE(h.only_here, 0) AS only_here,
+       m.median_long_edge AS median_long_edge
+  FROM offered o
+  LEFT JOIN holdings h ON h.provider = o.provider
+  LEFT JOIN medians m ON m.provider = o.provider
+"""
 
 DISCOVERY_SCHEMA = """
 CREATE TABLE IF NOT EXISTS discovery_runs (
@@ -418,6 +484,19 @@ class SqliteDiscovery(TableAdapter):
             )
             found.update({row["artwork_id"]: row["theme_id"] for row in rows})
         return found
+
+    def source_yields(self) -> Mapping[str, SourceYield]:
+        rows = self._store.select_rows(_SOURCE_YIELDS)
+        return {
+            row["provider"]: SourceYield(
+                provider=row["provider"],
+                offered=row["offered"],
+                chosen=row["chosen"],
+                only_here=row["only_here"],
+                median_long_edge=None if row["median_long_edge"] is None else round(row["median_long_edge"]),
+            )
+            for row in rows
+        }
 
     # -- candidate images -----------------------------------------------------
 

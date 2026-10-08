@@ -701,7 +701,9 @@ def test_a_holders_full_name_is_the_artist_wikidata_labels_by_initials_on_the_it
 def test_a_differing_title_and_a_differing_name_on_the_items_page_say_both():
     (entry,) = lowry_resolution(an_artuk_record("A House, Portrait"), registry=lowry_registry()).instances
 
-    assert entry.rationale.startswith("artic holds this as 'A House, Portrait' by Laurence Stephen Lowry, a different title,")
+    assert entry.rationale.startswith(
+        "Art Institute of Chicago holds this as 'A House, Portrait' by Laurence Stephen Lowry, a different title,"
+    )
     assert "under another name Wikidata records for them" in entry.rationale
 
 

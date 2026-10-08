@@ -177,8 +177,8 @@ a Pi with no build step; a font file is a payload to serve, a licence to track, 
 a silent fallback when it fails. The serif/sans split does the identity work
 without one, and a system serif on the operator's machines is a real serif.
 
-Scale is 1.25 from a 16px base, `--text-xs` through `--text-2xl`, plus `--text-3xl`
-added for the Walls screen's single large heading.
+Scale is 1.25 from a 16px base, `--text-xs` through `--text-2xl`. (`--text-3xl`
+was added for a large Walls heading and removed with it on 2026-10-08.)
 
 ## Spacing & Layout
 
@@ -207,10 +207,36 @@ window on a desktop still has a mouse — so viewport width is the wrong signal.
 
 ## Component Patterns
 
-- **Buttons** — `.btn` default, `.primary` for the one committing action on a
-  screen, `.quiet` for dismissals, `.danger` for removal. At most one primary per
-  screen region: if two things are primary, neither is.
-- **Badges** — glyph + word + colour, never fewer than all three.
+*Rewritten 2026-10-08 (`build-plan-lists-settings-and-scale.md` Chunk 01, #287)
+to say what the stylesheet holds and to add the patterns the October review
+found ungoverned. The earlier text named `.btn`, `.primary` and `.danger`
+classes the client never had.*
+
+- **Headings** — one treatment per level. A page's `h1` is its name at
+  `--text-lg` in the label serif, on every page; Walls has no larger one,
+  because the art on it is what is large. A section's `h2` (`.panel h2`) is
+  `--text-md` serif. A filter rail's group names are small capitals in the UI
+  sans, a label rather than a section. Nothing else is a heading: an empty
+  page's lead sentence is a paragraph.
+- **Empty states** — one shape, `emptyState()` in `core/render.js`: the lead
+  (what is missing) in the label serif at `--text-md`, never larger than the page's `h1`, then a muted line saying
+  why or what fills it, then the way on as links or acts. No panel around it.
+  This is for a page whose list is empty. A section with nothing in it, on a
+  page that has other things, is one muted line under its heading.
+- **Buttons** — `.action` is an act, and a link offered at the same weight
+  wears its shape. Filled is the one committing act in a region: if two things
+  are filled, neither is. `.action.quiet` is every other act. Hover tints toward
+  the act's own text colour. **A disabled act looks disabled**: no fill, muted
+  text, no hover, a not-allowed cursor. There is no destructive style:
+  removal is confirmed in words (`core/confirm.js`), and colour reaching the
+  reader before the label is the problem a red button would cause.
+- **Spacing** — a row of acts under a paragraph sits a step below it, never
+  flush.
+- **Badges** — glyph + word + colour, never fewer than all three. **A glyph
+  has one meaning on every screen**, named in `core/glyphs.js`, where the word
+  carries the specifics and the glyph only the kind of state; a new meaning
+  gets a new glyph. **A badge appears only where its value varies**: a badge
+  every tile would carry ("native") is left off, and the exceptions show.
 - **Cards** — paper, not UI: 1px border, `--shadow-1`, 4px radius. The elevation is
   barely there on purpose.
 - **Tiles** — two densities (Posters, Overview; a Table view beside them) per `information-architecture.md`

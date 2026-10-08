@@ -49,7 +49,8 @@ import pathlib
 import pytest
 from PIL import Image
 
-from arrt.http.models import ArtworkBoxOut, BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
+from arrt.http.models import BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
+from arrt.library.sources.names import museum_name
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -163,18 +164,13 @@ def a_health_reading():
     observation is wrong.
     """
 
-    def _reading(
-        *, walls=None, backup=None, description="Every wall has reported.", artwork_box=None, sources=None, pictures=None
-    ):
+    def _reading(*, walls=None, backup=None, description="Every wall has reported.", sources=None, pictures=None):
         return HealthOut(
             pictures=PicturesOut(**(_some_pictures() if pictures is None else pictures)),
             sources=[SourcePluginOut(**source) for source in ([_a_source()] if sources is None else sources)],
             walls=[WallHeartbeatOut(**wall) for wall in ([_a_wall()] if walls is None else walls)],
             description=description,
             backup=BackupOut(**(_a_backup() if backup is None else backup)),
-            artwork_box=ArtworkBoxOut(
-                **(artwork_box or {"width": 3840, "height": 2160, "pixels_per_inch": 72.0, "floor_inches": 20.0})
-            ),
         ).model_dump()
 
     return _reading
@@ -233,14 +229,19 @@ def _a_source(
     api_major=1,
     provides=None,
 ):
+    # The server's own wording (`services/health.py`, `describe`): by the
+    # museum, never the plugin id.
+    museum = museum_name(name)
     if state == "declined":
-        description = f"{name} is installed and not configured here: {reason}."
+        description = f"The {museum} plugin is installed and not configured here: {reason}."
     elif state == "failed":
-        description = f"{name} is installed and was not loaded: {reason}."
+        description = f"The {museum} plugin is installed and was not loaded: {reason}."
     elif faults:
-        description = f"{name} is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+        description = (
+            f"The {museum} plugin is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+        )
     else:
-        description = f"{name} is loaded, with no faults since startup."
+        description = f"The {museum} plugin is loaded, with no faults since startup."
     return {
         "name": name,
         "state": state,
@@ -368,6 +369,33 @@ class Ui:
 
     def requests_matching(self, needle: str) -> list[str]:
         return [url for url in self.requests if needle in url]
+
+    def show_more(self, *, until: int | None = None, presses: int = 400) -> None:
+        """Press Artworks' *Show more* until `until` tiles are on screen, or until it is gone.
+
+        As a keyboard user reaches the end of a grid that pages as it scrolls.
+        The scroll asks for pages too — pressing brings the row into view — so
+        a press can find the button moving under a page arriving, or gone once
+        the last one has; each is retried rather than read as a failure.
+        """
+        # Here rather than at the top: this module is collected without the
+        # browser group installed, and only a browser test reaches this line.
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        tiles = self.page.locator("ul.grid > li")
+        for _ in range(presses):
+            if until is not None and tiles.count() >= until:
+                return
+            button = self.page.locator("#view button.show-more")
+            if button.count() == 0:
+                if until is not None:
+                    raise AssertionError(f"Show more ran out at {tiles.count()} tiles, short of {until}")
+                return
+            try:
+                button.click(timeout=2_000)
+            except PlaywrightTimeoutError:
+                continue
+        raise AssertionError(f"Show more was still offered after {presses} presses")
 
 
 @pytest.fixture

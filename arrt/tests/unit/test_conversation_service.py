@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from fakes import a_billed_failure, a_collection_holding
+from fakes import A_TURN_PRICE, a_billed_failure, a_collection_holding
 
 from arrt.library.discovery.conversation import ConversationFailure, Suggestion
 from arrt.library.services.conversation import ConversationService
@@ -29,7 +29,7 @@ def talking(services, conversation_engine, discovery_store, runner):
     still writing to the catalogue while a unit test tears the file down.
     """
     conversation_engine.suggested = (Suggestion(kind="artist", value="Agnes Martin"),)
-    return ConversationService(discovery_store, conversation_engine, services.discovery, runner)
+    return ConversationService(discovery_store, conversation_engine, services.discovery, runner, pricing=A_TURN_PRICE)
 
 
 def test_a_turn_writes_a_conversation_tokens_row_in_the_call_that_spends(talking, discovery):
@@ -157,7 +157,9 @@ def test_a_turn_names_things_and_shows_a_few_pictures_for_each(services, convers
         Suggestion(kind="artist", value="Agnes Martin"),
         Suggestion(kind="movement", value="Minimalism"),
     )
-    talking = ConversationService(discovery_store, conversation_engine, services.discovery, runner, collection=collection)
+    talking = ConversationService(
+        discovery_store, conversation_engine, services.discovery, runner, pricing=A_TURN_PRICE, collection=collection
+    )
 
     view = talking.speak(talking.start().conversation.id, "Something calm.")
 
@@ -183,7 +185,9 @@ def test_the_samples_are_frozen_into_the_turn_rather_than_looked_up_on_read(
     """
     collection = a_collection_holding(**{"Agnes Martin": ["Untitled No. 5"]})
     conversation_engine.suggested = (Suggestion(kind="artist", value="Agnes Martin"),)
-    talking = ConversationService(discovery_store, conversation_engine, services.discovery, runner, collection=collection)
+    talking = ConversationService(
+        discovery_store, conversation_engine, services.discovery, runner, pricing=A_TURN_PRICE, collection=collection
+    )
     conversation_id = talking.start().conversation.id
     talking.speak(conversation_id, "Something calm.")
 
@@ -301,3 +305,40 @@ def test_the_list_is_ordered_by_the_last_thing_said(talking):
 def test_an_unknown_conversation_is_refused_by_name(talking):
     with pytest.raises(ServiceError, match="No conversation with id"):
         talking.get("not-a-conversation")
+
+
+# -- what a turn costs, before it is sent ------------------------------------------
+
+
+def test_a_turn_is_priced_before_it_is_sent_at_the_conversation_s_own_rates(talking):
+    """10,000 input at $1/M and 1,000 output at $2/M: $0.012, which is the `$` tier."""
+    conversation_id = talking.start().conversation.id
+
+    estimate = talking.estimate(conversation_id)
+
+    assert estimate.phase == "conversation_turn"
+    assert estimate.cost_usd == Decimal("0.012")
+    assert str(estimate.tier) == "$"
+    assert "10,000" in estimate.basis
+    assert "1,000" in estimate.basis
+
+
+def test_pricing_a_turn_spends_nothing_and_asks_nothing(talking, conversation_engine, discovery):
+    """An estimate shown before spending, never a tally of what was spent."""
+    conversation_id = talking.start().conversation.id
+    talking.speak(conversation_id, "Something calm.")
+    spent = discovery._store.list_spend_records()
+    asked = list(conversation_engine.threads)
+
+    first = talking.estimate(conversation_id)
+
+    assert conversation_engine.threads == asked
+    assert discovery._store.list_spend_records() == spent
+    # Flat: a turn already paid for does not move the next turn's figure.
+    talking.speak(conversation_id, "Anyone else?")
+    assert talking.estimate(conversation_id).cost_usd == first.cost_usd
+
+
+def test_pricing_a_turn_in_an_unknown_conversation_is_refused_by_name(talking):
+    with pytest.raises(ServiceError, match="No conversation with id"):
+        talking.estimate("not-a-conversation")

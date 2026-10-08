@@ -556,7 +556,7 @@ class DiscoveryRunner:
                 cost_usd=self._settings.phase1_estimate_usd,
                 basis=(
                     f"One model call plus up to {self._settings.phase1_search_allowance} web searches, "
-                    "which is the most phase 1 may use. Bounded, not typical."
+                    "which is the most asking may use. Bounded, not typical."
                 ),
             )
         run = self._discovery.get_run(run_id)
@@ -575,7 +575,7 @@ class DiscoveryRunner:
         discovery run would tell a curator that this run proposed nothing.
         """
         held = self._discovery.run_results(run.id).works
-        free = "Phase 2 asks museum APIs, which are free, and identifies works locally"
+        free = "Finding the images asks museum APIs, which are free, and identifies works locally"
         if run.kind is RunKind.RESOLVE:
             return f"Re-searching the {counted(len(held), 'work')} this run covers. {free}, so this re-search costs nothing."
         if run.kind is RunKind.GET:

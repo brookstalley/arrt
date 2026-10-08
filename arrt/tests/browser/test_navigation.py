@@ -120,6 +120,71 @@ def test_back_returns_to_card_20_with_focus_on_it(ui, a_long_artworks):
     assert 0 <= box["y"] < ui.page.viewport_size["height"], "card 20 has focus but is off screen"
 
 
+#: The card Back has to find well past the first page (#131): Artworks pages as
+#: the curator scrolls, so card 900 exists only because 36 pages were loaded.
+FAR_CARD = 900
+
+
+def test_back_returns_to_card_900_with_the_pages_it_was_on(ui, service, seed_the_served_catalogue):
+    """Back restores the pages loaded as well as the scroll, so card 900 is still card 900.
+
+    The grid loads a page at a time. Without its pages, Back would land on one
+    page and a scroll position past the end of it, with nothing to focus.
+    """
+    seed_the_served_catalogue(size=2000)
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.tile")
+    ui.show_more(until=FAR_CARD)
+    # No page half-arrived while the card is read and opened.
+    ui.page.wait_for_function("() => !document.querySelector('#view .grid-skeleton')")
+    tile = ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1)
+    work_id = tile.get_attribute("data-artwork")
+    title = tile.locator(".tile-title").inner_text()
+    target = tile.locator("a.card-image")
+    target.scroll_into_view_if_needed()
+    # Opened from the keyboard: a Posters tile's caption lies over its picture
+    # once pointed at, and the picture link is the tile's one Tab stop.
+    target.focus()
+    left_at = ui.page.evaluate("() => window.scrollY")
+    loaded = ui.page.locator("ul.grid li.tile").count()
+
+    ui.page.keyboard.press("Enter")
+    ui.page.wait_for_selector(f"#view h1:text-is('{title}')")
+    ui.page.go_back()
+    ui.page.wait_for_function(
+        "(id) => document.activeElement && document.activeElement.closest('li.tile')"
+        " && document.activeElement.closest('li.tile').dataset.artwork === id",
+        arg=work_id,
+        timeout=60_000,
+    )
+
+    # The same card at the same place in the same grid.
+    assert ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1).get_attribute("data-artwork") == work_id
+    assert ui.page.locator("ul.grid li.tile").count() >= loaded
+    assert ui.page.evaluate("() => window.scrollY") == left_at
+    box = ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1).bounding_box()
+    assert box is not None
+    assert 0 <= box["y"] < ui.page.viewport_size["height"], "card 900 has focus but is off screen"
+
+
+def test_a_new_arrival_at_artworks_loads_one_page_not_the_last_visits(ui, seed_the_served_catalogue):
+    """The member that makes the restore wrong if it over-fires: Artworks reached
+    afresh starts at one page, whatever the entry before it had loaded."""
+    seed_the_served_catalogue(size=200)
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid > li")
+    first = ui.page.locator("ul.grid > li").count()
+    ui.show_more(until=first * 3)
+
+    ui.page.click("nav.sidebar a.section-link[data-view='walls']")
+    ui.page.wait_for_selector("#view h1")
+    ui.page.click("nav.sidebar a.section-link[data-view='collection']")
+    ui.page.wait_for_selector("ul.grid > li")
+    ui.page.wait_for_function("() => document.activeElement && document.activeElement.id === 'view'")
+
+    assert ui.page.locator("ul.grid > li").count() == first
+
+
 def test_the_way_back_link_returns_to_card_20_as_back_does(ui, a_long_artworks):
     """*← Artworks* is Back when Artworks is the entry behind: the same sort, the
     same scroll, and the card that was opened in focus."""
@@ -183,6 +248,11 @@ def test_a_link_opened_with_a_modifier_is_left_to_the_browser(ui, a_long_artwork
     with ui.page.context.expect_page() as opened:
         target.click(modifiers=["ControlOrMeta"])
     work_id = ui.page.locator("ul.grid li.card").first.get_attribute("data-artwork")
+    # The tab is announced when it is created, still at about:blank; under a
+    # loaded machine it can be read before it has navigated.
+    # Waited on the address itself, which is the claim: about:blank has a load
+    # state of its own that is already reached.
+    opened.value.wait_for_url(re.compile(rf"#work/{re.escape(work_id)}$"))
 
     assert opened.value.url.endswith(f"#work/{work_id}")
     assert ui.page.url.endswith("#collection")

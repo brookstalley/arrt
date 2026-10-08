@@ -35,7 +35,8 @@ from arrt.library.discovery.engine import (
     WorkListRequest,
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
-from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryUnavailable
+from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryTopicWorksStage, RegistryUnavailable
+from arrt.library.services.conversation import ConversationPricing
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
 from arrt.library.sources.reading import FetchLocator
@@ -492,6 +493,10 @@ class FakeRegistry:
         #: Each `topics_of` call: the work QIDs and the artist QIDs asked about.
         self.topics_asked: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
         self.topic_sections_asked: list[tuple[str, str]] = []
+        #: Set to an Event to answer a topic's works in two stages, as Wikidata
+        #: does: the ranked works at once, and their makers only once it is set.
+        #: None answers in one complete stage.
+        self.makers_gate: threading.Event | None = None
 
     def _check(self):
         if self.failing:
@@ -558,6 +563,18 @@ class FakeRegistry:
         self._check()
         self.topic_sections_asked.append(("works", topic.qid))
         return self.topic_works_of.get(topic.qid, [])[:limit]
+
+    def topic_works_in_stages(self, topic, *, limit):
+        works = tuple(self.topic_works(topic, limit=limit))
+        gate = self.makers_gate
+        if gate is not None and works:
+            yield RegistryTopicWorksStage(
+                works=tuple(replace(work, creators=(), creator_unknown=False) for work in works), complete=False
+            )
+            # Bounded, so a test that fails before setting it cannot wedge a server worker.
+            gate.wait(timeout=10)
+            self._check()
+        yield RegistryTopicWorksStage(works=works, complete=True)
 
     def topic_artists(self, topic, *, limit):
         self._check()
@@ -632,3 +649,14 @@ def stored_awaiting_approval(store, run_id: str) -> str:
     run = store.get_run(run_id)
     store.update_run(replace(run, status=RunStatus.AWAITING_APPROVAL, approval_required=True, completed_at=None))
     return run_id
+
+
+#: A turn's price for a conversation service a test builds by hand: the shipped
+#: defaults' shape, at round figures, so a test reading the estimate can compute
+#: it. 10,000 input tokens at $1/M and 1,000 output at $2/M is $0.012.
+A_TURN_PRICE = ConversationPricing(
+    input_tokens=10_000,
+    output_tokens=1_000,
+    input_cost_usd_per_mtok=Decimal(1),
+    output_cost_usd_per_mtok=Decimal(2),
+)

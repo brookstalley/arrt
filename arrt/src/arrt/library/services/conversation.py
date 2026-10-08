@@ -38,6 +38,7 @@ from typing import Any, Protocol
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure
 from arrt.library.discovery.conversation import ConversationEngine, ConversationFailure, Suggestion, ThreadTurn
 from arrt.library.discovery.engine import EngineSpend
+from arrt.library.services.runner import Estimate
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
     Affinity,
@@ -226,6 +227,35 @@ class ConversationView:
         return None
 
 
+@dataclass(frozen=True, slots=True)
+class ConversationPricing:
+    """What one turn is priced at before it is sent: an allowance, at the conversation model's prices.
+
+    **An estimate, never a tally.** It is shown beside the control so the
+    curator knows a turn spends before pressing it; what a turn actually cost
+    is the provider's figure on its spend row, and the budget is the provider's
+    own (`nonfunctional-requirements.md` § Direction). Nothing here reads or
+    writes either.
+
+    **Flat rather than priced from the thread**, as Ask's figure is: the
+    history that travels is capped (`OpenRouterConversation.history_turns`), so
+    one allowance covers a thread of any length, and a figure that moved with
+    every turn would put a number on the page nothing else could reproduce.
+    """
+
+    #: The input a turn is priced at (`CONVERSATION_INPUT_TOKENS`).
+    input_tokens: int
+    #: The output reservation, which a turn cannot exceed (`CONVERSATION_MAX_OUTPUT_TOKENS`).
+    output_tokens: int
+    input_cost_usd_per_mtok: Decimal
+    output_cost_usd_per_mtok: Decimal
+
+    @property
+    def turn_usd(self) -> Decimal:
+        """One turn's model call at the allowance: the whole price of a turn, since samples are free."""
+        return (self.input_tokens * self.input_cost_usd_per_mtok + self.output_tokens * self.output_cost_usd_per_mtok) / 1_000_000
+
+
 class ConversationService:
     """Threads, turns, and the one edge from intent-forming onto a run."""
 
@@ -236,12 +266,14 @@ class ConversationService:
         spend: SpendWriter,
         runs: RunStarter,
         *,
+        pricing: ConversationPricing,
         collection: CollectionBrowse | None = None,
     ) -> None:
         self._store = store
         self._engine = engine
         self._spend = spend
         self._runs = runs
+        self._pricing = pricing
         #: `None` is a deployment that has not named itself to the museum, and it
         #: is a supported one: the conversation still answers, and the names it
         #: gives simply carry no pictures. The same gate phase 2 and the run's
@@ -262,6 +294,24 @@ class ConversationService:
             raise ServiceError(f"No conversation with id {conversation_id!r}.")
         turns = self._store.list_conversation_turns(conversation_id)
         return ConversationView(conversation=conversation, turns=tuple(_view(turn) for turn in turns))
+
+    def estimate(self, conversation_id: str) -> Estimate:
+        """What the next turn in this conversation may cost, before it is asked.
+
+        Free and read-only. Asked of a conversation rather than in general so a
+        thread that does not exist is refused here rather than priced; the
+        figure itself is `ConversationPricing`'s flat allowance, for the reason
+        that class gives.
+        """
+        self.get(conversation_id)
+        return Estimate(
+            phase="conversation_turn",
+            cost_usd=self._pricing.turn_usd,
+            basis=(
+                f"One model call, priced at {self._pricing.input_tokens:,} tokens of question and thread and an "
+                f"answer of up to {self._pricing.output_tokens:,} tokens. The sample pictures are free."
+            ),
+        )
 
     # -- writes ---------------------------------------------------------------
 

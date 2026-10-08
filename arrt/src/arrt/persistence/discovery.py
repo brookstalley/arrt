@@ -29,6 +29,7 @@ from arrt.persistence.discovery_records import (
     RunKind,
     RunStatus,
     Sighting,
+    SourceYield,
     SpendRecord,
 )
 from arrt.persistence.records import VocabularyKind
@@ -122,6 +123,17 @@ class DiscoveryStore(Protocol):
         (`candidate_works.artwork_id`) → that work's run. An artwork no
         candidate work became, and one whose run named no destination, is
         absent rather than mapped to None: the caller answers every id it asked.
+        """
+        ...
+
+    def source_yields(self) -> Mapping[str, SourceYield]:
+        """What each provider has offered and what the library holds from it, by provider id.
+
+        Read across both sides of the acceptance boundary: a provider's offers
+        are its candidate images and the catalogue's sources, and what a work
+        holds is its primary source. A provider with nothing recorded is absent.
+        One statement, so its answer is bounded by the number of providers and
+        not by the number of works.
         """
         ...
 

@@ -79,6 +79,7 @@ from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, Ima
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import Registry, RegistryUnavailable
 from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
+from arrt.library.sources.names import museum_name
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import RightsStatus
 
@@ -562,7 +563,7 @@ def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, link
     words. A sentence already stored is a record of what the run said and is
     left as written; this governs runs from now on.
     """
-    holder = f"{found.provider} holds this as {found.title!r}"
+    holder = f"{museum_name(found.provider)} holds this as {found.title!r}"
     holder += f" by {found.artist}" if found.artist else ", with no artist recorded"
     if renamed:
         # The artist's name differs too, so the sentence says what made it the

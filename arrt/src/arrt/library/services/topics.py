@@ -24,7 +24,7 @@ registry sections are asked for separately, as the Artist page's are.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Final
@@ -74,6 +74,57 @@ INDEX_ORDER: Final[tuple[TopicKind, ...]] = (TopicKind.PERIOD, TopicKind.MOVEMEN
 
 #: Which topic kind a facet kind is, for the facets that are topics.
 _TOPIC_KINDS: Final[Mapping[VocabularyKind, TopicKind]] = {facet: topic for topic, facet in FACET_KINDS.items()}
+
+
+@dataclass(frozen=True, slots=True)
+class OfferedTopic:
+    """A topic Library › Topics offers whether or not any work is in it."""
+
+    qid: str
+    #: The name shown until Wikidata's own is asked: the item's English label.
+    label: str
+    kind: TopicKind
+
+
+#: What Library › Topics offers before the library holds anything in it, so a
+#: curator can open the 16th century without knowing to type its name.
+#:
+#: On the server, beside the held topics, because a topic's identity is its QID
+#: and the server is what checks one and serves the index: the rule "a held
+#: topic is not offered again" is then one comparison here, and the MCP tool and
+#: the browser read the same list.
+#:
+#: Each QID checked against `Special:EntityData/<QID>.json` on 2026-10-08: its
+#: English label is the one below, each century an instance of *century*
+#: (Q578) with the years its name says, and each movement an instance of *art
+#: movement* (Q968159) or *art style* (Q1792644), so the Topic page reads it as
+#: a movement. A wrong QID here is a silently wrong page.
+#:
+#: The movements are a hand-kept list and lean toward whoever kept it: twelve
+#: at most, by period. Deleting their lines removes them and changes nothing else.
+OFFERED_TOPICS: Final[tuple[OfferedTopic, ...]] = (
+    OfferedTopic("Q7049", "13th century", TopicKind.PERIOD),
+    OfferedTopic("Q7034", "14th century", TopicKind.PERIOD),
+    OfferedTopic("Q7018", "15th century", TopicKind.PERIOD),
+    OfferedTopic("Q7017", "16th century", TopicKind.PERIOD),
+    OfferedTopic("Q7016", "17th century", TopicKind.PERIOD),
+    OfferedTopic("Q7015", "18th century", TopicKind.PERIOD),
+    OfferedTopic("Q6955", "19th century", TopicKind.PERIOD),
+    OfferedTopic("Q6927", "20th century", TopicKind.PERIOD),
+    OfferedTopic("Q6939", "21st century", TopicKind.PERIOD),
+    OfferedTopic("Q4692", "Renaissance", TopicKind.MOVEMENT),
+    OfferedTopic("Q37853", "Baroque", TopicKind.MOVEMENT),
+    OfferedTopic("Q122960", "Rococo", TopicKind.MOVEMENT),
+    OfferedTopic("Q14378", "Neoclassicism", TopicKind.MOVEMENT),
+    OfferedTopic("Q37068", "Romanticism", TopicKind.MOVEMENT),
+    OfferedTopic("Q10857409", "realism", TopicKind.MOVEMENT),
+    OfferedTopic("Q40415", "Impressionism", TopicKind.MOVEMENT),
+    OfferedTopic("Q166713", "Post-impressionism", TopicKind.MOVEMENT),
+    OfferedTopic("Q80113", "Expressionism", TopicKind.MOVEMENT),
+    OfferedTopic("Q42934", "cubism", TopicKind.MOVEMENT),
+    OfferedTopic("Q39427", "surrealism", TopicKind.MOVEMENT),
+    OfferedTopic("Q177725", "abstract expressionism", TopicKind.MOVEMENT),
+)
 
 
 class TopicState(StrEnum):
@@ -135,6 +186,10 @@ class TopicWorksView:
     #: The library's artist for each listed maker it holds, by QID, so a maker
     #: links to the library's own Artist page.
     artists: Mapping[str, str] = field(default_factory=dict)
+    #: False while Wikidata is still being asked who made them: the works are
+    #: listed and their makers are not yet said. Every view but the last of
+    #: `works_in_stages` is incomplete; a kept answer is complete at once.
+    complete: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,6 +228,9 @@ class TopicGroup:
 
     kind: TopicKind
     topics: Sequence[HeldTopic] = ()
+    #: `OFFERED_TOPICS` of this kind that no held work is in, in its order: a
+    #: held topic is listed once, under `topics`, with its count.
+    offered: Sequence[OfferedTopic] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,6 +258,19 @@ class TopicPage:
     kinds: tuple[TopicKind, ...] = ()
     #: The library's works in circulation in it, by title.
     work_ids: Sequence[str] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TopicWarming:
+    """What one warming pass over `OFFERED_TOPICS` did."""
+
+    #: Topics asked about, because a kept answer was missing or a week old.
+    warmed: int = 0
+    #: Topics whose kept answers were both fresh, so nothing was asked.
+    fresh: int = 0
+    #: True when Wikidata could not be asked, so the rest of the list waits for the next pass.
+    stopped: bool = False
+    reason: str | None = None
 
 
 class TopicService:
@@ -242,8 +313,22 @@ class TopicService:
             kind = _TOPIC_KINDS.get(tally.kind)
             if kind is not None:
                 held[kind].append(HeldTopic(qid=tally.qid, label=tally.label, works=tally.works))
+        # By QID across every kind: a movement a work is said to depict is still
+        # the movement, and is not offered beside itself. Nothing is offered
+        # without a registry, since every page it opened would say only that.
+        holding = {topic.qid for topics in held.values() for topic in topics}
+        offers = OFFERED_TOPICS if self._registry is not None else ()
         return TopicIndex(
-            state=state, note=note, groups=tuple(TopicGroup(kind=kind, topics=tuple(held[kind])) for kind in INDEX_ORDER)
+            state=state,
+            note=note,
+            groups=tuple(
+                TopicGroup(
+                    kind=kind,
+                    topics=tuple(held[kind]),
+                    offered=tuple(offer for offer in offers if offer.kind is kind and offer.qid not in holding),
+                )
+                for kind in INDEX_ORDER
+            ),
         )
 
     def page(self, qid: str) -> TopicPage:
@@ -289,23 +374,48 @@ class TopicService:
 
     def works(self, qid: str) -> TopicWorksView:
         """The topic's most renowned works of visual art, each with what marks it: held, wanted, its image."""
-        qid = checked_qid(qid)
+        stages = self.works_in_stages(qid)
+        last = next(stages)
+        for view in stages:
+            last = view
+        return last
+
+    def works_in_stages(self, qid: str) -> Iterator[TopicWorksView]:
+        """`works`, yielded as each of Wikidata's answers lands; the last view yielded is the answer, and complete.
+
+        The kept answer is read first, so a topic asked before (or warmed by
+        `warm_offered`) is one complete view at once. Otherwise the works are
+        yielded when their ranking lands, without makers, and again when the
+        makers do. Only the complete answer is kept. The QID is checked here,
+        before anything is yielded, so a malformed one raises at the call.
+        """
+        return self._works_in_stages(checked_qid(qid))
+
+    def _works_in_stages(self, qid: str) -> Iterator[TopicWorksView]:
         if self._registry is None:
-            return TopicWorksView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)
+            yield TopicWorksView(state=TopicState.NOT_CONFIGURED, note=TOPICS_NOT_CONFIGURED_NOTE)
+            return
         registry = self._registry
         try:
             known = self._known(qid, registry)
             if known is None:
-                return TopicWorksView(state=TopicState.NOT_FOUND, note=_not_found(qid))
+                yield TopicWorksView(state=TopicState.NOT_FOUND, note=_not_found(qid))
+                return
             listed = self._works.get(qid)
-            if listed is None:
-                # Asked outside the memory's lock, as the Artist page's half is:
-                # another page must not wait on this one's query.
-                listed = tuple(registry.topic_works(known, limit=WORKS_SHOWN))
-                self._works.put(qid, listed)
+            if listed is not None:
+                yield self._works_view(listed, complete=True)
+                return
+            # Asked outside the memory's lock, as the Artist page's half is:
+            # another page must not wait on this one's query.
+            for stage in registry.topic_works_in_stages(known, limit=WORKS_SHOWN):
+                if stage.complete:
+                    self._works.put(qid, stage.works)
+                yield self._works_view(stage.works, complete=stage.complete)
         except RegistryUnavailable as exc:
             log.warning("Could not ask Wikidata for the works of topic %s: %s", qid, exc)
-            return TopicWorksView(state=TopicState.UNAVAILABLE, note=UNAVAILABLE_NOTE)
+            yield TopicWorksView(state=TopicState.UNAVAILABLE, note=UNAVAILABLE_NOTE)
+
+    def _works_view(self, listed: Sequence[RegistryTopicWork], *, complete: bool) -> TopicWorksView:
         # "Held" means in circulation, as on the Artist page, so an archived
         # work is not marked.
         holdings = self._store.circulating_ids_by_qid()
@@ -316,7 +426,41 @@ class TopicService:
             state=TopicState.KNOWN,
             works=tuple(_marked(work, holdings.get(work.qid, ()), wanted=work.qid in wanted) for work in listed),
             artists={qid: ours[qid] for qid in sorted(makers) if qid in ours},
+            complete=complete,
         )
+
+    def warm_offered(self) -> TopicWarming:
+        """Ask for each offered topic's kept answers (the topic and its works) that are missing or a week old.
+
+        One topic at a time, never in parallel, and the pass stops at the first
+        answer saying Wikidata cannot be asked (an outage and a refusal for too
+        many questions both arrive as `RegistryUnavailable`): the next question
+        of a refused run is the one that gets refused.
+
+        **What it costs Wikidata.** Each answer is kept for `REGISTRY_KEPT_FOR`
+        (a week) and a fresh one is skipped without a question, so a topic costs
+        at most three queries a week: its item, its ranked works and their
+        makers. The 21 offered topics are at most 63 a week, about nine a day,
+        and a topic a curator opened in the meantime is already fresh.
+        """
+        if self._registry is None:
+            return TopicWarming()
+        registry = self._registry
+        warmed = fresh = 0
+        for offer in OFFERED_TOPICS:
+            known = self._topics.get(offer.qid)
+            if known is not None and self._works.get(offer.qid) is not None:
+                fresh += 1
+                continue
+            try:
+                if known is None:
+                    known = self._known(offer.qid, registry)
+                if known is not None:
+                    self._works.put(offer.qid, tuple(registry.topic_works(known, limit=WORKS_SHOWN)))
+            except RegistryUnavailable as exc:
+                return TopicWarming(warmed=warmed, fresh=fresh, stopped=True, reason=str(exc))
+            warmed += 1
+        return TopicWarming(warmed=warmed, fresh=fresh)
 
     def artists(self, qid: str) -> TopicArtistsView:
         """The topic's artists, the fame of their works in it first, their own breaking ties, each marked if held."""

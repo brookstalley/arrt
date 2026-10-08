@@ -240,12 +240,21 @@ def test_the_walls_history_opens_from_its_card(ui, services, the_wall, winter, t
 def test_a_lead_whose_image_cannot_be_loaded_says_so(ui, services, the_wall, winter, two_works):
     """A blank box where the work should be is the silence this product refuses."""
     report(services, the_wall, two_works[0].id)
-    ui.page.route("**/thumbnail", lambda route: route.fulfill(status=404, body="gone"))
+    ui.page.route("**/thumbnail*", lambda route: route.fulfill(status=404, body="gone"))
     ui.open("#walls")
     ui.page.wait_for_selector(".wall-now .card-image-absent")
 
     assert "Its image could not be loaded just now." in ui.text()
     assert ui.page.locator(".wall-now img").count() == 0
+
+
+def test_the_lead_asks_for_the_large_bare_work_not_the_tile(ui, services, the_wall, winter, two_works):
+    """Drawn up to 48rem wide, the 480 px tile is soft on a 2x screen; the canvas would show the mat."""
+    report(services, the_wall, two_works[0].id)
+    open_walls(ui)
+    image = card(ui, the_wall).locator(".wall-now img")
+    image.wait_for()
+    assert image.get_attribute("src") == f"/api/works/{two_works[0].id}/thumbnail?size=large"
 
 
 def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, winter, two_works):

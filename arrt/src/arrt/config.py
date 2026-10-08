@@ -20,6 +20,7 @@ from typing import Final
 from dotenv import load_dotenv
 
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
+from arrt.library.services.conversation import ConversationPricing
 from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.runner import DiscoverySettings
 from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
@@ -334,6 +335,21 @@ DEFAULT_CONVERSATION_MODEL: Final[str] = DEFAULT_MAT_MODEL
 #: the provider prices stays a rounding error against a monthly limit.
 DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS: Final[int] = 2_000
 
+#: What the conversation model costs per million tokens, in USD. Its own pair,
+#: because it is not the discovery model and the discovery prices would price a
+#: turn at another model's rates. Read from OpenRouter's model listing on
+#: 2026-10-08 for `qwen/qwen3.7-flash` below 32,000 prompt tokens, which a turn
+#: never reaches; prices move, so a deployment that changes the model sets these.
+DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK: Final[str] = "0.03"
+DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK: Final[str] = "0.13"
+
+#: The input a turn is priced at, as an allowance rather than a measurement:
+#: the standing instruction, up to twelve carried turns of a few sentences each,
+#: and the question, with headroom for long questions. A question longer than
+#: this allowance costs more than the estimate, and at these prices still a
+#: fraction of a cent. Output is priced at the reservation itself.
+DEFAULT_CONVERSATION_INPUT_TOKENS: Final[int] = 8_000
+
 #: The longest edge, in pixels, of the copy of the artwork the mat model sees.
 #: Images bill inside `prompt_tokens`, so this is the one dial on what a mat call
 #: costs. 768 is enough for a model to read a palette and a composition, and a
@@ -437,6 +453,11 @@ class Settings:
     #: others.
     conversation_model: str = DEFAULT_CONVERSATION_MODEL
     conversation_max_output_tokens: int = DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
+    #: What a turn is priced at before it is sent: the conversation model's
+    #: prices and the input allowance (`ConversationPricing`).
+    conversation_input_cost_usd_per_mtok: Decimal = Decimal(DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK)
+    conversation_output_cost_usd_per_mtok: Decimal = Decimal(DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK)
+    conversation_input_tokens: int = DEFAULT_CONVERSATION_INPUT_TOKENS
     #: The key everything paid runs through. Optional: a deployment without one
     #: serves the whole catalogue and refuses only to *start* a discovery run,
     #: which is a far better failure than refusing to boot.
@@ -476,6 +497,16 @@ class Settings:
             output_cost_usd_per_mtok=self.output_cost_usd_per_mtok,
             phase1_input_tokens=self.phase1_input_tokens,
             phase1_output_tokens=self.phase1_output_tokens,
+        )
+
+    @property
+    def conversation_pricing(self) -> ConversationPricing:
+        """What a conversation turn is priced at before it is sent, for the conversation service."""
+        return ConversationPricing(
+            input_tokens=self.conversation_input_tokens,
+            output_tokens=self.conversation_max_output_tokens,
+            input_cost_usd_per_mtok=self.conversation_input_cost_usd_per_mtok,
+            output_cost_usd_per_mtok=self.conversation_output_cost_usd_per_mtok,
         )
 
     def manifest_path(self, wall_id: str) -> Path:
@@ -693,6 +724,13 @@ class Settings:
             conversation_max_output_tokens=_positive_int(
                 "CONVERSATION_MAX_OUTPUT_TOKENS", DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
             ),
+            conversation_input_cost_usd_per_mtok=_priced(
+                "CONVERSATION_INPUT_COST_USD_PER_MTOK", DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK
+            ),
+            conversation_output_cost_usd_per_mtok=_priced(
+                "CONVERSATION_OUTPUT_COST_USD_PER_MTOK", DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK
+            ),
+            conversation_input_tokens=_counted("CONVERSATION_INPUT_TOKENS", DEFAULT_CONVERSATION_INPUT_TOKENS),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
             monthly_budget_usd=_priced("MONTHLY_BUDGET_USD", "0") if os.environ.get("MONTHLY_BUDGET_USD") else None,
             source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),

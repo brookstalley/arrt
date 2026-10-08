@@ -720,3 +720,26 @@ class ConversationTurn:
     #: whatever the collection would answer today.
     suggested: Sequence[Mapping[str, Any]] | None = None
     committed_run_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SourceYield:
+    """What one source has given this library: an observation, never a ranking.
+
+    Counted from the records rather than kept as a tally, so it cannot drift from
+    them and survives a restart. Keyed by the provider id a found image records,
+    which is the source plugin's own name.
+    """
+
+    provider: str
+    #: Distinct images, by address, this source has offered: to a search, or as
+    #: one of a held work's sources. An image offered again by a later search is
+    #: one image, and one the curator turned down still counts as offered.
+    offered: int
+    #: Works in the library whose chosen image (their primary source) is from it.
+    chosen: int
+    #: Of those, the works no other source offered any image for.
+    only_here: int
+    #: The median long edge, in pixels, of the offered images whose size is
+    #: known; `None` when no offered image's size is known.
+    median_long_edge: int | None

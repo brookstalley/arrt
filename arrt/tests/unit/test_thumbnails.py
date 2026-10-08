@@ -28,6 +28,7 @@ import pytest
 from PIL import Image
 
 from arrt.library.services.thumbnails import (
+    LARGE_THUMBNAIL_MAX_EDGE_PX,
     THUMBNAIL_MAX_EDGE_PX,
     WALL_PREVIEW_MAX_EDGE_PX,
     ThumbnailSettings,
@@ -285,6 +286,34 @@ class TestGenerating:
             # 4:3 in, 4:3 out. Cropping an artwork to fill a tile is the one
             # thing this surface must not do.
             assert produced.size[0] / produced.size[1] == pytest.approx(1600 / 1200, abs=0.01)
+
+    def test_a_large_thumbnail_is_the_bare_work_in_its_bigger_box_beside_the_tile(self, thumbnails, service, work):
+        """Walls' lead draws the work up to 48rem wide; the tile's box is soft there on a 2x screen.
+
+        Asked after the tile, so the two rows must coexist: the catalogue keys a
+        rendition on kind and box, and a large one that overwrote the tile's row
+        would send every grid back to re-encoding.
+        """
+        artwork = work(width=4000, height=3000)
+        tile = thumbnails.thumbnail(artwork.id)
+        large = thumbnails.thumbnail(artwork.id, large=True)
+        assert tile != large
+        with Image.open(large) as produced:
+            assert max(produced.size) == LARGE_THUMBNAIL_MAX_EDGE_PX
+            assert produced.size[0] / produced.size[1] == pytest.approx(4000 / 3000, abs=0.01)
+        # 48rem by 32rem at 2x is 1536 by 1024 device pixels.
+        assert LARGE_THUMBNAIL_MAX_EDGE_PX >= 48 * 16 * 2
+        with Image.open(tile) as produced:
+            assert max(produced.size) == THUMBNAIL_MAX_EDGE_PX
+        boxes = sorted(
+            view.rendition.target_width
+            for view in service.list_renditions(artwork.id)
+            if view.rendition.kind is RenditionKind.THUMBNAIL
+        )
+        assert boxes == [THUMBNAIL_MAX_EDGE_PX, LARGE_THUMBNAIL_MAX_EDGE_PX]
+        # And the tile is still served from its own file, not regenerated.
+        stamp = tile.stat().st_mtime_ns
+        assert thumbnails.thumbnail(artwork.id).stat().st_mtime_ns == stamp
 
     def test_an_image_smaller_than_the_box_is_not_enlarged(self, thumbnails, work):
         """Upscaling turns an honest "this image is small" into an apparent rendering fault."""
