@@ -92,8 +92,10 @@ is the Frame.
 > sentence above is what runs: an HDMI wall has no label.
 
 `re-architecture.md`'s "one process per wall drives both the
-picture and the label, so they can never disagree" is kept *per worker*: a
-wall's picture and label are still decided in one place. The supervisor polls
+picture and the label, so they can never disagree" was kept *per worker* until
+2026-10-08, when the owner reversed it (`labels-and-surfaces.md`): labels become
+outputs mapped to any wall on any client, and follow the wall controller's
+reported display state. What runs today is still the panel on the Frame loop. The supervisor polls
 `GET /client`, starts a worker for a newly assigned wall, stops one for a wall
 taken away, and reports outputs.
 
