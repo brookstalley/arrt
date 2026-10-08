@@ -199,6 +199,15 @@ updated.
 reported as the client's label output `epd-0`; caption a wall with it on
 Settings › Clients. `EPD_DEVICE` no longer needs `TV_ADDRESS`.
 
+## The panel's GPIO package (2026-10-08, #181)
+
+**On a Pi whose venv predates #181's fix, sync with `--reinstall-package
+rpi-gpio`.** `jetson-gpio` and `rpi-gpio` both installed `RPi/GPIO/__init__.py`;
+the sync removes `jetson-gpio`, and with it that file, so `rpi-gpio` has to be
+installed again to put the real one back:
+
+    cd postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper --reinstall-package rpi-gpio
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being

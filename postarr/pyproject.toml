@@ -187,8 +187,19 @@ packages = ["src/postarr"]
 # An override rather than a dependency entry, because the requirement being
 # corrected is not ours: it is inside `omni_epd`'s own metadata, and only an
 # override reaches it.
+#
+# **`jetson-gpio` is overridden away, and the panel depends on it being gone**
+# (#181). The Waveshare sample declares it unconditionally, and it ships its own
+# `RPi/GPIO/__init__.py` (one line, `from Jetson.GPIO import *`) at the very path
+# `rpi-gpio` installs the real one. Two packages owning one file means the last
+# one installed wins, so the same lockfile gave a working panel on one install and
+# "Could not determine Jetson model" on the next. No Pi needs it: the sample
+# imports `Jetson.GPIO` only inside its JetsonNano branch, which a Raspberry Pi
+# never takes. A marker no platform matches is how an override removes a
+# dependency.
 override-dependencies = [
     "IT8951[rpi] @ git+https://github.com/GregDMeyer/IT8951.git@9f136139378f74e17d9972d7165dc6ae53a2568e",
+    "jetson-gpio; sys_platform == 'never'",
 ]
 
 # **The other unpinned axis, and pinning the driver alone would have left it

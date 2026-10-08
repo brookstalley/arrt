@@ -62,6 +62,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: The panel opens again: jetson-gpio no longer overwrites RPi.GPIO (#181)
+
+<!-- prawduct: scope=fix-181-gpio-shim -->
+
+**Why:** #181. After a fresh install the panel failed with "Could not determine
+Jetson model". Measured on the wall's Pi: `RPi/GPIO/__init__.py` in the venv was
+`jetson-gpio`'s one-line shim (`from Jetson.GPIO import *`, its RECORD hash),
+not `rpi-gpio`'s. Both packages own that path, so the last one installed wins,
+which is why one lockfile gave a working panel on one install and not the next.
+The issue's lead (the Waveshare board check) was refuted: the pinned
+`epdconfig.py` is unmodified and detects the Pi from `/proc/cpuinfo`.
+
+**What:**
+- `postarr/pyproject.toml` `[tool.uv]`: an override removes `jetson-gpio` (the
+  Waveshare sample imports it only on its Jetson branch). `uv.lock` follows.
+- `postarr/tests/test_gpio_has_one_owner.py`: every lock requirement of
+  `jetson-gpio` carries the never marker, and `rpi-gpio` is still locked; it
+  fails against the previous lock.
+- `deploy/README.md`: an existing venv syncs with `--reinstall-package
+  rpi-gpio`, since removing `jetson-gpio` deletes the file both owned.
+
 ## 2026-10-08: Labels mapped on Settings › Clients; Walls says which caption each wall
 
 <!-- prawduct: scope=displays-and-label-outputs -->
