@@ -84,14 +84,14 @@ carries a design choice:
 
 - [x] Chunk 01: Navigation is a link
 - [x] Chunk 02: Failures beside the control
-- [ ] Chunk 03: History is an event log
+- [x] Chunk 03: History is an event log
 - [x] Chunk 04: Selections and exclusions in Programming
-- [ ] Chunk 05: Walls leads with what is on the wall
-- [ ] Chunk 06: The Work page
-- [ ] Chunk 07: Search and Artist states
-- [ ] Chunk 08: Review trust
+- [x] Chunk 05: Walls leads with what is on the wall
+- [x] Chunk 06: The Work page
+- [x] Chunk 07: Search and Artist states
+- [x] Chunk 08: Review trust
 - [ ] Chunk 09: One vocabulary
-- [ ] Chunk 10: Spend as a budget and tiers
+- [x] Chunk 10: Spend as a budget and tiers
 - [ ] Chunk 11: Tiles show the art
 - [ ] Chunk 12: Keyboard and phone
 - [ ] Chunk 13: Walk and re-photograph
