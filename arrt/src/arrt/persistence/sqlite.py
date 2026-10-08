@@ -724,7 +724,8 @@ class SqliteCatalogue(TableAdapter):
         rows = self._store.select_rows(
             'SELECT ar.*, COUNT(a."id") AS held, '
             '(SELECT a2."id" FROM artworks a2 WHERE a2."artist_id" = ar."id" AND a2."status" = ? '
-            'ORDER BY coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
+            'ORDER BY EXISTS (SELECT 1 FROM originals o WHERE o."artwork_id" = a2."id") DESC, '
+            'coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
             'FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
             'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
             (accepted, accepted),

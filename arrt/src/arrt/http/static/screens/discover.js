@@ -73,15 +73,16 @@ export async function viewDiscover(generation) {
       el("label", { for: "intent", text: "What are you looking for?" }),
       intent,
     ]),
-    el("p", {
-      class: "note",
-      // The price before the decision, and what it buys. Stated as a bound
-      // rather than a typical figure, because a run may freely use the whole
-      // allowance and an estimate it can exceed is not an estimate.
-      text: askingCost(estimate),
-    }),
     // The tier beside the button it prices, so it is read before the press.
     el("div", { class: "row" }, [start, tierMark(estimate.tier), talk, taste]),
+    el("p", {
+      class: "muted act-note",
+      // The price before the decision, and what it buys, under the act it
+      // prices rather than above the field. Stated as a bound rather than a
+      // typical figure, because a run may freely use the whole allowance and
+      // an estimate it can exceed is not an estimate.
+      text: askingCost(estimate),
+    }),
   ]);
 
   const panels = [el("h1", { text: "Ask" }), entry];

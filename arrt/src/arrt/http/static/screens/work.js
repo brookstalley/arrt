@@ -500,14 +500,13 @@ function paint(detail, generation, { where, focusAction = false }) {
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
   paintStrip(strip, work, where);
 
-  const panels = [
-    el("p", {}, [backLink()]),
+  const head = [
     el("div", { class: "panel work-hero" }, [
       image,
       el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work), sourceBadge(work)]),
       work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
     ]),
-    el("div", { class: "panel" }, [
+    el("div", { class: "panel work-label" }, [
       el("h1", { text: work.title }),
       strip,
       facts([
@@ -531,8 +530,11 @@ function paint(detail, generation, { where, focusAction = false }) {
       // archive and restore do.
       identityControl("work", work, (answer) => paint(answer, generation, { where })),
     ]),
-    facetPanel(detail.facets),
   ];
+
+  // The picture beside its label, as on a gallery wall; then the record, each
+  // part a section of its own, two to a row where the page is wide enough.
+  const panels = [facetPanel(detail.facets)];
 
   panels.push(
     el("div", { class: "panel" }, [
@@ -597,7 +599,12 @@ function paint(detail, generation, { where, focusAction = false }) {
 
   panels.push(matPanel(detail.mat_colors));
 
-  render(generation, ...panels);
+  render(
+    generation,
+    el("p", {}, [backLink()]),
+    el("div", { class: "work-head" }, head),
+    el("div", { class: "work-record" }, panels),
+  );
   // Only if the paint actually landed. `render` declines a paint whose
   // navigation has been superseded, and focusing a control that was never put on
   // the page would move the keyboard onto a detached node.

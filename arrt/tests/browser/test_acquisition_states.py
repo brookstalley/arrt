@@ -381,3 +381,27 @@ def test_an_accepted_card_the_queue_owes_nothing_and_holds_no_image_says_none_is
     ui.page.wait_for_selector("li.card[data-work='taken'] .acquisition-slot p")
 
     assert ui.page.inner_text("li.card[data-work='taken'] .acquisition-slot") == "No image is being fetched for it."
+
+
+def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_record(ui, accepted, store):
+    """The page a curator meets most while the library fills: no picture, a
+    failed try, a source. The label still sits beside where the picture would
+    be, and the failure is in the Master image section, ruled like the rest."""
+    work = accepted()
+    _failed(store, work, "the connection was reset.")
+    ui.page.set_viewport_size({"width": 1280, "height": 900})
+
+    open_work(ui, work)
+
+    layout = ui.page.evaluate("""() => {
+          const hero = document.querySelector('.work-head > .work-hero').getBoundingClientRect();
+          const label = document.querySelector('.work-head > .work-label').getBoundingClientRect();
+          const master = [...document.querySelectorAll('.work-record > .panel')]
+            .find((panel) => panel.querySelector('h2')?.textContent === 'Master image');
+          return {
+            side_by_side: label.left >= hero.right,
+            failure_in_master: Boolean(master && master.querySelector('.acquisition-line')),
+            ruled: master && getComputedStyle(master).borderTopStyle === 'solid',
+          };
+        }""")
+    assert layout == {"side_by_side": True, "failure_in_master": True, "ruled": True}

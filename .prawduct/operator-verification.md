@@ -10,6 +10,39 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Wall label: does it still look amateur? — added 2026-10-08
+
+**`build-plan-wall-label.md`, all chunks.** Visual change: yes. This is the
+judgement the plan can't make for itself.
+
+Built against a copy of the local `~/samsung-art` library and the synthetic
+corpus. `arrt/tools/ux_walk.py` photographed every screen it reached at phone
+and desktop width in both schemes, on both libraries: the library copy gave
+100 captures, and the 2,000-work synthetic corpus gave 84 across the same 21
+screens as the walk before this plan (`.ux-walk/after-lists-settings`). Both
+had no accessibility violations, no console errors and no dead ends, the same
+as before. After chunk 06 the walk was re-run on the library copy
+(`.ux-walk/wall-label-06`): 104 captures across 26 screens, no
+accessibility violations, no dead ends, and one console error, a 400 on
+Artists. That is the thumbnail of an artist none of whose works has an image
+yet (the library copy gained a 32nd artist between walks), which the card
+answers with "No picture" (`screens/artists.js`). Not yet deployed.
+
+- **Look at, on the real library, in both schemes:** Artworks (tiles on a mat,
+  label beneath, rows even), a work's page (picture beside its label,
+  description in the serif, the record as ruled sections), Status, Walls,
+  Themes, Settings. Then the controls (chunk 06): buttons in a row the
+  same height, rows evenly spaced below what they follow, and on Ask the
+  cost shown as "Cost: $" beside Get rather than as a box. On a phone, every
+  control is big enough to tap. Then compare with the canvas the direction was chosen
+  from: https://claude.ai/artifact/KKGdo4ktsDS32t15yyUpCS.
+- **Check especially:** whether the space each tile reserves for its longest
+  label leaves too much air between rows when every title is short. (The
+  owner judged the colours of both schemes good on 2026-10-08 and asked for
+  attention on layout and flow instead.)
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/wall-label-deployed`.
+
 ### Displays and labels on Clients and Walls, and the panel on the wall — added 2026-10-08
 
 **`build-plan-displays-and-label-outputs.md` Chunks 04 and 07.** Visual change: yes; then live.

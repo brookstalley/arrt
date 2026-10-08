@@ -21,6 +21,96 @@
  * picture. `--border-strong` is the one controls use, and it does meet it.
  */
 
+/* The two typefaces, served from this directory rather than a font CDN: the
+ * curation surface runs on a home network, and a CDN would put an outside
+ * request in front of every page and a fallback face in front of every curator
+ * whose network is down. Newsreader is the museum's voice (page names, work
+ * titles, a work's description) and Instrument Sans is the chrome's. Both are
+ * variable fonts under the SIL Open Font License, which sits beside each
+ * family's files; `fonts/README.md` names the package and version they came
+ * from. Latin and Latin Extended only: a name in another script falls back to
+ * the system face, and the browser fetches a subset only when a page uses it.
+ *
+ * `font-display: swap` shows the fallback face while a font is loading, never
+ * blank text. That makes a font that fails to load look like a working page,
+ * so `tests/browser/test_the_typefaces.py` checks that both faces loaded. */
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-ext-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-ext-italic.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-ext-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: italic;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: italic;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-ext-italic.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   color-scheme: light dark;
 
@@ -66,6 +156,9 @@
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;
+  /* A page's name, and nothing else: with no box around a page's sections,
+     the name is what tells a curator where they are. */
+  --text-3xl: 2.5rem;
 
   /* Spacing, 4px base. */
   --space-1: 0.25rem;
@@ -76,6 +169,11 @@
   --space-6: 2rem;
   --space-8: 3rem;
 
+  /* Controls: one height for every act and field, and a compact one for a
+     menu's items and the menu button. A coarse pointer raises both below. */
+  --control-h: 2.5rem;
+  --control-h-compact: 2rem;
+
   /* Radius: crisp. A museum label is not a pill. */
   --radius-sm: 2px;
   --radius-md: 4px;
@@ -83,14 +181,30 @@
   /* Elevation: barely there, so a card reads as paper rather than as UI. */
   --shadow-1: 0 1px 2px rgb(28 26 23 / 6%);
   --shadow-2: 0 2px 8px rgb(28 26 23 / 10%);
+  /* Under a picture on its mat: enough to lift the work off the board, as a
+     hung print sits a hair proud of the wall. */
+  --shadow-art: 0 1px 3px rgb(28 26 23 / 22%);
 
-  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-label: ui-serif, Georgia, "Times New Roman", serif;
+  --font-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-label: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
 
   /* Layout. */
   --rail: 13rem;
-  --masthead: 3.5rem;
+  /* The top bar's height: a search field of one control's height, the bar's
+     padding and its 1px rule. */
+  --masthead: calc(var(--control-h) + 2 * var(--space-3) + 1px);
   --sidebar: 14rem;
+}
+
+/* A finger is not a pointer: on a touch screen every control is at least
+   44px (2.75rem), what every touch platform assumes. Keyed on the pointer,
+   not the viewport, because a small window on a desktop still has a mouse
+   (§ Spacing & Layout). */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 2.75rem;
+    --control-h-compact: 2.75rem;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -119,6 +233,7 @@
     --scrim-text: #f6efe3;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 45%);
     --shadow-2: 0 2px 10px rgb(0 0 0 / 55%);
+    --shadow-art: 0 1px 4px rgb(0 0 0 / 50%);
   }
 }
 
@@ -182,7 +297,7 @@ a {
    be pushed off the page. */
 header.topbar {
   border-bottom: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--surface-0);
   padding: var(--space-3) var(--space-5);
   display: flex;
   flex-wrap: wrap;
@@ -192,9 +307,12 @@ header.topbar {
 
 .topbar .brand {
   margin: 0;
-  font: 400 var(--text-xl) / 1.2 var(--font-label);
-  letter-spacing: 0.01em;
+  font: 500 var(--text-2xl) / 1.1 var(--font-label);
+  letter-spacing: -0.01em;
   color: var(--text-strong);
+  /* The name never shrinks: the elements after it do (§ Spacing & Layout). A
+     brand allowed to shrink is drawn past its own box, under the search. */
+  flex: none;
   /* Sits above the sidebar's own column, so the two read as one strip. */
   min-width: calc(var(--sidebar) - var(--space-5) - var(--space-4));
 }
@@ -218,8 +336,32 @@ header.topbar {
   display: flex;
   gap: var(--space-2);
   align-items: center;
-  flex: 0 1 auto;
+  flex: 0 1 32rem;
   min-width: 0;
+}
+
+/* The magnifier, laid over the field's left edge. It is the form's submit
+   button, so it carries a hover and a focus ring like any other control. */
+.search-submit {
+  position: absolute;
+  left: var(--space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-compact);
+  height: var(--control-h-compact);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.search-submit:hover {
+  color: var(--text-strong);
 }
 
 /* The dropdown under the search box: library matches, then the row that hands
@@ -313,12 +455,15 @@ header.topbar {
 
 .topbar .search input {
   font: var(--text-sm) / 1.4 var(--font-ui);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--control-h-compact) + var(--space-2));
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: var(--surface-0);
+  background: var(--surface-1);
   color: var(--text);
+  width: 100%;
   min-width: 12rem;
+  height: var(--control-h);
+  box-sizing: border-box;
 }
 
 /* Glyph, words and colour — three carriers, of which colour is the last. The
@@ -333,23 +478,27 @@ header.topbar {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  border: none;
+  padding: var(--space-2) 0;
   font: var(--text-sm) / 1.2 var(--font-ui);
   cursor: pointer;
-  background: var(--surface-0);
+  background: none;
   color: var(--text);
   text-align: left;
 }
 
+/* No box: a box around the status is a button, and this is a link to a page.
+   Its glyph and its words still carry the state with the colour. */
+.status-indicator:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .status-indicator[data-state="well"] {
-  background: var(--good-quiet);
   color: var(--good);
 }
 
 .status-indicator[data-state="unwell"] {
-  background: var(--warn-quiet);
   color: var(--warn);
 }
 
@@ -359,28 +508,40 @@ header.topbar {
   appearance: none;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--control-h);
+  box-sizing: border-box;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-3);
   font: var(--text-sm) / 1.2 var(--font-ui);
   background: var(--surface-0);
   color: var(--text);
   cursor: pointer;
 }
 
+/* The sidebar's edge is drawn by the shell, not the sidebar. The sidebar is
+   sticky, so it is only as tall as the viewport, and a rule drawn on it stopped
+   partway down any page longer than the window. The shell is as tall as the
+   page, so a one-pixel line painted on it at the sidebar's width runs the
+   whole way. */
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
   align-items: start;
+  min-height: calc(100vh - var(--masthead));
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: 1px 100%;
+  background-position: calc(var(--sidebar) - 1px) 0;
+  background-repeat: no-repeat;
 }
 
+/* No background of its own on a wide screen: it sits on the page's ground,
+   and a fill would cover the shell's rule beside it. The phone drawer gives it
+   one, since there it lies over the page. */
 nav.sidebar {
   position: sticky;
   top: 0;
-  min-height: calc(100vh - var(--masthead));
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
-  padding: var(--space-4) 0;
+  padding: var(--space-5) 0;
 }
 
 nav.sidebar ul {
@@ -393,11 +554,13 @@ nav.sidebar a {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: var(--control-h-compact);
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-5);
-  color: var(--text-muted);
-  font: var(--text-sm) / 1.4 var(--font-ui);
+  color: var(--text);
+  font: var(--text-md) / 1.4 var(--font-ui);
   text-decoration: none;
-  border-left: 3px solid transparent;
+  border-left: 2px solid transparent;
 }
 
 nav.sidebar a:hover {
@@ -426,6 +589,7 @@ nav.sidebar li.section[data-open] > ul.pages {
 
 nav.sidebar ul.pages a {
   padding-left: calc(var(--space-5) + 1.25em + var(--space-3));
+  font-size: var(--text-sm);
 }
 
 /* The page you are on is marked three ways — weight, a rule down its left edge,
@@ -434,7 +598,6 @@ nav.sidebar ul.pages a {
 nav.sidebar a[aria-current="page"] {
   color: var(--text-strong);
   font-weight: 600;
-  background: var(--surface-0);
   border-left-color: var(--accent);
 }
 
@@ -455,7 +618,6 @@ nav.sidebar a[aria-current="page"] {
 .awaiting-count {
   display: inline-block;
   padding: 0 var(--space-2);
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   color: var(--text-strong);
@@ -491,8 +653,13 @@ nav.sidebar a[aria-current="page"] {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .shell {
+    background-image: none;
+  }
+
   nav.sidebar {
     display: none;
+    background: var(--surface-1);
     position: fixed;
     top: 0;
     bottom: 0;
@@ -531,11 +698,18 @@ main {
 }
 
 /* A screen's own heading is its `h1`; the product's name in the top bar is not
-   a heading at all. The confirmation's title is an `h2` beneath whichever page
-   it opens over, and takes the same type. */
-h1,
+   a heading at all. One size on every page, Walls included. */
+h1 {
+  font: 500 var(--text-3xl) / 1.1 var(--font-label);
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
+  margin: 0 0 var(--space-5);
+}
+
+/* The confirmation's title is an `h2` beneath whichever page it opens over, so
+   it takes a section's type rather than a page's. */
 .confirm-title {
-  font: 400 var(--text-lg) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
   margin: 0 0 var(--space-4);
 }
@@ -672,6 +846,100 @@ h1,
   gap: var(--space-2);
 }
 
+/* -- a tile: the work on its mat, and its label beneath -------------------
+   A work's tile (Artworks, an artist's works, a topic's) and an artist's poster
+   are the thing itself, so they are not boxed: no border, no paper, no shadow
+   around the tile. The picture sits on a `--surface-2` mat with room round it,
+   and the label sits on the page's ground underneath, as a wall label sits
+   under a hung work. A theme's card and a work under review keep their card,
+   because each is a block of facts and acts about a thing, not the thing.
+   Matched by the data attribute each tile already carries, so no screen's
+   markup had to change to opt in. The Artworks skeleton's placeholder carries
+   `.tile-skeleton` instead, so it occupies the tile's final geometry rather
+   than a card's. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image,
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image:has(img) {
+  background: var(--surface-2);
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image img {
+  inset: var(--space-4);
+  width: calc(100% - 2 * var(--space-4));
+  height: calc(100% - 2 * var(--space-4));
+  /* The shadow follows the picture, not its box: `contain` leaves the box
+     wider or taller than the work, and a shadow on the box would outline
+     empty mat. A drop-shadow filter is drawn from the painted pixels. */
+  filter: drop-shadow(var(--shadow-art));
+}
+
+/* The label is at least the height of its longest shape: two lines of title,
+   one of artist, two of date and medium, and one row of the badges a tile
+   shows only when its value is unusual. The words are clamped to that, so a
+   tile's height does not depend on its words, and rows are uniform without
+   any row's height depending on another's (§ Component Patterns, Tiles). Only
+   a tile whose badges wrap to a second row is taller. Sizing rows to the tallest tile instead made the page's length
+   change as later pages arrived, and the scroll restored on the way back to
+   Artworks landed short. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-body {
+  --tile-line: 1.45;
+  padding: var(--space-3) 0 0;
+  gap: 2px;
+  min-height: calc(
+    var(--space-3) + 2 * 1.25 * var(--text-lg) + 3 * var(--tile-line) * var(--text-sm) + 3 * 2px + var(--space-3) +
+      1.75rem
+  );
+  box-sizing: border-box;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) :is(.card-artist, .card-meta) {
+  line-height: var(--tile-line);
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-footer {
+  min-height: 1.75rem;
+}
+
+/* Clamped, so one long title cannot make its row taller than the rest: two
+   lines of title, one of artist, two of date and medium. The full text is the
+   link's accessible name and is on the work's own page. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-artist {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* The row gap is small because each label already reserves its longest
+   shape (above), and the space it leaves usually separates the rows. */
+.grid:has(> .card:is([data-artwork], [data-artist])),
+.grid-skeleton:has(> .card.tile-skeleton) {
+  gap: var(--space-3) var(--space-5);
+}
+
 /* -- collection: the rails, the density control and the contact sheet -------
    Written here, with the grid, rather than at the end of the file: this is what
    the grid is embedded in, and the two are read together.
@@ -736,6 +1004,9 @@ h1,
 
 .facet-option {
   width: 100%;
+  min-height: var(--control-h-compact);
+  /* The counts line up down the rail as a column of figures would. */
+  font-variant-numeric: tabular-nums;
 }
 
 .facet-option:hover:enabled {
@@ -814,7 +1085,11 @@ h1,
 }
 
 .toolbar-menu [role="menuitemradio"] {
-  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h-compact);
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-3);
   font: var(--text-sm) / 1.4 var(--font-ui);
   color: var(--text);
   cursor: pointer;
@@ -1691,12 +1966,23 @@ th {
 
 /* -- panels, forms, controls ----------------------------------------------- */
 
+/* A section of a page, set off by a rule above it rather than a box around
+   it. A bordered panel on a tinted ground round every part of every page is
+   what made the client read as a form; a rule and space is how a catalogue
+   separates its parts (`design-direction.md` § Component Patterns, Sections).
+   A card is kept only where it is a block of facts and acts about one thing:
+   a theme, a work under review. */
 .panel {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-  margin-bottom: var(--space-5);
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-4) 0 0;
+  margin-bottom: var(--space-6);
+}
+
+/* The section that holds a page's own name is the page's head, not one of its
+   parts, so no rule is drawn above the name. */
+.panel:has(> h1) {
+  border-top: none;
+  padding-top: 0;
 }
 
 /* `h2`, `h3` or `h4`, one treatment. The rank of a panel's heading depends on
@@ -1708,7 +1994,7 @@ th {
  * whichever rank is used, which is what this selector says. */
 .panel :is(h2, h3, h4) {
   margin: 0 0 var(--space-3);
-  font: 400 var(--text-md) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
 }
 
@@ -1731,7 +2017,7 @@ th {
  * a view, of which the client has exactly two. */
 .wall-title {
   margin: 0 0 var(--space-1);
-  font: 400 var(--text-md) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
 }
 
@@ -1821,7 +2107,7 @@ section.wall {
  * same rank of thing — a titled block within a view — and the client has exactly
  * two heading treatments on purpose. It is repeated rather than shared with the
  * rule above: a selector list would tie two blocks that are free to diverge, and
- * `.panel h2` sits inside a bordered surface this one deliberately has not got.
+ * `.panel h2` sits under a section's rule, which this one deliberately has not got.
  *
  * These sections are direct children of the view root, so without a rule here
  * they fall back to browser defaults — the one failure in this bundle that no
@@ -1837,7 +2123,7 @@ section.wall {
  * works' titles do, on the same page, for no reason a reader could find. */
 .offer-group > h2 {
   margin: 0 0 var(--space-1);
-  font: 400 var(--text-md) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
 }
 
@@ -1863,6 +2149,8 @@ label {
 input[type="text"],
 textarea,
 select {
+  min-height: var(--control-h);
+  box-sizing: border-box;
   font: var(--text-md) / 1.4 var(--font-ui);
   color: var(--text);
   background: var(--surface-1);
@@ -1875,15 +2163,20 @@ select {
    themes", "Go to Ask", a way back. The second is a link, as every navigation
    is, and wears the act's shape because it sits among acts. */
 :is(button, a).action {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  box-sizing: border-box;
   text-decoration: none;
   appearance: none;
-  font: var(--text-sm) / 1 var(--font-ui);
+  font: var(--text-sm) / 1.2 var(--font-ui);
   color: var(--accent-text);
   background: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-4);
   cursor: pointer;
 }
 
@@ -1920,9 +2213,20 @@ button.action:disabled:hover {
   align-items: flex-end;
 }
 
-/* A row of acts under a sentence sits a step below it, never flush. */
-p + .row {
-  margin-top: var(--space-3);
+/* A row of acts sits one step below whatever precedes it, never flush: a
+   sentence, a list of facts, another row. Rows inside a flex column (`.stack`,
+   `.stack-tight`) are already spaced by its gap, and are left to it; a new
+   flex column of rows needs adding here, or its rows are spaced twice. */
+:not(.stack, .stack-tight, .row) > * + .row,
+:not(.stack, .stack-tight, .row) > * + .identity {
+  margin-top: var(--space-4);
+}
+
+/* A line under a row of acts that says what pressing costs or does. Close to
+   the row it explains, and small. */
+.row + .act-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold
@@ -2313,14 +2617,91 @@ dialog.confirm::backdrop {
 /* -- the Work page ------------------------------------------------------------
 
    The picture is the largest thing on the page: the wall render, mat and all,
-   across the column and up to most of the screen's height, kept at its own
-   aspect. The state strip sits under the title, and the secondary acts after
-   the facts. A description keeps the blank lines between its paragraphs. */
+   across its column beside the label (above it below 60rem), up to most of
+   the screen's height, kept at its own aspect. The state strip sits under the
+   title, and the secondary acts after the facts. A description keeps the
+   blank lines between its paragraphs. */
 
 .work-hero .work-picture {
   width: 100%;
   max-height: 75vh;
   object-fit: contain;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  filter: drop-shadow(var(--shadow-art));
+}
+
+/* Wall label: the picture and its label side by side, as on a gallery wall,
+   then the record below. Neither is boxed: a bordered panel round every part
+   of the page is what made it read as a form. Each part of the record is set
+   off by a rule above it instead. One column below 60rem, the breakpoint at
+   which the work detail stacks (§ Spacing & Layout). */
+.work-head {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: start;
+  margin-bottom: var(--space-8);
+}
+
+/* The head's two halves are not sections, so they carry no rule. */
+.work-head > .panel {
+  border-top: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* The picture stays in view while a long label is read beside it. */
+.work-head > .work-hero {
+  position: sticky;
+  top: var(--space-4);
+}
+
+/* The description is a paragraph, not a value, so it takes the label's whole
+   width under its term rather than the narrow value column beside it. */
+.work-label dl.facts dd:has(> .described) {
+  grid-column: 1 / -1;
+}
+
+/* The description is the label's own voice, so it is set in the label serif,
+   larger, at a measure a paragraph reads well at. */
+.work-label dl.facts dd .described {
+  /* A block, because the cap does nothing to an inline span. The label's own
+     column is narrower than this on most screens; the cap is for the band
+     just under 60rem where the label spans the main column. */
+  display: block;
+  font: 400 var(--text-lg) / 1.6 var(--font-label);
+  color: var(--text-strong);
+  max-width: 68ch;
+}
+
+.work-record {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  gap: 0 var(--space-6);
+  align-items: start;
+}
+
+.work-record > .panel {
+  margin: 0;
+  padding-bottom: var(--space-6);
+}
+
+/* A table of sources or renditions needs the page's width: at half of it the
+   paths and URLs wrap a word to a line. */
+.work-record > .panel:has(table) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 60rem) {
+  .work-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .work-head > .work-hero {
+    position: static;
+  }
 }
 
 .state-strip {
@@ -2528,12 +2909,19 @@ dialog.confirm::backdrop {
 /* Spend: the tier beside a spending control, and what is left of this month's
    budget under the sidebar's sections. The tier is words, never colour alone;
    a control that spends reads a shade stronger than one that is free. */
+/* A cost is read as words beside the act it prices, never as a box: a boxed
+   "$" beside a button reads as a second button. Its "Cost:" label is shown,
+   not only spoken, for the same reason. */
 .badge-tier {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+  align-self: center;
 }
 
-.badge-tier.tier-spends {
-  border-color: var(--border-strong);
+.badge-tier.tier-spends > .tier-value {
+  color: var(--text-strong);
   font-weight: 600;
 }
 
@@ -2663,6 +3051,12 @@ input[type="checkbox"] {
   .topbar .search input {
     min-width: 0;
     width: 100%;
+    /* The magnifier is hidden below, so the field's text starts at its edge. */
+    padding-left: var(--space-3);
+  }
+
+  .topbar .brand {
+    font-size: var(--text-xl);
   }
 
   .topbar .search button[type="submit"] {

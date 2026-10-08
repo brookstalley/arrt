@@ -90,6 +90,228 @@ setting, imperial by default; the first measurement only, with its qualifier.
   settling #142. The Settings › General control is deferred until the interface
   redesign merges (#329).
 
+## 2026-10-08: Wall label: the boundary review's findings
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The cumulative review over the merged branch.
+
+**What:**
+- A conversation's commit card says its cost under the Get row, as Ask does,
+  priced or not. It had sat above the Direction field.
+- The cost mark keeps "Cost:" and its tier on one line (`white-space:
+  nowrap`, lost with the `badge` class), and drops the border, background
+  and padding resets that no longer overrode anything.
+- `held_artists`' docstring says the artist's picture moves when the
+  circulating works or their masters change, not in two named cases only.
+- Get and review clarity keeps the owner's Ask ruling as given. Chunk 01
+  carries what Wall label built instead and puts it back to the owner.
+
+**Tests:** `test_the_commit_card_says_its_cost_under_the_get_it_prices`
+(priced and unpriced) failed before the move: there was no sentence under the
+row. `test_a_cost_is_words_beside_its_act_not_a_box` gains the `nowrap`
+check, which failed on `normal`.
+
+## 2026-10-08: Wall label: the review's touch-size and picture-choice findings
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The cumulative review of chunk 06 (`rev-20261008T213736Z-54a26b10`).
+
+**What:**
+- The 44px touch rule now reaches the top bar and the sidebar: the search
+  field, the magnifier, every sidebar link and the filter options are sized
+  from `--control-h` / `--control-h-compact`. `--masthead` is derived from
+  `--control-h` instead of copying its value.
+- How an artist's picture is chosen (a work with an image first) is now said
+  in `api-contract.md`, `information-architecture.md`, `http/models.py`,
+  `library/services/artists.py` and `screens/artists.js`. The docstring no
+  longer claims the choice never changes.
+- The cost mark drops the `badge` class.
+
+**Tests:** `test_a_touch_screen_gets_44px_controls` now measures every
+visible control on four kinds of page. Before the fix it failed on the
+search field (40px), the magnifier (32px) and every sidebar link (36–39px).
+`test_a_status_badge_keeps_its_boundary_on_its_own_ground`, added in chunk 03,
+is removed. It checked the state colour on its quiet ground at 3:1, the same
+pair `test_every_status_colour_clears_aa_on_its_own_quiet_ground` holds at
+4.5:1, so it could never fail on its own.
+
+## 2026-10-08: Wall label, chunk 06: controls
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The owner walked the redesign and found buttons "spaced
+erratically", "a jumble of button sizes", and a "$" that read as a button
+(`build-plan-wall-label.md` chunk 06).
+
+**What:**
+- A row of acts sits one step below whatever precedes it (it was `p + .row`
+  only), except inside a flex column, whose gap spaces it.
+- `--control-h` (2.5rem) and `--control-h-compact` (2rem) size every act,
+  field, menu item and the menu button. Both become 2.75rem under
+  `@media (pointer: coarse)`. `design-direction.md` had described that rule
+  as built for months; it was not in `app.css`.
+- A cost tier is words, "Cost: $", with no badge box, and its "Cost:" label
+  is visible. On Ask, the cost line moved from a boxed note above the buttons
+  to one muted line under them.
+- No rule is drawn above a page's name when the name sits inside a section
+  (the Artist page).
+- Found by the walk: the Artists index pictured an artist by their first
+  accepted work even when it had no image, so its thumbnail request was
+  answered 400 and the poster read "No picture". `held_artists` now prefers
+  the first accepted work holding a master.
+
+**Tests:** New: `test_the_controls.py` (rows spaced on every sidebar page and
+on an artist's page; every act at least `--control-h`; 44px controls in a
+touch context; the cost mark not boxed),
+`test_no_rule_is_drawn_above_a_page_s_name`, and
+`test_an_artist_is_pictured_by_a_work_with_an_image_before_one_without`. Each
+was watched failing against the code before it. `test_the_conversation.py`'s
+`shown_tier` helper now reads `.tier-value`: it read "the tier without the
+words only a screen reader hears", and the "Cost:" label is now shown to
+everyone. The tier it checks is unchanged.
+
+## 2026-10-08: Wall label, chunk 05: ruled sections everywhere, and the walk
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 05.
+
+**What:**
+- `.panel` is a section set off by a `--border-strong` rule above it, with no
+  box, ground or radius, on every page. The work page's own overrides shrink to
+  what is specific to it. Theme cards and review cards keep their cards.
+  `design-direction.md` § Component Patterns gains *Sections*, and *Cards*
+  says where a card is still used.
+- Fact values that hold a path or URL get a line-break opportunity after each
+  slash (`<wbr>`, in `facts()` in `core/badges.js`). CSS does not break after
+  "/" before a letter, so on a phone `overflow-wrap: anywhere` broke paths
+  wherever the column's edge fell. Removing the panels' side padding moved
+  that edge into the middle of a word on Status, and
+  `test_the_health_page_s_facts_break_between_words` went red. It had been
+  passing only because of where the edge happened to fall.
+- The work page's description cap (68ch) never applied, because the
+  description is an inline span. It is now a block.
+- `arrt/tools/ux_walk.py` walked a copy of the local library: 100 captures,
+  no accessibility violations, no console errors.
+
+**Tests:** New: `test_every_section_heading_has_the_one_h2_treatment` (watched
+failing with the old h2 size), the description's serif and measure at 959px
+(watched failing without the cap: 687px against 673px), and a failed work's
+page keeping the layout with its failure in the Master image section.
+
+## 2026-10-08: Wall label, chunk 04: a work's page
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 04.
+
+**What:**
+- The picture (the wall preview, as before) and its label sit side by side,
+  three to two, and stack below 60rem. The picture stays in view while a long
+  label is read. The description stays in the facts list, where a test pins
+  it, but takes the label's whole width and is set in the label serif at
+  `--text-lg`, at most 68ch.
+- The record (What this work is, Master image, Where it can be obtained, What
+  has been rendered, Mat colour) is a grid of sections separated by a rule,
+  not boxed panels. A section holding a table spans the full width.
+- The plan's assumption that the hero would sit on the work's mat colour is
+  corrected: the wall preview already carries the mat.
+
+**Tests:** New in `test_the_work_page.py`: side by side at 1280px and stacked
+at 800px, the record's sections in order, ruled and not boxed, for a held work
+and for one with nothing acquired. Watched failing against the old page, which
+has no `.work-head`.
+
+## 2026-10-08: Wall label, chunk 03: the work on a mat, its label beneath
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 03.
+
+**What:**
+- A work's tile (Artworks, an artist's works, a topic's) and an artist's
+  poster have no card: the picture sits on a `--surface-2` mat with
+  `--shadow-art` (a new token in both schemes), and the label sits beneath on
+  the page's ground. Selected by the `data-artwork` and `data-artist`
+  attributes the tiles already carry. The Artworks skeleton carries
+  `.tile-skeleton`, so it takes the same geometry. Theme cards and review
+  cards keep their cards.
+- The label's text is clamped (two lines of title, one of artist, two of date
+  and medium), and the label has a minimum height that fits its longest shape
+  and one row of badges. That is what keeps rows uniform. Sizing rows to the
+  tallest tile (`grid-auto-rows: 1fr`) was tried first and broke
+  `test_the_way_back_link_returns_to_card_20_as_back_does`: the page's length
+  changed as later pages arrived, and the restored scroll landed 90px short.
+- Facet counts are set in tabular figures. Right-aligning them is descoped,
+  with the reason in the plan.
+
+**Tests:** New: `test_the_tiles.py` (uniform rows with a three-line title in
+the first row, a two-line clamp, and no box with the picture on the mat).
+Watched failing against the old stylesheet: rows of 384 and 322px, four title
+lines, a solid border. `test_design_tokens.py` (chunk 02's status work, landed
+here): `test_a_status_ground_keeps_its_control_boundary` checked
+`--border-strong` on the status grounds, a pair drawn only by the old boxed
+status indicator. It is replaced by
+`test_a_status_badge_keeps_its_boundary_on_its_own_ground` (the state colour
+as a badge's border on its ground, at 3:1) and
+`test_every_status_colour_clears_aa_on_the_page_ground` (the status words on
+the page). Both were watched failing with `--warn` weakened.
+
+## 2026-10-08: Wall label, chunk 02: the shell
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** `build-plan-wall-label.md` chunk 02.
+
+**What:**
+- The sidebar's edge is painted on `.shell`, which is as tall as the page. As
+  a border on the sticky sidebar it stopped one window down on any longer page.
+  The sidebar and the top bar now sit on the page's ground. The current page is
+  marked with a 2px accent bar, and sub-pages are set at `--text-sm`.
+- The search's magnifier, inside the field, is the form's submit button,
+  named "Search". On a phone the bar stays on one row as before, the magnifier
+  is hidden there as the button was, and the field's text starts at its edge.
+- The status indicator is its glyph and words in the state's colour, with no
+  box, and is still a link to System › Status. The brand is set at
+  `--text-2xl` (`--text-xl` on a phone) and never shrinks.
+
+**Tests:** New: `test_the_shell.py`. The sidebar-edge test reads the pixel at
+the sidebar's edge near the bottom of a page longer than the window. It was
+watched failing against the old stylesheet, where it read the ground instead
+of the border. The search-button test passes on both the old and new shells,
+on purpose: it pins the accessible name across the change.
+
+## 2026-10-08: Wall label, chunk 01: Newsreader and Instrument Sans, self-hosted
+
+<!-- prawduct: scope=wall-label -->
+
+**Why:** The owner said the client still looked amateur in its layout, type
+and design system. They chose direction A ("Wall label") from a Claude Design
+canvas, and ruled that webfonts may be used, reversing design-direction's
+"no webfont" (`build-plan-wall-label.md`).
+
+**What:**
+- Newsreader (`--font-label`) and Instrument Sans (`--font-ui`) are served
+  from `arrt/src/arrt/http/static/fonts/` as variable woff2 files in Latin and
+  Latin Extended subsets. Each family's OFL licence is beside its files, and a
+  README names the source package and version. The system stacks remain as
+  fallbacks. No CDN.
+- `--text-3xl` (2.5rem) is a page's `h1` on every page. Section headings
+  (`.panel` h2–h4, a wall's title, an offered group) and the confirmation's
+  title are now `--text-xl` at weight 500.
+- `design-direction.md` § Typography is rewritten as the owner's ruling, with
+  the old reasons answered rather than deleted, and § Component Patterns
+  "Headings" records the new sizes.
+
+**Tests:** New: `test_the_typefaces.py` reads the browser's record of each
+face and requires both Latin upright faces to be `loaded`; also
+`test_every_font_the_stylesheet_names_is_served_as_a_font`. Both were watched
+failing with `newsreader/latin-normal.woff2` renamed: the face's status was
+`error`, and the served-font test got a 404. `test_component_rules.py`'s h1
+probe now reads `--text-3xl`. The contract is unchanged: one h1 size on every
+page; the size it names is what changed.
 ## 2026-10-08: A label is one panel refresh, not a clear and then a frame
 
 <!-- prawduct: scope=fix-epaper-single-refresh -->

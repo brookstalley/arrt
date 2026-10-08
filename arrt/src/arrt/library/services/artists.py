@@ -74,7 +74,8 @@ class HeldArtist:
     artist: Artist
     held: int
     #: The work the Artists index pictures them by: their first accepted work in
-    #: circulation. None for an artist with nothing in circulation (`get` only).
+    #: circulation that holds a master image, else their first accepted work.
+    #: None for an artist with nothing in circulation (`get` only).
     pictured: str | None = None
 
 

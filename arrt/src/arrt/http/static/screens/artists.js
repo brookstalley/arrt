@@ -85,10 +85,11 @@ function artistView() {
 }
 
 /* One card per artist, in surname order, pictured by their first accepted
- * work: no artist has a picture of their own. Every artist the index lists
- * has one, since it lists only artists with a work in circulation. Uncropped,
- * as every work here is shown. A picture that fails to load — a work whose
- * master has not arrived yet — says so in its place, leaving the card's words. */
+ * work that holds a master image (the server's choice, `held_artists`): no
+ * artist has a picture of their own. Every artist the index lists has a work,
+ * since it lists only artists with a work in circulation. Uncropped, as every
+ * work here is shown. A picture that fails to load (an artist none of whose
+ * works has its master yet) says so in its place, leaving the card's words. */
 function artistPosters(artists, count) {
   return el("section", { "aria-label": count }, [
     el("p", { class: "muted", text: count }),
