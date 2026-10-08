@@ -146,8 +146,8 @@ Clients or with `POST /api/walls/<wall_id>/client {client_id, output}`. The
 Player starts that wall within a poll (about 30 s).
 
 **The Frame is optional, and was left off on 2026-10-02.** `TV_ADDRESS` gives the
-client a `frame` output, and `EPD_DEVICE` (the label panel) is refused without
-it. Both are commented out in the Pi's `.env` while the set is being watched, so
+client a `frame` output, and `EPD_DEVICE` gives it a label output, `epd-0`, which
+needs no Frame: the server maps it to any wall. Both are commented out in the Pi's `.env` while the set is being watched, so
 the client reports only its HDMI connectors and nothing on the Pi can reach for
 the television.
 
@@ -178,6 +178,26 @@ the television.
    Pi ran before (`7e211f1`), `uv sync` as above, restore
    `.env.pre-clients-<date>`, install that revision's `deploy/display.service`,
    and start it again.
+
+## Displays and labels (2026-10-08, `build-plan-displays-and-label-outputs.md`)
+
+**Copy the catalogue before deploying this server.** Opening the catalogue
+gives every assigned wall a display record and drops `walls.client_id` and
+`walls.output`, so an older image cannot read it afterwards:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-displays-<timestamp>.sqlite"
+
+The way back is that copy and the previous image, together.
+
+**Either order works, and server first is the one to choose.** A new server
+reads an older Player's client heartbeat (the new keys are optional), and an
+older Player ignores the new keys in `GET /client`. A new Player against an old
+server is given no labels, so its panel draws nothing until the server is
+updated.
+
+**After the Player update, a panel draws nothing until it is mapped.** It is
+reported as the client's label output `epd-0`; caption a wall with it on
+Settings › Clients. `EPD_DEVICE` no longer needs `TV_ADDRESS`.
 
 ## The two new units, and where everything they name now lives
 
@@ -517,11 +537,12 @@ differently from the others, which is the point of having four rather than one.
 **Read the heartbeat rather than the wall.** `television_reachable: false` is a
 network or pairing problem; `television_showing_art: false` with the set awake
 means somebody is watching television and the plane is correctly leaving it alone;
-`has_label_surface: true` with `label_surface_working: false` is a panel that was
-configured and would not open — which costs the label and nothing else, and is a
-different fault from `has_label_surface: false`, which is a device that never had
-one. `label_surface_working: null` means nothing has been drawn yet, not that
-something failed.
+the wall heartbeat says nothing about the label panel any more
+(`has_label_surface: false`, `label_surface_working: null` on every wall): the panel
+is a label output of the client, reported in the client heartbeat on the server's
+Settings › Clients. There, `connected: false` is a panel that was configured and
+would not open, or whose last draw failed — which costs the label and nothing
+else — and a client with no `label_outputs` never had one.
 
 **A `last_error` of `null` and a `reported_at` that is not advancing is worse than
 an error**, because it means the daemon is not looping. Read it twice, a minute

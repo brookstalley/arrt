@@ -1,9 +1,9 @@
 """Pull each wall's manifest and renders into its cache, report its heartbeat, and ask the server which walls this client drives.
 
 **The only module in this plane that speaks HTTP**, and
-`tests/preferences/test_plane_isolation.py` holds it to that. It spells four
+`tests/preferences/test_plane_isolation.py` holds it to that. It spells five
 routes — the client document and the client heartbeat, a wall's manifest and a
-wall's heartbeat — as `contract/routes.json` spells them. Renders are fetched
+wall's heartbeat, and a label's document — as `contract/routes.json` spells them. Renders are fetched
 from the address each manifest entry's `media.url` gives, resolved against the
 manifest's own URL: today the same server's media route, after a
 Library/Programming split perhaps another host. The client's token is sent to
@@ -49,6 +49,7 @@ from postarr.client import ClientDocument, ClientDocumentUnreadable, parse_clien
 from postarr.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSettings
 from postarr.episodes import ReportOnce
 from postarr.heartbeat import path_in as heartbeat_path_in
+from postarr.label_rule import LabelDocument, LabelDocumentUnreadable, parse_label_document
 from postarr.manifest import ManifestUnreadable, parse
 
 log = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ CLIENT_ROUTE: Final[str] = "/client"
 CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
 MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
+LABEL_ROUTE: Final[str] = "/labels/{label_id}"
 
 #: Beside the cached manifest: the ETag it was served with, so a restarted Player
 #: asks "has it changed since this?" rather than downloading it again.
@@ -582,6 +584,126 @@ class ClientPull:
                 self._server,
                 why,
                 extra={"event": "client.unreachable", "server_url": self._server},
+            )
+
+
+@dataclass(frozen=True)
+class LabelAnswer:
+    """What one poll of a label document found."""
+
+    #: False when the server could not be reached (no answer, a timeout, a 5xx):
+    #: the renderer reads its last document as offline. True for every answer,
+    #: a refusal included.
+    reachable: bool
+    #: A new document this reader accepted, or None to keep the one it has.
+    document: LabelDocument | None = None
+
+
+class LabelPull:
+    """`GET /labels/{label_id}` with this client's token and an ETag: a label renderer's link.
+
+    **Read with the manifest's posture.** A refusal (`401`, `403`, `404`) or a
+    document this reader cannot use keeps the last good one; transport errors,
+    timeouts and `5xx` mean the server is unreachable, which the renderer answers
+    by holding its caption for the rule's 30 minutes. Each is said once when it
+    starts and once when it ends. The ETag is held in memory beside the document
+    the renderer holds, so a restarted renderer asks for the whole document.
+    """
+
+    def __init__(self, settings: ClientSettings, label_id: str) -> None:
+        self._server = settings.server_url
+        self._token = settings.client_token
+        self._label_id = label_id
+        self._url = self._server + LABEL_ROUTE.format(label_id=label_id)
+        self._etag: str | None = None
+        self._session: aiohttp.ClientSession | None = None
+        self._unreachable = ReportOnce()
+        self._refused_status: dict[int, ReportOnce] = {}
+        self._unreadable = ReportOnce()
+
+    async def fetch(self) -> LabelAnswer:  # noqa: C901 -- one branch per answer the server can give
+        headers = {"Authorization": f"Bearer {self._token}"}
+        if self._etag is not None:
+            headers["If-None-Match"] = self._etag
+        try:
+            async with self._client().get(self._url, headers=headers) as response:
+                status = response.status
+                body = await response.read() if status == HTTPStatus.OK else b""
+                served_etag = response.headers.get("ETag")
+        except _UNREACHABLE as exc:
+            self._report_unreachable(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
+            return LabelAnswer(reachable=False)
+        if status >= HTTPStatus.INTERNAL_SERVER_ERROR:
+            self._report_unreachable(f"it answered {status}")
+            return LabelAnswer(reachable=False)
+        if self._unreachable.end():
+            log.info(
+                "the server answers label %s again",
+                self._label_id,
+                extra={"event": "label.server_reachable", "label_id": self._label_id},
+            )
+        if status not in (200, 304):
+            episode = self._refused_status.setdefault(status, ReportOnce())
+            if episode.begin():
+                reason = {
+                    401: "it does not accept this client's token (CLIENT_TOKEN)",
+                    403: "this label output is not this client's, or the server holds no such label",
+                }.get(status, f"it answered {status}")
+                log.error(
+                    "the server refused label %s: %s; keeping what the panel shows",
+                    self._label_id,
+                    reason,
+                    extra={"event": "label.refused", "label_id": self._label_id, "status": status},
+                )
+            return LabelAnswer(reachable=True)
+        for refused, episode in self._refused_status.items():
+            if episode.end():
+                log.info(
+                    "the server serves label %s again after %d",
+                    self._label_id,
+                    refused,
+                    extra={"event": "label.accepted", "label_id": self._label_id, "status": refused},
+                )
+        if status == HTTPStatus.NOT_MODIFIED:
+            return LabelAnswer(reachable=True)
+        try:
+            document = parse_label_document(body.decode("utf-8"))
+        except (UnicodeDecodeError, LabelDocumentUnreadable) as exc:
+            if self._unreadable.begin():
+                log.error(  # noqa: TRY400 -- the message is the finding
+                    "refusing the label document the server sent for %s (%s); keeping the last one",
+                    self._label_id,
+                    exc,
+                    extra={"event": "label.document_refused", "label_id": self._label_id},
+                )
+            return LabelAnswer(reachable=True)
+        if self._unreadable.end():
+            log.info(
+                "the server's label document for %s can be read again",
+                self._label_id,
+                extra={"event": "label.document_readable", "label_id": self._label_id},
+            )
+        self._etag = served_etag or None
+        return LabelAnswer(reachable=True, document=document)
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
+
+    def _client(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10, connect=5))
+        return self._session
+
+    def _report_unreachable(self, why: str) -> None:
+        if self._unreachable.begin():
+            log.warning(
+                "the server at %s cannot be reached for label %s (%s); the label holds its caption for 30 minutes",
+                self._server,
+                self._label_id,
+                why,
+                extra={"event": "label.server_unreachable", "label_id": self._label_id, "server_url": self._server},
             )
 
 

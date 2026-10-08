@@ -266,3 +266,65 @@ def retire_wall_tokens(connection: sqlite3.Connection) -> None:
         connection.execute(f'ALTER TABLE walls DROP COLUMN "{column}"')
     connection.commit()
     log.info("Dropped walls.%s: Players are admitted by their client's token now.", " and walls.".join(retired))
+
+
+#: The columns a wall named its screen by before displays were records.
+_WALL_PLACEMENT_COLUMNS: Final[tuple[str, ...]] = ("client_id", "output")
+
+
+def walls_name_displays(connection: sqlite3.Connection) -> None:
+    """Move each wall from a client and an output name onto a display record, keeping it where it hangs.
+
+    Before 2026-10-08 a wall named the client that showed it and the name of that
+    client's output. A wall now names a display, the server's record of the
+    screen, which names its client. Every assigned wall gets a display keyed
+    `{client_id}/{output}`, the identity a client-attached output has, on the
+    same client and output, so `GET /client` names the same walls on the same
+    outputs before and after. A Frame's display is re-keyed to the set's own
+    identity the first time its client reports one on that output
+    (`ClientService.record_heartbeat`), and keeps its walls.
+
+    Guarded by the file, and ordered so that any prefix is finished by the next
+    open: the rows are carried and committed before the columns that held them
+    are dropped, and a wall that already names a display is not carried again.
+    """
+    present = [column for column in _WALL_PLACEMENT_COLUMNS if _has_column(connection, "walls", column)]
+    if not present:
+        return
+    # Both or neither, except after an open interrupted between the two drops
+    # below, when only `output` is left and there is nothing to carry.
+    carried = (
+        connection.execute(
+            "SELECT id, client_id, output FROM walls WHERE client_id IS NOT NULL AND output IS NOT NULL AND display_id IS NULL"
+        ).fetchall()
+        if len(present) == len(_WALL_PLACEMENT_COLUMNS)
+        else []
+    )
+    now = datetime.now(UTC).isoformat()
+    for wall in carried:
+        identity = f"{wall['client_id']}/{wall['output']}"
+        found = connection.execute("SELECT id FROM displays WHERE identity = ?", (identity,)).fetchone()
+        if found is None:
+            display_id = str(uuid.uuid4())
+            # Kind is left unknown: the file never held it, and the client's next
+            # report states it. Guessed from the output's name, it would be a fact
+            # this server made up.
+            connection.execute(
+                "INSERT INTO displays (id, identity, client_id, output, kind, first_seen) VALUES (?, ?, ?, ?, NULL, ?)",
+                (display_id, identity, wall["client_id"], wall["output"], now),
+            )
+        else:
+            display_id = found["id"]
+        connection.execute("UPDATE walls SET display_id = ? WHERE id = ?", (display_id, wall["id"]))
+    connection.commit()
+
+    _require_drop_column(predates="displays")
+    # The index first: SQLite refuses to drop a column an index names.
+    connection.execute("DROP INDEX IF EXISTS walls_one_per_output")
+    for column in present:
+        connection.execute(f'ALTER TABLE walls DROP COLUMN "{column}"')
+    connection.commit()
+    log.info(
+        "Moved %d assigned wall(s) onto display records and dropped walls.client_id and walls.output.",
+        len(carried),
+    )

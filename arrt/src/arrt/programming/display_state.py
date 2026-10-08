@@ -4,8 +4,9 @@
 states in its heartbeat (minor 3's `display_state`); the server adds two that no
 controller can report about itself:
 
-- **`unassigned`**: no client output shows the wall, so there is no screen to
-  speak of whatever any file says.
+- **`unassigned`**: no client shows the wall, so there is no screen to speak of
+  whatever any file says: it has no display, its display has no client, or two
+  clients report its display (`clients.Placements`, which decides it).
 - **`silent`**: the wall's last report is older than `STALE_AFTER_SECONDS`, or
   there is no readable report at all. What it last said is kept as `last`, so a
   label can hold its caption for a while and Walls can say what was last seen.
@@ -25,7 +26,6 @@ from enum import StrEnum
 from typing import Final
 
 from arrt import observations
-from arrt.persistence.records import Wall
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, HeartbeatReading
 
@@ -101,9 +101,14 @@ def reported_state(contents: dict[str, object]) -> ReportedState:
     return ReportedState(state=ScreenState.UNREACHABLE, work_id=None, since=None)
 
 
-def display_state_of(wall: Wall, reading: HeartbeatReading) -> DisplayState:
-    """The wall's state: unassigned, else silent, else what its controller reported."""
-    if wall.client_id is None or wall.output is None:
+def display_state_of(reading: HeartbeatReading, *, shown: bool) -> DisplayState:
+    """The wall's state: unassigned, else silent, else what its controller reported.
+
+    `shown` is whether a client shows the wall now, which only
+    `clients.Placements` decides, so every caller asks it rather than reading a
+    wall's display itself.
+    """
+    if not shown:
         return DisplayState(state=ScreenState.UNASSIGNED, work_id=None, since=None, reported_at=None, age_seconds=None, last=None)
     readable = reading.contents is not None and reading.problem is None
     last = reported_state(reading.contents) if readable and reading.contents is not None else None

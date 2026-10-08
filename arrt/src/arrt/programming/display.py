@@ -41,7 +41,8 @@ from arrt.library.facade import (
     WorkChanged,
 )
 from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
-from arrt.programming.display_state import DisplayState, display_state_of
+from arrt.programming.clients import Placements
+from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import (
     Exclusion,
@@ -272,6 +273,7 @@ class DisplayService:
         self._store = store
         self._library = library
         self._settings = settings
+        self._placements = Placements(store, settings.art_root)
 
     # -- reads: themes --------------------------------------------------------
 
@@ -384,8 +386,8 @@ class DisplayService:
         )
 
     def _display_state(self, wall: Wall) -> DisplayState:
-        """What the wall's screen is doing, read from its heartbeat file now."""
-        return display_state_of(wall, heartbeat.read(self._settings.heartbeat_path(wall.id)))
+        """What the wall's screen is doing, read from its heartbeat file now, as every label reads it too."""
+        return self._placements.wall_state(wall).state
 
     def survey_themes(self) -> Sequence[ThemePlacement]:
         """Every theme with every wall showing it.

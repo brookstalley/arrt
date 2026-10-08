@@ -5,6 +5,7 @@
     "client_heartbeat": {"method": "POST", "path": "/client/heartbeat"},
     "manifest": {"method": "GET", "path": "/walls/{wall_id}/manifest"},
     "media": {"method": "GET", "path": "/media/sha256-{sha256}"},
-    "heartbeat": {"method": "POST", "path": "/walls/{wall_id}/heartbeat"}
+    "heartbeat": {"method": "POST", "path": "/walls/{wall_id}/heartbeat"},
+    "label": {"method": "GET", "path": "/labels/{label_id}"}
   }
 }

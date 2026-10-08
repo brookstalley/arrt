@@ -33,6 +33,7 @@ from postarr.panel import (
     type_scale_for,
 )
 from postarr.tv import (
+    IdentityUnreadable,
     PowerStateUnreadable,
     RemovalOutcome,
     SelectionAnnouncement,
@@ -135,6 +136,10 @@ class FakeTv(TvClient):
         #: which the real seam reports as unreadable rather than as an outage.
         self.power_unreadable = False
         self.power_reads = 0
+        #: The set's `device.duid`, or None for a set whose description carries
+        #: none. Read without a connection, as the real read is.
+        self.device_id: str | None = "uuid:frame-in-the-living-room"
+        self.identity_reads = 0
 
     async def connect(self) -> None:
         """Cheap once connected, exactly as the real client is.
@@ -255,6 +260,17 @@ class FakeTv(TvClient):
         if self.power_unreadable or self.unavailable or not self._connected:
             raise PowerStateUnreadable("the set's device description did not answer")
         return self.power
+
+    async def read_identity(self) -> str:
+        # **Needs no connection**, as the real read opens its own REST client and
+        # never the art channel; it fails where that one fails, on a set that
+        # does not answer and on a description with no duid.
+        self.identity_reads += 1
+        if self.unavailable:
+            raise IdentityUnreadable("the set's device description did not answer")
+        if self.device_id is None:
+            raise IdentityUnreadable("the set's device description carries no device.duid")
+        return self.device_id
 
     def observe_selections(self, observer: SelectionObserver) -> None:
         # Idempotent, as the real client is: subscribing twice must not mean being

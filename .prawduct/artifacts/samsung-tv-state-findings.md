@@ -405,6 +405,31 @@ reports what has been observed instead.
 clients the set allows, and how long an abandoned one is held. A daemon that
 crash-loops could lock itself out of its own television.
 
+## The set's identity, from its REST device description (2026-10-08)
+
+Measured on 2026-10-08 with one `GET /api/v2/` on each port, sent from the wall's
+Pi with the set in standby. No key, no pairing, no art channel. The Pi's own
+daemon was not involved: its Frame output is switched off for now, and its HDMI
+output drives a separate LCD.
+
+- **The set names itself four times, with one value.** The top-level `id`,
+  `device.id`, `device.duid` and `device.udn` all carried the same
+  `uuid:…` string, on both ports. The value is not recorded here; any set's
+  reply shows its own.
+- **Port 8002, over TLS, answers the same document as 8001**: HTTP 200 in
+  0.14 s, against 0.015 s on 8001. That is the art client's port, which
+  `SamsungTv.power_state` reads, so its read was answered here, from standby,
+  as `PowerState: standby`.
+- **The reply also carries the set's `ip` and `wifiMac`.** Neither belongs in
+  this public repository, and neither is an identity a Display may be keyed on:
+  the address changes with the network.
+- *Not observed:* whether the id survives a reboot or a factory reset, and what
+  `PowerState` says while the set shows television on 8002. A UPnP `udn` is
+  meant to be stable for the life of a device, which is why `device.duid` is the
+  identity a Frame reports (`player-contract.md` § Transport), but that is the
+  standard's promise, not a measurement of this set. A Display re-keyed by a reset
+  would show up as a new display with no walls, which a curator can map again.
+
 ## What is still owed
 
 1. **The concurrent-client limit** described in the section above.
@@ -444,5 +469,7 @@ crash-loops could lock itself out of its own television.
    `dark`). It is bounded at 2 s and its failure is reported as `in_use`. Its unit
    tests drive the library's real REST client over a recording session; whether
    this firmware answers it on the art client's port (8002, over TLS) as it does
-   on 8001, and how quickly, is unmeasured until the build plan's chunk 05 sees
-   the set in use and off on Walls.
+   on 8001 was measured from standby on 2026-10-08 (§ The set's identity: 0.14 s,
+   `standby`); the reading while the set shows television is still unmeasured
+   until the display-state build plan's on-the-wall chunk sees the set in use and
+   off on Walls.

@@ -82,10 +82,15 @@ class TestWhatMustBeSet:
         with pytest.raises(ConfigError, match="TV_PORT"):
             load(an_environment(cache_dir, TV_PORT="eight-thousand"))
 
-    def test_a_label_panel_with_no_frame_to_caption_is_refused(self, cache_dir: Path):
-        """The panel captions the wall on the Frame; with no Frame it would caption nothing, silently."""
-        with pytest.raises(ConfigError, match="EPD_DEVICE"):
-            load(an_environment(cache_dir, frame=False, EPD_DEVICE="waveshare_epd.it8951"))
+    def test_a_label_panel_with_no_frame_is_a_client_with_a_label_output(self, cache_dir: Path):
+        """**Reversed on purpose** (`labels-and-surfaces.md` ruling 3): a label output
+        may live on a client with no display at all, and the server maps it to a
+        wall on any client. So `EPD_DEVICE` without `TV_ADDRESS` starts, with no
+        Frame and a panel."""
+        settings = load(an_environment(cache_dir, frame=False, EPD_DEVICE="waveshare_epd.it8951"))
+
+        assert settings.frame is None
+        assert settings.panel.epd_device == "waveshare_epd.it8951"
 
 
 class TestTheFrameIsAnOutputAClientMayHave:
@@ -113,8 +118,8 @@ class TestWhatDefaults:
         assert settings.poll_interval_seconds == 1.0
         assert settings.client_poll_seconds == 30.0
         assert settings.frame.tv_port == 8002
-        assert settings.frame.epd_panel_width_px == 1448
-        assert settings.frame.epd_panel_height_px == 1072
+        assert settings.panel.epd_panel_width_px == 1448
+        assert settings.panel.epd_panel_height_px == 1072
         assert settings.frame.tv_client_name == "tvpi"
         assert settings.frame.tv_token_file == cache_dir / "token_file"
 
@@ -122,7 +127,7 @@ class TestWhatDefaults:
         """This deployment is a 1448×1072 IT8951; the product must run on any."""
         settings = load(an_environment(cache_dir, EPD_PANEL_WIDTH_PX="800", EPD_PANEL_HEIGHT_PX="600"))
 
-        assert (settings.frame.epd_panel_width_px, settings.frame.epd_panel_height_px) == (800, 600)
+        assert (settings.panel.epd_panel_width_px, settings.panel.epd_panel_height_px) == (800, 600)
 
     def test_the_three_values_that_decide_whether_this_device_has_a_panel(self, cache_dir: Path):
         """**The names a misspelling makes invisible.**
@@ -134,13 +139,13 @@ class TestWhatDefaults:
         a device with no panel. That is the exact distinction this plane was built
         to draw, collapsed by a typo nothing else would catch.
         """
-        frame = load(
+        panel = load(
             an_environment(cache_dir, EPD_DEVICE="waveshare_epd.it8951", EPD_MARGIN_PX="64", EPD_ROTATE_DEGREES="0")
-        ).frame
+        ).panel
 
-        assert frame.epd_device == "waveshare_epd.it8951"
-        assert frame.epd_margin_px == 64
-        assert frame.epd_rotate_degrees == 0
+        assert panel.epd_device == "waveshare_epd.it8951"
+        assert panel.epd_margin_px == 64
+        assert panel.epd_rotate_degrees == 0
 
     def test_a_deployment_that_says_nothing_about_a_panel_has_none(self, cache_dir: Path):
         """The supported deployment rather than the degraded one.
@@ -150,11 +155,11 @@ class TestWhatDefaults:
         does not: it derives from the type, so this value is an override nobody
         has exercised rather than a default everybody inherits.
         """
-        frame = load(an_environment(cache_dir)).frame
+        panel = load(an_environment(cache_dir)).panel
 
-        assert frame.epd_device == ""
-        assert frame.epd_margin_px is None
-        assert frame.epd_rotate_degrees == 180
+        assert panel.epd_device == ""
+        assert panel.epd_margin_px is None
+        assert panel.epd_rotate_degrees == 180
 
     def test_the_viewing_conditions_have_no_defaults_and_must_not_acquire_any(self, cache_dir: Path):
         """**The one pair in this module that may never be guessed.**
@@ -164,10 +169,10 @@ class TestWhatDefaults:
         and every test passes. That is not hypothetical; it is what shipped. A
         default here would restore it.
         """
-        stated = load(an_environment(cache_dir, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84")).frame
+        stated = load(an_environment(cache_dir, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84")).panel
         assert (stated.epd_panel_diagonal_inches, stated.epd_viewing_distance_inches) == (6.0, 84.0)
 
-        unstated = load(an_environment(cache_dir)).frame
+        unstated = load(an_environment(cache_dir)).panel
         assert unstated.epd_panel_diagonal_inches is None
         assert unstated.epd_viewing_distance_inches is None
 
@@ -242,16 +247,22 @@ class TestTheStartupLine:
         assert lines["wall_id"] == "study"
         assert lines["manifest_path"] == str(cache_dir / "study" / "manifest.json")
         assert lines["heartbeat_path"] == str(cache_dir / "study" / "display-heartbeat-study.json")
-        assert lines["epd_panel_px"] == "1448x1072"
+
+    def test_the_clients_line_names_its_panel_with_or_without_a_frame(self, cache_dir: Path):
+        """The panel is the client's now, so its geometry is on the client's line, Frame or no Frame."""
+        for frame in (True, False):
+            lines = load(an_environment(cache_dir, frame=frame, EPD_DEVICE="waveshare_epd.it8951")).startup_lines()
+            assert lines["panel"]["epd_panel_px"] == "1448x1072"
+            assert lines["panel"]["epd_device"] == "waveshare_epd.it8951"
 
     def test_it_names_the_viewing_conditions_the_type_was_sized_from(self, cache_dir: Path):
         lines = load(an_environment(cache_dir, EPD_PANEL_DIAGONAL_INCHES="6", EPD_VIEWING_DISTANCE_INCHES="84")).startup_lines()
 
-        assert "6.0" in str(lines["frame"]["epd_viewing"])
-        assert "84.0" in str(lines["frame"]["epd_viewing"])
+        assert "6.0" in str(lines["panel"]["epd_viewing"])
+        assert "84.0" in str(lines["panel"]["epd_viewing"])
 
     def test_unstated_viewing_conditions_are_reported_as_what_they_cost(self, cache_dir: Path):
-        line = str(load(an_environment(cache_dir)).startup_lines()["frame"]["epd_viewing"])
+        line = str(load(an_environment(cache_dir)).startup_lines()["panel"]["epd_viewing"])
 
         assert "not stated" in line
         assert "draws none" in line, f"the line does not say what the absence costs: {line}"

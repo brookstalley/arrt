@@ -9,6 +9,7 @@ against `TvClient` and can be exercised without a television or its library.
 
 from postarr.tv.client import (
     UPLOADED_CATEGORY,
+    IdentityUnreadable,
     PowerStateUnreadable,
     RemovalOutcome,
     SelectionAnnouncement,
@@ -21,6 +22,7 @@ from postarr.tv.client import (
 
 __all__ = [
     "UPLOADED_CATEGORY",
+    "IdentityUnreadable",
     "PowerStateUnreadable",
     "RemovalOutcome",
     "SelectionAnnouncement",

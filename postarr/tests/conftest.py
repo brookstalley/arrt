@@ -16,7 +16,7 @@ import pytest
 from fakes import FakeTv
 from hypothesis import settings as hypothesis_settings
 
-from postarr.config import CACHED_MANIFEST_FILENAME, ClientSettings, FrameSettings, Settings
+from postarr.config import CACHED_MANIFEST_FILENAME, ClientSettings, FrameSettings, PanelSettings, Settings
 from postarr.daemon import Clock, Daemon
 from postarr.manifest import Watcher
 from postarr.state import DisplayState
@@ -126,22 +126,6 @@ def frame_settings(cache_dir: Path) -> FrameSettings:
         tv_port=8002,
         tv_token_file=cache_dir / "token_file",
         tv_client_name="tvpi-test",
-        epd_panel_width_px=1448,
-        epd_panel_height_px=1072,
-        # The reference wall: a 6-inch panel read from 7 feet. Stated even though
-        # the fixture below configures no panel, because a `Settings` that omitted
-        # them would let a test reach a code path no real deployment with a label
-        # can be in — the two are what a label surface is derived from.
-        epd_panel_diagonal_inches=6.0,
-        epd_viewing_distance_inches=84.0,
-        # None, which is the shipped shape: the border derives from the type
-        # rather than being chosen beside it. Tests wanting a specific one build
-        # their own `Geometry`.
-        epd_margin_px=None,
-        epd_rotate_degrees=180,
-        # Empty, so the daemon fixtures below get the deployment most devices are:
-        # a television and no panel. The tests that want one attach a double.
-        epd_device="",
         latitude=45.68,
         longitude=-111.04,
         location_name="Bozeman",
@@ -162,7 +146,30 @@ def frame_settings(cache_dir: Path) -> FrameSettings:
 
 
 @pytest.fixture
-def client_settings(cache_dir: Path, frame_settings: FrameSettings) -> ClientSettings:
+def panel_settings() -> PanelSettings:
+    """The label panel as a client with none states it: the reference geometry, no device."""
+    return PanelSettings(
+        epd_panel_width_px=1448,
+        epd_panel_height_px=1072,
+        # The reference wall: a 6-inch panel read from 7 feet. Stated even though
+        # the fixture configures no panel, because settings that omitted them
+        # would let a test reach a code path no real deployment with a label can
+        # be in — the two are what a label surface is derived from.
+        epd_panel_diagonal_inches=6.0,
+        epd_viewing_distance_inches=84.0,
+        # None, which is the shipped shape: the border derives from the type
+        # rather than being chosen beside it. Tests wanting a specific one build
+        # their own `Geometry`.
+        epd_margin_px=None,
+        epd_rotate_degrees=180,
+        # Empty, so the fixtures get the deployment most devices are: a
+        # television and no panel. The tests that want one attach a double.
+        epd_device="",
+    )
+
+
+@pytest.fixture
+def client_settings(cache_dir: Path, frame_settings: FrameSettings, panel_settings: PanelSettings) -> ClientSettings:
     """A client with a Frame. Its server is an address nothing listens on; tests that talk to one replace it."""
     return ClientSettings(
         server_url="http://127.0.0.1:9",
@@ -172,6 +179,7 @@ def client_settings(cache_dir: Path, frame_settings: FrameSettings) -> ClientSet
         rotation_interval_fallback_seconds=180,
         rotation_shuffle_fallback=False,
         frame=frame_settings,
+        panel=panel_settings,
     )
 
 

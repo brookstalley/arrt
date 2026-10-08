@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/brookstalley/arrt/contract/schemas/label.v1.schema.json",
+  "title": "Label document, major 1",
+  "description": "What GET /labels/{label_id} answers: the state of the wall a label output captions, and the text the label would show, never a layout. A label renderer polls it about once a second with If-None-Match and decides caption, card or blank by the label rule (contract/vectors/label-rule.json), which it runs itself so that the 30-minute hold still runs while the server is unreachable. Additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md § Transport and labels-and-surfaces.md § What a label says.",
+  "type": "object",
+  "required": [
+    "schema",
+    "wall_id",
+    "wall_name",
+    "display_state",
+    "label"
+  ],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "required": [
+        "major",
+        "minor"
+      ],
+      "properties": {
+        "major": {
+          "const": 1
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "wall_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "wall_name": {
+      "description": "The curator's name for the wall, which a quiet card shows.",
+      "type": "string",
+      "minLength": 1
+    },
+    "display_state": {
+      "description": "The wall's display state as the server states it everywhere, Walls included (labels-and-surfaces.md § Display state): the controller's five and the server's two.",
+      "type": "object",
+      "required": [
+        "state",
+        "work_id",
+        "since"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "description": "showing_art, in_use, dark, no_screen and unreachable as the wall's controller reported them; unassigned: no display shows the wall; silent: the wall's last report is stale or there is none. A reader that meets a state it does not know reads it as unreachable.",
+          "enum": [
+            "showing_art",
+            "in_use",
+            "dark",
+            "no_screen",
+            "unreachable",
+            "unassigned",
+            "silent"
+          ]
+        },
+        "work_id": {
+          "description": "The work on screen, only with showing_art; null with every other state, and null for a picture this wall did not put there.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "since": {
+          "description": "When the wall entered this state, RFC 3339 with an offset: the controller's since, or for silent the instant of the last report. Null where it is not known: a wall that has never reported, or a Player too old to say.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+        }
+      },
+      "if": {
+        "properties": {
+          "state": {
+            "not": {
+              "const": "showing_art"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "work_id": {
+            "const": null
+          }
+        }
+      }
+    },
+    "label": {
+      "description": "The label text to caption with, the same ten keys the manifest carries. With showing_art, the work on screen. With silent or unreachable, the work the wall last showed where the server knows it, so the label can hold its caption for 30 minutes. Null otherwise, and null for a picture this wall did not put there.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "manifest.v1.schema.json#/$defs/label"
+        }
+      ]
+    }
+  }
+}

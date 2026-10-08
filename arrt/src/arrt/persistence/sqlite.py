@@ -44,12 +44,14 @@ from arrt.persistence.records import (
     ArtworkStatus,
     Client,
     Directive,
+    Display,
     EventKind,
     EventPage,
     FacetDerivation,
     FetchStatus,
     HistoryEvent,
     IdentitySetBy,
+    LabelOutput,
     MatColor,
     MatMethod,
     Original,
@@ -202,26 +204,58 @@ CREATE TABLE IF NOT EXISTS clients (
     token_issued_at  TEXT
 );
 
--- A place where art hangs, and which client shows it on which of its outputs,
--- by name. The forbidden columns are listed on the `Wall` record; the rule is
--- that this table must survive its television being replaced.
+-- One physical screen, keyed by the identity its client read from the device
+-- (a Frame's device id) or, for an output with none, `{client_id}/{output}`.
+-- `client_id` is the client that last reported it, null once another device has
+-- been reported on that output. Nothing about the device beyond what it is and
+-- where it is plugged in; the forbidden columns are listed on the `Wall` record.
+CREATE TABLE IF NOT EXISTS displays (
+    id               TEXT PRIMARY KEY,
+    identity         TEXT NOT NULL UNIQUE,
+    client_id        TEXT REFERENCES clients(id),
+    output           TEXT NOT NULL,
+    kind             TEXT,
+    first_seen       TEXT NOT NULL
+);
+
+-- One display per output of a client: what a client reports on one output is
+-- one device. The heartbeat's reconciliation keeps it so first; this is the
+-- weaker statement of the same rule. It also answers "which displays does this
+-- client drive", asked on every poll a client makes.
+CREATE UNIQUE INDEX IF NOT EXISTS displays_one_per_output ON displays(client_id, output) WHERE client_id IS NOT NULL;
+
+-- A surface that captions a wall: today an e-paper panel on some client.
+-- `wall_id` is one nullable column, so a label output captions at most one wall
+-- by the shape of the row; a wall may have many.
+CREATE TABLE IF NOT EXISTS label_outputs (
+    id               TEXT PRIMARY KEY,
+    client_id        TEXT NOT NULL REFERENCES clients(id),
+    output           TEXT NOT NULL,
+    wall_id          TEXT REFERENCES walls(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS label_outputs_one_per_output ON label_outputs(client_id, output);
+
+CREATE INDEX IF NOT EXISTS label_outputs_by_wall ON label_outputs(wall_id);
+
+-- A place where art hangs, and which display shows it. The forbidden columns
+-- are listed on the `Wall` record; the rule is that this table must survive its
+-- television being replaced.
 --
--- `client_id` and `output` arrived 2026-10-02 and reach an older file through
--- the widening step, which carries the reference. The wall token columns that
--- preceded them are dropped by `migrations.retire_wall_tokens`.
+-- `display_id` arrived 2026-10-08 and reaches an older file through the
+-- widening step. The `client_id` and `output` it replaced are carried onto
+-- displays and dropped by `migrations.walls_name_displays`.
 CREATE TABLE IF NOT EXISTS walls (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL UNIQUE,
     created_at       TEXT NOT NULL,
-    client_id        TEXT REFERENCES clients(id),
-    output           TEXT
+    display_id       TEXT REFERENCES displays(id)
 );
 
--- One wall per output of a client, since one screen shows one picture. The
--- service refuses a second by name first; this is the weaker statement of the
--- same rule, for a path that forgets to. It also answers "which walls does this
--- client drive", asked on every poll a client makes.
-CREATE UNIQUE INDEX IF NOT EXISTS walls_one_per_output ON walls(client_id, output) WHERE client_id IS NOT NULL;
+-- One wall per display, since one screen shows one picture. The service refuses
+-- a second by name first; this is the weaker statement of the same rule, for a
+-- path that forgets to.
+CREATE UNIQUE INDEX IF NOT EXISTS walls_one_per_display ON walls(display_id) WHERE display_id IS NOT NULL;
 
 -- What is hanging on one wall. `wall_id` alone is the key, so "at most one theme
 -- per wall" is the key rather than a rule anything has to check: a second theme
@@ -417,6 +451,10 @@ _BY_WALL: Final[tuple[str, ...]] = ("wall_id",)
 #: What a curator scans by, then a tie-break that makes paging repeatable.
 _BY_TITLE: Final[tuple[OrderBy, ...]] = (OrderBy("title", ignore_case=True), OrderBy("id"))
 _BY_NAME: Final[tuple[OrderBy, ...]] = (OrderBy("name", ignore_case=True), OrderBy("id"))
+
+#: Displays and label outputs, by the client's name for them, then by id. Not by
+#: client: a listing groups them by client itself, and a null client sorts first.
+_BY_OUTPUT: Final[tuple[OrderBy, ...]] = (OrderBy("output"), OrderBy("id"))
 
 #: The source that produced the held original leads; the rest are alternates.
 _BY_PRIMARY: Final[tuple[OrderBy, ...]] = (
@@ -1052,6 +1090,40 @@ class SqliteCatalogue(TableAdapter):
     def remove_client(self, client_id: str) -> None:
         self._store.delete("clients", {"id": client_id})
 
+    # -- displays -------------------------------------------------------------
+
+    def add_display(self, display: Display) -> None:
+        self._add("displays", _display_row(display), subject=f"display {display.identity!r}")
+
+    def get_display(self, display_id: str) -> Display | None:
+        return self._get("displays", {"id": display_id}, _display)
+
+    def update_display(self, display: Display) -> None:
+        self._update("displays", BY_ID, _display_row(display), subject=f"display {display.identity!r}")
+
+    def list_displays(self) -> Sequence[Display]:
+        return self._list("displays", None, _BY_OUTPUT, _display)
+
+    def remove_display(self, display_id: str) -> None:
+        self._store.delete("displays", {"id": display_id})
+
+    # -- label outputs --------------------------------------------------------
+
+    def add_label_output(self, label: LabelOutput) -> None:
+        self._add("label_outputs", _label_output_row(label), subject=f"label output {label.output!r}")
+
+    def get_label_output(self, label_id: str) -> LabelOutput | None:
+        return self._get("label_outputs", {"id": label_id}, _label_output)
+
+    def update_label_output(self, label: LabelOutput) -> None:
+        self._update("label_outputs", BY_ID, _label_output_row(label), subject=f"label output {label.output!r}")
+
+    def list_label_outputs(self) -> Sequence[LabelOutput]:
+        return self._list("label_outputs", None, _BY_OUTPUT, _label_output)
+
+    def remove_label_output(self, label_id: str) -> None:
+        self._store.delete("label_outputs", {"id": label_id})
+
     # -- what is hanging ------------------------------------------------------
 
     def get_assignment(self, wall_id: str) -> ThemeAssignment | None:
@@ -1303,9 +1375,23 @@ def _wall_row(wall: Wall) -> dict[str, Any]:
         "id": wall.id,
         "name": wall.name,
         "created_at": to_iso(wall.created_at),
-        "client_id": wall.client_id,
-        "output": wall.output,
+        "display_id": wall.display_id,
     }
+
+
+def _display_row(display: Display) -> dict[str, Any]:
+    return {
+        "id": display.id,
+        "identity": display.identity,
+        "client_id": display.client_id,
+        "output": display.output,
+        "kind": display.kind,
+        "first_seen": to_iso(display.first_seen),
+    }
+
+
+def _label_output_row(label: LabelOutput) -> dict[str, Any]:
+    return {"id": label.id, "client_id": label.client_id, "output": label.output, "wall_id": label.wall_id}
 
 
 def _assignment_row(assignment: ThemeAssignment) -> dict[str, Any]:
@@ -1477,9 +1563,23 @@ def _wall(row: Mapping[str, Any]) -> Wall:
         id=row["id"],
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),
+        display_id=row["display_id"],
+    )
+
+
+def _display(row: Mapping[str, Any]) -> Display:
+    return Display(
+        id=row["id"],
+        identity=row["identity"],
         client_id=row["client_id"],
         output=row["output"],
+        kind=row["kind"],
+        first_seen=require_datetime(row["first_seen"], "first_seen"),
     )
+
+
+def _label_output(row: Mapping[str, Any]) -> LabelOutput:
+    return LabelOutput(id=row["id"], client_id=row["client_id"], output=row["output"], wall_id=row["wall_id"])
 
 
 def _client(row: Mapping[str, Any]) -> Client:

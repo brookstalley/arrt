@@ -98,7 +98,7 @@ def test_the_player_router_holds_exactly_the_routes_the_contract_names():
 def test_each_contract_route_is_mounted_and_guarded(server_url, name):
     """Asked over the wire, so a route declared and never mounted fails here as a 404."""
     route = ROUTES[name]
-    path = route["path"].format(wall_id="some-wall", sha256="0" * 64)
+    path = route["path"].format(wall_id="some-wall", sha256="0" * 64, label_id="some-label")
 
     response = httpx.request(route["method"], server_url + path, json={} if route["method"] == "POST" else None)
 
@@ -292,12 +292,12 @@ def test_a_refusal_says_why_in_the_error_shape_and_never_echoes_the_token(server
     """Every Player route refuses the same way: `{"error": …}`, and a `401` names its scheme.
 
     The refusal is raised by each route's admission dependency and answered once by
-    the application, so this asks it of all five routes, through the server, rather
+    the application, so this asks it of every route, through the server, rather
     than of the function that builds it.
     """
     presented = "not-a-token-0123456789"
     method = ROUTES[route]["method"]
-    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64)
+    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64, label_id="some-label")
 
     response = httpx.request(method, url, json={} if method == "POST" else None, headers=_bearer(presented))
 

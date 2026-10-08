@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/brookstalley/arrt/contract/schemas/client.v1.schema.json",
   "title": "Client document, major 1",
-  "description": "What GET /client answers: the client the presented token belongs to, and the walls assigned to it, each with the name of the client's output it is shown on. A client polls it about every 30 seconds with If-None-Match and starts or stops a worker per wall from it. Only walls assigned to this client are listed. Additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md § Transport and clients.md.",
+  "description": "What GET /client answers: the client the presented token belongs to, and the walls assigned to it, each with the name of the client's output it is shown on and the display that output is, and the label outputs of this client that caption a wall. A client polls it about every 30 seconds with If-None-Match and starts or stops a worker per wall, and a renderer per label, from it. Only walls assigned to this client are listed. Additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md § Transport and clients.md.",
   "type": "object",
   "required": [
     "client_id",
@@ -41,6 +41,40 @@
           },
           "output": {
             "description": "The name of the client's output this wall is shown on, as the client reported it in its heartbeat (hdmi-a-1, frame). The server holds only the name.",
+            "type": "string",
+            "minLength": 1
+          },
+          "display": {
+            "description": "The id of the display the wall is shown on: the server's record of the device behind output, which keeps its walls when it moves to another client. Absent from a server before displays were records.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "labels": {
+      "description": "This client's label outputs that caption a wall, each with the wall it captions. A label output with no wall is not listed. Absent from a server before label outputs existed, which a client reads as none. A label output captions at most one wall; a wall may have several, on any clients, and a label's wall need not be one this client shows.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "label_id",
+          "output",
+          "wall_id"
+        ],
+        "properties": {
+          "label_id": {
+            "description": "The id GET /labels/{label_id} takes.",
+            "type": "string",
+            "minLength": 1
+          },
+          "output": {
+            "description": "The name of the client's label output, as the client reported it in label_outputs.",
+            "type": "string",
+            "minLength": 1
+          },
+          "wall_id": {
+            "description": "The wall this label captions.",
             "type": "string",
             "minLength": 1
           }

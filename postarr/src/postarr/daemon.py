@@ -34,6 +34,10 @@ worse than the wall being incomplete.
 **The television going away is an expected operating condition.** The set is
 asleep most of the time; a connection failure is a backoff, not an incident, and
 the picture stays up regardless because the television holds it.
+
+**It draws no label.** It reports what the screen is doing (`display_state`),
+and every label of the wall — on this client or any other — follows that report
+through the server (`labels-and-surfaces.md`; `label_renderer.py`).
 """
 
 import asyncio
@@ -42,11 +46,9 @@ import logging
 import random
 import time
 from collections.abc import Callable
-from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
 
 from postarr import brightness as brightness_module
 from postarr import heartbeat as heartbeat_module
@@ -55,7 +57,6 @@ from postarr.episodes import Backoff, ReportOnce
 from postarr.heartbeat import DisplayReport, ScreenState
 from postarr.logs import work_context
 from postarr.manifest import Entry, Manifest, Watcher
-from postarr.panel import LabelSurface, Layout, lay_out, read_label
 from postarr.state import Binding, DisplayState, UploadStatus
 from postarr.tv import (
     PowerStateUnreadable,
@@ -68,36 +69,6 @@ from postarr.tv import (
 )
 
 log = logging.getLogger(__name__)
-
-#: How long a label may spend being drawn before this loop stops waiting for it.
-#:
-#: **The whole of the product's label budget rather than a fraction of it.** The
-#: label must match what the television is showing within 15 s of the picture
-#: changing (`nonfunctional-requirements.md` § Performance), and the panel's own
-#: refresh is most of that — so this is the loosest bound that still honours the
-#: requirement, and a draw that has passed it has already missed the thing it was
-#: for. A healthy 16-level frame measures 1.5–1.9 s and comes nowhere near it;
-#: what this catches is an SPI transaction that is never coming back, which is the
-#: one way a panel could stop the wall that no `except` clause can reach.
-LABEL_DRAW_BUDGET_SECONDS: Final[float] = 15.0
-
-#: How long the panel keeps its caption once this loop cannot tell what the
-#: screen is doing, before it draws itself blank. **The owner's number,
-#: 2026-10-08** (`labels-and-surfaces.md` § What a label says): long enough that
-#: an overnight Wi-Fi blip or a set rebooting leaves the room its caption, short
-#: enough that a wall gone for good stops naming a picture nobody can confirm.
-UNREACHABLE_CAPTION_HOLD_SECONDS: Final[float] = 30 * 60.0
-
-
-def _forget(draw: "asyncio.Future[Layout]") -> None:
-    """Collect an abandoned draw's outcome, so nothing warns about it later.
-
-    A draw left running past its budget is one nobody is waiting for any more, and
-    a future whose exception is never read prints a warning when it is collected —
-    on the one code path where the journal is already saying something truer.
-    """
-    if not draw.cancelled():
-        draw.exception()
 
 
 class Shown(enum.Enum):
@@ -150,8 +121,6 @@ class Daemon:
         state: DisplayState,
         watcher: Watcher,
         clock: Clock,
-        surface: LabelSurface | None = None,
-        surface_error: str | None = None,
         rng: random.Random | None = None,
     ) -> None:
         self._settings = settings
@@ -160,58 +129,6 @@ class Daemon:
         self._watcher = watcher
         self._clock = clock
         self._rng = rng if rng is not None else random.Random()  # noqa: S311 -- it orders artworks, it guards nothing
-
-        #: Where this device draws its label, or None if it has none. **A device
-        #: with no label surface is a supported deployment, not a fault** — the
-        #: wall is a television, and the label is an annotation of it
-        #: (`architecture.md` § Direction). Nothing below may report its absence
-        #: as a problem. The heartbeat therefore reports such a device with
-        #: `has_label_surface` false and `label_surface_working` null — "there is
-        #: nothing here to ask", as against the `false` that means a panel is
-        #: broken. The two fields were one nullable field until that collapse made
-        #: a device with no panel indistinguishable from a panel that would not
-        #: open.
-        self._surface = surface
-        self._label_failed = ReportOnce()
-        #: The surface has area but not enough of it to place anything. A
-        #: different fault from the one above — the panel takes the frame and the
-        #: frame is blank — and persistent in the same way, because what causes it
-        #: is a geometry setting rather than an event.
-        self._label_unusable = ReportOnce()
-        #: The draw handed to a worker thread, kept until it finishes. **A
-        #: one-at-a-time gate rather than a queue**: the budget stops the loop
-        #: waiting on a hung panel, but it cannot stop the thread, and dispatching
-        #: another every rotation would fill the shared executor with threads
-        #: parked in a driver — at which point the television's own blocking calls,
-        #: which use that same executor, would start waiting behind a panel. That
-        #: is a panel stopping the wall by the back door.
-        self._label_draw: asyncio.Future[Layout] | None = None
-        #: What the panel was last asked to name, as the television's own id for
-        #: it. **Recorded on the attempt rather than the success**, which is what
-        #: keeps a refusing panel from being re-asked on every one-second poll: a
-        #: surface that failed gets its next chance when the wall next changes,
-        #: which is also when a stale label would start being wrong.
-        #:
-        #: The cost of that rule, stated so nobody has to rediscover it: a draw the
-        #: one-at-a-time gate turns away counts as an attempt too, so the panel
-        #: keeps the older label until the wall next changes. That is reachable
-        #: only once a panel has already run past the label budget and been
-        #: reported broken, which is a state where one stale label is not the
-        #: problem.
-        self._captioned_content_id: str | None = None
-        #: Why this device has no surface, when it was configured to have one.
-        #: **The third state, and the reason it is carried rather than logged and
-        #: dropped at the composition root**: without it a panel that failed to
-        #: open is a `surface` of None, which on the health surface is
-        #: indistinguishable from a device that never had a panel — the same
-        #: two-meanings-in-one-value fault `has_label_surface` was split out to
-        #: fix, arriving one level up.
-        self._surface_error = surface_error
-        #: Whether the surface accepted the last label it was given. Stays None
-        #: on a device with no surface, so "never tried" and "tried and failed"
-        #: cannot be confused — but **False from the outset on a device whose
-        #: panel would not open**, because that one has already failed.
-        self._label_working: bool | None = False if surface is None and surface_error else None
 
         #: What the set last announced about its own wall, which is the only
         #: honest account of it this product has. Written from the television's
@@ -235,19 +152,12 @@ class Daemon:
         #: contract's word for "the controller cannot tell" — a fresh process has
         #: not asked anything yet, and a guess would be a reading nobody took.
         self._display = DisplayReport(state=ScreenState.UNREACHABLE, work_id=None, since=clock.now())
-        #: When the current display state began, on the elapsed clock, for the
-        #: unreachable caption hold. `since` above is wall time for the reader.
-        self._display_began = clock.monotonic()
         #: A change not yet written. The heartbeat goes out on the pass that saw
         #: the change rather than waiting out its interval, because every label
         #: of the wall follows this record (`player-contract.md` § minor 3).
         self._display_owed = False
-        #: Whether the panel was last drawn blank because of the screen's state.
-        #: Recorded on the attempt, as `_captioned_content_id` is, so a refusing
-        #: panel is not re-asked on every poll.
-        self._label_blank = False
         #: `PowerState` would not answer while `get_artmode` did. The wall is
-        #: reported in use (the label blanks either way); said once per episode.
+        #: reported in use (every label blanks either way); said once per episode.
         self._power_unreadable = ReportOnce()
 
         #: Whether the set was showing art the last time it was actually asked.
@@ -258,11 +168,7 @@ class Daemon:
         self._showing_art: bool | None = None
 
         self._heartbeat_at: float | None = None
-        #: Seeded with the panel's failure when there was one, because at startup
-        #: that *is* the last thing that went wrong. Anything later overwrites it,
-        #: which is right — a television that has since gone away is the more
-        #: urgent of the two.
-        self._last_error: str | None = surface_error
+        self._last_error: str | None = None
         self._heartbeat_failed = ReportOnce()
 
         #: Positions into the current manifest's entries, in the order they will
@@ -382,12 +288,6 @@ class Daemon:
             # out. Under `Restart=always` that turns one crash into a daemon that
             # cannot reach its own television on the way back up.
             await self._tv.close()
-            # **The panel is released too, and on e-paper that is not bookkeeping**
-            # — `close()` is the sleep/power-down, and a panel left driven holds
-            # its rails energised. Closed after the television because the set is
-            # the one holding a network slot somebody else may want.
-            if self._surface is not None:
-                self._surface.close()
             if not crashed:
                 log.info("display plane stopped", extra={"event": "daemon.stopped"})
 
@@ -419,7 +319,6 @@ class Daemon:
             # process is alive — returning here without a heartbeat would let
             # curation's panel report a running plane as one that has never
             # spoken.
-            await self._label_follows_the_screen(manifest=None)
             self._beat(manifest=None)
             return self._settings.poll_interval_seconds
 
@@ -441,10 +340,6 @@ class Daemon:
             if not acted:
                 await self._rotate_if_due(manifest)
             await self._upload_one_pending(manifest)
-            # Last, because it reconciles the label against whatever the pass
-            # above left on the wall — including the case where the pass did
-            # nothing and the wall changed anyway.
-            await self._label_follows_the_screen(manifest)
         except TvUnavailable as exc:
             # **The heartbeat is written on this path too, and that is the whole
             # point of it.** A television that has gone away is the condition an
@@ -454,9 +349,6 @@ class Daemon:
             # running perfectly and telling the truth about a set that is not.
             self._record_error(str(exc))
             self._display_is(ScreenState.UNREACHABLE)
-            # The label still follows: an unreachable set keeps its caption for
-            # a while and then blanks, and that clock runs while the set is gone.
-            await self._label_follows_the_screen(manifest)
             self._beat(manifest=manifest, television_reachable=False)
             return self._back_off(exc)
 
@@ -751,8 +643,8 @@ class Daemon:
 
             # Recorded only once the set is displaying it. A work written here on
             # the strength of the request alone would make a restart re-show
-            # something that was never on the wall, and would tell the plane that
-            # renders the label to caption a picture nobody can see.
+            # something that was never on the wall, and would tell every label of
+            # the wall to caption a picture nobody can see.
             self._state.set_last_selected_work_id(entry.work_id)
             self._attempted_at = self._clock.monotonic()
             self._has_shown = True
@@ -773,340 +665,19 @@ class Daemon:
                     "theme_id": manifest.theme_id,
                 },
             )
-            await self._caption(entry, content_id)
             return Shown.YES
-
-    async def _caption(self, entry: Entry | None, content_id: str) -> None:
-        """Put a work's label on the device's own surface, if it has one.
-
-        **Driven from the daemon's own task rather than from the set's callback**,
-        though the announcement is what says the wall changed. The two are the same
-        event; the difference is which task does the work. An e-paper redraw is a
-        full frame — 1.5–1.9 s measured, with no partial refresh — and doing that
-        inside the television client's callback would run it on the websocket's
-        reader task, delaying every message on that socket including the
-        confirmations the rotation is waiting for. So the reader task records an id
-        and this, later, draws.
-
-        **And not on the event loop either, which is the same argument one level
-        down.** Moving the draw off the reader task does not move it off the loop
-        they share: seconds spent rasterising and clocking bytes out over SPI in a
-        coroutine delay that socket's messages exactly as much as doing it in the
-        callback would. It goes to a worker thread, as the television client's own
-        blocking construction does, and it is bounded — because a driver wedged in
-        a bad transaction never raises, and an unbounded wait is the one way a
-        panel can stop the wall that no `except` clause reaches.
-
-        **Called only for a picture the set says is up**, which is what keeps the
-        label honest: captioning on the strength of a request would name a picture
-        the set accepted and never displayed, and a wrong label is worse than a
-        stale one because nobody can tell it is wrong.
-
-        `entry` is None when the wall is showing something this manifest cannot
-        name — see `_caption_the_wall_the_set_reports`. That draws an empty label
-        rather than leaving the previous one up, for the same reason.
-
-        **Nothing in here may stop the wall.** A surface that is broken, missing
-        or slow leaves the television rotating; that is the whole posture of this
-        loop applied to an annotation of it.
-
-        **The work id is bound here rather than at the callers.** The rotation
-        path arrives inside a `work_context` already and correlated by
-        inheritance; the path the *set* drives — somebody choosing a work with the
-        remote — arrived with nothing bound, so the journal could report a panel
-        failing and not say which work it failed to name. Binding at the single
-        point every caller passes through is the same argument the context
-        variable itself rests on: one forgotten call site defeats a discipline,
-        and the lines that go missing that way are the ones logged from inside a
-        failure.
-        """
-        surface = self._surface
-        if surface is None:
-            return
-        with work_context(entry.work_id) if entry is not None else nullcontext():
-            await self._put_the_label_up(surface, entry, content_id)
-
-    async def _put_the_label_up(  # noqa: C901, PLR0912 -- every way a caption can fail is answered in place, so the wall never stops for one
-        self, surface: LabelSurface, entry: Entry | None, content_id: str | None, *, blanked_for: ScreenState | None = None
-    ) -> None:
-        """The whole of a caption, with this work's id bound. See `_caption`.
-
-        `blanked_for` names the screen state a blank is drawn for — somebody using
-        the set, the set off, or a set unreachable past the caption hold — and
-        then there is no picture, so no `content_id` either.
-        """
-        self._captioned_content_id = content_id
-        self._label_blank = blanked_for is not None
-        if self._label_draw is not None and not self._label_draw.done():
-            self._label_would_not_take_it("the previous label is still being drawn", content_id)
-            return
-
-        # **The gate is the draw's own state, not a flag somebody remembers to
-        # clear.** A boolean set here and cleared inside `_draw` is wrong in a case
-        # that leaves the panel dark for the life of the process: if the budget
-        # runs out while the work item is still *queued* rather than running, the
-        # thread never starts, so nothing in `_draw` ever executes to clear it —
-        # and every later label is turned away by a gate guarding a draw that
-        # happened. Asking the task whether it is finished is right for both the
-        # queued case and the running one.
-        draw = asyncio.ensure_future(asyncio.to_thread(self._draw, surface, entry))
-        self._label_draw = draw
-        finished, _ = await asyncio.wait({draw}, timeout=LABEL_DRAW_BUDGET_SECONDS)
-        if not finished:
-            # **Not cancelled, deliberately.** Cancelling would mark it done while
-            # the thread carried on — the gate would open onto a panel still being
-            # written to, which is what the gate exists to prevent. Left running,
-            # it opens the gate when the panel actually comes back, and its outcome
-            # is collected so nothing warns about an exception nobody read.
-            draw.add_done_callback(_forget)
-            self._label_would_not_take_it(f"the draw ran past the {LABEL_DRAW_BUDGET_SECONDS:g}s label budget", content_id)
-            return
-        try:
-            layout = draw.result()
-        # **Widened from `SurfaceUnavailable` alone once a real surface existed,
-        # and the docstring above is why.** `show` converts its own failures, but
-        # `geometry` and `measure` are read outside it — and `measure` on the
-        # e-paper surface reaches a text stack through C bindings, which raises
-        # GLib errors related to nothing this module can name. A promise that
-        # nothing in here may stop the wall cannot be kept by a catch that lists
-        # the exceptions somebody thought of.
-        except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- see above
-            self._label_would_not_take_it(str(exc), content_id)
-            return
-
-        self._label_working = True
-        if self._label_failed.end():
-            log.info("the label surface is taking labels again", extra={"event": "label.recovered"})
-        if blanked_for is not None:
-            # **Blank on purpose, and said so by the state that asked for it.** The
-            # label shows a caption only while the screen shows art
-            # (`labels-and-surfaces.md` § What a label says): a caption beside a
-            # programme is a distraction, beside a dark set it names nothing.
-            log.info(
-                "the panel was drawn blank: the screen is %s",
-                blanked_for.value,
-                extra={"event": "label.blanked", "display_state": blanked_for.value},
-            )
-        elif entry is None:
-            # **A third outcome, and it needs its own name.** The set is showing a
-            # picture nothing on this device can name — an art-store image somebody
-            # chose with the remote — and the panel was drawn blank on purpose. A
-            # success event here would answer *why is the label empty* with the
-            # name of a work that is not on the wall, and a failure would report a
-            # panel doing exactly the right thing as broken.
-            #
-            # **The content id is the only identity there is on this path**, which
-            # is why it is carried: there is no work, so there is no `work_id` to
-            # bind, and without it the line cannot say what the wall was showing.
-            log.info(
-                "the panel was drawn blank: nothing here can name %s",
-                content_id,
-                extra={"event": "label.blanked", "tv_content_id": content_id},
-            )
-        elif layout.is_empty and layout.dropped:
-            # **`and layout.dropped` is what separates the fault from the normal
-            # case.** A work whose institution published no label text lays out to
-            # nothing too, and that is a fact about the record rather than about
-            # the device — `metadata.py` is explicit that a blank surface is the
-            # right answer there. Facts that existed and were not placed is the
-            # other thing entirely.
-            #
-            # **The whole label had somewhere to be and nowhere to go.** A device
-            # whose margins consume its own surface places nothing at all, and the
-            # frame that reaches the panel is blank — so "the panel is captioning
-            # *Cat Litter*" would be this plane naming a work whose label is not
-            # there, and reporting the total failure of the accessibility surface
-            # one level quieter than a label set a few percent too small.
-            #
-            # It is reachable rather than theoretical: the margin derives from the
-            # primary tier, which grows with viewing distance, so a device
-            # configured to be read from far enough away borders its own label out
-            # of existence. Nothing about it stops the wall.
-            # **Once per episode, like every other condition that is about the
-            # device.** The geometry that borders a label out of existence is a
-            # setting, so it holds until somebody changes one — and at the default
-            # rotation an ungated line here is the same WARNING some five hundred
-            # times a day, forever, in the plane's only failure channel. Its
-            # sibling `label.shrunk` is deliberately *not* gated because a shrunk
-            # set belongs to one work and a gate would swallow the next work's;
-            # this one belongs to the surface and says the same thing whatever the
-            # wall is showing.
-            # **Recorded for the heartbeat as well as logged, and the episode gate
-            # is exactly why it has to be.** `observability-strategy.md` names the
-            # health panel as the only alerting surface a running deployment has;
-            # the journal on a headless Pi is read when somebody already suspects
-            # something. Left to the log alone this condition published
-            # `label_surface_working: true` with no error beside it — a device
-            # whose margins had bordered its own label out of existence,
-            # describing itself as fine, on the one screen anybody looks at.
-            #
-            # **`_label_working` stays true**, because it is a statement about the
-            # driver and the driver did take the frame. What failed is the
-            # geometry, and `last_error` is where that belongs.
-            self._record_error("the label surface has no usable area at this geometry")
-            if self._label_unusable.begin():
-                log.warning(
-                    "the label surface has no usable area at this geometry, so %s was not captioned at all",
-                    entry.label.get("title") or entry.work_id,
-                    extra={"event": "label.unusable", "tv_content_id": content_id},
-                )
-        elif layout.is_empty:
-            # **A record with no label text at all, which is normal and is not
-            # this.** The branch above is the device bordering a label out of
-            # existence; this is a work whose institution published nothing to
-            # print, where a blank surface is the right answer (`metadata.py`).
-            #
-            # **It gets its own line for two reasons, and the second is the one
-            # that bites.** Saying "the panel is captioning X" of a frame with no
-            # ink is a claim nobody could check against the wall. And the line
-            # below ends the `label.unusable` episode — on the reasoning that a
-            # label actually placed proves the surface has usable area again —
-            # which a label with nothing in it does not prove at all. Ending the
-            # episode here would silence the warning for every later work until
-            # the geometry changed again.
-            log.info(
-                "%s carries no label text, so the panel was left blank",
-                entry.label.get("title") or entry.work_id,
-                extra={"event": "label.absent", "tv_content_id": content_id},
-            )
-        else:
-            # **The only line that says the panel is working.** Every other label
-            # event is an exception — a failure, a truncation, a recovery — so a
-            # panel captioning correctly all day emitted nothing whatsoever, and
-            # in the journal that is indistinguishable from one that stopped
-            # captioning at boot. On a device nobody stands in front of, the
-            # difference is the whole question.
-            #
-            # **It claims the surface took the frame, and nothing about pixels.**
-            # The driver reports no more than that, and a line implying the label
-            # is legible would be this plane asserting something it cannot see.
-            # **The edge that ends the unusable episode, and there is no separate
-            # recovery line for it.** A label actually placed is the proof the
-            # surface has usable area again, and this line already says so by
-            # name — where `label.recovered` exists because `label.failed`'s
-            # success path emits nothing at all.
-            self._label_unusable.end()
-            log.info(
-                "the panel is captioning %s",
-                entry.label.get("title") or entry.work_id,
-                extra={"event": "label.drawn", "tv_content_id": content_id},
-            )
-        if layout.dropped:
-            # Not a failure — the drop rule working — but it is the only place
-            # anyone would learn that this device's surface is too small for the
-            # corpus, so it is said rather than left to be noticed by eye.
-            log.info(
-                "the label surface had no room for %d line(s) of this label",
-                len(layout.dropped),
-                extra={"event": "label.truncated", "dropped": list(layout.dropped)},
-            )
-        if layout.shrunk:
-            # **The condition the type floor's one exception rests on.** The rule
-            # that nothing shrinks exists because illegible type fails invisibly;
-            # letting the facts that identify the work shrink rather than vanish
-            # re-opens that hole unless something says so. A panel setting names
-            # below the floor is a misconfigured device — too small, or read from
-            # too far — and nobody would ever discover that by eye at 7 feet.
-            #
-            # **Warning rather than info, unlike a drop.** A dropped medium is the
-            # engine working as designed; type below the floor is a deployment
-            # that cannot show this corpus legibly, and the operator is the only
-            # one who can fix it.
-            log.warning(
-                "the label surface is too small for this label at a legible size; %d line(s) " "were set below the %d px floor",
-                len(layout.shrunk),
-                surface.type_scale.floor_px,
-                extra={
-                    "event": "label.shrunk",
-                    "shrunk": list(layout.shrunk),
-                    "floor_px": surface.type_scale.floor_px,
-                    "smallest_px": min(block.size_px for block in layout.blocks),
-                },
-            )
-        if layout.wrapped:
-            # **The fault a person found by standing in front of the panel, and
-            # the one channel that would have said it.** On 2026-08-13 the wall
-            # drew `KATSUSHIKA,` / `Hokusai, Japanese` / `1760–1849` — the name
-            # broken mid-phrase by the line breaker, the comma that inverts it
-            # stranded at the end of a row — and nothing anywhere reported it: the
-            # type was at its tier so `label.shrunk` was silent, every fact was
-            # placed so `label.truncated` was silent, and this method logged
-            # `label.drawn`.
-            #
-            # **Warning for the same reason a shrink is.** The ladder exists to
-            # prevent this and normally does; reaching here means no arrangement
-            # of the name fitted, which is a fact about the device rather than
-            # about the work — and the next change to the margin, the viewing
-            # distance or the panel can reintroduce it, which is precisely what
-            # `legibility.MARGIN_TO_PRIMARY_RATIO` now cites the ladder to allow.
-            log.warning(
-                "the label surface is too narrow for this name; the line breaker split %r across rows",
-                layout.wrapped[0].text,
-                extra={
-                    "event": "label.name_wrapped",
-                    "wrapped": [block.text for block in layout.wrapped],
-                    # **Both read off the line that actually broke.** Once the
-                    # ladder has given the family name a line of its own, a given
-                    # name the measure splits wraps on the *second* line, and a
-                    # row count taken from the first reported 1 beside a warning
-                    # saying the line had been split.
-                    "rows": layout.wrapped[0].rows,
-                    "wrap_px": layout.wrapped[0].wrap_px,
-                },
-            )
-
-    def _label_would_not_take_it(self, why: str, content_id: str | None) -> None:
-        """One place for every way a label fails to reach the surface.
-
-        They differ only in the sentence: the response is the same to all of them
-        — say so once, keep rotating — for the reason `SurfaceUnavailable` is one
-        type rather than a family.
-
-        **The content id is carried because a failure can happen with no work
-        bound.** The wall showing something this manifest cannot name is exactly
-        when a panel fault is hardest to read, and `work_id` is absent there by
-        construction — so the id of the picture on the wall is the only thing the
-        line can be tied to.
-        """
-        self._label_working = False
-        self._record_error(f"the label surface refused a label ({why})")
-        if self._label_failed.begin():
-            # Once per episode, like every other persistent condition here: a
-            # panel with a loose ribbon fails on every rotation, all night.
-            log.warning(
-                "could not put the label on this device's surface (%s); the wall keeps rotating",
-                why,
-                extra={"event": "label.failed", "tv_content_id": content_id},
-            )
-
-    def _draw(self, surface: LabelSurface, entry: Entry | None) -> Layout:
-        """Lay a label out and put it on the surface. **Runs on a worker thread.**
-
-        The measuring and the drawing are one unit of work here rather than two
-        because both are the same kind of expensive — `measure` reaches the same
-        text stack the drawing does, and splitting them would put half the cost
-        back on the loop for no gain.
-
-        Nothing here touches this object's state, which is what makes it safe to
-        run off the loop: the caller reads the outcome through the task it holds,
-        and that task finishing is also what opens the gate on the next draw.
-        """
-        facts = read_label(entry.label).candidates() if entry is not None else ()
-        layout = lay_out(facts, surface.geometry, surface.measure, surface.type_scale)
-        surface.show(layout)
-        return layout
 
     def _note_announcement(self, announcement: SelectionAnnouncement) -> None:
         """Remember what the set says is on its wall. Runs on the client's reader task.
 
         Deliberately the cheapest thing that could work: one assignment, no I/O,
-        no lock, nothing that can raise. Everything expensive this could trigger
-        happens on the daemon's own task instead — see `_caption`.
+        no lock, nothing that can raise. Everything this could trigger happens on
+        the daemon's own task instead — see `_take_the_sets_news`.
 
         **It records announcements this plane did not cause**, which is the point
         of subscribing at all: somebody using the remote changes the wall, and
-        both the heartbeat and the label should follow what is actually up rather
-        than what we last put there.
+        the display state — which every label of the wall follows — should say
+        what is actually up rather than what we last put there.
         """
         self._announced_content_id = announcement.content_id
         self._announcement = announcement
@@ -1189,7 +760,6 @@ class Daemon:
         if moved is self._display:
             return
         self._display = moved
-        self._display_began = self._clock.monotonic()
         self._display_owed = True
         log.info(
             "the screen is %s%s",
@@ -1197,69 +767,6 @@ class Daemon:
             f" ({work_id})" if work_id is not None else "",
             extra={"event": "display.state", "display_state": state.value, "work_id": work_id},
         )
-
-    async def _label_follows_the_screen(self, manifest: Manifest | None) -> None:
-        """Make the panel say what `labels-and-surfaces.md` § What a label says asks of this state.
-
-        A caption while the screen shows art; blank while it is in use or dark;
-        and while the set cannot be reached, the last caption until
-        `UNREACHABLE_CAPTION_HOLD_SECONDS` have passed, then blank. Each blank is
-        one full redraw, drawn once on the way into the state, never per poll.
-        """
-        # The surface is checked here as well as inside `_caption`, which is not
-        # belt-and-braces: the lookup below is a read of the binding table, and a
-        # device with no panel would otherwise pay for one on every poll.
-        if self._surface is None:
-            return
-        state = self._display.state
-        if state is ScreenState.SHOWING_ART:
-            await self._caption_the_wall_the_set_reports(manifest)
-            return
-        held = self._clock.monotonic() - self._display_began < UNREACHABLE_CAPTION_HOLD_SECONDS
-        if state is ScreenState.UNREACHABLE and held:
-            return
-        if self._label_blank:
-            return
-        await self._put_the_label_up(self._surface, None, None, blanked_for=state)
-
-    async def _caption_the_wall_the_set_reports(self, manifest: Manifest | None) -> None:
-        """Re-label when the wall changed without this plane changing it.
-
-        **The remote is a curator too.** Somebody in the room picks a different
-        work in art mode, and nothing in the rotation path runs: the panel would go
-        on naming the previous picture until the interval came round, up to a full
-        rotation later. That is not a stale label, which is at least visibly old —
-        it is a confident one that is wrong, on the only surface the person
-        standing in front of the wall can read, and there is no way for them to
-        tell. The same rule that keeps this plane from captioning a selection the
-        set never displayed requires captioning one it displayed without being
-        asked.
-
-        **A picture this manifest cannot name gets an empty label, not the last
-        one.** Choosing an image out of the set's own art store is a supported
-        thing to do with a remote, and no label text exists for it anywhere on this
-        device. Blank says "nothing is known about what you are looking at"; the
-        previous work's label says something false.
-
-        Cheap on the ordinary pass: two references compared, and the binding table
-        is only read when they differ — which is once per rotation, plus once per
-        time somebody actually touches the remote.
-        """
-        on_the_wall = self._wall_content_id
-        if manifest is None or on_the_wall is None:
-            return
-        if on_the_wall == self._captioned_content_id and not self._label_blank:
-            return
-        await self._caption(self._entry_showing(on_the_wall, manifest), on_the_wall)
-
-    def _entry_showing(self, content_id: str, manifest: Manifest) -> Entry | None:
-        """The manifest entry for what the set says it is showing, if it carries one."""
-        for binding in self._state.bindings():
-            if binding.tv_content_id != content_id:
-                continue
-            position = manifest.index_of(binding.artwork_id)
-            return manifest.entries[position] if position is not None else None
-        return None
 
     async def _the_wall_is_ours_to_change(self) -> bool:
         """Whether the set is showing art, and may therefore be asked to change it.
@@ -1634,13 +1141,11 @@ class Daemon:
             announced_content_id=self._announced_content_id,
             television_reachable=television_reachable,
             television_showing_art=self._showing_art,
-            # **Whether this device is meant to draw a label**, which is not the
-            # same question as whether it currently can. A panel that failed to
-            # open leaves no surface and is still a device with one, so reporting
-            # `false` here would tell curation this deployment has no panel — the
-            # one reading that makes a broken panel invisible.
-            has_label_surface=self._surface is not None or self._surface_error is not None,
-            label_surface_working=self._label_working,
+            # **The Frame loop draws no label**, so it reports none, as the HDMI
+            # loop does. A client's panel is reported as a label output in the
+            # client heartbeat, connected or not (`label_renderer.LabelPanel`).
+            has_label_surface=False,
+            label_surface_working=None,
             last_error=self._last_error,
             display_state=self._display,
         )

@@ -62,6 +62,106 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Labels mapped on Settings › Clients; Walls says which caption each wall
+
+<!-- prawduct: scope=displays-and-label-outputs -->
+
+**Why:** Chunk 04 of `build-plan-displays-and-label-outputs.md`: the interface for
+the records Chunks 02 and 03 made.
+
+**What:**
+- Settings › Clients: each client's *Labels* table (kind, whether the panel
+  answers, size, the wall it captions), a *Caption a wall* form for any wall on
+  any client, a Stop per mapping, and a ▲ note in both clients' panels for a
+  display two clients report. Removing a client says which labels stop.
+- Walls: "Captioned by {output} on {client}" under a wall a label captions; the
+  duplicate-display fault in place of the client line.
+- Mapping lives on Clients beside wall assignment, not on Walls as the plan said;
+  the plan records it as a decision the owner can veto.
+- Carried in: `nowShowing`'s unused parameter removed; `STATE_WORDS` held to the
+  label schema's states by `test_wall_state_words.py`; an unreachable screen now
+  "cannot say what its screen is showing", true of an unknown state too.
+- Tests: `tests/browser/test_displays_and_labels.py` (the panel mapped to two
+  HDMI walls and a Frame wall in turn, a refused second mapping, no panel, the
+  fault on both pages), each watched failing against a re-break.
+- Deploying: `deploy/README.md` § Displays and labels says to copy the catalogue
+  first, since the migration drops the walls' client and output columns.
+
+## 2026-10-08: Displays as records, label outputs, and a label renderer per panel
+
+<!-- prawduct: scope=displays-and-label-outputs -->
+
+**Why:** Chunks 02, 03, 05 and 06 of `build-plan-displays-and-label-outputs.md`
+(#188): a wall names a display rather than a (client, output) pair, so a Frame
+moved between clients keeps its walls; a wall has any number of labels on any
+clients; and the panel stops belonging to the Frame loop.
+
+**What:**
+- Server: Display and LabelOutput records in Programming, with a migration that
+  gives every assigned wall a display keyed `{client_id}/{output}` and keeps it on
+  its screen. The client heartbeat keeps both records: a display first seen
+  without identity is re-keyed when its identity arrives, and a Frame moved to
+  another client moves with its walls. Two clients reporting one identity is a
+  fault: neither is given the wall, and the API names both.
+- Server routes: `GET /client` names each wall's display and the client's labels;
+  `GET /labels/{label_id}` serves the label document with an ETag (`contract/routes.json`
+  names it); HTTP and MCP map a wall's display and labels through one service in
+  `programming/clients.py`. `ScreenState` is checked against both schemas' states
+  in both directions.
+- Player: the client reads the Frame's `device.duid` itself, once, without the
+  art channel or a key, so a Frame with no wall still reports it. A configured
+  panel is a label output, and `EPD_DEVICE` no longer needs `TV_ADDRESS`. One
+  label renderer per mapped label polls its document through `pull.py`, applies
+  the rule (`label_rule.py`, run over every contract vector), holds a caption for
+  30 minutes while the server is away, and redraws only when the ink would
+  change. `daemon.py` no longer draws the panel; its label tests moved to
+  `test_label_renderer.py`, each move's reason in its commit.
+- Mutation sweeps: the server delegate broke its new code in 11 places, 10 caught
+  and one inert check deleted; the Player delegate's 37 were all caught; the
+  coordinator's own sweep of the rule and the redraw decision caught 14 of 15,
+  and the survivor (reading an unknown state as unreachable in `outcome`, which
+  the fall-through already does) was deleted here and in the root reference rule.
+- Artifacts: `data-model.md` (Display, LabelOutput, Q48–Q52), `api-contract.md`
+  § Clients, `player-contract.md` (the label route's answers, the fault),
+  `clients.md` § The Player, `observability-strategy.md` (label events carry
+  `label_id`), and the plan's decisions. #315 filed for the panel failure reasons
+  the client heartbeat cannot yet carry.
+- Suites: 6297 passed across the three (recorded); browser suite 898 passed.
+
+## 2026-10-08: The contract for displays and label outputs
+
+<!-- prawduct: scope=displays-and-label-outputs -->
+
+**Why:** Chunk 01 of `build-plan-displays-and-label-outputs.md` (#188): the contract
+both the server and the Player build to before either changes. The plan's
+high-impact assumption, that a Frame names itself, was checked first.
+
+**What:**
+- `client-heartbeat.v1`: a display output may carry `identity`, and a new
+  optional `label_outputs` list (`epaper`) reports panels. The server refuses a
+  malformed one and two label outputs of one name, as it does for outputs.
+- `client.v1`: each wall may name its `display`, and a new optional `labels`
+  list maps this client's label outputs to walls. The Player reads both and
+  refuses the document whole when either is malformed, as it does for walls.
+- `label.v1` (new): the label document, carrying the wall's display state and
+  the label text, never a layout.
+- `contract/vectors/label-rule.json` (new): the label rule as conformance
+  vectors, the first behaviour vectors. `tests/preferences/test_label_rule.py`
+  states the rule once, runs every vector against it, and checks that the
+  vectors cover the table and both sides of the 30-minute hold. Mutating the
+  reference rule fails it; one inert clamp was removed rather than defended.
+- Fixtures for each new shape, indexed.
+- `player-contract.md` § Transport and § Versioning describe the label route,
+  display identity, label outputs and the rule.
+- `samsung-tv-state-findings.md` § The set's identity: the Frame's `/api/v2/`
+  carries one uuid as `id`, `duid` and `udn` on both ports; 8002 answers over
+  TLS in 0.14 s, from standby. Not recorded: the value, the address, the MAC.
+- The plan: the identity assumption marked verified in part; three decisions
+  recorded; the route's entry in `contract/routes.json` moved to Chunk 03,
+  because the server's route test holds mounted and named routes equal.
+- `build-plan-display-state.md` and `build-plan-walls-work-and-trust.md` no
+  longer claim their merged branches: each has only the operator's walk left.
+
 ## 2026-10-08: Archiving says the room loses the work now; an unknown filter key is refused
 
 <!-- prawduct: scope=lists-settings-and-scale -->

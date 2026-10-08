@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: display-state
-branch: feature/labels-and-display-state
+# branch: feature/labels-and-display-state — merged in #310 and deleted. Chunk 05, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
 partition: Chunk 01 serial (the contract both sides build to); then delegates in worktrees — A the Player (02, 03; postarr/ only), B the server and Walls (04; arrt/ only); coordinator integrates, reviews and verifies. Chunk 05 is the operator's.
 depends_on:
   - artifact: labels-and-surfaces

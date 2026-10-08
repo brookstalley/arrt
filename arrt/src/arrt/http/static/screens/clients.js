@@ -5,7 +5,8 @@
  * `information-architecture.md` § The *arr layout). A client is a name and one
  * token; it shows the walls assigned to it, each on one of its outputs, and its
  * host learns them from this server — so assigning a wall here needs no edit on
- * the host.
+ * the host. Its label outputs (e-paper panels) are mapped to walls here too, any
+ * wall on any client, and a display two clients report is said in both panels.
  *
  * **The token is shown once, and only here.** The server keeps a verifier, so the
  * answer that issued a token is the only place it ever exists outside the host.
@@ -32,6 +33,7 @@
 import { attempt, failedSentence } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { facts, table } from "../core/badges.js";
+import { GLYPHS } from "../core/glyphs.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
@@ -43,6 +45,11 @@ import { refresh } from "../core/router.js";
 const KIND_WORDS = {
   frame: "Samsung Frame",
   framebuffer: "Screen",
+};
+
+/* The label output kinds the client heartbeat names, in the words a curator reads. */
+const LABEL_KIND_WORDS = {
+  epaper: "E-paper panel",
 };
 
 /* A token just issued, for the one paint that shows it: `{ clientId, token }`. */
@@ -164,9 +171,11 @@ function clientPanel(client, walls, names, shown, said) {
       ],
       ["Last report", client.heartbeat.description],
     ]),
+    ...faults(client),
     outputs(client),
     shownWalls(client),
     assignForm(client, walls, names),
+    labels(client, walls),
     acts(client),
   ]);
 }
@@ -240,6 +249,166 @@ function outputs(client) {
     }
   }
   return el("div", { class: "client-outputs" }, [el("h3", { text: "Outputs" }), body]);
+}
+
+/* Each display this client reports that another client reports too.
+ *
+ * Neither client shows the wall on it until one stops, and no client decides
+ * which: the curator does, at the hosts (`player-contract.md` § Transport). The
+ * server's sentence names every client involved, and is said in each one's panel,
+ * so whichever the curator opens first tells them. */
+function faults(client) {
+  return client.faults.map((fault) => el("p", { class: "note client-fault", text: `${GLYPHS.problem} ${fault.description}` }));
+}
+
+/* What the client last said of its label outputs, which wall each captions, and
+ * the means to change that.
+ *
+ * **A label output is mapped here, beside the outputs, for the reason walls are
+ * assigned here**: a client's surfaces are this page's subject, as a download
+ * client's are Radarr's (`information-architecture.md` § The *arr layout). Walls
+ * says which labels caption each wall, and links here.
+ *
+ * A label output the server holds a record of and the last report does not list
+ * is still shown, and said to be absent from the report: it captions a wall,
+ * and hiding it would hide the mapping that is drawing nothing. */
+function labels(client, walls) {
+  const id = client.client_id;
+  const beat = client.heartbeat;
+  const readable = !beat.absent && !beat.problem;
+  const reported = readable ? beat.label_outputs || [] : [];
+  const stale = isStale(beat);
+  const records = new Map(client.label_outputs.map((record) => [record.output, record]));
+  const wallNames = new Map(walls.map((wall) => [wall.wall_id, wall.name]));
+  const names = [...new Set([...reported.map((each) => each.name), ...records.keys()])];
+  const heading = el("h3", { text: "Labels" });
+  if (!names.length) {
+    return el("div", { class: "client-labels" }, [
+      heading,
+      el("p", {
+        class: "muted",
+        text: readable
+          ? `${client.name} reported no label output, so it has nothing to caption a wall with.`
+          : `${client.name}'s label outputs are not known until it reports.`,
+      }),
+    ]);
+  }
+  const byName = new Map(reported.map((each) => [each.name, each]));
+  const rows = names.map((name) => {
+    const each = byName.get(name);
+    const record = records.get(name);
+    const captions = record && record.wall_id ? wallNames.get(record.wall_id) || "a wall this page could not name" : "No wall";
+    if (!each) return [name, "—", `${GLYPHS.waiting} not in its last report`, "—", captions];
+    return [
+      name,
+      LABEL_KIND_WORDS[each.kind] || each.kind,
+      panelCell(each, stale),
+      each.size ? `${each.size[0]} × ${each.size[1]}` : "size unknown",
+      captions,
+    ];
+  });
+  const mapped = names.map((name) => records.get(name)).filter((record) => record && record.wall_id);
+  return el("div", { class: "client-labels" }, [
+    heading,
+    table(`Label outputs ${client.name} last reported.`, ["Label output", "Kind", "Panel", "Size", "Captions"], rows),
+    mapped.length
+      ? el(
+          "ul",
+          { class: "client-label-list" },
+          mapped.map((record) => stopCaptioning(client, record, wallNames.get(record.wall_id) || "its wall")),
+        )
+      : null,
+    captionForm(client, walls, names, records, wallNames, id),
+  ]);
+}
+
+/* The Panel column. `connected` false is a panel that would not open or whose
+ * last draw failed, which is a fault, unlike a television switched off. */
+function panelCell(output, stale) {
+  if (stale) return `${GLYPHS.waiting} not known now (was ${output.connected ? "answering" : "not answering"})`;
+  return output.connected ? `${GLYPHS.good} answering` : `${GLYPHS.problem} not answering`;
+}
+
+function stopCaptioning(client, record, wallName) {
+  return el("li", {}, [
+    el("span", { text: `${record.output} captions ${wallName}` }),
+    el("button", {
+      class: "action quiet",
+      type: "button",
+      text: `Stop captioning ${wallName}`,
+      "aria-label": `Stop ${record.output} on ${client.name} captioning ${wallName}`,
+      onclick: (event) =>
+        attempt(
+          event.currentTarget,
+          `stop ${record.output} on ${client.name} captioning ${wallName}`,
+          () =>
+            api(`/api/walls/${encodeURIComponent(record.wall_id)}/labels/${encodeURIComponent(record.label_id)}`, {
+              method: "DELETE",
+            }),
+          {
+            then: async () => {
+              outcome = { clientId: client.client_id, text: `${record.output} no longer captions ${wallName}. It shows nothing until it captions a wall.` };
+              await refresh();
+            },
+          },
+        ),
+    }),
+  ]);
+}
+
+/* Captioning a wall with one of this client's label outputs. Every wall is
+ * offered, on any client: a label captions whichever wall the curator chooses.
+ * One already captioning a wall is offered with that wall's name, and the
+ * server refuses it until it is stopped, as it does a second wall on an output. */
+function captionForm(client, walls, names, records, wallNames, id) {
+  const heading = el("h4", { text: "Caption a wall" });
+  if (!walls.length) {
+    return el("div", { class: "client-caption" }, [heading, el("p", { class: "muted", text: "No wall is recorded, so there is nothing to caption." })]);
+  }
+  const labelPicker = el("select", { id: `caption-label-${id}`, "aria-label": `Label output of ${client.name}` });
+  const free = names.find((name) => !(records.get(name) && records.get(name).wall_id));
+  for (const name of names) {
+    const record = records.get(name);
+    const busy = record && record.wall_id ? `, captions ${wallNames.get(record.wall_id) || "a wall"}` : "";
+    labelPicker.append(el("option", { value: name, text: `${name}${busy}`, selected: name === free }));
+  }
+  const wallPicker = el("select", { id: `caption-wall-${id}`, "aria-label": `Wall for ${client.name}'s label` });
+  for (const wall of walls) wallPicker.append(el("option", { value: wall.wall_id, text: wall.name }));
+  return el("div", { class: "client-caption" }, [
+    heading,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: `caption-label-${id}`, text: "Label output" }), labelPicker]),
+      el("div", { class: "field" }, [el("label", { for: `caption-wall-${id}`, text: "Wall" }), wallPicker]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Caption the wall",
+        "aria-label": `Caption a wall with ${client.name}'s label`,
+        onclick: (event) => caption(event.currentTarget, client, labelPicker, wallPicker, walls),
+      }),
+    ]),
+  ]);
+}
+
+function caption(control, client, labelPicker, wallPicker, walls) {
+  const wall = walls.find((each) => each.wall_id === wallPicker.value);
+  const output = labelPicker.value;
+  return attempt(
+    control,
+    `caption ${wall.name} with ${output} on ${client.name}`,
+    () =>
+      api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels`, {
+        method: "POST",
+        body: JSON.stringify({ client_id: client.client_id, output }),
+      }),
+    {
+      then: async (answer) => {
+        const placed = `${output} on ${client.name} now captions ${wall.name}.`;
+        outcome = { clientId: client.client_id, text: answer.notice ? `${placed} ${answer.notice}` : placed };
+        await refresh();
+      },
+    },
+  );
 }
 
 function shownWalls(client) {
@@ -449,12 +618,16 @@ async function rotate(control, client) {
 
 async function remove(control, client) {
   const walls = client.walls.map((wall) => wall.name);
+  const captioning = client.label_outputs.filter((label) => label.wall_id).length;
+  // Its label outputs go with it, so any that caption a wall stop: said, since
+  // the walls they caption may be on other clients and stay otherwise as they are.
+  const labelsGo = captioning ? ` ${agree(captioning, "Its label stops", `Its ${captioning} labels stop`)} captioning.` : "";
   const agreed = await confirmAct({
     title: `Remove ${client.name}?`,
     consequence: walls.length
       ? `Its token stops working at once, and ${listed(walls)} will be left without a client. ` +
-        `${agree(walls.length, "It keeps its theme", "They keep their themes")} until assigned to another.`
-      : "Its token stops working at once. No wall is assigned to it, so no wall is affected.",
+        `${agree(walls.length, "It keeps its theme", "They keep their themes")} until assigned to another.${labelsGo}`
+      : `Its token stops working at once. No wall is assigned to it, so no wall is affected.${labelsGo}`,
     confirmLabel: `Remove ${client.name}`,
   });
   if (!agreed) return;
