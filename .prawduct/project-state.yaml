@@ -530,6 +530,9 @@ product_definition:
         configured threshold (amended 2026-07-20 from "the phase-2 estimate crosses
         a configured cost threshold" — a run costs $0.16-0.49, so cost was gating
         on the axis that does not matter; scope is what the curator judges).
+        RETIRED 2026-10-07 by the owner (ia-proposal.md § Rulings (2026-10-07),
+        ruling 3): no run stops for approval; a monthly budget in the sidebar and a
+        cost tier on every spending action replace it.
       priority: must-have
     - name: "Review and accept a work with its selected image"
       description: >
@@ -1678,6 +1681,10 @@ technical_decisions:
       date: 2026-07-19
     - decision: "The phase-1 work list is gated for approval only when the resolved WORK COUNT crosses a configured threshold."
       rationale: >
+        RETIRED 2026-10-07 by the owner (ia-proposal.md § Rulings (2026-10-07),
+        ruling 3: "just doing the action is the approval"). No run enters
+        awaiting_approval now; a run stored there before can still be approved or
+        declined. The rest of this entry is the gate's history.
         AMENDED 2026-07-20. This decision originally read "...when the phase-2 COST
         ESTIMATE crosses a configured threshold". The gate stands; what it triggers
         on changed, and this canonical entry was missed when the amendment was

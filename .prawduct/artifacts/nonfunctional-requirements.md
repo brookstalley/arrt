@@ -820,8 +820,8 @@ than a silent truncation of results.
 > holds far more than any run will show — one real run's four artists had 69
 > offerable works between them — and the museum's relevance score is unusable for
 > ordering them (`artic-api-findings.md`). So the works kept are taken one per
-> artist per pass, and this number is how many passes. Twelve is about half the
-> approval threshold, which keeps the supplement visibly secondary while still
+> artist per pass, and this number is how many passes. Twelve was about half the
+> approval threshold the gate used until 2026-10-07, which keeps the supplement visibly secondary while still
 > giving a four-artist run three works each. Zero turns it off.
 >
 > **Overrunning the allowance fails the run rather than trimming its results.**

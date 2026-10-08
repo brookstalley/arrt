@@ -42,7 +42,7 @@ def test_the_client_paces_staleness_by_the_players_interval():
 
 
 def test_the_threshold_is_three_intervals():
-    """The owner-confirmed threshold, stated where it is decided."""
+    """The threshold, stated where it is decided: three heartbeats, the build plan's assumption until the owner rules otherwise."""
     found = _CLIENT_THRESHOLD.findall(CLIENT.read_text(encoding="utf-8"))
     assert found == ["3 * HEARTBEAT_INTERVAL_SECONDS"]
 

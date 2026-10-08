@@ -135,20 +135,9 @@ class GetService:
                 work = self._registry.work(qid)
             except RegistryUnavailable as exc:
                 raise ServiceError(f"Wikidata could not be asked about {qid}, so nothing was started. Try again.") from exc
-            if work is None:
-                skipped.append(Skipped(qid, SkipReason.NOT_FOUND))
-                continue
-            maker = work.creators[0] if work.creators else None
-            if (
-                twins.waiting_work(
-                    qid,
-                    work.title,
-                    maker=maker.name if maker else None,
-                    maker_qid=maker.qid if maker else None,
-                )
-                is not None
-            ):
-                skipped.append(Skipped(qid, SkipReason.IN_REVIEW))
+            reason = SkipReason.NOT_FOUND if work is None else self._already_here(qid, work, twins)
+            if reason is not None:
+                skipped.append(Skipped(qid, reason))
                 continue
             chosen.append(chosen_work(qid, work))
         run = (
@@ -167,3 +156,20 @@ class GetService:
             },
         )
         return GetOutcome(run=run, skipped=tuple(skipped))
+
+    @staticmethod
+    def _already_here(qid: str, work: RegistryWork, twins: Twins) -> SkipReason | None:
+        """Why a work the registry knows is not asked for, or None to ask for it.
+
+        Held by its Wikidata item is answered before the registry is asked; a
+        held work with no item, or another, is matched as search and the Artist
+        page match it, so no surface pays for a work the browser shows as held.
+        A work a run found and nobody has judged is not paid for twice either.
+        """
+        maker = work.creators[0] if work.creators else None
+        name, maker_qid = (maker.name, maker.qid) if maker else (None, None)
+        if twins.held_work(qid, work.title, maker=name, maker_qid=maker_qid):
+            return SkipReason.HELD
+        if twins.waiting_work(qid, work.title, maker=name, maker_qid=maker_qid) is not None:
+            return SkipReason.IN_REVIEW
+        return None

@@ -2442,8 +2442,11 @@ mistake this artifact already refuses to make for `halted_by_budget`, and the sa
 reason `api-contract.md` requires an agent to be able to tell "you are out of
 money" from "the fetch failed".
 
-`awaiting_approval` is entered only when the resolved **work count** crosses the
-configured threshold; below it the run goes straight to phase 2.
+`awaiting_approval` is no longer entered (*retired 2026-10-07*, the owner's ruling 3
+in `ia-proposal.md` § Rulings (2026-10-07)): every run goes straight to phase 2, and
+the state survives only for runs a file written before then holds, which approve and
+decline still answer. It used to be entered when the resolved **work count** crossed
+the configured threshold; the amendment below records why the threshold counted works.
 
 > **Amended 2026-07-20** from "the phase-2 estimate crosses the configured
 > threshold". The gate was originally framed on cost. Once real per-run costs were

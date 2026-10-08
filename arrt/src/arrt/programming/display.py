@@ -287,16 +287,17 @@ class DisplayService:
         """A theme a curator can name: any theme but a hung selection.
 
         A selection lives only as long as it hangs (`_retire_selection`), so a
-        Get that sent its works there, or a default that pointed at it, would
-        point at nothing the day the wall changes. Both name a theme from a
-        picker that never offers a selection; this refuses the id arriving
-        another way.
+        Get that sent its works there, a default that pointed at it, a work
+        added to it or a name given it would all be lost the day the wall
+        changes. Each names a theme from a picker that never offers a
+        selection; this refuses the id arriving another way. Taking a work out
+        of one stays allowed: *Not this one again* does it on the wall's behalf.
         """
         theme = self.get_theme(theme_id)
         if theme.hidden:
             raise ServiceError(
-                f"{theme.name!r} is the selection hanging on a wall, not a theme, so works cannot be sent to it "
-                "or made to join it. Choose a theme from Themes."
+                f"{theme.name!r} is the selection hanging on a wall, not a theme, so it cannot be renamed, "
+                "made the default, or have works sent or added to it. Choose a theme from Themes."
             )
         return theme
 
@@ -856,7 +857,7 @@ class DisplayService:
         `added_at` picking the winner, and an add can produce that tie exactly as
         a move could.
         """
-        self.get_theme(theme_id)
+        self.get_listed_theme(theme_id)
         self._require_held(artwork_id)
         target = self._require_position(position)
         membership = ThemeMembership(
@@ -970,7 +971,7 @@ class DisplayService:
         and "inherit the global default" for the two rotation settings. Without
         it, a caller changing only the name would silently clear the theme's pace.
         """
-        theme = self.get_theme(theme_id)
+        theme = self.get_listed_theme(theme_id)
         updated = replace(
             theme,
             name=theme.name if name is None else require_text(name, field="name"),

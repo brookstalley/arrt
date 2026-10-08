@@ -129,5 +129,8 @@ def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
     ui.page.wait_for_selector("#error:not([hidden])")
 
     assert "unavailable" in ui.page.inner_text("#error")
-    assert "No search is in flight" not in ui.page.inner_text("body")
+    assert "No Get is in flight" not in ui.page.inner_text("body")
     assert "Nothing has happened yet" not in ui.page.inner_text("body")
+    # Keyed on the empty state's element as well as its words, so a rewording
+    # cannot leave this asserting the absence of a sentence nothing can produce.
+    assert ui.page.locator("#view .panel.empty").count() == 0

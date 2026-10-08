@@ -336,6 +336,14 @@ unwatched.
 > shown — it is what makes phase 2 authorisable — it is simply not what opens the
 > gate.
 
+> **Retired 2026-10-07 by the owner** (`ia-proposal.md` § Rulings (2026-10-07),
+> ruling 3): *"Just doing the action is the approval."* No run stops for approval
+> now; spend is held in view by a monthly budget in the sidebar and a cost tier on
+> every spending action. The builder's push-back is recorded there: the gate
+> guarded attention as well as money, and if eighty-card To review lists bite, the
+> remedy is a bound on works per Ask, not a cost approval. A run stored awaiting
+> approval before the change can still be approved or declined.
+
 **Canonical selection trades two axes against each other.** *Confidence* asks
 whether this instance is genuinely that work — not a detail crop, a study, a
 poster, an "after Dalí", or a photograph of a gallery wall. *Quality* asks about

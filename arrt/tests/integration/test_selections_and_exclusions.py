@@ -170,6 +170,16 @@ class TestASelectionLivesWhileItHangs:
         assert "selection" in get.text
         assert http.get("/api/runs").json() == runs_before
 
+    def test_a_selection_cannot_be_added_to_or_renamed(self, http, ready_work, the_wall):
+        hung, extra = ready_work("Automat"), ready_work("Chop Suey")
+        selection = self.selection_on(http, the_wall, hung)
+
+        added = http.post(f"/api/themes/{selection}/works", json={"artwork_id": extra.id})
+        renamed = http.post(f"/api/themes/{selection}", json={"name": "Mine now"})
+
+        assert (added.status_code, renamed.status_code) == (400, 400)
+        assert [w["artwork_id"] for w in http.get(f"/api/themes/{selection}").json()["works"]] == [hung.id]
+
     async def test_the_tool_refuses_a_selection_as_a_gets_destination(self, server_url, ready_work):
         work = ready_work("Automat")
         walls, _ = await call(server_url, "art_display", action="walls")

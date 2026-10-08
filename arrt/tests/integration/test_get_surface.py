@@ -193,6 +193,22 @@ async def test_a_work_waiting_in_review_is_skipped_by_its_item_or_by_its_title(s
     assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
 
 
+async def test_a_work_held_without_its_item_is_skipped_by_title_and_artist(server_url, seeded_service):
+    """Held, as search and the Artist page say it is, though no Wikidata item is recorded on it.
+
+    The library's Swans carries no item, so only its title and artist can say it
+    is the registry's; a Get asked through the API must not pay for it again.
+    Nowhere, held by nobody, is still got.
+    """
+    dali = next(artist for artist in seeded_service.list_artists() if artist.name == "Salvador Dalí")
+    seeded_service.add_artwork(title="Swans Reflecting Elephants", artist_id=dali.id, date_created="1937")
+
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [SWANS, NOWHERE]}, timeout=10)).json()
+
+    assert body["skipped"] == [{"qid": SWANS, "reason": "held"}]
+    assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
+
+
 async def test_a_selection_of_only_held_items_starts_nothing(server_url, services, seeded_service):
     held = seeded_service.list_artworks().entries[0].artwork
     services.identity.set_work_identity(held.id, ELEPHANTS)
