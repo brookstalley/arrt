@@ -20,6 +20,12 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-connected-not-a-boolean.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-kind-unknown.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
@@ -27,6 +33,18 @@
     },
     {
       "path": "fixtures/client-heartbeat.v1/invalid/label-output-missing-size.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-name-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-not-an-object.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema"
