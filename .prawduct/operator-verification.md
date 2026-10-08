@@ -21,12 +21,20 @@ and desktop width in both schemes, on both libraries: the library copy gave
 100 captures, and the 2,000-work synthetic corpus gave 84 across the same 21
 screens as the walk before this plan (`.ux-walk/after-lists-settings`). Both
 had no accessibility violations, no console errors and no dead ends, the same
-as before. Not yet deployed.
+as before. After chunk 06 the walk was re-run on the library copy
+(`.ux-walk/wall-label-06`): 104 captures across 26 screens, no
+accessibility violations, no dead ends, and one console error, a 400 on
+Artists. That is the thumbnail of an artist none of whose works has an image
+yet (the library copy gained a 32nd artist between walks), which the card
+answers with "No picture" (`screens/artists.js`). Not yet deployed.
 
 - **Look at, on the real library, in both schemes:** Artworks (tiles on a mat,
   label beneath, rows even), a work's page (picture beside its label,
   description in the serif, the record as ruled sections), Status, Walls,
-  Themes, Settings. Then compare with the canvas the direction was chosen
+  Themes, Settings. Then the controls (chunk 06): buttons in a row the
+  same height, rows evenly spaced below what they follow, and on Ask the
+  cost shown as "Cost: $" beside Get rather than as a box. On a phone, every
+  control is big enough to tap. Then compare with the canvas the direction was chosen
   from: https://claude.ai/artifact/KKGdo4ktsDS32t15yyUpCS.
 - **Check especially:** whether the space each tile reserves for its longest
   label leaves too much air between rows when every title is short. (The
