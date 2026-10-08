@@ -8,7 +8,31 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/client-heartbeat.v1/invalid/identity-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/client-heartbeat.v1/invalid/kind-unknown.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-kind-unknown.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-missing-size.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-outputs-not-a-list.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema"
@@ -43,7 +67,17 @@
       "valid": true
     },
     {
+      "path": "fixtures/client-heartbeat.v1/valid/frame-with-identity-and-a-panel.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/client-heartbeat.v1/valid/no-outputs-and-an-unknown-key.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/panels-and-no-display.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": true
     },
@@ -51,6 +85,24 @@
       "path": "fixtures/client-heartbeat.v1/valid/two-connectors-one-unplugged.json",
       "schema": "schemas/client-heartbeat.v1.schema.json",
       "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-missing-wall-id.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/labels-not-a-list.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-display-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
     },
     {
       "path": "fixtures/client.v1/invalid/wall-missing-output.json",
@@ -71,6 +123,11 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/client.v1/valid/a-label-and-no-walls.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/client.v1/valid/no-walls-yet.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": true
@@ -82,6 +139,11 @@
     },
     {
       "path": "fixtures/client.v1/valid/unknown-key.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/walls-on-displays-and-labels-mapped.json",
       "schema": "schemas/client.v1.schema.json",
       "valid": true
     },
@@ -171,6 +233,67 @@
     {
       "path": "fixtures/heartbeat.v1/valid/minor-3-showing-art.json",
       "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/invalid/in-use-naming-a-work.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/label-missing-title.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/schema-major-2.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/since-without-offset.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/state-unknown.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/wall-name-missing.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/valid/showing-art.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/silent-holding-the-last-caption.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/silent-never-reported.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/unassigned.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/unknown-minor-and-key.json",
+      "schema": "schemas/label.v1.schema.json",
       "valid": true
     },
     {

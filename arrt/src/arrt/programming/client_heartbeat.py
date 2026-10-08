@@ -11,7 +11,8 @@ stated in code**, because the server does not carry a schema validator at run
 time. `arrt/tests/contract/test_client_surface.py` holds the two to each other:
 every fixture the contract calls valid is accepted here, and every invalid one is
 refused. One rule is the server's own, because a schema cannot state it: two
-outputs may not share a name, since the name is how a wall is placed on one.
+outputs may not share a name, nor two label outputs, since the name is how a wall
+or a label is placed on one.
 """
 
 import re
@@ -32,6 +33,9 @@ REPORTED_AT_KEY: Final[str] = "reported_at"
 #: The output kinds `player-contract.md` names: a Samsung Frame's own art store,
 #: and a screen the client draws to itself.
 OUTPUT_KINDS: Final[frozenset[str]] = frozenset({"frame", "framebuffer"})
+
+#: The label output kinds `player-contract.md` names: an e-paper panel.
+LABEL_OUTPUT_KINDS: Final[frozenset[str]] = frozenset({"epaper"})
 
 #: RFC 3339 with an offset, the schema's pattern exactly, so the server and the
 #: schema refuse the same spellings.
@@ -112,7 +116,51 @@ def problem_with(document: object) -> str | None:
         if output["name"] in seen:
             return f"two outputs are both called {output['name']!r}; an output's name is how a wall is placed on it."
         seen.add(output["name"])
+    return _problem_with_label_outputs(document)
+
+
+def _problem_with_label_outputs(document: dict[str, Any]) -> str | None:
+    if "label_outputs" not in document:
+        return None
+    label_outputs = document["label_outputs"]
+    if not isinstance(label_outputs, list):
+        return "'label_outputs' is a list of the client's label outputs, when it carries one."
+    seen: set[str] = set()
+    for index, label_output in enumerate(label_outputs):
+        problem = _problem_with_label_output(label_output)
+        if problem is not None:
+            return f"label output {index}: {problem}"
+        if label_output["name"] in seen:
+            return (
+                f"two label outputs are both called {label_output['name']!r}; "
+                "a label output's name is how a label is placed on it."
+            )
+        seen.add(label_output["name"])
     return None
+
+
+def _problem_with_label_output(label_output: object) -> str | None:
+    if not isinstance(label_output, dict):
+        return "each label output is a JSON object."
+    name = label_output.get("name")
+    if not isinstance(name, str) or not name:
+        return "'name' is the label output's name, non-empty text."
+    if label_output.get("kind") not in LABEL_OUTPUT_KINDS:
+        return f"'kind' is one of {', '.join(sorted(LABEL_OUTPUT_KINDS))}."
+    if not isinstance(label_output.get("connected"), bool):
+        return "'connected' is true or false."
+    if "size" not in label_output or not _is_size(label_output["size"]):
+        return "'size' is [width, height] in pixels, or null when unknown."
+    return None
+
+
+def _is_size(size: object) -> bool:
+    """[width, height] in whole pixels, or null."""
+    return size is None or (
+        isinstance(size, list)
+        and len(size) == 2  # noqa: PLR2004 -- a size is [width, height]
+        and all(isinstance(side, int) and not isinstance(side, bool) and side >= 1 for side in size)
+    )
 
 
 def _problem_with_output(output: object) -> str | None:  # noqa: PLR0911 -- one return per field check, each naming its problem
@@ -125,15 +173,10 @@ def _problem_with_output(output: object) -> str | None:  # noqa: PLR0911 -- one 
         return f"'kind' is one of {', '.join(sorted(OUTPUT_KINDS))}."
     if not isinstance(output.get("connected"), bool):
         return "'connected' is true or false."
-    if "screen" not in output:
+    if "screen" not in output or not _is_size(output["screen"]):
         return "'screen' is [width, height] in pixels, or null when unknown."
-    screen = output["screen"]
-    if screen is not None and not (
-        isinstance(screen, list)
-        and len(screen) == 2  # noqa: PLR2004 -- a screen is [width, height]
-        and all(isinstance(side, int) and not isinstance(side, bool) and side >= 1 for side in screen)
-    ):
-        return "'screen' is [width, height] in pixels, or null when unknown."
+    if "identity" in output and not (isinstance(output["identity"], str) and output["identity"]):
+        return "'identity' is the id the client read from the device, non-empty text, or absent."
     return None
 
 

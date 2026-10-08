@@ -83,15 +83,29 @@ class Assignment:
     wall_id: str
     name: str
     output: str
+    #: The server's id for the display behind `output`, or None from a server
+    #: that does not name one. A worker is keyed on the output, never on this.
+    display: str | None = None
+
+
+@dataclass(frozen=True)
+class LabelAssignment:
+    """One of this client's label outputs, and the wall it captions."""
+
+    label_id: str
+    output: str
+    wall_id: str
 
 
 @dataclass(frozen=True)
 class ClientDocument:
-    """What `GET /client` answered: this client, and its walls."""
+    """What `GET /client` answered: this client, its walls, and its labels."""
 
     client_id: str
     name: str
     walls: tuple[Assignment, ...]
+    #: Empty from a server that names no labels, which is the same as none.
+    labels: tuple[LabelAssignment, ...] = ()
 
 
 def parse_client_document(text: str) -> ClientDocument:
@@ -121,8 +135,28 @@ def parse_client_document(text: str) -> ClientDocument:
         for key in ("wall_id", "name", "output"):
             if not _text(wall.get(key)):
                 raise ClientDocumentUnreadable(f"wall {position} carries no {key}")
-        assignments.append(Assignment(wall_id=wall["wall_id"], name=wall["name"], output=wall["output"]))
-    return ClientDocument(client_id=client_id, name=name, walls=tuple(assignments))
+        if "display" in wall and not _text(wall["display"]):
+            raise ClientDocumentUnreadable(f"wall {position} names its display without an id")
+        assignments.append(
+            Assignment(wall_id=wall["wall_id"], name=wall["name"], output=wall["output"], display=wall.get("display"))
+        )
+    return ClientDocument(client_id=client_id, name=name, walls=tuple(assignments), labels=_labels(document))
+
+
+def _labels(document: dict) -> tuple[LabelAssignment, ...]:
+    """The document's labels, absent read as none, and refused whole like its walls."""
+    labels = document.get("labels", [])
+    if not isinstance(labels, list):
+        raise ClientDocumentUnreadable("the client document's labels are not a list")
+    read = []
+    for position, label in enumerate(labels):
+        if not isinstance(label, dict):
+            raise ClientDocumentUnreadable(f"label {position} is a {type(label).__name__}, not an object")
+        for key in ("label_id", "output", "wall_id"):
+            if not _text(label.get(key)):
+                raise ClientDocumentUnreadable(f"label {position} carries no {key}")
+        read.append(LabelAssignment(label_id=label["label_id"], output=label["output"], wall_id=label["wall_id"]))
+    return tuple(read)
 
 
 def _text(value: object) -> bool:

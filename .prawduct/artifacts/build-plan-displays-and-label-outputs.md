@@ -59,12 +59,16 @@ here forbids it; caption mode; any non-Pi Player.
 30-minute blank and the no-discovery rule (`labels-and-surfaces.md` § Rulings,
 `feeds-and-players.md` § Rulings). **Medium** for mechanism, because of these:
 
-- `[ASSUMPTION: a Frame's /api/v2/ device description carries a stable device id (the set's "id" or "duid") that survives a reboot and a network change, so it can key the Display record | HIGH impact | verify against the set before Chunk 05 builds on it; samsung-tv-state-findings.md does not record the field]`
+- `[ASSUMPTION: a Frame's /api/v2/ device description carries a stable device id (the set's "id" or "duid") that survives a reboot and a network change, so it can key the Display record | HIGH impact | PRESENCE VERIFIED 2026-10-08: id, duid and udn carry one uuid on 8001 and 8002 (samsung-tv-state-findings.md § The set's identity). Survival across a reboot or reset is still the UPnP standard's promise, not a measurement; a reset would show as a new display with no walls, which a curator maps again]`
 - `[ASSUMPTION: an attached output (an HDMI connector, a panel) has no device id a client can read reliably, so its identity is the client's id plus the output's name, as clients.md does today. Such a display cannot move between clients, which is true of the hardware | MED impact | owner can correct]`
 - `[DECISION: the label renderer applies the label table itself, from a label document carrying the wall's display state (the server's seven, with since) and the work's label text, rather than the server sending a finished "show this" | labels-and-surfaces.md § What a label says: "one pure rule, run identically by every renderer, wherever it is"; the 30-minute blank is a clock the renderer must run anyway when the server is unreachable | builder's call, from the note]`
 - `[DECISION: the label rule ships as conformance vectors in contract/ (display state, since, now, label text → caption, card or blank), the first behaviour vectors of feeds-and-players.md § Reuse across platforms | the rule will be implemented again on Apple platforms, and vectors are the reuse mechanism ruled 2026-10-08 | builder's call]`
 - `[DECISION: client-heartbeat and client documents grow by additive keys, with no schema major | both carry no schema key and allow unknown keys (player-contract.md § Transport): additions are free, and a breaking change would be a new route | conforms]`
 - `[ASSUMPTION: a label output is held by at most one wall, like a display output | MED impact | the owner ruled "a label captions at most one wall"; this plan reads it as a store constraint]`
+
+- `[DECISION: showing_art with no label (a picture this wall did not put there) is the quiet card, not a caption and not blank | the table's "no work to show" row; blank is kept for a screen somebody else is using | builder's call, owner can veto]`
+- `[DECISION: for silent and unreachable, the label document's label is the work the wall last showed where the server knows it, and the renderer holds it for 30 minutes from since; with no label or no since it blanks at once | the hold must be a pure function of the document and the clock for the vectors to state it, so the renderer is never asked to remember its own last caption | builder's call]`
+- `[DECISION: contract/routes.json gains the label route in Chunk 03, not Chunk 01 | arrt's route test holds the mounted routes and routes.json equal in both directions, so naming a route the server does not mount turns that suite red between chunks; player-contract.md describes the route from Chunk 01 | amended at Chunk 01]`
 
 **What would raise it:** one read of the Frame's `/api/v2/` on the operator's set
 (with the Player stopped, through the existing `power_probe.py` REST sample, no
@@ -92,7 +96,7 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 
 ## Status
 
-- [ ] Chunk 01: The contract
+- [x] Chunk 01: The contract
 - [ ] Chunk 02: The server's records
 - [ ] Chunk 03: The server's routes
 - [ ] Chunk 04: The interface
@@ -115,7 +119,7 @@ Done when:
    wall_name, display_state: {state, work_id, since}, label | null}`, where
    `state` is one of the server's seven (`labels-and-surfaces.md` § Display
    state) and `label` is the ten text keys the manifest already carries.
-4. `contract/routes.json` names `label: GET /labels/{label_id}`.
+4. *(Moved to Chunk 03, see the decision above: `contract/routes.json` names the route when the server mounts it.)*
 5. new `contract/vectors/label-rule.json`: (state, since, now, label) → `caption`,
    `card` or `blank`, covering every row of the table, the 30-minute boundary on
    both sides for `silent` and `unreachable`, and a state name the reader does not
@@ -163,7 +167,8 @@ Done when:
 4. HTTP and MCP (`art_display`) can map a wall's display and add or remove its
    label outputs, through one service, with the assignment rules in one place
    (`programming/clients.py`).
-5. `arrt/tests/contract/test_client_surface.py` validates every served document
+5. `contract/routes.json` names `label: GET /labels/{label_id}`;
+   `arrt/tests/contract/test_client_surface.py` validates every served document
    against its schema, and the route test asserts the mounted routes against
    `contract/routes.json`.
 6. Carried in from the display-state review: a server test asserts that
@@ -199,8 +204,7 @@ Done when:
 Done when:
 
 1. The Frame output reports `identity` from the set's `/api/v2/` device
-   description, read once per connection and never by a key press, after the
-   assumption above is verified. HDMI outputs report no identity.
+   description (`device.duid`), read once per connection and never by a key press. HDMI outputs report no identity.
 2. A configured panel (`EPD_DEVICE`) is reported as a label output, and
    `config.py` no longer refuses `EPD_DEVICE` without `TV_ADDRESS`.
 3. Tests in `postarr/tests` validate the heartbeat the client writes against the

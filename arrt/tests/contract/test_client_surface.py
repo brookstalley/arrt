@@ -165,8 +165,23 @@ def test_every_invalid_client_heartbeat_in_the_contract_is_refused_with_400_and_
             ),
             "'screen'",
         ),
+        (
+            (
+                b'{"reported_at": "2026-10-02T14:00:05Z", "outputs": [], "label_outputs": ['
+                b'{"name": "epd-0", "kind": "epaper", "connected": true, "size": null},'
+                b'{"name": "epd-0", "kind": "epaper", "connected": false, "size": null}]}'
+            ),
+            "both called 'epd-0'",
+        ),
     ],
-    ids=["not-json", "not-an-object", "instant-without-offset", "two-outputs-one-name", "screen-of-booleans"],
+    ids=[
+        "not-json",
+        "not-an-object",
+        "instant-without-offset",
+        "two-outputs-one-name",
+        "screen-of-booleans",
+        "two-label-outputs-one-name",
+    ],
 )
 def test_a_malformed_client_heartbeat_is_refused_with_400_naming_the_problem(heartbeat_url, token, body, names):
     response = httpx.post(heartbeat_url, content=body, headers={**_bearer(token), "Content-Type": "application/json"})

@@ -179,14 +179,17 @@ def test_the_index_holds_client_documents_and_client_heartbeats_of_both_kinds():
 
 @pytest.mark.parametrize("row", [row for row in CLIENT_DOCUMENTS if row["valid"]], ids=lambda row: row["path"])
 def test_every_valid_client_document_is_read_whole(row):
-    """Every wall, with its id, name and output, read from the document in its order."""
+    """Every wall, with its id, name, output and display, and every label, read from the document in its order."""
     document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
 
     read = parse_client_document((CONTRACT / row["path"]).read_text(encoding="utf-8"))
 
     assert (read.client_id, read.name) == (document["client_id"], document["name"])
-    assert [(wall.wall_id, wall.name, wall.output) for wall in read.walls] == [
-        (wall["wall_id"], wall["name"], wall["output"]) for wall in document["walls"]
+    assert [(wall.wall_id, wall.name, wall.output, wall.display) for wall in read.walls] == [
+        (wall["wall_id"], wall["name"], wall["output"], wall.get("display")) for wall in document["walls"]
+    ]
+    assert [(label.label_id, label.output, label.wall_id) for label in read.labels] == [
+        (label["label_id"], label["output"], label["wall_id"]) for label in document.get("labels", [])
     ]
 
 
