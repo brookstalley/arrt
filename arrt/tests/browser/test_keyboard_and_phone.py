@@ -60,7 +60,8 @@ def past_the_edge(ui) -> list[str]:
           const edge = document.documentElement.clientWidth;
           const past = [...document.body.querySelectorAll('*')].filter((n) => n.getBoundingClientRect().right > edge + 0.5);
           return past.filter((n) => !past.some((m) => m !== n && n.contains(m))).slice(0, 6)
-            .map((n) => `${n.tagName.toLowerCase()}.${[...n.classList].join('.')}#${n.id} ${Math.round(n.getBoundingClientRect().right)}`);
+            .map((n) => `${n.tagName.toLowerCase()}.${[...n.classList].join('.')}#${n.id}`
+              + ` ${Math.round(n.getBoundingClientRect().right)}`);
         }""")
 
 
@@ -138,10 +139,12 @@ def test_on_a_phone_an_activity_row_is_a_card_and_the_whole_card_opens_it(ui):
     # A point on the card well away from the link itself lands on the link.
     box = row.bounding_box()
     hit = ui.page.evaluate(
-        "([x, y]) => { const n = document.elementFromPoint(x, y); return n && n.closest('a') ? n.closest('a').className : null; }",
+        "([x, y]) => { const n = document.elementFromPoint(x, y);"
+        " return n && n.closest('a') ? n.closest('a').className : null; }",
         [box["x"] + 12, box["y"] + 12],
     )
-    assert hit and "row-link" in hit, "the card is not the link"
+    assert hit, "the card is not the link"
+    assert "row-link" in hit, "the card is not the link"
     ui.page.mouse.click(box["x"] + 12, box["y"] + 12)
     ui.page.wait_for_function("() => location.hash.startsWith('#review/search-1')")
 
@@ -188,7 +191,8 @@ def ring_is_whole(ui, locator) -> bool:
             const s = getComputedStyle(up);
             if (s.overflow === 'visible' && s.overflowX === 'visible') continue;
             const c = up.getBoundingClientRect();
-            if (r.left - grow < c.left || r.top - grow < c.top || r.right + grow > c.right || r.bottom + grow > c.bottom) return false;
+            if (r.left - grow < c.left || r.top - grow < c.top) return false;
+            if (r.right + grow > c.right || r.bottom + grow > c.bottom) return false;
           }
           return true;
         }""")
