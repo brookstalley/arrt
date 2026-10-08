@@ -154,7 +154,9 @@ export function table(caption, headers, rows, { stacked = false } = {}) {
   ])]);
 }
 
-/* Only ever shown when the runaway guard actually bit. Named rather than
+/* Only ever shown when a list stopped short of its own total: the runaway guard
+ * bit (`PAGE_CEILING`), or on Artworks, which pages as it scrolls, the server
+ * stopped sending works before its total said it would. Named rather than
  * silent: a list that stops short without saying so is indistinguishable from a
  * catalogue that holds no more. */
 export function shortfallNote(page) {

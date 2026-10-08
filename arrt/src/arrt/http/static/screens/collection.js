@@ -32,7 +32,8 @@
  * rather than about the works, and lives on the Theme screen).
  */
 
-import { fetchAllWorks, fetchFilterCounts, worksFilterBody } from "../core/api.js";
+import { attempt } from "../core/acting.js";
+import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
 import { absentImage, shortfallNote, statusBadge, tileFitBadge, workName } from "../core/badges.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
@@ -205,6 +206,13 @@ function resolveDensity(total) {
  * tile the picture is the only way in, so it keeps its stop and its name. */
 function cardImage(work, { inTabOrder = true } = {}) {
   if (!work.image.available) {
+    // Still the way in on a Posters tile, whose picture is its only link: a
+    // work whose image has not arrived yet was a tile nothing could open.
+    if (inTabOrder) {
+      return link({ view: "work", id: work.artwork_id }, { class: "card-image", "aria-label": `Open ${workName(work)}` }, [
+        absentImage(work.image.note),
+      ]);
+    }
     return el("div", { class: "card-image" }, [absentImage(work.image.note)]);
   }
   const image = el("img", {
@@ -654,19 +662,38 @@ function filterPhrase(query, chosen, shownTheme) {
 
 /* -- the heading ------------------------------------------------------------- */
 
-/* What is on screen and what is held, in one sentence.
+/* What the filter holds, in one sentence.
  *
- * `page.total` is the server's count over everything the filter selects, so the
- * two figures differ exactly when the runaway guard bit — and saying both is what
- * keeps a short list from reading as a complete one. */
-function headingText(shown, total, query, shownTheme) {
+ * `total` is the server's count over everything the filter selects. How many of
+ * those are on screen so far is said beside *Show more* instead: the grid pages
+ * as the curator scrolls, so "25 of 2,003" in the heading would read as a
+ * shortfall when it is only the first page. */
+function headingText(total, query, shownTheme) {
   // A theme holding one work read "1 works", which the grid could get away with
   // while the only number it ever printed was a whole catalogue's.
   const noun = total === 1 ? "work" : "works";
-  const counted = shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`;
   const matching = query ? ` matching “${query}”` : "";
   const within = shownTheme ? ` in “${shownTheme.name}”` : "";
-  return `${counted}${matching}${within}`;
+  return `${total} ${noun}${matching}${within}`;
+}
+
+/* -- paging ------------------------------------------------------------------ */
+
+/* How far below the window the row under the grid may be when the next page is
+ * asked for, in pixels: about a screen, so the next works are drawn before the
+ * curator reaches the end of these. */
+const NEAR_THE_END = 800;
+
+/* How many works were on screen when this history entry was left, for Back.
+ *
+ * Kept on the entry itself (`history.state.loaded`, written as pages arrive),
+ * beside the scroll and the opened link `core/router.js` remembers, because
+ * that is what makes "card 900 is still card 900" true: the router scrolls to
+ * where the curator was and focuses the card they opened, and both need the
+ * pages that held them. A new entry carries nothing, and starts at one page. */
+function loadedWhenLeft() {
+  const remembered = window.history.state;
+  return remembered && typeof remembered.loaded === "number" ? remembered.loaded : 0;
 }
 
 /* -- the screen -------------------------------------------------------------- */
@@ -685,19 +712,8 @@ export async function viewCollection(generation) {
   // The search, the facets and the theme go to the server, which is what makes
   // the count in the heading a statement about the catalogue rather than about
   // this screen's first page — and what lets the three compose.
-  const fetchPage = (theme) =>
-    fetchAllWorks(
-      query,
-      chosen,
-      (first) => {
-        // Only when there is more to come. A collection that arrives whole in
-        // one round trip has nothing to wait through, and the tiles it would
-        // stand in for are already on their way.
-        if (first.truncated) render(generation, ...skeletonScreen(resolveDensity(first.total)));
-      },
-      offeredSort(),
-      { theme, notOnWall: notOnWall() },
-    );
+  const sort = offeredSort();
+  const narrowing = (theme) => ({ theme, notOnWall: notOnWall() });
   // A bookmark can outlive the theme it names. The server refuses an unknown
   // theme, rightly, since answering with the whole catalogue under its name
   // would be a lie; but passing that refusal on would take the home page down,
@@ -706,24 +722,41 @@ export async function viewCollection(generation) {
   // when the listing without the theme answers: a refusal that survives dropping
   // the theme was never about it, and is the error.
   let theme = state.params.theme || null;
-  let page;
+  let first;
   let themeGone = false;
   try {
-    page = await fetchPage(theme);
+    first = await fetchWorksPage(query, chosen, sort, narrowing(theme));
   } catch (failure) {
     if (!theme || failure.status !== 400) throw failure;
-    page = await fetchPage(null);
+    first = await fetchWorksPage(query, chosen, sort, narrowing(null));
     theme = null;
     themeGone = true;
   }
   const staleTheme = themeGone ? staleThemeNote() : null;
+  const density = resolveDensity(first.total);
+
+  // **One page, then more as the curator scrolls** (#131): the grid no longer
+  // walks the whole catalogue before it paints, so every work is reachable at
+  // any size and the first screenful arrives in one round trip. Back to this
+  // entry is the exception: it reloads as many works as were on screen when it
+  // was left (`loadedWhenLeft`), so the card that was opened is there for the
+  // router to scroll to and focus. A skeleton stands in while those load, at
+  // the geometry the first page has now decided.
+  const works = [...first.works];
+  let exhausted = !first.truncated || first.works.length === 0;
+  const remembered = loadedWhenLeft();
+  if (!exhausted && remembered > works.length) {
+    render(generation, ...skeletonScreen(density));
+    const rest = await fetchWorksFrom(query, chosen, sort, narrowing(theme), works.length, remembered, first.limit);
+    works.push(...rest.works);
+    exhausted = rest.exhausted;
+  }
+  const page = { ...first, works };
 
   const themes = page.themes;
   const shownTheme = themes.find((option) => option.selected) || null;
-  const density = resolveDensity(page.total);
-  const heading = el("h1", { text: headingText(page.works.length, page.total, query, shownTheme) });
-  // After a removal: the tiles left, out of what the filter now holds.
-  const recount = (shown, gone) => headingText(shown, page.total - gone, query, shownTheme);
+  let total = page.total;
+  const heading = el("h1", { text: headingText(total, query, shownTheme) });
 
   if (!page.works.length) {
     render(
@@ -775,14 +808,20 @@ export async function viewCollection(generation) {
       },
       afterRemoval: async ({ removed, complete }) => {
         removedSoFar += removed.length;
+        total -= removed.length;
         // The heading counted what was there before the removal, and a count
         // that no longer matches the tiles under it is the silent lie this
         // surface exists to refuse.
-        heading.textContent = recount(grid.children.length, removedSoFar);
+        heading.textContent = headingText(total, query, shownTheme);
+        remember();
         // A theme whose last member has just gone is empty, and an empty grid
         // with no sentence reads as a broken screen rather than as a theme
-        // holding nothing.
-        if (!grid.children.length) (grid.closest("table") || grid).replaceWith(nothingShown(query, chosen, shownTheme));
+        // holding nothing. Taken out only when nothing is left to load: the
+        // works not yet on screen are still in the theme.
+        if (!grid.children.length && total <= 0) {
+          (grid.closest("table") || grid).replaceWith(nothingShown(query, chosen, shownTheme));
+          more.remove();
+        } else settleMore();
         // The works that left were inside the theme's slice, so every facet
         // count beside it fell, and a value they alone carried now selects
         // nothing — an enabled option leading to an empty grid, the dead end
@@ -810,11 +849,114 @@ export async function viewCollection(generation) {
   });
   for (const work of page.works) grid.append(tile(work, selection));
   const shown = density === TABLE ? tableAround(grid, selection) : grid;
+
+  // -- the next page --------------------------------------------------------
+  //
+  // Asked for when the row below the grid comes within a screen of the window
+  // (an IntersectionObserver), and by *Show more* in that row, which is the
+  // way for a keyboard and a screen reader: a list that grows only under a
+  // scrolling pointer is one they cannot reach the end of. The offset is what
+  // has been taken from the server's order less what was taken out of the
+  // filter since, so a removal does not skip the works behind it.
+  let taken = works.length;
+  const showing = el("p", { class: "muted show-more-count" });
+  const showMore = el("button", { class: "action quiet show-more", type: "button", text: "Show more" });
+  const more = el("div", { class: "show-more-row" }, [showing, showMore]);
+  let watcher = null;
+
+  function remember() {
+    // On this history entry, so Back to it loads as many as are on screen.
+    if (generation !== state.nav) return;
+    window.history.replaceState({ ...(window.history.state || {}), loaded: grid.children.length }, "");
+  }
+
+  function settleMore() {
+    const onScreen = grid.children.length;
+    if (exhausted) {
+      if (watcher) watcher.disconnect();
+      // Said, not left silent, when the server stopped short of its own total:
+      // a list that ends early would read as a catalogue holding no more.
+      fill(more, onScreen < total ? shortfallNote({ works: { length: onScreen }, total }) : null);
+      return;
+    }
+    showing.textContent = `Showing ${onScreen.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}.`;
+  }
+
+  // The page being fetched, if one is: one at a time, and *Show more* pressed
+  // while the scroll has already asked for it waits for that page rather than
+  // asking for a second.
+  let inflight = null;
+
+  function loadPage() {
+    if (inflight) return inflight;
+    if (exhausted || generation !== state.nav) return Promise.resolve();
+    inflight = (async () => {
+      // Placeholders at the grid's own geometry while the page is on its way.
+      const standIn = density === TABLE ? null : skeletonGrid(density);
+      if (standIn) more.before(standIn);
+      try {
+        const body = await fetchWorksPage(query, chosen, sort, narrowing(theme), taken - removedSoFar);
+        if (generation !== state.nav) return;
+        taken += body.works.length;
+        exhausted = !body.truncated || body.works.length === 0;
+        // A work already on screen is not drawn twice: the server's order can
+        // shift under a page boundary when a work joins or leaves the filter.
+        for (const work of body.works) {
+          if (shownWorks.has(work.artwork_id)) continue;
+          shownWorks.set(work.artwork_id, work);
+          grid.append(tile(work, selection));
+        }
+      } finally {
+        inflight = null;
+        if (standIn) standIn.remove();
+      }
+      remember();
+      settleMore();
+    })();
+    return inflight;
+  }
+
+  // A page short enough to leave the row in view does not move it out and
+  // back, so the observer would not fire again; asked here instead.
+  async function loadAsScrolled() {
+    await loadPage();
+    if (exhausted || !more.isConnected || generation !== state.nav) return;
+    if (more.getBoundingClientRect().top < window.innerHeight + NEAR_THE_END) await loadAsScrolled();
+  }
+
+  // From *Show more*, the keyboard goes to the first work that arrived, so the
+  // next Tab continues through the new ones rather than past them.
+  showMore.addEventListener("click", () =>
+    attempt(showMore, "show more works", async () => {
+      const before = grid.children.length;
+      await loadPage();
+      const arrived = grid.children[before];
+      const opener = arrived ? arrived.querySelector("a[href]:not([tabindex='-1'])") : null;
+      if (opener) opener.focus();
+    }),
+  );
+  settleMore();
+
   render(
     generation,
     heading,
-    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shortfallNote(page), shown, selection.bar]),
+    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more, selection.bar]),
   );
+  remember();
+
+  if (!exhausted && typeof IntersectionObserver !== "undefined") {
+    watcher = new IntersectionObserver(
+      (entries) => {
+        if (generation !== state.nav || !more.isConnected) {
+          watcher.disconnect();
+          return;
+        }
+        if (entries.some((entry) => entry.isIntersecting)) guard(loadAsScrolled);
+      },
+      { rootMargin: `0px 0px ${NEAR_THE_END}px 0px` },
+    );
+    watcher.observe(more);
+  }
 }
 
 /* Said where the works are rather than in the rail, so it is seen with the

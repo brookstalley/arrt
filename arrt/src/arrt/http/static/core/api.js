@@ -36,20 +36,18 @@ export async function api(path, options) {
   return body;
 }
 
-/* Both the grid and the theme picker page through to the end rather than showing
- * the first page. The picker is the one that made this necessary: a truncated
- * grid is a visible short list, but a truncated picker means a curator simply
- * cannot put work 101 in a theme, and is told nothing about why.
+/* The theme picker and an artist's held works page through to the end rather
+ * than showing the first page. The picker is the one that made this necessary: a
+ * truncated picker means a curator simply cannot put work 101 in a theme, and is
+ * told nothing about why.
  *
- * **THE JUSTIFICATION FOR THIS HAS BEEN RETIRED, AND THE BEHAVIOUR HAS NOT.**
- * This paragraph used to open "the design target is hundreds of works, so…".
- * `nonfunctional-requirements.md` moved that target to **thousands** on
- * 2026-08-10, and its own amendment calls fetching the whole catalogue
- * "indefensible at 4,000". So what is written below is a description of what this
- * file does, no longer an argument that it is right: the grid owes server-side
- * search, paging and virtualisation, which `information-architecture.md`
- * specifies and no chunk has built. The picker's reason above is unaffected and
- * still binds — whatever replaces this must still leave every work reachable.
+ * **Artworks no longer does.** `nonfunctional-requirements.md` moved the design
+ * target to **thousands** on 2026-08-10 and calls fetching the whole catalogue
+ * "indefensible at 4,000", and `PAGE_CEILING` stopped the grid at 1,250 works.
+ * Artworks now loads a page at a time as the curator scrolls (`fetchWorksPage`,
+ * `build-plan-lists-settings-and-scale.md` Chunk 07), so every work is reachable
+ * and the ceiling does not apply to it. What follows describes the callers that
+ * still walk to the end.
  *
  * **No `limit` is sent**, which is the same rule `fetchAllCandidates` states
  * below and for the same reason. This asked for `limit=100` — a copy of the
@@ -62,16 +60,11 @@ export async function api(path, options) {
  *
  * The cost is paid knowingly: the server's default page is smaller than its cap,
  * so this makes more round trips than asking for the maximum would. They are
- * against a loopback server on the same box. `PAGE_CEILING` no longer admits
- * "far more works than the design target" — at the amended target it is the
- * thing that will bite first, and `shortfallNote` is what keeps that visible
- * rather than silent until the paging work lands.
+ * against a loopback server on the same box.
  *
  * `PAGE_CEILING` is a runaway guard, not a policy. If it is ever hit the caller
  * reports how many were left out, because a cap nobody mentions is the silent
- * omission this product exists to refuse. **Since Artworks gained a Sort, the
- * order also decides which works fall past it**: by title the last letters go
- * missing, by newest the oldest acquisitions. */
+ * omission this product exists to refuse. */
 export const PAGE_CEILING = 50;
 
 /* The chosen facet values, as `GET /api/works` spells them.
@@ -143,6 +136,40 @@ export function worksFilterBody(query, chosen, sort, { artistId = null, status =
 export async function fetchFilterCounts(query = "", chosen = null, { theme = null, notOnWall = false } = {}) {
   const body = await api(`/api/works?limit=1${worksFilter(query, chosen, null, { theme, notOnWall })}`);
   return { total: body.total, facets: body.facets || [], themes: body.themes || [], fits: body.fits || [], not_on_wall: body.not_on_wall || null };
+}
+
+/* One page of works at `offset`, with the counts that come with every page.
+ *
+ * For Artworks, which pages from the server as the curator scrolls rather than
+ * walking to `PAGE_CEILING` (`build-plan-lists-settings-and-scale.md` Chunk 07,
+ * #131): every work is reachable, however many there are. No `limit` is sent,
+ * for the reason `fetchAllWorks` sends none; the page size is read back from
+ * the answer's own `limit`. */
+export async function fetchWorksPage(query = "", chosen = null, sort = null, options = {}, offset = 0) {
+  return api(`/api/works?offset=${offset}${worksFilter(query, chosen, sort, options)}`);
+}
+
+/* The works from `from` up to `upTo`, `pageSize` at a time, a few pages at once.
+ *
+ * For Back to Artworks, which reloads as many works as were on screen when it
+ * was left, so card 900 is still card 900 and the scroll lands on it. The pages
+ * are asked for together, a few at a time, since their offsets are known from
+ * the first; they are kept in offset order, and the first page that comes back
+ * short or saying there is no more ends it (`exhausted`). */
+export async function fetchWorksFrom(query, chosen, sort, options, from, upTo, pageSize) {
+  const works = [];
+  const step = Math.max(1, pageSize || 1);
+  const offsets = [];
+  for (let offset = from; offset < upTo; offset += step) offsets.push(offset);
+  const AT_ONCE = 4;
+  for (let start = 0; start < offsets.length; start += AT_ONCE) {
+    const pages = await Promise.all(offsets.slice(start, start + AT_ONCE).map((offset) => fetchWorksPage(query, chosen, sort, options, offset)));
+    for (const body of pages) {
+      works.push(...body.works);
+      if (!body.truncated || body.works.length < step) return { works, exhausted: true };
+    }
+  }
+  return { works, exhausted: false };
 }
 
 /* `onFirstPage(body)` is called once, with the first page, before the loop asks
