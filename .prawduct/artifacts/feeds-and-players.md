@@ -278,20 +278,35 @@ everything above the paint call.
 
 ## Platforms
 
-Facts below are the builder's recollection, **not measured here**; each is
-verified before its platform's plan is written.
+Measured or sourced 2026-10-08 in `apple-platform-findings.md`, which carries
+the evidence and labels each fact; this section keeps only what the design
+depends on. **Every fact still marked unverified there is verified on hardware
+before its platform's plan is written**: for tvOS, the connection to a Frame;
+for macOS, the saver's local-network permission and an external TV's reported
+size.
 
 - **Apple TV.** tvOS does not let third-party apps be screensavers, so the
-  Player is a foreground app: display state `in_use` while it is not frontmost.
-  Two modes: a public channel with no setup, or pairing with a household Arrt.
-  Driving a Frame from tvOS needs local-network permission and the Frame's
-  WebSocket and upload protocol; plausible, unverified.
-- **macOS screensaver.** The process starts and stops with the screensaver, and
-  the host process for modern screensavers has a reputation for instability. A
-  screensaver wall is unreported most of the time, which is normal for it, not a
-  fault (`silent` in `labels-and-surfaces.md` § Display state already covers
-  it). It must draw from its cache immediately on start.
-- **Windows screensaver.** Last; a .NET Player.
+  Player is a foreground app. **A backgrounded app is suspended and goes
+  silent**: it can send at most one last heartbeat as it leaves, so the server
+  sees a silent wall, not `in_use`. Two modes: a public channel with no setup, or
+  pairing with a household Arrt. tvOS has no local-network permission; the
+  obstacle to driving a Frame is its self-signed certificate, which Network
+  framework can accept and `URLSession` likely cannot. The connection code
+  compiles; nothing has run against a set. `UIScreen` gives no physical size, so
+  the relative mat width applies.
+- **macOS screensaver.** It runs inside Apple's sandboxed `legacyScreenSaver`
+  host, which never stops old instances or exits. So the saver **tears itself
+  down on `com.apple.screensaver.willstop`**, and can write only its own
+  container's cache. A screensaver wall is unreported most of the time, which is
+  normal for it, not a fault (`silent` in `labels-and-surfaces.md` § Display
+  state already covers it). It must draw from its cache immediately on start.
+  **Whether a saver can be granted macOS's local-network permission is
+  unverified and is this platform's largest risk**; if it cannot, a companion
+  app fills a cache the saver only reads. That is tested on a real Mac before
+  this Player's plan is written.
+- **Text.** CoreText measures what the layout needs, so the label ports; vectors
+  check rules, not pixels (§ Reuse across platforms).
+- **Windows screensaver.** Last; a .NET Player. Not investigated.
 - **Pairing.** A token cannot be typed on a TV remote. Control gains a pairing
   flow: the device shows a short code, the operator approves it in Arrt, and the
   device receives its client token.
