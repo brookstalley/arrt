@@ -1378,9 +1378,27 @@ _OUTPUT = Param(
     name="output",
     type="string",
     description=(
-        "Which of the client's outputs shows the wall, by the name the client reports for it — 'hdmi-a-1', "
-        "'frame'. art_display(action='clients') lists what each client last reported."
+        "Which of the client's outputs, by the name the client reports for it: a display output such as "
+        "'hdmi-a-1' or 'frame' for assign_wall, a label output such as 'epd-0' for add_label. "
+        "art_display(action='clients') lists what each client last reported."
     ),
+    required=True,
+)
+
+_DISPLAY_ID = Param(
+    name="display_id",
+    type="string",
+    description=(
+        "Which display — one physical screen, kept by the identity its client read from it — as listed under "
+        "each client's displays by art_display(action='clients')."
+    ),
+    required=True,
+)
+
+_LABEL_ID = Param(
+    name="label_id",
+    type="string",
+    description="Which label output, as listed under the wall's labels by art_display(action='walls').",
     required=True,
 )
 
@@ -1592,6 +1610,47 @@ ART_DISPLAY: Final = ToolRecord(
                     "one client, so assigning it elsewhere moves it."
                 ),
             ),
+        ),
+        Action(
+            name="assign_display",
+            description="Show a named wall on a display, by the display's id, wherever that display now is.",
+            example="art_display(action='assign_display', wall_id='<a wall_id>', display_id='<a display_id>')",
+            params=(_WALL_ID, _DISPLAY_ID),
+            tips=(
+                (
+                    "A display is one screen, kept by the identity its client read from it, so a Frame moved to "
+                    "another client keeps its wall. Get display ids from action='clients'."
+                ),
+                "One display shows one wall: refused when it already shows another.",
+                (
+                    "Two clients reporting one display is a fault: neither shows its wall until one stops, and the "
+                    "answer's notice names both."
+                ),
+            ),
+        ),
+        Action(
+            name="add_label",
+            description="Caption a named wall with one of a client's label outputs, by the label output's name.",
+            example="art_display(action='add_label', wall_id='<a wall_id>', client_id='<a client_id>', output='epd-0')",
+            params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
+            tips=(
+                (
+                    "A wall may have any number of labels, on any clients, including a client that shows no wall. "
+                    "Label output names come from action='clients'."
+                ),
+                "A label output captions at most one wall: refused when it already captions another.",
+                (
+                    "The answer's notice says when the client has not reported a label output by that name. The "
+                    "label is kept either way."
+                ),
+            ),
+        ),
+        Action(
+            name="remove_label",
+            description="Stop a label output captioning a named wall. The label output stays, captioning nothing.",
+            example="art_display(action='remove_label', wall_id='<a wall_id>', label_id='<a label_id>')",
+            params=(_WALL_ID, _LABEL_ID),
+            tips=("Removing one that captions no wall is not an error. Get label ids from the wall's labels in action='walls'.",),
         ),
         Action(
             name="unassign_wall",

@@ -97,11 +97,18 @@ _EXPECTED_SCHEMA = {
     "history_events": {"id", "kind", "occurred_at", "work_id", "run_id", "wall_id", "theme_id", "detail"},
     # The wall token columns went on 2026-10-02, when a Player became a client
     # admitted by the client's token (`migrations.retire_wall_tokens`); the
-    # client that shows the wall, and on which output, arrived in their place.
-    "walls": {"id", "name", "created_at", "client_id", "output"},
+    # client that shows the wall, and on which output, arrived in their place,
+    # and gave way on 2026-10-08 to the display the wall is on
+    # (`migrations.walls_name_displays`).
+    "walls": {"id", "name", "created_at", "display_id"},
     # An installed Player: a name and the verifier of its one token, nothing
     # about the device.
     "clients": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
+    # One screen, keyed by who the device says it is, and the client reporting
+    # it: nothing about the device beyond what it is and where it is plugged in.
+    "displays": {"id", "identity", "client_id", "output", "kind", "first_seen"},
+    # A surface that captions a wall, on the client that holds it.
+    "label_outputs": {"id", "client_id", "output", "wall_id"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
     "directives": {"wall_id", "sequence", "pinned_work_id"},
     "sources": {

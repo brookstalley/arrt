@@ -18,6 +18,11 @@ password hash would buy nothing: it exists to make guessing cheap passwords
 expensive, and there is no cheap password here. Comparisons are constant-time all
 the same, because that costs nothing.
 
+**Which client a wall is assigned to is `clients.Placements`' answer**, the one
+`GET /client` and every display state also take: the client of the wall's
+display, and no client while two report that display. A label output is opened
+by the client that holds it.
+
 **The token never reaches the journal.** A refusal is logged by the client it
 came from, or as "an unknown client", once per that subject per interval, so a
 Player retrying every second with a stale token says so once rather than every
@@ -37,6 +42,7 @@ from enum import StrEnum
 from typing import Final
 
 from arrt.persistence.records import Client
+from arrt.programming.clients import Placements
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
 from arrt.services.store import store_write
@@ -61,6 +67,8 @@ class Admission(StrEnum):
     UNKNOWN = "unknown"
     #: It is a client's current token, and the wall is not assigned to that client.
     NOT_ITS_WALL = "not_its_wall"
+    #: It is a client's current token, and the label output is not that client's.
+    NOT_ITS_LABEL = "not_its_label"
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,8 +88,9 @@ def verifier_of(token: str) -> str:
 class PlayerAccess:
     """Issue client tokens, and decide whether a presented one opens a wall."""
 
-    def __init__(self, store: ProgrammingStore, *, clock: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, store: ProgrammingStore, placements: Placements, *, clock: Callable[[], float] = time.monotonic) -> None:
         self._store = store
+        self._placements = placements
         self._clock = clock
         self._last_logged: dict[str, float] = {}
         self._logging = threading.Lock()
@@ -111,18 +120,37 @@ class PlayerAccess:
         return client
 
     def admit(self, wall_id: str, token: str | None) -> Admission:
-        """Whether this token opens this wall: its client must be the one the wall is assigned to."""
+        """Whether this token opens this wall: its client must be the one that shows the wall now."""
         client = self.identify(token)
         if client is None:
             return Admission.UNKNOWN
         wall = self._store.get_wall(wall_id)
-        if wall is not None and wall.client_id == client.id:
+        shown_by = None if wall is None else self._placements.placement_of(wall).shown_by
+        if shown_by is not None and shown_by.id == client.id:
             return Admission.ADMITTED
         # Named by a wall this plane holds, never by the id in the URL: that id
         # is the caller's choice, and whatever it typed must not reach the journal.
         asked = f"wall {wall.name!r}" if wall is not None else "a wall this server does not hold"
         self._log_refusal(f"client {client.name!r}", f"it asked for {asked}, which is not assigned to it")
         return Admission.NOT_ITS_WALL
+
+    def admit_label(self, label_id: str, token: str | None) -> Admission:
+        """Whether this token opens this label output's document: its client must hold the label output."""
+        client = self.identify(token)
+        if client is None:
+            return Admission.UNKNOWN
+        label = self._store.get_label_output(label_id)
+        if label is not None and label.client_id == client.id:
+            return Admission.ADMITTED
+        # Named by what this plane holds, never by the id in the URL, for the
+        # reason `admit` gives.
+        asked = (
+            f"label output {label.output!r} of another client"
+            if label is not None
+            else "a label output this server does not hold"
+        )
+        self._log_refusal(f"client {client.name!r}", f"it asked for {asked}")
+        return Admission.NOT_ITS_LABEL
 
     def admit_any(self, token: str | None) -> Admission:
         """Whether this token is any client's, which is what media asks."""

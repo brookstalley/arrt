@@ -374,11 +374,14 @@ class Services:
             **({} if spawn is None else {"spawn": spawn}),
         )
         registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, box=artwork_box)
+        clients = ClientService(catalogue, display_settings, library)
         return cls(
             catalogue=catalogue_service,
             library=library,
-            access=PlayerAccess(catalogue),
-            clients=ClientService(catalogue, display_settings),
+            # The access service asks the client service's placements who shows a
+            # wall, so admission and `GET /client` cannot disagree.
+            access=PlayerAccess(catalogue, clients.placements),
+            clients=clients,
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
