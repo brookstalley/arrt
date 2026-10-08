@@ -869,11 +869,72 @@ h1,
   text-underline-offset: 2px;
 }
 
+/* The selection's action bar (`core/selecting.js`), one shape on every list:
+   held at the foot of the window while *Select* is on, so its acts stay in
+   reach however far down the list the ticking went. Sticky rather than fixed,
+   so at the end of the list it settles under the last row instead of covering
+   it. */
 .selection {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+.selection-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A theme's name can be longer than a phone is wide: the picker shrinks to the
+   bar rather than pushing the page sideways. */
+.selection .selection-field {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.selection select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Below Artworks' grid: how many are on screen, and *Show more*, the way to the
+   next page for a keyboard and a screen reader (the next page also arrives as
+   this row nears the window). Placeholders for the page on its way sit above
+   it, a step below the grid. */
+.show-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.show-more-row .muted {
+  margin: 0;
+}
+
+.collection-main > .grid-skeleton {
+  margin-top: var(--space-4);
+}
+
+/* Get's own control, inside the bar: no margin of its own there. */
+.selection .get-control {
+  margin-block: 0;
 }
 
 .selection-field {
@@ -888,13 +949,6 @@ h1,
 .collection:not(.selecting) .tile-select,
 .collection:not(.selecting) .row-select {
   display: none;
-}
-
-.select-toggle[aria-pressed="true"] {
-  border-color: var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text-strong);
-  font-weight: 600;
 }
 
 .selection-status {

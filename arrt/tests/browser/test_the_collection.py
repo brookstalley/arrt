@@ -201,14 +201,13 @@ def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, serv
     two thousand tiles actually laid out by a real browser, and a stub renders
     one. `build_large_catalogue` exists precisely so the claim can be measured.
 
-    **It also reports what a stub hid.** `fetchAllWorks` stops at `PAGE_CEILING`
-    pages and the server's default page is `DEFAULT_LIST_LIMIT`, so the grid can
-    reach 1,250 works and no further — at the prototype's scale the runaway guard
-    bites. That is a known debt, recorded in `core/api.js`, and the thing this
-    test pins is that it bites *audibly*: the heading says how many of how many,
-    and the note says how many are held and not shown. A grid that stopped short
-    in silence is the failure this product exists to refuse, and it would look
-    exactly like a collection of 1,250.
+    **And every work is reachable** (#131, `build-plan-lists-settings-and-scale.md`
+    Chunk 07). Until then the grid walked to `PAGE_CEILING` and stopped at 1,250
+    works, and this test pinned that the stop was *audible* — the heading said
+    how many of how many, and the note how many were not shown. Artworks now
+    pages from the server as the curator scrolls, so the claim is the stronger
+    one the note stood in for: the heading names the whole catalogue, every work
+    arrives by *Show more*, and the shortfall note never appears.
     """
     seed_the_served_catalogue(size=PROTOTYPE_SCALE)
     # Asked rather than assumed: `server_url` boots on `seeded_service`, so the
@@ -223,11 +222,16 @@ def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, serv
     # The default at this scale is the contact sheet — image only, uniform tiles.
     assert ui.page.locator("ul.grid.contact-sheet").count() == 1
     assert ui.page.locator("li.card").count() == 0
+    assert ui.page.inner_text("h1") == f"{held} works"
+    # One page at first, so reaching the rest is something the screen has to do.
+    assert ui.page.locator("ul.grid li.tile").count() < held
 
-    shown = ui.page.locator("ul.grid li.tile").count()
-    assert 0 < shown < held, "the guard did not bite, so this test is no longer about what it says"
-    assert ui.page.inner_text("h1") == f"{shown} of {held} works"
-    assert f"{held - shown} more are held and are not on this page" in ui.text()
+    ui.show_more()
+
+    assert ui.page.locator("ul.grid li.tile").count() == held
+    assert "not on this page" not in ui.text()
+    ids = ui.page.eval_on_selector_all("ul.grid li.tile", "nodes => nodes.map((n) => n.dataset.artwork)")
+    assert len(set(ids)) == held, "a work was drawn twice, so another was never drawn"
 
     # Legible: every tile the same size, and big enough to judge a picture in.
     # Sampled rather than measured over every tile — a thousand
@@ -533,6 +537,12 @@ def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui
     Outside *Select* mode, nothing on the screen changes a theme's members:
     no tick on any tile and no theme picker. The rail's theme options are
     toggles (`aria-pressed`), and the picker, once shown, has a visible name.
+
+    The *Select* toggle says which mode the page is in by its label — "Select",
+    then "Stop selecting" — since chunk 05 of `build-plan-lists-settings-and-scale.md`
+    gave every list one selection model; it was an `aria-pressed` toggle that
+    read "Select" in both states. The claim is unchanged: the mode is readable
+    from the control.
     """
     theme, works = a_theme_holding_one_work
     ui.open("#collection")
@@ -541,11 +551,11 @@ def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui
     assert ui.page.locator("input.tile-select:visible").count() == 0
     assert ui.page.locator("#add-to-theme:visible").count() == 0
     assert theme_option(ui, theme).get_attribute("aria-pressed") == "false"
-    assert ui.page.get_attribute("button.select-toggle", "aria-pressed") == "false"
+    assert ui.page.inner_text("button.select-toggle") == "Select"
 
     enter_select_mode(ui)
 
-    assert ui.page.get_attribute("button.select-toggle", "aria-pressed") == "true"
+    assert ui.page.inner_text("button.select-toggle") == "Stop selecting"
     assert ui.page.locator("input.tile-select:visible").count() == 3
     # Nothing ticked, so Add can do nothing yet; and with no theme in the
     # filter there is no theme to remove from, so Remove is not drawn at all.
@@ -795,20 +805,24 @@ def test_a_refused_removal_keeps_its_own_reason_when_the_recount_fails_too(ui, d
     assert "The recount failed." not in said
 
 
-def test_a_collection_with_no_themes_draws_no_tick_it_cannot_act_on(ui, seeded_service):
+def test_a_collection_with_no_themes_offers_select_with_something_behind_it(ui, seeded_service):
     """A control with nothing behind it is the dead end the facet rules forbid.
 
-    With no theme to put a work into, a selection can do nothing — so there is no
-    *Select* toggle and no checkbox on any tile, hidden or not. The paired
-    positive is every membership test above, each of which has a theme and finds
-    the toggle.
+    This was "with no theme, no *Select* at all", when adding to an existing
+    theme was the only act a selection had. Since one selection model gave it
+    *New theme…* and *Archive* (`build-plan-lists-settings-and-scale.md` Chunk
+    05), a selection always has something to do, so *Select* is offered — and
+    the claim it kept is that what it offers can act: the picker starts on *New
+    theme…* rather than on nothing, and Archive is there.
     """
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
 
-    assert ui.page.locator("button.select-toggle").count() == 0
-    assert ui.page.locator("input.tile-select").count() == 0
-    assert ui.page.locator(".selection").count() == 0
+    picker = ui.page.locator("#add-to-theme")
+    assert picker.locator("option").all_inner_texts() == ["New theme…"]
+    assert picker.input_value() == "new"
+    assert ui.page.locator("button.selection-archive").count() == 1
 
 
 def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_holding_one_work):
@@ -816,6 +830,8 @@ def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_ho
 
     The picker defaulting to the first theme is what made this reachable in one
     move: showing a theme, pressing Add, and being told the work is already there.
+    The picker is drawn now, since *New theme…* is somewhere to add; the theme
+    being shown is still not in it.
     """
     theme, _works = a_theme_holding_one_work
 
@@ -823,7 +839,8 @@ def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_ho
     ui.page.wait_for_selector("ul.grid li.card")
     enter_select_mode(ui)
 
-    assert ui.page.locator("#add-to-theme").count() == 0
+    assert ui.page.locator(f"#add-to-theme option[value='{theme.id}']").count() == 0
+    assert ui.page.locator("#add-to-theme option").all_inner_texts() == ["New theme…"]
     assert ui.page.locator("button.selection-remove").count() == 1
 
 

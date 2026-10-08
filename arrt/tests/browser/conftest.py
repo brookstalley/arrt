@@ -370,6 +370,33 @@ class Ui:
     def requests_matching(self, needle: str) -> list[str]:
         return [url for url in self.requests if needle in url]
 
+    def show_more(self, *, until: int | None = None, presses: int = 400) -> None:
+        """Press Artworks' *Show more* until `until` tiles are on screen, or until it is gone.
+
+        As a keyboard user reaches the end of a grid that pages as it scrolls.
+        The scroll asks for pages too — pressing brings the row into view — so
+        a press can find the button moving under a page arriving, or gone once
+        the last one has; each is retried rather than read as a failure.
+        """
+        # Here rather than at the top: this module is collected without the
+        # browser group installed, and only a browser test reaches this line.
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        tiles = self.page.locator("ul.grid > li")
+        for _ in range(presses):
+            if until is not None and tiles.count() >= until:
+                return
+            button = self.page.locator("#view button.show-more")
+            if button.count() == 0:
+                if until is not None:
+                    raise AssertionError(f"Show more ran out at {tiles.count()} tiles, short of {until}")
+                return
+            try:
+                button.click(timeout=2_000)
+            except PlaywrightTimeoutError:
+                continue
+        raise AssertionError(f"Show more was still offered after {presses} presses")
+
 
 @pytest.fixture
 def ui(page, server_url):

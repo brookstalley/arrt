@@ -26,7 +26,8 @@
 import { api, apiLines } from "../core/api.js";
 import { absentImage, facts, workName } from "../core/badges.js";
 import { counted } from "../core/counting.js";
-import { getSelection } from "../core/getting.js";
+import { selectionMode } from "../core/selecting.js";
+import { toolbar } from "../core/toolbar.js";
 import {
   gettable,
   isQid,
@@ -218,7 +219,11 @@ export async function viewTopic(qid, generation) {
   ]);
   const worksSection = asking("representative-works", "Representative works");
   const artistsSection = asking("topic-artists", "Artists");
-  render(generation, el("p", {}, [backLink()]), head, heldSection(page.works), worksSection, artistsSection);
+  // Where the selection's toggle and bar go once the works to tick have arrived
+  // (`paintWorks`), since a Get from them is named after the topic.
+  const toggleSlot = el("span");
+  const barSlot = el("span");
+  render(generation, el("p", {}, [backLink()]), head, toggleSlot, heldSection(page.works), worksSection, artistsSection, barSlot);
 
   // After the page is drawn, all three at once, each into its own section. The
   // works wait for the head as well: a period's are headed with its years, and
@@ -236,7 +241,9 @@ export async function viewTopic(qid, generation) {
   let known = null;
   let works = null;
   const showWorks = () => {
-    if (known && works && worksSection.isConnected) paintWorks(worksSection, known, works, defaultName(page, known));
+    if (known && works && worksSection.isConnected) {
+      paintWorks(worksSection, known, works, defaultName(page, known), { toggleSlot, barSlot });
+    }
   };
   const unavailable = { state: "unavailable", note: UNAVAILABLE, works: [], complete: true };
   const worksAsked = apiLines(`${base}/works`, (line) => {
@@ -320,7 +327,7 @@ function heldCard(work) {
  * is a Dutch Golden Age work here, and the heading claims no more than that
  * (the owner's answer of 2026-10-02). Only when the period is the kind its works
  * were found by, which is the first the registry gives. */
-function paintWorks(section, known, view, name) {
+function paintWorks(section, known, view, name, { toggleSlot, barSlot }) {
   const years = known.state === "known" && known.kinds[0] === "period" ? topicYears(known) : null;
   const heading = el("h2", { id: "representative-works", text: years ? `Works from ${years}` : "Representative works" });
   if (view.state !== "known") {
@@ -331,11 +338,15 @@ function paintWorks(section, known, view, name) {
     fill(section, heading, el("p", { class: "muted", text: "Wikidata lists no works in this topic." }));
     return;
   }
+  // No ticks while the works are still arriving: a repaint would lose them.
   if (!view.complete) return paintArriving(section, heading, view);
-  const getting = getSelection({ defaultName: name });
+  // The page's one selection (`core/selecting.js`), its Get named after the topic.
+  const selection = selectionMode({ notHeld: { defaultName: name } });
+  if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ actions: [selection.toggle] }));
+  if (barSlot.isConnected) barSlot.replaceWith(selection.bar);
   const rows = view.works.map((work) =>
     el("tr", {}, [
-      el("td", {}, [gettable(work) ? getting.box(work.qid, named(work.title, work.qid)) : null]),
+      el("td", {}, [gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null]),
       workCell(work, { by: makers(work) }),
       byCell(makers(work)),
       yearCell(work),
@@ -349,7 +360,6 @@ function paintWorks(section, known, view, name) {
       el("thead", {}, [listHeadings(["Get", "Work", "By", "Year", "State"])]),
       el("tbody", {}, rows),
     ])]),
-    view.works.some(gettable) ? getting.node : null,
   );
 }
 

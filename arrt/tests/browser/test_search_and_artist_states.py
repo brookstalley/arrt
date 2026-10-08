@@ -146,6 +146,8 @@ def test_a_suggestion_says_waiting_for_review_and_holds_no_control(ui, harvester
 
 def test_the_artist_page_shows_a_work_in_review_without_a_get(ui, harvesters_waiting, hunters_held_by_title):
     ui.open(f"#artist/{BRUEGEL}")
+    # Ticks show in *Select* mode (`core/selecting.js`).
+    ui.page.click("#view button.select-toggle")
     table = ui.page.locator("section table")
     table.locator("tr:has-text('The Corn Harvest') input[type='checkbox']").wait_for()
 
@@ -161,6 +163,7 @@ def test_the_artist_page_shows_a_work_in_review_without_a_get(ui, harvesters_wai
 def test_get_shows_it_is_free_before_it_is_pressed(ui):
     """A Get spends nothing by construction, and says so with the tier every spending control carries."""
     ui.open(f"#artist/{BRUEGEL}")
+    ui.page.click("#view button.select-toggle")
     get = ui.page.locator("#view .get-control button.action")
     get.wait_for()
 

@@ -22,6 +22,19 @@ pytest.importorskip(
 
 
 # -- the paging loop --------------------------------------------------------
+#
+# Since `build-plan-lists-settings-and-scale.md` Chunk 07 (#131) Artworks loads
+# one page and then more as the curator scrolls, with *Show more* for the
+# keyboard, instead of walking to `PAGE_CEILING` before it paints. The tests
+# below reach the end through *Show more*, the way a keyboard does, and their
+# claims are the ones the walking loop owed: every work arrives, the offsets make
+# progress, no `limit` is sent, an empty page ends it, and a server that stops
+# short of its own total is said aloud.
+
+
+def show_every_work(ui):
+    """Press *Show more* until there is no more, as a keyboard user reaches the end."""
+    ui.show_more()
 
 
 @pytest.fixture
@@ -55,6 +68,7 @@ def test_the_grid_pages_through_a_catalogue_larger_than_one_page(ui, a_catalogue
     # nothing jumps when the count arrives — so `h1` stopped meaning "the grid has
     # painted". The assertion below is unchanged; only what it waits for is.
     ui.page.wait_for_selector("ul.grid li.card")
+    show_every_work(ui)
 
     assert ui.page.inner_text("h1") == f"{a_catalogue_past_one_page} works"
     assert ui.page.locator("ul.grid li.card").count() == a_catalogue_past_one_page
@@ -90,6 +104,39 @@ def test_the_grid_pages_through_a_catalogue_larger_than_one_page(ui, a_catalogue
     assert offsets[-1] < a_catalogue_past_one_page, "the loop asked past the end of the catalogue"
 
 
+def test_the_next_page_arrives_as_the_curator_scrolls(ui, a_catalogue_past_one_page):
+    """Scrolling toward the end asks for more, without *Show more* being pressed."""
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    first = ui.page.locator("ul.grid li.card").count()
+    assert first < a_catalogue_past_one_page, "one page held everything, so nothing here is paged"
+    assert ui.page.inner_text("#view .show-more-count") == f"Showing {first} of {a_catalogue_past_one_page}."
+
+    ui.page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+
+    ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=first)
+
+
+def test_show_more_takes_the_keyboard_to_the_first_work_it_brought(ui, a_catalogue_past_one_page):
+    """The keyboard's way to the next page, and the next Tab continues into it."""
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    first = ui.page.locator("ul.grid li.card").count()
+
+    button = ui.page.locator("#view button.show-more")
+    assert button.evaluate("node => node.tagName") == "BUTTON"
+    button.focus()
+    ui.page.keyboard.press("Enter")
+    ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=first)
+
+    arrived = ui.page.locator("ul.grid li.card").nth(first)
+    ui.page.wait_for_function(
+        "(id) => document.activeElement && document.activeElement.closest('li.card')"
+        " && document.activeElement.closest('li.card').dataset.artwork === id",
+        arg=arrived.get_attribute("data-artwork"),
+    )
+
+
 def test_the_grid_says_nothing_is_missing_when_nothing_is(ui, a_catalogue_past_one_page):
     """The shortfall note is absent when every work arrived.
 
@@ -98,7 +145,11 @@ def test_the_grid_says_nothing_is_missing_when_nothing_is(ui, a_catalogue_past_o
     """
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
+    # At the end, where a shortfall would be said: on the first page the note is
+    # absent only because paging has not finished.
+    show_every_work(ui)
 
+    assert ui.page.locator("ul.grid li.card").count() == a_catalogue_past_one_page
     assert "are held and are not on this page" not in ui.text()
 
 
@@ -118,32 +169,42 @@ def test_the_grid_stops_when_a_page_comes_back_empty(ui):
     )
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
+    # The next page is asked for as the row under the grid nears the window; the
+    # empty answer ends the paging, and the short list says so.
+    ui.page.wait_for_selector("#view .show-more-row p.note")
 
     # Two requests and no more: the second answered empty, and that ended it.
     assert len(ui.requests_matching("/api/works?")) == 2
     assert ui.page.locator("ul.grid li.card").count() == 1
+    assert ui.page.locator("#view button.show-more").count() == 0
 
 
-def test_the_grid_reports_what_the_runaway_guard_left_out(ui):
-    """When `PAGE_CEILING` bites, the page says how many are missing.
+def test_the_grid_pages_past_the_old_ceiling_and_misses_nothing(ui):
+    """Every work is reachable, however many pages that takes (#131).
 
-    A list that stops short in silence is indistinguishable from a catalogue
-    holding no more, which is the exact silence this product exists to refuse.
+    Replaces "the grid reports what the runaway guard left out": Artworks used
+    to stop at `PAGE_CEILING` pages and say how many it had left out. It now
+    pages as far as there are works, so the claim kept is the one behind the
+    guard's note — nothing held is silently missing — asserted past the old
+    ceiling: sixty pages of one work each, all on screen, and no shortfall said.
     """
-    ui.serve(
-        "**/api/works?*",
-        a_listing([a_catalogue_work(artwork_id="a", title="Endless")], total=999, truncated=True),
-    )
-    ui.open("#collection")
-    # Scoped to the view: the shell carries a permanently-present `p.note` of its
-    # own for errors, so an unscoped match waits on the wrong element and times
-    # out against a page that painted correctly.
-    ui.page.wait_for_selector("#view p.note")
+    pages = 60
 
-    # The guard is 50 pages, and this stub hands back one work per page.
-    assert len(ui.requests_matching("/api/works?")) == 50
-    assert ui.page.inner_text("h1") == "50 of 999 works"
-    assert "949 more are held and are not on this page" in ui.text()
+    def handler(route):
+        offset = int(route.request.url.split("offset=")[1].split("&")[0])
+        work = a_catalogue_work(artwork_id=f"w{offset:03d}", title=f"Work {offset:03d}")
+        body = a_listing([work], total=pages, truncated=offset + 1 < pages, offset=offset)
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    ui.page.route("**/api/works?*", handler)
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    show_every_work(ui)
+
+    assert ui.page.locator("ul.grid li.card").count() == pages
+    assert len(ui.requests_matching("/api/works?")) == pages
+    assert ui.page.inner_text("h1") == f"{pages} works"
+    assert "not on this page" not in ui.text()
 
 
 def test_a_shortfall_of_exactly_one_reads_in_the_singular(ui):

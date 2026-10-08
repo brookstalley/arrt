@@ -22,7 +22,9 @@ that safe.
 """
 
 import logging
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -37,6 +39,7 @@ from arrt.http.models import (
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArchivedWorksOut,
     ArtistCandidateOut,
     ArtistListOut,
     ArtistOut,
@@ -145,11 +148,13 @@ from arrt.http.models import (
     StartRun,
     StepDisplay,
     SuggestionOut,
+    ThemeAdditionOut,
     ThemeDetailOut,
     ThemeListOut,
     ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
+    ThemeRemovalOut,
     ThemeSummaryOut,
     TopicArtistsOut,
     TopicFoundOut,
@@ -177,6 +182,8 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
     WorkPlacementsOut,
+    WorkSelection,
+    WorksFilter,
 )
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
@@ -188,7 +195,7 @@ from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
-from arrt.library.services.survey import WorkDossier, WorkSurvey
+from arrt.library.services.survey import FIT_BANDS, WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
@@ -279,6 +286,8 @@ def list_works(
     sort: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
     theme: Annotated[str | None, Query()] = None,
+    fit: Annotated[list[str] | None, Query()] = None,
+    not_on_wall: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -299,11 +308,26 @@ def list_works(
     them: Programming names the theme's works, and the Library lists them. An
     unknown theme is refused by name rather than ignored, because ignoring it
     would answer with the whole catalogue labelled as the theme's.
+
+    `fit` narrows to works whose size on the wall is in one of the bands named
+    (`native`, `matted_small`, `below_floor`, or `unknown` for a work with no
+    master), and `not_on_wall` to works no wall plays now. Both are counted
+    like a facet, each ignoring its own selection, and every other count
+    narrows by them (`_Narrowing`).
     """
     services = _services(request)
-    within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
     facets = {kind: values for kind, values in chosen.items() if values}
+    narrowing = _narrowing(
+        services,
+        status=status,
+        q=q,
+        facets=facets,
+        artist_id=artist_id,
+        theme=theme,
+        fit=fit or [],
+        not_on_wall=not_on_wall,
+    )
     page = services.survey.list_works(
         status=status,
         q=q,
@@ -312,12 +336,11 @@ def list_works(
         offset=offset,
         sort=sort,
         artist_id=artist_id,
-        within=within,
+        within=narrowing.within(),
     )
     # The theme options, counted as the facets are, with the theme's own
     # selection ignored: the Library names what the other filters select, and
     # Programming counts each theme's members among them.
-    others = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
         total=page.total,
@@ -325,8 +348,169 @@ def list_works(
         offset=page.offset,
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
-        themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
+        themes=[_theme_option(option) for option in services.display.theme_counts(narrowing.among(but="theme"), selected=theme)],
+        fits=narrowing.fit_options(),
+        not_on_wall=narrowing.off_wall_option(),
     )
+
+
+def _meet(*restrictions: frozenset[str] | None) -> frozenset[str] | None:
+    """The works every restriction allows; None when none restricts anything."""
+    present = [restriction for restriction in restrictions if restriction is not None]
+    if not present:
+        return None
+    return frozenset.intersection(*present)
+
+
+@dataclass(frozen=True)
+class _Narrowing:
+    """Which works a filter selects, composed across the seam, with what each narrowing would count.
+
+    **The bindings compose; neither plane reaches the other.** The Library
+    answers what its own narrowings select (`matching_ids`) and each work's
+    size on the wall (`fit_bands`); Programming answers a theme's members and
+    which works a wall plays now (`work_ids_on_walls`), all as opaque ids. Here
+    they meet as sets, and the Library is handed the result as `within`, the
+    restriction it already lists theme slices by (`architecture.md` seam rule 1).
+
+    Three restrictions on top of the Library's own: the theme, the fit bands
+    and *Not on any wall*. Each is counted with its own selection dropped and
+    the others kept, as a facet is (`CatalogueService._facet_groups`), so an
+    option offered as enabled cannot lead to an empty grid.
+    """
+
+    base: frozenset[str]
+    theme: frozenset[str] | None
+    fit: frozenset[str] | None
+    wall: frozenset[str] | None
+    bands: Mapping[str, str]
+    on_walls: frozenset[str]
+    chosen_bands: frozenset[str]
+    not_on_wall: bool
+
+    def _restrictions(self, but: str | None = None) -> list[frozenset[str] | None]:
+        named = (("theme", self.theme), ("fit", self.fit), ("wall", self.wall))
+        return [restriction for name, restriction in named if name != but]
+
+    def within(self) -> frozenset[str] | None:
+        """The restriction the Library lists within: every one of the three in force."""
+        return _meet(*self._restrictions())
+
+    def among(self, *, but: str) -> frozenset[str]:
+        """What every narrowing but `but` selects: the set `but`'s options are counted over."""
+        return _meet(self.base, *self._restrictions(but)) or frozenset()
+
+    def fit_options(self) -> list[FacetOptionOut]:
+        counts = Counter(self.bands[work_id] for work_id in self.among(but="fit") if work_id in self.bands)
+        return [
+            FacetOptionOut(
+                value=band,
+                count=counts[band],
+                selected=band in self.chosen_bands,
+                disabled=counts[band] == 0 and band not in self.chosen_bands,
+            )
+            for band in FIT_BANDS
+        ]
+
+    def off_wall_option(self) -> FacetOptionOut:
+        count = len(self.among(but="wall") - self.on_walls)
+        return FacetOptionOut(
+            value="not_on_wall",
+            count=count,
+            selected=self.not_on_wall,
+            disabled=count == 0 and not self.not_on_wall,
+        )
+
+
+def _narrowing(
+    services: Services,
+    *,
+    status: str | None,
+    q: str | None,
+    facets: Mapping[str, Sequence[str]],
+    artist_id: str | None,
+    theme: str | None,
+    fit: Sequence[str],
+    not_on_wall: bool,
+) -> _Narrowing:
+    """Compose the Library's narrowings with the theme, the fit bands and *Not on any wall*."""
+    unknown = [band for band in fit if band not in FIT_BANDS]
+    if unknown:
+        raise ServiceError(f"fit must be one of {', '.join(FIT_BANDS)}; got {', '.join(repr(band) for band in unknown)}.")
+    base = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
+    chosen_bands = frozenset(fit)
+    bands = services.survey.fit_bands(base)
+    on_walls = services.display.work_ids_on_walls()
+    return _Narrowing(
+        base=base,
+        # An unknown theme is refused here, by name, as the listing always has.
+        theme=None if theme is None else frozenset(services.display.theme_work_ids(theme)),
+        fit=None if not chosen_bands else frozenset(work_id for work_id, band in bands.items() if band in chosen_bands),
+        wall=None if not not_on_wall else base - on_walls,
+        bands=bands,
+        on_walls=on_walls,
+        chosen_bands=chosen_bands,
+        not_on_wall=not_on_wall,
+    )
+
+
+def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
+    """Every work `narrowing` selects, in the order its listing shows them.
+
+    Composed exactly as `list_works` composes it (`_narrowing`), so *Select all*
+    acts on the works the grid beside it is counting.
+    """
+    chosen = {
+        "artist": narrowing.artist,
+        "movement": narrowing.movement,
+        "era": narrowing.era,
+        "subject": narrowing.subject,
+        "medium": narrowing.medium,
+        "palette": narrowing.palette,
+    }
+    facets = {kind: values for kind, values in chosen.items() if values}
+    composed = _narrowing(
+        services,
+        status=narrowing.status,
+        q=narrowing.q,
+        facets=facets,
+        artist_id=narrowing.artist_id,
+        theme=narrowing.theme,
+        fit=narrowing.fit,
+        not_on_wall=narrowing.not_on_wall,
+    )
+    return services.catalogue.matching_ids_in_order(
+        status=narrowing.status,
+        q=narrowing.q,
+        facets=facets,
+        artist_id=narrowing.artist_id,
+        within=composed.within(),
+        sort=narrowing.sort,
+    )
+
+
+def _selected_ids(services: Services, selection: WorkSelection) -> Sequence[str]:
+    """The works a selection means, by id, with the ones it leaves out taken away."""
+    if (selection.artwork_ids is None) == (selection.filter is None):
+        raise ServiceError("Name the works either by their ids or by a filter, and not both.")
+    named = selection.artwork_ids if selection.artwork_ids is not None else _filtered_ids(services, selection.filter)
+    leaving = set(selection.except_ids)
+    return [artwork_id for artwork_id in dict.fromkeys(named) if artwork_id not in leaving]
+
+
+@router.post("/works/archive")
+def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
+    """Archive a selection: by id, or every work a filter matches.
+
+    *Select all* on Artworks means every work the filter matches, loaded or
+    not, so the filter travels rather than the ids the screen happens to hold.
+    One transaction: an id the catalogue does not hold refuses the whole act.
+    A work already archived is passed over and counted.
+    """
+    services = _services(request)
+    ids = _selected_ids(services, body)
+    archived = services.catalogue.archive_artworks(ids)
+    return ArchivedWorksOut(archived=list(archived), already=len(ids) - len(archived))
 
 
 @router.get("/works/{artwork_id}")
@@ -974,6 +1158,27 @@ def add_to_theme(request: Request, theme_id: str, body: AddWork) -> ThemeDetailO
     services = _services(request)
     services.display.add_to_theme(theme_id=theme_id, artwork_id=body.artwork_id, position=body.position)
     return _theme_detail(services, theme_id)
+
+
+@router.post("/themes/{theme_id}/works/bulk")
+def add_selection_to_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeAdditionOut:
+    """Put a selection at the end of a theme, in the order its listing shows it.
+
+    The selection is by id or by a filter, so *Select all* on Artworks reaches
+    every work the filter matches rather than the ones loaded. Works the theme
+    already holds are passed over and counted; one transaction.
+    """
+    services = _services(request)
+    added, already = services.display.add_works_to_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeAdditionOut(added=added, already=already)
+
+
+@router.post("/themes/{theme_id}/works/remove")
+def remove_selection_from_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeRemovalOut:
+    """Take a selection out of a theme, by id or by a filter, and say which works left."""
+    services = _services(request)
+    removed = services.display.remove_works_from_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeRemovalOut(removed=list(removed))
 
 
 @router.delete("/themes/{theme_id}/works/{artwork_id}")

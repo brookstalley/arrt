@@ -21,9 +21,19 @@ from typing import Protocol
 
 from arrt.library.acquisition.queue import AcquisitionState
 from arrt.library.services.catalogue import ArtworkDetail, CatalogueService, FacetGroup, RenditionView
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment
+from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailUnavailable
 from arrt.persistence.records import MatColor, Original, Source, WorkFacet
+
+#: The band of a work whose size on the wall cannot be said, because it holds
+#: no master yet. Beside `DisplayFit`'s values rather than one of them: it is
+#: not a verdict about a picture, and a fit value meaning "no picture" would be
+#: read as one.
+NO_SIZE_KNOWN = "unknown"
+
+#: The *Size on the wall* facet's bands, in the order the rail offers them:
+#: best fit first, and the works nobody can size last.
+FIT_BANDS: tuple[str, ...] = (*(str(fit) for fit in DisplayFit), NO_SIZE_KNOWN)
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +156,25 @@ class SurveyService:
             truncated=listing.truncated,
             facets=listing.facets,
         )
+
+    def fit_bands(self, artwork_ids: Sequence[str] | frozenset[str]) -> Mapping[str, str]:
+        """Each work's size on the wall, as a band: a `DisplayFit` value, or `NO_SIZE_KNOWN`.
+
+        Artworks' *Size on the wall* facet counts and filters by this, so it is
+        the same verdict a card shows — `assess_display_fit` against this
+        deployment's box — reached in one read of the masters' sizes rather
+        than one per work. A work with no master is `NO_SIZE_KNOWN`, its own
+        band rather than left out, so the bands' counts add up to the works.
+        """
+        sizes = self._catalogue.original_sizes(artwork_ids)
+        bands: dict[str, str] = {}
+        for artwork_id in artwork_ids:
+            size = sizes.get(artwork_id)
+            if size is None or size[0] <= 0 or size[1] <= 0:
+                bands[artwork_id] = NO_SIZE_KNOWN
+            else:
+                bands[artwork_id] = str(assess_display_fit(width=size[0], height=size[1], box=self._box).fit)
+        return bands
 
     def survey_works(self, artwork_ids: Sequence[str]) -> Sequence[WorkSurvey]:
         """These works in the order given, each judged the way a grid card needs.
