@@ -162,6 +162,7 @@ from arrt.http.models import (
     WorkMatchOut,
     WorkOut,
     WorkPageOut,
+    WorkPlacementsOut,
 )
 from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
@@ -1003,6 +1004,25 @@ def _exclusions(services: Services) -> ExcludedWorkListOut:
             ExcludedWorkOut(artwork_id=exclusion.artwork_id, excluded_at=exclusion.excluded_at.isoformat())
             for exclusion in services.display.excluded_works()
         ]
+    )
+
+
+@router.get("/works/{artwork_id}/placements")
+def work_placements(request: Request, artwork_id: str) -> WorkPlacementsOut:
+    """Where a held work is: every theme holding it with the walls hanging each, and whether it is kept off every wall.
+
+    Selections (hidden themes) are included, because a selection is how a work
+    hangs on a wall by itself. The Work page's state strip reads this, and an
+    agent reaches the same facts through `art_theme`'s `list`, `get` and
+    `kept_off`. Refused for a work the catalogue does not hold.
+    """
+    services = _services(request)
+    services.catalogue.get_artwork(artwork_id)
+    placements = services.display.placements_of(artwork_id)
+    return WorkPlacementsOut(
+        artwork_id=artwork_id,
+        themes=[_placement(placement) for placement in placements.themes],
+        excluded_at=None if placements.exclusion is None else placements.exclusion.excluded_at.isoformat(),
     )
 
 

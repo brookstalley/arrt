@@ -1774,6 +1774,20 @@ class ExcludedWorkListOut(BaseModel):
     exclusions: list[ExcludedWorkOut]
 
 
+class WorkPlacementsOut(BaseModel):
+    """Where one held work is: the themes holding it, and whether it is kept off every wall.
+
+    `themes` includes selections (`theme.hidden`), each with the walls hanging
+    it, because a selection is how a single work hangs on a wall. A hidden theme
+    hanging nowhere is an old selection, which the Work page leaves unsaid.
+    """
+
+    artwork_id: str
+    themes: list[ThemePlacementOut]
+    #: When the work was kept off every wall, or null when it may go on walls.
+    excluded_at: str | None
+
+
 class HistoryEventOut(BaseModel):
     """One act in the history: what, when, and what it was about.
 

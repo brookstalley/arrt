@@ -3,9 +3,12 @@
  * TEXT IS SET WITH textContent, NEVER innerHTML. Titles, descriptions and
  * provider names come from museum sites this product does not control, and
  * `<img src=x onerror=...>` inside a work's title is the whole of that attack.
- * The one exception would be description markup, which the catalogue reduces to
- * <i>/<b> at ingest — and it is not taken here either, because a UI that starts
- * trusting one field is a UI someone extends to the next one.
+ *
+ * Description markup is the one field with emphasis in it, and it is still not
+ * parsed: the catalogue reduces it to <i>/<b> and escaped text at ingest, and
+ * `emphasised` below reads exactly those four tags and five escapes as tokens,
+ * building each element with `createElement`. Everything else in the string,
+ * a tag included, is text — so trusting this field extends to nothing.
  */
 
 import { state } from "./state.js";
@@ -94,4 +97,48 @@ export async function guard(work) {
   } catch (failure) {
     showError(failure.message);
   }
+}
+
+/* A description's emphasis, from the markup the catalogue stores, without parsing HTML.
+ *
+ * The catalogue writes descriptions as escaped text with balanced `<i>` and `<b>`
+ * (`services/fields.py`, `description_markup`), so this reads only those four
+ * tags and the five escapes Python's `html.escape` produces. Anything else —
+ * another tag, an attribute, an entity it did not write — is shown as the text
+ * it is, so a row stored before the reduction, or written some other way, reads
+ * as its own characters rather than as markup. A closer that does not close the
+ * innermost open tag is text too (the reduction never crosses tags), and an
+ * opener left open closes at the end.
+ *
+ * Returns a `<span class="described">`, whose stylesheet keeps the blank lines
+ * the reduction leaves between paragraphs. */
+const EMPHASIS_TOKENS = /<\/?[ib]>|&(?:amp|lt|gt|quot|#x27);/g;
+const ESCAPES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" };
+
+export function emphasised(markup) {
+  const root = el("span", { class: "described" });
+  const open = [root];
+  const append = (text) => {
+    if (text) open[open.length - 1].append(document.createTextNode(text));
+  };
+  const text = String(markup);
+  let at = 0;
+  for (const match of text.matchAll(EMPHASIS_TOKENS)) {
+    append(text.slice(at, match.index));
+    at = match.index + match[0].length;
+    const token = match[0];
+    if (token in ESCAPES) {
+      append(ESCAPES[token]);
+    } else if (token[1] !== "/") {
+      const node = document.createElement(token[1]);
+      open[open.length - 1].append(node);
+      open.push(node);
+    } else if (open.length > 1 && open[open.length - 1].localName === token[2]) {
+      open.pop();
+    } else {
+      append(token);
+    }
+  }
+  append(text.slice(at));
+  return root;
 }

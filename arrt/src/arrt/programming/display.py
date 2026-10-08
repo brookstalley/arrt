@@ -214,6 +214,14 @@ class ThemePlacement:
     walls: Sequence[Wall]
 
 
+@dataclass(frozen=True, slots=True)
+class WorkPlacements:
+    """Where one work is: the themes holding it, and whether it is kept off every wall."""
+
+    themes: Sequence[ThemePlacement]
+    exclusion: WorkExclusion | None
+
+
 class NotAgainScope(StrEnum):
     """The one question *Not this one again* asks: how far the curator meant it."""
 
@@ -739,6 +747,28 @@ class DisplayService:
     def excluded_works(self) -> Sequence[WorkExclusion]:
         """Every work kept off every wall, oldest first."""
         return self._store.list_exclusions()
+
+    def placements_of(self, artwork_id: str) -> WorkPlacements:
+        """Every theme holding this work, with the walls hanging each, and whether it is kept off every wall.
+
+        **Selections included.** A hidden theme is how one work hangs on a wall
+        by itself, so leaving them out would hide the very hang the Work page
+        exists to show; the caller decides which of them a curator would
+        recognise. Read in one scope, so the themes, the walls and the exclusion
+        describe one instant.
+        """
+        with self._store.reading():
+            walls = list(self._store.list_walls())
+            hung: dict[str, set[str]] = {}
+            for assignment in self._store.list_assignments():
+                hung.setdefault(assignment.theme_id, set()).add(assignment.wall_id)
+            themes = [
+                ThemePlacement(theme=theme, walls=[wall for wall in walls if wall.id in hung.get(theme.id, ())])
+                for theme in self._store.list_themes()
+                if any(membership.artwork_id == artwork_id for membership in self._store.list_memberships(theme.id))
+            ]
+            exclusion = next((kept for kept in self._store.list_exclusions() if kept.artwork_id == artwork_id), None)
+        return WorkPlacements(themes=themes, exclusion=exclusion)
 
     def clear_wall(self, wall_id: str) -> None:
         """Take down whatever is hanging, leaving the wall holding nothing.
