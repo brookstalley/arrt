@@ -337,4 +337,4 @@ def test_a_table_wider_than_its_box_takes_the_keyboard(ui, a_health_reading):
     ui.page.evaluate("() => { document.querySelector('#view .table-scroll table').style.minWidth = '3000px'; }")
     ui.page.wait_for_function("() => document.querySelector('#view .table-scroll').getAttribute('tabindex') === '0'")
     assert box.get_attribute("role") == "region"
-    assert box.get_attribute("aria-label") == "Every run with works waiting for your verdict, newest first."
+    assert box.get_attribute("aria-label") == "Every Get with works waiting for your verdict, newest first."
