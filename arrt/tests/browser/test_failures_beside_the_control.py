@@ -81,10 +81,10 @@ def test_a_server_fault_does_not_claim_nothing_changed(review):
 
 
 def test_a_refused_hang_is_said_beside_the_hang_control(ui, services):
-    services.display.add_theme(name="Late night")
+    late = services.display.add_theme(name="Late night")
     refusal = "The wall is being rebuilt; try again in a moment."
     ui.serve("**/api/themes/*/activate", (409, {"error": refusal}))
-    ui.open("#theme")
+    ui.open(f"#theme/{late.id}")
     hang = ui.page.locator("button:text-is('Hang on The wall')")
 
     hang.click()
@@ -93,5 +93,5 @@ def test_a_refused_hang_is_said_beside_the_hang_control(ui, services):
 
     assert ui.said_beside(hang) == f"Couldn't hang Late night on The wall: {refusal} Nothing was changed."
     # The screen stayed: a refused hang is not a reason to leave for the walls.
-    assert ui.page.url.endswith("#theme")
+    assert ui.page.url.endswith(f"#theme/{late.id}")
     assert hang.is_enabled()

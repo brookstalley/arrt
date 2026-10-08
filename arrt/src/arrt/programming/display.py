@@ -304,6 +304,16 @@ class DisplayService:
             )
         return theme
 
+    def shuffles(self, theme: Theme) -> bool:
+        """Whether a wall hanging this theme shows its works in shuffled order.
+
+        The theme's own setting when it has expressed one, else the deployment's:
+        null on `Theme.shuffle` means "inherit", not "off". One place, so the
+        manifest a wall is given and the theme page's account of its order
+        cannot disagree about which of the two decides what the wall shows first.
+        """
+        return theme.shuffle if theme.shuffle is not None else self._settings.shuffle
+
     def default_theme(self) -> Theme | None:
         """The theme new works join, or None while the curator has marked none."""
         return self._store.get_default_theme()
@@ -1153,7 +1163,7 @@ class DisplayService:
                 if theme.rotation_interval_seconds is not None
                 else self._settings.rotation_interval_seconds
             ),
-            shuffle=theme.shuffle if theme.shuffle is not None else self._settings.shuffle,
+            shuffle=self.shuffles(theme),
             # Carried forward unchanged. A rebuild is not a directive, and a
             # counter that reset here would read to the display plane as an
             # advance — firing a jump nobody asked for on every sync.

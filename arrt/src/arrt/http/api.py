@@ -142,6 +142,7 @@ from arrt.http.models import (
     ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
+    ThemeSummaryOut,
     TopicArtistsOut,
     TopicFoundOut,
     TopicKindOut,
@@ -181,6 +182,7 @@ from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.taste import AffinityView
+from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage
 from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
@@ -792,7 +794,7 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
 @router.get("/themes")
 def list_themes(request: Request) -> ThemeListOut:
     """Every theme, and the walls each is hanging on."""
-    return ThemeListOut(themes=[_placement(placement) for placement in _services(request).display.survey_themes()])
+    return _theme_list(_services(request))
 
 
 @router.get("/themes/{theme_id}")
@@ -839,7 +841,7 @@ def delete_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.delete_theme(theme_id)
-    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+    return _theme_list(services)
 
 
 @router.post("/themes/{theme_id}/default")
@@ -851,7 +853,7 @@ def make_default_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.make_default(theme_id)
-    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+    return _theme_list(services)
 
 
 @router.post("/themes/{theme_id}/works")
@@ -1627,11 +1629,51 @@ def service_error_response(message: str) -> JSONResponse:
 
 def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     """A theme with its works, in curated order."""
+    theme = services.display.get_theme(theme_id)
     return ThemeDetailOut(
-        theme=_theme(services.display.get_theme(theme_id)),
+        theme=_theme(theme),
         # Two calls composed, as the MCP binding composes them: Programming's
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
+        shuffled=services.display.shuffles(theme),
+    )
+
+
+#: How many pictures a Themes index card draws. Enough to say what a theme looks
+#: like at a glance, few enough that ten cards fit on one screen.
+THEME_CARD_PICTURES = 4
+
+
+def _theme_list(services: Services) -> ThemeListOut:
+    """Every theme the index lists, each with what its card shows.
+
+    Two planes composed, as `_theme_detail` composes them: Programming names
+    each theme's works in order, and the Library says which of them has a
+    picture. The pictures are looked for in curated order and the search stops
+    at the fourth. What bounds the cost is the membership read, one per theme,
+    plus one picture check per work until four are found: a few checks for a
+    theme whose works hold images, and one per work only for a theme where
+    almost none do. No work is surveyed in full, which is what reading every
+    theme's detail would cost.
+    """
+    return ThemeListOut(themes=[_summary(services, placement) for placement in services.display.survey_themes()])
+
+
+def _summary(services: Services, placement: ThemePlacement) -> ThemeSummaryOut:
+    work_ids = services.display.theme_work_ids(placement.theme.id)
+    pictured: list[str] = []
+    for work_id in work_ids:
+        if len(pictured) == THEME_CARD_PICTURES:
+            break
+        try:
+            services.thumbnails.source_for(work_id)
+        except ThumbnailUnavailable:
+            continue
+        pictured.append(work_id)
+    return ThemeSummaryOut(
+        **_placement(placement).model_dump(),
+        work_count=len(work_ids),
+        picture_ids=pictured,
     )
 
 

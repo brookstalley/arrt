@@ -45,7 +45,7 @@ PAGES = {
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
-    "Settings": ["Taste", "Clients", "Sources"],
+    "Settings": ["Clients", "Sources", "Taste"],
     "System": ["Status"],
 }
 
@@ -60,8 +60,9 @@ SIDEBAR_PAGES = [
     ("to_review", "To review"),
     ("queue", "Queue"),
     ("history", "History"),
-    ("taste", "What this product thinks you like"),
+    ("settings", "Settings"),
     ("clients", "Clients"),
+    ("taste", "Taste"),
     ("wanted", "Wanted"),
     ("health", "Status"),
 ]
@@ -108,7 +109,7 @@ OPENS = {
     "Walls": "walls",
     "Activity": "to_review",
     "Wanted": "wanted",
-    "Settings": "taste",
+    "Settings": "settings",
     "System": "health",
 }
 
@@ -171,10 +172,12 @@ def test_each_page_is_addressable(ui, seeded_service, view, heading):
 
 
 def test_only_one_link_is_the_current_page(ui, seeded_service):
-    """Settings' link and Taste's point at the same address, and only one may say so.
+    """On a listed page the section is open too, and only the page's link may say so.
 
     `aria-current="page"` on two links tells a screen reader it is on two pages.
     The page's own link carries it; the section link is only styled as open.
+    (Settings' link and Taste's pointed at one address until Settings opened its
+    own index; Taste is still the listed page this checks from.)
     """
     ui.open("#taste")
     ui.page.wait_for_selector("#view h1")

@@ -38,6 +38,7 @@ import { viewHealth } from "./screens/health.js";
 import { viewReview } from "./screens/review.js";
 import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
 import { viewSearch } from "./screens/search.js";
+import { viewSettings } from "./screens/settings.js";
 import { viewSources } from "./screens/sources.js";
 import { viewTaste } from "./screens/taste.js";
 import { viewTheme } from "./screens/theme.js";
@@ -118,14 +119,19 @@ const ROUTES = {
   // Lidarr's Wanted: works the curator wants and holds no acceptable scan of.
   // Its section is always in the sidebar, counted when anything is wanted.
   wanted: { render: viewWanted, section: "wanted", page: "Wanted" },
-  // Radarr's Profiles: the preferences that rank what it finds.
-  taste: { render: viewTaste, section: "settings", page: "Taste" },
+  // Sonarr's and Radarr's v4 /settings: the section's link opens a list of its
+  // pages, each with a line on what it holds. Labelled as its section, so it is
+  // the section's link and not listed again beneath it.
+  settings: { render: viewSettings, section: "settings", page: "Settings" },
   // Radarr's Settings › Download Clients: the external programs the server
   // works with, which here are the installed Players (`clients.md` ruling 1).
   clients: { render: viewClients, section: "settings", page: "Clients" },
   // Radarr's Settings › Indexers: the places the server searches, which here
   // are the installed source plugins, with where each came from.
   sources: { render: viewSources, section: "settings", page: "Sources" },
+  // Radarr's Profiles: the preferences that rank what it finds. Last, after
+  // what the server works with, since it is what the server has come to believe.
+  taste: { render: viewTaste, section: "settings", page: "Taste" },
   health: { render: viewHealth, section: "system", page: "Status" },
   work: { render: viewWork, detail: true, opensFrom: "collection", title: "Work" },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as
