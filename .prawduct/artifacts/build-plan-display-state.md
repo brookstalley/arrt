@@ -57,7 +57,7 @@ panel applies it to `unreachable` here.
 
 ## Status
 
-- [ ] Chunk 01: The contract
+- [x] Chunk 01: The contract
 - [ ] Chunk 02: The Frame controller
 - [ ] Chunk 03: The HDMI controller
 - [ ] Chunk 04: The server and Walls

@@ -161,6 +161,57 @@
         "string",
         "null"
       ]
+    },
+    "display_state": {
+      "description": "Minor 3. What the wall's screen is doing, as its controller sees it, written when it changes (labels-and-surfaces.md § Display state). A label shows the work's caption only while state is showing_art. Absent means a Player before minor 3, whose current_work_id the server reads as showing_art. Supersedes television_showing_art, which stays for older readers.",
+      "type": "object",
+      "required": [
+        "state",
+        "work_id",
+        "since"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "description": "showing_art: the screen shows art this wall put there (work_id names it) or art it did not (work_id null). in_use: somebody else has the screen (a Frame showing television). dark: the screen is off or no screen is detected on the connector. no_screen: the output this wall drives is absent. unreachable: the controller cannot tell.",
+          "enum": [
+            "showing_art",
+            "in_use",
+            "dark",
+            "no_screen",
+            "unreachable"
+          ]
+        },
+        "work_id": {
+          "description": "The work on screen, only with showing_art; null with every other state, and null for a picture this wall did not put there.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "since": {
+          "description": "When the screen entered this state, RFC 3339 with an offset.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+        }
+      },
+      "if": {
+        "properties": {
+          "state": {
+            "not": {
+              "const": "showing_art"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "work_id": {
+            "const": null
+          }
+        }
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md § Major 2; 'breaks' says which.",
+  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a major 1 Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md \u00a7 Major 2; 'breaks' says which.",
   "fixtures": [
     {
       "path": "fixtures/client-heartbeat.v1/invalid/connected-not-a-boolean.json",
@@ -92,6 +92,24 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-in-use-naming-a-work.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-since-without-offset.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-unknown.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/heartbeat.v1/invalid/has-label-surface-null.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
@@ -132,6 +150,26 @@
     },
     {
       "path": "fixtures/heartbeat.v1/valid/minor-2-with-capabilities.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-dark.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-in-use.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-showing-a-picture-this-wall-did-not-put-there.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-showing-art.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": true
     },
