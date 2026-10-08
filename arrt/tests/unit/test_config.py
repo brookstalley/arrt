@@ -727,6 +727,31 @@ def test_the_conversation_has_its_own_model_and_reservation(monkeypatch, tmp_pat
     assert overridden.conversation_max_output_tokens == 512
 
 
+def test_a_conversation_turn_is_priced_at_its_own_model_s_rates_and_reservation(monkeypatch, tmp_path):
+    """Not the discovery model's prices, and the output priced is the reservation a turn sends."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+
+    pricing = Settings.from_env().conversation_pricing
+
+    assert pricing.input_cost_usd_per_mtok == Decimal("0.03")
+    assert pricing.output_cost_usd_per_mtok == Decimal("0.13")
+    assert pricing.input_tokens == 8_000
+    assert pricing.output_tokens == 2_000
+
+    monkeypatch.setenv("CONVERSATION_INPUT_COST_USD_PER_MTOK", "1.5")
+    monkeypatch.setenv("CONVERSATION_OUTPUT_COST_USD_PER_MTOK", "6")
+    monkeypatch.setenv("CONVERSATION_INPUT_TOKENS", "4000")
+    monkeypatch.setenv("CONVERSATION_MAX_OUTPUT_TOKENS", "512")
+    overridden = Settings.from_env().conversation_pricing
+
+    assert overridden.input_cost_usd_per_mtok == Decimal("1.5")
+    assert overridden.output_cost_usd_per_mtok == Decimal(6)
+    assert overridden.input_tokens == 4_000
+    assert overridden.output_tokens == 512
+    # 4,000 x 1.5 + 512 x 6, per million.
+    assert overridden.turn_usd == Decimal("0.009072")
+
+
 def test_the_conversation_reservation_must_be_positive(monkeypatch, tmp_path):
     """Same reason as the other two: a request reserving nothing is refused."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))

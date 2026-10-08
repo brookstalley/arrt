@@ -368,3 +368,58 @@ def test_two_answers_each_keep_their_suggestions_in_their_own_place(ui):
     assert blocks.evaluate_all("(nodes) => nodes.map((n) => getComputedStyle(n).position)") == ["static", "static"]
     first_box, second_box = (blocks.nth(index).bounding_box() for index in range(2))
     assert second_box["y"] >= first_box["y"] + first_box["height"], "the later turn's suggestions sit on the earlier's"
+
+
+# -- what a turn costs ------------------------------------------------------------
+
+
+def a_turn_estimate(cost="0.0005") -> dict:
+    return an_estimate(
+        phase="conversation_turn",
+        estimated_cost_usd=cost,
+        basis="One model call, priced at 8,000 tokens of question and thread and an answer of up to 2,000 tokens.",
+        run_id=None,
+    )
+
+
+def shown_tier(scope):
+    """The tier a sighted reader sees, without the words only a screen reader hears."""
+    return scope.locator(".badge-tier > span:not(.visually-hidden)").inner_text()
+
+
+def say_row(ui):
+    return ui.page.locator("#view .panel:has(h2:text-is('Say something')) .row")
+
+
+def test_say_it_carries_the_tier_the_server_prices_a_turn_at(talking):
+    """Every turn spends, so its control shows its tier before it is pressed."""
+    talking.serve(f"**/api/conversations/{CONVERSATION}/estimate", a_turn_estimate("0.20"))
+    open_thread(talking)
+
+    row = say_row(talking)
+    row.locator(".badge-tier").wait_for()
+    # $$ rather than $: the tier is the server's, not a constant in the client.
+    assert shown_tier(row) == "$$"
+    assert "tier-spends" in row.locator(".badge-tier").get_attribute("class")
+
+
+def test_ask_again_carries_the_turn_s_tier_too(ui):
+    """Asking again asks the model again, so it is priced as a turn."""
+    ui.serve("**/api/estimate*", an_estimate())
+    ui.serve("**/api/conversations", a_conversation_list())
+    ui.serve(f"**/api/conversations/{CONVERSATION}", a_thread([a_question()], failure=None))
+    ui.serve(f"**/api/conversations/{CONVERSATION}/estimate", a_turn_estimate())
+    open_thread(ui)
+
+    again = ui.page.locator("#view .row:has(button:text-is('Ask again'))")
+    again.locator(".badge-tier").wait_for()
+    assert shown_tier(again) == "$"
+
+
+def test_a_turn_whose_price_cannot_be_read_says_so_rather_than_reading_as_free(talking):
+    talking.page.route(f"**/api/conversations/{CONVERSATION}/estimate", lambda route: route.fulfill(status=500, body="no"))
+    open_thread(talking)
+
+    row = say_row(talking)
+    assert "Cost unknown just now" in row.inner_text()
+    assert row.locator(".badge-tier").count() == 0
