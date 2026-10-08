@@ -182,6 +182,13 @@ of walls, each on one of its outputs. It learns its walls from the server.
 
 ## Major 2 (draft)
 
+> **Direction changed 2026-10-08 (`feeds-and-players.md`).** Major 2 is
+> reshaped before wave 4 builds it: the manifest becomes a **feed** (schedule,
+> works, default presentation settings) that a public channel serves with no
+> token and no reporting, and everything wall-specific is the **control** layer.
+> `settings` widens into three layers (feed, wall, device) with mat mode,
+> overlay timing and which facts an overlay shows.
+
 **A draft until wave 4 builds it.** Nothing reads major 2 before then, so every
 field here can still change, and should, if building wave 2 or 3 teaches
 something. It is written now so the wave 2 channel does not paint wave 4 into a
@@ -306,6 +313,12 @@ it does not know as `unreachable`**, naming no work, and keeps the rest of the
 heartbeat: a later minor may add a state, and Players upgrade before the server.
 
 ### The cutover
+
+> **Direction changed 2026-10-08 (`feeds-and-players.md` § Versioning when
+> Players cannot be upgraded).** App Store Players cannot be upgraded on demand,
+> so each major is served at its own URL while a reader of it may exist, and a
+> Player requests the highest it reads. The single-major cutover below holds
+> until wave 4 builds that.
 
 A major 1 Player refuses a major 2 manifest as an unsupported version and keeps
 its wall. Postarr's suite pins that refusal for every major 2 fixture. So

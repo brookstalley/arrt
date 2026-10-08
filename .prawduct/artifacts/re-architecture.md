@@ -33,6 +33,14 @@ Seam 1 and brings the package split forward to wave 2. It also adds facet
 population to wave 6+ and re-sorts § Open questions. § Artifacts touched lists
 both passes.
 
+> **Amended 2026-10-08 (`feeds-and-players.md`).** The owner added a second use
+> case: public channels of public-domain art, read anonymously by any number of
+> Apple TV apps. Major 2 becomes a **feed** plus an optional **control** layer,
+> each major lives at its own URL, displays become server records configured on
+> exactly one client (never discovered), rendering stays on the client, and
+> Player logic is reused through a Player spec and conformance vectors. Read it
+> before wave 4.
+
 ## What changed, in one paragraph
 
 The product was **a curated-art appliance for a Samsung Frame TV**. It is
@@ -608,6 +616,11 @@ it.
   accepted.
 
 ## Order of work
+
+> **Amended 2026-10-08:** `feeds-and-players.md` § What changes, in order
+> reshapes wave 4 (the feed, per-major URLs, layered presentation settings, the
+> Player's wall loop split) and gives wave 5 its repository shape (Postarr holds
+> every platform's Player).
 
 **The repo split comes last.** While server and player share one repo, every
 contract change is one atomic commit with both suites behind it. Across two repos
