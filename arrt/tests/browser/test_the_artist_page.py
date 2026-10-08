@@ -449,7 +449,16 @@ class TestAnUnlinkedArtist:
         assert "Your library has Mark Rothko (1903–1970), not linked to Wikidata." in ui.page.locator(".namesake").inner_text()
         ui.page.click("#view button:text-is('Link them to this item')")
         ui.page.wait_for_function("(id) => window.location.hash === `#artist/${id}`", arg=unlinked.id)
-        ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
+        # The hash changes before the artist's own page replaces the registry
+        # page, which also has a table under Their work; wait for the new page
+        # (no namesake offer) and for its Wikidata answer, not for any table.
+        ui.page.wait_for_function(
+            """() => {
+              const section = document.querySelector("section[aria-labelledby='their-work']");
+              return !document.querySelector("#view .namesake") && section && section.querySelector("table")
+                && !section.innerText.includes("Asking Wikidata");
+            }"""
+        )
 
         assert "Rothko Chapel" in _their_work(ui).inner_text()
 
