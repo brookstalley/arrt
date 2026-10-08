@@ -1,7 +1,7 @@
 """Artworks' clean-up facets in the rail: *Size on the wall* and *Not on any wall* (#288).
 
 The server's half — the counts, the composition, the seam — is
-`tests/integration/test_clean_up_facets.py`. This is what the rail does with
+`tests/integration/test_clean_up_facet_routes.py`. This is what the rail does with
 them: offers each option with its count, narrows the grid at the server when
 one is chosen, keeps the choice in the address, and says it in the filter
 sentence when it empties the grid. And the rail toggle that reads *Show
