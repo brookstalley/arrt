@@ -1,6 +1,6 @@
 # HDMI output: what the Pi does when the Player draws on a connector
 
-**What this is.** The evidence `postarr/src/postarr/kms.py` is built on: how a
+**What this is.** The evidence `arrt-player/src/arrt_player/kms.py` is built on: how a
 headless Pi lets a service user put a picture on an HDMI connector, what the
 kernel reports as screens come and go, and what the screen showed. It records
 what was *observed*; where a row is inference, it says so.

@@ -20,9 +20,9 @@ import pytest
 #: carries almost all of the curation plane's coverage, and a tree the guard does
 #: not walk is exactly the tree this guard was built for: the suite stays green
 #: locally while the clone and the Pi quietly lose it. The `tools/` trees are
-#: here because the operator runs them by hand on the Pi — `postarr/tools` holds the
+#: here because the operator runs them by hand on the Pi — `arrt-player/tools` holds the
 #: only code that presses power on the television.
-SOURCE_TREES = ("arrt/src", "arrt/tests", "arrt/tools", "postarr/src", "postarr/tests", "postarr/tools", "tests")
+SOURCE_TREES = ("arrt/src", "arrt/tests", "arrt/tools", "arrt-player/src", "arrt-player/tests", "arrt-player/tools", "tests")
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:

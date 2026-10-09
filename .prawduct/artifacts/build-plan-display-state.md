@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: display-state
 # branch: feature/labels-and-display-state — merged in #310 and deleted. Chunk 05, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
-partition: Chunk 01 serial (the contract both sides build to); then delegates in worktrees — A the Player (02, 03; postarr/ only), B the server and Walls (04; arrt/ only); coordinator integrates, reviews and verifies. Chunk 05 is the operator's.
+partition: Chunk 01 serial (the contract both sides build to); then delegates in worktrees — A the Player (02, 03; arrt-player/ only), B the server and Walls (04; arrt/ only); coordinator integrates, reviews and verifies. Chunk 05 is the operator's.
 depends_on:
   - artifact: labels-and-surfaces
   - artifact: player-contract
@@ -90,7 +90,7 @@ Done when:
    `dark`; the work's caption for `showing_art`; a remote change gets the right
    caption (today's behaviour kept); `unreachable` keeps the last caption for 30
    minutes and then blanks (the owner, 2026-10-08), one named constant.
-4. Tests in `postarr/tests` drive the TV double through each transition, including
+4. Tests in `arrt-player/tests` drive the TV double through each transition, including
    a remote change and TV in use then back to art; the existing label wiring tests
    stay green or change deliberately with the reason recorded.
 
@@ -100,7 +100,7 @@ Done when:
 
 1. `ScreenWall` reports `showing_art` with the work it drew, `dark` when its
    connector reports no screen detected, `no_screen` when its output is absent.
-2. A change writes the heartbeat at once. Tests in `postarr/tests/test_screen.py`.
+2. A change writes the heartbeat at once. Tests in `arrt-player/tests/test_screen.py`.
 
 ### Chunk 04: The server and Walls
 

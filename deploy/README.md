@@ -16,7 +16,7 @@
 >   restart or a NAS reboot then never blanks the wall, and the Pi needs no
 >   `ART_ROOT` shared with anything, only a cache directory of its own.
 > - **After the wave-5 repo split**, the Player's deployment docs move to the
->   player repository along with `postarr/`.
+>   player repository along with `arrt-player/`.
 >
 > Do not remove anything below before the wave that retires it has landed. The
 > cutover record, the power-key measurements and the e-paper pin are hardware
@@ -133,7 +133,7 @@ Then deploy (`bin/arrt-app.sh` in the homelab repo) and confirm `/healthz`.
 
     cd /opt/samsung-frame-art-loader
     sudo -u tvpi git fetch origin <branch or tag> && sudo -u tvpi git checkout -B <branch> FETCH_HEAD
-    cd postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     sudo cp -p ../.env ../.env.pre-clients-<date>      # the way back starts here
     # in .env: set SERVER_URL, CLIENT_TOKEN and CACHE_DIR; remove WALL_ID,
     # WALL_TOKEN and MANIFEST_SOURCE, which the client Player refuses by name
@@ -199,6 +199,35 @@ updated.
 reported as the client's label output `epd-0`; caption a wall with it on
 Settings › Clients. `EPD_DEVICE` no longer needs `TV_ADDRESS`.
 
+## The Player renamed Arrt Player (2026-10-08, #311)
+
+**The Player's project moved from `postarr/` to `arrt-player/`, and its module
+from `postarr` to `arrt_player`.** The installed `display.service` names the old
+directory and module, so after pulling this it fails to start until it is
+replaced. The unit keeps its name. A virtualenv is not relocatable, so the old
+one is removed and the new directory gets a fresh one. That also clears the
+`jetson-gpio` overlap from #181 below, with no `--reinstall-package` needed.
+
+    sudo systemctl stop display.service
+    cd /opt/samsung-frame-art-loader
+    sudo -u tvpi git rev-parse HEAD    # write this down: "To go back" returns to it
+    sudo -u tvpi git pull
+    # git moves the tracked files; postarr/ keeps only what was untracked.
+    # Expect nothing but .venv and caches before removing it:
+    ls -A postarr
+    sudo rm -rf postarr
+    grep -n postarr .env    # any hit names the old path: edit it
+    cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader
+    sudo cp deploy/display.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl start display.service
+
+Logger names now start `arrt_player.`, so a saved journal filter on `postarr.`
+stops matching. **To go back**, stop the unit, check out the commit you wrote
+down, remove `arrt-player/`, `uv sync` in `postarr/`, copy that commit's
+`display.service` in, reload and start.
+
 ## The panel's GPIO package (2026-10-08, #181)
 
 **On a Pi whose venv predates #181's fix, sync with `--reinstall-package
@@ -206,7 +235,7 @@ rpi-gpio`.** `jetson-gpio` and `rpi-gpio` both installed `RPi/GPIO/__init__.py`;
 the sync removes `jetson-gpio`, and with it that file, so `rpi-gpio` has to be
 installed again to put the real one back:
 
-    cd postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper --reinstall-package rpi-gpio
+    cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper --reinstall-package rpi-gpio
 
 ## The two new units, and where everything they name now lives
 
@@ -274,7 +303,7 @@ of what was run, in order, and it is the procedure for doing it again.
     sudo chown -R tvpi:tvpi /srv/art
 
     # dependencies, as the account that will run them
-    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync
 
     # the environment file: 0640, owned by tvpi, because it carries API keys
@@ -406,14 +435,14 @@ at it as though it were the activation. The activation is the `POST` in
 
 ### Looking at the label without the daemon
 
-`postarr/tools/label_preview.py` renders the chain the daemon runs — metadata,
+`arrt-player/tools/label_preview.py` renders the chain the daemon runs — metadata,
 layout, Pango — so the type can be judged against real ink rather than imagined.
 Its own docstring points here for this machine's paths, because a checkout, a
 service account and its home are facts about a deployment and do not belong in a
 source file:
 
     sudo systemctl stop display.service
-    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi env HOME=/var/lib/tvpi \
+    cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi env HOME=/var/lib/tvpi \
         /usr/local/bin/uv run --group raster --group epaper \
         python tools/label_preview.py --panel --record hokusai
     sudo systemctl start display.service
@@ -450,14 +479,14 @@ does things.)
 
 ### Measuring what the power keys do
 
-`postarr/tools/power_probe.py` is the only thing in this repo that presses power on
+`arrt-player/tools/power_probe.py` is the only thing in this repo that presses power on
 the television. It exists because the transitions were never measured — the
 documents describing them call themselves a sketch — and Chunks 25–27 are built on
 what it records. This machine's paths, in the same shape as the label instrument
 above:
 
     sudo systemctl stop display.service
-    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi env HOME=/var/lib/tvpi \
+    cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi env HOME=/var/lib/tvpi \
         /usr/local/bin/uv run python tools/power_probe.py
     # then, with somebody watching the set:
     ... python tools/power_probe.py --click --i-am-at-the-set
@@ -570,7 +599,7 @@ or wheel on any modern Linux), and `epaper` is the panel driver (`omni_epd`, whi
 compiles Cython against the Broadcom SPI and GPIO libraries and installs on a
 Raspberry Pi and nowhere else). On the Pi:
 
-    cd postarr && uv sync --group raster --group epaper
+    cd arrt-player && uv sync --group raster --group epaper
 
 **A device with a television and no panel installs neither, and that is a
 supported deployment** — leave `EPD_DEVICE` empty in `.env` and the wall rotates
@@ -831,7 +860,7 @@ The pin is applied on both install paths, because they resolve independently:
 
 - `requirements.txt` (the 2024 plane) carries an explicit `IT8951[rpi] @ …@9f13613`
   line beside `omni_epd`.
-- `postarr/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
+- `arrt-player/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
   which is the only mechanism that reaches a requirement written inside another
   package's metadata. **Verified resolving on the Pi 2026-08-07** — `uv lock`
   lands `it8951` on `9f13613` from the override rather than from upstream's

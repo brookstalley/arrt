@@ -29,7 +29,7 @@ by inference.
 >   selection behaviour recorded here is what that path relies on.
 > - The v1 plan's Chunks 24 and 25 were abandoned later on 2026-09-30. Where the
 >   text below says "Chunk 24's sitting" or "what Chunk 25 changes", read
->   Postarr power control (`re-architecture.md` § Where the v1 open chunks'
+>   Arrt Player power control (`re-architecture.md` § Where the v1 open chunks'
 >   requirements went). The sitting is still owed, and nothing measured here is
 >   lost.
 

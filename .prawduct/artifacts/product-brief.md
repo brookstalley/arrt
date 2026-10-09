@@ -67,11 +67,14 @@ reason to continue this project rather than adopt an existing one.
 > a monitor with no e-ink. It is a label the Player sets in the mat area under the
 > label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
-**Names, from 2026-10-01:** **Arrt** is the server (the Library and
-Programming), and **Postarr** is the player at each wall. Both names are the
-operator's, given under a hard requirement. They replace the names of
-2026-09-30, Curatarr for the server and Arrt for the player. "Samsung Frame Art
-Loader" describes the product as built, and retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
+**Names, from 2026-10-08:** **Arrt** is the server (the Library and
+Programming), and **Arrt Player** is the player at each wall. Both names are the
+operator's. The server's was given on 2026-10-01 under a hard requirement,
+replacing Curatarr. The player was Arrt on 2026-09-30, then Postarr, until the
+owner renamed it on 2026-10-08: it is a player in the manner of a Plex or
+Jellyfin client, not an *arr app, so it carries its server's name as theirs do.
+"Samsung Frame Art Loader" describes the product as built, and retires as the
+waves land. The server's *arr suffix is deliberate: the model is Radarr and
 Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear
 only on the curator's and operator's surfaces.
 

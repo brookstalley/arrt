@@ -258,7 +258,7 @@ everything above the paint call.
   testable while each platform measures with its own text stack. Vectors are
   checked to a tolerance, not pixel for pixel, because text stacks differ.
 - **The Pi's label code is the reference implementation**
-  (`postarr/src/postarr/panel/layout.py`, `legibility.py`). Its behaviour is
+  (`arrt-player/src/arrt_player/panel/layout.py`, `legibility.py`). Its behaviour is
   written out as vectors before a second platform ports it.
 - **Behaviour vectors beyond layout**: (feed, now) → the slot or scene to show;
   (display state, label document, age) → what a label shows; invalid feeds →
@@ -315,7 +315,7 @@ size.
 
 - **Arrt** owns `contract/`: schemas, fixtures, conformance vectors and the
   Player spec, released by tag.
-- **Postarr** is one repository holding every Player: the Pi Player (Python, the
+- **Arrt Player** is one repository holding every Player: the Pi Player (Python, the
   reference), one Swift package with a tvOS app target and a macOS screensaver
   target, and later Windows. It pins a contract tag and its hash, and every
   Player's suite runs the same vectors.

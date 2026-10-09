@@ -1,6 +1,6 @@
 ---
 paths:
-  - "postarr/**"
+  - "arrt-player/**"
 ---
 # Learnings — display
 

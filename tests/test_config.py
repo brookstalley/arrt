@@ -206,7 +206,7 @@ def _source_modules():
     repository_root = _REPOSITORY_ROOT
     modules = sorted(repository_root.glob("*.py"))
     assert modules, f"expected the 2024 modules at {repository_root}; has the layout moved?"
-    for plane in ("arrt/src", "postarr/src", "arrt/tools", "postarr/tools"):
+    for plane in ("arrt/src", "arrt-player/src", "arrt/tools", "arrt-player/tools"):
         found = sorted((repository_root / plane).rglob("*.py"))
         assert found, f"expected a plane under {repository_root}/{plane}; has the layout moved?"
         modules.extend(found)

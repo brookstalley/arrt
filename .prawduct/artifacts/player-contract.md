@@ -12,7 +12,7 @@ status: major 1 describes the running system plus wave 2's additive changes; maj
 
 # The Player Contract
 
-**What Arrt publishes for a wall, what Postarr reports back, and how both
+**What Arrt publishes for a wall, what Arrt Player reports back, and how both
 travel.** This file is the contract's home. `api-contract.md` § The Server↔Player
 surface points here. `re-architecture.md` § Seam 2 is where the decisions behind
 it were made.
@@ -36,8 +36,8 @@ exactly one rule, the one its filename names. Arrt's suite validates
 manifests its real builder writes, runs its heartbeat reader over the
 heartbeat fixtures, validates the `GET /client` document it serves against the
 client schema, and holds its client-heartbeat reader to the client-heartbeat
-fixtures (`arrt/tests/contract/test_client_surface.py`). Postarr's suite runs its manifest reader over the manifest
-fixtures and validates the heartbeat it writes. When Postarr moves to its own
+fixtures (`arrt/tests/contract/test_client_surface.py`). Arrt Player's suite runs its manifest reader over the manifest
+fixtures and validates the heartbeat it writes. When Arrt Player moves to its own
 repository (wave 5), it pins a copy of `contract/` and runs the same tests
 against it. Arrt owns the contract, and a Player that needs a field asks
 for it here.
@@ -180,7 +180,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
   them. It runs the rule rather than being told the outcome because the
   30-minute hold must still run while the server is unreachable. A state the
   renderer does not know is read as `unreachable`.
-- **As built in Postarr** (`label_rule.py`, `label_renderer.py`; build plan
+- **As built in Arrt Player** (`label_rule.py`, `label_renderer.py`; build plan
   displays-and-label-outputs, Chunks 05 and 06). The Frame's identity is read
   by the client, not by a wall's worker, with one `GET /api/v2/` on a REST-only
   client that opens no art channel and checks no token, so a Frame with no wall
@@ -273,7 +273,7 @@ is the reference statement, and each rule has an invalid fixture.
   is how the server can: a heartbeat stamped far from the server's own time is a
   clock fault.
 - **A time no slot covers is dark.** The dark hours are gaps, not a flag. Until
-  Postarr power control exists (wave 6+), a Player that reaches a gap keeps
+  Arrt Player power control exists (wave 6+), a Player that reaches a gap keeps
   showing the last slot's work, because it cannot yet send the set to sleep. The
   gap still means dark; the Player just cannot act on it.
 - **When the horizon ends with no fresh manifest,** the Player replays the slots
@@ -361,7 +361,7 @@ heartbeat: a later minor may add a state, and Players upgrade before the server.
 > until wave 4 builds that.
 
 A major 1 Player refuses a major 2 manifest as an unsupported version and keeps
-its wall. Postarr's suite pins that refusal for every major 2 fixture. So
+its wall. Arrt Player's suite pins that refusal for every major 2 fixture. So
 wave 4 upgrades Players first and switches the server second, and a Player
 missed in the upgrade is visible, because its heartbeat's `manifest_majors`
 lacks 2. The server publishes one major for all walls. Serving each Player the

@@ -32,7 +32,7 @@ import { ago } from "./dates.js";
 import { GLYPHS } from "./glyphs.js";
 
 /* How often a Player reports, both its client heartbeat and each wall's:
- * `postarr/src/postarr/heartbeat.py`'s `INTERVAL_SECONDS`, which
+ * `arrt-player/src/arrt_player/heartbeat.py`'s `INTERVAL_SECONDS`, which
  * `tests/preferences/test_staleness_threshold.py` holds this to. */
 export const HEARTBEAT_INTERVAL_SECONDS = 60;
 

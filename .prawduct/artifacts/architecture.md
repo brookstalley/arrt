@@ -85,8 +85,8 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > and the heartbeat is a report, as the heartbeat file is today.
 >
 > **Wave 2 landed 2026-09-30 (wave 2b Chunks 03 and 04).** Arrt serves the
-> three routes behind a per-wall token, and Postarr's `MANIFEST_SOURCE=http` pulls
-> into `CACHE_DIR` through `postarr/src/postarr/pull.py`, the one module the isolation test now
+> three routes behind a per-wall token, and Arrt Player's `MANIFEST_SOURCE=http` pulls
+> into `CACHE_DIR` through `arrt-player/src/arrt_player/pull.py`, the one module the isolation test now
 > lets open an HTTP client, and only to routes `contract/routes.json` names. The
 > file channel is still the default and still works, so today both channels are
 > in force, and a Pi switches by configuration after a soak. Wave 3 retires the
@@ -97,7 +97,7 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > server gains `GET /client` and `POST /client/heartbeat` (`player-contract.md`
 > § Transport). Wall tokens are retired. **The Player is a client from
 > `build-plan-clients.md` Chunk 03:** one process supervising one worker per wall
-> the server assigns it (`postarr/src/postarr/client.py`), each pulling into its
+> the server assigns it (`arrt-player/src/arrt_player/client.py`), each pulling into its
 > own `CACHE_DIR/<wall id>/`. `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` are
 > retired and refused by name, and the file channel is retired on the Player's
 > side: a client always pulls. `pull.py` stays the one module that opens an HTTP
@@ -1051,7 +1051,7 @@ holds by that directory instead — a wall's worker opens only the paths its id
 derives. The server's per-wall file is now read by nothing on the Player's side.
 
 **Built 2026-08-12** (`arrt/src/arrt/programming/manifest/builder.py`,
-`postarr/src/postarr/config.py`). The one-wall installation is the degenerate
+`arrt-player/src/arrt_player/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
 the planes — the isolation norm forbids it — so both were declared twice and held

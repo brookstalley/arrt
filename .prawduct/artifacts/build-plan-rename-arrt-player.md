@@ -64,8 +64,11 @@ curation plane" are roles and stay unchanged. "Postarr" in prose becomes
 "Arrt Player", or "the Player" where the role reads better.
 
 **History is left as written.** Archived plans, `change-log-archive/`, completed
-change-log entries, and the live build plans whose chunks are all ticked record
-what was true on their day. `change-log.md` gets one dated line at its head
+change-log entries, the dated entries in `operator-verification.md`, the
+2026-10-05 norm-sweep measurements in `project-state.yaml`, and the live build
+plans whose chunks are all ticked record what was true on their day.
+`operator-verification.md` gets a new entry at the top of Pending that says
+older entries keep their day's paths. `change-log.md` gets one dated line at its head
 saying that Postarr is the former name of Arrt Player. `re-architecture.md`'s
 naming paragraph gets the 2026-10-08 sentence and keeps the old names as
 history.
@@ -105,8 +108,8 @@ are the proof.
   - `.claude/rules/learnings/display.md` and `tooling.md` path globs.
   - `contract/routes.json` and the schemas' descriptions.
   - The curation plane's two mentions (under `arrt/`).
-  - `CLAUDE.md`, `README.md`, `docs/`, live artifacts, `operator-verification.md`
-    and `project-state.yaml` (including `test_commands`). This includes the two live plans
+  - `CLAUDE.md`, `README.md`, `docs/`, live artifacts, and `project-state.yaml`
+    (including `test_commands`). This includes the two live plans
     that still have unticked chunks (`build-plan-display-state.md`,
     `build-plan-displays-and-label-outputs.md`), since their walks run under the
     new names.
@@ -126,10 +129,18 @@ are the proof.
      `arrt*`, regexes without a separator) over the renamed tree. The
      isolation test is watched failing against a planted `import arrt` in an
      `arrt_player` module, then reverted.
+- **Measured 2026-10-08:** all three suites pass, with lint and format. The
+  grep leaves only the lines recording the names: `re-architecture.md`'s
+  naming paragraph, wave-5 recipe and seam note, and `project-state.yaml`'s naming comment
+  and dated sweep. Roster: 71 tracked files under `postarr/`, 71 renamed into
+  `arrt-player/`, none added or deleted. Prefix: one unanchored
+  `startswith("arrt")`, in `arrt/tests/contract/test_player_surface.py`, left
+  because it filters only the server's own process. The isolation test failed
+  on a planted `import arrt.config` and passed once it was removed.
 - **Operator verification:** yes. The Pi's unit must be reinstalled from
   `deploy/`, and its venv rebuilt under `arrt-player/`, or it starts a module
-  that no longer exists. The step joins `operator-verification.md` with its
-  commands.
+  that no longer exists. The commands are in `deploy/README.md` § The Player
+  renamed Arrt Player, and the queue entry points there.
 - **Done when:** the three suites, lint and format pass, as do the three checks;
   CI is green on the branch; the queue entry exists; the cumulative Critic has
   reviewed the branch.

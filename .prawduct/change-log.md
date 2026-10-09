@@ -58,9 +58,55 @@
 > the server is **Arrt** and the player is **Postarr**
 > (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
 > old ones.
+>
+> **Names, 2026-10-08.** Postarr is now **Arrt Player**: `postarr/` became
+> `arrt-player/` and the `postarr` package `arrt_player`
+> (`build-plan-rename-arrt-player.md`). Entries before this date keep `postarr`.
 
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
+
+## 2026-10-08: Postarr becomes Arrt Player
+
+<!-- prawduct: scope=rename-arrt-player -->
+
+**Why:** The owner, 2026-10-08 (#311): the playback side "is just a player like
+plex or jellyfin and not really a *arr app". "Poster" was the first choice and
+was dropped the same day: it is taken on PyPI, and in this repo it already means
+Lidarr's poster cards and a poster as a kind of object. The owner chose the
+Plex and Jellyfin convention instead, where a client carries its server's name.
+It lands before wave 4, which adds most of the Player's new modules.
+
+**What:**
+- `postarr/` → `arrt-player/`, package `postarr` → `arrt_player`, distribution
+  `arrt-player`, run with `python -m arrt_player`. Every import, the lockfile's
+  own entry, the CI job, root excludes, the root guards' paths, learnings
+  globs, `display.service`, and the prose of live artifacts. The hypothesis
+  profile is renamed with it.
+- `deploy/README.md` § The Player renamed Arrt Player: the Pi's steps and the
+  way back. The queue entry at the top of `operator-verification.md` points
+  there, and says the older entries keep their day's paths.
+- `re-architecture.md`: the naming paragraph gains 2026-10-08. Wave 5's
+  history now spans four paths, so pass 2 adds `postarr/` and `arrt-player/`.
+  Pass 1 is unchanged, because its `b"arrt/"` prefix does not match
+  `arrt-player/`. The new repository is `arrt-player`.
+
+**Left as written:** archived plans, `change-log-archive/`, earlier entries
+here, the dated `operator-verification.md` entries, the live plans whose chunks
+are all ticked, and the 2026-10-05 norm-sweep measurements in
+`project-state.yaml`. All of them record their day.
+
+**Tests:** all three suites pass, with lint and format. `git grep -niP postarr`
+outside those history files leaves only the lines recording the names. All 71
+tracked files under `postarr/` are renamed into `arrt-player/`, with nothing
+added or deleted. `test_plane_isolation.py` failed on a planted `import
+arrt.config` in `arrt_player/config.py`, naming it as the curation plane, and
+passed once it was removed. The new names share the server's `arrt` prefix,
+so the search for unanchored prefixes was run over the renamed tree. It found
+one, `record.name.startswith("arrt")` in the curation suite's
+`test_player_surface.py`. It is left: that filter reads only the server's own
+process, where `arrt_player` is not installed, and matching more would only
+make the assertion stricter.
 
 ## 2026-10-08: Get and review clarity: the boundary review's findings
 

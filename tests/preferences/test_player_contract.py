@@ -1,7 +1,7 @@
 """The Player contract's schemas and fixtures agree with each other.
 
-The contract under `contract/` is what Arrt and Postarr are each tested
-against, and after the repo split it is what Postarr pins. So the fixtures are
+The contract under `contract/` is what Arrt and Arrt Player are each tested
+against, and after the repo split it is what Arrt Player pins. So the fixtures are
 a claim about the schemas, and this file is what makes the claim true: every
 valid fixture validates, and every invalid one fails for exactly one reason.
 
@@ -150,7 +150,7 @@ def test_a_fixture_invalid_by_semantics_passes_the_schema_and_breaks_exactly_one
 def test_each_fixtures_directory_agrees_with_its_flag():
     """`valid/` holds only valid fixtures and `invalid/` only invalid ones.
 
-    A reader choosing fixtures by directory, as Postarr's suite and the curation
+    A reader choosing fixtures by directory, as Arrt Player's suite and the curation
     plane's both do, would otherwise be told the opposite of what the index says.
     """
     for row in INDEX:
@@ -166,7 +166,7 @@ def test_every_invalid_fixture_says_what_it_breaks():
 
 
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():
-    """Postarr's suite reads this flag while collecting, so a row without it stops that suite at collection."""
+    """Arrt Player's suite reads this flag while collecting, so a row without it stops that suite at collection."""
     for row in INDEX:
         if row["path"].startswith("fixtures/manifest.v1/invalid/"):
             assert isinstance(row.get("player_must_refuse"), bool), row["path"]
