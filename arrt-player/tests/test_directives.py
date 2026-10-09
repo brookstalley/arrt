@@ -11,11 +11,12 @@ import logging
 import pytest
 from fakes import FakeTv
 
-from arrt_player.daemon import Daemon
+from arrt_player.displays.frame import frame_wall
 from arrt_player.state import DisplayState
+from arrt_player.wall import Wall
 
 
-async def test_a_first_start_adopts_the_sequence_without_acting(daemon: Daemon, tv: FakeTv, publish, state: DisplayState):
+async def test_a_first_start_adopts_the_sequence_without_acting(daemon: Wall, tv: FakeTv, publish, state: DisplayState):
     """A device that has never acted takes what it finds as its baseline.
 
     Acting instead would execute, at install time, whatever `show_now` somebody
@@ -45,9 +46,9 @@ async def test_a_restart_does_not_re_execute_the_last_directive(
     """
     from arrt_player.manifest import Watcher
 
-    def a_daemon() -> Daemon:
+    def a_daemon() -> Wall:
         watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-        return Daemon(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
+        return frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
 
     publish(["w1", "w2", "w3"], sequence=1)
     first = a_daemon()
@@ -67,7 +68,7 @@ async def test_a_restart_does_not_re_execute_the_last_directive(
     assert tv.on_the_wall.name == "w3.jpg", "the restart moved the wall"
 
 
-async def test_rapid_directives_coalesce_into_one_step(daemon: Daemon, tv: FakeTv, publish):
+async def test_rapid_directives_coalesce_into_one_step(daemon: Wall, tv: FakeTv, publish):
     """Two `next` calls inside one poll interval advance the counter twice and are
     observed once, which is one step — the intended behaviour, not an approximation."""
     publish(["w1", "w2", "w3"], sequence=1)
@@ -82,7 +83,7 @@ async def test_rapid_directives_coalesce_into_one_step(daemon: Daemon, tv: FakeT
 
 
 async def test_a_sequence_that_goes_backwards_re_baselines_without_acting(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, caplog
+    daemon: Wall, tv: FakeTv, publish, state: DisplayState, caplog
 ):
     """A restored catalogue brings back an older counter. Replaying the pin it
     carried is exactly what this rule exists to prevent."""
@@ -99,7 +100,7 @@ async def test_a_sequence_that_goes_backwards_re_baselines_without_acting(
     assert [r.__dict__.get("event") for r in caplog.records].count("directive.regressed") == 1
 
 
-async def test_after_a_regression_the_next_advance_is_acted_on(daemon: Daemon, tv: FakeTv, publish):
+async def test_after_a_regression_the_next_advance_is_acted_on(daemon: Wall, tv: FakeTv, publish):
     """Re-baselining has to leave the mechanism armed, or one restore disables
     `next` until the counter climbs back past where it was."""
     publish(["w1", "w2"], sequence=10)
@@ -114,7 +115,7 @@ async def test_after_a_regression_the_next_advance_is_acted_on(daemon: Daemon, t
 
 
 async def test_a_pin_the_theme_does_not_carry_warns_and_keeps_rotating(
-    daemon: Daemon, tv: FakeTv, publish, caplog, state: DisplayState
+    daemon: Wall, tv: FakeTv, publish, caplog, state: DisplayState
 ):
     """`show_now` checks readiness, not theme membership, so this is the default
     path rather than a rare race: only this plane can decide what to do with a pin
@@ -131,7 +132,7 @@ async def test_a_pin_the_theme_does_not_carry_warns_and_keeps_rotating(
     assert tv.on_the_wall.name == "w1.jpg", "the wall moved for a pin that could not be resolved"
 
 
-async def test_a_pin_continues_the_rotation_from_the_pinned_work(daemon: Daemon, tv: FakeTv, publish, clock):
+async def test_a_pin_continues_the_rotation_from_the_pinned_work(daemon: Wall, tv: FakeTv, publish, clock):
     publish(["w1", "w2", "w3", "w4"], sequence=1, interval_seconds=180)
     await daemon.tick()
 
@@ -145,9 +146,7 @@ async def test_a_pin_continues_the_rotation_from_the_pinned_work(daemon: Daemon,
     assert tv.on_the_wall.name == "w4.jpg", "rotation did not continue from the pin"
 
 
-async def test_a_directive_is_not_consumed_while_the_television_is_asleep(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState
-):
+async def test_a_directive_is_not_consumed_while_the_television_is_asleep(daemon: Wall, tv: FakeTv, publish, state: DisplayState):
     """An outage must delay a jump, never eat it.
 
     The manifest does not change when a directive fails, so a sequence marked
@@ -169,7 +168,7 @@ async def test_a_directive_is_not_consumed_while_the_television_is_asleep(
     assert state.last_acted_sequence == 2
 
 
-async def test_a_next_is_not_consumed_when_the_set_drops_mid_step(daemon: Daemon, tv: FakeTv, publish, state: DisplayState):
+async def test_a_next_is_not_consumed_when_the_set_drops_mid_step(daemon: Wall, tv: FakeTv, publish, state: DisplayState):
     """The unpinned branch's version of the rule, in the only window it can bite.
 
     **Finding this window took two attempts and a mutation sweep**, and the shape
@@ -210,9 +209,7 @@ async def test_a_next_is_not_consumed_when_the_set_drops_mid_step(daemon: Daemon
     assert state.last_acted_sequence == 2
 
 
-async def test_a_pin_whose_render_is_missing_is_still_consumed(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, wall_dir
-):
+async def test_a_pin_whose_render_is_missing_is_still_consumed(daemon: Wall, tv: FakeTv, publish, state: DisplayState, wall_dir):
     """An attempt that completes and shows nothing is still an attempt.
 
     Distinct from the outage above: this one will not change until a file
@@ -230,7 +227,7 @@ async def test_a_pin_whose_render_is_missing_is_still_consumed(
 
 
 @pytest.mark.parametrize("sequence", [0, 1])
-async def test_the_sequence_zero_baseline_is_not_special(daemon: Daemon, publish, state: DisplayState, sequence: int):
+async def test_the_sequence_zero_baseline_is_not_special(daemon: Wall, publish, state: DisplayState, sequence: int):
     """Zero is a real sequence, and `None` is the only "never acted" value.
 
     Conflating them would make a fresh catalogue's first `next` invisible.
@@ -243,7 +240,7 @@ async def test_the_sequence_zero_baseline_is_not_special(daemon: Daemon, publish
 
 
 async def test_a_pin_is_not_delivered_onto_a_television_somebody_is_watching(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState
+    daemon: Wall, tv: FakeTv, publish, state: DisplayState
 ):
     """A jump is still a selection, and a selection takes the screen.
 
@@ -263,7 +260,7 @@ async def test_a_pin_is_not_delivered_onto_a_television_somebody_is_watching(
     assert state.last_acted_sequence == 1, "the pin was consumed against a wall it never reached"
 
 
-async def test_a_held_back_directive_does_not_ask_the_set_once_a_second(daemon: Daemon, tv: FakeTv, publish, clock):
+async def test_a_held_back_directive_does_not_ask_the_set_once_a_second(daemon: Wall, tv: FakeTv, publish, clock):
     """The directive path has no timer, so the wait has to be read before the ask.
 
     An unconsumed directive is still unconsumed on the next poll, so anything
@@ -287,7 +284,7 @@ async def test_a_held_back_directive_does_not_ask_the_set_once_a_second(daemon: 
     assert asked < 10, f"a pending directive asked the set {asked} times in thirty seconds"
 
 
-async def test_a_held_back_next_does_not_ask_the_set_once_a_second(daemon: Daemon, tv: FakeTv, publish, clock):
+async def test_a_held_back_next_does_not_ask_the_set_once_a_second(daemon: Wall, tv: FakeTv, publish, clock):
     """The same guard, reached by `next` rather than by a pin.
 
     Both kinds run through the same two lines, so this is defended by
@@ -310,7 +307,7 @@ async def test_a_held_back_next_does_not_ask_the_set_once_a_second(daemon: Daemo
 
 
 async def test_a_pin_held_back_is_delivered_when_the_set_returns_to_art_mode(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState
+    daemon: Wall, tv: FakeTv, publish, state: DisplayState
 ):
     """Held, not dropped. The manifest does not change when a directive is
     refused, so a consumed pin is one the curator never gets."""
@@ -329,7 +326,7 @@ async def test_a_pin_held_back_is_delivered_when_the_set_returns_to_art_mode(
 
 
 async def test_a_bare_next_is_not_consumed_by_a_wall_that_displays_nothing(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock, caplog
+    daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock, caplog
 ):
     """The unpinned half of the rule below, which had nothing behind it.
 
@@ -360,7 +357,7 @@ async def test_a_bare_next_is_not_consumed_by_a_wall_that_displays_nothing(
 
 
 async def test_a_next_against_an_unshowable_theme_is_still_consumed(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, wall_dir
+    daemon: Wall, tv: FakeTv, publish, state: DisplayState, wall_dir
 ):
     """The other side of that distinction, and why it is not one boolean.
 
@@ -384,7 +381,7 @@ async def test_a_next_against_an_unshowable_theme_is_still_consumed(
 
 
 async def test_a_directive_is_not_consumed_by_a_wall_that_displays_nothing(
-    daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock
+    daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock
 ):
     """The same rule as an outage, reached by a route that raises nothing.
 
@@ -413,7 +410,7 @@ async def test_a_directive_is_not_consumed_by_a_wall_that_displays_nothing(
     assert state.last_acted_sequence == 2
 
 
-async def test_a_pin_against_a_dark_wall_is_not_re_attempted_every_poll(daemon: Daemon, tv: FakeTv, publish, clock):
+async def test_a_pin_against_a_dark_wall_is_not_re_attempted_every_poll(daemon: Wall, tv: FakeTv, publish, clock):
     """The directive path has no timer of its own, and the wall being dark leaves
     the sequence unconsumed — so nothing would stop it re-asking once a second.
 

@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from fakes import FakeTv
 
-from arrt_player.daemon import Daemon
 from arrt_player.state import DisplayState, UploadStatus
+from arrt_player.wall import Wall
 
 
 class TestTheStoreRefusesTheOldDefect:
@@ -85,7 +85,7 @@ class TestTheStoreRefusesTheOldDefect:
 
 
 class TestUploading:
-    async def test_a_work_is_uploaded_before_it_is_shown(self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState):
+    async def test_a_work_is_uploaded_before_it_is_shown(self, daemon: Wall, tv: FakeTv, publish, state: DisplayState):
         publish(["w1"])
 
         await daemon.tick()
@@ -95,7 +95,7 @@ class TestUploading:
         assert tv.holding[binding.tv_content_id].name == "w1.jpg"
 
     async def test_an_upload_that_fails_is_recorded_and_the_work_skipped(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, caplog
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, caplog
     ):
         publish(["w1", "w2"])
         tv.refuse_uploads = True
@@ -107,7 +107,7 @@ class TestUploading:
         assert state.binding_for("w1").upload_status is UploadStatus.FAILED
         assert "binding.upload_failed" in {r.__dict__.get("event") for r in caplog.records}
 
-    async def test_the_theme_fills_in_behind_the_first_picture(self, daemon: Daemon, tv: FakeTv, publish, state):
+    async def test_the_theme_fills_in_behind_the_first_picture(self, daemon: Wall, tv: FakeTv, publish, state):
         """Uploads are carried one per pass rather than done in a batch.
 
         A fresh install with forty works and ten seconds an upload would leave the
@@ -127,7 +127,7 @@ class TestUploading:
         assert len(tv.selected) == 1, "filling the theme in moved the wall"
 
     async def test_a_work_that_keeps_failing_is_not_retried_every_second(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock, settings, caplog
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock, settings, caplog
     ):
         """A reachable set refusing one image is not the same fault as an asleep one.
 
@@ -150,7 +150,7 @@ class TestUploading:
         assert state.binding_for("w1").upload_status is UploadStatus.FAILED
 
     async def test_a_work_that_failed_is_tried_again_once_the_wait_is_up(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock, settings
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock, settings
     ):
         """The wait is a wait, not a giving up: whatever was wrong may be fixed."""
         publish(["w1"], interval_seconds=3600)
@@ -165,7 +165,7 @@ class TestUploading:
         assert state.binding_for("w1").is_on_the_television
 
     async def test_a_re_rendered_work_is_sent_again(
-        self, daemon: Daemon, tv: FakeTv, publish, wall_dir, state: DisplayState, clock
+        self, daemon: Wall, tv: FakeTv, publish, wall_dir, state: DisplayState, clock
     ):
         """**The wall showing a composition the catalogue no longer holds.**
 
@@ -189,7 +189,7 @@ class TestUploading:
         assert tv.holding[rebound.tv_content_id].read_bytes() == b"a different composition entirely"
 
     async def test_a_work_whose_render_is_untouched_is_not_sent_again(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock
     ):
         """The other half, and the one that costs money if wrong: a fingerprint
         that changed spuriously would re-upload the whole theme every pass."""
@@ -204,7 +204,7 @@ class TestUploading:
         assert state.binding_for("w1").tv_content_id == first
         assert len(tv.holding) == 1
 
-    async def test_a_work_already_on_the_television_is_not_uploaded_again(self, daemon: Daemon, tv: FakeTv, publish, clock):
+    async def test_a_work_already_on_the_television_is_not_uploaded_again(self, daemon: Wall, tv: FakeTv, publish, clock):
         publish(["w1", "w2"], interval_seconds=10)
         await daemon.tick()
         clock.advance(10)
@@ -219,7 +219,7 @@ class TestUploading:
 
 
 class TestOrphans:
-    async def test_an_upload_the_binding_table_cannot_account_for_is_removed(self, daemon: Daemon, tv: FakeTv, publish, caplog):
+    async def test_an_upload_the_binding_table_cannot_account_for_is_removed(self, daemon: Wall, tv: FakeTv, publish, caplog):
         """A fresh install clears the set, and that is the correct behaviour.
 
         Images uploaded by a previous generation are not assets to adopt: nothing
@@ -237,7 +237,7 @@ class TestOrphans:
         assert "MY-LEGACY-2" not in tv.holding
         assert tv.removed == [("MY-LEGACY-1", "MY-LEGACY-2")]
 
-    async def test_a_work_the_manifest_still_names_is_never_removed(self, daemon: Daemon, tv: FakeTv, publish, clock):
+    async def test_a_work_the_manifest_still_names_is_never_removed(self, daemon: Wall, tv: FakeTv, publish, clock):
         publish(["w1", "w2"], interval_seconds=10)
         for _ in range(4):
             await daemon.tick()
@@ -251,7 +251,7 @@ class TestOrphans:
         assert tv.removed == []
 
     async def test_a_binding_the_set_no_longer_lists_is_re_uploaded(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, caplog
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, caplog
     ):
         """Somebody removed it from the phone app. Selecting the stale id would
         fail against the set, so the row is marked orphaned and re-uploaded."""
@@ -272,7 +272,7 @@ class TestOrphans:
         assert rebound.tv_content_id in tv.holding
 
     async def test_a_binding_the_set_refuses_mid_rotation_is_rebound_rather_than_retried_forever(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock, caplog
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock, caplog
     ):
         """The wall-freezing case, and the reason a refusal is not read as an outage.
 
@@ -296,7 +296,7 @@ class TestOrphans:
         assert "binding.orphaned" in {r.__dict__.get("event") for r in caplog.records}
 
     async def test_a_refusal_the_set_cannot_explain_is_still_an_outage(
-        self, daemon: Daemon, tv: FakeTv, publish, state: DisplayState, clock, settings
+        self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock, settings
     ):
         """The other side of that judgement, so the fix cannot swallow a real fault.
 
@@ -314,7 +314,7 @@ class TestOrphans:
         assert wait == settings.tv_retry_min_seconds, "a refusal the set could not explain was not treated as an outage"
         assert state.binding_for("w1").tv_content_id == content_id, "a live binding was thrown away"
 
-    async def test_an_unconfirmable_removal_is_reported_as_unknown_and_retried(self, daemon: Daemon, tv: FakeTv, publish, caplog):
+    async def test_an_unconfirmable_removal_is_reported_as_unknown_and_retried(self, daemon: Wall, tv: FakeTv, publish, caplog):
         """The library discards the reply to a removal, so claiming either outcome
         would be a guess. Unknown is reported as unknown."""
         tv.holding["MY-LEGACY-1"] = Path("/gone/legacy-1.jpg")

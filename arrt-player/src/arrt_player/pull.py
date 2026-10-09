@@ -1,9 +1,15 @@
-"""Pull each wall's manifest and renders into its cache, report its heartbeat, and ask the server which walls this client drives.
+"""Pull each wall's manifest and media into its cache, report its heartbeat, and ask the server which walls this client drives.
+
+A major 1 manifest names composed renders and is cached with each entry pointed
+at its render, dropping an entry whose render cannot be had; a major 2 feed
+names each work's presentation master and is cached whole (`_adopt_feed` says
+why).
 
 **The only module in this plane that speaks HTTP**, and
 `tests/preferences/test_plane_isolation.py` holds it to that. It spells five
-routes — the client document and the client heartbeat, a wall's manifest and a
-wall's heartbeat, and a label's document — as `contract/routes.json` spells them. Renders are fetched
+routes — the client document and the client heartbeat, a wall's manifest at
+each major it asks for, a wall's heartbeat, and a label's document — as
+`contract/routes.json` spells them. Renders are fetched
 from the address each manifest entry's `media.url` gives, resolved against the
 manifest's own URL: today the same server's media route, after a
 Library/Programming split perhaps another host. The client's token is sent to
@@ -35,7 +41,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 from dataclasses import dataclass
 from enum import Enum
 from http import HTTPStatus
@@ -50,14 +55,14 @@ from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSet
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import path_in as heartbeat_path_in
 from arrt_player.label_rule import LabelDocument, LabelDocumentUnreadable, parse_label_document
-from arrt_player.manifest import ManifestUnreadable, parse
+from arrt_player.manifest import MEDIA_DIRNAME, REQUESTED_MAJORS, SHA256, Feed, ManifestUnreadable, media_name, parse
 
 log = logging.getLogger(__name__)
 
 #: The routes this module requests, as `contract/routes.json` spells them.
 CLIENT_ROUTE: Final[str] = "/client"
 CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
-MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
+MANIFEST_MAJOR_ROUTE: Final[str] = "/walls/{wall_id}/manifest/v{major}"
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
 LABEL_ROUTE: Final[str] = "/labels/{label_id}"
 
@@ -66,10 +71,7 @@ LABEL_ROUTE: Final[str] = "/labels/{label_id}"
 ETAG_FILENAME: Final[str] = "manifest.etag"
 #: Beside the cached client document, for the same reason.
 CLIENT_ETAG_FILENAME: Final[str] = ".client.etag"
-#: Renders, named by the SHA-256 of their bytes.
-MEDIA_DIRNAME: Final[str] = "media"
 
-_SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
 
 #: How long to wait before asking again after the server could not be reached,
 #: doubling to the ceiling and reset on the next answer.
@@ -99,7 +101,16 @@ class Pull:
         self._token = settings.client_token
         self._cache = settings.wall_dir
         self._media = settings.wall_dir / MEDIA_DIRNAME
-        self._manifest_url = self._server + MANIFEST_ROUTE.format(wall_id=settings.wall_id)
+        #: Each major this Player asks for, highest first, at its own URL
+        #: (`player-contract.md` § The cutover).
+        self._manifest_urls = [
+            self._server + MANIFEST_MAJOR_ROUTE.format(wall_id=settings.wall_id, major=major)
+            for major in sorted(REQUESTED_MAJORS, reverse=True)
+        ]
+        #: What a media address is resolved against. Any of the majors' URLs
+        #: would do: they differ only in their last segment, so they share the
+        #: directory a relative address is resolved from.
+        self._manifest_url = self._manifest_urls[0]
         self._heartbeat_url = self._server + HEARTBEAT_ROUTE.format(wall_id=settings.wall_id)
         self._interval = settings.poll_interval_seconds if interval_seconds is None else interval_seconds
         self._backoff = BACKOFF_START_SECONDS
@@ -169,10 +180,7 @@ class Pull:
         if etag is not None:
             headers["If-None-Match"] = etag
         try:
-            async with session.get(self._manifest_url, headers=headers) as response:
-                status = response.status
-                body = await response.read() if status == HTTPStatus.OK else b""
-                served_etag = response.headers.get("ETag")
+            status, body, served_etag = await self._request_manifest(session, headers)
         except _UNREACHABLE as exc:
             self._report_unreachable(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
             return _Poll.UNREACHABLE
@@ -192,7 +200,7 @@ class Pull:
 
         try:
             text = body.decode("utf-8")
-            parse(
+            parsed = parse(
                 text,
                 rotation_interval_fallback=self._settings.rotation_interval_fallback_seconds,
                 shuffle_fallback=self._settings.rotation_shuffle_fallback,
@@ -211,6 +219,9 @@ class Pull:
             return _Poll.ANSWERED
         if self._unreadable.end():
             log.info("the server's manifest can be read again", extra={"event": "pull.manifest_readable"})
+
+        if isinstance(parsed, Feed):
+            return await self._adopt_feed(session, parsed, document, served_etag)
 
         offered = document.get("entries", [])
         cached_entries = []
@@ -252,6 +263,66 @@ class Pull:
         )
         return _Poll.ANSWERED
 
+    async def _request_manifest(self, session: aiohttp.ClientSession, headers: dict[str, str]) -> tuple[int, bytes, str | None]:
+        """Ask for each requested major, highest first, and keep the first answer that is not a 404.
+
+        **A 404 means "not this major for this wall"**, and the next one down is
+        asked; only when every one answers 404 is it the answer, which the caller
+        reports as nothing published. Any other answer is the server's word on
+        this wall and stops the walk: a refused token is refused at every major,
+        and asking the next would only say so again.
+        """
+        for url in self._manifest_urls:
+            async with session.get(url, headers=headers) as response:
+                status = response.status
+                body = await response.read() if status == HTTPStatus.OK else b""
+                served_etag = response.headers.get("ETag")
+            if status != HTTPStatus.NOT_FOUND:
+                break
+        return status, body, served_etag
+
+    async def _adopt_feed(
+        self, session: aiohttp.ClientSession, feed: Feed, document: dict[str, Any], served_etag: str | None
+    ) -> _Poll:
+        """Cache a major 2 feed's media, then the feed itself, whole.
+
+        **Kept whole, unlike a major 1 manifest, whose entries without a render
+        are left out**: every work the schedule names must be a key of `works`
+        (`player-contract.md` § Rules a schema cannot state), so dropping one
+        would cache a document this reader refuses. A work whose media could not
+        be had stays in the feed, and the programme skips it until its file is
+        here. Every work the feed carries is fetched, staged ones included, so a
+        scene is a switch rather than a download.
+        """
+        for work in feed.works.values():
+            outcome = await self._cache_media(
+                session, {"work_id": work.work_id, "media": {"sha256": work.sha256, "url": work.url}}
+            )
+            if isinstance(outcome, _Retry):
+                if self._media_failing.begin():
+                    log.warning(
+                        "a work's media for this wall could not be fetched (%s); keeping the manifest already cached",
+                        outcome.why,
+                        extra={"event": "pull.media_failing"},
+                    )
+                return _Poll.MEDIA_FAILING
+        if self._media_failing.end():
+            log.info("renders for this wall arrive again", extra={"event": "pull.media_ok"})
+        previous = self._cached_render_names()
+        _write_atomically(self._cache / CACHED_MANIFEST_FILENAME, json.dumps(document, indent=2).encode("utf-8"))
+        if served_etag:
+            _write_atomically(self._cache / ETAG_FILENAME, served_etag.encode("utf-8"))
+        held = {Path(work.media_path).name for work in feed.works.values() if (self._cache / work.media_path).is_file()}
+        kept = self._evict(held | previous)
+        log.info(
+            "cached the feed for this wall with %d of %d works' media; %d held",
+            len(held),
+            len(feed.works),
+            kept,
+            extra={"event": "pull.adopted", "works": len(feed.works), "media_held": len(held)},
+        )
+        return _Poll.ANSWERED
+
     async def _cache_media(  # noqa: PLR0911 -- one return per way a render can be had, skipped or retried
         self, session: aiohttp.ClientSession, entry: dict[str, Any]
     ) -> "str | bool | _Retry":
@@ -260,10 +331,10 @@ class Pull:
         media = entry.get("media")
         sha = media.get("sha256") if isinstance(media, dict) else None
         url = media.get("url") if isinstance(media, dict) else None
-        if not isinstance(sha, str) or not _SHA256.fullmatch(sha) or not isinstance(url, str):
+        if not isinstance(sha, str) or not SHA256.fullmatch(sha) or not isinstance(url, str):
             self._skip_once(f"no-media:{work_id}", "work %s has no usable media, so this Player skips it", work_id)
             return False
-        name = f"sha256-{sha}"
+        name = media_name(sha)
         relative = f"{MEDIA_DIRNAME}/{name}"
         if (self._media / name).is_file():
             return relative
@@ -310,6 +381,13 @@ class Pull:
             cached = json.loads((self._cache / CACHED_MANIFEST_FILENAME).read_text(encoding="utf-8"))
         except (FileNotFoundError, ValueError):
             return set()
+        if isinstance(cached.get("works"), dict):
+            # A major 2 feed: each work's media, by the name the pull gives it.
+            return {
+                media_name(work["media"]["sha256"])
+                for work in cached["works"].values()
+                if isinstance(work, dict) and isinstance(work.get("media"), dict) and isinstance(work["media"].get("sha256"), str)
+            }
         return {Path(entry["render_path"]).name for entry in cached.get("entries", []) if "render_path" in entry}
 
     def _cached_etag(self) -> str | None:

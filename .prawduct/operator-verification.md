@@ -10,6 +10,23 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Both walls rotate on the one wall loop — added 2026-10-09
+
+**`build-plan-wave-4c-wall-loop.md`.** The Frame's and the HDMI screen's loops
+are one loop now, and the Player asks for its manifest at `…/manifest/v1`.
+Live integration: the suite drives doubles of the set and the connector. On the
+Pi, after pulling this branch and restarting the unit (SIGTERM, never SIGKILL):
+
+- **The journal** logs `daemon.started` for the Frame wall and `screen.started`
+  for the HDMI wall, and `pull.adopted` for each, with no `pull.refused`.
+- **The Frame** steps on at its interval, a `next` from Arrt steps it once, and
+  switching the set to a programme leaves the wall alone
+  (`rotation.wall_not_ours`) until it is back in art mode.
+- **The HDMI wall** steps on at its interval, and a monitor unplugged and
+  plugged back in shows the wall's picture again.
+- **Walls in Arrt** shows both walls' display states as before; the HDMI wall's
+  heartbeat now carries `capabilities` with the screen's size.
+
 ### Size badges and the *Size* facet read plainly — added 2026-10-08
 
 **`build-plan-wave-4b-master-quality.md`, Chunk 01.** Visual change: yes.

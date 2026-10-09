@@ -134,7 +134,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
 | `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
 | `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen, identity?}], label_outputs?: [{name, kind, connected, size}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
 | `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
-| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. Major 1's original spelling, served until major 1 retires |
+| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. Major 1's original spelling, served until major 1 retires; Arrt Player asks for `v{major}` instead since wave 4c |
 | `GET /walls/{wall_id}/manifest/v{major}` | none | The manifest at that major (decimal, no leading zero), answered as above; `404` for a major the server does not publish for this wall (§ The cutover). Named in `contract/routes.json` (`manifest_major`) |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
@@ -441,15 +441,27 @@ upgraded on demand).
   major down that it reads. It treats the wall as misconfigured only when every
   major it reads answers `404`. A Player may keep the major that last answered
   and ask for a higher one less often than it polls.
-- **A major 1 Player refuses a major 2 document** as an unsupported version and
-  keeps its wall, as it refuses any unknown major. Arrt Player's suite pins that
-  refusal for every major 2 fixture.
+- **A Player refuses a major it does not read** as an unsupported version and
+  keeps its wall, as a major 1 Player refuses a major 2 document. Since wave 4c
+  Arrt Player reads majors 1 and 2: its suite adopts every valid fixture of
+  both whole, refuses every invalid one the index marks `player_must_refuse`
+  (for major 2, never one that breaks only a presentation setting), and pins
+  the version refusal with a major 3 document. *(Amended 2026-10-09, wave 4c:
+  this said the suite pins a refusal of every major 2 fixture, which is the
+  rule for a major 1 reader; `build-plan-wave-4c-wall-loop.md` records the
+  decision.)*
 - **For a home wall, the server serves each major it still builds and retires
   one once no heartbeat lists it in `manifest_majors`.** So wave 4 upgrades the
   Players first, and the server stops building major 1, and with it the
   composed render and the unversioned route, once every Player reports 2. A
   Player missed in the upgrade is visible before that, because its heartbeat
   lacks 2.
+- **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
+  a Player from before minor 2, which reads only major 1, or one whose display
+  cannot yet say its size (a Frame, until the Player owns its geometry), which
+  since wave 4c asks only for major 1. Reading its silence as "lists nothing"
+  would let the server retire the major that wall is running on. *(Added
+  2026-10-09, wave 4c.)*
 - **For a public channel, a major is retired by decision**, because nothing
   reports.
 

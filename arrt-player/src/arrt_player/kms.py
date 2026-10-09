@@ -418,7 +418,7 @@ def shared_device(path: Path) -> Device:
 
 
 class KmsOutput:
-    """A wall's screen on one HDMI connector (`hdmi-a-1`), behind `ScreenOutput`.
+    """A wall's screen on one HDMI connector (`hdmi-a-1`), behind `displays.screen.ScreenOutput`.
 
     Whether a screen is there, and its size, are read from `DRM_ROOT` exactly as
     the client heartbeat reads them, so the output never draws at a size other

@@ -302,11 +302,11 @@ async def test_a_crash_still_closes_the_art_channel_on_the_way_out(settings, tv,
     times out. So a daemon that skipped its close on the unexpected exit would
     come back up unable to reach the television it just crashed away from.
     """
-    from arrt_player.daemon import Daemon
+    from arrt_player.displays.frame import frame_wall
     from arrt_player.manifest import Watcher
 
     watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    daemon = Daemon(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
+    daemon = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
 
     async def explode() -> float:
         raise RuntimeError("something nobody predicted")
@@ -328,11 +328,11 @@ async def test_a_crash_is_distinguishable_from_a_clean_stop_in_the_log(settings,
     """
     import logging
 
-    from arrt_player.daemon import Daemon
+    from arrt_player.displays.frame import frame_wall
     from arrt_player.manifest import Watcher
 
     watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    daemon = Daemon(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
+    daemon = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
 
     async def explode() -> float:
         raise RuntimeError("something nobody predicted")
@@ -364,17 +364,23 @@ class _PullRecorder:
 
 
 def _wire(monkeypatch, tv, *, daemon_run, pull_fails: Exception | None = None):
-    from arrt_player import daemon as daemon_module
+    from arrt_player.displays import frame as frame_module
 
-    class QuickDaemon(daemon_module.Daemon):
+    class QuickWall:
         async def run(self, stop) -> None:
             await daemon_run(stop)
+
+    def quick_frame_wall(**kwargs):
+        # Built for real first, so the wiring still has to hand the factory
+        # everything a wall on the Frame needs.
+        frame_module.frame_wall(**kwargs)
+        return QuickWall()
 
     _PullRecorder.started = []
     # Set here on every wiring, so a test cannot inherit another's failure.
     monkeypatch.setattr(_PullRecorder, "failure", pull_fails)
     monkeypatch.setattr(entry, "SamsungTv", lambda **kwargs: tv)
-    monkeypatch.setattr(entry, "Daemon", QuickDaemon)
+    monkeypatch.setattr(entry, "frame_wall", quick_frame_wall)
     monkeypatch.setattr(entry, "Pull", _PullRecorder)
 
 

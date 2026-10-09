@@ -26,18 +26,59 @@ something impossible, keep what you have and say so, rather than guess.**
 
 An unrecognised **minor** is not a refusal — additive changes are free, and a
 reader that rejected them would make every new field a breaking one.
+
+**Two majors are read.** Major 1 is a list of composed renders with a rotation
+and a directive (`Manifest`); major 2 is a feed: the works, a schedule of
+absolute slots, and a scene and staging when the wall has a control layer
+(`Feed`, `player-contract.md` § Major 2). A major 2 document is refused for the
+rules a Player acts on — its shape where this reader reads it, the instants,
+and the five rules a schema cannot state — and **never for a presentation
+setting**: a Player applies the settings its display can honour and ignores the
+rest (§ Presentation settings), so a mat mode this Player does not know costs a
+mat, never the wall.
 """
 
+import itertools
 import json
 import logging
+import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Final
 
 log = logging.getLogger(__name__)
 
-#: The manifest major this reader understands. Anything else is kept off the wall.
-SUPPORTED_SCHEMA_MAJOR: Final[int] = 1
+#: The manifest majors this reader understands. Anything else is kept off the wall.
+SUPPORTED_SCHEMA_MAJORS: Final[tuple[int, ...]] = (1, 2)
+
+#: The majors this Player asks the server for, highest first, and reports in its
+#: heartbeat's `manifest_majors` (`player-contract.md` § The cutover). **Narrower
+#: than what it reads, on purpose**: a major 2 work is a presentation master that
+#: needs a mat drawn around it, and until this Player composes (wave 4d) asking
+#: for major 2 would put an unmatted master on the wall the moment a server
+#: published one. One constant for both, so the Player never reports a major it
+#: does not ask for.
+REQUESTED_MAJORS: Final[tuple[int, ...]] = (1,)
+
+#: Where the pull keeps media, relative to the wall's directory, each file named
+#: by the SHA-256 of its bytes: a major 1 render and a major 2 work's master alike.
+MEDIA_DIRNAME: Final[str] = "media"
+
+#: `player-contract.md` § Time: RFC 3339 with an offset, as the schema's
+#: `instant` pattern states it. Checked before parsing, because
+#: `datetime.fromisoformat` accepts forms the contract does not, and a time with
+#: no offset is the one a Player could only guess the zone of.
+_INSTANT: Final[re.Pattern[str]] = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})"
+)
+#: A media hash as the contract spells it: lowercase hex SHA-256.
+SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
+
+
+def media_name(sha256: str) -> str:
+    """The name a medium is cached under in `MEDIA_DIRNAME`: the one spelling the pull writes and every reader looks for."""
+    return f"sha256-{sha256}"
 
 
 class ManifestUnreadable(Exception):
@@ -56,7 +97,7 @@ class ManifestVersionUnsupported(ManifestUnreadable):
     def __init__(self, major: int) -> None:
         super().__init__(
             f"manifest schema major {major} is not supported by this display plane (it understands "
-            f"{SUPPORTED_SCHEMA_MAJOR}); keeping the manifest already loaded"
+            f"{', '.join(str(known) for known in SUPPORTED_SCHEMA_MAJORS)}); keeping the manifest already loaded"
         )
         self.major = major
 
@@ -104,8 +145,79 @@ class Manifest:
         return None
 
 
-def parse(text: str, *, rotation_interval_fallback: int, shuffle_fallback: bool) -> Manifest:
-    """Turn the file's bytes into a `Manifest`, or refuse it.
+@dataclass(frozen=True)
+class Work:
+    """One work a major 2 feed names: its media, its mat colour and its label."""
+
+    work_id: str
+    #: The media's SHA-256, lowercase hex: its name in the cache.
+    sha256: str
+    #: Where the pull fetches it, resolved against the manifest's own URL.
+    url: str
+    #: Carried for the compositor; this reader does not judge it (a setting
+    #: of the work's presentation is never a reason to refuse the document).
+    mat_color: object
+    label: dict[str, Any]
+
+    @property
+    def media_path(self) -> str:
+        """Where the pull keeps the media, relative to the wall's directory."""
+        return f"{MEDIA_DIRNAME}/{media_name(self.sha256)}"
+
+
+@dataclass(frozen=True)
+class Slot:
+    """A half-open span of absolute time and the work it shows."""
+
+    work_id: str
+    start: datetime
+    until: datetime
+
+
+@dataclass(frozen=True)
+class Scene:
+    """A live override with a lifetime; `until` None holds it until it is released."""
+
+    scene_id: str
+    work_id: str
+    start: datetime
+    until: datetime | None
+
+
+@dataclass(frozen=True)
+class Feed:
+    """One published major 2 document, already checked (`player-contract.md` § Major 2)."""
+
+    schema_major: int
+    schema_minor: int
+    playlist_id: str | None
+    playlist_name: str | None
+    works: dict[str, Work]
+    horizon_start: datetime
+    horizon_until: datetime
+    slots: tuple[Slot, ...]
+    scene: Scene | None
+    staging: tuple[str, ...]
+    #: The feed's presentation defaults, as sent. Read by the compositor, never
+    #: a reason to refuse the document.
+    settings: dict[str, Any]
+
+    @property
+    def theme_id(self) -> str | None:
+        """The playlist, under the name the heartbeat has always given it."""
+        return self.playlist_id
+
+    def named(self) -> tuple[str, ...]:
+        """Every work the schedule, the scene or staging names, each once, in that order."""
+        order = [slot.work_id for slot in self.slots]
+        if self.scene is not None:
+            order.append(self.scene.work_id)
+        order.extend(self.staging)
+        return tuple(dict.fromkeys(order))
+
+
+def parse(text: str, *, rotation_interval_fallback: int, shuffle_fallback: bool) -> "Manifest | Feed":
+    """Turn the file's bytes into a `Manifest` (major 1) or a `Feed` (major 2), or refuse it.
 
     Version is checked **before** structure, because a future major is expected to
     be shaped differently: reporting "entries is missing" for a document whose
@@ -124,8 +236,10 @@ def parse(text: str, *, rotation_interval_fallback: int, shuffle_fallback: bool)
     if not isinstance(schema, dict) or not isinstance(schema.get("major"), int):
         raise ManifestUnreadable("the manifest carries no schema major version")
     major = schema["major"]
-    if major != SUPPORTED_SCHEMA_MAJOR:
+    if major not in SUPPORTED_SCHEMA_MAJORS:
         raise ManifestVersionUnsupported(major)
+    if major == 2:  # noqa: PLR2004 -- the major is the name of a shape, not a magnitude
+        return _feed(document)
 
     entries_raw = document.get("entries")
     if not isinstance(entries_raw, list):
@@ -171,6 +285,125 @@ def parse(text: str, *, rotation_interval_fallback: int, shuffle_fallback: bool)
     )
 
 
+def _feed(document: dict[str, Any]) -> Feed:  # noqa: C901 -- one refusal per rule, each said where it is checked
+    """A major 2 document, refused for anything a Player acts on and nothing else."""
+    schema = document["schema"]
+    works_raw = document.get("works")
+    if not isinstance(works_raw, dict):
+        raise ManifestUnreadable("the feed carries no works object")
+    works = {work_id: _work(work_id, item) for work_id, item in works_raw.items()}
+
+    schedule = document.get("schedule")
+    if not isinstance(schedule, dict):
+        raise ManifestUnreadable("the feed carries no schedule")
+    horizon = schedule.get("horizon")
+    if not isinstance(horizon, dict):
+        raise ManifestUnreadable("the feed's schedule carries no horizon")
+    horizon_start = _instant(horizon.get("from"), "the horizon's from")
+    horizon_until = _instant(horizon.get("until"), "the horizon's until")
+    slots_raw = schedule.get("slots")
+    if not isinstance(slots_raw, list):
+        raise ManifestUnreadable("the feed's schedule carries no slots list")
+    slots = tuple(_slot(item, position) for position, item in enumerate(slots_raw))
+
+    scene_raw = document.get("scene")
+    scene = None if scene_raw is None else _scene(scene_raw)
+    staging_raw = document.get("staging", [])
+    if not isinstance(staging_raw, list) or not all(isinstance(item, str) and item for item in staging_raw):
+        raise ManifestUnreadable("the feed's staging is not a list of work ids")
+
+    playlist = document.get("playlist") if isinstance(document.get("playlist"), dict) else {}
+    settings = document.get("settings")
+    feed = Feed(
+        schema_major=2,
+        schema_minor=schema.get("minor") if isinstance(schema.get("minor"), int) else 0,
+        playlist_id=playlist.get("id") if isinstance(playlist.get("id"), str) else None,
+        playlist_name=playlist.get("name") if isinstance(playlist.get("name"), str) else None,
+        works=works,
+        horizon_start=horizon_start,
+        horizon_until=horizon_until,
+        slots=slots,
+        scene=scene,
+        staging=tuple(staging_raw),
+        settings=settings if isinstance(settings, dict) else {},
+    )
+
+    # `player-contract.md` § Rules a schema cannot state, in its order.
+    if any(work_id not in works for work_id in feed.named()):
+        raise ManifestUnreadable("the feed names a work that is not in its works")
+    if any(slot.start >= slot.until for slot in slots):
+        raise ManifestUnreadable("a slot ends before it starts")
+    if any(first.until > second.start for first, second in itertools.pairwise(slots)):
+        raise ManifestUnreadable("the slots overlap or run out of order")
+    span = horizon_until - horizon_start
+    if span <= timedelta(0) or span % timedelta(days=1):
+        raise ManifestUnreadable("the horizon is not a whole number of days")
+    if any(slot.start < horizon_start or slot.until > horizon_until for slot in slots):
+        raise ManifestUnreadable("a slot falls outside the horizon")
+    if scene is not None and scene.until is not None and scene.until <= scene.start:
+        raise ManifestUnreadable("the scene ends before it starts")
+    return feed
+
+
+def _work(work_id: object, item: object) -> Work:
+    if not isinstance(work_id, str) or not work_id:
+        raise ManifestUnreadable("the feed's works has an empty id")
+    if not isinstance(item, dict):
+        raise ManifestUnreadable(f"work {work_id} is not an object")
+    media = item.get("media")
+    sha = media.get("sha256") if isinstance(media, dict) else None
+    url = media.get("url") if isinstance(media, dict) else None
+    if not isinstance(sha, str) or not SHA256.fullmatch(sha) or not isinstance(url, str) or not url:
+        raise ManifestUnreadable(f"work {work_id} carries no media with a sha256 and a url")
+    label = item.get("label")
+    return Work(
+        work_id=work_id, sha256=sha, url=url, mat_color=item.get("mat_color"), label=label if isinstance(label, dict) else {}
+    )
+
+
+def _slot(item: object, position: int) -> Slot:
+    if not isinstance(item, dict):
+        raise ManifestUnreadable(f"slot {position} is not an object")
+    work_id = item.get("work_id")
+    if not isinstance(work_id, str) or not work_id:
+        raise ManifestUnreadable(f"slot {position} carries no work_id")
+    return Slot(
+        work_id=work_id,
+        start=_instant(item.get("from"), f"slot {position}'s from"),
+        until=_instant(item.get("until"), f"slot {position}'s until"),
+    )
+
+
+def _scene(item: object) -> Scene:
+    if not isinstance(item, dict):
+        raise ManifestUnreadable("the scene is neither null nor an object")
+    scene_id, work_id = item.get("id"), item.get("work_id")
+    if not isinstance(scene_id, str) or not scene_id or not isinstance(work_id, str) or not work_id:
+        raise ManifestUnreadable("the scene carries no id or no work_id")
+    if "until" not in item:
+        # Null means "held until released"; absent is a document that forgot to say.
+        raise ManifestUnreadable("the scene carries no until")
+    until = item["until"]
+    return Scene(
+        scene_id=scene_id,
+        work_id=work_id,
+        start=_instant(item.get("from"), "the scene's from"),
+        until=None if until is None else _instant(until, "the scene's until"),
+    )
+
+
+def _instant(value: object, what: str) -> datetime:
+    """An RFC 3339 instant with an offset, or a refusal naming which one it is not."""
+    if value is None:
+        raise ManifestUnreadable(f"{what} is missing")
+    if not isinstance(value, str) or not _INSTANT.fullmatch(value):
+        raise ManifestUnreadable(f"{what} is not an instant with an offset")
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ManifestUnreadable(f"{what} is not a real instant ({exc})") from exc
+
+
 def _entry(item: object, position: int) -> Entry:
     if not isinstance(item, dict):
         raise ManifestUnreadable(f"entry {position} is a {type(item).__name__}, not an object")
@@ -202,18 +435,18 @@ class Watcher:
         self._rotation_interval_fallback = rotation_interval_fallback
         self._shuffle_fallback = shuffle_fallback
         self._seen_stamp: tuple[int, int] | None = None
-        self._current: Manifest | None = None
+        self._current: Manifest | Feed | None = None
         self._reported_absent = False
         self._reported_unstatable = False
 
     @property
-    def current(self) -> Manifest | None:
+    def current(self) -> "Manifest | Feed | None":
         """The last manifest that was good, or None if none ever has been."""
         return self._current
 
     def poll(  # noqa: C901, PLR0911 -- each way a manifest file can be refused keeps the loaded one, said where it happens
         self,
-    ) -> Manifest | None:
+    ) -> "Manifest | Feed | None":
         """Read the file if it changed; return the new manifest, or None.
 
         None means "nothing to do" in every case that is not a fresh, valid
@@ -313,7 +546,7 @@ class Watcher:
                     "event": "manifest.version_refused",
                     "manifest_path": str(self._path),
                     "observed_major": exc.major,
-                    "supported_major": SUPPORTED_SCHEMA_MAJOR,
+                    "supported_majors": list(SUPPORTED_SCHEMA_MAJORS),
                 },
             )
             return None
@@ -327,6 +560,22 @@ class Watcher:
             return None
 
         self._current = manifest
+        if isinstance(manifest, Feed):
+            log.info(
+                "adopted the feed for playlist %s with %d slots over %d works",
+                manifest.playlist_name or manifest.playlist_id or "(unnamed)",
+                len(manifest.slots),
+                len(manifest.works),
+                extra={
+                    "event": "manifest.adopted",
+                    "theme_id": manifest.playlist_id,
+                    "slots": len(manifest.slots),
+                    "works": len(manifest.works),
+                    "scene_id": manifest.scene.scene_id if manifest.scene is not None else None,
+                    "schema": f"{manifest.schema_major}.{manifest.schema_minor}",
+                },
+            )
+            return manifest
         log.info(
             "adopted manifest for theme %s with %d entries",
             manifest.theme_name or manifest.theme_id or "(unnamed)",

@@ -62,6 +62,8 @@ class ServerDouble:
         #: A forced answer for every label request, for the failure tests.
         self.label_status: int | None = None
         self._default_wall = wall_id
+        #: Each manifest major requested, in order, as the integer asked for.
+        self.majors_requested: list[int] = []
 
     # -- the app ---------------------------------------------------------------------
 
@@ -71,6 +73,7 @@ class ServerDouble:
             ("client", self.serve_client),
             ("client_heartbeat", self.receive_client_heartbeat),
             ("manifest", self.serve_manifest),
+            ("manifest_major", self.serve_manifest_major),
             ("media", self.serve_media),
             ("heartbeat", self.receive_heartbeat),
             ("label", self.serve_label),
@@ -148,6 +151,19 @@ class ServerDouble:
         if request.headers.get("If-None-Match") == etag:
             return web.Response(status=304, headers={"ETag": etag})
         return web.Response(body=body, content_type="application/json", headers={"ETag": etag})
+
+    async def serve_manifest_major(self, request: web.Request) -> web.Response:
+        """A wall's manifest at one major, as Arrt mounts it: 404 for a major it does not publish for that wall."""
+        major = int(request.match_info["major"])
+        self.majors_requested.append(major)
+        wall_id = request.match_info["wall_id"]
+        _client, refused = self._admit(request, wall_id)
+        if refused is not None:
+            return refused
+        manifest = self.manifests.get(wall_id)
+        if manifest is None or manifest["schema"]["major"] != major:
+            return web.json_response({"error": f"No manifest of major {major} is published for this wall."}, status=404)
+        return await self.serve_manifest(request)
 
     async def serve_media(self, request: web.Request) -> web.Response:
         _client, refused = self._admit(request, None)
@@ -233,5 +249,45 @@ class ServerDouble:
             entry["label"] = {**entry["label"], "title": f"Title of {work_id}"}
             entry["media"] = {"url": f"/media/sha256-{sha}", "sha256": sha, "bytes": len(data), "content_type": "image/jpeg"}
             document["entries"].append(entry)
+        self.manifests[wall_id or self._default_wall] = document
+        return document
+
+    def publish_feed(
+        self,
+        slots: list[tuple[str, str, str]],
+        *,
+        staging: tuple[str, ...] = (),
+        wall_id: str | None = None,
+        media: dict[str, bytes] | None = None,
+    ) -> dict:
+        """A one-day major 2 feed for one wall, each work's master held behind its hash.
+
+        `slots` are (work, from, until) as full RFC 3339 instants on 2026-06-21,
+        the test clock's day. `media` overrides a work's bytes; a work whose
+        bytes are given as b"" is published with a hash but nothing held for it.
+        """
+        works: dict[str, dict] = {}
+        for work_id in dict.fromkeys([work for work, _, _ in slots] + list(staging)):
+            data = (media or {}).get(work_id, f"the master of {work_id}".encode())
+            sha = hashlib.sha256(data or work_id.encode()).hexdigest()
+            if data:
+                self.media[sha] = data
+            works[work_id] = {
+                "media": {"url": f"/media/sha256-{sha}", "sha256": sha, "bytes": len(data), "content_type": "image/jpeg"},
+                "mat_color": "#222222",
+                "label": {"title": f"Title of {work_id}"},
+            }
+        document = {
+            "schema": {"major": 2, "minor": 0},
+            "generated_at": "2026-06-21T00:00:00+00:00",
+            "playlist": {"id": "pl-1", "name": "A playlist"},
+            "works": works,
+            "schedule": {
+                "horizon": {"from": "2026-06-21T00:00:00+00:00", "until": "2026-06-22T00:00:00+00:00"},
+                "slots": [{"work_id": work, "from": start, "until": until} for work, start, until in slots],
+            },
+            "scene": None,
+            "staging": list(staging),
+        }
         self.manifests[wall_id or self._default_wall] = document
         return document

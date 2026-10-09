@@ -33,8 +33,8 @@ from arrt_player.client import (
     client_outputs,
     hdmi_outputs,
 )
-from arrt_player.daemon import Clock
 from arrt_player.pull import ClientPull
+from arrt_player.wall import Clock
 
 #: The connectors of a Pi with one screen plugged in and one socket empty — and,
 #: beside them, connectors that are not HDMI and must not become outputs.

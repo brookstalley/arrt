@@ -15,9 +15,10 @@ import pytest
 from fakes import RecordingOutput
 from jsonschema import Draft202012Validator
 
+from arrt_player.displays.screen import screen_wall
 from arrt_player.heartbeat import INTERVAL_SECONDS, path_in
 from arrt_player.manifest import Watcher
-from arrt_player.screen import ScreenWall
+from arrt_player.wall import Wall
 
 
 @pytest.fixture
@@ -31,9 +32,9 @@ def output() -> RecordingOutput:
 
 
 @pytest.fixture
-def screen(wall, output, clock) -> ScreenWall:
+def screen(wall, output, clock) -> Wall:
     watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    return ScreenWall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock(), rng=random.Random(7))
+    return screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock(), rng=random.Random(7))
 
 
 def shown(output: RecordingOutput) -> list[str]:
@@ -70,6 +71,43 @@ async def test_a_missing_render_is_skipped_and_said_once(screen, output, publish
 
     assert shown(output) == ["w1", "w3", "w1", "w3"]
     assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 1
+
+
+async def test_a_missing_render_is_said_again_for_a_new_manifest(screen, output, publish, clock, wall_dir, caplog):
+    """Once per manifest, not once per process: a republished theme is news, and so is its gap."""
+    publish(["w1", "w2"], interval_seconds=60)
+    (wall_dir / "ready" / "w2.jpg").unlink()
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            await screen.tick()
+            clock.advance(60.3)
+        publish(["w1", "w2"], interval_seconds=61, renders=False)
+        for _ in range(3):
+            await screen.tick()
+            clock.advance(61.3)
+
+    assert shown(output) == ["w1", "w1", "w1", "w1", "w1"], "w2 came back, so the gap was never said again"
+    assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 2
+
+
+async def test_an_empty_screen_tries_a_new_manifest_at_once(screen, output, publish, clock, wall_dir):
+    """A screen showing nothing does not sit out the interval when renders arrive.
+
+    The Frame's rule, which the screen now shares: the timer is stamped by an
+    attempt, and an attempt that showed nothing must not hold the wall black for
+    a whole interval once there is something to show.
+    """
+    publish(["w1"], interval_seconds=180, renders=False)
+    await screen.tick()
+    assert output.shown == []
+
+    clock.advance(1.3)
+    (wall_dir / "ready" / "w1.jpg").write_bytes(b"a render, at last")
+    publish(["w1"], interval_seconds=180)
+    await screen.tick()
+
+    assert shown(output) == ["w1"]
 
 
 async def test_a_theme_with_no_render_at_all_shows_nothing_and_does_not_spin(screen, output, publish, wall_dir):
@@ -120,7 +158,8 @@ async def test_a_sequence_that_goes_backwards_rebaselines_without_acting(screen,
         await screen.tick()
 
     assert shown(output) == ["w1"]
-    assert "directive.regressed" in [record.__dict__.get("event") for record in caplog.records]
+    (regressed,) = [record for record in caplog.records if record.__dict__.get("event") == "directive.regressed"]
+    assert regressed.__dict__.get("wall_id") == "living-room", "the line does not say which wall"
 
 
 async def test_a_sync_mid_interval_keeps_the_place(screen, output, publish, clock):

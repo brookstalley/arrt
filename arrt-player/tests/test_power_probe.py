@@ -780,7 +780,7 @@ class TestItReportsWhatATransitionDid:
 
 
 class TestItAlwaysClosesWhatItOpened:
-    """One close path for both channels — the rule `daemon.py` carries a `finally` for.
+    """One close path for both channels — the rule the wall loop (`wall.py`) carries a `finally` for.
 
     This set has been observed refusing a *new* art-channel connection for minutes
     after a client went away without closing, and the next connection is the daemon
@@ -817,7 +817,7 @@ class TestItAlwaysClosesWhatItOpened:
 
         Driven through a failure the tool does *not* handle, because the handled ones
         now return cleanly — and a test that only exercised those would say nothing
-        about the case `daemon.py` grew its own `finally` for, where an exception once
+        about the case the wall loop (`wall.py`) carries its own `finally` for, where an exception once
         skipped a close and turned one crash into a daemon that could not reach its
         own television.
         """

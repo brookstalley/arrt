@@ -182,5 +182,5 @@ def test_every_invalid_fixture_says_what_it_breaks():
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():
     """Arrt Player's suite reads this flag while collecting, so a row without it stops that suite at collection."""
     for row in INDEX:
-        if row["path"].startswith("fixtures/manifest.v1/invalid/"):
+        if row["path"].startswith(("fixtures/manifest.v1/invalid/", "fixtures/manifest.v2/invalid/")):
             assert isinstance(row.get("player_must_refuse"), bool), row["path"]
