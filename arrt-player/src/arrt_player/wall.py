@@ -41,7 +41,7 @@ from arrt_player import heartbeat as heartbeat_module
 from arrt_player.config import WallSettings
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import DisplayReport, ScreenState
-from arrt_player.manifest import Feed, Manifest, Watcher
+from arrt_player.manifest import REQUESTED_MAJORS, Feed, Manifest, Watcher
 
 log = logging.getLogger(__name__)
 
@@ -95,6 +95,18 @@ class Picture:
     title: str
     #: The theme it was shown from, for the journal.
     theme_id: str | None = None
+
+
+@dataclass(frozen=True)
+class Capabilities:
+    """What a display can do, as `player-contract.md` § The heartbeat, minor 2 names it."""
+
+    #: `(width, height)` in pixels, or None while the display cannot say.
+    screen: tuple[int, int] | None
+    #: `frame` or `framebuffer`.
+    backend: str
+    #: The modes of text on the display itself it can draw now.
+    label_modes: tuple[str, ...]
 
 
 class DisplayRecord:
@@ -182,6 +194,9 @@ class Display(Protocol):
     def heartbeat_fields(self, *, reachable: bool | None) -> dict[str, Any]:
         """This display's own keys of the wall's heartbeat."""
 
+    def capabilities(self) -> Capabilities:
+        """What the display can do now. Read on every pass, so it must be cheap."""
+
     async def close(self) -> None:
         """Let go of the display, on every way out of the loop."""
 
@@ -196,6 +211,10 @@ class Programme(Protocol):
     @property
     def current_work_id(self) -> str | None:
         """The work the wall is showing, as this wall last confirmed it."""
+
+    @property
+    def scene_id(self) -> str | None:
+        """The scene the wall is showing, or None."""
 
     def adopt(self, manifest: Any) -> None:  # noqa: ANN401 -- each programme takes its own major's document
         """Take a new manifest of this programme's major."""
@@ -229,6 +248,9 @@ class Wall:
         self._clock = clock
         self._heartbeat_at: float | None = None
         self._heartbeat_failed = ReportOnce()
+        #: The capabilities last written, so a change — a screen plugged in, or
+        #: one of another size — is reported at once rather than at the interval.
+        self._capabilities_written: dict[str, Any] | None = None
 
     async def run(self, stop: asyncio.Event) -> None:
         """Run until asked to stop."""
@@ -325,10 +347,12 @@ class Wall:
         line, not one a minute.
         """
         record = self._display.record
+        capabilities = self._capabilities()
         elapsed = self._clock.monotonic()
         due = self._heartbeat_at is None or elapsed - self._heartbeat_at >= heartbeat_module.INTERVAL_SECONDS
-        if not due and not record.owed:
+        if not due and not record.owed and capabilities == self._capabilities_written:
             return
+        self._capabilities_written = capabilities
         self._heartbeat_at = elapsed
         # Cleared on the attempt: a disk that refuses this write gets the next
         # one at the interval, not on every poll.
@@ -339,6 +363,8 @@ class Wall:
             current_work_id=self._programme.current_work_id,
             last_error=self._display.last_error,
             display_state=record.report,
+            capabilities=capabilities,
+            scene_id=self._programme.scene_id,
             **self._display.heartbeat_fields(reachable=reachable),
         )
         try:
@@ -356,6 +382,19 @@ class Wall:
             log.info(
                 "the heartbeat is being written again", extra={"event": "heartbeat.recovered", "wall_id": self._wall.wall_id}
             )
+
+    def _capabilities(self) -> dict[str, Any] | None:
+        """The heartbeat's `capabilities`, or None while the display does not know its screen's size."""
+        found = self._display.capabilities()
+        if found.screen is None:
+            return None
+        width, height = found.screen
+        return {
+            "screen": {"width_px": width, "height_px": height},
+            "backend": found.backend,
+            "label_modes": list(found.label_modes),
+            "manifest_majors": list(REQUESTED_MAJORS),
+        }
 
     async def _wait(self, stop: asyncio.Event, seconds: float) -> None:
         """Sleep, but wake immediately when asked to stop.

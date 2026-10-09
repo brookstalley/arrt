@@ -52,6 +52,15 @@ log = logging.getLogger(__name__)
 #: The manifest majors this reader understands. Anything else is kept off the wall.
 SUPPORTED_SCHEMA_MAJORS: Final[tuple[int, ...]] = (1, 2)
 
+#: The majors this Player asks the server for, highest first, and reports in its
+#: heartbeat's `manifest_majors` (`player-contract.md` § The cutover). **Narrower
+#: than what it reads, on purpose**: a major 2 work is a presentation master that
+#: needs a mat drawn around it, and until this Player composes (wave 4d) asking
+#: for major 2 would put an unmatted master on the wall the moment a server
+#: published one. One constant for both, so the Player never reports a major it
+#: does not ask for.
+REQUESTED_MAJORS: Final[tuple[int, ...]] = (1,)
+
 #: Where the pull keeps media, relative to the wall's directory, each file named
 #: by the SHA-256 of its bytes: a major 1 render and a major 2 work's master alike.
 MEDIA_DIRNAME: Final[str] = "media"

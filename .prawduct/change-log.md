@@ -66,6 +66,52 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Wave 4c — one wall loop, a driver per display, a reader for majors 1 and 2
+
+<!-- prawduct: scope=wave-4c-wall-loop -->
+
+**Why:** The third of wave 4's seven plans (`build-plan-wave-4c-wall-loop.md`).
+The Pi Player ran two wall loops, the Frame's and an HDMI screen's, each
+adopting, rotating, acting on directives and beating, and already drifting
+apart. `feeds-and-players.md` asks for one wall loop and a driver per display
+before the repository split, and major 2 is the reason to do it now: its reader
+is written once, not once per loop.
+
+**What:**
+- **One loop** (`arrt-player/src/arrt_player/wall.py`): a programme says what
+  should be on the wall, a display driver puts it there, and the loop beats.
+  `displays/frame.py` keeps every behaviour of the Frame's loop (uploads spread
+  across passes, the art-mode gate, reconciliation, brightness, the set's
+  announcements, closing the art channel on every way out); `displays/screen.py`
+  draws over kernel mode setting as before. `daemon.py` and `screen.py` are gone.
+- **Major 1's rotation and directive** moved into `programmes/rotation.py`, to
+  be deleted whole in 4g. Where the two loops disagreed and only the Frame's
+  tests pinned a version, the screen takes the Frame's: an empty screen retries
+  as soon as a new manifest lands, and a directive that shows nothing does not
+  restamp the timer.
+- **The major 2 reader**: `manifest.py` reads a feed, refusing it for the
+  shape a Player reads, an instant without an offset, and the five rules a
+  schema cannot state, never for a presentation setting. `programmes/schedule.py`
+  shows the active scene, else the slot after replay by whole horizons, else
+  keeps the last work through a gap; it asks the display's wait and then
+  whether the wall is ours before it shows anything. Every vector in
+  `contract/vectors/schedule.json` runs in the Player's suite.
+- **The pull** caches a feed whole with every work's media, staged works
+  included, and asks for the manifest at `/walls/{wall_id}/manifest/v{major}`,
+  highest first, falling back on 404. **It asks only for major 1 until 4d**
+  (`REQUESTED_MAJORS`), because a major 2 work needs a mat drawn around it.
+- **The heartbeat** carries `scene_id`, and `capabilities` (screen, backend,
+  label modes, the majors asked for) for a display that knows its screen's
+  size: an HDMI screen now, the Frame once its geometry moves to the Player.
+- **The contract:** `contract/fixtures/index.json` marks which invalid major 2
+  documents a Player must refuse, and `player-contract.md` § The cutover is
+  amended for a reader of two majors.
+
+**Deploying it:** no server change, and nothing to migrate. The Player now
+requests `…/manifest/v1`, which Arrt has served since wave 4a, so the server
+must be at 4a or later before a Player from this branch is started. Rolling
+back is checkout and restart: the Player's store is unchanged.
+
 ## 2026-10-08: Wave 4b — the quality profile, and the presentation master
 
 <!-- prawduct: scope=wave-4b-master-quality -->

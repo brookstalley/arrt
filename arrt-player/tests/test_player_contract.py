@@ -37,7 +37,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from fakes import drm_tree
+from fakes import RecordingOutput, drm_tree
 from jsonschema import Draft202012Validator
 
 from arrt_player import manifest
@@ -48,8 +48,11 @@ from arrt_player.client import (
     client_outputs,
     parse_client_document,
 )
-from arrt_player.heartbeat import DisplayReport, Health, ScreenState
+from arrt_player.displays.frame import frame_wall
+from arrt_player.displays.screen import screen_wall
+from arrt_player.heartbeat import DisplayReport, Health, ScreenState, path_in
 from arrt_player.label_rule import STATES, LabelDocumentUnreadable, Outcome, outcome, parse_label_document
+from arrt_player.manifest import Watcher
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
@@ -227,6 +230,38 @@ def test_a_heartbeat_carrying_each_display_state_conforms(state):
 
     assert _heartbeat_errors(document) == []
     assert document["schema"] == {"major": 1, "minor": 3}
+
+
+async def test_what_a_wall_on_a_screen_writes_conforms_and_says_what_it_can_do(client_settings, wall_dir, publish, clock):
+    """Written by the real loop and driver, so a key the schema does not know, or one it requires and lacks, fails here."""
+    wall = client_settings.wall("living-room")
+    watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    loop = screen_wall(wall=wall, output=RecordingOutput(screen=(3840, 2160)), watcher=watcher, clock=clock.as_clock())
+    publish(["w1"])
+
+    await loop.tick()
+
+    document = json.loads(path_in(wall.heartbeat_root, "living-room").read_text())
+    assert _heartbeat_errors(document) == []
+    assert document["capabilities"] == {
+        "screen": {"width_px": 3840, "height_px": 2160},
+        "backend": "framebuffer",
+        "label_modes": ["none"],
+        "manifest_majors": [1],
+    }
+    assert document["scene_id"] is None
+
+
+async def test_what_a_wall_on_the_frame_writes_conforms_and_claims_no_screen_size(settings, tv, state, publish, clock):
+    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    loop = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
+    publish(["w1"])
+
+    await loop.tick()
+
+    document = json.loads(path_in(settings.heartbeat_root, settings.wall_id).read_text())
+    assert _heartbeat_errors(document) == []
+    assert "capabilities" not in document, "a Frame's size was claimed before this Player can know it"
 
 
 def test_a_display_state_naming_a_work_beside_anything_but_art_is_refused_before_it_is_written():

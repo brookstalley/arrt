@@ -10,6 +10,7 @@ from conftest import WALL_ID, write_manifest
 
 from arrt_player.config import CACHED_MANIFEST_FILENAME
 from arrt_player.manifest import (
+    REQUESTED_MAJORS,
     SUPPORTED_SCHEMA_MAJORS,
     ManifestUnreadable,
     ManifestVersionUnsupported,
@@ -389,3 +390,9 @@ def test_a_scene_that_does_not_say_until_is_refused_and_one_held_with_null_is_no
     del forgot["scene"]["until"]
     with pytest.raises(ManifestUnreadable, match="until"):
         _parse_feed(forgot)
+
+
+def test_this_player_asks_only_for_majors_it_can_read():
+    """Asking for one it cannot read would fetch a document only to refuse it, on every poll."""
+    assert REQUESTED_MAJORS
+    assert set(REQUESTED_MAJORS) <= set(SUPPORTED_SCHEMA_MAJORS)

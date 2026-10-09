@@ -2,8 +2,9 @@
 
 **The only module in this plane that speaks HTTP**, and
 `tests/preferences/test_plane_isolation.py` holds it to that. It spells five
-routes — the client document and the client heartbeat, a wall's manifest and a
-wall's heartbeat, and a label's document — as `contract/routes.json` spells them. Renders are fetched
+routes — the client document and the client heartbeat, a wall's manifest at
+each major it asks for, a wall's heartbeat, and a label's document — as
+`contract/routes.json` spells them. Renders are fetched
 from the address each manifest entry's `media.url` gives, resolved against the
 manifest's own URL: today the same server's media route, after a
 Library/Programming split perhaps another host. The client's token is sent to
@@ -50,14 +51,14 @@ from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSet
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import path_in as heartbeat_path_in
 from arrt_player.label_rule import LabelDocument, LabelDocumentUnreadable, parse_label_document
-from arrt_player.manifest import MEDIA_DIRNAME, Feed, ManifestUnreadable, parse
+from arrt_player.manifest import MEDIA_DIRNAME, REQUESTED_MAJORS, Feed, ManifestUnreadable, parse
 
 log = logging.getLogger(__name__)
 
 #: The routes this module requests, as `contract/routes.json` spells them.
 CLIENT_ROUTE: Final[str] = "/client"
 CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
-MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
+MANIFEST_MAJOR_ROUTE: Final[str] = "/walls/{wall_id}/manifest/v{major}"
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
 LABEL_ROUTE: Final[str] = "/labels/{label_id}"
 
@@ -97,7 +98,16 @@ class Pull:
         self._token = settings.client_token
         self._cache = settings.wall_dir
         self._media = settings.wall_dir / MEDIA_DIRNAME
-        self._manifest_url = self._server + MANIFEST_ROUTE.format(wall_id=settings.wall_id)
+        #: Each major this Player asks for, highest first, at its own URL
+        #: (`player-contract.md` § The cutover).
+        self._manifest_urls = [
+            self._server + MANIFEST_MAJOR_ROUTE.format(wall_id=settings.wall_id, major=major)
+            for major in sorted(REQUESTED_MAJORS, reverse=True)
+        ]
+        #: What a media address is resolved against. Any of the majors' URLs
+        #: would do: they differ only in their last segment, so they share the
+        #: directory a relative address is resolved from.
+        self._manifest_url = self._manifest_urls[0]
         self._heartbeat_url = self._server + HEARTBEAT_ROUTE.format(wall_id=settings.wall_id)
         self._interval = settings.poll_interval_seconds if interval_seconds is None else interval_seconds
         self._backoff = BACKOFF_START_SECONDS
@@ -167,10 +177,7 @@ class Pull:
         if etag is not None:
             headers["If-None-Match"] = etag
         try:
-            async with session.get(self._manifest_url, headers=headers) as response:
-                status = response.status
-                body = await response.read() if status == HTTPStatus.OK else b""
-                served_etag = response.headers.get("ETag")
+            status, body, served_etag = await self._request_manifest(session, headers)
         except _UNREACHABLE as exc:
             self._report_unreachable(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
             return _Poll.UNREACHABLE
@@ -252,6 +259,24 @@ class Pull:
             extra={"event": "pull.adopted", "entries": len(cached_entries)},
         )
         return _Poll.ANSWERED
+
+    async def _request_manifest(self, session: aiohttp.ClientSession, headers: dict[str, str]) -> tuple[int, bytes, str | None]:
+        """Ask for each requested major, highest first, and keep the first answer that is not a 404.
+
+        **A 404 means "not this major for this wall"**, and the next one down is
+        asked; only when every one answers 404 is it the answer, which the caller
+        reports as nothing published. Any other answer is the server's word on
+        this wall and stops the walk: a refused token is refused at every major,
+        and asking the next would only say so again.
+        """
+        for url in self._manifest_urls:
+            async with session.get(url, headers=headers) as response:
+                status = response.status
+                body = await response.read() if status == HTTPStatus.OK else b""
+                served_etag = response.headers.get("ETag")
+            if status != HTTPStatus.NOT_FOUND:
+                break
+        return status, body, served_etag
 
     async def _adopt_feed(
         self, session: aiohttp.ClientSession, feed: Feed, document: dict[str, Any], served_etag: str | None

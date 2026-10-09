@@ -161,6 +161,15 @@ class Health:
     #: a writer that has no controller to ask, and then the key is left out,
     #: which is what a pre-minor-3 heartbeat looks like to the server.
     display_state: DisplayReport | None = None
+    #: What this wall's display can do (minor 2): its screen, its backend, the
+    #: label modes it can draw and the manifest majors this Player asks for.
+    #: **Left out while the screen's size is unknown**, because the contract
+    #: requires one and a guessed size would mislead Programming's judgement of
+    #: whether a work is big enough for the wall.
+    capabilities: dict[str, Any] | None = None
+    #: The scene the wall is showing, or None when it follows its schedule or
+    #: rotation (minor 2).
+    scene_id: str | None = None
 
     def document(self, *, reported_at: datetime) -> dict[str, Any]:
         """The whole document, as it goes on disk.
@@ -184,6 +193,9 @@ class Health:
         }
         if self.display_state is not None:
             document["display_state"] = self.display_state.document()
+        if self.capabilities is not None:
+            document["capabilities"] = self.capabilities
+        document["scene_id"] = self.scene_id
         return document
 
 

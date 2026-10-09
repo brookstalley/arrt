@@ -26,7 +26,7 @@ from arrt_player.heartbeat import ScreenState
 from arrt_player.manifest import Watcher
 from arrt_player.programmes.rotation import InMemory, Rotation
 from arrt_player.programmes.schedule import Schedule
-from arrt_player.wall import Clock, DisplayRecord, Picture, Shown, Wall
+from arrt_player.wall import Capabilities, Clock, DisplayRecord, Picture, Shown, Wall
 
 log = logging.getLogger(__name__)
 
@@ -171,6 +171,10 @@ class ScreenDisplay:
     def heartbeat_fields(self, *, reachable: bool | None) -> dict[str, Any]:  # noqa: ARG002 -- the Display protocol's
         # A screen has no television to reach, and draws no label.
         return {}
+
+    def capabilities(self) -> Capabilities:
+        """The connector's current mode as its screen; no text of its own until this Player composes."""
+        return Capabilities(screen=self._output.screen, backend="framebuffer", label_modes=("none",))
 
     async def close(self) -> None:
         return

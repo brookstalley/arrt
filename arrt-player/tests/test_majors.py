@@ -5,14 +5,16 @@ screen over a recording output), because the switch lives in the shared loop
 and each display remembers what is on the wall in its own way.
 """
 
+import json
 import random
 
 import pytest
 from conftest import write_manifest
 from fakes import FakeTv, RecordingOutput
 
-from arrt_player.displays.frame import frame_wall
+from arrt_player.displays.frame import FrameDisplay, frame_wall
 from arrt_player.displays.screen import screen_wall
+from arrt_player.heartbeat import path_in
 from arrt_player.manifest import Watcher
 
 
@@ -102,3 +104,27 @@ async def test_the_frame_leaves_a_feeds_slot_alone_while_somebody_watches_televi
     await wall.tick()
 
     assert tv.selected == []
+
+
+async def test_a_scene_a_wall_shows_is_in_its_heartbeat(screen, wall_dir, client_settings):
+    """The UI shows which walls a scene has reached from this key (`player-contract.md` § Scenes)."""
+    loop, _output = screen
+    document = publish_feed(wall_dir, [("f1", "08:00", "18:00")])
+    (wall_dir / "media" / f"sha256-{_sha('f9')}").write_bytes(b"the master of f9")
+    document["works"]["f9"] = {"media": {"url": "/m", "sha256": _sha("f9")}, "mat_color": "#222", "label": {"title": "f9"}}
+    document["scene"] = {"id": "sc-1", "work_id": "f9", "from": "2026-06-21T11:00:00+00:00", "until": None}
+    write_manifest(wall_dir, document)
+
+    await loop.tick()
+
+    wall = client_settings.wall("living-room")
+    assert json.loads(path_in(wall.heartbeat_root, "living-room").read_text())["scene_id"] == "sc-1"
+
+
+def test_the_frame_says_it_is_a_frame(settings, tv, state, clock):
+    """Not yet written (its screen is not this Player's to know), but read by the heartbeat as soon as it is."""
+    display = FrameDisplay(settings=settings, tv=tv, state=state, clock=clock.as_clock())
+
+    found = display.capabilities()
+
+    assert (found.backend, found.screen, found.label_modes) == ("frame", None, ("none",))

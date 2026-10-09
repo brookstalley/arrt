@@ -27,15 +27,16 @@ from server_double import CONTRACT, ROUTES, TOKEN
 from server_double import MANIFEST_FIXTURE as FIXTURE
 from server_double import ServerDouble as Stub
 
+from arrt_player import pull as pull_module
 from arrt_player.displays.frame import frame_wall
-from arrt_player.manifest import Feed, Watcher
+from arrt_player.manifest import REQUESTED_MAJORS, Feed, Watcher
 from arrt_player.pull import (
     CLIENT_HEARTBEAT_ROUTE,
     CLIENT_ROUTE,
     ETAG_FILENAME,
     HEARTBEAT_ROUTE,
     LABEL_ROUTE,
-    MANIFEST_ROUTE,
+    MANIFEST_MAJOR_ROUTE,
     MEDIA_DIRNAME,
     Pull,
 )
@@ -91,11 +92,11 @@ def _held(settings) -> set[str]:
 
 
 def test_the_client_requests_the_routes_the_contract_names():
-    assert ROUTES["manifest"]["path"] == MANIFEST_ROUTE
+    assert ROUTES["manifest_major"]["path"] == MANIFEST_MAJOR_ROUTE
     assert ROUTES["heartbeat"]["path"] == HEARTBEAT_ROUTE
     assert ROUTES["client"]["path"] == CLIENT_ROUTE
     assert ROUTES["client_heartbeat"]["path"] == CLIENT_HEARTBEAT_ROUTE
-    assert ROUTES["manifest"]["method"] == "GET"
+    assert ROUTES["manifest_major"]["method"] == "GET"
     assert ROUTES["heartbeat"]["method"] == "POST"
     assert ROUTES["client"]["method"] == "GET"
     assert ROUTES["client_heartbeat"]["method"] == "POST"
@@ -130,11 +131,11 @@ async def test_a_new_manifest_is_cached_only_with_its_renders_verified(pull, stu
     assert [entry.work_id for entry in adopted.entries] == ["w1", "w2"]
 
 
-async def test_a_feed_is_cached_whole_with_every_works_media_verified(pull, stub, session, http_settings):
+async def test_a_feed_is_cached_whole_with_every_works_media_verified(two_major_pull, stub, session, http_settings):
     """Staged works included, so applying a scene is a switch rather than a download."""
     published = stub.publish_feed([("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")], staging=("w7",))
 
-    assert await pull.cycle(session) is True
+    assert await two_major_pull.cycle(session) is True
 
     assert _cached(http_settings) == published, "a feed is cached as the server sent it"
     for work in published["works"].values():
@@ -145,7 +146,7 @@ async def test_a_feed_is_cached_whole_with_every_works_media_verified(pull, stub
     assert sorted(adopted.works) == ["w1", "w7"]
 
 
-async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(pull, stub, session, http_settings):
+async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(two_major_pull, stub, session, http_settings):
     """Every work the schedule names stays in the feed; the one with no good media is the programme's to skip.
 
     The server holds bytes for w2 that do not match its hash, the failure the
@@ -159,33 +160,37 @@ async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(pull, s
     )
     stub.media[published["works"]["w2"]["media"]["sha256"]] = b"not the master that was hashed"
 
-    assert await pull.cycle(session) is True
+    assert await two_major_pull.cycle(session) is True
 
     assert _cached(http_settings) == published
     assert _held(http_settings) == {f"sha256-{published['works']['w1']['media']['sha256']}"}
 
 
-async def test_a_feeds_media_that_cannot_be_fetched_keeps_the_manifest_already_cached(pull, stub, session, http_settings):
+async def test_a_feeds_media_that_cannot_be_fetched_keeps_the_manifest_already_cached(
+    two_major_pull, stub, session, http_settings
+):
     stub.publish("w1")
-    assert await pull.cycle(session) is True
+    assert await two_major_pull.cycle(session) is True
     stub.publish_feed([("w2", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
     stub.media_status = 503
 
-    assert await pull.cycle(session) is False
+    assert await two_major_pull.cycle(session) is False
 
     assert "entries" in _cached(http_settings), "a feed was cached without its media"
 
 
-async def test_a_feeds_media_is_evicted_once_two_documents_in_a_row_have_not_named_it(pull, stub, session, http_settings):
+async def test_a_feeds_media_is_evicted_once_two_documents_in_a_row_have_not_named_it(
+    two_major_pull, stub, session, http_settings
+):
     first = stub.publish_feed([("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    await pull.cycle(session)
+    await two_major_pull.cycle(session)
     stub.publish_feed([("w2", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    await pull.cycle(session)
+    await two_major_pull.cycle(session)
     w1 = f"sha256-{first['works']['w1']['media']['sha256']}"
     assert w1 in _held(http_settings), "the media the feed being replaced names went at once"
 
     stub.publish_feed([("w3", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    await pull.cycle(session)
+    await two_major_pull.cycle(session)
 
     assert w1 not in _held(http_settings)
 
@@ -242,14 +247,14 @@ async def test_the_contract_fixtures_placeholder_hash_is_refused_by_the_bytes(pu
     assert _cached(http_settings)["entries"] == []
 
 
-async def test_a_manifest_this_reader_refuses_is_never_cached(pull, stub, session, http_settings, caplog):
+async def test_a_manifest_this_reader_refuses_is_never_cached(two_major_pull, stub, session, http_settings, caplog):
     stub.publish("w1")
-    await pull.cycle(session)
+    await two_major_pull.cycle(session)
     stub.manifest = json.loads((CONTRACT / "fixtures" / "manifest.v1" / "invalid" / "major-2.json").read_text())
 
     with caplog.at_level(logging.ERROR, logger="arrt_player.pull"):
-        await pull.cycle(session)
-        await pull.cycle(session)
+        await two_major_pull.cycle(session)
+        await two_major_pull.cycle(session)
 
     assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
     assert len([record for record in caplog.records if "refusing the manifest" in record.getMessage()]) == 1
@@ -555,3 +560,60 @@ async def test_the_daemon_writes_its_heartbeat_into_the_walls_directory_where_th
 
     assert (http_settings.wall_dir / f"display-heartbeat-{WALL_ID}.json").is_file()
     assert [heartbeat["current_work_id"] for heartbeat in stub.heartbeats_by_wall[WALL_ID]] == ["w1"]
+
+
+# -- asking for a major -----------------------------------------------------------------
+
+
+@pytest.fixture
+def two_major_pull(http_settings, monkeypatch):
+    """A Pull that asks for majors 2 and 1, as one will once this Player composes."""
+    monkeypatch.setattr(pull_module, "REQUESTED_MAJORS", (1, 2))
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    return Pull(http_settings)
+
+
+async def test_this_player_asks_for_the_majors_it_reports_and_no_other(pull, stub, session):
+    stub.publish("w1")
+
+    await pull.cycle(session)
+
+    assert stub.majors_requested == list(REQUESTED_MAJORS)
+
+
+async def test_a_major_the_server_does_not_publish_falls_back_to_the_next_one_down(two_major_pull, stub, session, http_settings):
+    stub.publish("w1")
+
+    assert await two_major_pull.cycle(session) is True
+
+    assert stub.majors_requested == [2, 1], "the highest major was not asked for first"
+    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
+
+
+async def test_the_highest_major_published_is_the_one_taken(two_major_pull, stub, session, http_settings):
+    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+
+    await two_major_pull.cycle(session)
+
+    assert stub.majors_requested == [2]
+    assert "works" in _cached(http_settings)
+
+
+async def test_every_major_answering_404_is_nothing_published(two_major_pull, stub, session, caplog):
+    with caplog.at_level(logging.ERROR, logger="arrt_player.pull"):
+        assert await two_major_pull.cycle(session) is True
+
+    assert stub.majors_requested == [2, 1]
+    (refused,) = [record for record in caplog.records if record.getMessage().startswith("the server refused")]
+    assert refused.status == 404
+
+
+async def test_a_refused_token_stops_at_the_first_major(two_major_pull, stub, session, http_settings):
+    """A token refused at one major is refused at every one; asking the next would only say so again."""
+    stub.publish("w1")
+    stub.tokens.clear()
+
+    await two_major_pull.cycle(session)
+
+    assert stub.majors_requested == [2]
+    assert _cached(http_settings) is None

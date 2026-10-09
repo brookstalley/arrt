@@ -51,7 +51,7 @@ from arrt_player.tv import (
     TvUnavailable,
     TvUploadFailed,
 )
-from arrt_player.wall import Clock, DisplayRecord, Picture, Shown, Wall
+from arrt_player.wall import Capabilities, Clock, DisplayRecord, Picture, Shown, Wall
 
 log = logging.getLogger(__name__)
 
@@ -259,6 +259,15 @@ class FrameDisplay:
             "has_label_surface": False,
             "label_surface_working": None,
         }
+
+    def capabilities(self) -> Capabilities:
+        """The Frame's size is not this Player's to know until its geometry moves here from the server.
+
+        So its screen is None and the heartbeat leaves capabilities out. It
+        draws no text of its own until this Player composes a caption into the
+        picture it uploads, so `none` is the only label mode it can claim.
+        """
+        return Capabilities(screen=None, backend="frame", label_modes=("none",))
 
     async def close(self) -> None:
         await self._tv.close()

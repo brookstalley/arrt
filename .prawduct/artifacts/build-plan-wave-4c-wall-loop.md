@@ -94,6 +94,8 @@ step by step, before any code moves.
 
 `[DECISION: where the two loops disagreed and only the Frame's tests pinned a version, the screen takes the Frame's: an empty wall retries as soon as a new manifest lands, a directive that shows nothing does not restamp the rotation timer, the baseline is said in the journal, and a crash is logged as one. Where each loop's tests pinned its own version (the missing-render report; where the rotation's memory lives) the difference survives as a parameter of the programme | the Frame's rules were each written against a failure seen on the wall, and the screen's versions were the absence of that work, not a choice; settling them costs nothing a screen test held, and a second set of rules in code 4g deletes buys nothing | the builder's, 2026-10-09, surfaced by Chunk 01's review; user can veto]`
 
+`[DECISION: the heartbeat carries capabilities only for a display that knows its screen's size, so a wall on the Frame writes none in 4c and reports manifest_majors only once its geometry is the Player's; label_modes is ["none"] for both drivers | the schema requires screen in capabilities, the Frame's pixel size is still the server's (TV_PANEL_*, which moves to the Player with its mat settings), and Frames are not all 4K, so any number written here would be a guess Programming judges works against; 4d's compositor needs the Frame's geometry on the Player and is where it starts reporting | the builder's, 2026-10-09, surfaced building Chunk 03; user can veto]`
+
 ## Status
 
 - [x] Chunk 01: One wall loop, a Frame driver and a screen driver

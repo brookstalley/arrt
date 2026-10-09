@@ -17,9 +17,9 @@ import pytest
 from conftest import WALL_ID
 
 from arrt_player.heartbeat import ScreenState, path_in
-from arrt_player.manifest import Watcher
+from arrt_player.manifest import REQUESTED_MAJORS, Watcher
 from arrt_player.programmes.rotation import InMemory, Rotation
-from arrt_player.wall import DisplayRecord, Picture, Shown, Wall
+from arrt_player.wall import Capabilities, DisplayRecord, Picture, Shown, Wall
 
 
 class Asleep(Exception):
@@ -45,6 +45,7 @@ class ThirdDisplay:
         self.went_away_with: list[Exception] = []
         self.wait = wait
         self.closed = False
+        self.screen: tuple[int, int] | None = (1280, 800)
 
     @property
     def last_error(self) -> str | None:
@@ -88,6 +89,9 @@ class ThirdDisplay:
 
     def heartbeat_fields(self, *, reachable: bool | None) -> dict[str, Any]:
         return {"television_reachable": reachable}
+
+    def capabilities(self) -> Capabilities:
+        return Capabilities(screen=self.screen, backend="framebuffer", label_modes=("none", "overlay"))
 
     async def close(self) -> None:
         self.closed = True
@@ -181,3 +185,36 @@ async def test_a_crash_says_which_wall_fell_over(wall, display, publish, caplog)
     (crashed,) = [record for record in caplog.records if record.__dict__.get("event") == "third.crashed"]
     assert crashed.__dict__.get("wall_id") == WALL_ID
     assert display.closed
+
+
+async def test_the_heartbeat_says_what_the_display_can_do_and_which_majors_this_player_asks_for(
+    wall, display, publish, wall_settings
+):
+    publish(["w1"])
+
+    await wall.tick()
+
+    written = heartbeat(wall_settings)
+    assert written["capabilities"] == {
+        "screen": {"width_px": 1280, "height_px": 800},
+        "backend": "framebuffer",
+        "label_modes": ["none", "overlay"],
+        "manifest_majors": list(REQUESTED_MAJORS),
+    }
+    assert written["scene_id"] is None
+
+
+async def test_capabilities_are_left_out_while_the_screen_is_unknown_and_sent_at_once_when_it_is(
+    wall, display, publish, wall_settings, clock
+):
+    """A guessed size would mislead Programming; a screen plugged in is news, not something for the interval."""
+    publish(["w1"])
+    display.screen = None
+    await wall.tick()
+    assert "capabilities" not in heartbeat(wall_settings)
+
+    display.screen = (3840, 2160)
+    clock.advance(1.3)
+    await wall.tick()
+
+    assert heartbeat(wall_settings)["capabilities"]["screen"] == {"width_px": 3840, "height_px": 2160}

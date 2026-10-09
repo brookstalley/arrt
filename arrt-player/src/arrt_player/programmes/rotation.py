@@ -128,6 +128,11 @@ class Rotation:
     def current_work_id(self) -> str | None:
         return self._memory.last_selected_work_id
 
+    @property
+    def scene_id(self) -> str | None:
+        """Major 1 has no scenes."""
+        return None
+
     def adopt(self, manifest: Manifest) -> None:
         """Take a new manifest's entry list as the rotation, keeping our place.
 

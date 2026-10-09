@@ -62,6 +62,8 @@ class ServerDouble:
         #: A forced answer for every label request, for the failure tests.
         self.label_status: int | None = None
         self._default_wall = wall_id
+        #: Each manifest major requested, in order, as the integer asked for.
+        self.majors_requested: list[int] = []
 
     # -- the app ---------------------------------------------------------------------
 
@@ -71,6 +73,7 @@ class ServerDouble:
             ("client", self.serve_client),
             ("client_heartbeat", self.receive_client_heartbeat),
             ("manifest", self.serve_manifest),
+            ("manifest_major", self.serve_manifest_major),
             ("media", self.serve_media),
             ("heartbeat", self.receive_heartbeat),
             ("label", self.serve_label),
@@ -148,6 +151,19 @@ class ServerDouble:
         if request.headers.get("If-None-Match") == etag:
             return web.Response(status=304, headers={"ETag": etag})
         return web.Response(body=body, content_type="application/json", headers={"ETag": etag})
+
+    async def serve_manifest_major(self, request: web.Request) -> web.Response:
+        """A wall's manifest at one major, as Arrt mounts it: 404 for a major it does not publish for that wall."""
+        major = int(request.match_info["major"])
+        self.majors_requested.append(major)
+        wall_id = request.match_info["wall_id"]
+        _client, refused = self._admit(request, wall_id)
+        if refused is not None:
+            return refused
+        manifest = self.manifests.get(wall_id)
+        if manifest is None or manifest["schema"]["major"] != major:
+            return web.json_response({"error": f"No manifest of major {major} is published for this wall."}, status=404)
+        return await self.serve_manifest(request)
 
     async def serve_media(self, request: web.Request) -> web.Response:
         _client, refused = self._admit(request, None)
