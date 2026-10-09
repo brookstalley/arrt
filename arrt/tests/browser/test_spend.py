@@ -2,7 +2,8 @@
 
 The sidebar says what is left of this month's budget, honestly for each state
 the server can be in. Every spending control shows its tier — free, `$`, `$$`
-or `$$$`, the server's — before it is pressed. No run
+or `$$$`, the server's — before it is pressed, but for a work card's Get in Ask
+(`information-architecture.md`, the owner's ruling of 2026-10-09). No run
 stops for approval any more, so Approve and Decline are offered only on a run
 stored awaiting approval before then; a run halted at the cap says the month's
 budget is spent, in the server's words.
