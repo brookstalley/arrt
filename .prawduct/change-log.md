@@ -177,8 +177,7 @@ chunk 02).
   reason column. Every row carries the picture found for it (`rowPicture`),
   8rem wide at every width.
 - The page reads every run's review cards for the pictures, not only a Get
-  of chosen works'. The museum comes from the same card's `shown` scan, so
-  the plan's API change (a provider on `CandidateWorkOut`) was not needed.
+  of chosen works'.
 - Chunk 01's review observations are fixed here: `design-direction.md` no
   longer says the caption is centred; `captioned` sits above `render`'s doc
   comment rather than inside it; `aboutCost` says "Cost unknown just now"
@@ -243,6 +242,7 @@ Taste link; Taste's own route is still held by
 most" assertion. The tier mark's look, which the controls test checked on
 Ask, moves to `test_a_tier_mark_is_words_on_one_line_not_a_box` on a Get's
 Approve, where the mark still is.
+
 ## 2026-10-08: A label states dimensions in one system, rounded to whole units
 
 <!-- prawduct: scope=feature-label-units -->
@@ -493,6 +493,7 @@ failing with `newsreader/latin-normal.woff2` renamed: the face's status was
 `error`, and the served-font test got a 404. `test_component_rules.py`'s h1
 probe now reads `--text-3xl`. The contract is unchanged: one h1 size on every
 page; the size it names is what changed.
+
 ## 2026-10-08: A label is one panel refresh, not a clear and then a frame
 
 <!-- prawduct: scope=fix-epaper-single-refresh -->
