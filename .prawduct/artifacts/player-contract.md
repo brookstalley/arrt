@@ -368,15 +368,18 @@ lacks 2. The server publishes one major for all walls. Serving each Player the
 major it reads was considered and not planned: it would mean building two
 documents for every wall through a transition that lasts minutes in a household.
 
-### Still open in the draft
+### Settled before wave 4
 
-These are settled before wave 4 builds major 2, not in wave 1. Wave 1 wrote the
-fields that carry them.
+Wave 1 wrote the fields that carry these; the owner set the values on
+2026-10-08, before wave 4 builds major 2.
 
-- **The horizon's length.** One day is the proposal. The schema allows any whole
-  number of days, and a week costs a few hundred kilobytes at a three-minute
-  rotation.
-- **A preview's default lifetime.** Twenty minutes is the proposal. It is a
-  server default, not a contract field, because `until` is always explicit.
+- **The horizon's length: three days.** The server publishes a three-day
+  horizon to home walls. The schema still allows any whole number of days, so
+  this is the server's value, not a contract rule; a Player reads whatever
+  horizon it is sent. Three days rides out a weekend with the server down
+  before the replay rule takes over, at a few hundred kilobytes a week of
+  schedule at a three-minute rotation. One day was the proposal.
+- **A preview's default lifetime: twenty minutes.** It is a server default,
+  not a contract field, because `until` is always explicit.
 - **Whether `works` may carry works nothing names.** It is allowed. It is not
   needed, and a server that sends them only makes the Player fetch less wisely.
