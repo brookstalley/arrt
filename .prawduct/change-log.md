@@ -81,7 +81,7 @@ once).
 
 **What:**
 - `manifest.v2`: a feed. `settings` is the first of three presentation layers,
-  every key optional: label mode (`none`, `caption`, `overlay`), mat mode
+  itself optional, and every key in it optional: label mode (`none`, `caption`, `overlay`), mat mode
   (`none`, `proportional`, `full`), overlay lead and tail, fades, text scale,
   viewing distance, and which label facts show. The mat width leaves the
   document (`feeds-and-players.md` ruling 7), and with it the
@@ -92,6 +92,8 @@ once).
 - `heartbeat.v1` `capabilities.label_modes` are `none`, `caption` and
   `overlay`; `panel` leaves, because a label on its own surface is a label
   output. No Player writes the field yet, so nothing is stranded.
+  `capabilities.screen` is reported again whenever it changes, and Programming
+  judges adequacy from the largest size reported recently.
 - `routes.json` names `manifest_major`, `/walls/{wall_id}/manifest/v{major}`.
   The server answers `v1` with the unversioned route's document and `404` for
   any other spelling, `01` included. `player-contract.md` § The cutover follows
