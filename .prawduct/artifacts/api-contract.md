@@ -2438,7 +2438,8 @@ is self-contained:
   - authentication on the Server↔Player surface;
   - ETag polling versus server-sent events;
   - the presentation master's cap and encoding (settled 2026-10-08, wave 4b);
-  - how a review card shows fit once no single panel exists.
+  - how a review card shows fit once no single panel exists (settled
+    2026-10-08, wave 4b: against the quality profile, two states).
 
   New MCP actions will be needed for Watches, programming tags and smart
   playlists. Each is an additive action on an existing tool, or a new tool

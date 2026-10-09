@@ -123,6 +123,15 @@ environment setting with no Settings screen.
   refetching or redrawing. `GET /media/{hash}` serves it as it serves any
   rendition; no manifest names it until 4e. Measured over the 46 local
   originals: about 4.9 MB a master, 37% of the originals' bytes.
+- **Rollback is not checkout and restart.** The first start records a
+  `presentation_master` Rendition for every held work, and the release before
+  this one cannot read that kind (`RenditionKind(row["kind"])` raises), so it
+  starts and then fails on every work's renditions. To roll back, restore
+  `catalogue.sqlite` from the pre-deploy backup, or delete the
+  `presentation_master` rows and the `presentation/` directory first; and put
+  `RESOLUTION_FLOOR_INCHES` back in `.env`, or the old code falls to its 12"
+  default. On the first start, expect `preparation.masters_queued` to name
+  every held work and `presentation/` to grow by about 5 MB a work.
 
 **Surfaced:** navigart serves at most 1,000 px, and its test expected that to
 fall below the floor, which held only against the 42" reference default (about
