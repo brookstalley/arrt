@@ -112,7 +112,7 @@ and a wider tool set are later waves, each with its own plan when it starts.
 
 ## Status
 
-- [ ] Chunk 01: The requirements say what the owner ruled
+- [x] Chunk 01: The requirements say what the owner ruled
 - [ ] Chunk 02: Measure cheap models on Ask-shaped requests
 - [ ] Chunk 03: Ask is one thread with an agent in it
 - [ ] Chunk 04: Retire the conversation, the direct box and the commit seam
@@ -139,6 +139,30 @@ under its scope note. Its Cost visibility text (estimate before, actual after)
 was deliberately not ratified as a norm; amend it so that Ask reports the
 actual cost after, with no estimate before. Every other governing artifact
 listed in the frontmatter gets a disposition line in this chunk.
+
+**Dispositions, recorded at the chunk (2026-10-08):**
+
+- `product-brief.md` flow 1: amendment proposed and made, in the owner's name,
+  as a dated direction-changed note; the 2026-08-10 text stays true of what
+  runs until 04.
+- `information-architecture.md`, the Ask and Conversation rows and Flows 1 and
+  2: the same. The seam requirement has nothing left to protect once 04
+  retires the commit card.
+- `nonfunctional-requirements.md` § Direction, provider-enforced ceilings:
+  conforms. § Cost visibility (a requirement, not a norm): amended for Ask.
+- `data-model.md` § Direction: conforms. No norm there governs conversations;
+  the Conversation entity and the one-batch decision carry direction notes.
+- `architecture.md` § Direction, operation logic only in the service layer:
+  conforms, provided the agent is a third thin binding over the services that
+  the MCP tools and HTTP handlers already bind. 03 must hold that.
+- `api-contract.md` and `observability-strategy.md`: no Direction norm bears on
+  this chunk. 03 owes the cross-cutting statement for the new loop and stream.
+- `project-preferences.md`: no norm row bears on this chunk. Plane isolation
+  concerns the display plane.
+- `project-state.yaml` → `technical_decisions.technology`: a 2026-10-08 entry
+  records the stack and where the operator's "no NATS" constraint stands.
+- `3tears-integration-findings.md`, `openrouter-api-findings.md` and
+  `ia-proposal.md` § Ask carry dated notes.
 
 Done when: no live artifact says a conversation does not search, or that Ask
 has two acts; each norm the change touches has a disposition; the root suite

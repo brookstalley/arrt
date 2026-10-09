@@ -1307,6 +1307,12 @@ One intent-forming session. **Not a run, and never confused with one:** it
 acquires nothing, writes no `Artwork`, and reaches no museum API. It ends by
 seeding a `DiscoveryRun` or by ending.
 
+> **Direction changed 2026-10-08 (the owner).** Ask's conversation becomes an
+> agent that searches as it talks — registry, museums, the web — and is not
+> saved at first: old threads may simply go. It still acquires nothing on its
+> own; Get is the curator's act on a card. This entity describes what runs
+> until `build-plan-ask-agent.md` retires it.
+
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
@@ -1426,6 +1432,13 @@ candidates provenance.
 > the fast turns are fast precisely because they do no discovery. Had the
 > conversation been allowed to acquire per turn, this paragraph would have had to
 > be reversed rather than reaffirmed; that it did not is the reason for the split.
+>
+> **Direction changed 2026-10-08 (the owner).** Ask's conversation now searches
+> as it talks, so the half of this split that kept turns fast no longer holds:
+> a reply can take as long as its searches. The other half does: a turn still
+> acquires nothing, a Get remains a batch with a knowable scope, and it still
+> proceeds behind a handle. Ask's replies are no longer estimated before they
+> run (`nonfunctional-requirements.md` § Cost visibility).
 >
 > **`target_candidate_count` is resolved, and it is not a column.** This artifact
 > previously deferred it, listing three options: the curator sets it per run, it is

@@ -143,6 +143,18 @@ interprets it into a discovery strategy. Cost visibility at the point of decisio
 is what makes the spend ceiling feel like a guardrail rather than a surprise; flow
 2 explains where that estimate becomes a real number rather than a guess.
 
+> **Direction changed 2026-10-08 — the owner's ruling. Read this before the
+> 2026-08-10 amendment below.** Ask becomes one conversation with an agent that
+> has the product's tools and searches as it talks: "the app exists to help
+> people find art, artificial barriers around how people do that make no sense."
+> So *Conversation forms intent; it does not perform discovery* no longer holds,
+> and neither does the split between a direct intent box and a conversation:
+> there is one box, and what the curator types says which kind of request it is.
+> The agent spends without asking, and each reply shows what it cost after it
+> ends; the ceiling stays on the provider's key (`nonfunctional-requirements.md`
+> § Direction). The amendment below stays true of what runs today until
+> `build-plan-ask-agent.md` lands; that plan is the target.
+>
 > **Amended 2026-08-10: intent may be *arrived at* in conversation, not only
 > stated.** This flow assumed a curator who already knows what to ask for. The one
 > who says "I love Dalí and Delaunay — who else should I look at?" was not served

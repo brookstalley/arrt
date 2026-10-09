@@ -345,6 +345,14 @@ one of should look like. See `nonfunctional-requirements.md` § Cost Constraints
 
 ## The client is first-party, behind a seam (decided 2026-08-02)
 
+> **Direction changed 2026-10-08 (the owner).** Ask's agent runs on
+> `3tears-models` and LangChain's tool loop, not on this client: tool calling,
+> streaming and a 3tears-owned spending cap are what it needs, and the
+> install-weight argument below went with the move to the NAS. This client
+> still serves discovery's phase 1 and the mat's vision call until
+> `build-plan-ask-agent.md` decides otherwise. `project-state.yaml` →
+> `technical_decisions.technology`, 2026-10-08.
+
 **A direct HTTP client, written against the shapes above, behind a narrow
 interface** — not `threetears.models.create_chat_model`, which
 `arrt/pyproject.toml` had anticipated ("it arrives with the discovery work
