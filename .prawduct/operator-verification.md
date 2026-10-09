@@ -33,8 +33,9 @@ model only in chunk 02's evals (`ask-agent-findings.md`). Not yet deployed.
 - **Taste:** its help says reactions come from "an artist or topic Ask
   offers"; an inferred judgment shows its rationale and no way back to a
   thread, since threads are not saved.
-- **An empty Ask has no worked examples.** The IA asked for two or three;
-  none were ever built. Want them?
+- **An empty Ask offers three examples** under *Try:*, each filling the box
+  without sending. The wording is the builder's: change any you would not
+  ask.
 - **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
   <the deployment> --out ../.ux-walk/ask-agent-deployed`.
 

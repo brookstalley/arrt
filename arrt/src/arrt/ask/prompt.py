@@ -30,7 +30,3 @@ ASK_SCOPE: Final[Mapping[str, frozenset[str]]] = {
     "art_catalogue": frozenset({"list", "get", "topics", "topic"}),
     "art_discovery": frozenset({"search", "find_topics", "artist", "similar_artists", "work", "topic"}),
 }
-
-#: The action every tool answers, which the scope never refuses: reading it is
-#: the documented first move.
-HELP: Final[str] = "help"

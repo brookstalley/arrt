@@ -223,6 +223,30 @@ def test_exhaustion_is_403_and_says_what_clears_it():
     assert "monthly reset" in str(raised.value)
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"error": {"message": "Your chosen model requires moderation and your input was flagged.", "code": 403}},
+        "<html>Forbidden</html>",
+    ],
+    ids=["a flagged input", "a body that is not JSON"],
+)
+def test_a_403_that_does_not_name_the_key_s_limit_is_not_exhaustion(body):
+    """OpenRouter answers 403 for more than a spent key. Only its limit wording is the budget."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if isinstance(body, str):
+            return httpx.Response(403, text=body)
+        return httpx.Response(403, json=body)
+
+    with pytest.raises(OpenRouterError) as raised:
+        client_over(handler).complete(prompt="anything")
+
+    assert not isinstance(raised.value, KeyExhausted)
+    assert "budget" not in str(raised.value)
+    assert "403" in str(raised.value), "named by its status, so the reading is not left to guesswork"
+
+
 def test_an_unaffordable_request_is_402_and_is_not_exhaustion():
     """402 arrives with credit in the account, so it must not read as "stop".
 

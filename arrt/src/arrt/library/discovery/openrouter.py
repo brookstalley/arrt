@@ -481,17 +481,33 @@ def budget_spent(provider_said: str) -> str:
     )
 
 
+def names_the_key_limit(said: str) -> bool:
+    """Whether a 403's message is OpenRouter's for a spent key.
+
+    "Key limit exceeded (total limit)" is the measured wording
+    (`openrouter-api-findings.md` § Exhaustion is 403). OpenRouter answers 403
+    for other things too, a moderated model flagging the input among them, and
+    those are not the budget.
+    """
+    return "key limit" in said.lower()
+
+
 def _read_body(response: httpx.Response) -> Mapping[str, Any]:
     """Turn a response into a payload, or into the right kind of refusal.
 
     The status is what discriminates, and the two money-related codes are read
-    apart here rather than anywhere above: 403 means the key is spent, 402 means
-    this particular request reserved more than the balance covers.
+    apart here rather than anywhere above: a 403 naming the key's limit means the
+    key is spent, 402 means this particular request reserved more than the
+    balance covers. Any other 403, a moderated model flagging the input among
+    them, is an ordinary refusal and says what the provider said.
     """
     if response.status_code == httpx.codes.FORBIDDEN:
-        # Led by the budget, in the words the sidebar uses for it, because this
-        # sentence is what a halted run and a refused turn show the curator.
-        raise KeyExhausted(budget_spent(_provider_message(response)))
+        said = _provider_message(response)
+        if names_the_key_limit(said):
+            # Led by the budget, in the words the sidebar uses for it, because
+            # this sentence is what a halted run and a refused reply show.
+            raise KeyExhausted(budget_spent(said))
+        raise OpenRouterError(f"OpenRouter refused the call (HTTP 403) for a reason other than the key's limit: {said}")
     if response.status_code == httpx.codes.PAYMENT_REQUIRED:
         raise RequestUnaffordable(
             f"OpenRouter declined the request as unaffordable, with credit still in the account: "

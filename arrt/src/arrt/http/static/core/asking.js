@@ -21,9 +21,18 @@ import { GLYPHS } from "./glyphs.js";
 import { captioned, el, fill } from "./render.js";
 import { personLink, topicKinds, topicName, workLink, workState } from "./registry.js";
 import { prose } from "./reviewing.js";
-import { link } from "./router.js";
+import { link, refresh } from "./router.js";
 import { dollars } from "./spend.js";
 import { reactionRow } from "./taste.js";
+
+/* What an empty Ask offers to start from: an artist's neighbours, a mood for a
+ * room, a period and a subject. Pressing one fills the box and sends nothing,
+ * as *Ask about* does, so the curator can change the words before they spend. */
+export const EXAMPLES = [
+  "Who paints like Robert and Sonia Delaunay?",
+  "Quiet interiors for a pale room",
+  "Winter landscapes from the 1500s",
+];
 
 /* The open thread's id, kept while the app is open. */
 let openThread = null;
@@ -93,6 +102,7 @@ export async function askPanel({ term = "" } = {}) {
     }
     const view = turnView(said, []);
     turns.append(view.node);
+    if (examples) examples.remove();
     words.value = "";
     send.disabled = true;
     status.textContent = "Ask is answering…";
@@ -130,9 +140,18 @@ export async function askPanel({ term = "" } = {}) {
   const unavailable = current.available
     ? null
     : el("p", { class: "muted", text: "Ask needs an OpenRouter key on the server (OPENROUTER_API_KEY) to answer." });
-  return el("div", { class: "panel ask" }, [
+  // A reply still running when the page opens (the curator left mid-reply and
+  // came back): the server refuses a second send until it ends, so the button
+  // waits too, and the page fills in when the reply is done.
+  const waiting = current.replying
+    ? el("p", { class: "muted ask-waiting", text: "Still answering what you last asked. This fills in when it finishes." })
+    : null;
+  const examples = current.turns.length || !current.available ? null : startingPoints(words);
+  const panel = el("div", { class: "panel ask" }, [
     turns,
+    waiting,
     unavailable,
+    examples,
     el("div", { class: "field" }, [el("label", { for: "ask-words", text: "What are you looking for?" }), words]),
     el("div", { class: "row" }, [
       // The owner ruled that Ask spends without asking and says afterwards
@@ -142,6 +161,52 @@ export async function askPanel({ term = "" } = {}) {
     ]),
     status,
   ]);
+  if (current.replying) {
+    send.disabled = true;
+    untilReplied(current.thread_id, panel);
+  }
+  return panel;
+}
+
+/* The examples under an empty thread, each a quiet button that fills the box.
+ * Gone once something has been said: they are a way in, not a menu. */
+function startingPoints(words) {
+  const row = el("p", { class: "ask-examples muted" }, ["Try: "]);
+  EXAMPLES.forEach((example, index) => {
+    if (index) row.append(" · ");
+    row.append(
+      el("button", {
+        class: "link",
+        type: "button",
+        text: example,
+        onclick: () => {
+          words.value = example;
+          words.focus();
+          row.remove();
+        },
+      }),
+    );
+  });
+  return row;
+}
+
+/* How often a page opened mid-reply asks whether the reply has ended. */
+const REPLY_POLL_MS = 2000;
+
+/* Repaint Ask once the thread's running reply has ended, unless the page has
+ * gone. A read that fails repaints too: the thread may be gone, and the page
+ * then shows what the server has. */
+async function untilReplied(threadId, panel) {
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, REPLY_POLL_MS));
+    if (!panel.isConnected) return;
+    const now = await api(`/api/ask/threads/${encodeURIComponent(threadId)}`).catch(() => null);
+    if (!panel.isConnected) return;
+    if (!now || !now.replying) {
+      refresh();
+      return;
+    }
+  }
 }
 
 /* One turn: what the curator said, and the reply drawn from its events. */

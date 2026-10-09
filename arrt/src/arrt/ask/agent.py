@@ -37,9 +37,10 @@ from langchain_core.tools import BaseTool, StructuredTool
 from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_CODE, StreamingResponse
 
 from arrt.ask.cards import cards_for
-from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM, HELP
-from arrt.library.discovery.openrouter import budget_spent
+from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
+from arrt.library.discovery.openrouter import budget_spent, names_the_key_limit
 from arrt.mcp.envelope import IMAGE_BLOCKS
+from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.server import tool_definitions
 
 log = logging.getLogger("arrt.ask")
@@ -254,8 +255,7 @@ def _refused_at_the_cap(exc: Exception) -> bool:
     type, so this module imports no HTTP client: the model is injected, and the
     network is its.
     """
-    said = str(getattr(exc, "message", "")).lower()
-    return getattr(exc, "status_code", None) == _KEY_SPENT_STATUS and "limit" in said
+    return getattr(exc, "status_code", None) == _KEY_SPENT_STATUS and names_the_key_limit(str(getattr(exc, "message", "")))
 
 
 def _release(thread: Thread, claim: object) -> None:
@@ -363,7 +363,7 @@ def _caller(dispatch: Dispatch, name: str, scope: Mapping[str, frozenset[str]]) 
 def outside(scope: Mapping[str, frozenset[str]], tool: str, action: object) -> dict[str, Any] | None:
     """The teaching error for an action outside `scope`, or None for one inside it."""
     allowed = scope.get(tool)
-    if allowed is not None and (action == HELP or action in allowed):
+    if allowed is not None and (action == HELP_ACTION or action in allowed):
         return None
     available = sorted(f"{name}(action='{each}')" for name, actions in scope.items() for each in actions)
     return {
@@ -394,7 +394,7 @@ def said(tool: str, arguments: object) -> str:
     if tool.rsplit(".", 1)[-1] == "web_search":  # 3tears names it `threetears.web_search`
         return f"Searching the web for “{arguments.get('query', '')}”"
     action = str(arguments.get("action"))
-    if action == HELP:
+    if action == HELP_ACTION:
         return f"Reading how {tool} works"
     template = _SAID.get((tool, action))
     if template is None:

@@ -62,6 +62,30 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask as an agent: what the review left, #336, and examples on an empty Ask
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner asked for #336 and "anything else we should get" on this
+branch (2026-10-09).
+
+**What:**
+- **#336:** the discovery client raises `KeyExhausted` only for a 403 naming
+  the key's limit; any other 403 is an ordinary error naming the status and
+  what the provider said. `names_the_key_limit()` is the one predicate, which
+  Ask's agent now uses too ("key limit", so "Rate limited" never matches).
+- **A page opened mid-reply waits for it**: it says so, holds *Ask*, and
+  repaints when the server says the reply has ended.
+- **An empty Ask offers three examples** under *Try:*; each fills the box and
+  sends nothing, and they go once something is said. The IA asked for them
+  from the start.
+- Ask uses the registry's `HELP_ACTION` rather than its own `"help"`.
+
+**Tests:** each new test failed against its mutation: the predicate made
+always-true (four failures across the client, the phase 1 engine and Ask),
+the held button released, the repaint removed. The examples test reads the
+list from the shipped module.
+
 ## 2026-10-09: Ask as an agent: the boundary review's findings
 
 <!-- prawduct: scope=ask-agent -->

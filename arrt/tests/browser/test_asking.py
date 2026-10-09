@@ -137,6 +137,55 @@ class TestEnter:
         ui.page.wait_for_selector(".ask-turn:nth-child(2) .ask-ending:has-text('cost')")
         assert ui.page.locator(".ask-asked").all_inner_texts() == ["You: Something wintry", "You: Not Bruegel"]
 
+    def test_a_page_opened_mid_reply_waits_for_it_and_fills_in_when_it_ends(self, ui, ask_model):
+        """Leaving Ask mid-reply and coming back: the server refuses a second send until the reply ends, so the page waits too."""
+        ui.open("#discover")
+        ui.page.wait_for_selector("#ask-words")
+        ask(ui, "Something wintry")
+        ui.page.wait_for_selector(".ask-turn")
+
+        ui.open("#walls")
+        ui.page.wait_for_selector("#view h1")
+        ui.open("#discover")
+        ui.page.wait_for_selector(".ask-waiting")
+
+        assert ui.page.locator("#view button:text-is('Ask')").is_disabled()
+        ask_model.release.set()
+        ui.page.wait_for_selector(".ask-turn .ask-ending:has-text('cost')", timeout=15_000)
+        assert ui.page.locator(".ask-waiting").count() == 0
+        assert ui.page.locator("#view button:text-is('Ask')").is_enabled()
+
+
+def test_an_empty_ask_offers_examples_that_fill_the_box_and_send_nothing(ui, ask_model):
+    ask_model.replies += [says("The Delaunays' circle: Kupka, Léger.")]
+    ui.open("#discover")
+    ui.page.wait_for_selector(".ask-examples")
+
+    # The shipped module's own list, so the test cannot drift from it.
+    examples = ui.page.evaluate('async () => (await import("/static/core/asking.js")).EXAMPLES')
+    assert len(examples) >= 2
+    assert ui.page.locator(".ask-examples button").all_inner_texts() == examples
+    ui.page.locator(".ask-examples button").first.click()
+
+    assert ui.page.input_value("#ask-words") == examples[0]
+    assert ask_model.seen == [], "an example fills the box; it does not ask"
+    assert ui.page.locator(".ask-examples").count() == 0
+
+
+def test_a_thread_with_something_said_offers_no_examples(ui, ask_model):
+    ask_model.replies += [says("Bruegel, perhaps.")]
+    ui.open("#discover")
+    ui.page.wait_for_selector(".ask-examples")
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-ending:has-text('cost')")
+
+    assert ui.page.locator(".ask-examples").count() == 0
+    ui.open("#walls")
+    ui.page.wait_for_selector("#view h1")
+    ui.open("#discover")
+    ui.page.wait_for_selector(".ask-turn")
+    assert ui.page.locator(".ask-examples").count() == 0
+
 
 def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
     ask_model.replies += [calls(SEARCH), says(ANSWER)]
