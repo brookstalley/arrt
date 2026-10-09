@@ -152,6 +152,11 @@ that old threads may simply go and that Ask is one box (2026-10-08).
   and `conversation_turns`, and `affinities.source_turn_id` and
   `spend_records.conversation_turn_id` with their indexes. Every affinity and
   spend row stays; `conversation_tokens` still reads and counts.
+- **Deploying it: copy the catalogue first.** `retire_conversations` runs the
+  first time the catalogue is opened, and the threads and turn citations it
+  drops exist nowhere else. Take
+  `sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-ask-agent-<timestamp>.sqlite"`
+  before deploying; the way back is that copy and the previous image, together.
 - **Taste:** `inferred` can no longer be written (there is no stored turn to
   cite), and the rows held keep their rationale. `art_taste` loses
   `source_turn_id`; a judgment loses `conversation_id`. The provenance ranking
@@ -181,6 +186,28 @@ again with the status mutated to 402). `test_persistence_boundary` caught a
 first version importing `openai` for the exception type; the status is read
 off the error instead. `PAGES_WITH_SECTIONS` drops `discover`, which is one
 thread with no sections now.
+
+## 2026-10-08: Ask as an agent, chunks 01 and 02: the rulings recorded, and models measured
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner ruled that Ask is a conversation with an agent that has the
+product's tools (2026-10-08), and the plan measures before it chooses a model.
+
+**What:**
+- **Chunk 01:** dated direction-changed notes in the product brief, the IA and
+  its proposal, the data model, the NFRs' cost visibility, and the 3tears and
+  OpenRouter findings; a project-state decision for the agent stack.
+- **New for MCP clients, additive:** `art_discovery` gains six read-only
+  registry actions, `search`, `find_topics`, `artist`, `similar_artists`,
+  `work` and `topic`, each its HTTP route's twin field for field.
+  `api-contract.md` records the twins.
+- **Measured:** 55 live runs across five models on Ask-shaped requests
+  (`ask-agent-findings.md`). Ask's default model is
+  `anthropic/claude-haiku-5.5` and a reply's step limit is 8 model calls, both
+  decisions the owner can veto.
+
+**Tests:** the eval's scorers each have a free test (`test_ask_scoring.py`).
 
 ## 2026-10-09: Ask as an agent, chunk 03: Ask is one thread with an agent in it
 
