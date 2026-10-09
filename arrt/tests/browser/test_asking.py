@@ -74,6 +74,10 @@ def registry():
             ]
         },
         people={
+            "painters": [
+                RegistryPerson(qid=ItemId(f"Q10{n}"), label=RegistryText(f"Painter {n}"), born=1800 + n, died=1880 + n)
+                for n in range(5)
+            ],
             "rothko": [RegistryPerson(qid=ItemId(ROTHKO), label=RegistryText("Mark Rothko"), born=1903, died=1970)],
             "bruegel": [
                 RegistryPerson(qid=ItemId(BRUEGEL), label=RegistryText("Pieter Brueghel the Elder"), born=1525, died=1569)
@@ -187,6 +191,63 @@ def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_loa
     card = ui.page.locator(".ask-card[data-ask-card='artist']")
     assert card.locator(".card-image img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
     assert "In your library" in card.inner_text()
+
+
+def test_a_held_work_is_pictured_by_its_thumbnail_marked_and_not_offered_for_get(pictures_load, services, service, ask_model):
+    """A work the agent read from the library: its own thumbnail, *In your library*, and no Get."""
+    ui = pictures_load
+    work = service.add_artwork(title="The Hunters in the Snow")
+    services.identity.set_work_identity(work.id, HUNTERS)
+    ask_model.replies += [
+        calls(("art_catalogue", {"action": "get", "artwork_id": work.id})),
+        says(f"You hold it [{HUNTERS}]."),
+    ]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "What do I have of Bruegel?")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='work'] .card-image img")
+
+    card = ui.page.locator(".ask-card[data-ask-card='work']")
+    assert card.locator(".card-image img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
+    assert "In your library" in card.inner_text()
+    assert card.get_by_role("button", name="Get this work").count() == 0
+
+
+def test_a_picture_that_cannot_be_had_is_said_apart_from_one_that_does_not_exist(ui, ask_model):
+    """An outage counted as "no picture" would read as a gap in how pictures are chosen."""
+    ui.page.route(f"**/api/registry/artists/{BRUEGEL}", lambda route: route.abort())
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image-absent")
+
+    assert ui.page.locator(".ask-card[data-ask-card='artist'] .card-image-absent").inner_text() == "Picture unavailable"
+
+
+def test_the_cards_ask_wikidata_three_at_a_time(ui, ask_model):
+    """Five artists named, five lookups owed: three go at once and the rest wait, so a
+    reply naming fifteen never becomes fifteen registry queries together."""
+    held = []
+    ui.page.route("**/api/registry/artists/*", lambda route: held.append(route))
+    names = " ".join(f"[Q10{n}]" for n in range(5))
+    ask_model.replies += [calls(("art_discovery", {"action": "search", "q": "painters"})), says(f"Five painters: {names}")]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Some painters")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] >> nth=4")
+    ui.page.wait_for_timeout(500)
+    assert len(held) == 3
+
+    held.pop(0).abort()
+    ui.page.wait_for_selector(".card-image-absent")
+    ui.page.wait_for_timeout(300)
+    assert len(held) == 3, "a finished lookup did not let the next one go"
+    for route in held:
+        route.abort()
 
 
 def test_a_card_with_nothing_to_picture_says_so(ui, ask_model):

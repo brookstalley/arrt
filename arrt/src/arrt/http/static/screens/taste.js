@@ -30,7 +30,7 @@ import { confirmAct } from "../core/confirm.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, render } from "../core/render.js";
 import { backRow, link, refresh } from "../core/router.js";
-import { REACTIONS, recordReaction } from "../core/taste.js";
+import { CARD_REACTIONS, REACTIONS, recordReaction } from "../core/taste.js";
 
 /* The six kinds, in the words a curator reads rather than the enum's.
  *
@@ -121,26 +121,31 @@ function paint(taste, generation) {
  *
  * Said on the empty page and the full one alike, because a curator wondering
  * why a judgment is here, or how to add one, needs the list either way. Each
- * control is named as it reads where it is: Ask's three reactions are
- * lower-case on the cards it offers, and an artist's page says *More like this* and
- * *Not this*. The corrections on this page are listed too, since a correction
+ * control is named as it reads where it is: Ask's card reactions
+ * (`CARD_REACTIONS`) are lower-case, and an artist's page says *More like this*,
+ * *Not this* and *Tell me more*. The corrections on this page are listed too, since a correction
  * records a judgment of its own (`core/taste.js`). An assistant writes through
  * `art_taste`, which records what it read out of something the curator said. */
+/* "a or b", "a, b or c": the controls a line names, in its order. */
+function either(parts) {
+  return parts.flatMap((part, index) => (index === 0 ? [part] : [index === parts.length - 1 ? " or " : ", ", part]));
+}
+
 function howTasteIsRecorded() {
   const control = (words) => el("em", { text: words });
   return el("div", { class: "taste-help" }, [
     el("p", { class: "muted", text: "What the product has come to think you like. A judgment is recorded when you:" }),
     el("ul", { class: "muted" }, [
+      el("li", {}, ["react to an artist or topic Ask offers, with ", ...either(CARD_REACTIONS.map(control)), ";"]),
       el("li", {}, [
-        "react to an artist or topic Ask offers, with ",
-        control("more like this"),
+        "press ",
+        control("More like this"),
         ", ",
-        control("not this"),
+        control("Not this"),
         " or ",
-        control("tell me more"),
-        ";",
+        control("Tell me more"),
+        " on an artist's page;",
       ]),
-      el("li", {}, ["press ", control("More like this"), " or ", control("Not this"), " on an artist's page;"]),
       el("li", {}, [
         "correct one here, with ",
         control("More of this"),

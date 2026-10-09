@@ -85,10 +85,13 @@ two quiet reactions.
   draws at once and the picture fills in from the routes the Artist and
   Topic pages use, so a reply never waits on Wikidata; none found says
   *No picture*. Commons is asked at 330 px.
-- **Two reactions on a card**, *more like this* and *not this*, smaller.
-  *Tell me more* is no longer on Ask's cards; it is *Keep showing me* on
-  Taste's rows, the one place it now appears, since the Artist page offers
-  the same two as a card.
+- **Two reactions on a card**, *more like this* and *not this*, smaller
+  (`CARD_REACTIONS`, which Taste's help reads). *Tell me more* moves to the
+  **Artist page**, which gains it as a third reaction, so an artist with no
+  judgment yet can still be given it; Taste's rows keep it as *Keep showing me*.
+- Pictures are looked up three at a time, a topic's from the first line of its
+  works' stream rather than after the makers query. One that could not be
+  asked or would not load says *Picture unavailable*, apart from *No picture*.
 - **"Not held" is gone**; a held work or artist says ● *In your library*.
 - A work card's *Get this work* stacks to the card's width.
 
@@ -97,7 +100,10 @@ cards to Taste's rows, where the control still is; Ask's test now holds a card
 to two reactions. Each new test failed against its mutation: the first work
 taken rather than the first pictured, three reactions offered, the absent
 picture left blank, the topic pictured from the artist route, the held-artist
-branch removed, and *tell me more* recorded as a decline.
+branch removed, *tell me more* recorded as a decline, the lookup cap raised, a
+finished lookup not releasing the next, an outage said as *No picture*, and the
+Artist page's *Tell me more* recording *not this*. A held work's card (its
+thumbnail, *In your library*, no Get) has its own test.
 
 ## 2026-10-09: Ask's cards are tested against the real payloads (#338)
 

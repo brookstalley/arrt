@@ -2498,8 +2498,8 @@ dialog.confirm::backdrop {
 
 /* -- reactions -------------------------------------------------------------- */
 
-/* The three reactions, under the thing they judge. Wrapping, because three
-   controls beside a card's other acts do not share a line on a phone. */
+/* The reactions, under the thing they judge. Wrapping, because they do not
+   always share a line with a card's other acts on a phone. */
 .reactions {
   display: flex;
   flex-wrap: wrap;
@@ -3324,8 +3324,6 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
 .ask-asked { margin: 0 0 var(--space-2); color: var(--text-strong); }
 .ask-steps { list-style: none; margin: 0 0 var(--space-2); padding: 0; font-size: var(--text-sm); color: var(--text-muted); }
 .ask-step .glyph { margin-right: var(--space-1); }
-.ask-card select { max-width: 100%; }
-.ask-card .row { flex-wrap: wrap; }
 .ask-answer p, .ask-answer ul { margin: 0 0 var(--space-2); }
 /* A reply's cards are posters, as Library › Artists draws an artist: the
    picture leads, the name and one line under it. 11rem rather than the Artists

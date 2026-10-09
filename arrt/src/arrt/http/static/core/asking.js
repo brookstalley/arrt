@@ -23,7 +23,7 @@ import { personLink, topicKinds, topicName, workLink } from "./registry.js";
 import { prose } from "./reviewing.js";
 import { link, refresh } from "./router.js";
 import { dollars } from "./spend.js";
-import { reactionRow } from "./taste.js";
+import { CARD_REACTIONS, reactionRow } from "./taste.js";
 
 /* What an empty Ask offers to start from: an artist's neighbours, a mood for a
  * room, a period and a subject. Pressing one fills the box and sends nothing,
@@ -295,11 +295,6 @@ export function paragraphs(text) {
  * poster at the grid's narrowest on a 3x screen (`app.css`, `.ask-cards`). */
 const POSTER_WIDTH = 330;
 
-/* The reactions a card offers. Two, not the three an Artist page has: a reply
- * can name fifteen artists, and three buttons each made the grid buttons with
- * names on rather than pictures (the owner, 2026-10-09). *Tell me more* stays on
- * the Artist page and Taste. */
-const CARD_REACTIONS = ["more like this", "not this"];
 
 function sized(url) {
   return url ? `${url}?width=${POSTER_WIDTH}` : null;
@@ -319,32 +314,73 @@ function firstPictured(works) {
  * representative work. Asked after the card is drawn, from the routes the
  * Artist and Topic pages use, whose answers the server keeps for a week, so a
  * reply never waits on Wikidata and a card seen again costs nothing. Null when
- * there is none. */
-export async function pictureFor(item) {
+ * there is none; a rejection when it could not be asked. */
+async function pictureFor(item) {
   if (item.kind === "work") return item.held ? thumbnail(item.held) : sized(item.image);
   if (item.kind === "artist" && item.held) {
     const { pictured_artwork_id: pictured } = await api(`/api/artists/${encodeURIComponent(item.held)}`);
     return pictured ? thumbnail(pictured) : null;
   }
-  if (item.kind === "artist") return firstPictured((await api(`/api/registry/artists/${encodeURIComponent(item.qid)}`)).works);
-  return firstPictured((await api(`/api/topics/${encodeURIComponent(item.qid)}/works`)).works);
+  if (item.kind === "artist") return asked(async () => firstPictured((await api(`/api/registry/artists/${encodeURIComponent(item.qid)}`)).works));
+  return asked(() => topicPicture(item.qid));
+}
+
+/* A topic's picture from the first line of its works' stream: the ranked works,
+ * before the makers query the Topic page waits for and a card has no use for.
+ * The stream is read to its end, since the page keeps the topic's answer. */
+function topicPicture(qid) {
+  return new Promise((resolve, reject) => {
+    let found = null;
+    apiLines(`/api/topics/${encodeURIComponent(qid)}/works`, (line) => {
+      if (found === null) {
+        found = firstPictured(line.works);
+        if (found) resolve(found);
+      }
+    }).then(() => resolve(found), reject);
+  });
+}
+
+/* How many Wikidata lookups the cards make at once. A reply can name fifteen
+ * artists, each a registry query the server makes while nothing it keeps has
+ * them; three at a time keeps a reply from becoming fifteen at once, as the
+ * topic sweep's one-at-a-time keeps its own (`api-contract.md` § Topics). */
+const LOOKUPS_AT_ONCE = 3;
+const waiting = [];
+let running = 0;
+
+function asked(lookup) {
+  return new Promise((resolve, reject) => {
+    waiting.push(() => lookup().then(resolve, reject));
+    next();
+  });
+}
+
+function next() {
+  while (running < LOOKUPS_AT_ONCE && waiting.length) {
+    running += 1;
+    waiting
+      .shift()()
+      .finally(() => {
+        running -= 1;
+        next();
+      });
+  }
 }
 
 /* The card's picture box, drawn empty and filled when `pictureFor` answers:
- * the grid keeps its shape while pictures arrive, and one that cannot be found
- * says so in its place. */
+ * the grid keeps its shape while pictures arrive. One with no picture to show
+ * says *No picture*; one that could not be asked or would not load says so
+ * differently, since that is an outage and not a gap in what was chosen. */
 function posterPicture(item, target) {
   const box = link(target, { class: "card-image", tabindex: "-1", "aria-hidden": true });
-  const absent = () => fill(box, el("span", { class: "card-image-absent", text: "No picture" }));
-  pictureFor(item).then(
-    (src) => {
-      if (!src) return absent();
-      const img = el("img", { src, alt: "", loading: "lazy" });
-      img.addEventListener("error", absent);
-      fill(box, img);
-    },
-    absent,
-  );
+  const say = (text) => fill(box, el("span", { class: "card-image-absent", text }));
+  const failed = () => say("Picture unavailable");
+  pictureFor(item).then((src) => {
+    if (!src) return say("No picture");
+    const img = el("img", { src, alt: "", loading: "lazy" });
+    img.addEventListener("error", failed);
+    fill(box, img);
+  }, failed);
   return box;
 }
 

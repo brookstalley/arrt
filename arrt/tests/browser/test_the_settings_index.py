@@ -69,10 +69,10 @@ def test_taste_is_headed_taste(ui):
 #: Every control that records a judgment, in its own words, with where it is.
 #: Grep `recordReaction` and `/api/affinities` in the client for the list.
 WAYS = [
-    "more like this",  # the reactions on what Ask offers (core/taste.js REACTIONS)
+    "more like this",  # the reactions on what Ask offers (core/taste.js CARD_REACTIONS)
     "not this",
-    "tell me more",
     "More like this",  # an artist's page
+    "Tell me more",
     "More of this",  # a correction on Taste itself
     "Keep showing me",
 ]
@@ -88,6 +88,9 @@ def test_the_help_names_every_way_taste_is_recorded(ui, held):
     named = ui.page.locator(".taste-help em").all_inner_texts()
     for words in WAYS:
         assert words in named, f"the help does not name {words!r}: {named}"
+    # Ask's cards stopped offering it on 2026-10-09; a help naming it sends the
+    # curator looking for a control that is not there.
+    assert "tell me more" not in named
     help_text = ui.page.inner_text(".taste-help")
     assert "artist's page" in help_text
     assert "Ask offers" in help_text
