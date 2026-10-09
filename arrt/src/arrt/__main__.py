@@ -8,6 +8,8 @@ import sys
 from collections.abc import Callable, Sequence
 
 import uvicorn
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
 
 from arrt import art_root, logs
 from arrt.app import create_app
@@ -16,12 +18,6 @@ from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.acquisition.service import AcquisitionSettings
 from arrt.library.acquisition.transport import http_stream
-from arrt.library.discovery.conversation import (
-    NO_CONVERSATION_KEY,
-    ConversationEngine,
-    UnavailableConversation,
-    build_conversation_engine,
-)
 from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
 from arrt.library.discovery.images import offers_images
 from arrt.library.discovery.openrouter import KeyStatus, OpenRouterClient
@@ -105,21 +101,22 @@ def _key_status(settings: Settings) -> Callable[[], KeyStatus] | None:
     return client.key_status
 
 
-def _conversation_engine(settings: Settings) -> ConversationEngine:
-    """The engine intent-forming asks, or one that refuses and says why.
-
-    **Refuses like `_engine`, rather than falling back like `_mat_engine`.** A mat
-    has an honest mechanical producer; a reply to "what would suit a calm wall"
-    has none, and anything written here that tried would put an invented sentence
-    in a transcript beside real ones with nothing to tell them apart.
-    """
+def _ask_model(settings: Settings) -> BaseChatModel | None:
+    """The model Ask's agent runs on, or None when there is no key and Ask answers nothing."""
     if not settings.openrouter_api_key:
-        return UnavailableConversation(NO_CONVERSATION_KEY)
-    return build_conversation_engine(
-        settings.openrouter_api_key,
-        model=settings.conversation_model,
-        max_output_tokens=settings.conversation_max_output_tokens,
-    )
+        return None
+    from threetears.models import create_chat_model
+
+    return create_chat_model(settings.ask_model, api_key=settings.openrouter_api_key, provider="openrouter")
+
+
+def _ask_tools(settings: Settings) -> list[BaseTool]:
+    """Web search through 3tears when a SearXNG instance is configured, and nothing otherwise."""
+    if not settings.searxng_url:
+        return []
+    from threetears.agent.tools.builtin.web_search import create_web_search_tool
+
+    return [create_web_search_tool({"base_url": settings.searxng_url}, "Search the web. Returns titles, addresses and snippets.")]
 
 
 def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
@@ -304,22 +301,15 @@ def main(argv: Sequence[str] = ()) -> None:
         settings.ready_path,
     )
 
-    # Which model answers a conversational turn, on its own line for the reason
-    # the mat model's is: it is a third model with a third reservation, and a
-    # deployment whose threads all refuse is a question best answered at startup.
+    # Ask's agent: which model, how many steps a reply may take, and whether it
+    # can search the web. Not the SearXNG address itself, which is the operator's.
     log.info(
-        "conversation model=%s max_output_tokens=%d samples=%s",
-        settings.conversation_model if settings.openrouter_api_key else "none (no key; every turn refuses)",
-        settings.conversation_max_output_tokens,
-        # The sample pictures are the collection's, over the same free seam the
-        # run's supplement uses — so a deployment that has not named itself to
-        # the museum gets names without pictures, and says so here.
-        (
-            sources.collection.provider
-            if sources.collection
-            else "none (no source plugin offers a collection; names carry no pictures)"
-        ),
+        "ask model=%s step_limit=%d web_search=%s",
+        settings.ask_model if settings.openrouter_api_key else "none (no key; Ask answers nothing)",
+        settings.ask_step_limit,
+        "on" if settings.searxng_url else "off (SEARXNG_URL is not set)",
     )
+
     log.info(
         "registry=%s",
         "wikidata" if settings.wikidata_user_agent else "none (WIKIDATA_USER_AGENT unset; works and artists are not matched)",
@@ -350,7 +340,6 @@ def main(argv: Sequence[str] = ()) -> None:
             quality_profile=settings.quality_profile,
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
-            conversation_pricing=settings.conversation_pricing,
             key_status=_key_status(settings),
             monthly_budget_usd=settings.monthly_budget_usd,
             sources=sources,
@@ -381,7 +370,6 @@ def main(argv: Sequence[str] = ()) -> None:
                 box=box,
             ),
             mat_engine=_mat_engine(settings),
-            conversation_engine=_conversation_engine(settings),
             registry=registry,
             kept=kept,
         )
@@ -415,6 +403,9 @@ def main(argv: Sequence[str] = ()) -> None:
                     )
                 ),
                 backup_interval_seconds=settings.backup_interval_seconds,
+                ask_model=_ask_model(settings),
+                ask_step_limit=settings.ask_step_limit,
+                ask_tools=_ask_tools(settings),
             ),
             host=settings.host,
             port=settings.port,

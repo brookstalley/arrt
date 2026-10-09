@@ -1107,6 +1107,29 @@ technical_decisions:
       alternatives_considered:
         - "3tears-models via langchain-openrouter — investigated properly rather than dismissed; it preserves the cost fields, and was declined on install weight and on carrying an abstraction with no second provider behind it."
       date: 2026-08-02
+    - decision: "Ask's agent runs on 3tears-models, 3tears-langgraph and 3tears-agent-tools, pinned exactly. Partly reverses the 2026-08-02 entry above for Ask; discovery's first-party client is unaffected. build-plan-ask-agent.md left phase 1 as it was: a Get from words is started only by an MCP client now (the browser's direct box is retired), still through that client. Moving discovery onto 3tears is open, owned by no plan yet (arrt/pyproject.toml says the same)."
+      rationale: >
+        The owner, 2026-10-08: Ask becomes one conversation with an agent that has
+        the product's tools and searches as it talks; the spending cap belongs in
+        3tears, so consuming apps do not re-implement it. The 2026-08-02 reason
+        against 3tears-models, install weight on the Pi under a MemoryMax, went
+        when the server moved to a NAS container on 2026-09-30.
+
+        The operator's "no NATS or anything crazy" constraint is about running
+        infrastructure, and it holds: nothing here connects to NATS or Postgres.
+        agent-tools DECLARES the NATS client, agent-memory (pgvector) and
+        agent-audit as install dependencies; at v0.65 the tools Arrt uses import
+        none of them at load. The owner accepted that install-time coupling on
+        2026-10-08, with a guard test that the agent boots and answers with no
+        NATS and no Postgres reachable, so a release that makes the coupling a
+        runtime one fails by name. Making those extras optional upstream is
+        pacepace/3tears#582. 3tears-langgraph already brings core 3tears with
+        sqlalchemy and asyncpg, so avoiding agent-tools would not have avoided
+        the Postgres driver.
+      alternatives_considered:
+        - "Use 3tears-search's SearxngAdapter directly and re-implement the tool wrapper in Arrt — avoids the declared couplings, but repeats per app the re-implementation the owner ruled against."
+        - "Extend Arrt's first-party OpenRouter client with tool calling and write the loop — no new dependencies, but a second agent stack beside the family's."
+      date: 2026-10-08
     - decision: "Build the MCP server on the official `mcp` SDK directly, not on `3tears-mcp`."
       rationale: >
         Decided 2026-07-19 when MCP became a core surface. `3tears-mcp` depends on
@@ -1957,8 +1980,9 @@ technical_decisions:
         upstream one. RE-BASED AGAIN 2026-08-02: that revision said the floor now
         rested on 3tears-models, "arrives with the discovery work". It did not
         arrive — discovery reaches OpenRouter through a first-party client, and the
-        package is confined to the opt-in eval group — so no default dependency
-        requires 3.14 today. What holds the floor is stated once, in
+        package was confined to the opt-in eval group. RE-BASED A THIRD TIME
+        2026-10-08: Ask's agent moved 3tears into the default install. What holds
+        the floor is stated once, in
         artifacts/project-preferences.md § Language & Runtime, and is not restated
         here. The build-vs-relax analysis below is retained as the reason the
         floor is affordable, not as a live dependency claim.
@@ -3186,6 +3210,8 @@ artifact_manifest:
       depends_on: [clients, nonfunctional-requirements]
     - file_path: .prawduct/artifacts/apple-platform-findings.md
       depends_on: [feeds-and-players]
+    - file_path: .prawduct/artifacts/ask-agent-findings.md
+      depends_on: [product-brief, information-architecture, nonfunctional-requirements, api-contract, openrouter-api-findings]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.

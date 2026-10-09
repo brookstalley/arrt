@@ -1224,7 +1224,7 @@ convenient".
 **The one focus rule that is about correctness rather than convention: a poll must
 never move focus.** The built surface shipped a two-second poll that stole focus on
 the single screen with a decision on it. This binds every live region the IA adds —
-the run progress card, the masthead status indicator, the conversation thread.
+the run progress card, the masthead status indicator, Ask's thread.
 
 There is a second, quieter half of the same rule: **a live region must not be
 rewritten with content it already holds.** The review view repaints its re-search

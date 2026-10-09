@@ -2496,99 +2496,15 @@ dialog.confirm::backdrop {
   }
 }
 
-/* -- the conversation thread ------------------------------------------------
- *
- * A transcript, not a chat app: no bubbles, no tails, no alternating alignment.
- * The two speakers are told apart by a named label and a rule down the left of
- * the curator's own turns, because a layout that carried the distinction in
- * position alone loses it the moment the window is narrow — and because this is
- * a page of paintings, where a second visual language competing with them is the
- * thing the whole palette is arranged to avoid. */
-.turn + .turn {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-}
+/* -- reactions -------------------------------------------------------------- */
 
-.turn-speaker {
-  margin: 0 0 var(--space-1);
-  font: 600 var(--text-sm) / 1.2 var(--font-label);
-  color: var(--text-muted);
-}
-
-/* The curator's own words, marked by a rule rather than by a fill: a tinted
-   block behind text is a second background for a reader to judge a picture
-   against. */
-.turn[data-role="curator"] {
-  border-left: 3px solid var(--border-strong);
-  padding-left: var(--space-3);
-}
-
-.turn p {
-  margin: 0 0 var(--space-2);
-}
-
-.suggestions {
-  margin-top: var(--space-3);
-}
-
-.suggestion + .suggestion {
-  margin-top: var(--space-3);
-}
-
-.suggestion-name {
-  display: flex;
-  gap: var(--space-1);
-  align-items: baseline;
-  font-size: var(--text-sm);
-}
-
-/* Wrapping rather than scrolling: three pictures fit on a laptop and stack on a
-   phone, and a horizontal scroller hides the third one behind a gesture nobody
-   is told about. */
-.samples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin: var(--space-2) 0 0;
-}
-
-.sample {
-  margin: 0;
-  max-width: 12rem;
-}
-
-.sample img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.sample figcaption {
-  margin-top: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-/* The three reactions, under the picture that prompted them. Wrapping, because
-   three controls and a 12rem picture do not share a line on a phone. */
+/* The three reactions, under the thing they judge. Wrapping, because three
+   controls beside a card's other acts do not share a line on a phone. */
 .reactions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
   margin-top: var(--space-1);
-}
-
-/* "Go to <artist>'s work", set apart from the reactions above it — a rule and a
-   gap, because it is the one control in a turn that leaves the thread and a
-   curator should be able to see that before pressing it rather than after. */
-.departure {
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
 }
 
 /* -- taste ------------------------------------------------------------------ */
@@ -3398,3 +3314,20 @@ input[type="checkbox"] {
 table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):first-child {
   display: none;
 }
+
+/* Ask's thread (`core/asking.js`): each turn is what the curator said, then the
+ * reply — what the agent looked at, its answer, and the cards for what it
+ * offers, in a grid that is one column on a phone. */
+.ask-turns { display: grid; gap: var(--space-4); margin-bottom: var(--space-4); }
+.ask-turn { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.ask-turn:first-child { border-top: 0; padding-top: 0; }
+.ask-asked { margin: 0 0 var(--space-2); color: var(--text-strong); }
+.ask-steps { list-style: none; margin: 0 0 var(--space-2); padding: 0; font-size: var(--text-sm); color: var(--text-muted); }
+.ask-step .glyph { margin-right: var(--space-1); }
+.ask-card select { max-width: 100%; }
+.ask-card .row { flex-wrap: wrap; }
+.ask-answer p, .ask-answer ul { margin: 0 0 var(--space-2); }
+.ask-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
+.ask-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); background: var(--surface-1); min-width: 0; }
+.ask-card .reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }

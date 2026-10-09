@@ -7,8 +7,8 @@ instant itself lives only in a `<time datetime>`, which nobody reads, or inside
 a `<details>`, where Status keeps its raw fields on purpose.
 
 Each screen here is reached with real records carrying real timestamps — a Get
-and its works, a verdict and an archive in History, a wanted work, a
-conversation, a client with a token — and Status from a reading whose heartbeat
+and its works, a verdict and an archive in History, a wanted work, a client
+with a token — and Status from a reading whose heartbeat
 and backup both carry instants. The whole visible page is read, sidebar and
 banner included, with every `<details>` left out.
 """
@@ -36,7 +36,7 @@ READ_OUTSIDE_DETAILS = """() => {
 
 
 @pytest.fixture
-def records(services, discovery, conversation, run, resolved_work, propose, ready_work):
+def records(services, discovery, run, resolved_work, propose, ready_work):
     """Something dated on every screen that shows a date."""
     resolved_work("Nighthawks")
     wanted = propose("Lobster Telephone")
@@ -46,7 +46,6 @@ def records(services, discovery, conversation, run, resolved_work, propose, read
     services.catalogue.archive_artwork(work.id)
     services.catalogue.restore_artwork(work.id)
     services.display.exclude_work(work.id, wall_id=services.display.survey_walls()[0].wall.id)
-    conversation.start()
     client = services.clients.add_client(name="Hall Pi")
     services.access.issue(client.id)
     other = discovery.start_discovery_run(intent_text="Quiet interiors", initiated_by=InitiatedBy.WEB_UI)

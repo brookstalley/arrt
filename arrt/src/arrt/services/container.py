@@ -35,10 +35,6 @@ from typing import Protocol
 # real cycle ever appears, the fix is to move the constants, not to hide the edge.
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
-    DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK,
-    DEFAULT_CONVERSATION_INPUT_TOKENS,
-    DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS,
-    DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK,
     DEFAULT_LABEL_UNITS,
     DEFAULT_MAT_BOTTOM_WEIGHT,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
@@ -66,7 +62,6 @@ from arrt.library.acquisition.service import AcquisitionService, AcquisitionSett
 from arrt.library.acquisition.transport import no_transport
 from arrt.library.acquisition.urls import Resolver, check_fetchable
 from arrt.library.dimensions import Units
-from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
 from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -76,7 +71,6 @@ from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.conversation import ConversationPricing, ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
@@ -177,18 +171,10 @@ class Services:
     #: background and one at a time. Built whatever the deployment;
     #: it runs only when the application is asked to start it.
     acquisition_queue: AcquisitionQueue
-    #: Intent-forming, upstream of every run. Beside `runner` rather than inside
-    #: it because a conversation is not a run and must never become one: it
-    #: acquires nothing, has no status to poll and nothing to approve. What it has
-    #: is one edge onto the runner, and that edge is the whole relationship.
-    conversation: ConversationService
-    #: The curator's standing judgments. Its own concern rather than a corner of
-    #: the conversation service, because taste outlives every thread that
-    #: contributed to it: an affinity is accumulated across conversations, is
-    #: correctable from a screen that has no conversation in front of it, and is
-    #: what discovery consults. Folding it into intent-forming would tie the
-    #: product's memory of its operator to the lifetime of a transcript, which is
-    #: precisely what deleting one must not do.
+    #: The curator's standing judgments. Its own concern because taste outlives
+    #: every thread that contributed to it: an affinity is accumulated over time,
+    #: is correctable from a screen with no thread in front of it, and is what
+    #: discovery consults.
     taste: TasteService
     #: Which registry item each held work and artist is (ruling 7). The
     #: curator's corrections work without a registry; matching needs one, and
@@ -252,16 +238,6 @@ class Services:
         resolve: Resolver | None = None,
         preparation: PreparationSettings | None = None,
         mat_engine: MatEngine | None = None,
-        #: Defaults to an engine that refuses and says why, exactly as phase 1's
-        #: does — and for the same reason. A stand-in that answered would put
-        #: invented replies in a transcript, indistinguishable from real ones, so
-        #: the curator's evidence that the product works would be the product
-        #: fabricating it.
-        conversation_engine: ConversationEngine | None = None,
-        #: What a turn is priced at before it is sent. Defaults to the shipped
-        #: defaults, which is what `Settings.conversation_pricing` resolves to
-        #: with nothing set; a deployment passes its own.
-        conversation_pricing: ConversationPricing | None = None,
         #: Wikidata, or None while `WIKIDATA_USER_AGENT` is unset. Never a default
         #: client, for the reason `sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
@@ -416,22 +392,6 @@ class Services:
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
-            conversation=ConversationService(
-                discovery,
-                conversation_engine or _default_conversation_engine(),
-                # The two foreign services this one needs, each through the one
-                # method it needs. `record_spend` lives on the discovery service
-                # and `start` on the runner; taking either whole would deepen the
-                # coupling the accounting split is filed to remove.
-                discovery_service,
-                runner_service,
-                pricing=conversation_pricing or _default_conversation_pricing(),
-                collection=sources.collection,
-            ),
-            # Over the same store the conversations live in, because a judgment's
-            # citation and the turn it cites have to be detachable in one
-            # transaction — the delete's whole correctness is that it commits or
-            # does not.
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
@@ -534,29 +494,6 @@ def _default_mat_engine() -> MatEngine:
     that deployment rather than something that would fail if used.
     """
     return MatEngine(None, image_max_edge=DEFAULT_MAT_IMAGE_MAX_EDGE)
-
-
-def _default_conversation_engine() -> ConversationEngine:
-    """The conversation engine a caller that wired no model client gets.
-
-    **Unlike the mat engine's keyless default, this one refuses.** A mat has an
-    honest mechanical producer — the work's own dominant colour — and a
-    conversation does not: there is no non-model way to answer a curator asking
-    what would suit a calm wall, and anything written here that tried would be
-    the product inventing a reply and putting it in a transcript beside real
-    ones. So the keyless deployment gets a thread that says what is missing.
-    """
-    return UnavailableConversation(NO_CONVERSATION_KEY)
-
-
-def _default_conversation_pricing() -> ConversationPricing:
-    """A turn's price for a caller that configured none: the shipped defaults."""
-    return ConversationPricing(
-        input_tokens=DEFAULT_CONVERSATION_INPUT_TOKENS,
-        output_tokens=DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS,
-        input_cost_usd_per_mtok=Decimal(DEFAULT_CONVERSATION_INPUT_COST_USD_PER_MTOK),
-        output_cost_usd_per_mtok=Decimal(DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK),
-    )
 
 
 def _default_preparation(art_root: Path) -> PreparationSettings:

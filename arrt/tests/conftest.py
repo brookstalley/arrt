@@ -19,8 +19,9 @@ from typing import Final
 
 import pytest
 import uvicorn
-from fakes import FakeConversationEngine, FakeEngine, FakeReader
+from fakes import FakeEngine, FakeReader
 from fault_guard import FaultRecords
+from langchain_core.language_models import BaseChatModel
 from PIL import Image
 
 from arrt.app import create_app
@@ -66,7 +67,6 @@ from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.library.services.look import LOOK_THREAD_NAME
 from arrt.library.services.runner import RUN_THREAD_NAME, DiscoveryRunner
@@ -327,16 +327,6 @@ def engine() -> FakeEngine:
 
 
 @pytest.fixture
-def conversation_engine() -> FakeConversationEngine:
-    """The intent-forming engine every test runs against, in its default mood.
-
-    Overridable the same way `engine` is: reassigning its fields before a turn is
-    taken is what selects a failure, a refusal, or a reply that names artists.
-    """
-    return FakeConversationEngine()
-
-
-@pytest.fixture
 def kept(settings: Settings) -> Iterator[KeptAnswers]:
     """The kept answers file, where the entry point opens it: under this test's own art root."""
     answers = KeptAnswers(settings.kept_answers_path)
@@ -366,7 +356,6 @@ def services(
     thumbnail_settings: ThumbnailSettings,
     settings: Settings,
     engine: FakeEngine,
-    conversation_engine: FakeConversationEngine,
     registry: Registry | None,
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
@@ -408,10 +397,6 @@ def services(
         # it and every acquisition test starts resolving real hostnames again with
         # nothing failing to say so.
         resolve=lambda _host: ["93.184.216.34"],
-        # Injected for the same reason `engine` is: the container's own default
-        # refuses every turn, which is the keyless deployment and is right for
-        # it — and would make every conversation test assert against a refusal.
-        conversation_engine=conversation_engine,
         registry=registry,
         kept=kept,
         open_stream=open_stream,
@@ -460,11 +445,6 @@ def service(services: Services) -> CatalogueService:
 @pytest.fixture
 def discovery(services: Services) -> DiscoveryService:
     return services.discovery
-
-
-@pytest.fixture
-def conversation(services: Services) -> ConversationService:
-    return services.conversation
 
 
 @pytest.fixture
@@ -558,7 +538,13 @@ def seeded_service(service: CatalogueService) -> CatalogueService:
 
 
 @pytest.fixture
-def server_url(services: Services, seeded_service: CatalogueService) -> Iterator[str]:
+def ask_model() -> BaseChatModel | None:
+    """No model: the keyless deployment, where Ask answers nothing. A test of Ask supplies a `ScriptedModel`."""
+    return None
+
+
+@pytest.fixture
+def server_url(services: Services, seeded_service: CatalogueService, ask_model: BaseChatModel | None) -> Iterator[str]:
     """A real HTTP server on an ephemeral port, serving the real application.
 
     **uvicorn is asked for port 0 and the port is read back from the socket it
@@ -570,7 +556,7 @@ def server_url(services: Services, seeded_service: CatalogueService) -> Iterator
     they draw from the same ephemeral range. Reading the port back is a little
     more to know about uvicorn and has no window at all.
     """
-    app = create_app(services)
+    app = create_app(services, ask_model=ask_model)
     config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)

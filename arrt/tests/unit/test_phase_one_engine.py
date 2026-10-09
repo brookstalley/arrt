@@ -239,6 +239,21 @@ def test_a_spent_key_is_reported_as_exhaustion():
     assert str(raised.value).startswith("This month's budget is spent")
 
 
+def test_a_flagged_input_is_a_failure_and_never_exhaustion():
+    """OpenRouter's 403 for a moderated model's flag is not a spent key, so the run must not halt for budget."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            403, json={"error": {"message": "Your chosen model requires moderation and your input was flagged."}}
+        )
+
+    with pytest.raises(EngineFailure) as raised:
+        engine_over(handler).enumerate_works(asked())
+
+    assert not isinstance(raised.value, BudgetExhausted)
+    assert "flagged" in str(raised.value)
+
+
 def test_an_unaffordable_request_is_a_failure_but_never_exhaustion():
     """It arrives with credit still in the account. Reporting it as exhaustion
     would halt a run that can still pay, and halted-by-budget is the one state a

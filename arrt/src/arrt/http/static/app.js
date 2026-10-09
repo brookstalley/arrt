@@ -32,7 +32,6 @@ import { viewHistory, viewQueue, viewToReview, viewWanted } from "./screens/acti
 import { viewArtists } from "./screens/artists.js";
 import { viewClients } from "./screens/clients.js";
 import { viewCollection } from "./screens/collection.js";
-import { viewConversation } from "./screens/conversation.js";
 import { viewDiscover } from "./screens/discover.js";
 import { viewHealth } from "./screens/health.js";
 import { viewReview } from "./screens/review.js";
@@ -93,8 +92,8 @@ const SECTIONS = [
 const ROUTES = {
   collection: { render: viewCollection, section: "artworks", page: "Artworks" },
   // Ask, in the slot Radarr's Add New holds (ruling 3 dissolved Add New into
-  // Get): the intent box and the conversations. Keyed `discover`, the address it
-  // has always had; the Gets it starts are listed under Activity.
+  // Get): one thread with Ask's agent. Keyed `discover`, the address it has
+  // always had; the Gets it starts are listed under Activity.
   discover: { render: viewDiscover, section: "artworks", page: "Ask" },
   // An index *and* an addressable detail, which is what the optional id buys:
   // `#theme` is every theme, `#theme/<id>` is one. § Navigation Structure
@@ -154,9 +153,6 @@ const ROUTES = {
   // to Review. Addressed `#get/<id>`; `#run/<id>`, its address before every
   // spending request was called a Get, is an alias (`core/route.js`).
   get: { render: viewRun, detail: true, opensFrom: "queue", title: "Get", returnLabel: "Get", returnFor: ["work"] },
-  // Contextual rather than a page: a conversation is something a curator does
-  // *within* Ask, and returns there.
-  conversation: { render: viewConversation, detail: true, opensFrom: "discover", title: "Conversation" },
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
   // unreachable by URL.

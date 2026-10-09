@@ -70,7 +70,6 @@ SCREEN_NAMES = {
     "work": "Work",
     "search": "Search results",
     "get": "Get",
-    "conversation": "Conversation",
     "review": "Review",
     "theme": "Themes",
     "artist": "Artists",
@@ -354,6 +353,6 @@ class TestTheGuardCanFail:
         assert "Screen" not in screens_in_table("Screen Inventory")
 
     def test_the_row_parser_strips_emphasis_and_notes(self):
-        """§ Screen Inventory bolds every name and marks two of them `*(new)*`."""
+        """§ Screen Inventory bolds every name and marks some of them `*(new)*`."""
         inventory = screens_in_table("Screen Inventory")
-        assert "Conversation" in inventory, f"emphasis or a note survived normalisation: {inventory}"
+        assert "Taste" in inventory, f"emphasis or a note survived normalisation: {inventory}"

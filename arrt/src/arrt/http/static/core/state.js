@@ -4,11 +4,10 @@
  * per module would be three answers to "which navigation is current": the
  * generation guard in `render.js`, the router, and the run view's poll chain.
  *
- * `painted` is what the polling screen currently on the page last put there —
- * the run view or the conversation — so a poll that finds nothing changed can
- * leave the DOM, and the focus in it, alone. Each writes its own shape, tagged
- * with the thing it was showing (`runId`, `conversationId`), and each compares
- * that tag before trusting the record, so a screen never reads the other's.
+ * `painted` is what the polling screen currently on the page last put there, so
+ * a poll that finds nothing changed can leave the DOM, and the focus in it,
+ * alone. It is tagged with the thing it was showing (`runId`), and the screen
+ * compares that tag before trusting the record.
  * Cleared on every navigation, because leaving a view and coming back must
  * repaint even when the data is identical: the DOM it describes is gone by then.
  *

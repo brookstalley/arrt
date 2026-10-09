@@ -339,9 +339,8 @@ honest summary: the realistic worst case is a poisoned page steering candidate
 selection, burning budget, or getting an unwanted image onto the wall until
 someone looks. **Annoying and visible, not a breach.** There is no tenancy to
 cross, no payment surface to abuse, and no credential the agent can reach — and
-**nothing an injected page can reach reads a conversation turn back out**, which
-is the form this clause takes now that § The one exception below designates
-`ConversationTurn.text` as a record of a person. It said "no PII to exfiltrate"
+**nothing an injected page can reach reads the curator's words back out to
+anyone else** (§ The curator's own words, below). It said "no PII to exfiltrate"
 until 2026-08-12; the conclusion is unchanged and the premise is narrower.
 
 **What would change this assessment.** If any of the following land, this section
@@ -553,57 +552,36 @@ assume it was overlooked.
   teeth because the repo is public and log excerpts get pasted into issues. Owned
   by `observability-strategy.md`.
 
-### The one exception: the operator's own words
+### The curator's own words
 
-**`ConversationTurn.text` is the product's only retained free-text record of a
-person**, and "no PII" above is true of everything else and not of it. Nobody
-else's data is in it; it is still the one store where a curator may reasonably
-want something gone, and it is retained deliberately — `data-model.md` records
-that affinities are derived and the derivation will improve, which is worthless
-without the turns to re-derive from.
+**Nothing the product stores is a free-text record of a person since
+2026-10-09.** From 2026-08-10 `ConversationTurn.text` was: Ask's threads were
+kept so affinities could be re-derived from them, and deleting a conversation
+(ruled by the operator 2026-08-12, closing issue #118) removed one this way: the
+turns went, and the judgments and spend rows citing them kept their
+records and lost only the citation. Ask's threads are no longer stored (the
+owner, 2026-10-08; `build-plan-ask-agent.md`). The catalogue migration that
+retired them applied that same rule to every thread at once, so no judgment and
+no cent went with them. An affinity's `rationale` is the model's account of a
+judgment, not the curator's words, and stays.
 
-### Deleting a conversation
+**Where the curator's words go now**, each a flow worth knowing rather than a
+disclosure worth worrying about:
 
-*Ruled by the operator 2026-08-12. This closes issue #118, which
-`information-architecture.md` § Open questions had held at `stage: requirements`
-with three candidate rules.*
+- **The server's memory**, for the life of the thread: at most 20 threads, the
+  least recently used dropped first, and none survives a restart. Ask's log line
+  names the thread, its steps and its cost, never the words
+  (`observability-strategy.md`).
+- **OpenRouter**, which is asked with the whole thread on every reply.
+- **The search engines behind SearXNG**, as whatever query the agent composes
+  from them, when `SEARXNG_URL` is set.
 
-**Deleting a conversation deletes its turns and nothing else.** The rule in one
-line: **deletion does not flow to what was derived from the thread.** Every row
-citing a turn keeps its own record and loses only the citation —
-`Affinity.source_turn_id` and `SpendRecord.conversation_turn_id` are set null.
-
-The two rows are nulled for different reasons, and both reasons matter:
-
-- **An affinity is a judgment, and the judgment is the product's memory of the
-  curator.** It is accumulated across conversations by design and cannot be
-  reconstructed from a thread that no longer exists. Cascading would mean deleting
-  a six-month-old transcript quietly resets what the product knows about its
-  operator's taste — a consequence no confirmation could state in a way anyone
-  would predict.
-- **A spend record is a ledger entry, and a ledger must not change retroactively.**
-  Q4 asks what was spent and on what. Cascading makes a month total *fall* because
-  somebody tidied — a number that lies about the past, which is worse than a
-  number with a gap in its provenance.
-
-**What the delete does cost is real and is not recoverable:** the ability to
-rebuild those affinities when the derivation improves. The confirmation says that
-in those terms.
-
-**Two consequences the builder must not resolve on their own:**
-
-- `api-contract.md` § `art_taste` requires a `source_turn_id` for
-  `derivation='inferred'`. That is an invariant on the **write path**, not a
-  stored constraint — enforced as the latter it makes this delete impossible.
-- `Affinity.rationale` is now **required** for `inferred` and `observed`
-  (`data-model.md`), because after a delete it is the only surviving evidence.
-
-**No other deletion in the product has this shape**, and the difference is worth
-naming so the rule is not generalised: archiving a work keeps the row and moves it
-out of circulation, and deleting a theme is refused while it is hung. This is the
-only place where a record is genuinely destroyed at the curator's request, which
-is precisely why the things standing on it are detached rather than destroyed
-with it.
+**What web search lets in.** A page in the results is read by the model, so it
+can try to steer the answer: the realistic worst case § Prompt Injection names,
+reached through Ask. It stops at the same place. Ask's tools only read
+(`ASK_SCOPE`), so the agent cannot get, hang, change or delete anything. A card
+is offered only for an item a tool returned from the library or Wikidata, never
+for one the model names on its own, and a Get is the curator's press on it.
 
 ## Abuse Prevention
 

@@ -21,12 +21,6 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
-from arrt.library.discovery.conversation import (
-    ConversationFailure,
-    ConversationReply,
-    Suggestion,
-    ThreadTurn,
-)
 from arrt.library.discovery.engine import (
     EngineFailure,
     EngineSpend,
@@ -36,7 +30,6 @@ from arrt.library.discovery.engine import (
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryTopicWorksStage, RegistryUnavailable
-from arrt.library.services.conversation import ConversationPricing
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
 from arrt.library.sources.reading import FetchLocator
@@ -343,74 +336,6 @@ def a_collection_holding(**by_artist: Sequence[str]) -> FakeCollectionBrowse:
     return FakeCollectionBrowse(holdings=holdings)
 
 
-@dataclass
-class FakeConversationEngine:
-    """Answers whatever it was built to answer, and records the thread it was given.
-
-    Here for the same reason `FakeEngine` is: the interesting cases are a turn
-    that fails after being billed, a turn that fails before being billed, and a
-    deployment with no key at all — none of which can be provoked reliably or
-    cheaply against a live API, and two of which cost money to provoke at all.
-
-    `threads` is what makes the multi-turn claim testable at this level: an
-    engine that saw only the last question would answer identically, and the
-    whole point of a conversation is that it does not.
-    """
-
-    reply: str = "Rothko's colour fields would suit a calm wall."
-    suggested: Sequence[Suggestion] = ()
-    #: What a turn costs. A real measured figure rather than a round number: this
-    #: is what the `conversation_tokens` row is asserted against, and a fixture
-    #: priced at $1 would let an arithmetic error look right.
-    cost_usd: Decimal = Decimal("0.00001896")
-    error: ConversationFailure | None = None
-    reason: str | None = None
-    threads: list[Sequence[ThreadTurn]] = field(default_factory=list)
-
-    @property
-    def unavailable_reason(self) -> str | None:
-        return self.reason
-
-    def answer(self, thread: Sequence[ThreadTurn]) -> ConversationReply:
-        self.threads.append(tuple(thread))
-        if self.error is not None:
-            raise self.error
-        return ConversationReply(
-            text=self.reply,
-            spend=(
-                EngineSpend(
-                    category=SpendCategory.CONVERSATION_TOKENS,
-                    cost_usd=self.cost_usd,
-                    model_id="fake/deterministic-v1",
-                    input_tokens=528,
-                    output_tokens=24,
-                ),
-            ),
-            suggested=tuple(self.suggested),
-            model_id="fake/deterministic-v1",
-        )
-
-
-def a_billed_failure(message: str = "The model returned no usable answer.") -> ConversationFailure:
-    """A turn that reached the provider, was billed, and could not be read.
-
-    The case the ledger exists for: the month total must include what a failure
-    cost, or it under-reports by exactly the amount the failures cost.
-    """
-    return ConversationFailure(
-        message,
-        spend=(
-            EngineSpend(
-                category=SpendCategory.CONVERSATION_TOKENS,
-                cost_usd=Decimal("0.00011843"),
-                model_id="fake/deterministic-v1",
-                input_tokens=39,
-                output_tokens=902,
-            ),
-        ),
-    )
-
-
 class FakeRegistry:
     """A `Registry` answering from tables, which remembers what it was asked.
 
@@ -649,14 +574,3 @@ def stored_awaiting_approval(store, run_id: str) -> str:
     run = store.get_run(run_id)
     store.update_run(replace(run, status=RunStatus.AWAITING_APPROVAL, approval_required=True, completed_at=None))
     return run_id
-
-
-#: A turn's price for a conversation service a test builds by hand: the shipped
-#: defaults' shape, at round figures, so a test reading the estimate can compute
-#: it. 10,000 input tokens at $1/M and 1,000 output at $2/M is $0.012.
-A_TURN_PRICE = ConversationPricing(
-    input_tokens=10_000,
-    output_tokens=1_000,
-    input_cost_usd_per_mtok=Decimal(1),
-    output_cost_usd_per_mtok=Decimal(2),
-)

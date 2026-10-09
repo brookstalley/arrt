@@ -2,14 +2,9 @@
 name = "arrt"
 version = "0.4.0"
 description = "Curation plane — discovery, acquisition, catalogue, and the MCP + HTTP surfaces."
-# Nothing in the default install requires 3.14. This floor used to be held by
-# `3tears-models`, which declares the same one — but that package was confined to
-# the opt-in `eval` group on 2026-08-02 (see the group below), so the only
-# declared holder of the floor is now a test-only dependency. What still supports
-# it is weaker and worth stating plainly: the whole declared set was verified to
-# resolve and import on CPython 3.14.4 (2026-07-27), and nothing has asked for a
-# lower one. Lowering it is therefore a decision available to whoever needs it,
-# not a correction — but check the `eval` group still resolves before doing so.
+# Held by the 3tears packages Ask's agent depends on, each of which declares the
+# same floor. What holds it is stated once, in `project-preferences.md` §
+# Language & Runtime.
 requires-python = ">=3.14"
 dependencies = [
     "fastapi",
@@ -48,26 +43,39 @@ dependencies = [
     # and the day mcp vendors or drops it `__main__` fails at *import* and the
     # whole plane stops serving rather than just discovery.
     "httpx",
+    # Ask's agent (`arrt/ask/`). Pinned exactly: 3tears is alpha, its README
+    # says the public API can shift between minor versions, and its packages
+    # release in lockstep (each pins its siblings to the same minor). Verified
+    # 2026-10-08 against 0.65.0 from PyPI in a clean interpreter:
+    # `create_chat_model(model_id, api_key=, provider=)` returns a binding that
+    # LangChain's `create_agent` accepts. models gives the OpenRouter binding,
+    # langgraph the stream events Ask's reply is written in, agent-tools the web
+    # search over SearXNG. agent-tools declares agent-memory (pgvector), audit
+    # and a NATS client; the tools Ask uses touch none of them at runtime, and
+    # `test_ask_needs_no_infrastructure.py` fails by name the day one does.
+    # **The reply's cost is OpenRouter's own `response_metadata["cost"]`**:
+    # 3tears' `UsageTracker` records `cost_usd=None` for these models at 0.65.
+    "3tears-models==0.65.0",
+    "3tears-langgraph==0.65.0",
+    "3tears-agent-tools==0.65.0",
+    # Imported by name: `create_agent` and its call-limit middleware, and the
+    # message and tool types. Both arrive through 3tears too; declared because
+    # this code imports them, and unpinned because 3tears' own pins decide them.
+    "langchain",
+    "langchain-core",
 ]
 
-# 3tears core is deliberately absent and is not expected. The catalogue's durable
-# tier is first-party code matching that framework's DurableStore contract
-# structurally, so no framework code is imported and there is nothing to resolve;
+# 3tears core arrives with the pins above (3tears-langgraph depends on it, and it
+# brings asyncpg) but nothing here imports it. The catalogue's durable tier is
+# first-party code matching that framework's DurableStore contract structurally;
 # its L1 tier is an in-memory cache that would not have persisted the catalogue
 # anyway. Recorded in full at project-state.yaml -> technical_decisions.technology.
 #
-# Confined to the opt-in `eval` group, where it is pinned (see below):
-#   3tears-models — the operator's own multi-provider model adapters. This used to
-#     say it "arrives with the discovery work that calls it" and sat in the list
-#     below as not-yet-pinned; that was reversed on 2026-08-02 and it is pinned in
-#     `eval` today, so it belongs here rather than there. The discovery engine
-#     talks to OpenRouter through a first-party client behind a narrow seam
-#     instead: all traffic goes to one provider (search included, via its web
-#     plugin), and this package would pull 3tears-observe, 3tears-media-contracts,
-#     anthropic, langchain-anthropic/openai/openrouter and jsonschema into the
-#     DEFAULT install — the plane that runs on the Pi beside display under a
-#     MemoryMax. Not a rejection: the seam makes adopting it a one-file change if
-#     a second provider ever earns it. Reasoning in `openrouter-api-findings.md`.
+# The discovery engine still talks to OpenRouter through a first-party client
+# behind a narrow seam (`openrouter-api-findings.md`). 3tears-models was kept out
+# of the default install on 2026-08-02 for its weight on the Pi; that reason went
+# when the server moved to the NAS (2026-09-30), and Ask's agent brought it in.
+# Moving discovery onto it is a choice now open, not one this change made.
 #
 # Deliberately not pinned yet:
 #   (opencv-python-headless, scikit-image and numpy were forecast here for
@@ -119,6 +127,11 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # The OpenRouter SDK's errors, which Ask's model raises (3tears-models over
+    # langchain-openrouter): the cap test raises the one production does.
+    # Declared for the reason jsonschema is, and unpinned because 3tears' pins
+    # decide it.
+    "openrouter",
     # The suite has no hotspot — ~1,750 tests at roughly 67ms mean, the slowest
     # single one 1.4s — and most of the total is integration tests booting a real
     # uvicorn per class and waiting on it. That wait is exactly what
@@ -139,36 +152,11 @@ dev = [
     "ruff>=0.6",
     "black>=24",
     "httpx",
-    # Same reasoning as httpx directly above, and it belongs in `dev` rather
-    # than `eval` for a reason worth stating: the evaluation driver imports
-    # `langchain_core.messages` directly, and the tests that prove that driver
-    # works are deterministic, free, and reach no provider. Declaring it only in
-    # `eval` left them skipping in the canonical suite — the one CI and the
-    # gates actually run — so the guards on hand-written harness code were green
-    # without ever executing. It arrives transitively via 3tears-models too, but
-    # that edge is an alpha package's transitive detail and this code imports
-    # the package by name.
-    #
-    # Bare, like httpx and pydantic above it. A `>=0.3` floor was written here
-    # first and removed: nothing verified it, `uv.lock` resolves 1.5.3, and this
-    # repo's own learning is that a declared floor is a claim — the samsungtvws
-    # move proved that the hard way when a library's own `websockets>=10.2`
-    # resolved fine and could not import. An unverified number is worse than no
-    # number, because the next reader takes it for evidence.
-    "langchain-core",
 ]
-# Its own group, because it is the heaviest thing this repo would install —
-# langchain-anthropic, langchain-openai, langchain-openrouter and the anthropic
-# SDK arrive with it — and only the *paid* half of the evaluation needs it. The
-# free half runs on `dev` alone (see langchain-core above), so `uv run pytest`
-# stays fast and offline while still executing every deterministic guard.
-#
-# Pinned below 0.23 on purpose: 3tears is alpha and its own README says the
-# public API can shift between minor versions. `create_chat_model`'s signature
-# was verified against 0.22.5 rather than read from the checkout on this
-# machine, which was three minors behind and would not have been what installed.
-eval = ["3tears-models>=0.22.5,<0.23"]
-# Its own group for the same reason `eval` has one: it is a heavy install — the
+# The `eval` group that pinned 3tears for the paid evaluation is gone: Ask's
+# agent put 3tears and LangChain in the default install, so the evaluation
+# needs nothing a plain `uv sync` lacks.
+# Its own group because it is a heavy install — the
 # wheel is ~40MB and `playwright install chromium` fetches a browser of roughly
 # 200MB on top — and no first-party module imports a line of it. Keeping it out
 # of `dev` is what lets `uv sync` stay the cheap default it is for someone who
@@ -226,7 +214,7 @@ ignore = [
     # Settings flow in as keyword-only arguments, so a long signature is not a confusing one.
     "PLR0913",
     "PLR0917",
-    # Lazy imports are deliberate: optional groups (`eval`, `browser`) are imported
+    # Lazy imports are deliberate: optional groups (`browser`) and optional features (Ask's web search) are imported
     # only where they are used, and tests import the module under test late.
     "PLC0415",
     # Moving typing-only imports under `TYPE_CHECKING` is churn with no runtime gain at this size.

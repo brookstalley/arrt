@@ -1,8 +1,8 @@
 """How the client reads an address, checked without a browser.
 
 `information-architecture.md` § Navigation Structure requires that "every screen
-and every consequential state (a search query, an active filter set, a run, a
-conversation) is addressable", and the navigation reshape is what extended the
+and every consequential state (a search query, an active filter set, a run) is
+addressable", and the navigation reshape is what extended the
 fragment past a bare view name to carry that state. The grammar it grew —
 `#<view>[/<id>][?<key>=<value>&…]` — is a pure function over two strings, so it
 is tested as one.

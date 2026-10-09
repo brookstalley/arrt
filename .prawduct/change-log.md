@@ -66,6 +66,209 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask as an agent: what the review left, #336, and examples on an empty Ask
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner asked for #336 and "anything else we should get" on this
+branch (2026-10-09).
+
+**What:**
+- **#336:** the discovery client raises `KeyExhausted` only for a 403 naming
+  the key's limit; any other 403 is an ordinary error naming the status and
+  what the provider said. `names_the_key_limit()` is the one predicate, which
+  Ask's agent now uses too ("key limit", so "Rate limited" never matches).
+- **A page opened mid-reply waits for it**: it says so, holds *Ask*, and
+  repaints when the server says the reply has ended.
+- **An empty Ask offers three examples** under *Try:*; each fills the box and
+  sends nothing, and they go once something is said. The IA asked for them
+  from the start.
+- Ask uses the registry's `HELP_ACTION` rather than its own `"help"`.
+- **`api-contract.md` gets back five sections** that chunk 04 deleted along with
+  the conversation-reads paragraphs: the Server↔Player surface, Clients,
+  History, Conventions and most of Security. Restored with develop's
+  wave-4 edits in them, in the merge of develop.
+- **The merge's review:** the five `CONVERSATION_*` settings join
+  `RETIRED_SETTINGS`, so a `.env` still setting one is told at startup that Ask's
+  model is `ASK_MODEL`; an `inferred` taste write is refused before its
+  rationale is checked; Ask's thread routes run on the event loop.
+
+**Tests:** each new test failed against its mutation: the predicate made
+always-true (four failures across the client, the phase 1 engine and Ask),
+the held button released, the repaint removed. After the merge: `ASK_MODEL`,
+`ASK_STEP_LIMIT` and `SEARXNG_URL` are read in a test, and a step with no cost
+is counted and said; each failed against its line removed. The examples test reads the
+list from the shipped module.
+
+## 2026-10-09: Ask as an agent: the boundary review's findings
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The plan's cumulative review (rev-20261009T165619Z-61679e13) found one
+blocking gap and nine warnings, most in chunk 03's Ask code.
+
+**What:**
+- **Topic cards are tested** (blocking): a browser test reacts to a period and
+  reads back taste kind `era`, and `TASTE_KIND` is held to the server's
+  `FACET_KINDS`, values and all.
+- **A thread can no longer be stuck replying.** The in-flight flag is a claim
+  token, released when the stream ends or, for a stream dropped before it
+  starts, when it is collected; a late release cannot free a newer reply.
+- **A thread is bounded**: its last 10 turns are kept and sent
+  (`TURNS_REMEMBERED`), cut where the curator spoke.
+- **A send after a restart recovers**: the page answers a 404 by opening a new
+  thread and sending the words there.
+- **A library work becomes a card**: `art_catalogue(action='get')` names its
+  item `wikidata_qid`, which the card reader now reads, as held.
+- **Only a 403 naming the key's limit is the budget**; a flagged input is an
+  ordinary failure. The cap test raises the OpenRouter SDK's own error, and
+  `openrouter` is declared in `dev`. The discovery client's identical
+  conflation is filed to the backlog.
+- The eval calls the shipped `outside` instead of a copy; the held-wins merge
+  in `ask/cards.py` is one function; project-state no longer defers phase 1
+  to a plan that never decided it.
+- Accepted: `complete_thread` stays as the client's multi-message path; a
+  tick can land on the wrong line when two calls to one tool finish out of
+  order (3tears' event carries no call id).
+
+**Tests:** every new test failed against its mutation: the finalizer removed,
+the token check removed, the turn cut removed from what is sent and from
+what is kept, the 404 retry removed, `period` mapped to itself, `medium`
+dropped from the table, and the limit check removed.
+`test_a_returning_page_draws_the_thread_as_it_was` (chunk 03) failed one run
+in three, with or without these fixes: it compared the turn while a work
+card's theme picker still read "Reading themes…". It now waits for the picker
+on both reads, and passed five runs in a row.
+
+## 2026-10-09: Ask as an agent, chunk 04: the conversation, the direct box and the commit seam retired
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** Chunk 03 put the agent on Ask beside what it replaces. The owner ruled
+that old threads may simply go and that Ask is one box (2026-10-08).
+
+**What:**
+- **Removed:** the conversation service and engine, `/api/conversations` and
+  its routes, the Conversation screen and its route, the direct intent box with
+  its *Get* and *Talk it through first*, the commit card, the `CONVERSATION_*`
+  settings, `AffinityView`, and the client's order-of-magnitude caption under
+  Ask's *Get*, which had no Get left to sit under. `POST /api/runs` and
+  `GET /api/estimate` stay for MCP and a Get's approval gate.
+- **Stored data:** the migration `retire_conversations` drops `conversations`
+  and `conversation_turns`, and `affinities.source_turn_id` and
+  `spend_records.conversation_turn_id` with their indexes. Every affinity and
+  spend row stays; `conversation_tokens` still reads and counts.
+- **Deploying it: copy the catalogue first.** `retire_conversations` runs the
+  first time the catalogue is opened, and the threads and turn citations it
+  drops exist nowhere else. Take
+  `sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-ask-agent-<timestamp>.sqlite"`
+  before deploying; the way back is that copy and the previous image, together.
+- **Taste:** `inferred` can no longer be written (there is no stored turn to
+  cite), and the rows held keep their rationale. `art_taste` loses
+  `source_turn_id`; a judgment loses `conversation_id`. The provenance ranking
+  went with it, since only `stated`, the strongest, can be written.
+- **Carried to Ask:** a reply refused at the key's credit limit (OpenRouter's
+  403) now ends with `stream_error` code `BUDGET_SPENT` and "This month's
+  budget is spent…", the owner's #290 wording the conversation had carried
+  through the OpenRouter client. `budget_spent()` builds the sentence for both.
+- **Artifacts:** IA (inventory, flows 1 and 2, hierarchy, states), data model,
+  API contract, security model (§ The curator's own words replaces the stored
+  turns' exception and now says where Ask sends the curator's words),
+  observability, design direction, the brief, operator verification (an Ask
+  entry for chunks 03 and 04; superseded items struck).
+
+**Tests:** removed with their subject: the conversation service, engine,
+deletion and surface tests, the Conversation browser test, the conversation
+live-shape test, the three caption tests, two config tests and a startup
+pricing test for retired settings, the turn-role and suggestion-kind
+vocabulary tests, and the taste tests that cited a turn or ranked an
+inference. Kept and repointed: the startup wiring test now checks the
+collection reaches the runner. Moved: the two-fields and no-redraw reaction
+tests now drive Ask's cards. New: `test_conversation_retirement.py` (the
+migration, including an interrupted open; it failed with the migration
+unwired); `inferred` refused over HTTP and MCP, and a held one still
+rendering; the old routes 404; Ask at the cap (it failed before the fix and
+again with the status mutated to 402). `test_persistence_boundary` caught a
+first version importing `openai` for the exception type; the status is read
+off the error instead. `PAGES_WITH_SECTIONS` drops `discover`, which is one
+thread with no sections now.
+
+## 2026-10-09: Ask as an agent, chunk 03: Ask is one thread with an agent in it
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner ruled that Ask is a conversation with an agent that has the
+product's tools and searches as it talks (2026-10-08), and confirmed
+`anthropic/claude-haiku-5.5` as its model.
+
+**What:**
+- `arrt/ask/`: the agent, a LangChain `create_agent` loop in the server
+  process. It is offered the MCP surface's tool definitions whole and calls the
+  MCP `dispatch` on a worker thread; an action outside `ASK_SCOPE` gets a
+  teaching error and is never dispatched. Replies stream as 3tears stream
+  events, one a line (NDJSON, not the SSE the plan named: a browser cannot
+  open an `EventSource` on a POST). They end with the reply's cost (OpenRouter's
+  own figure) and cards for the works, artists and topics the answer names
+  that a tool returned. Threads are in memory, at most 20, forgotten on
+  restart. Up to 8 model calls a reply (`ASK_STEP_LIMIT`), beyond which the
+  reply says it stopped.
+- Routes `GET /api/ask`, `POST`/`GET /api/ask/threads`,
+  `POST /api/ask/threads/{id}/replies`; settings `ASK_MODEL`,
+  `ASK_STEP_LIMIT`, `SEARXNG_URL` (web search offered only when set).
+- The Ask page: the thread on top, with *Ask* now its one filled act; the old
+  box, its *Get* (no longer filled) and the conversations below until chunk
+  04. *Ask about "…"* fills the agent's box. Opening the page writes nothing.
+  The reaction row moved into `core/taste.js`, shared by both threads.
+- 3tears (`models`, `langgraph`, `agent-tools`, pinned 0.65.0) and LangChain
+  are default dependencies; the `eval` group is gone. They put the
+  `>=3.14` floor back on a default dependency, which `project-preferences.md`
+  records. The eval reads the server's prompt, scope and item reader.
+
+**Tests:** `test_ask_surface.py` drives a scripted model through the real
+server. `test_a_reply_that_reaches_the_step_limit_says_so` failed first
+because LangGraph's default `recursion_limit` (25 graph steps) stopped an
+8-call reply as a fault; the graph's bound is now set past the call limit.
+`test_ask_needs_no_infrastructure.py` answers a turn in a fresh interpreter
+with NATS and Postgres pointed at nothing and asserts no socket connection is
+attempted; the same script with a web search records one. The abandoned-reply
+test failed with the cancel removed, and the cited-QID browser test failed
+with the stripping removed. `test_the_entry_point_gives_ask_its_configured_model_limit_and_web_search`
+caught that 3tears names its tool `threetears.web_search`.
+`test_ask_has_one_filled_act` now names *Ask* as the filled act, per the
+ruling; three browser assertions moved from `#intent` to `#ask-words` with
+the term. The eval scorer's fixture gained the fields the real search payload
+carries (years, `artist_id`), which is what tells an artist from a museum.
+
+**Verified live (2026-10-09):** the four chunk 02 requests through the real
+server on haiku: 3–4 model calls, $0.0027–$0.0044 each, every reply costed
+while streamed. One was drawn in Chromium, and the screenshot showed three
+faults the suite could not: an overflowing theme picker, the cost said twice,
+and a step glyph. All three are fixed.
+## 2026-10-08: Ask as an agent, chunks 01 and 02: the rulings recorded, and models measured
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner ruled that Ask is a conversation with an agent that has the
+product's tools (2026-10-08), and the plan measures before it chooses a model.
+
+**What:**
+- **Chunk 01:** dated direction-changed notes in the product brief, the IA and
+  its proposal, the data model, the NFRs' cost visibility, and the 3tears and
+  OpenRouter findings; a project-state decision for the agent stack.
+- **New for MCP clients, additive:** `art_discovery` gains six read-only
+  registry actions, `search`, `find_topics`, `artist`, `similar_artists`,
+  `work` and `topic`, each its HTTP route's twin field for field.
+  `api-contract.md` records the twins.
+- **Changed for MCP clients, by the table breaking:** `look`'s description no
+  longer says "of a work you do not hold" (a held work answers `held`), and
+  `source_plugins`' package and version notes moved into a tip.
+- **Measured:** 55 live runs across five models on Ask-shaped requests
+  (`ask-agent-findings.md`). Ask's default model is
+  `anthropic/claude-haiku-5.5` and a reply's step limit is 8 model calls, both
+  decisions the owner can veto.
+
+**Tests:** the eval's scorers each have a free test (`test_ask_scoring.py`).
+
 ## 2026-10-09: Wave 4c — one wall loop, a driver per display, a reader for majors 1 and 2
 
 <!-- prawduct: scope=wave-4c-wall-loop -->

@@ -241,15 +241,18 @@ export async function fetchAllCandidates(runId) {
 
 /* A streamed answer, one JSON value per line, each handed to `onLine` as it
  * arrives: a Topic page's works, which the server sends when their ranking
- * lands and again when their makers do (`GET /api/topics/<qid>/works`).
+ * lands and again when their makers do (`GET /api/topics/<qid>/works`), and
+ * Ask's reply, one stream event a line (`POST /api/ask/threads/<id>/replies`).
  *
  * Refusals and faults are told apart as `api` tells them, from the status,
  * before anything is read. A connection that drops mid-answer throws, so a
  * caller never mistakes the lines it got for the whole. */
-export async function apiLines(path, onLine) {
+export async function apiLines(path, onLine, options = {}) {
   let response;
   try {
-    response = await fetch(path, { headers: { accept: "application/x-ndjson" } });
+    // `options` carries a method and body for a stream that answers a write:
+    // Ask's reply, which streams back on the POST that sends the words.
+    response = await fetch(path, { ...options, headers: { accept: "application/x-ndjson", "content-type": "application/json" } });
   } catch (failure) {
     failure.unanswered = true;
     throw failure;

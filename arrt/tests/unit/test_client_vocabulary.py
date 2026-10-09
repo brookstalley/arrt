@@ -20,10 +20,10 @@ import subprocess
 import pytest
 
 from arrt.http.pages import STATIC_DIR
-from arrt.library.discovery.conversation import SUGGESTION_KINDS
 from arrt.library.services.get import SkipReason
 from arrt.library.services.look import SourceState
 from arrt.library.services.spending import CostTier
+from arrt.library.services.topics import FACET_KINDS
 from arrt.mcp.bindings import RESTORE_NOTICE
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
@@ -32,7 +32,6 @@ from arrt.persistence.discovery_records import (
     ResolutionStatus,
     RunKind,
     RunStatus,
-    TurnRole,
     UnresolvedReason,
     Verdict,
     WorkProvenance,
@@ -229,23 +228,6 @@ def test_every_run_status_is_named_in_the_client():
     """
     for status in RunStatus:
         assert f'"{status}"' in CLIENT, f"the client has no sentence naming the {status} state"
-
-
-def test_every_turn_role_has_a_name_a_reader_would_recognise():
-    """The transcript labels each turn with who said it, and both roles need words.
-
-    Same bargain as the run statuses above: without it a third role would render
-    as its own enum value beside the sentence it introduces — `system` above a
-    reply, which reads as a fault rather than as an answer.
-    """
-    for role in TurnRole:
-        assert f"{role}:" in CLIENT or f'"{role}"' in CLIENT, f"the client has no name for a {role} turn"
-
-
-def test_every_suggestion_kind_has_words_for_a_curator():
-    """A kind with no entry renders as the enum's own token beside an artist's name."""
-    for kind in SUGGESTION_KINDS:
-        assert f"{kind}:" in CLIENT, f"the client has no word for a {kind} suggestion"
 
 
 def test_every_resolution_status_has_a_glyph():
@@ -557,3 +539,13 @@ def test_every_rights_and_fetch_state_has_words(name):
 
     enum = {"RIGHTS_WORDS": RightsStatus, "FETCH_WORDS": FetchStatus}[name]
     assert _object_keys(name) == {str(member) for member in enum}
+
+
+def test_a_topic_card_records_each_topic_kind_as_the_taste_kind_the_server_maps_it_to():
+    """Ask's topic cards write a topic's reaction under `TASTE_KIND[kind]`, a copy of the server's `FACET_KINDS`.
+
+    A kind the server adds and the client lacks would get no reactions, and a
+    kind mapped differently would record taste under the wrong dimension, so
+    the copy is held to its source here, values and all.
+    """
+    assert _object_values("TASTE_KIND") == {topic.value: str(facet) for topic, facet in FACET_KINDS.items()}

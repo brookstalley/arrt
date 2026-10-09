@@ -59,12 +59,6 @@ from arrt.http.models import (
     ClientOut,
     ClientTokenOut,
     ClientWallOut,
-    CommitDirection,
-    ConversationDeletionOut,
-    ConversationListOut,
-    ConversationOut,
-    ConversationTurnOut,
-    ConversationViewOut,
     CostTiersOut,
     CreateTheme,
     CreateWall,
@@ -132,7 +126,6 @@ from arrt.http.models import (
     RunOut,
     RunTallyOut,
     RunViewOut,
-    SampleOut,
     SearchUsageOut,
     SelectedImageOut,
     SelectImage,
@@ -149,13 +142,11 @@ from arrt.http.models import (
     SourcesOut,
     SourceYieldOut,
     SourceYieldsOut,
-    Speak,
     SpendOut,
     StartGet,
     StartResolve,
     StartRun,
     StepDisplay,
-    SuggestionOut,
     ThemeAdditionOut,
     ThemeDetailOut,
     ThemeListOut,
@@ -197,7 +188,6 @@ from arrt.http.models import (
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
-from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
 from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.quality import Fit
@@ -205,15 +195,14 @@ from arrt.library.services.review import CandidatePage, CandidateView, InstanceL
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import FIT_BANDS, WorkDossier, WorkSurvey
-from arrt.library.services.taste import AffinityView
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
+    Affinity,
     CandidateImage,
     CandidateWork,
-    Conversation,
     DiscoveryRun,
     InitiatedBy,
 )
@@ -1570,8 +1559,8 @@ def get_estimate(request: Request, run_id: Annotated[str | None, Query()] = None
 
     Answered without a run id for "what does asking cost", and with one for "what
     does resolving what this run found cost". Estimating spends nothing, which is
-    what lets the intent screen show the price beside the field rather than after
-    the decision.
+    what lets a Get's approval gate, and an agent over MCP, show the price before
+    the decision rather than after it.
     """
     return _estimate(_services(request).runner.estimate(run_id))
 
@@ -2733,148 +2722,6 @@ def _fit(fit: Fit) -> FitOut:
     return FitOut(verdict=str(fit))
 
 
-# -- conversations ------------------------------------------------------------
-#
-# One block at the foot of the file rather than routes among the routes and
-# mappers among the mappers, and it is a merge decision rather than a taste one:
-# three chunks were appending to this module at once, and a block that touches no
-# existing line cannot conflict with the other two. Route registration is by
-# decorator at import, so position changes nothing about what is served.
-
-
-@router.get("/conversations")
-def list_conversations(request: Request) -> ConversationListOut:
-    conversations = _services(request).conversation.list_conversations()
-    return ConversationListOut(
-        conversations=[_conversation(conversation) for conversation in conversations],
-        count=len(conversations),
-    )
-
-
-@router.post("/conversations")
-def start_conversation(request: Request) -> ConversationViewOut:
-    """Open an empty thread.
-
-    No body, and nothing spent. A curator who opens a conversation and thinks
-    better of it has cost the household a row; the first question is a turn like
-    every other.
-    """
-    return _conversation_view(_services(request).conversation.start())
-
-
-@router.get("/conversations/{conversation_id}")
-def get_conversation(request: Request, conversation_id: str) -> ConversationViewOut:
-    return _conversation_view(_services(request).conversation.get(conversation_id))
-
-
-@router.get("/conversations/{conversation_id}/estimate")
-def get_turn_estimate(request: Request, conversation_id: str) -> EstimateOut:
-    """What the next turn in this conversation may cost, for the tier beside Say it.
-
-    Free and read-only, like `GET /api/estimate`, and the same shape with
-    `phase` `conversation_turn`: an estimate shown before spending, never a
-    reading of what was spent.
-    """
-    return _estimate(_services(request).conversation.estimate(conversation_id))
-
-
-@router.post("/conversations/{conversation_id}/turns")
-def speak(request: Request, conversation_id: str, body: Speak) -> ConversationViewOut:
-    """Ask something, or — with no text — ask again for the last answer.
-
-    **A turn that could not be answered is a 200, not a 400.** The requirement is
-    that a failed turn stays in the thread and is retryable, and an error body
-    carries no thread: the client would show a sentence with the curator's
-    question nowhere on screen. So the refusal travels as `failure` on the view,
-    and only a request that recorded nothing at all — an unknown conversation,
-    empty text with nothing outstanding to retry — is a refusal.
-    """
-    return _conversation_view(_services(request).conversation.speak(conversation_id, body.text))
-
-
-@router.post("/conversations/{conversation_id}/commit")
-def commit_conversation(request: Request, conversation_id: str, body: CommitDirection) -> ConversationViewOut:
-    """Seed a discovery run from this thread, and stay in the thread.
-
-    Returns the conversation rather than the run, and the difference is the whole
-    seam: a response shaped like a run is a response a client navigates to. What
-    comes back is the transcript with a committed turn at the end of it, which is
-    what the commit card repaints itself from without going anywhere.
-    """
-    return _conversation_view(_services(request).conversation.commit(conversation_id, body.intent))
-
-
-def _conversation(conversation: Conversation) -> ConversationOut:
-    return ConversationOut(
-        conversation_id=conversation.id,
-        started_at=conversation.started_at.isoformat(),
-        last_turn_at=conversation.last_turn_at.isoformat(),
-        summary=conversation.summary,
-    )
-
-
-def _conversation_view(view: ConversationView) -> ConversationViewOut:
-    unanswered = view.unanswered
-    return ConversationViewOut(
-        conversation=_conversation(view.conversation),
-        turns=[_conversation_turn(turn) for turn in view.turns],
-        committed_run_id=view.committed_run_id,
-        failure=view.failure,
-        unanswered_turn_id=None if unanswered is None else unanswered.id,
-    )
-
-
-def _conversation_turn(view: TurnView) -> ConversationTurnOut:
-    return ConversationTurnOut(
-        turn_id=view.turn.id,
-        ordinal=view.turn.ordinal,
-        role=str(view.turn.role),
-        text=view.turn.text,
-        suggested=[
-            SuggestionOut(
-                kind=suggestion.kind,
-                value=suggestion.value,
-                samples=[SampleOut(title=sample.title, artist=sample.artist, image_url=sample.image_url) for sample in samples],
-            )
-            for suggestion, samples in view.suggested
-        ],
-        committed_run_id=view.turn.committed_run_id,
-        created_at=view.turn.created_at.isoformat(),
-    )
-
-
-@router.delete("/conversations/{conversation_id}")
-def delete_conversation(request: Request, conversation_id: str) -> ConversationDeletionOut:
-    """Destroy the thread and its turns, and detach everything derived from them.
-
-    **The one operation in this product that genuinely destroys a record**, which
-    is exactly why what stands on it is detached rather than destroyed with it:
-    `Affinity.source_turn_id` and `SpendRecord.conversation_turn_id` are nulled,
-    and nothing else is touched. An affinity is a judgment accumulated across
-    conversations and cannot be reconstructed from a thread that no longer exists;
-    a spend record is a ledger entry, and a month total that fell because somebody
-    tidied would be a number that lies about the past.
-
-    **The response names the consequence, not the row count.** What the curator
-    loses is the ability to rebuild those judgments when the derivation improves,
-    and `description` says so in those terms — the counts are there to qualify it.
-    """
-    return _conversation_deletion(_services(request).conversation.delete(conversation_id))
-
-
-def _conversation_deletion(deletion: ConversationDeletion) -> ConversationDeletionOut:
-    return ConversationDeletionOut(
-        conversation_id=deletion.conversation_id,
-        turns_deleted=deletion.turns_deleted,
-        affinities_detached=deletion.affinities_detached,
-        spend_records_detached=deletion.spend_records_detached,
-        runs_unattributed=deletion.runs_unattributed,
-        # Composed by the service so this surface and the tool one cannot come to
-        # describe the same destruction differently.
-        description=deletion.describe(),
-    )
-
-
 # -- taste --------------------------------------------------------------------
 
 
@@ -2912,7 +2759,6 @@ def set_affinity(request: Request, body: SetAffinity) -> AffinityOut:
             open_to_more=body.open_to_more,
             derivation=body.derivation,
             rationale=body.rationale,
-            source_turn_id=body.source_turn_id,
         )
     )
 
@@ -2928,8 +2774,7 @@ def delete_affinity(request: Request, affinity_id: str) -> AffinityOut:
     return _affinity(_services(request).taste.delete_affinity(affinity_id))
 
 
-def _affinity(view: AffinityView) -> AffinityOut:
-    affinity = view.affinity
+def _affinity(affinity: Affinity) -> AffinityOut:
     return AffinityOut(
         affinity_id=affinity.id,
         kind=str(affinity.kind),
@@ -2938,12 +2783,6 @@ def _affinity(view: AffinityView) -> AffinityOut:
         open_to_more=affinity.open_to_more,
         derivation=str(affinity.derivation),
         rationale=affinity.rationale,
-        source_turn_id=affinity.source_turn_id,
-        # Resolved by the service from the cited turn rather than stored, so the
-        # link and the citation cannot come apart — and absent for a judgment
-        # whose conversation was deleted, which is what stops the screen offering
-        # a way through to a thread that is not there.
-        conversation_id=view.conversation_id,
         artist_id=affinity.artist_id,
         created_at=affinity.created_at.isoformat(),
         updated_at=affinity.updated_at.isoformat(),

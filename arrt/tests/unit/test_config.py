@@ -14,6 +14,8 @@ import pytest
 
 from arrt.config import (
     CATALOGUE_FILENAME,
+    DEFAULT_ASK_MODEL,
+    DEFAULT_ASK_STEP_LIMIT,
     DEFAULT_HOST,
     DEFAULT_PORT,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
@@ -456,6 +458,59 @@ def test_nothing_is_said_when_no_retired_setting_is_set():
     assert retired_settings_in({"RESOLUTION_FLOOR_INCHES": ""}) == []
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        "CONVERSATION_MODEL",
+        "CONVERSATION_MAX_OUTPUT_TOKENS",
+        "CONVERSATION_INPUT_COST_USD_PER_MTOK",
+        "CONVERSATION_OUTPUT_COST_USD_PER_MTOK",
+        "CONVERSATION_INPUT_TOKENS",
+    ],
+)
+def test_a_retired_conversation_setting_is_named_with_asks_model(key):
+    """A `.env` still choosing a conversation model would otherwise run Ask on its default, unsaid."""
+    [sentence] = retired_settings_in({key: "some-value", "ART_ROOT": "/art"})
+
+    assert sentence.startswith(f"{key} is no longer read")
+    assert "ASK_MODEL" in sentence
+
+
+def test_asks_model_step_limit_and_web_search_are_read_from_the_environment(monkeypatch, tmp_path):
+    """Each at a value no default produces, so a dropped read shows."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("ASK_MODEL", "example/another-model")
+    monkeypatch.setenv("ASK_STEP_LIMIT", "3")
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.invalid:8080")
+
+    settings = Settings.from_env()
+
+    assert settings.ask_model == "example/another-model"
+    assert settings.ask_step_limit == 3
+    assert settings.searxng_url == "http://searxng.invalid:8080"
+
+
+def test_asks_defaults_hold_when_nothing_is_set(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    for key in ("ASK_MODEL", "ASK_STEP_LIMIT", "SEARXNG_URL"):
+        monkeypatch.delenv(key, raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.ask_model == DEFAULT_ASK_MODEL
+    assert settings.ask_step_limit == DEFAULT_ASK_STEP_LIMIT
+    assert settings.searxng_url is None
+
+
+@pytest.mark.parametrize("limit", ["0", "-2"])
+def test_an_ask_step_limit_below_one_is_refused(monkeypatch, tmp_path, limit):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("ASK_STEP_LIMIT", limit)
+
+    with pytest.raises(ConfigError, match="ASK_STEP_LIMIT"):
+        Settings.from_env()
+
+
 def test_the_thumbnail_cache_sits_inside_the_art_root(monkeypatch, tmp_path):
     """Every stored path is relative to ART_ROOT, so a cache outside it is unstorable."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -743,64 +798,6 @@ def test_the_engine_settings_ship_at_the_values_the_analysis_chose(monkeypatch, 
     assert settings.discovery_model == "deepseek/deepseek-v4-flash"
     assert ":" not in settings.discovery_model, "a dated snapshot pin, not the floating alias"
     assert settings.discovery_search_results == 10
-
-
-def test_the_conversation_has_its_own_model_and_reservation(monkeypatch, tmp_path):
-    """A third model, and neither of the other two would do.
-
-    `DISCOVERY_MODEL` lists `input_modalities: ["text"]` and cannot see a
-    picture; the mat reservation is sized to let a reasoning model finish, and a
-    conversational turn switches reasoning off instead. One setting for all three
-    would make each choice a constraint on the others.
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-
-    settings = Settings.from_env()
-
-    assert settings.conversation_model == "qwen/qwen3.7-flash"
-    assert ":" not in settings.conversation_model, "a dated snapshot pin, not the floating alias"
-    assert settings.conversation_max_output_tokens == 2_000
-
-    monkeypatch.setenv("CONVERSATION_MODEL", "probe/model-under-test")
-    monkeypatch.setenv("CONVERSATION_MAX_OUTPUT_TOKENS", "512")
-    overridden = Settings.from_env()
-
-    assert overridden.conversation_model == "probe/model-under-test"
-    assert overridden.conversation_max_output_tokens == 512
-
-
-def test_a_conversation_turn_is_priced_at_its_own_model_s_rates_and_reservation(monkeypatch, tmp_path):
-    """Not the discovery model's prices, and the output priced is the reservation a turn sends."""
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-
-    pricing = Settings.from_env().conversation_pricing
-
-    assert pricing.input_cost_usd_per_mtok == Decimal("0.03")
-    assert pricing.output_cost_usd_per_mtok == Decimal("0.13")
-    assert pricing.input_tokens == 8_000
-    assert pricing.output_tokens == 2_000
-
-    monkeypatch.setenv("CONVERSATION_INPUT_COST_USD_PER_MTOK", "1.5")
-    monkeypatch.setenv("CONVERSATION_OUTPUT_COST_USD_PER_MTOK", "6")
-    monkeypatch.setenv("CONVERSATION_INPUT_TOKENS", "4000")
-    monkeypatch.setenv("CONVERSATION_MAX_OUTPUT_TOKENS", "512")
-    overridden = Settings.from_env().conversation_pricing
-
-    assert overridden.input_cost_usd_per_mtok == Decimal("1.5")
-    assert overridden.output_cost_usd_per_mtok == Decimal(6)
-    assert overridden.input_tokens == 4_000
-    assert overridden.output_tokens == 512
-    # 4,000 x 1.5 + 512 x 6, per million.
-    assert overridden.turn_usd == Decimal("0.009072")
-
-
-def test_the_conversation_reservation_must_be_positive(monkeypatch, tmp_path):
-    """Same reason as the other two: a request reserving nothing is refused."""
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("CONVERSATION_MAX_OUTPUT_TOKENS", "0")
-
-    with pytest.raises(ConfigError, match="CONVERSATION_MAX_OUTPUT_TOKENS"):
-        Settings.from_env()
 
 
 def test_the_output_reservation_must_be_positive(monkeypatch, tmp_path):
