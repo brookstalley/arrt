@@ -101,10 +101,9 @@ and a wider tool set are later waves, each with its own plan when it starts.
 
 ## Outside this repo
 
-- **3tears: a spending cap for agent runs.** The owner ruled that it lives
-  there. `3tears-search` already has the shape: `BudgetPort` checks an
-  estimate before each call and records the spend after it, with scopes such
-  as per-run. Model calls need the same. Not filed yet.
+- **3tears: granular spending caps, at the app and feature level.** The owner
+  ruled that they live there. Filed as pacepace/3tears#583, an ask for an
+  investigation and a strategy rather than a proposed fix.
 - **3tears: agent-tools' memory, audit and NATS client as optional extras.**
   Filed as pacepace/3tears#582. Not blocking: Arrt accepts the couplings.
 - **A SearXNG instance**, deployed beside the server, recorded in the
