@@ -14,6 +14,8 @@ import pytest
 
 from arrt.config import (
     CATALOGUE_FILENAME,
+    DEFAULT_ASK_MODEL,
+    DEFAULT_ASK_STEP_LIMIT,
     DEFAULT_HOST,
     DEFAULT_PORT,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
@@ -454,6 +456,59 @@ def test_nothing_is_said_when_no_retired_setting_is_set():
     """The absence is asserted too: a notice that fires on every start is one a reader learns to skip."""
     assert retired_settings_in({"ART_ROOT": "/art", "QUALITY_MINIMUM_PX": "1000"}) == []
     assert retired_settings_in({"RESOLUTION_FLOOR_INCHES": ""}) == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "CONVERSATION_MODEL",
+        "CONVERSATION_MAX_OUTPUT_TOKENS",
+        "CONVERSATION_INPUT_COST_USD_PER_MTOK",
+        "CONVERSATION_OUTPUT_COST_USD_PER_MTOK",
+        "CONVERSATION_INPUT_TOKENS",
+    ],
+)
+def test_a_retired_conversation_setting_is_named_with_asks_model(key):
+    """A `.env` still choosing a conversation model would otherwise run Ask on its default, unsaid."""
+    [sentence] = retired_settings_in({key: "some-value", "ART_ROOT": "/art"})
+
+    assert sentence.startswith(f"{key} is no longer read")
+    assert "ASK_MODEL" in sentence
+
+
+def test_asks_model_step_limit_and_web_search_are_read_from_the_environment(monkeypatch, tmp_path):
+    """Each at a value no default produces, so a dropped read shows."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("ASK_MODEL", "example/another-model")
+    monkeypatch.setenv("ASK_STEP_LIMIT", "3")
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.invalid:8080")
+
+    settings = Settings.from_env()
+
+    assert settings.ask_model == "example/another-model"
+    assert settings.ask_step_limit == 3
+    assert settings.searxng_url == "http://searxng.invalid:8080"
+
+
+def test_asks_defaults_hold_when_nothing_is_set(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    for key in ("ASK_MODEL", "ASK_STEP_LIMIT", "SEARXNG_URL"):
+        monkeypatch.delenv(key, raising=False)
+
+    settings = Settings.from_env()
+
+    assert settings.ask_model == DEFAULT_ASK_MODEL
+    assert settings.ask_step_limit == DEFAULT_ASK_STEP_LIMIT
+    assert settings.searxng_url is None
+
+
+@pytest.mark.parametrize("limit", ["0", "-2"])
+def test_an_ask_step_limit_below_one_is_refused(monkeypatch, tmp_path, limit):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("ASK_STEP_LIMIT", limit)
+
+    with pytest.raises(ConfigError, match="ASK_STEP_LIMIT"):
+        Settings.from_env()
 
 
 def test_the_thumbnail_cache_sits_inside_the_art_root(monkeypatch, tmp_path):

@@ -193,6 +193,18 @@ RETIRED_SETTINGS: Final[dict[str, str]] = {
         "the floor is a quality profile in pixels now, which names no screen; set QUALITY_MINIMUM_PX "
         f"(default {DEFAULT_QUALITY_MINIMUM_PX}) and remove RESOLUTION_FLOOR_INCHES"
     ),
+    # The intent-forming conversation was retired for Ask's agent, whose model is
+    # ASK_MODEL and whose cost is read off each reply rather than estimated.
+    **{
+        key: "the conversation was retired for Ask, whose model is ASK_MODEL; remove " + key
+        for key in (
+            "CONVERSATION_MODEL",
+            "CONVERSATION_MAX_OUTPUT_TOKENS",
+            "CONVERSATION_INPUT_COST_USD_PER_MTOK",
+            "CONVERSATION_OUTPUT_COST_USD_PER_MTOK",
+            "CONVERSATION_INPUT_TOKENS",
+        )
+    },
 }
 
 

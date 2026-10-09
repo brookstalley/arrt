@@ -68,9 +68,6 @@ _KEY_SPENT_STATUS: Final[int] = 403
 #: is several directions' worth; the oldest go first, whole turns at a time.
 TURNS_REMEMBERED: Final[int] = 10
 
-#: The events that end a reply's stream.
-TERMINALS: Final[frozenset[str]] = frozenset({"stream_end", "stream_error", "stream_interrupt"})
-
 #: Graph steps allowed per model call: far more than one call takes, so only the call limit binds.
 _GRAPH_STEPS_PER_CALL: Final[int] = 10
 

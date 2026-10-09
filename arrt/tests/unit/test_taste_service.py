@@ -75,8 +75,12 @@ def test_set_refuses_observed_and_names_the_path_that_can_write_it(taste):
     assert "stated" in str(refused.value)
 
 
-@pytest.mark.parametrize("derivation", sorted(str(member) for member in NEEDS_RATIONALE))
-def test_the_two_derivations_that_are_claims_about_the_curator_need_a_rationale(derivation):
+# Every member but `inferred`, which is refused before the rationale is read (no
+# conversation is stored for it to cite), so a write without one is told that rather
+# than told to add a rationale it would then be refused with.
+# `test_an_inferred_write_without_a_rationale_is_told_the_derivation_is_closed` holds that order.
+@pytest.mark.parametrize("derivation", sorted(str(member) for member in NEEDS_RATIONALE - {AffinityDerivation.INFERRED}))
+def test_the_derivations_that_are_claims_about_the_curator_need_a_rationale(derivation):
     """Required for `inferred` and `observed`, because neither cites anything else.
 
     Driven through `validated_write` rather than through `set_affinity`, and
@@ -135,6 +139,15 @@ def test_an_inferred_judgment_cannot_be_written_even_with_a_rationale(taste):
     assert "not stored" in str(refused.value)
     assert "stated" in str(refused.value)
     assert taste.list_affinities() == []
+
+
+def test_an_inferred_write_without_a_rationale_is_told_the_derivation_is_closed(taste):
+    """Not told to add a rationale: one added would only meet the refusal below it."""
+    with pytest.raises(ServiceError) as refused:
+        taste.set_affinity(kind="artist", value="Kandinsky", sentiment="likes", open_to_more=True, derivation="inferred")
+
+    assert "not stored" in str(refused.value)
+    assert "needs a rationale" not in str(refused.value)
 
 
 def test_openness_is_required_beside_sentiment_rather_than_defaulted(taste):

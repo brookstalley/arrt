@@ -9,7 +9,7 @@ import threading
 
 import pytest
 from fakes import FakeRegistry
-from scripted_model import HeldModel, ScriptedModel, calls, says
+from scripted_model import HeldModel, ScriptedModel, calls, says, unpriced
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
 from arrt.library.registry import (
@@ -95,6 +95,21 @@ def test_a_reply_shows_what_it_looked_at_its_answer_its_cards_and_its_cost(ui, a
     assert "Pieter Brueghel the Elder" in cards.nth(1).inner_text()
     assert cards.nth(1).get_by_role("button", name="more like this: Pieter Brueghel the Elder").count() == 1
     assert turn.locator(".ask-ending").inner_text() == "This reply cost under $0.01."
+
+
+def test_a_reply_with_a_step_that_reported_no_cost_says_so(ui, ask_model):
+    """Not "This reply cost under $0.01." alone, which would read as cheaper than it was."""
+    ask_model.replies += [unpriced(calls(SEARCH)), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
+
+    assert (
+        ui.page.locator(".ask-turn").last.locator(".ask-ending").inner_text()
+        == "This reply cost under $0.01, and 1 of its steps reported no cost."
+    )
 
 
 def test_a_step_that_could_not_answer_is_marked_as_gone_wrong(ui, ask_model):

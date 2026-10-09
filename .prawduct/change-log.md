@@ -88,10 +88,16 @@ branch (2026-10-09).
   the conversation-reads paragraphs: the Server↔Player surface, Clients,
   History, Conventions and most of Security. Restored with develop's
   wave-4 edits in them, in the merge of develop.
+- **The merge's review:** the five `CONVERSATION_*` settings join
+  `RETIRED_SETTINGS`, so a `.env` still setting one is told at startup that Ask's
+  model is `ASK_MODEL`; an `inferred` taste write is refused before its
+  rationale is checked; Ask's thread routes run on the event loop.
 
 **Tests:** each new test failed against its mutation: the predicate made
 always-true (four failures across the client, the phase 1 engine and Ask),
-the held button released, the repaint removed. The examples test reads the
+the held button released, the repaint removed. After the merge: `ASK_MODEL`,
+`ASK_STEP_LIMIT` and `SEARXNG_URL` are read in a test, and a step with no cost
+is counted and said; each failed against its line removed. The examples test reads the
 list from the shipped module.
 
 ## 2026-10-09: Ask as an agent: the boundary review's findings

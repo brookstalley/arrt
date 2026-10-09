@@ -5,10 +5,10 @@ import json
 import threading
 
 from langchain_core.messages import HumanMessage, ToolMessage
-from scripted_model import ScriptedModel, calls, says
+from scripted_model import COST_PER_REPLY, ScriptedModel, calls, says, unpriced
 from threetears.agent.tools.builtin.web_search import create_web_search_tool
 
-from arrt.ask.agent import TURNS_REMEMBERED, Ask, Threads, said, surface_tools
+from arrt.ask.agent import _SAID, TURNS_REMEMBERED, Ask, Threads, said, surface_tools
 from arrt.ask.prompt import ASK_SCOPE
 
 SEARCH = ("art_discovery", {"action": "search", "q": "bruegel"})
@@ -32,6 +32,18 @@ async def test_the_step_limit_it_is_given_is_the_one_that_binds():
     assert events[-1]["code"] == "STEP_LIMIT"
     assert "stopped after 3 steps" in events[-1]["message"]
     assert len(model.seen) == 3
+
+
+async def test_a_step_that_reported_no_cost_is_counted_rather_than_read_as_free():
+    model = ScriptedModel(replies=[unpriced(calls(SEARCH)), says("Done.")])
+    ask = Ask(answered, model, step_limit=8)
+
+    events = await events_of(ask)
+
+    [end] = [event for event in events if event["type"] == "stream_end"]
+    assert end["metadata"]["uncosted"] == 1
+    assert end["metadata"]["cost_usd"] == COST_PER_REPLY
+    assert end["metadata"]["steps"] == 2
 
 
 async def test_a_thread_is_replying_until_its_stream_is_read_to_the_end():
@@ -97,6 +109,13 @@ def test_each_tool_call_is_said_in_the_curators_words():
     assert said("art_catalogue", {"action": "help"}) == "Reading how art_catalogue works"
     assert said("art_display", {"action": "show_now"}) == "Trying art_display show_now"
     assert said("art_catalogue", None) == "Trying art_catalogue None"
+
+
+def test_every_action_in_scope_has_a_line_in_the_curators_words_and_none_outside_it():
+    """`_SAID` copies the scope; one added to `ASK_SCOPE` alone would show as "Trying …"."""
+    in_scope = {(tool, action) for tool, actions in ASK_SCOPE.items() for action in actions}
+
+    assert set(_SAID) == in_scope
 
 
 async def test_a_reply_stopped_before_it_said_anything_is_remembered_as_a_sentence():

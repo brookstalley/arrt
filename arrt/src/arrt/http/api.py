@@ -1559,8 +1559,8 @@ def get_estimate(request: Request, run_id: Annotated[str | None, Query()] = None
 
     Answered without a run id for "what does asking cost", and with one for "what
     does resolving what this run found cost". Estimating spends nothing, which is
-    what lets the intent screen show the price beside the field rather than after
-    the decision.
+    what lets a Get's approval gate, and an agent over MCP, show the price before
+    the decision rather than after it.
     """
     return _estimate(_services(request).runner.estimate(run_id))
 

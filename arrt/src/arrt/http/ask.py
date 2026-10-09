@@ -48,15 +48,18 @@ def ask_status(request: Request) -> dict[str, bool]:
     return {"available": _ask(request).available}
 
 
+# The thread routes are `async` so they run on the event loop, where the reply
+# route reads and writes the same in-memory threads; a sync route would touch
+# them from a worker thread.
 @router.post("/threads", status_code=201)
-def open_thread(request: Request) -> dict[str, Any]:
+async def open_thread(request: Request) -> dict[str, Any]:
     """A new, empty thread. Spends nothing: no model is asked until words are sent."""
     ask = _ask(request)
     return _thread_out(ask, ask.threads.open())
 
 
 @router.get("/threads/{thread_id}", response_model=None)
-def read_thread(request: Request, thread_id: str) -> dict[str, Any] | JSONResponse:
+async def read_thread(request: Request, thread_id: str) -> dict[str, Any] | JSONResponse:
     """A thread's turns, each with the events its reply sent, so a returning page repaints through one renderer."""
     ask = _ask(request)
     thread = ask.threads.get(thread_id)

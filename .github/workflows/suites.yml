@@ -73,10 +73,10 @@ jobs:
           enable-cache: true
       - name: Run the curation suite
         working-directory: arrt
-        # THE TWO `--ignore`s ARE LOAD-BEARING, and they are what a plain
+        # THE `--ignore` IS LOAD-BEARING, and it is what a plain
         # `uv run pytest` cannot do here. The default `addopts` *deselects* the
         # opt-in markers, but deselection happens after collection, and the
-        # browser and eval modules `importorskip` their groups at import — groups
+        # browser modules `importorskip` their group at import — a group
         # a default `uv sync` deliberately does not install. Those import skips
         # land in the report, and the guard below reads any skip as a
         # provisioning failure and fails the job. Green suite, red leg, nothing
@@ -107,7 +107,7 @@ jobs:
       - name: Run the display suite
         working-directory: arrt-player
         # `--ignore=tests/raster` for the same reason the curation leg carries
-        # two: that directory `importorskip`s the `raster` group, a default
+        # its one: that directory `importorskip`s the `raster` group, a default
         # `uv sync` does not install it, and the resulting collection skip is
         # read by the guard below as a provisioning failure. The typesetting it
         # holds is not skipped in CI — it has its own job, immediately below,

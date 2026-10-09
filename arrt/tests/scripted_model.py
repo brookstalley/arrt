@@ -37,6 +37,15 @@ def says(text: str) -> AIMessage:
     return AIMessage(content=text)
 
 
+def unpriced(reply: AIMessage) -> AIMessage:
+    """The same reply with no cost on it, as a provider that reports none sends it."""
+    return reply.model_copy(update={"additional_kwargs": {**reply.additional_kwargs, "unpriced": True}})
+
+
+def _metadata(reply: AIMessage) -> dict[str, Any]:
+    return {} if reply.additional_kwargs.get("unpriced") else {"cost": COST_PER_REPLY}
+
+
 class ScriptedModel(BaseChatModel):
     replies: list[AIMessage]
     seen: list[list[BaseMessage]] = Field(default_factory=list)
@@ -56,7 +65,7 @@ class ScriptedModel(BaseChatModel):
 
     def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **_: Any) -> ChatResult:
         reply = self._next(messages)
-        priced = reply.model_copy(update={"response_metadata": {"cost": COST_PER_REPLY}})
+        priced = reply.model_copy(update={"response_metadata": _metadata(reply)})
         return ChatResult(generations=[ChatGeneration(message=priced)])
 
     def _stream(
@@ -73,7 +82,7 @@ class ScriptedModel(BaseChatModel):
                     {"name": call["name"], "args": json.dumps(call["args"]), "id": call["id"], "index": index}
                     for index, call in enumerate(reply.tool_calls)
                 ],
-                response_metadata={"cost": COST_PER_REPLY},
+                response_metadata=_metadata(reply),
             )
         )
 

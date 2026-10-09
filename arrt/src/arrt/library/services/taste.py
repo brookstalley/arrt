@@ -96,17 +96,17 @@ def validated_write(
         )
     named = require_text(value, field="value")
 
-    account = None if rationale is None or not rationale.strip() else rationale.strip()
-    if chosen_derivation in NEEDS_RATIONALE and account is None:
-        raise ServiceError(
-            f"An {chosen_derivation!r} judgment needs a rationale — the account of the judgment in the "
-            "curator's terms, which is the only evidence such a row has."
-        )
     if chosen_derivation is AffinityDerivation.INFERRED:
         raise ServiceError(
             "A judgment cannot be written as 'inferred' now: it would have to cite the conversation it was "
             "read out of, and conversations are not stored. Write it as 'stated' if the curator said it "
             "themselves, since their own words are the provenance."
+        )
+    account = None if rationale is None or not rationale.strip() else rationale.strip()
+    if chosen_derivation in NEEDS_RATIONALE and account is None:
+        raise ServiceError(
+            f"An {chosen_derivation!r} judgment needs a rationale — the account of the judgment in the "
+            "curator's terms, which is the only evidence such a row has."
         )
     return AffinityWrite(
         kind=chosen_kind,
