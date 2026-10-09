@@ -244,6 +244,17 @@ class ArtistService:
         )
         return None, replace(view, unlinked=namesakes)
 
+    def works_by_qid(self, qid: str) -> tuple[str | None, RegistryView]:
+        """An artist by QID with what the registry lists of their work, whether or not the library holds them.
+
+        The page's question is where to go, so `registry_view_by_qid` answers a
+        held artist from the library alone. An agent's is what else there is of
+        theirs, so a held artist is answered as their own page's registry half
+        is, with the works the library holds marked.
+        """
+        held, view = self.registry_view_by_qid(qid)
+        return (held, view) if held is None else (held, self.registry_view(held))
+
     def similar(self, qid: str) -> SimilarView:
         """Visual artists sharing a movement with this one, each marked where the library holds them.
 

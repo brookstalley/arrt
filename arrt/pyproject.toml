@@ -68,6 +68,9 @@ dependencies = [
 #     DEFAULT install — the plane that runs on the Pi beside display under a
 #     MemoryMax. Not a rejection: the seam makes adopting it a one-file change if
 #     a second provider ever earns it. Reasoning in `openrouter-api-findings.md`.
+#     **That reason went when the server moved to the NAS** (2026-09-30), and
+#     Ask's agent (`build-plan-ask-agent.md`) moves 3tears into the default
+#     install when it lands; until then the eval group is where it is pinned.
 #
 # Deliberately not pinned yet:
 #   (opencv-python-headless, scikit-image and numpy were forecast here for
@@ -163,11 +166,16 @@ dev = [
 # free half runs on `dev` alone (see langchain-core above), so `uv run pytest`
 # stays fast and offline while still executing every deterministic guard.
 #
-# Pinned below 0.23 on purpose: 3tears is alpha and its own README says the
-# public API can shift between minor versions. `create_chat_model`'s signature
-# was verified against 0.22.5 rather than read from the checkout on this
-# machine, which was three minors behind and would not have been what installed.
-eval = ["3tears-models>=0.22.5,<0.23"]
+# Pinned exactly: 3tears is alpha, its own README says the public API can shift
+# between minor versions, and its packages release in lockstep (each pins its
+# siblings to the same minor). Verified 2026-10-08 against 0.65.0 from PyPI in a
+# clean interpreter, not read from the checkout on this machine, which was ~750
+# commits behind: `create_chat_model(model_id, api_key=, provider=)` is
+# unchanged and returns a binding that `bind_tools` and LangChain's
+# `create_agent` both accept. agent-tools brings `web_search` over SearXNG.
+# **The reply's cost is OpenRouter's own `response_metadata["cost"]`**: 3tears'
+# `UsageTracker` records `cost_usd=None` for these models at 0.65.
+eval = ["3tears-models==0.65.0", "3tears-agent-tools==0.65.0"]
 # Its own group for the same reason `eval` has one: it is a heavy install — the
 # wheel is ~40MB and `playwright install chromium` fetches a browser of roughly
 # 200MB on top — and no first-party module imports a line of it. Keeping it out

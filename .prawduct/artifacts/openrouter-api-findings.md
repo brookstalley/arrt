@@ -13,6 +13,10 @@ except where a line says otherwise.
 > and the engine's model are unrelated roles. The Pi-install weight no longer
 > applies to it.
 
+> **Tool calling, measured 2026-10-08:** how the cheap models do as an agent
+> on the product's tools, with steps and cost per reply, is
+> `ask-agent-findings.md`.
+
 **Two probe rounds, on different keys, and which one produced a finding matters
 when reading it.** The first used a **borrowed key** from another product on this
 machine (`limit` 10, not this product's ceiling): adequate for response shapes and

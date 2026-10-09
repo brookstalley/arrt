@@ -133,3 +133,68 @@ async def test_a_looping_model_is_stopped_at_the_budget(server_url):
     assert outcome.stopped_on_budget
     assert len(outcome.transcript.calls) <= 3
     assert "STOPPED" in str(outcome)
+
+
+async def test_a_scope_offers_only_its_tools_and_refuses_an_action_outside_it_unsent(server_url, ready_work, service):
+    """Ask's agent is offered whole definitions and refused what it may not do; the refusal must not reach the server."""
+    work = ready_work(title="The Starry Night")
+    model = ScriptedModel(
+        [
+            _call("art_catalogue", {"action": "archive", "artwork_id": work.id}),
+            _call("art_catalogue", {"action": "help"}, call_id="c2"),
+            _call("art_catalogue", {"action": "list"}, call_id="c3"),
+            AIMessage(content="Listed."),
+        ]
+    )
+
+    outcome = await drive(server_url, model, goal="Archive it.", budget=6, scope={"art_catalogue": frozenset({"list"})})
+
+    assert [tool["function"]["name"] for tool in model.offered_tools] == ["art_catalogue"]
+    assert [(call.action, call.succeeded) for call in outcome.transcript.calls] == [
+        ("archive", False),
+        ("help", True),
+        ("list", True),
+    ]
+    refusal = outcome.transcript.calls[0].payload["error"]
+    assert "not available here" in refusal
+    assert "art_catalogue(action='list')" in refusal
+    assert service.get_artwork(work.id).artwork.status == "accepted", "the refused archive reached the service"
+
+
+async def test_a_local_tool_runs_in_process_and_is_recorded(server_url):
+    from langchain_core.tools import tool
+
+    @tool
+    def web_search(query: str) -> str:
+        """Search the web."""
+        return f"1. A page about {query}"
+
+    model = ScriptedModel([_call("web_search", {"query": "Hunters in the Snow"}), AIMessage(content="Found it.")])
+
+    outcome = await drive(server_url, model, goal="Search.", budget=4, scope={}, local_tools=[web_search])
+
+    assert [(call.tool, call.action, call.succeeded) for call in outcome.transcript.calls] == [("web_search", "<local>", True)]
+    assert "A page about Hunters in the Snow" in str(model.prompts[-1])
+
+
+async def test_steps_and_cost_are_summed_and_an_uncosted_reply_is_counted(server_url):
+    costed = _call("art_catalogue", {"action": "list"})
+    costed.response_metadata = {"finish_reason": "tool_calls", "cost": 0.002}
+    final = AIMessage(content="Done.", response_metadata={"finish_reason": "stop"})
+    model = ScriptedModel([costed, final])
+
+    outcome = await drive(server_url, model, goal="List.", budget=4)
+
+    assert (outcome.steps, outcome.cost_usd, outcome.uncosted) == (2, 0.002, 1)
+    assert outcome.finish_reasons == ["tool_calls", "stop"]
+    assert not outcome.provider_failed
+
+
+async def test_a_provider_error_is_its_own_outcome_not_a_silent_model(server_url):
+    model = ScriptedModel([AIMessage(content="", response_metadata={"finish_reason": "error"})])
+
+    outcome = await drive(server_url, model, goal="List.", budget=4)
+
+    assert outcome.provider_failed
+    assert not outcome.answered
+    assert "the provider answered with an error" in str(outcome)

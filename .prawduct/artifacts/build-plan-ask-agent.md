@@ -85,10 +85,13 @@ and a wider tool set are later waves, each with its own plan when it starts.
   The coupling stays install-only by test, not by luck: chunk 03's guard. 3tears
   is pinned to an exact version. A SearXNG on the LAN is reached with
   `allow_private_addresses=True`, pinned to its one host by `allowed_hosts`
-  | owner, 2026-10-08 | owner can veto]
+  | owner, 2026-10-08 | owner can veto] *(Chunk 02: search reaches the LAN
+  instance without either; they are the fetch transport's, for `web_fetch`.)*
 - [ASSUMPTION: no SearXNG instance exists yet — none is found in the operator's
   homelab repo — so web search is optional and off until one is deployed and
-  configured by URL | MED impact | owner can point to one]
+  configured by URL | MED impact | owner can point to one] **Overturned
+  2026-10-08:** one runs on the operator's NAS, and Chunk 02 measured with it.
+  Web search stays optional, configured by URL.
 - [ASSUMPTION: the agent gets no display tools (`art_display`) in this wave;
   changing what is on a wall from Ask is a later decision | MED impact |
   owner can include them]
@@ -194,6 +197,32 @@ re-run.
 Done when: the measurements are recorded in an artifact, a default model is
 chosen from them and the choice recorded, and the step limit for 03 is set
 from the observed step counts.
+
+**Recorded at the chunk (2026-10-08):** the measurements, N, requests and both
+decisions are in `ask-agent-findings.md`. In short:
+
+- **Default model: `anthropic/claude-haiku-5.5`** (decision, owner can veto):
+  every request passed, 3 steps at most, about $0.003 and ~15 s a reply.
+  `qwen/qwen3.7-flash` was as reliable, cheaper and three times slower;
+  `deepseek/deepseek-v4-flash` ran into the call budget on open requests.
+- **Step limit for 03: 8 model replies** per curator reply (decision, owner can
+  veto), from observed maxima of 3 (haiku) and 7 (qwen).
+- **No model used web search in 55 runs.** Whether 03 ships it enabled is
+  left open in the findings.
+- **The MCP surface gained six read-only registry actions on `art_discovery`**
+  (`search`, `find_topics`, `artist`, `similar_artists`, `work`, `topic`), each
+  its route's twin field for field (`test_registry_tools.py`); `api-contract.md`
+  records them. `artist` on a held artist answers with their works rather
+  than "held" (`ArtistService.works_by_qid`).
+- **What 03 inherits from the harness:** the agent is offered whole tool
+  definitions and an action outside its scope is answered with a teaching error
+  and never run (`driver.py` `_outside`); the draft prompt and scope are
+  `ASK_SYSTEM` and `ASK_SCOPE` in `arrt/tests/eval/ask.py`. 03 moves them into
+  the server and keeps the eval pointing at them.
+- **Assumptions this overturned:** a SearXNG instance exists (the operator's
+  NAS), so the no-instance assumption above is stale; and the search half of
+  3tears' web search needs no `allow_private_addresses`, which belongs to the
+  fetch transport only.
 
 ### Chunk 03: Ask is one thread with an agent in it
 

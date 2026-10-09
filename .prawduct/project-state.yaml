@@ -3206,6 +3206,8 @@ artifact_manifest:
       depends_on: [clients, nonfunctional-requirements]
     - file_path: .prawduct/artifacts/apple-platform-findings.md
       depends_on: [feeds-and-players]
+    - file_path: .prawduct/artifacts/ask-agent-findings.md
+      depends_on: [product-brief, information-architecture, nonfunctional-requirements, api-contract, openrouter-api-findings]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
   # (Phase D) was authored 2026-07-20 and is registered above. The
   # structural-coverage advisory's named set was cleared 2026-07-20.

@@ -21,6 +21,7 @@ from typing import Any, Final
 from arrt.counting import agree, agree_partitive, counted
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+from arrt.library.registry import RegistryCreator
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome
 from arrt.library.services.display_fit import DisplayFit, FitAssessment
@@ -36,6 +37,7 @@ from arrt.library.services.review import (
 )
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.taste import AffinityView
+from arrt.library.services.twins import InReview
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
@@ -744,6 +746,206 @@ def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     )
 
 
+# -- the registry's pages, for an agent ------------------------------------------
+#
+# The pages a curator browses beside the library: what a few words find, an
+# artist, a work and a topic as Wikidata knows them, each row marked with what
+# the library holds of it. They had no twins while the only agent was an MCP
+# client with the library to read; Ask's agent finds art with them, so each
+# carries its route's field names (`test_registry_tools.py` compares them whole).
+
+
+def _in_review_fields(waiting: InReview | None) -> dict[str, str] | None:
+    return None if waiting is None else {"run_id": waiting.run_id, "candidate_work_id": waiting.candidate_work_id}
+
+
+def _creator_fields(creator: RegistryCreator, held: Mapping[str, str]) -> dict[str, Any]:
+    return {"qid": creator.qid, "name": creator.name, "artist_id": held.get(creator.qid)}
+
+
+def _registry_search(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/search?wide=true`: the results page's lists, which is what an agent searching wants."""
+    found = services.registry_search.search(arguments["q"], prefix=False, wide=True)
+    return ok(
+        state=str(found.state),
+        note=found.note,
+        artists=[
+            {
+                "qid": person.qid,
+                "name": person.label,
+                "born": person.born,
+                "died": person.died,
+                "artist_id": found.held_artists.get(person.qid),
+                "in_review": _in_review_fields(found.waiting_artists.get(person.qid)),
+            }
+            for person in found.artists
+        ],
+        works=[
+            {
+                "qid": work.qid,
+                "title": work.title,
+                "sitelinks": work.sitelinks,
+                "image": work.image,
+                "creator": None if work.creator is None else _creator_fields(work.creator, found.held_artists),
+                "held_artwork_ids": list(found.held_works.get(work.qid, ())),
+                "wanted": work.qid in found.wanted_works,
+                "in_review": _in_review_fields(found.waiting_works.get(work.qid)),
+            }
+            for work in found.works
+        ],
+    )
+
+
+def _registry_topics(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/topics?q=`."""
+    found = services.topics.named(arguments["q"])
+    return ok(
+        state=str(found.state),
+        note=found.note,
+        topics=[
+            {
+                "qid": topic.qid,
+                "label": topic.label,
+                "kinds": [kind.value for kind in topic.kinds],
+                "description": topic.description,
+                "start": topic.start,
+                "end": topic.end,
+            }
+            for topic in found.topics
+        ],
+    )
+
+
+def _registry_artist(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/artists/{qid}`, or for a held artist their own `/api/artists/{id}/registry`."""
+    held, view = services.artists.works_by_qid(arguments["qid"])
+    known = view.known
+    return ok(
+        state=str(view.state),
+        note=view.note,
+        qid=None if known is None else known.qid,
+        name=None if known is None else known.name,
+        born=None if known is None else known.born,
+        died=None if known is None else known.died,
+        artist_id=held,
+        description=None if known is None else known.description,
+        movements=[] if known is None else list(known.movements),
+        works=[
+            {
+                "qid": entry.qid,
+                "title": entry.title,
+                "year": entry.year,
+                "sitelinks": entry.sitelinks,
+                "image": entry.image,
+                "held_artwork_ids": list(view.held.get(entry.qid, ())),
+                "wanted": entry.qid in view.wanted,
+                "in_review": _in_review_fields(view.waiting.get(entry.qid)),
+            }
+            for entry in (() if known is None else known.works)
+        ],
+        works_total=0 if known is None else known.works_total,
+        holdings=[] if known is None else [{"qid": h.qid, "name": h.name, "works": h.works} for h in known.holdings],
+        candidates=[
+            {
+                "qid": candidate.person.qid,
+                "name": candidate.person.label,
+                "born": candidate.person.born,
+                "died": candidate.person.died,
+                "years_agree": candidate.years_agree,
+            }
+            for candidate in view.candidates
+        ],
+        unlinked=[
+            {"artist_id": artist.id, "name": artist.name, "born": artist.born, "died": artist.died} for artist in view.unlinked
+        ],
+    )
+
+
+def _people_fields(people: Sequence[Any], held: Mapping[str, str]) -> list[dict[str, Any]]:
+    """*Similar artists* rows, which a topic's artists share."""
+    return [
+        {"qid": p.qid, "name": p.name, "born": p.born, "died": p.died, "images": p.images, "artist_id": held.get(p.qid)}
+        for p in people
+    ]
+
+
+def _similar_artists(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/artists/{qid}/similar`."""
+    view = services.artists.similar(arguments["qid"])
+    return ok(state=str(view.state), note=view.note, artists=_people_fields(view.people, view.held))
+
+
+def _registry_work(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/works/{qid}`."""
+    qid = arguments["qid"]
+    view = services.registry_works.view(qid)
+    known = view.known
+    return ok(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        title=None if known is None else known.title,
+        year=None if known is None else known.year,
+        sitelinks=None if known is None else known.sitelinks,
+        image=None if known is None else known.image,
+        creators=[] if known is None else [_creator_fields(c, view.artists) for c in known.creators],
+        media=[] if known is None else list(known.media),
+        holders=[] if known is None else [{"qid": h.qid, "name": h.name, "inventory": h.inventory} for h in known.holders],
+        held_artwork_ids=list(view.held),
+        wanted=view.wanted,
+        height_cm=view.height_cm,
+        width_cm=view.width_cm,
+        image_width=None if view.image_size is None else view.image_size.width,
+        image_height=None if view.image_size is None else view.image_size.height,
+        fit=None if view.fit is None else _fit_fields(view.fit),
+    )
+
+
+def _registry_topic(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """A Topic page's registry half in one call: `/api/topics/{qid}/registry`, with `/works` and `/artists` inside.
+
+    Three calls composed, as the page makes them, each section keeping its own
+    `state`: a head Wikidata answered and works it could not list is an answer
+    worth having.
+    """
+    qid = arguments["qid"]
+    head = services.topics.topic(qid)
+    works = services.topics.works(qid)
+    artists = services.topics.artists(qid)
+    known = head.known
+    return ok(
+        state=str(head.state),
+        note=head.note,
+        qid=qid,
+        label=None if known is None else known.label,
+        kinds=[] if known is None else [kind.value for kind in known.kinds],
+        description=None if known is None else known.description,
+        start=None if known is None else known.start,
+        end=None if known is None else known.end,
+        works={
+            "state": str(works.state),
+            "note": works.note,
+            "complete": works.complete,
+            "works": [
+                {
+                    "qid": entry.work.qid,
+                    "title": entry.work.title,
+                    "sitelinks": entry.work.sitelinks,
+                    "year": entry.work.year,
+                    "image": entry.work.image,
+                    "creators": [_creator_fields(c, works.artists) for c in entry.work.creators],
+                    "creator_unknown": entry.work.creator_unknown,
+                    "state": str(entry.state),
+                    "held_artwork_ids": list(entry.held),
+                    "wanted": entry.wanted,
+                }
+                for entry in works.works
+            ],
+        },
+        artists={"state": str(artists.state), "note": artists.note, "artists": _people_fields(artists.people, artists.held)},
+    )
+
+
 def _image_sources(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     """Every installed source plugin, in `GET /api/sources`' field names (`test_surface_parity.py`)."""
     major, minor = API_VERSION
@@ -1379,6 +1581,12 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_discovery", "source_plugins"): _image_sources,
+    ("art_discovery", "search"): _registry_search,
+    ("art_discovery", "find_topics"): _registry_topics,
+    ("art_discovery", "artist"): _registry_artist,
+    ("art_discovery", "similar_artists"): _similar_artists,
+    ("art_discovery", "work"): _registry_work,
+    ("art_discovery", "topic"): _registry_topic,
     ("art_review", "list_works"): _list_candidate_works,
     ("art_review", "get_work"): _get_candidate_work,
     ("art_review", "list_images"): _list_candidate_images,

@@ -435,6 +435,22 @@ _RUN_ID_DESCRIPTION = (
     "A discovery run's id (a Get, in the curator's browser), as returned by action='start' or action='list_runs'."
 )
 
+#: One description for every art_discovery action taking an item, because the
+#: wire schema publishes only the first declaration of a name.
+_ITEM = Param(
+    name="qid",
+    type="string",
+    description="A Wikidata item id such as Q45585: the work, artist or topic the action names.",
+    required=True,
+)
+
+_REGISTRY_QUERY = Param(
+    name="q",
+    type="string",
+    description="A few words: a name, a title, or both.",
+    required=True,
+)
+
 _RUN_ID = Param(name="run_id", type="string", description=_RUN_ID_DESCRIPTION, required=True)
 
 #: The same parameter where it is optional, and its absence asks a wider question.
@@ -645,16 +661,9 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="look",
-            description=("Show what every image source holds of a work you do not hold, by its Wikidata item, before any Get."),
+            description="Show what every image source holds of a work, by its Wikidata item, before any Get.",
             example="art_discovery(action='look', qid='Q20267229')",
-            params=(
-                Param(
-                    name="qid",
-                    type="string",
-                    description="The work's Wikidata item, such as Q20267229.",
-                    required=True,
-                ),
-            ),
+            params=(_ITEM,),
             tips=(
                 (
                     "This spends nothing and records nothing: no run starts. Each source is asked what a Get would "
@@ -679,6 +688,95 @@ ART_DISCOVERY: Final = ToolRecord(
                     "A picture's facts carry the browser's names: width and height are art_review list_images' "
                     "estimated_width and estimated_height, fit.verdict its display_fit, and "
                     "fit.rendered_long_edge_inches its renders_at_inches, unrounded."
+                ),
+            ),
+        ),
+        Action(
+            name="search",
+            description="Find artists and works on Wikidata by a few words, marked where held.",
+            example="art_discovery(action='search', q='Hunters in the Snow')",
+            params=(_REGISTRY_QUERY,),
+            tips=(
+                (
+                    "Up to 10 artists, by Wikidata's name search, and 20 works of visual art, the most renowned first. "
+                    "Each artist and work carries its qid, which action='artist', action='work' and action='get' take."
+                ),
+                (
+                    "A row the library holds names it: an artist's artist_id, a work's held_artwork_ids. wanted and "
+                    "in_review say a work is already wanted, or waiting for the curator's verdict."
+                ),
+                "Words only reach Wikidata: search syntax is dropped, and under three letters nothing is asked.",
+                "Spends nothing. Every answer is kept a week, so asking again is free and fast.",
+            ),
+        ),
+        Action(
+            name="find_topics",
+            description="Find periods, movements, subjects and media on Wikidata by name.",
+            example="art_discovery(action='find_topics', q='surrealism')",
+            params=(_REGISTRY_QUERY,),
+            tips=(
+                "Each topic's qid is what action='topic' takes. A period carries its start and end years.",
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="artist",
+            description="Return an artist as Wikidata knows them, with their best-known works.",
+            example="art_discovery(action='artist', qid='Q5577')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "works are up to 50 by renown plus every work the library holds of theirs, works_total how many "
+                    "Wikidata lists; holdings the collections holding most of them. A work's qid is what "
+                    "action='get' takes."
+                ),
+                (
+                    "artist_id names the library's artist when it holds them, and their held works carry "
+                    "held_artwork_ids. Find an artist's qid with action='search'."
+                ),
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="similar_artists",
+            description="List artists who share a movement with this one.",
+            example="art_discovery(action='similar_artists', qid='Q5577')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "Up to 12, each with images, how many of their works have a free picture, so an artist nobody "
+                    "can supply shows as such; artist_id where the library holds them."
+                ),
+                "Spends nothing. Wikidata can take several seconds the first time; the answer is kept a week.",
+            ),
+        ),
+        Action(
+            name="work",
+            description="Return a work as Wikidata knows it: maker, date, holder and size.",
+            example="art_discovery(action='work', qid='Q45585')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "held_artwork_ids names the library's works that are this one. fit says how Wikidata's own "
+                    "picture would fill the wall; action='look' asks the image sources what they hold."
+                ),
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="topic",
+            description="Return a topic as Wikidata knows it, with its best-known works and artists.",
+            example="art_discovery(action='topic', qid='Q39427')",
+            params=(_ITEM,),
+            tips=(
+                ("This is Wikidata's half. art_catalogue(action='topic') is the library's: the held works in it."),
+                (
+                    "works and artists each carry their own state, since Wikidata can answer one and not the other. "
+                    "A work's state is held, image_found or no_image."
+                ),
+                (
+                    "Spends nothing, but a period's works can take Wikidata up to a minute the first time; the "
+                    "answer is kept a week."
                 ),
             ),
         ),
@@ -744,12 +842,10 @@ ART_DISCOVERY: Final = ToolRecord(
             # provenance, and one action name meaning two things across tools
             # would be read as one.
             name="source_plugins",
-            description=(
-                "List every installed image source plugin, most preferred first: the package and version it "
-                "came from, whether it loaded, and what it provides."
-            ),
+            description="List every installed image source plugin, most preferred first, and whether it loaded.",
             example="art_discovery(action='source_plugins')",
             tips=(
+                "Each plugin names the package and version it came from, and what it provides.",
                 (
                     "A plugin that declined is installed and not configured here; its reason names the setting "
                     "that would load it. One that failed could not be loaded, and its reason says why."
