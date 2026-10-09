@@ -94,6 +94,11 @@ two quiet reactions.
   asked or would not load says *Picture unavailable*, apart from *No picture*.
 - **"Not held" is gone**; a held work or artist says ● *In your library*.
 - A work card's *Get this work* stacks to the card's width.
+- **The curation plane pins Python 3.14** in `arrt/.python-version`, as its
+  image already did. Python 3.15 was released this week, and uv began choosing
+  it in CI to satisfy `requires-python = ">=3.14"`. `ormsgpack` 1.12.2 (through
+  `3tears-langgraph`) has no 3.15 wheel, and building it from source stops at
+  PyO3's 3.14 ceiling, so every curation job failed at install on PR #340.
 
 **Tests:** the two-fields test (declining vs. cool-and-open) moved from Ask's
 cards to Taste's rows, where the control still is; Ask's test now holds a card
