@@ -31,7 +31,7 @@ import asyncio
 import enum
 import logging
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -41,7 +41,7 @@ from arrt_player import heartbeat as heartbeat_module
 from arrt_player.config import WallSettings
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import DisplayReport, ScreenState
-from arrt_player.manifest import Manifest, Watcher
+from arrt_player.manifest import Feed, Manifest, Watcher
 
 log = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ class Display(Protocol):
 
 
 class Programme(Protocol):
-    """What should be on the wall, given the manifest."""
+    """What should be on the wall, given a manifest of the major it reads."""
 
     @property
     def pictures(self) -> Sequence[Picture]:
@@ -197,8 +197,8 @@ class Programme(Protocol):
     def current_work_id(self) -> str | None:
         """The work the wall is showing, as this wall last confirmed it."""
 
-    def adopt(self, manifest: Manifest) -> None:
-        """Take a new manifest."""
+    def adopt(self, manifest: Any) -> None:  # noqa: ANN401 -- each programme takes its own major's document
+        """Take a new manifest of this programme's major."""
 
     async def step(self, display: Display) -> None:
         """Change the wall if the programme says to."""
@@ -207,10 +207,24 @@ class Programme(Protocol):
 class Wall:
     """One wall, one display, one loop."""
 
-    def __init__(self, *, wall: WallSettings, display: Display, programme: Programme, watcher: Watcher, clock: Clock) -> None:
+    def __init__(
+        self,
+        *,
+        wall: WallSettings,
+        display: Display,
+        programmes: Mapping[int, Programme],
+        watcher: Watcher,
+        clock: Clock,
+    ) -> None:
         self._wall = wall
         self._display = display
-        self._programme = programme
+        #: One programme per manifest major, and the one whose major was adopted
+        #: last. **Each keeps its own state across a switch** — a wall moved from
+        #: major 2 back to major 1 resumes its rotation — and they share the
+        #: display's memory of what is on the wall, so a switch never re-shows the
+        #: work already there. The lowest major answers before any manifest.
+        self._programmes = programmes
+        self._programme = programmes[min(programmes)]
         self._watcher = watcher
         self._clock = clock
         self._heartbeat_at: float | None = None
@@ -274,6 +288,7 @@ class Wall:
         # must not stop the wall from *knowing* what it will show when it wakes.
         adopted = self._watcher.poll()
         if adopted is not None:
+            self._programme = self._programmes[adopted.schema_major]
             self._programme.adopt(adopted)
             self._display.adopted(self._programme.pictures)
 
@@ -300,7 +315,7 @@ class Wall:
         self._beat(manifest=manifest, reachable=True)
         return self._wall.poll_interval_seconds
 
-    def _beat(self, *, manifest: Manifest | None, reachable: bool | None) -> None:
+    def _beat(self, *, manifest: Manifest | Feed | None, reachable: bool | None) -> None:
         """Write the heartbeat once per interval, and at once when the display state changed.
 
         **Rate-limited here rather than by the caller**, so every path through

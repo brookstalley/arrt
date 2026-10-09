@@ -50,7 +50,7 @@ from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSet
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import path_in as heartbeat_path_in
 from arrt_player.label_rule import LabelDocument, LabelDocumentUnreadable, parse_label_document
-from arrt_player.manifest import ManifestUnreadable, parse
+from arrt_player.manifest import MEDIA_DIRNAME, Feed, ManifestUnreadable, parse
 
 log = logging.getLogger(__name__)
 
@@ -66,8 +66,6 @@ LABEL_ROUTE: Final[str] = "/labels/{label_id}"
 ETAG_FILENAME: Final[str] = "manifest.etag"
 #: Beside the cached client document, for the same reason.
 CLIENT_ETAG_FILENAME: Final[str] = ".client.etag"
-#: Renders, named by the SHA-256 of their bytes.
-MEDIA_DIRNAME: Final[str] = "media"
 
 _SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
 
@@ -192,7 +190,7 @@ class Pull:
 
         try:
             text = body.decode("utf-8")
-            parse(
+            parsed = parse(
                 text,
                 rotation_interval_fallback=self._settings.rotation_interval_fallback_seconds,
                 shuffle_fallback=self._settings.rotation_shuffle_fallback,
@@ -211,6 +209,9 @@ class Pull:
             return _Poll.ANSWERED
         if self._unreadable.end():
             log.info("the server's manifest can be read again", extra={"event": "pull.manifest_readable"})
+
+        if isinstance(parsed, Feed):
+            return await self._adopt_feed(session, parsed, document, served_etag)
 
         offered = document.get("entries", [])
         cached_entries = []
@@ -249,6 +250,48 @@ class Pull:
             len(offered),
             kept,
             extra={"event": "pull.adopted", "entries": len(cached_entries)},
+        )
+        return _Poll.ANSWERED
+
+    async def _adopt_feed(
+        self, session: aiohttp.ClientSession, feed: Feed, document: dict[str, Any], served_etag: str | None
+    ) -> _Poll:
+        """Cache a major 2 feed's media, then the feed itself, whole.
+
+        **Kept whole, unlike a major 1 manifest, whose entries without a render
+        are left out**: every work the schedule names must be a key of `works`
+        (`player-contract.md` § Rules a schema cannot state), so dropping one
+        would cache a document this reader refuses. A work whose media could not
+        be had stays in the feed, and the programme skips it until its file is
+        here. Every work the feed carries is fetched, staged ones included, so a
+        scene is a switch rather than a download.
+        """
+        for work in feed.works.values():
+            outcome = await self._cache_media(
+                session, {"work_id": work.work_id, "media": {"sha256": work.sha256, "url": work.url}}
+            )
+            if isinstance(outcome, _Retry):
+                if self._media_failing.begin():
+                    log.warning(
+                        "a work's media for this wall could not be fetched (%s); keeping the manifest already cached",
+                        outcome.why,
+                        extra={"event": "pull.media_failing"},
+                    )
+                return _Poll.MEDIA_FAILING
+        if self._media_failing.end():
+            log.info("renders for this wall arrive again", extra={"event": "pull.media_ok"})
+        previous = self._cached_render_names()
+        _write_atomically(self._cache / CACHED_MANIFEST_FILENAME, json.dumps(document, indent=2).encode("utf-8"))
+        if served_etag:
+            _write_atomically(self._cache / ETAG_FILENAME, served_etag.encode("utf-8"))
+        held = {Path(work.media_path).name for work in feed.works.values() if (self._cache / work.media_path).is_file()}
+        kept = self._evict(held | previous)
+        log.info(
+            "cached the feed for this wall with %d of %d works' media; %d held",
+            len(held),
+            len(feed.works),
+            kept,
+            extra={"event": "pull.adopted", "works": len(feed.works), "media_held": len(held)},
         )
         return _Poll.ANSWERED
 
@@ -310,6 +353,13 @@ class Pull:
             cached = json.loads((self._cache / CACHED_MANIFEST_FILENAME).read_text(encoding="utf-8"))
         except (FileNotFoundError, ValueError):
             return set()
+        if isinstance(cached.get("works"), dict):
+            # A major 2 feed: each work's media, by the name the pull gives it.
+            return {
+                f"sha256-{work['media']['sha256']}"
+                for work in cached["works"].values()
+                if isinstance(work, dict) and isinstance(work.get("media"), dict) and isinstance(work["media"].get("sha256"), str)
+            }
         return {Path(entry["render_path"]).name for entry in cached.get("entries", []) if "render_path" in entry}
 
     def _cached_etag(self) -> str | None:

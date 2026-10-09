@@ -7,10 +7,14 @@ Those are the rules the reader enforces rather than trusts. The other invalid
 fixtures break writer obligations the reader deliberately tolerates, and they
 are not asserted here in either direction.
 
-**`major-2` is the one to watch.** It must be refused as an *unsupported
-version*, not as a malformed document, because that is the cutover rule schema
-major 2 relies on: a Player that has not been upgraded keeps its wall rather than
-misreading the new shape.
+**This reader reads majors 1 and 2**, so every valid fixture of either is
+adopted whole and every one either index row marks `player_must_refuse` is
+refused. **A major it does not read must be refused as an *unsupported
+version***, not as a malformed document, because that is the cutover rule each
+new major relies on: a Player that has not been upgraded keeps its wall rather
+than misreading the new shape, and says "upgrade this Player" rather than
+"debug the server". Major 3 stands in for that future major, built from a
+valid major 2 fixture.
 
 The heartbeat runs the other way: what `Health.document()` writes must validate
 against the contract's heartbeat schema, for a Player mid-flight and for one
@@ -50,9 +54,10 @@ from arrt_player.label_rule import STATES, LabelDocumentUnreadable, Outcome, out
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
 MANIFESTS = [row for row in INDEX if row["schema"] == "schemas/manifest.v1.schema.json"]
+FEEDS = [row for row in INDEX if row["schema"] == "schemas/manifest.v2.schema.json"]
 
 
-def _parse(row: dict) -> manifest.Manifest:
+def _parse(row: dict) -> "manifest.Manifest | manifest.Feed":
     text = (CONTRACT / row["path"]).read_text(encoding="utf-8")
     return manifest.parse(text, rotation_interval_fallback=180, shuffle_fallback=False)
 
@@ -63,7 +68,7 @@ _UNUSED_INTERVAL = 7919
 
 
 @pytest.mark.parametrize("row", [row for row in MANIFESTS if row["valid"]], ids=lambda row: row["path"])
-def test_every_valid_manifest_in_the_contract_is_adopted_whole(row):
+def test_every_valid_major_1_manifest_in_the_contract_is_adopted_whole(row):
     """Every field the Player acts on, read from the document rather than defaulted.
 
     The fallbacks are ones no fixture carries, the shuffle one set against each
@@ -92,41 +97,102 @@ def test_every_valid_manifest_in_the_contract_is_adopted_whole(row):
 
 @pytest.mark.parametrize(
     "row",
-    [row for row in MANIFESTS if not row["valid"] and row["player_must_refuse"]],
+    [row for row in MANIFESTS + FEEDS if not row["valid"] and row["player_must_refuse"]],
     ids=lambda row: row["path"],
 )
-def test_every_manifest_the_contract_says_to_refuse_is_refused(row):
-    with pytest.raises(manifest.ManifestUnreadable):
+def test_every_manifest_the_contract_says_to_refuse_is_refused_for_the_rule_its_name_gives(row):
+    """For its own rule, not any: a fixture refused by some other check would pass while its rule went unenforced."""
+    name = row["path"].rsplit("/", 1)[1]
+    assert name in _REFUSED_BECAUSE, f"{row['path']} is to be refused, and this test does not say for what"
+
+    with pytest.raises(manifest.ManifestUnreadable, match=_REFUSED_BECAUSE[name]):
         _parse(row)
 
 
-def test_a_future_major_is_refused_as_a_version_not_as_a_malformed_document():
-    (row,) = [row for row in MANIFESTS if row["path"].endswith("/major-2.json")]
+#: Why each fixture the index marks `player_must_refuse` is refused, as the
+#: reader says it. Keyed by filename, which names the one rule the fixture breaks.
+_REFUSED_BECAUSE = {
+    # major 1
+    "boolean-directive-sequence.json": "directive carries no integer sequence",
+    "entries-not-a-list.json": "carries no entries list",
+    "entry-empty-work-id.json": "entry 0 carries no work_id",
+    "entry-missing-render-path.json": "carries no render_path",
+    # A major 2 document shaped like major 1: read as a feed, and refused as one.
+    "major-2.json": "carries no works object",
+    "missing-directive-sequence.json": "directive carries no integer sequence",
+    "pinned-work-id-not-a-string.json": "pinned_work_id is a int",
+    # major 2
+    "horizon-not-whole-days.json": "not a whole number of days",
+    "horizon-of-no-length.json": "not a whole number of days",
+    # A major 1 document under a major 2 schema: read as major 1, and refused as one.
+    "major-1.json": "carries no entries list",
+    "scene-ends-before-it-starts.json": "the scene ends before it starts",
+    "scene-names-a-work-not-in-works.json": "names a work that is not in its works",
+    "slot-ends-before-it-starts.json": "a slot ends before it starts",
+    "slot-missing-until.json": "slot 0's until is missing",
+    "slot-names-a-work-not-in-works.json": "names a work that is not in its works",
+    "slot-outside-the-horizon.json": "a slot falls outside the horizon",
+    "slot-starts-before-the-horizon.json": "a slot falls outside the horizon",
+    "slots-overlap.json": "the slots overlap or run out of order",
+    "staging-names-a-work-not-in-works.json": "names a work that is not in its works",
+}
 
-    with pytest.raises(manifest.ManifestVersionUnsupported) as refused:
-        _parse(row)
 
-    assert refused.value.major == 2
+@pytest.mark.parametrize("row", [row for row in FEEDS if row["valid"]], ids=lambda row: row["path"])
+def test_every_valid_major_2_feed_in_the_contract_is_adopted_whole(row):
+    """Every field the Player acts on, read from the document: the works, the schedule, the scene and staging."""
+    document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+
+    adopted = _parse(row)
+
+    assert isinstance(adopted, manifest.Feed)
+    assert (adopted.schema_major, adopted.schema_minor) == (2, document["schema"]["minor"])
+    assert (adopted.playlist_id, adopted.playlist_name) == (document["playlist"]["id"], document["playlist"]["name"])
+    assert {work_id: (work.sha256, work.url, work.label) for work_id, work in adopted.works.items()} == {
+        work_id: (work["media"]["sha256"], work["media"]["url"], work["label"]) for work_id, work in document["works"].items()
+    }
+    horizon = document["schedule"]["horizon"]
+    assert (adopted.horizon_start, adopted.horizon_until) == (_at(horizon["from"]), _at(horizon["until"]))
+    assert [(slot.work_id, slot.start, slot.until) for slot in adopted.slots] == [
+        (slot["work_id"], _at(slot["from"]), _at(slot["until"])) for slot in document["schedule"]["slots"]
+    ]
+    scene = document.get("scene")
+    if scene is None:
+        assert adopted.scene is None
+    else:
+        assert adopted.scene == manifest.Scene(
+            scene_id=scene["id"],
+            work_id=scene["work_id"],
+            start=_at(scene["from"]),
+            until=None if scene["until"] is None else _at(scene["until"]),
+        )
+    assert adopted.staging == tuple(document.get("staging", []))
+    assert adopted.settings == document.get("settings", {})
 
 
 @pytest.mark.parametrize(
     "row",
-    [row for row in INDEX if row["schema"] == "schemas/manifest.v2.schema.json" and row["valid"]],
+    [row for row in FEEDS if not row["valid"] and not row["player_must_refuse"]],
     ids=lambda row: row["path"],
 )
-def test_every_major_2_manifest_is_refused_by_this_major_1_reader(row):
-    """The cutover, pinned from the Player's side for every shape major 2 can take.
+def test_a_feed_that_breaks_only_a_writer_obligation_is_still_adopted(row):
+    """The index's `false` is a promise too: a setting this Player cannot honour costs a setting, never the wall."""
+    assert isinstance(_parse(row), manifest.Feed)
 
-    The server serves each major at its own URL, but a document of the wrong
-    major can still reach this reader (an unversioned route, a cache, a server
-    misconfigured). A Player not yet upgraded must keep its wall rather than
-    misread a document with no entries list, and it must say why in terms of the
-    version, so the fix is "upgrade this Player" rather than "debug the server".
-    """
+
+def test_a_future_major_is_refused_as_a_version_not_as_a_malformed_document():
+    (row,) = [row for row in FEEDS if row["path"].endswith("/channel-feed.json")]
+    document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
+    document["schema"]["major"] = 3
+
     with pytest.raises(manifest.ManifestVersionUnsupported) as refused:
-        _parse(row)
+        manifest.parse(json.dumps(document), rotation_interval_fallback=180, shuffle_fallback=False)
 
-    assert refused.value.major == 2
+    assert refused.value.major == 3
+
+
+def _at(instant: str) -> datetime:
+    return datetime.fromisoformat(instant)
 
 
 def _heartbeat_errors(document: dict) -> list[str]:

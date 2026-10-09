@@ -25,6 +25,7 @@ from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import ScreenState
 from arrt_player.manifest import Watcher
 from arrt_player.programmes.rotation import InMemory, Rotation
+from arrt_player.programmes.schedule import Schedule
 from arrt_player.wall import Clock, DisplayRecord, Picture, Shown, Wall
 
 log = logging.getLogger(__name__)
@@ -71,13 +72,17 @@ def screen_wall(
     clock: Clock,
     rng: random.Random | None = None,
 ) -> Wall:
-    """A wall on a screen this host draws: the shared loop, this driver, and major 1's rotation kept in memory."""
+    """A wall on a screen this host draws: the shared loop, this driver, and a programme per major, remembering in memory."""
+    memory = InMemory()
     return Wall(
         wall=wall,
         display=ScreenDisplay(wall=wall, output=output, clock=clock),
-        programme=Rotation(
-            wall_id=wall.wall_id, render_root=wall.render_root, memory=InMemory(), clock=clock, rng=rng, say_missing_once=True
-        ),
+        programmes={
+            1: Rotation(
+                wall_id=wall.wall_id, render_root=wall.render_root, memory=memory, clock=clock, rng=rng, say_missing_once=True
+            ),
+            2: Schedule(wall_id=wall.wall_id, render_root=wall.render_root, memory=memory, clock=clock),
+        },
         watcher=watcher,
         clock=clock,
     )

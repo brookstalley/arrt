@@ -441,9 +441,15 @@ upgraded on demand).
   major down that it reads. It treats the wall as misconfigured only when every
   major it reads answers `404`. A Player may keep the major that last answered
   and ask for a higher one less often than it polls.
-- **A major 1 Player refuses a major 2 document** as an unsupported version and
-  keeps its wall, as it refuses any unknown major. Arrt Player's suite pins that
-  refusal for every major 2 fixture.
+- **A Player refuses a major it does not read** as an unsupported version and
+  keeps its wall, as a major 1 Player refuses a major 2 document. Since wave 4c
+  Arrt Player reads majors 1 and 2: its suite adopts every valid fixture of
+  both whole, refuses every invalid one the index marks `player_must_refuse`
+  (for major 2, never one that breaks only a presentation setting), and pins
+  the version refusal with a major 3 document. *(Amended 2026-10-09, wave 4c:
+  this said the suite pins a refusal of every major 2 fixture, which is the
+  rule for a major 1 reader; `build-plan-wave-4c-wall-loop.md` records the
+  decision.)*
 - **For a home wall, the server serves each major it still builds and retires
   one once no heartbeat lists it in `manifest_majors`.** So wave 4 upgrades the
   Players first, and the server stops building major 1, and with it the

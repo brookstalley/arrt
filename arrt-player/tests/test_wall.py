@@ -107,7 +107,7 @@ def display(clock) -> ThirdDisplay:
 def wall(wall_settings, display, clock) -> Wall:
     watcher = Watcher(wall_settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
     programme = Rotation(wall_id=WALL_ID, render_root=wall_settings.render_root, memory=InMemory(), clock=clock.as_clock())
-    return Wall(wall=wall_settings, display=display, programme=programme, watcher=watcher, clock=clock.as_clock())
+    return Wall(wall=wall_settings, display=display, programmes={1: programme}, watcher=watcher, clock=clock.as_clock())
 
 
 def heartbeat(wall_settings) -> dict:

@@ -10,7 +10,7 @@ from conftest import WALL_ID, write_manifest
 
 from arrt_player.config import CACHED_MANIFEST_FILENAME
 from arrt_player.manifest import (
-    SUPPORTED_SCHEMA_MAJOR,
+    SUPPORTED_SCHEMA_MAJORS,
     ManifestUnreadable,
     ManifestVersionUnsupported,
     Watcher,
@@ -56,12 +56,12 @@ class TestParsing:
         reader should not be reading it sends whoever finds the line looking for a
         bug in the writer.
         """
-        future = {"schema": {"major": SUPPORTED_SCHEMA_MAJOR + 1, "minor": 0}, "everything": "else"}
+        future = {"schema": {"major": max(SUPPORTED_SCHEMA_MAJORS) + 1, "minor": 0}, "everything": "else"}
 
         with pytest.raises(ManifestVersionUnsupported) as refusal:
             parse(json.dumps(future), **FALLBACKS)
 
-        assert refusal.value.major == SUPPORTED_SCHEMA_MAJOR + 1
+        assert refusal.value.major == max(SUPPORTED_SCHEMA_MAJORS) + 1
 
     def test_an_unknown_minor_is_accepted_because_additive_changes_are_free(self):
         document = a_document(schema={"major": 1, "minor": 99})
@@ -353,3 +353,39 @@ async def test_a_daemon_whose_wall_has_no_manifest_shows_nothing_rather_than_som
 
 def _entry(work_id: str) -> dict:
     return {"work_id": work_id, "render_path": f"ready/{work_id}.jpg", "label": {"title": work_id}}
+
+
+# -- major 2: the rules a Player acts on that no contract fixture breaks ----------------
+
+
+def _a_feed() -> dict:
+    """The contract's scene-preview feed: a valid major 2 document to break one rule of."""
+    contract = Path(__file__).resolve().parents[2] / "contract"
+    return json.loads((contract / "fixtures" / "manifest.v2" / "valid" / "scene-preview.json").read_text(encoding="utf-8"))
+
+
+def _parse_feed(document: dict):
+    return parse(json.dumps(document), rotation_interval_fallback=180, shuffle_fallback=False)
+
+
+def test_a_feed_with_an_instant_of_no_offset_is_refused():
+    """A time with no offset is the one a Player could only guess the zone of (`player-contract.md` § Time)."""
+    document = _a_feed()
+    slot = document["schedule"]["slots"][0]
+    slot["from"] = slot["from"].removesuffix("+00:00").removesuffix("Z")
+    assert _parse_feed(_a_feed()) is not None, "the untouched fixture is not a valid feed"
+
+    with pytest.raises(ManifestUnreadable, match="offset"):
+        _parse_feed(document)
+
+
+def test_a_scene_that_does_not_say_until_is_refused_and_one_held_with_null_is_not():
+    """Null holds the scene until it is released; a missing `until` is a document that forgot to say."""
+    held = _a_feed()
+    held["scene"]["until"] = None
+    assert _parse_feed(held).scene.until is None
+
+    forgot = _a_feed()
+    del forgot["scene"]["until"]
+    with pytest.raises(ManifestUnreadable, match="until"):
+        _parse_feed(forgot)

@@ -235,3 +235,43 @@ class ServerDouble:
             document["entries"].append(entry)
         self.manifests[wall_id or self._default_wall] = document
         return document
+
+    def publish_feed(
+        self,
+        slots: list[tuple[str, str, str]],
+        *,
+        staging: tuple[str, ...] = (),
+        wall_id: str | None = None,
+        media: dict[str, bytes] | None = None,
+    ) -> dict:
+        """A one-day major 2 feed for one wall, each work's master held behind its hash.
+
+        `slots` are (work, from, until) as full RFC 3339 instants on 2026-06-21,
+        the test clock's day. `media` overrides a work's bytes; a work whose
+        bytes are given as b"" is published with a hash but nothing held for it.
+        """
+        works: dict[str, dict] = {}
+        for work_id in dict.fromkeys([work for work, _, _ in slots] + list(staging)):
+            data = (media or {}).get(work_id, f"the master of {work_id}".encode())
+            sha = hashlib.sha256(data or work_id.encode()).hexdigest()
+            if data:
+                self.media[sha] = data
+            works[work_id] = {
+                "media": {"url": f"/media/sha256-{sha}", "sha256": sha, "bytes": len(data), "content_type": "image/jpeg"},
+                "mat_color": "#222222",
+                "label": {"title": f"Title of {work_id}"},
+            }
+        document = {
+            "schema": {"major": 2, "minor": 0},
+            "generated_at": "2026-06-21T00:00:00+00:00",
+            "playlist": {"id": "pl-1", "name": "A playlist"},
+            "works": works,
+            "schedule": {
+                "horizon": {"from": "2026-06-21T00:00:00+00:00", "until": "2026-06-22T00:00:00+00:00"},
+                "slots": [{"work_id": work, "from": start, "until": until} for work, start, until in slots],
+            },
+            "scene": None,
+            "staging": list(staging),
+        }
+        self.manifests[wall_id or self._default_wall] = document
+        return document

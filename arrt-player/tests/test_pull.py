@@ -28,7 +28,7 @@ from server_double import MANIFEST_FIXTURE as FIXTURE
 from server_double import ServerDouble as Stub
 
 from arrt_player.displays.frame import frame_wall
-from arrt_player.manifest import Watcher
+from arrt_player.manifest import Feed, Watcher
 from arrt_player.pull import (
     CLIENT_HEARTBEAT_ROUTE,
     CLIENT_ROUTE,
@@ -128,6 +128,66 @@ async def test_a_new_manifest_is_cached_only_with_its_renders_verified(pull, stu
     assert [entry["label"] for entry in cached["entries"]] == [entry["label"] for entry in published["entries"]]
     adopted = _watcher(http_settings).poll()
     assert [entry.work_id for entry in adopted.entries] == ["w1", "w2"]
+
+
+async def test_a_feed_is_cached_whole_with_every_works_media_verified(pull, stub, session, http_settings):
+    """Staged works included, so applying a scene is a switch rather than a download."""
+    published = stub.publish_feed([("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")], staging=("w7",))
+
+    assert await pull.cycle(session) is True
+
+    assert _cached(http_settings) == published, "a feed is cached as the server sent it"
+    for work in published["works"].values():
+        held = http_settings.wall_dir / MEDIA_DIRNAME / f"sha256-{work['media']['sha256']}"
+        assert hashlib.sha256(held.read_bytes()).hexdigest() == work["media"]["sha256"]
+    adopted = _watcher(http_settings).poll()
+    assert isinstance(adopted, Feed)
+    assert sorted(adopted.works) == ["w1", "w7"]
+
+
+async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(pull, stub, session, http_settings):
+    """Every work the schedule names stays in the feed; the one with no good media is the programme's to skip.
+
+    The server holds bytes for w2 that do not match its hash, the failure the
+    hash exists to catch.
+    """
+    published = stub.publish_feed(
+        [
+            ("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00"),
+            ("w2", "2026-06-21T13:00:00+00:00", "2026-06-21T18:00:00+00:00"),
+        ],
+    )
+    stub.media[published["works"]["w2"]["media"]["sha256"]] = b"not the master that was hashed"
+
+    assert await pull.cycle(session) is True
+
+    assert _cached(http_settings) == published
+    assert _held(http_settings) == {f"sha256-{published['works']['w1']['media']['sha256']}"}
+
+
+async def test_a_feeds_media_that_cannot_be_fetched_keeps_the_manifest_already_cached(pull, stub, session, http_settings):
+    stub.publish("w1")
+    assert await pull.cycle(session) is True
+    stub.publish_feed([("w2", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    stub.media_status = 503
+
+    assert await pull.cycle(session) is False
+
+    assert "entries" in _cached(http_settings), "a feed was cached without its media"
+
+
+async def test_a_feeds_media_is_evicted_once_two_documents_in_a_row_have_not_named_it(pull, stub, session, http_settings):
+    first = stub.publish_feed([("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    await pull.cycle(session)
+    stub.publish_feed([("w2", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    await pull.cycle(session)
+    w1 = f"sha256-{first['works']['w1']['media']['sha256']}"
+    assert w1 in _held(http_settings), "the media the feed being replaced names went at once"
+
+    stub.publish_feed([("w3", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    await pull.cycle(session)
+
+    assert w1 not in _held(http_settings)
 
 
 async def test_nothing_is_cached_while_a_render_cannot_be_fetched(pull, stub, session, http_settings):

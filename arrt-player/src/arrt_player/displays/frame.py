@@ -40,6 +40,7 @@ from arrt_player.heartbeat import DisplayReport, ScreenState
 from arrt_player.logs import work_context
 from arrt_player.manifest import Watcher
 from arrt_player.programmes.rotation import Rotation
+from arrt_player.programmes.schedule import Schedule
 from arrt_player.state import Binding, DisplayState, UploadStatus
 from arrt_player.tv import (
     PowerStateUnreadable,
@@ -64,11 +65,14 @@ def frame_wall(
     clock: Clock,
     rng: random.Random | None = None,
 ) -> Wall:
-    """A wall on the Frame: the shared loop, this driver, and major 1's rotation remembered in the store."""
+    """A wall on the Frame: the shared loop, this driver, and a programme per major, remembering in the store."""
     return Wall(
         wall=settings,
         display=FrameDisplay(settings=settings, tv=tv, state=state, clock=clock),
-        programme=Rotation(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock, rng=rng),
+        programmes={
+            1: Rotation(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock, rng=rng),
+            2: Schedule(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock),
+        },
         watcher=watcher,
         clock=clock,
     )
