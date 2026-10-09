@@ -498,6 +498,22 @@ class TestWhatTheRunBroughtBack:
         assert view["tally"]["proposed"] == 3
         assert view["tally"]["total"] == view["tally"]["proposed"] + view["tally"]["offered"]
 
+    def test_an_offered_work_arrives_saying_which_query_and_which_museum_offered_it(self, http):
+        """Through the route the Get page reads: the offer's facts, not just their keys.
+
+        A Get's page names the museum from `offered_by` and groups by
+        `offered_for_artist`; a route that dropped them would send every
+        offered work under "the collection" while each model test still passed.
+        """
+        run_id = http.post("/api/runs", json={"intent": "Dalí"}).json()["run_id"]
+        view = self.finished(http, run_id)
+
+        (offered,) = [work for work in view["works"] if work["provenance"] == "offered"]
+        assert offered["offered_by"] == "artic"
+        assert offered["offered_for_artist"] == "Salvador Dalí"
+        assert isinstance(offered["offered_artist_matched"], int)
+        assert all(work["offered_by"] is None for work in view["works"] if work["provenance"] != "offered")
+
     def test_the_resolution_numerator_counts_proposals_and_never_subtracts(self, http):
         """`resolved_proposals` is a direct count, and this is why it has to be.
 

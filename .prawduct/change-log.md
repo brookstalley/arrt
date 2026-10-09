@@ -84,7 +84,10 @@
 **Tests:** `test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture_changes`
 and `test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection`
 failed first; `test_an_offered_work_carries_which_query_produced_it_and_how_many_it_matched`
-asserts `offered_by`, and the proposed-work test asserts it null. A commit-card
+asserts `offered_by`, and the proposed-work test asserts it null.
+`test_an_offered_work_arrives_saying_which_query_and_which_museum_offered_it`
+asserts the offer's facts through `/api/runs/{id}`, the route the page reads,
+and failed with `offered_by` dropped from the route. A commit-card
 assertion that could not fail (`"Get" in card`) is deleted; the caption test
 holds what it meant to.
 
