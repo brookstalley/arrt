@@ -22,12 +22,15 @@ from pathlib import Path
 import aiohttp
 import pytest
 from aiohttp.test_utils import TestServer
-from conftest import WALL_ID
+from conftest import WALL_ID, tick_until
+from fakes import RecordingOutput
+from PIL import Image
 from server_double import CONTRACT, ROUTES, TOKEN
 from server_double import MANIFEST_FIXTURE as FIXTURE
 from server_double import ServerDouble as Stub
 
 from arrt_player.displays.frame import frame_wall
+from arrt_player.displays.screen import screen_wall
 from arrt_player.manifest import REQUESTED_MAJORS, Feed, Watcher
 from arrt_player.pull import (
     CLIENT_HEARTBEAT_ROUTE,
@@ -696,3 +699,19 @@ async def test_a_wall_the_server_stops_publishing_for_forgets_which_major_answer
     await pull.cycle(session)
 
     assert stub.majors_requested == [2, 1, 1, 2, 1, 2, 1]
+
+
+async def test_a_feed_pulled_from_the_server_reaches_a_screen_composed(two_major_pull, stub, session, http_settings, clock):
+    """End to end: v2 asked for and served, its masters cached, each composed for the screen, and the slot's work drawn."""
+    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    assert await two_major_pull.cycle(session) is True
+    output = RecordingOutput(screen=(1280, 720))
+    wall = screen_wall(wall=http_settings, output=output, watcher=_watcher(http_settings), clock=clock.as_clock())
+
+    await tick_until(wall.tick, lambda: len(output.shown) == 1)
+
+    (shown,) = output.shown
+    assert shown.parent == http_settings.composed_root, "the master itself was drawn, not its composition"
+    with Image.open(shown) as picture:
+        assert picture.size == (1280, 720)
+    assert stub.majors_requested == [2]

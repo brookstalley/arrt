@@ -618,8 +618,9 @@ class FrameDisplay:
                 continue
             if not picture.path.is_file():
                 # Not a failure to record: nothing was attempted, and writing a
-                # `failed` row for a file curation has not produced yet would make
-                # the store report an upload problem for a preparation one.
+                # `failed` row for a file not there yet (a major 1 render the pull
+                # has not cached, or a major 2 work this Player has not composed)
+                # would make the store report an upload problem for a preparation one.
                 continue
             with work_context(picture.work_id):
                 await self._upload(picture)

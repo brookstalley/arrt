@@ -327,20 +327,27 @@ class Schedule:
             planned = self._plan(work_id)
             if planned is None or planned.composed in skip or not self._owed(planned):
                 continue
-            task = asyncio.create_task(
-                asyncio.to_thread(
-                    self._composer,
-                    planned.master,
-                    master_sha256=planned.sha256,
-                    mat_color=planned.mat_color,
-                    mode=self._mode(),
-                    geometry=geometry,
-                    directory=self._composed_root,
-                ),
-                name=f"compose:{self._wall_id}:{work_id}",
-            )
+            # The task and its thread copy the context they are started in, so
+            # every line the composition logs names its work.
+            with work_context(work_id):
+                task = self._start(planned, geometry)
             self._composing = (task, planned)
             return
+
+    def _start(self, planned: _Planned, geometry: Geometry) -> asyncio.Task[Path]:
+        """Run this work's composition in a thread, as a task the loop finds finished on a later pass."""
+        return asyncio.create_task(
+            asyncio.to_thread(
+                self._composer,
+                planned.master,
+                master_sha256=planned.sha256,
+                mat_color=planned.mat_color,
+                mode=self._mode(),
+                geometry=geometry,
+                directory=self._composed_root,
+            ),
+            name=f"compose:{self._wall_id}:{planned.work_id}",
+        )
 
     def _owed(self, planned: _Planned) -> bool:
         """Whether this work still needs composing: its master is here, its picture is not, and it has not just failed."""
@@ -368,12 +375,13 @@ class Schedule:
             reason, event = f"its picture could not be written ({exc})", "schedule.compose_write_failed"
         else:
             reason, event = f"composing it failed ({exc!r})", "schedule.compose_failed"
-        log.warning(
-            "cannot show %s: %s",
-            planned.work_id,
-            reason,
-            extra={"event": event, "wall_id": self._wall_id, "render_path": str(planned.master)},
-        )
+        with work_context(planned.work_id):
+            log.warning(
+                "cannot show %s: %s",
+                planned.work_id,
+                reason,
+                extra={"event": event, "wall_id": self._wall_id, "render_path": str(planned.master)},
+            )
 
     def _tidy(self) -> None:
         """Remove composed files no work of this feed composes to on this display, and any half-written one.

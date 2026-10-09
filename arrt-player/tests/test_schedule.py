@@ -555,3 +555,20 @@ async def test_a_directory_inside_the_composed_one_is_left_alone(schedule, displ
     assert (media_root / "composed" / "a-directory").is_dir()
     assert display.shown() == ["w1"]
     assert "schedule.tidy_failed" not in [record.__dict__.get("event") for record in caplog.records]
+
+
+async def test_every_line_a_composition_logs_names_its_work(schedule, display, media_root, caplog):
+    """`observability-strategy.md` § Correlation: a work's journal is one filter on its id, the thread's lines included."""
+    from arrt_player.logs import WorkCorrelationFilter
+
+    caplog.handler.addFilter(WorkCorrelationFilter())
+    caplog.set_level("INFO")
+    cache(media_root, "w1")
+    (media_root / "media" / f"sha256-{_sha('w2')}").write_bytes(b"not a picture")
+    schedule.adopt(_feed(feed_document(slots=[("w1", "08:00", "13:00")], staging=["w2"])))
+
+    await step(schedule, display)
+
+    by_event = {record.__dict__.get("event"): getattr(record, "work_id", None) for record in caplog.records}
+    assert by_event["compose.done"] == "w1"
+    assert by_event["schedule.uncomposable"] == "w2"
