@@ -110,7 +110,7 @@ decision.
 >
 > **Status:** steady-state again since 2026-10-05 (the Norm Health sweep). The
 > transition ended when the Player retired the file channel on 2026-10-02 and
-> rendered only from its cache; `postarr/tests/test_pull.py` tests the cache
+> rendered only from its cache; `arrt-player/tests/test_pull.py` tests the cache
 > claim with the server stopped and with the Player restarted while it is down.
 > The transition's record follows. *(Was: in-transition, amended 2026-09-30.)*
 > **Interim rule, now discharged:** until wave 3 retires the file channel, the
@@ -399,7 +399,7 @@ restarted at noon — the behaviour the paragraph above forbids, arriving throug
 the schedule instead of around it. Forfeiting is the safe direction by this
 norm's own ranking: a wall that is dark until tomorrow morning is late, and late
 is the smaller failure. The bound is a configured value, commented and not
-pinned, as the abandoned v1 plan's power chunk specified and Postarr power
+pinned, as the abandoned v1 plan's power chunk specified and Arrt Player power
 control (`re-architecture.md`, wave 6+) inherits.)
 
 > **Why:** the household should need one remote at bedtime, not two. Sleeping the
@@ -419,10 +419,10 @@ control (`re-architecture.md`, wave 6+) inherits.)
 > holding the remote wins, always, and the plane's way of conceding is to stop
 > for the night rather than to wait a while and try again.
 >
-> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Postarr power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
+> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Arrt Player power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
 > **Interim rule: no code that runs unattended sends a power key until the
 > power-transition measurement (formerly the v1 plan's Chunk 24, now part of
-> Postarr power control) has recorded what the keys do.** The transitions are a sketch today —
+> Arrt Player power control) has recorded what the keys do.** The transitions are a sketch today —
 > `platform-and-dependency-findings.md` observed two presses from one starting state
 > and never tested press-and-hold — and the state its map is missing is the
 > television one, where a press is the interruption the paragraphs above forbid.
@@ -431,20 +431,20 @@ control (`re-architecture.md`, wave 6+) inherits.)
 > written, because the measurement itself needs something that sends one. The
 > original wording forbade the instrument that satisfies its own precondition,
 > which is a rule that cannot be complied with. **What the narrowing turns on is
-> the operator, not the code**: `postarr/tools/power_probe.py` refuses to send
+> the operator, not the code**: `arrt-player/tools/power_probe.py` refuses to send
 > anything without `--i-am-at-the-set`, so every press it makes has somebody
 > standing in front of the set watching — which is the whole distinction this norm
 > draws. It is stated here rather than only in the build plan because a plan is
 > archived when it completes and this sentence outlives it.)*
 >
 > **Retroactivity:** migrate, no residual sites in the daemon. Nothing on the
-> unattended path holds a power verb: `postarr/src/postarr/tv/` opens the art
-> channel only and sends no key, and that is what Postarr power control (`re-architecture.md`,
+> unattended path holds a power verb: `arrt-player/src/arrt_player/tv/` opens the art
+> channel only and sends no key, and that is what Arrt Player power control (`re-architecture.md`,
 > wave 6+) changes.
 >
 > Two places a reader will find power code today, and neither is the plane running
 > on the wall. `tvart.py` has every `KEY_POWER` line commented out — inert, the 2024
-> plane, deleted at wave 5. `postarr/tools/power_probe.py` sends them for real, by
+> plane, deleted at wave 5. `arrt-player/tools/power_probe.py` sends them for real, by
 > hand, guarded as above; it is an instrument rather than a plane, and it is listed
 > here because a retroactivity claim that misses a live call site is worse than no
 > claim.

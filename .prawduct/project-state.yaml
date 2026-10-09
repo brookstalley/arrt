@@ -607,9 +607,10 @@ product_definition:
     # will be Curatarr, the device side playback will be Displayarr." The same
     # day the operator renamed the player Arrt. On 2026-10-01, under a hard
     # requirement, the operator renamed both: the server Arrt and the player
-    # Postarr. This repo
+    # Postarr. On 2026-10-08 the owner renamed the player Arrt Player (#311),
+    # the Plex and Jellyfin convention of a client carrying its server's name. This repo
     # holds both until the wave 5 split, when it becomes Arrt alone.
-    name: "Arrt and Postarr"
+    name: "Arrt and Arrt Player"
     personality: >
       Museum, not gadget. The curator-facing surface should feel like a private
       collection management tool — calm, typographic, image-forward — and the
@@ -741,7 +742,7 @@ technical_decisions:
       alternatives_considered:
         - "Three processes now (Library, Programming and Player each separate). Rejected by the owner as 'a lot of complexity and two servers for a moderately simple app'."
         - "NFS or SMB mounts of the art tree on each Pi. Rejected because a network mount hangs on a NAS reboot, the failure the availability norm exists to prevent."
-        - "Two fresh repos rebuilt by agents from this one. Rejected: it loses the artifacts, history and learnings. This repo becomes the server, and postarr/ is extracted with its history in wave 5."
+        - "Two fresh repos rebuilt by agents from this one. Rejected: it loses the artifacts, history and learnings. This repo becomes the server, and arrt-player/ is extracted with its history in wave 5."
         - "Keep compositing upstream at 3840x2160. Rejected: plural screens and caption-in-mat make the canvas device-specific."
       rationale: >
         Owner's direction, 2026-09-30. It supersedes the target (not the
@@ -857,7 +858,7 @@ technical_decisions:
         - "TV favourites (MY-C0004) as the active set — the library author states favourites cannot be applied to user uploads on 2022+ sets (unconfirmed on real hardware), and it would support only ONE active subset, not named themes."
       date: 2026-07-19
     - decision: "The theme manifest file is the ONLY channel from curation to display."
-      amended: "2026-09-30, wave 2b: the per-wall manifest and its media, read from the shared file or pulled over HTTP into a Player-local cache by postarr/src/postarr/pull.py, are the only channel. architecture.md § Direction holds the current statement."
+      amended: "2026-09-30, wave 2b: the per-wall manifest and its media, read from the shared file or pulled over HTTP into a Player-local cache by arrt-player/src/arrt_player/pull.py, are the only channel. architecture.md § Direction holds the current statement."
       rationale: >
         Decided 2026-07-20 once both planes landed on one host. A JSON document in
         the shared ART_ROOT, written atomically by curation (temp file + os.replace,
@@ -1885,7 +1886,7 @@ technical_decisions:
         with "error: Found conflicting Python requirements". The DECISION'S
         SUBSTANCE IS UNCHANGED and was always the per-plane interpreter and
         per-plane lock; only the mechanism changes, to two independent sibling uv
-        projects (arrt/ and postarr/), each locking itself. This is what the
+        projects (arrt/ and arrt-player/), each locking itself. This is what the
         build plan already hedged toward, now settled with evidence instead.
 
         NAMED VERIFICATION ITEM: IT8951 compiles Cython from 2023-era .pyx sources,
@@ -2102,7 +2103,7 @@ technical_decisions:
         - "Backup only, restore documented but never exercised — the default outcome, and the reason untested backups are a recurring class of incident."
       date: 2026-07-20
     - decision: "TAKEN 2026-08-07: pin the IT8951 driver to 9f13613 on both install paths, and pin the Cython that builds it. Do not vendor."
-      rationale: "omni-epd declares IT8951[rpi] as a git dependency with no revision, so installing the parent resolves ~1,500 lines of Cython the label panel depends on completely to whatever that repository's master is on the day. Reproducible today only because it has not moved since 2023 — a fact about upstream inactivity, not a property of this project. A vendor buys exactly one thing a pin does not, survival if the repository disappears, and costs 1,500 lines of Cython nobody here can maintain plus the ability to take any upstream fix; vendoring stays available as the escape hatch, with pi-freeze-2024.txt recording what to vendor. APPLIED ON BOTH PATHS because they resolve independently: requirements.txt (the 2024 plane) carries an explicit pinned line beside omni_epd, and postarr/pyproject.toml uses [tool.uv] override-dependencies, which is the only mechanism reaching a requirement written inside another package's metadata. VERIFIED on the Pi 2026-08-07 — uv lock lands it8951 on 9f13613 from the override rather than from upstream's master still happening to be that commit, which is what the previous status could not distinguish. THE SECOND AXIS IS ALSO CLOSED for the display plane: IT8951 compiles 2023-era .pyx sources and its own build-requires names Cython with no bound, so [tool.uv] build-constraint-dependencies holds it at >=3.0,<4. requirements.txt has no equivalent mechanism and stays exposed to a Cython 4, which is one more reason that install path is retired at Chunk 20 rather than maintained."
+      rationale: "omni-epd declares IT8951[rpi] as a git dependency with no revision, so installing the parent resolves ~1,500 lines of Cython the label panel depends on completely to whatever that repository's master is on the day. Reproducible today only because it has not moved since 2023 — a fact about upstream inactivity, not a property of this project. A vendor buys exactly one thing a pin does not, survival if the repository disappears, and costs 1,500 lines of Cython nobody here can maintain plus the ability to take any upstream fix; vendoring stays available as the escape hatch, with pi-freeze-2024.txt recording what to vendor. APPLIED ON BOTH PATHS because they resolve independently: requirements.txt (the 2024 plane) carries an explicit pinned line beside omni_epd, and arrt-player/pyproject.toml uses [tool.uv] override-dependencies, which is the only mechanism reaching a requirement written inside another package's metadata. VERIFIED on the Pi 2026-08-07 — uv lock lands it8951 on 9f13613 from the override rather than from upstream's master still happening to be that commit, which is what the previous status could not distinguish. THE SECOND AXIS IS ALSO CLOSED for the display plane: IT8951 compiles 2023-era .pyx sources and its own build-requires names Cython with no bound, so [tool.uv] build-constraint-dependencies holds it at >=3.0,<4. requirements.txt has no equivalent mechanism and stays exposed to a Cython 4, which is one more reason that install path is retired at Chunk 20 rather than maintained."
       alternatives_considered:
         - "Vendor ~1,500 lines of Cython into the repo — total control, no upstream fixes, and a maintenance burden nobody here can carry. Kept as the escape hatch if upstream disappears."
         - "Leave unpinned — a silent reproducibility failure waiting on an upstream commit."
@@ -2339,7 +2340,7 @@ design_decisions:
     threshold of legibility and every check the product had passed while it was.
 
     What settles it instead is a DERIVATION, built as 13B-1
-    (postarr/src/postarr/panel/legibility.py): the deployment states its panel
+    (arrt-player/src/arrt_player/panel/legibility.py): the deployment states its panel
     diagonal and its viewing distance, and the type sizes follow from a cap height
     in arcminutes calibrated once by eye. The reference wall reads a 6-inch
     1448x1072 panel from 7 feet, which gives a 130 px primary tier and a 92 px
@@ -2571,7 +2572,7 @@ open_questions:
   # schedule; the resolution floor becomes a Library quality profile, which also
   # answers what a review card shows about size), and the deferrals the forward
   # notes carried were added. Three more closed the same day by the operator:
-  # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr),
+  # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr; since 2026-10-08 Arrt and Arrt Player),
   # Player auth (a token per wall), and the v1 open chunks (abandoned; their requirements are rebuilt in later waves).
   - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
     blocking: "Waves 1–4 of re-architecture.md."
@@ -3336,9 +3337,9 @@ test_commands:
   # executed no line of Pango. The group installs on any modern Linux and, since
   # 2026-08-13, on this project's development Mac; where it genuinely cannot, CI's
   # separate `typesetting` job is what holds the claim.
-  - uv run --directory postarr --group raster pytest --junit-xml={junit_xml} -q
+  - uv run --directory arrt-player --group raster pytest --junit-xml={junit_xml} -q
 
-tests_dirs: tests arrt/tests postarr/tests
+tests_dirs: tests arrt/tests arrt-player/tests
 
 # =============================================================================
 # OPERATOR VERIFICATION (opt-in, v1.4+)
@@ -3538,7 +3539,7 @@ norm_health:
       - "data-model Direction: the four norms are indexed and count as ratified."
       - "arr-layout: Wanted moves to a top-level section, following the *arr precedent the norm names."
       - "Four unassigned target preferences: assigned or pruned (root module set frozen by test; test location by test; coverage expectations re-pointed at the planes; testing strategies to Critic)."
-      - "Root tools that are not from 2024 (tv_api_check, tv_delete, panel_check, config) move to postarr/tools at wave 5."
+      - "Root tools that are not from 2024 (tv_api_check, tv_delete, panel_check, config) move to arrt-player/tools at wave 5."
       - "manifest-only-channel and heartbeat-contract: texts amended to what wave 2/3 built; the manifest norm returns to steady-state."
       - "Bulk: 18 clear-to-ratify findings confirmed."
 

@@ -10,6 +10,19 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The Pi runs Arrt Player — added 2026-10-08
+
+**`build-plan-rename-arrt-player.md`.** Postarr is now Arrt Player: the project
+is `arrt-player/` and the module `arrt_player`. Until the Pi takes this, its
+`display.service` names a directory and module that no longer exist after a
+pull. The steps and the way back are in `deploy/README.md` § The Player renamed
+Arrt Player. Check: the unit is active, the journal's logger names start
+`arrt_player.`, and the next rotation logs `label.drawn` on `epd-0`.
+
+**Entries below this one are dated and keep the paths of their day.** Read
+`postarr/` as `arrt-player/` and `postarr.` as `arrt_player.` in any command
+you run from them.
+
 ### Get and review clarity: do Ask, a Get's page and Review read plainly? — added 2026-10-08
 
 **`build-plan-get-and-review-clarity.md`, all chunks.** Visual change: yes.

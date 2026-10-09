@@ -2055,7 +2055,7 @@ plus honest `readOnlyHint` / `destructiveHint`.
 > health panel can read and answers `400` otherwise, in the error shape `/api`
 > already uses. Tokens were issued per wall from `POST /api/walls/{wall_id}/token`
 > and `art_display(action='issue_token')` until 2026-10-02, when clients replaced
-> them (below). The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
+> them (below). The Player's side is `arrt-player/src/arrt_player/pull.py` (Chunk 04):
 > `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
 > disagrees with the code or with `player-contract.md`, those win.
 

@@ -21,7 +21,7 @@ include tvOS 27.0 and the tvOS simulator (MEASURED, `xcodebuild -showsdks`).
   from the host's entitlements).** It is sandboxed, can make and accept network
   connections, can read files anywhere, and can write only to its own
   container's Caches folder. So a saver Player downloads into its own cache, or a
-  separate Postarr process writes a cache the saver only reads.
+  separate Arrt Player process writes a cache the saver only reads.
 - **The host's defects are concrete (SOURCED: Wade Tregaskis, mjtsai.com,
   Aerial's ScreenSaverMinimal, Apple Developer Forums thread 802525):**
   - Since Sonoma, `stopAnimation` is called only for the Settings preview.
@@ -83,7 +83,7 @@ include tvOS 27.0 and the tvOS simulator (MEASURED, `xcodebuild -showsdks`).
 **CoreText can do what the label's layout needs (MEASURED on macOS; the same
 calls compiled for tvOS):** font metrics, suggested line breaks at a width,
 per-line widths and heights, and a block's size, comparable to what
-`postarr/src/postarr/panel/legibility.py` takes from Pango. Fonts, shaping and
+`arrt-player/src/arrt_player/panel/legibility.py` takes from Pango. Fonts, shaping and
 hyphenation will differ, so the shared conformance vectors check rules (the type
 floor, the line limit, whether it fits), never exact pixels.
 
