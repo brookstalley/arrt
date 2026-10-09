@@ -268,13 +268,13 @@ class FrameDisplay:
         }
 
     def capabilities(self) -> Capabilities:
-        """The Frame's size is not this Player's to know until its geometry moves here from the server.
+        """The Frame's configured panel, which this Player composes every picture for.
 
-        So its screen is None and the heartbeat leaves capabilities out. It
-        draws no text of its own until this Player composes a caption into the
-        picture it uploads, so `none` is the only label mode it can claim.
+        It draws no text of its own until this Player burns a caption into the
+        picture it uploads (wave 6+), so `none` is the only label mode it can
+        claim.
         """
-        return Capabilities(screen=None, backend="frame", label_modes=("none",))
+        return Capabilities(screen=self._settings.geometry.screen, backend="frame", label_modes=("none",))
 
     async def close(self) -> None:
         await self._tv.close()

@@ -193,6 +193,16 @@ a work is composed, uploaded or drawn, and shown, before any code moves.
   directory it cannot read or empty is said once and costs nothing else.
 - 02: one name for a composed file, `compose.composed_path`, used by both
   `compose` and the schedule (Chunk 02 review), so the two cannot drift.
+- 03: the pull asks for a higher major about once a minute while it is served
+  a lower one (`HIGHER_MAJOR_SECONDS`), and at once if that major stops
+  answering. The contract allows this ("may"); the plan did not ask for it.
+  At a one-second poll, asking `v2` each time doubles every wall's requests
+  and logs a 404 a second until 4e publishes major 2 (settled by the
+  Constraints goal: major 1 behaviour unchanged, which includes its load on
+  the server).
+- 03: `test_pull.py`'s `two_major_pull` fixture no longer patches
+  `REQUESTED_MAJORS`. The constant it stood in for is now real, so the
+  fallback tests run against what ships.
 - 02: `settle()` composes each file at most once per call. A sweep mutation
   that left a composed work owed made it loop for hours rather than fail; a
   test helper that can hang reads as a slow suite, not a finding.
@@ -285,7 +295,7 @@ nothing under `arrt/`.
   - **The 4c carry-over:** clear `Schedule._shown_path` (and the rotation's
     equivalent) when the wall switches majors (4c cumulative review O-1). A
     test switches 2 → 1 → 2 and sees the work shown again. Fix the `Memory`
-    docstring in `programmes/memory.py` in the same commit (O-3).
+    docstring in `arrt-player/src/arrt_player/programmes/memory.py` in the same commit (O-3).
 - **Tests:**
   - Against each driver's double: a major 2 feed shown as composed pictures
     at that driver's geometry. On the Frame, its configured size; on a screen,
@@ -301,12 +311,12 @@ nothing under `arrt/`.
 ### Chunk 03: Ask for major 2
 
 - **Type:** cumulative-final
-- **Surfaces:** `manifest.py` (`REQUESTED_MAJORS` becomes `(2, 1)`, and its
-  comment says why now); `displays/frame.py` (`capabilities()` reports the
-  configured screen); `wall.py` (`_capabilities`, if the Frame-is-silent
-  branch retires); `player-contract.md` § The cutover (the note that a Frame
+- **Surfaces:** `arrt-player/src/arrt_player/manifest.py` (`REQUESTED_MAJORS` becomes `(2, 1)`, and its
+  comment says why now); `arrt-player/src/arrt_player/displays/frame.py` (`capabilities()` reports the
+  configured screen); `arrt-player/src/arrt_player/wall.py` (`_capabilities`, if the Frame-is-silent
+  branch retires); `.prawduct/artifacts/player-contract.md` § The cutover (the note that a Frame
   asks only for major 1 until the Player owns its geometry); `arrt-player/tests/test_pull.py`,
-  `test_heartbeat*.py`, `test_majors.py`; `.prawduct/operator-verification.md`.
+  `test_heartbeat*.py`, `test_majors.py`; `.prawduct/operator-verification.md`; `arrt-player/src/arrt_player/pull.py` (asking for a higher major less often than it polls).
 - **What:**
   - The pull asks for `v2` first and falls back to `v1` on 404 (built in 4c).
   - The heartbeat's `manifest_majors` is `[2, 1]`, for both drivers.

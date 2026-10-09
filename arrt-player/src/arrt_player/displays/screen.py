@@ -187,7 +187,7 @@ class ScreenDisplay:
         return {}
 
     def capabilities(self) -> Capabilities:
-        """The connector's current mode as its screen; no text of its own until this Player composes."""
+        """The connector's current mode as its screen; no text of its own until a caption is drawn in the mat (wave 6+)."""
         return Capabilities(screen=self._output.screen, backend="framebuffer", label_modes=("none",))
 
     async def close(self) -> None:

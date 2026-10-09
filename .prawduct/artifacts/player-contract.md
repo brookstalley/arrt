@@ -440,7 +440,8 @@ upgraded on demand).
   does not publish for that wall answers `404`, and the Player asks for the next
   major down that it reads. It treats the wall as misconfigured only when every
   major it reads answers `404`. A Player may keep the major that last answered
-  and ask for a higher one less often than it polls.
+  and ask for a higher one less often than it polls. Arrt Player asks again
+  about once a minute, and at once if the major it was served stops answering.
 - **A Player refuses a major it does not read** as an unsupported version and
   keeps its wall, as a major 1 Player refuses a major 2 document. Since wave 4c
   Arrt Player reads majors 1 and 2: its suite adopts every valid fixture of
@@ -458,10 +459,11 @@ upgraded on demand).
   lacks 2.
 - **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
   a Player from before minor 2, which reads only major 1, or one whose display
-  cannot yet say its size (a Frame, until the Player owns its geometry), which
-  since wave 4c asks only for major 1. Reading its silence as "lists nothing"
-  would let the server retire the major that wall is running on. *(Added
-  2026-10-09, wave 4c.)*
+  cannot say its size. Reading its silence as "lists nothing" would let the
+  server retire the major that wall is running on. *(Added 2026-10-09, wave
+  4c. Amended the same day, wave 4d: this named a Frame as a display that
+  cannot say its size; Arrt Player now holds the Frame's geometry, composes
+  for it, and reports `[2, 1]` from both of its drivers.)*
 - **For a public channel, a major is retired by decision**, because nothing
   reports.
 

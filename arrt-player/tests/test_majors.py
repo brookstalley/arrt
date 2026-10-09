@@ -166,13 +166,14 @@ async def test_a_scene_a_wall_shows_is_in_its_heartbeat(screen, wall_dir, client
     assert json.loads(path_in(wall.heartbeat_root, "living-room").read_text())["scene_id"] == "sc-1"
 
 
-def test_the_frame_says_it_is_a_frame(settings, tv, state, clock):
-    """Not yet written (its screen is not this Player's to know), but read by the heartbeat as soon as it is."""
+def test_the_frame_reports_the_panel_it_composes_for(settings, tv, state, clock):
+    """Its configured size, the one every picture it is handed is composed at, and no text of its own yet."""
     display = FrameDisplay(settings=settings, tv=tv, state=state, clock=clock.as_clock())
 
     found = display.capabilities()
 
-    assert (found.backend, found.screen, found.label_modes) == ("frame", None, ("none",))
+    assert (found.backend, found.screen, found.label_modes) == ("frame", settings.geometry.screen, ("none",))
+    assert found.screen == (settings.tv_panel_width_px, settings.tv_panel_height_px)
 
 
 async def test_a_wall_moved_to_a_feed_naming_the_work_already_up_shows_its_composition(
@@ -258,6 +259,7 @@ async def test_a_mode_change_in_a_gap_keeps_the_picture_the_screen_is_showing(cl
     for _ in range(5):
         await loop.tick()
 
+    heartbeat = json.loads(path_in(wall.heartbeat_root, "living-room").read_text())
+    assert "drawn again" not in (heartbeat.get("last_error") or ""), "the screen could not redraw its own picture"
     assert output.shown[-1].is_file(), "the picture on the wall was removed while the screen still shows it"
     assert len(output.shown) == 1, "a gap put something new up"
-    assert "refresh" not in (json.loads(path_in(wall.heartbeat_root, "living-room").read_text()).get("last_error") or "")

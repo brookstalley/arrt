@@ -10,6 +10,28 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The Player asks for major 2 and still runs major 1 — added 2026-10-09
+
+**`build-plan-wave-4d-compositing.md`.** The Player composes major 2 works
+itself and asks for `…/manifest/v2` first. Arrt publishes no major 2 until
+wave 4e, so on the real server every wall falls back to major 1 and should look
+exactly as before. Live integration: the suite drives doubles of the set, the
+connector and the server. Before restarting, set the Frame's real panel in the
+Pi's `.env`: `TV_PANEL_WIDTH_PX`, `TV_PANEL_HEIGHT_PX` and
+`TV_PANEL_DIAGONAL_INCHES` (and `MAT_*` if the server's differ from the
+defaults). Then pull this branch and restart the unit (SIGTERM, never SIGKILL):
+
+- **The journal at start** names the Frame's panel (`tv_panel=…x… at … in`) and
+  the mat (`mat=1.5 in, bottom x1.15`), matching the set.
+- **Both walls** rotate on major 1 as before: `pull.adopted` for each, no
+  `pull.refused`, and the Frame steps on at its interval.
+- **Arrt's request log** shows each wall asking for `v2` about once a minute
+  (a 404) and `v1` on every poll, not `v2` every second.
+- **Walls in Arrt:** both walls' heartbeats carry `capabilities` with
+  `manifest_majors` `[2, 1]`, and the Frame's now has its panel's size.
+- **Not checkable until 4e:** a composed major 2 work on either wall. That walk
+  is 4e's operator entry, against a real feed.
+
 ### Both walls rotate on the one wall loop — added 2026-10-09
 
 **`build-plan-wave-4c-wall-loop.md`.** The Frame's and the HDMI screen's loops
