@@ -47,6 +47,7 @@ router = APIRouter()
 CLIENT_ROUTE: Final[str] = "/client"
 CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
 MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
+MANIFEST_MAJOR_ROUTE: Final[str] = "/walls/{wall_id}/manifest/v{major}"
 MEDIA_ROUTE: Final[str] = MEDIA_PATH_TEMPLATE
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
 LABEL_ROUTE: Final[str] = "/labels/{label_id}"
@@ -156,6 +157,20 @@ def wall_manifest(request: Request, wall_id: str) -> Response:
         # wall with nothing hanging has no manifest to serve.
         return JSONResponse(status_code=404, content={"error": "Nothing has been published for this wall yet."})
     return _etagged(request, body)
+
+
+@router.get(MANIFEST_MAJOR_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
+def wall_manifest_at_major(request: Request, wall_id: str, major: str) -> Response:
+    """The wall's manifest at one major, so a Player can ask for the highest it reads.
+
+    Only major 1 is built today, and it is the same document the unversioned route
+    serves. Any other spelling answers 404, which is how a Player learns to step
+    down a major (`player-contract.md` § The cutover). The match is on the exact
+    string, so `01` is not a second URL for major 1.
+    """
+    if major != "1":
+        return JSONResponse(status_code=404, content={"error": f"No manifest major {major} is published for this wall."})
+    return wall_manifest(request, wall_id)
 
 
 @router.get(LABEL_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_label)])

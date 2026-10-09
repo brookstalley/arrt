@@ -15,13 +15,14 @@
   },
   "capabilities": {
     "screen": {
-      "width_px": 3840,
-      "height_px": 2160
+      "width_px": 2560,
+      "height_px": 1440
     },
-    "backend": "frame",
+    "backend": "framebuffer",
     "label_modes": [
+      "none",
       "caption",
-      "none"
+      "overlay"
     ],
     "manifest_majors": [
       1,

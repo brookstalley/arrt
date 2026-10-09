@@ -3,19 +3,30 @@
     "major": 2,
     "minor": 0
   },
-  "generated_at": "2026-10-01T19:41:00+00:00",
+  "generated_at": "2026-10-01T06:59:30+00:00",
   "playlist": {
     "id": "th-surrealism",
     "name": "Surrealism"
   },
   "settings": {
     "label": {
-      "mode": "none"
+      "mode": "overlay"
     },
     "mat": {
-      "mode": "proportional"
+      "mode": "full"
     },
-    "viewing_distance_m": 2.5
+    "overlay": {
+      "lead_seconds": 30,
+      "tail_seconds": 30
+    },
+    "fade_seconds": 1.5,
+    "text_scale": 1.25,
+    "viewing_distance_m": 3,
+    "facts": [
+      "title",
+      "artist",
+      "date_created"
+    ]
   },
   "works": {
     "w-dali-1": {
@@ -134,11 +145,6 @@
       }
     ]
   },
-  "scene": {
-    "id": "sc-three-dalis",
-    "work_id": "w-dali-3",
-    "from": "2026-10-01T19:41:00+00:00",
-    "until": null
-  },
+  "scene": null,
   "staging": []
 }

@@ -2,17 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/brookstalley/arrt/contract/schemas/manifest.v2.schema.json",
   "title": "Wall manifest, major 2 (DRAFT)",
-  "description": "DRAFT until wave 4 builds it; nothing reads it before then. What one wall should show and how it should look: a time-anchored schedule, an optional scene overriding it, works to fetch ahead, and the wall's settings. The Player composes the mat itself, so works carry a device-independent master and a mat colour, not a composed render. Rules a schema cannot state (every referenced work is in works, slots do not overlap, the horizon is whole days) are in .prawduct/artifacts/player-contract.md § Major 2, and a document that breaks one is malformed.",
+  "description": "DRAFT until wave 4 builds it; nothing reads it before then. A feed: what to show and when (a time-anchored schedule of works, each a device-independent presentation master with a mat colour and label text) and default presentation settings. A document with neither scene nor staging is a complete feed, which is what a public channel serves; a wall's manifest is a private feed that may also carry the control layer's scene and staging. The Player composes the mat itself, so works carry a master and a mat colour, not a composed render, and the mat's mode and width are the Player's to decide. Rules a schema cannot state (every referenced work is in works, slots do not overlap, the horizon is whole days) are in .prawduct/artifacts/player-contract.md § Major 2, and a document that breaks one is malformed.",
   "type": "object",
   "required": [
     "schema",
     "generated_at",
     "playlist",
-    "settings",
     "works",
-    "schedule",
-    "scene",
-    "staging"
+    "schedule"
   ],
   "properties": {
     "schema": {
@@ -52,52 +49,82 @@
       }
     },
     "settings": {
-      "description": "Set centrally for this wall, so nobody configures a Player to change them.",
+      "description": "Default presentation settings, the first of three layers: the feed's defaults, then (for a home wall) the curator's wall settings, then the viewer's preferences on the device, each later layer overriding key by key. Every key is optional, and a key absent from every layer means the Player's own default. A Player applies a setting where it can and ignores one its display cannot honour.",
       "type": "object",
-      "required": [
-        "label",
-        "mat",
-        "viewing_distance_m"
-      ],
       "properties": {
         "label": {
           "type": "object",
-          "required": [
-            "mode"
-          ],
           "properties": {
             "mode": {
-              "description": "Chosen from the modes this wall's Player reports it can do.",
+              "description": "Text on the display itself. none: no text. caption: static for the whole slot, which is all a Frame can do, because its caption is burned into the image before upload. overlay: timed, shown for the overlay's lead and tail with fades. A label on a separate surface is a label output with its own document, not a mode.",
               "enum": [
-                "panel",
+                "none",
                 "caption",
-                "none"
+                "overlay"
               ]
             }
           }
         },
         "mat": {
-          "description": "The mat in inches on the wall, so the same numbers mean the same thing on any screen. The bottom takes width_inches times bottom_weight.",
           "type": "object",
-          "required": [
-            "width_inches",
-            "bottom_weight"
-          ],
           "properties": {
-            "width_inches": {
-              "type": "number",
-              "minimum": 0
-            },
-            "bottom_weight": {
-              "type": "number",
-              "minimum": 1
+            "mode": {
+              "description": "none: the work fitted on black. proportional: a mat of the work's own shape, black beyond. full: mat colour to every edge of the screen. The width is never in the feed: a Player that knows its pixel density keeps the inch rule, and one that does not uses a fraction of the screen's shorter side (player-contract.md § Layout).",
+              "enum": [
+                "none",
+                "proportional",
+                "full"
+              ]
             }
           }
+        },
+        "overlay": {
+          "description": "When an overlay shows within a slot: for its first lead_seconds and its last tail_seconds.",
+          "type": "object",
+          "properties": {
+            "lead_seconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tail_seconds": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "fade_seconds": {
+          "description": "How long an overlay takes to fade in or out.",
+          "type": "number",
+          "minimum": 0
+        },
+        "text_scale": {
+          "description": "A multiplier on the type size the Player computes from its geometry and the viewing distance.",
+          "type": "number",
+          "exclusiveMinimum": 0
         },
         "viewing_distance_m": {
           "description": "How far a viewer stands, a fact about the room. The Player sizes label type from it and its own geometry.",
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "facts": {
+          "description": "Which of a work's label keys a caption or overlay shows, in this order. Empty shows none. A fact a work's label lacks is not shown.",
+          "type": "array",
+          "items": {
+            "enum": [
+              "title",
+              "artist",
+              "artist_family_name",
+              "artist_given_name",
+              "artist_nationality",
+              "artist_dates",
+              "date_created",
+              "medium",
+              "dimensions",
+              "commentary"
+            ]
+          },
+          "uniqueItems": true
         }
       }
     },
@@ -144,7 +171,7 @@
       }
     },
     "scene": {
-      "description": "A live override, or null. While active it wins over the schedule; when until passes the wall returns to the schedule on its own. until null holds until released.",
+      "description": "Control layer, absent from a channel's feed. A live override, or null. While active it wins over the schedule; when until passes the wall returns to the schedule on its own. until null holds until released.",
       "oneOf": [
         {
           "type": "null"
@@ -184,7 +211,7 @@
       ]
     },
     "staging": {
-      "description": "Works to fetch and compose ahead, because a scene is being assembled. Nothing is shown because of this list.",
+      "description": "Control layer, absent from a channel's feed. Works to fetch and compose ahead, because a scene is being assembled. Nothing is shown because of this list.",
       "type": "array",
       "items": {
         "type": "string",

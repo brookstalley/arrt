@@ -28,6 +28,11 @@ it, and by whom).
 > a reader at a distance and not against a panel. Norm 1 below carries the
 > amendment; § The television carries the one decision it reverses. Nothing about
 > the panel as built changes. The caption mode is Player work in wave 6+.
+>
+> *(2026-10-08, pointer only: `labels-and-surfaces.md` made a label on its own
+> surface a label output with its own document, so the per-wall mode is text on
+> the display itself, `none`, `caption` or `overlay`, and `panel` is no longer
+> one of its values. `player-contract.md` § Presentation settings.)*
 
 ## Direction
 

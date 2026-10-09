@@ -344,10 +344,11 @@ size.
 
 ## Open questions
 
-- **The relative mat width** for a client with no pixel density: its number
-  (a fraction of the screen's shorter side is the obvious form) is set when the
-  layout spec is written in wave 4, ideally so it matches the inch rule on a
-  50" 4K Frame.
+- ~~**The relative mat width** for a client with no pixel density.~~
+  *Answered 2026-10-08 by the owner:* **6% of the screen's shorter side.** It
+  matches the inch rule on a 50" Frame (`MAT_WIDTH_INCHES` 1.5 over a 24.5 in
+  shorter side is 6.1%), so a Frame and a screen with no physical size show
+  the same proportion. Wave 4's layout spec carries it.
 - **A display's identity for kinds other than the Frame.** An HDMI connector or a
   Mac's screen has no device id the client can read reliably; the client and
   connector name may have to stand in, which is what `clients.md` does today.

@@ -121,7 +121,8 @@
               "type": "integer",
               "minimum": 1
             }
-          }
+          },
+          "description": "The display's size in pixels, reported again whenever it changes (a window resized). Programming judges a work's adequacy for the wall from the largest size reported recently, not the latest."
         },
         "backend": {
           "description": "frame: push to a Samsung Frame's own art store. framebuffer: composite and draw to a screen this process owns.",
@@ -131,13 +132,13 @@
           ]
         },
         "label_modes": {
-          "description": "The label modes this Player can do now. panel needs e-ink hardware; caption needs a Player version that sets captions.",
+          "description": "The modes of text on the display itself that this Player can do now: none; caption, static for the whole slot (a Frame's caption is burned into the image before upload, so it is all a Frame can do); overlay, timed within the slot with fades. A label on its own surface is a label output reported in the client heartbeat, not a mode.",
           "type": "array",
           "items": {
             "enum": [
-              "panel",
+              "none",
               "caption",
-              "none"
+              "overlay"
             ]
           },
           "uniqueItems": true,

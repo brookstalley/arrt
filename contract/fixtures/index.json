@@ -196,6 +196,12 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/heartbeat.v1/invalid/label-mode-panel.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-major-minor.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
@@ -215,6 +221,11 @@
     },
     {
       "path": "fixtures/heartbeat.v1/valid/as-built.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/framebuffer-with-overlay.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": true
     },
@@ -415,6 +426,18 @@
       "valid": true
     },
     {
+      "path": "fixtures/manifest.v2/invalid/fact-not-a-label-key.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/fade-negative.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/manifest.v2/invalid/horizon-not-whole-days.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
@@ -439,13 +462,13 @@
       "breaks": "schema"
     },
     {
-      "path": "fixtures/manifest.v2/invalid/mat-bottom-weight-below-one.json",
+      "path": "fixtures/manifest.v2/invalid/mat-color-not-hex.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema"
     },
     {
-      "path": "fixtures/manifest.v2/invalid/mat-color-not-hex.json",
+      "path": "fixtures/manifest.v2/invalid/mat-mode-unknown.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
       "breaks": "schema"
@@ -528,6 +551,16 @@
     },
     {
       "path": "fixtures/manifest.v2/valid/caption-wall-week-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/channel-feed.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/overlay-wall-every-setting.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": true
     },

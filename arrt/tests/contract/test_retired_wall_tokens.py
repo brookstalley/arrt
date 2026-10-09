@@ -70,6 +70,7 @@ def test_the_former_wall_token_is_unauthenticated_on_every_route(server_url, wal
             url, json={"reported_at": "2026-10-02T12:00:00Z", "outputs": []}, headers=_bearer(FORMER_WALL_TOKEN)
         ),
         "manifest": lambda url: httpx.get(url, headers=_bearer(FORMER_WALL_TOKEN)),
+        "manifest_major": lambda url: httpx.get(url, headers=_bearer(FORMER_WALL_TOKEN)),
         "media": lambda url: httpx.get(url, headers=_bearer(FORMER_WALL_TOKEN)),
         "heartbeat": lambda url: httpx.post(
             url, json={"reported_at": "2026-10-02T12:00:00+00:00"}, headers=_bearer(FORMER_WALL_TOKEN)
@@ -79,7 +80,7 @@ def test_the_former_wall_token_is_unauthenticated_on_every_route(server_url, wal
     assert set(requests) == set(ROUTES), "every route the contract names is asked"
 
     for name, send in requests.items():
-        url = server_url + ROUTES[name]["path"].format(wall_id=wall_id, sha256="0" * 64, label_id="some-label")
+        url = server_url + ROUTES[name]["path"].format(wall_id=wall_id, sha256="0" * 64, label_id="some-label", major="1")
         assert send(url).status_code == 401, name
 
 

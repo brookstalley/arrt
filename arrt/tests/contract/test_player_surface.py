@@ -98,7 +98,7 @@ def test_the_player_router_holds_exactly_the_routes_the_contract_names():
 def test_each_contract_route_is_mounted_and_guarded(server_url, name):
     """Asked over the wire, so a route declared and never mounted fails here as a 404."""
     route = ROUTES[name]
-    path = route["path"].format(wall_id="some-wall", sha256="0" * 64, label_id="some-label")
+    path = route["path"].format(wall_id="some-wall", sha256="0" * 64, label_id="some-label", major="1")
 
     response = httpx.request(route["method"], server_url + path, json={} if route["method"] == "POST" else None)
 
@@ -140,6 +140,43 @@ def test_an_unchanged_manifest_answers_304_and_a_changed_one_does_not(server_url
 
 def test_a_wall_with_nothing_published_answers_404(server_url, token, wall_id):
     response = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token))
+
+    assert response.status_code == 404
+
+
+# -- the manifest at each major --------------------------------------------------------
+
+
+def test_major_1_at_its_own_url_is_the_same_document_as_the_unversioned_route(server_url, playing, token, wall_id):
+    """A Player asking for the highest major it reads gets, at `v1`, exactly what the original route serves."""
+    unversioned = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token))
+    versioned = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="1"), headers=_bearer(token))
+
+    assert versioned.status_code == 200
+    assert versioned.content == unversioned.content
+    assert versioned.headers["etag"] == unversioned.headers["etag"]
+    unchanged = httpx.get(
+        server_url + _path("manifest_major", wall_id=wall_id, major="1"),
+        headers={**_bearer(token), "If-None-Match": versioned.headers["etag"]},
+    )
+    assert unchanged.status_code == 304
+
+
+@pytest.mark.parametrize("major", ["2", "0", "01", "one"])
+def test_a_major_the_server_does_not_build_answers_404_in_the_error_shape(server_url, playing, token, wall_id, major):
+    """A wall that has a manifest still answers 404 for a major nobody builds, so a Player steps down a major.
+
+    `01` is here because a lenient integer parse would serve major 1 under a
+    second spelling, and the contract names one URL per major.
+    """
+    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major=major), headers=_bearer(token))
+
+    assert response.status_code == 404
+    assert set(response.json()) == {"error"}
+
+
+def test_major_1_of_a_wall_with_nothing_published_answers_404(server_url, token, wall_id):
+    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="1"), headers=_bearer(token))
 
     assert response.status_code == 404
 
@@ -270,13 +307,13 @@ def test_a_display_state_a_later_minor_added_is_read_as_unreachable(server_url, 
 # -- admission --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("route", ["manifest", "heartbeat"])
+@pytest.mark.parametrize("route", ["manifest", "manifest_major", "heartbeat"])
 def test_every_wall_route_admits_only_the_client_the_wall_is_assigned_to(server_url, playing, token, study_token, wall_id, route):
     """Own wall admitted; another client's token is 403; no valid client token is 401."""
-    url = server_url + _path(route, wall_id=wall_id)
+    url = server_url + _path(route, wall_id=wall_id, major="1")
     send = (
         (lambda headers: httpx.get(url, headers=headers))
-        if route == "manifest"
+        if route.startswith("manifest")
         else (lambda headers: httpx.post(url, json={"reported_at": "2026-09-30T12:00:00+00:00"}, headers=headers))
     )
 
@@ -297,7 +334,7 @@ def test_a_refusal_says_why_in_the_error_shape_and_never_echoes_the_token(server
     """
     presented = "not-a-token-0123456789"
     method = ROUTES[route]["method"]
-    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64, label_id="some-label")
+    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64, label_id="some-label", major="1")
 
     response = httpx.request(method, url, json={} if method == "POST" else None, headers=_bearer(presented))
 
