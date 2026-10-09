@@ -191,6 +191,11 @@ CREATE TABLE IF NOT EXISTS candidate_works (
     -- comparison the requirement exists for.
     offered_for_artist     TEXT,
     offered_artist_matched INTEGER,
+    -- The source (provider id) that offered the work, kept on the work because
+    -- the scan it arrived with can be turned down and replaced by another
+    -- museum's. Null on proposed and chosen works, and on offers recorded before
+    -- it was kept; nullable so widening reaches older files.
+    offered_by             TEXT,
     -- The Wikidata item a chosen work was asked for by. Null on proposed and
     -- offered works, which no item named; nullable so widening reaches older files.
     wikidata_qid           TEXT,
@@ -715,6 +720,7 @@ def _candidate_work_row(work: CandidateWork) -> dict[str, Any]:
         "provenance": str(work.provenance),
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        "offered_by": work.offered_by,
         "wikidata_qid": work.wikidata_qid,
         "source_confirmed": None if work.source_confirmed is None else int(work.source_confirmed),
         "resolution_status": str(work.resolution_status),
@@ -846,6 +852,7 @@ def _candidate_work(row: Mapping[str, Any]) -> CandidateWork:
         # both cases — no query produced them — so no default is invented here.
         offered_for_artist=row["offered_for_artist"],
         offered_artist_matched=row["offered_artist_matched"],
+        offered_by=row["offered_by"],
         wikidata_qid=row["wikidata_qid"],
         source_confirmed=None if row["source_confirmed"] is None else bool(row["source_confirmed"]),
         resolution_status=ResolutionStatus(row["resolution_status"]),

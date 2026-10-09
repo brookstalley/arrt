@@ -62,6 +62,32 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Get and review clarity: the boundary review's findings
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The cumulative review of the plan (`rev-20261009T000127Z-d99ef2f2`).
+
+**What:**
+- An offered work records which source offered it (`offered_by`, a new
+  nullable column, widened into older files), and a Get's page names the
+  museum from that. It had read the museum off the work's current scan, which
+  names the wrong museum once the offered scan is turned down and another
+  museum's found. An offer recorded before the column sits under "the
+  collection". The HTTP work and the MCP row carry it;
+  `data-model.md` and `api-contract.md` say so.
+- `COST_UNKNOWN` is said in one place; Ask logs why an estimate could not be
+  read; two comments in `run.js` say what the code does, not what it
+  replaced; the server's docstrings call Queue's control a cause's Retry; the
+  IA's per-screen table describes Ask and a Get's page as they are now.
+
+**Tests:** `test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture_changes`
+and `test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection`
+failed first; `test_an_offered_work_carries_which_query_produced_it_and_how_many_it_matched`
+asserts `offered_by`, and the proposed-work test asserts it null. A commit-card
+assertion that could not fail (`"Get" in card`) is deleted; the caption test
+holds what it meant to.
+
 ## 2026-10-08: Get and review clarity, chunk 04: Queue's Retry, and the walk
 
 <!-- prawduct: scope=get-and-review-clarity -->

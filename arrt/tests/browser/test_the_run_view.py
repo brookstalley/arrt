@@ -956,6 +956,7 @@ def test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason(u
         provenance=WorkProvenance.OFFERED.value,
         offered_for_artist="Salvador Dalí",
         offered_artist_matched=3,
+        offered_by="met",
         rationale="Offered by the collection, not proposed by the model: one of 3 works …",
     )
     cards = [
@@ -1039,3 +1040,37 @@ def test_a_row_s_picture_stays_small_on_a_phone(ui):
     width = image.evaluate("(i) => i.getBoundingClientRect().width")
     rem = ui.page.evaluate("() => parseFloat(getComputedStyle(document.documentElement).fontSize)")
     assert width <= 8 * rem + 0.5, f"{width}px wide on a 390px screen"
+
+
+def test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture_changes(ui):
+    """Its scan turned down and another museum's found: the offer is still the first museum's."""
+    gift = a_candidate(
+        work_id="gift",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        offered_by="artic",
+    )
+    asked = a_candidate(work_id="asked")
+    cards = [a_card(work=asked), a_card(work=gift, shown=an_instance(work_id="gift", image_id="img-met", provider="met"))]
+    _a_finished_discovery(ui, [asked, gift], cards)
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Also offered by Art Institute of Chicago (1)" in headings
+    assert not any("Metropolitan" in heading for heading in headings)
+
+
+def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection(ui):
+    gift = a_candidate(
+        work_id="gift",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        offered_by=None,
+    )
+    asked = a_candidate(work_id="asked")
+    _a_finished_discovery(ui, [asked, gift], [a_card(work=asked), a_card(work=gift)])
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Also offered by the collection (1)" in headings

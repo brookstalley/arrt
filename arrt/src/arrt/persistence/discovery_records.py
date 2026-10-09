@@ -412,6 +412,10 @@ class CandidateWork:
     #: requirement exists for.
     offered_for_artist: str | None = None
     offered_artist_matched: int | None = None
+    #: The source that offered the work (its provider id). The scan an offer
+    #: arrives with can be turned down and another museum's found, so which
+    #: museum offered it is a fact about the work, not read off its scans.
+    offered_by: str | None = None
     #: The Wikidata item the curator chose this work by. Set only on a `CHOSEN`
     #: work. Phase 2 hands it to the image sources, and acceptance stores it on
     #: the artwork, so the work is *Held* wherever the registry shows it.

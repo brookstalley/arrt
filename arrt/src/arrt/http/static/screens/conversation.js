@@ -24,7 +24,7 @@ import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.j
 import { captioned, el, guard, render } from "../core/render.js";
 import { backLink, go, link } from "../core/router.js";
 import { STATE_WORDS } from "../core/runs.js";
-import { getCaption, tierMark } from "../core/spend.js";
+import { COST_UNKNOWN, getCaption, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
@@ -125,7 +125,7 @@ async function turnEstimate(conversationId) {
 /* The tier beside a control that asks the model, or the words for its absence:
  * an unpriced control must not read as a free one. */
 function turnTier(estimate) {
-  return estimate ? tierMark(estimate.tier) : el("span", { class: "muted", text: "Cost unknown just now" });
+  return estimate ? tierMark(estimate.tier) : el("span", { class: "muted", text: COST_UNKNOWN });
 }
 
 export async function viewConversation(conversationId, generation) {

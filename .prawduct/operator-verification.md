@@ -18,7 +18,7 @@ Built against stubbed pages in the browser suite. The walk on the 2,000-work
 synthetic corpus (`.ux-walk/clarity-synthetic`) gave 84 captures across 21
 screens with no accessibility violations, console errors or dead ends, the
 same as before; it holds no Gets, so a Get's page and Review were seen only
-from stubbed pages. Deployed to the NAS with this plan.
+from stubbed pages. Not yet deployed.
 
 - **Ask:** Get is the one filled button, with "About $0.01" under it; *Talk it
   through first* is quiet, with "Free to start; each reply shows its cost"

@@ -98,12 +98,11 @@ their tier mark; whether they move to the same form is not in this plan.
 
 ### Chunk 02: A Get's page
 
-**Exposed API:** none, after all. The plan said `/api/runs/{id}` would gain
-the offering source per offered work, because `CandidateWorkOut` carries no
-provider. But each work's review card (`/api/runs/{id}/candidates`) carries
-the scan it arrived with, `shown`, and an offered work's scan is the
-offering museum's. The page reads the cards for the pictures anyway, so it
-takes the museum from the same place (builder, 2026-10-08).
+**Exposed API:** the work gains `offered_by`, the source that offered it,
+recorded at the offer. Built first without it, reading the museum off the
+card's current scan (builder, 2026-10-08); the boundary review showed that
+names the wrong museum once the offered scan is turned down and another
+museum's found, so the plan's original call stood.
 
 Done when: the summary is three counts; works are under *Asked for* and *Also
 offered by <museum>*, each row with a thumbnail where one was found; offered

@@ -193,7 +193,6 @@ def test_the_commit_card_agrees_with_itself_at_a_count_of_one(talking, status, e
 def test_the_commit_card_offers_a_direction_before_anything_is_committed(talking):
     open_thread(talking)
 
-    card = talking.page.inner_text("#commit-card")
     # The direction is in the field rather than in the card's text, because it is
     # editable: what would be searched for is the curator's decision, and a card
     # that only printed it would be asking them to approve something they cannot
@@ -203,7 +202,6 @@ def test_the_commit_card_offers_a_direction_before_anything_is_committed(talking
     # of magnitude rather than the bound (owner, 2026-10-08); what it says is
     # `test_the_commit_card_says_about_what_its_get_costs_under_it`'s.
     assert talking.page.locator("#commit-card .act-caption").count() == 1
-    assert "Get" in card
 
 
 def test_a_failed_turn_stays_in_the_thread_and_can_be_asked_again(ui):

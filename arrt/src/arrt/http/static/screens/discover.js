@@ -22,7 +22,10 @@ export async function viewDiscover(generation) {
   // be showing a receipt. An estimate that cannot be read leaves the page
   // usable and says so under Get, rather than taking the whole page down.
   const [estimate, conversations] = await Promise.all([
-    api("/api/estimate").catch(() => null),
+    api("/api/estimate").catch((failure) => {
+      console.warn(`The estimate for a Get could not be read: ${failure.message}`);
+      return null;
+    }),
     api("/api/conversations"),
   ]);
 

@@ -84,9 +84,7 @@ export function runSentence(view) {
         : run.kind === "get"
           ? `This Get finished: ${tally.resolved} of the ${counted(tally.chosen, "work")} you chose ${agreePartitive(tally.resolved, tally.chosen, "has", "have")} an image.`
           : // A Get from words says its figures as three counts under this line
-            // (`runCounts`) rather than in it: the paragraph it replaced printed
-            // two different counts that are often the same number, and a curator
-            // could not tell which was which.
+            // (`runCounts`), each named, so no two are read as one.
             "This Get finished.";
     if (tally.unresolved && run.kind !== "discovery") {
       sentence += ` ${tally.unresolved} could not be matched to any image and ${agree(tally.unresolved, "is", "are")} reported rather than dropped — each says which kind of nothing below.`;
@@ -155,16 +153,16 @@ export const RUN_POLL_MAX_FAILURES = 5;
  *
  * The asked-for rows say why the run named each work, which is what a curator
  * judges a list by. The offered rows do not: the run named none of them, and
- * the heading says once what a per-row column used to say on every row. Which
- * museum offered a work is the museum of the scan it arrived with, the card's
- * `shown`; one whose card could not be read sits under "the collection". */
+ * their heading says so once. Which museum offered a work
+ * is the server's record of it (`offered_by`), never the museum of the scan it
+ * shows now, which can be another museum's once the first is turned down; an
+ * offer recorded before that was kept sits under "the collection". */
 function worksBySource(works, reviewPage) {
   const cards = new Map((reviewPage ? reviewPage.works : []).map((card) => [card.work.work_id, card]));
   const asked = works.filter((work) => work.provenance !== "offered");
   const offeredBy = new Map();
   for (const work of works.filter((each) => each.provenance === "offered")) {
-    const card = cards.get(work.work_id);
-    const museum = card && card.shown ? museumName(card.shown.provider) : "the collection";
+    const museum = work.offered_by ? museumName(work.offered_by) : "the collection";
     if (!offeredBy.has(museum)) offeredBy.set(museum, []);
     offeredBy.get(museum).push(work);
   }

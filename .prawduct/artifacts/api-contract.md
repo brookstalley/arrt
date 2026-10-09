@@ -819,6 +819,12 @@ paid for by shortening `rationale`; that was wrong on its own terms, since
 `rationale` is not in this row at all (`_work_summary`'s docstring says so), so no
 deletion here funded anything.
 
+**`offered_by` was added 2026-10-08** (on the HTTP work and this row alike): the
+source that offered an offered work, by provider id, recorded at the offer and
+null on every other work. A Get's page names the offering museum from it, which
+it cannot take from the work's scans once the first is turned down. One more
+key, null on most rows, so the same order of cost as the pair above.
+
 **What that costs, by the rate this section already establishes rather than by a
 fresh count.** The two additions above measured ~8 tokens a row each. These two
 are a null pair on every proposed row and an artist name plus a small integer on

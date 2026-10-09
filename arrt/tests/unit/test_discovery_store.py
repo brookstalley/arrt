@@ -63,6 +63,7 @@ _EXPECTED_SCHEMA = {
         "provenance",
         "offered_for_artist",
         "offered_artist_matched",
+        "offered_by",
         "wikidata_qid",
         "source_confirmed",
         "resolution_status",
