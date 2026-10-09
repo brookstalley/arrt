@@ -25,10 +25,15 @@ module does not require an environment — otherwise the test suite and every to
 that merely wants to read a docstring would need one. Fail-fast is preserved by
 resolving at process start, which is where a missing value should stop things.
 
-**This plane knows nothing about the television's physical size.** The mat is
-already composed into the render it is handed, so the only panel geometry here is
-the e-paper label's, and a value for the TV's diagonal appearing in this file
-would be the cross-plane drift `operational-spec.md` § Configuration warns about.
+**The Frame's geometry and the mat's proportions are this Player's.** It composes
+a major 2 work for its own screen (`compose.py`), so the Frame's pixel size and
+diagonal (`TV_PANEL_*`) and the mat's width and bottom weight (`MAT_*`) are read
+here, under the names the server used for them (`feeds-and-players.md` ruling 7).
+The server keeps its own copies for major 1's composed render until the cutover
+(wave 4g). The two live in different `.env` files on different hosts, so they
+cannot drift into each other. A screen on a connector has no configured geometry:
+its size is its mode, and it has no density, so its mat is a fraction of its
+shorter side.
 """
 
 import os
@@ -41,6 +46,7 @@ from dotenv import load_dotenv
 
 # The heartbeat's own module owns what its file is called; this only reports it
 # in the startup line.
+from arrt_player.compose import Geometry, pixels_per_inch
 from arrt_player.heartbeat import path_in as heartbeat_path_in
 
 #: The Frame's own store, in the wall's directory beside the manifest it reads.
@@ -188,6 +194,20 @@ DEFAULT_SELECT_CONFIRM_SECONDS: Final[float] = 8.0
 DEFAULT_TV_RETRY_MIN_SECONDS: Final[float] = 5.0
 DEFAULT_TV_RETRY_MAX_SECONDS: Final[float] = 300.0
 
+#: The Frame's panel, in pixels and inches. The defaults are the server's, so a
+#: deployment that configured neither draws the same mat on either side of the
+#: cutover. **The diagonal is a deployment fact**: a wrong one draws a wrong mat
+#: width, and Frames come in several sizes and two resolutions.
+DEFAULT_TV_PANEL_WIDTH_PX: Final[int] = 3840
+DEFAULT_TV_PANEL_HEIGHT_PX: Final[int] = 2160
+DEFAULT_TV_PANEL_DIAGONAL_INCHES: Final[float] = 42.0
+
+#: The mat, in inches on the wall: the sides and top take the width, and the
+#: bottom takes that times the weight, because a true-centred picture reads as
+#: sitting low. The server's defaults, for the reason the panel's are.
+DEFAULT_MAT_WIDTH_INCHES: Final[float] = 1.5
+DEFAULT_MAT_BOTTOM_WEIGHT: Final[float] = 1.15
+
 
 class ConfigError(RuntimeError):
     """A deployment value is missing or unusable, and starting would be worse."""
@@ -231,6 +251,15 @@ class WallSettings:
     poll_interval_seconds: float
     rotation_interval_fallback_seconds: int
     rotation_shuffle_fallback: bool
+    #: The mat's proportions, which every wall composes with whatever it draws on.
+    mat_width_inches: float = DEFAULT_MAT_WIDTH_INCHES
+    mat_bottom_weight: float = DEFAULT_MAT_BOTTOM_WEIGHT
+
+    def geometry_for(self, screen: tuple[int, int]) -> Geometry:
+        """A screen of known pixels and unknown size: its mat is a fraction of its shorter side."""
+        return Geometry(
+            screen=screen, pixels_per_inch=None, mat_width_inches=self.mat_width_inches, bottom_weight=self.mat_bottom_weight
+        )
 
     @property
     def manifest_path(self) -> Path:
@@ -392,6 +421,10 @@ class FrameSettings:
     tv_retry_min_seconds: float
     tv_retry_max_seconds: float
 
+    tv_panel_width_px: int
+    tv_panel_height_px: int
+    tv_panel_diagonal_inches: float
+
     def frame_lines(self) -> dict[str, object]:
         """The Frame's part of a startup line, so a misconfiguration is one line away.
 
@@ -402,6 +435,9 @@ class FrameSettings:
             "tv_address": f"{self.tv_address}:{self.tv_port}",
             "tv_token_file": str(self.tv_token_file),
             "tv_client_name": self.tv_client_name,
+            # The panel geometry every mat on this Frame is drawn from, so a wrong
+            # diagonal is one journal line away rather than a mat that looks off.
+            "tv_panel": f"{self.tv_panel_width_px}x{self.tv_panel_height_px} at {self.tv_panel_diagonal_inches} in",
         }
 
 
@@ -414,6 +450,20 @@ class Settings(WallSettings, FrameSettings):
     one, and a `FrameSettings`, so the television is built from it. Made by
     `ClientSettings.frame_wall`.
     """
+
+    @property
+    def geometry(self) -> Geometry:
+        """The Frame's screen as configured, with the density its diagonal gives it."""
+        return Geometry(
+            screen=(self.tv_panel_width_px, self.tv_panel_height_px),
+            pixels_per_inch=pixels_per_inch(
+                width_px=self.tv_panel_width_px,
+                height_px=self.tv_panel_height_px,
+                diagonal_inches=self.tv_panel_diagonal_inches,
+            ),
+            mat_width_inches=self.mat_width_inches,
+            bottom_weight=self.mat_bottom_weight,
+        )
 
     def startup_lines(self) -> dict[str, object]:
         return {**self.wall_lines(), "state_path": str(self.state_path), **self.frame_lines()}
@@ -437,6 +487,8 @@ class ClientSettings:
     panel: PanelSettings
     client_poll_seconds: float = DEFAULT_CLIENT_POLL_SECONDS
     label_poll_seconds: float = DEFAULT_LABEL_POLL_SECONDS
+    mat_width_inches: float = DEFAULT_MAT_WIDTH_INCHES
+    mat_bottom_weight: float = DEFAULT_MAT_BOTTOM_WEIGHT
 
     @property
     def client_document_path(self) -> Path:
@@ -457,6 +509,8 @@ class ClientSettings:
             poll_interval_seconds=self.poll_interval_seconds,
             rotation_interval_fallback_seconds=self.rotation_interval_fallback_seconds,
             rotation_shuffle_fallback=self.rotation_shuffle_fallback,
+            mat_width_inches=self.mat_width_inches,
+            mat_bottom_weight=self.mat_bottom_weight,
         )
 
     def frame_wall(self, wall_id: str) -> Settings:
@@ -473,6 +527,7 @@ class ClientSettings:
             "cache_dir": str(self.cache_dir),
             "frame": self.frame.frame_lines() if self.frame is not None else "(none — TV_ADDRESS is not set)",
             "panel": self.panel.panel_lines(),
+            "mat": f"{self.mat_width_inches} in, bottom x{self.mat_bottom_weight}",
         }
 
 
@@ -504,6 +559,8 @@ def load(environ: dict[str, str] | None = None) -> ClientSettings:
         rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
         frame=_frame(env, cache_dir),
         panel=_panel(env),
+        mat_width_inches=_positive_float(env, "MAT_WIDTH_INCHES", DEFAULT_MAT_WIDTH_INCHES),
+        mat_bottom_weight=_positive_float(env, "MAT_BOTTOM_WEIGHT", DEFAULT_MAT_BOTTOM_WEIGHT),
     )
 
 
@@ -540,6 +597,9 @@ def _frame(env: dict[str, str], cache_dir: Path) -> FrameSettings | None:
         tv_connect_timeout_seconds=_float(env, "TV_CONNECT_TIMEOUT_SECONDS", DEFAULT_TV_CONNECT_TIMEOUT_SECONDS),
         tv_retry_min_seconds=_float(env, "TV_RETRY_MIN_SECONDS", DEFAULT_TV_RETRY_MIN_SECONDS),
         tv_retry_max_seconds=_float(env, "TV_RETRY_MAX_SECONDS", DEFAULT_TV_RETRY_MAX_SECONDS),
+        tv_panel_width_px=_positive_int(env, "TV_PANEL_WIDTH_PX", DEFAULT_TV_PANEL_WIDTH_PX),
+        tv_panel_height_px=_positive_int(env, "TV_PANEL_HEIGHT_PX", DEFAULT_TV_PANEL_HEIGHT_PX),
+        tv_panel_diagonal_inches=_positive_float(env, "TV_PANEL_DIAGONAL_INCHES", DEFAULT_TV_PANEL_DIAGONAL_INCHES),
     )
 
 
@@ -616,6 +676,22 @@ def _float(env: dict[str, str], name: str, default: float | None) -> float:
         return float(raw)
     except ValueError as exc:
         raise ConfigError(f"{name} is {raw!r}, which is not a number.") from exc
+
+
+def _positive_int(env: dict[str, str], name: str, default: int) -> int:
+    """A size, refused by name at zero or below rather than drawn as a mat of no screen."""
+    value = _int(env, name, default)
+    if value <= 0:
+        raise ConfigError(f"{name} is {value}, and it must be above zero.")
+    return value
+
+
+def _positive_float(env: dict[str, str], name: str, default: float) -> float:
+    """A measurement, refused by name at zero or below. See `_positive_int`."""
+    value = _float(env, name, default)
+    if not value > 0:
+        raise ConfigError(f"{name} is {value}, and it must be above zero.")
+    return value
 
 
 def _bool(env: dict[str, str], name: str, *, default: bool) -> bool:

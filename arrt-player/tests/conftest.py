@@ -143,6 +143,9 @@ def frame_settings(cache_dir: Path) -> FrameSettings:
         tv_connect_timeout_seconds=30.0,
         tv_retry_min_seconds=5.0,
         tv_retry_max_seconds=300.0,
+        tv_panel_width_px=3840,
+        tv_panel_height_px=2160,
+        tv_panel_diagonal_inches=50.0,
     )
 
 

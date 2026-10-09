@@ -139,6 +139,24 @@ a work is composed, uploaded or drawn, and shown, before any code moves.
   new picture. Composed files are evicted when no work the feed names produces
   their key. [LOW impact | user can override]
 
+**Decisions made mid-build:**
+- 01: the relative mat width is a constant in `compose.py` held to the vector
+  file by a test, not read from `contract/` at run time. A Player must run with
+  no checkout of the contract beside it, which it will once the repos split
+  (settled by the Architecture goal; the plan's wording said "read from").
+- 01: the drawing sizes the work to `layout`'s rectangle exactly, rather than
+  letting `thumbnail` choose a size. One answer to where the work goes, which
+  the Architecture goal asks for, and no off-by-one between the geometry and
+  the picture.
+- 01: the mat settings are the client's (`ClientSettings`, copied to every
+  wall), not the Frame's, because a screen composes with the bottom weight too.
+  The panel geometry is the Frame's. (Settled by ruling 7.)
+- 01: `test_config.py`'s guard that "the plane holds no fact about the
+  television's physical size" is replaced by its opposite: the Frame's geometry
+  and the mat are read and named in the startup line. Ruling 7 reversed the
+  rule that test encoded; the new test pins the obligation that replaced it
+  (`operational-spec.md`: each plane logs its own panel geometry at startup).
+
 ## Status
 
 - [ ] Chunk 01: The compositor and the Player's geometry
@@ -169,8 +187,9 @@ nothing under `arrt/`.
     edge) and `none` (the work fitted on black, the box being the whole
     screen).
   - Take the mat width from inches times the density when one is known, and
-    otherwise from `relative_width` times the shorter side. The constant is
-    read from the vector file's own `relative_width`, so the two cannot drift.
+    otherwise from `relative_width` times the shorter side. The constant lives
+    in the Player's code, and a test holds it to the vector file's own
+    `relative_width`, so the two cannot drift.
   - An unreadable colour composes as `none` (assumption above).
   - Decode with `draft` to the screen's size, as the server does. The
     measured budget assumed that.
