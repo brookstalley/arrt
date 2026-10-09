@@ -15,10 +15,13 @@ from arrt.config import DEFAULT_ASK_STEP_LIMIT
 from arrt.library.registry import (
     CommonsFile,
     ItemId,
+    RegistryArtist,
     RegistryCreator,
     RegistryPerson,
     RegistryText,
     RegistryTopic,
+    RegistryTopicWork,
+    RegistryWorkEntry,
     RegistryWorkMatch,
     TopicKind,
 )
@@ -28,7 +31,10 @@ pytestmark = pytest.mark.browser
 HUNTERS = "Q500985"
 BAROQUE = "Q37853"
 BRUEGEL = "Q43270"
+ROTHKO = "Q160149"
 SEARCH = ("art_discovery", {"action": "search", "q": "bruegel"})
+HARVESTERS_FILE = CommonsFile("https://commons.wikimedia.org/wiki/Special:FilePath/Harvesters.jpg")
+MENINAS_FILE = CommonsFile("https://commons.wikimedia.org/wiki/Special:FilePath/Meninas.jpg")
 ANSWER = (
     "Bruegel's winter is the obvious place to start.\n\n"
     f"- The Hunters in the Snow, Pieter Brueghel the Elder [{HUNTERS}]\n"
@@ -42,7 +48,37 @@ def registry():
     return FakeRegistry(
         # A period, so the card's reactions have to write it as taste's `era`.
         topics_found={"baroque": [RegistryTopic(qid=ItemId(BAROQUE), label=RegistryText("Baroque"), kinds=(TopicKind.PERIOD,))]},
+        # An artist's and a topic's works, each led by one with no picture, so a
+        # card pictured by the first work rather than the first *pictured* one
+        # draws nothing.
+        artists={
+            BRUEGEL: RegistryArtist(
+                qid=ItemId(BRUEGEL),
+                name=RegistryText("Pieter Brueghel the Elder"),
+                born=1525,
+                died=1569,
+                works=(
+                    RegistryWorkEntry(qid=ItemId("Q1"), title=RegistryText("A lost panel"), sitelinks=60),
+                    RegistryWorkEntry(
+                        qid=ItemId("Q2"), title=RegistryText("The Harvesters"), sitelinks=50, image=HARVESTERS_FILE
+                    ),
+                ),
+                works_total=2,
+            ),
+        },
+        topics={BAROQUE: RegistryTopic(qid=ItemId(BAROQUE), label=RegistryText("Baroque"), kinds=(TopicKind.PERIOD,))},
+        topic_works={
+            BAROQUE: [
+                RegistryTopicWork(qid=ItemId("Q3"), title=RegistryText("Unpictured"), sitelinks=90),
+                RegistryTopicWork(qid=ItemId("Q4"), title=RegistryText("Las Meninas"), sitelinks=80, image=MENINAS_FILE),
+            ]
+        },
         people={
+            "painters": [
+                RegistryPerson(qid=ItemId(f"Q10{n}"), label=RegistryText(f"Painter {n}"), born=1800 + n, died=1880 + n)
+                for n in range(5)
+            ],
+            "rothko": [RegistryPerson(qid=ItemId(ROTHKO), label=RegistryText("Mark Rothko"), born=1903, died=1970)],
             "bruegel": [
                 RegistryPerson(qid=ItemId(BRUEGEL), label=RegistryText("Pieter Brueghel the Elder"), born=1525, died=1569)
             ],
@@ -110,6 +146,125 @@ def test_a_reply_with_a_step_that_reported_no_cost_says_so(ui, ask_model):
         ui.page.locator(".ask-turn").last.locator(".ask-ending").inner_text()
         == "This reply cost under $0.01, and 1 of its steps reported no cost."
     )
+
+
+def test_each_card_is_a_poster_pictured_by_what_it_names(pictures_load, ask_model):
+    """A work by its own picture, an artist by their most renowned pictured work,
+    a topic by its first pictured work (the owner, 2026-10-09: "there should
+    always be one thumbnail"). Each filled in after the card draws."""
+    ui = pictures_load
+    ask_model.replies += [
+        calls(SEARCH, ("art_discovery", {"action": "find_topics", "q": "baroque"})),
+        says(f"{ANSWER}\n- The Baroque [{BAROQUE}]"),
+    ]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Something wintry")
+    for kind in ("work", "artist", "topic"):
+        ui.page.wait_for_selector(f".ask-card[data-ask-card='{kind}'] .card-image img")
+
+    def src(kind):
+        return ui.page.locator(f".ask-card[data-ask-card='{kind}'] .card-image img").get_attribute("src")
+
+    assert src("work") == "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg?width=330"
+    assert src("artist") == f"{HARVESTERS_FILE}?width=330"
+    assert src("topic") == f"{MENINAS_FILE}?width=330"
+    # Nothing is said of what the library does not hold.
+    assert "Not held" not in ui.page.locator(".ask-cards").inner_text()
+    assert "In your library" not in ui.page.locator(".ask-cards").inner_text()
+
+
+def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_load, services, service, ask_model):
+    """By their own work's thumbnail, and marked as held, without asking Wikidata for their works."""
+    ui = pictures_load
+    rothko = service.add_artist(name="Mark Rothko", born=1903, died=1970)
+    work = service.add_artwork(title="Untitled", artist_id=rothko.id)
+    services.identity.set_artist_identity(rothko.id, ROTHKO)
+    ask_model.replies += [calls(("art_discovery", {"action": "search", "q": "rothko"})), says(f"Rothko [{ROTHKO}].")]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Colour fields")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image img")
+
+    card = ui.page.locator(".ask-card[data-ask-card='artist']")
+    assert card.locator(".card-image img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
+    assert "In your library" in card.inner_text()
+
+
+def test_a_held_work_is_pictured_by_its_thumbnail_marked_and_not_offered_for_get(pictures_load, services, service, ask_model):
+    """A work the agent read from the library: its own thumbnail, *In your library*, and no Get."""
+    ui = pictures_load
+    work = service.add_artwork(title="The Hunters in the Snow")
+    services.identity.set_work_identity(work.id, HUNTERS)
+    ask_model.replies += [
+        calls(("art_catalogue", {"action": "get", "artwork_id": work.id})),
+        says(f"You hold it [{HUNTERS}]."),
+    ]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "What do I have of Bruegel?")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='work'] .card-image img")
+
+    card = ui.page.locator(".ask-card[data-ask-card='work']")
+    assert card.locator(".card-image img").get_attribute("src") == f"/api/works/{work.id}/thumbnail"
+    assert "In your library" in card.inner_text()
+    assert card.get_by_role("button", name="Get this work").count() == 0
+
+
+def test_a_picture_that_cannot_be_had_is_said_apart_from_one_that_does_not_exist(ui, ask_model):
+    """An outage counted as "no picture" would read as a gap in how pictures are chosen."""
+    ui.page.route(f"**/api/registry/artists/{BRUEGEL}", lambda route: route.abort())
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image-absent")
+
+    assert ui.page.locator(".ask-card[data-ask-card='artist'] .card-image-absent").inner_text() == "Picture unavailable"
+
+
+def test_the_cards_ask_wikidata_three_at_a_time(ui, ask_model):
+    """Five artists named, five lookups owed: three go at once and the rest wait, so a
+    reply naming fifteen never becomes fifteen registry queries together."""
+    held = []
+
+    def hold(route):
+        held.append(route)
+
+    ui.page.route("**/api/registry/artists/*", hold)
+    names = " ".join(f"[Q10{n}]" for n in range(5))
+    ask_model.replies += [calls(("art_discovery", {"action": "search", "q": "painters"})), says(f"Five painters: {names}")]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Some painters")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] >> nth=4")
+    ui.page.wait_for_timeout(500)
+    assert len(held) == 3
+
+    held.pop(0).abort()
+    ui.page.wait_for_selector(".card-image-absent")
+    ui.page.wait_for_timeout(300)
+    assert len(held) == 3, "a finished lookup did not let the next one go"
+    for route in held:
+        route.abort()
+
+
+def test_a_card_with_nothing_to_picture_says_so(ui, ask_model):
+    """Rothko is found by the search but Wikidata lists no work of his here."""
+    ask_model.replies += [calls(("art_discovery", {"action": "search", "q": "rothko"})), says(f"Rothko [{ROTHKO}].")]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Colour fields")
+    ui.page.wait_for_selector(".ask-card[data-ask-card='artist'] .card-image-absent")
+
+    assert ui.page.locator(".ask-card .card-image-absent").inner_text() == "No picture"
+    assert ui.page.locator(".ask-card .card-title").inner_text() == "Mark Rothko"
 
 
 def test_a_step_that_could_not_answer_is_marked_as_gone_wrong(ui, ask_model):
@@ -271,30 +426,27 @@ def _affinities(ui) -> dict:
     return json.loads(ui.page.evaluate("async () => JSON.stringify(await (await fetch('/api/affinities')).json())"))
 
 
-def test_declining_and_asking_for_more_are_different_pairs_of_the_two_fields(ui, ask_model):
-    """The two-fields rule, at the only place a control could collapse it.
-
-    "Tell me more" is `cool` and **still open** — the curator's own "meh on
-    Magritte, but open to learning more". A single warmth score would render it
-    as a low number indistinguishable from "not this", and the honest lukewarm
-    reaction would blacklist an artist they explicitly asked to keep hearing
-    about. Read back after each press, since the second overwrites the first.
-    """
+def test_a_card_offers_two_reactions_and_not_this_closes_the_door(ui, ask_model):
+    """Two reactions, not three: a reply can name fifteen artists, and three
+    buttons a card made the grid buttons rather than pictures (the owner,
+    2026-10-09). *Tell me more*, cool and still open, is offered on Taste's rows,
+    where `test_taste_and_reactions.py` holds it apart from *not this*."""
     ask_model.replies += [calls(SEARCH), says(ANSWER)]
     ui.open("#discover")
     ui.page.wait_for_selector("#ask-words")
     ask(ui, "Something wintry")
     ui.page.wait_for_selector(".ask-card")
 
+    artist = ui.page.locator(".ask-card[data-ask-card='artist']")
+    assert artist.locator("button").evaluate_all("els => els.map(e => e.getAttribute('aria-label'))") == [
+        "more like this: Pieter Brueghel the Elder",
+        "not this: Pieter Brueghel the Elder",
+    ]
     ui.page.get_by_role("button", name="not this: Pieter Brueghel the Elder").click()
     ui.page.wait_for_selector(".ask-card button:has-text('not this — recorded')")
     (declined,) = _affinities(ui)["affinities"]
-    ui.page.get_by_role("button", name="tell me more: Pieter Brueghel the Elder").click()
-    ui.page.wait_for_selector(".ask-card button:has-text('tell me more — recorded')")
-    (cooled,) = _affinities(ui)["affinities"]
 
     assert (declined["sentiment"], declined["open_to_more"]) == ("declines", False)
-    assert (cooled["sentiment"], cooled["open_to_more"]) == ("cool", True)
 
 
 def test_reacting_does_not_redraw_the_thread_under_the_curator(ui, ask_model):

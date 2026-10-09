@@ -144,6 +144,33 @@ def test_correcting_a_judgment_writes_it_as_the_curators_own_words(ui):
     assert written[0].get("rationale") is None
 
 
+def test_declining_and_keeping_open_are_different_pairs_of_the_two_fields(ui):
+    """The two-fields rule, where the control that could collapse it lives.
+
+    *Keep showing me* is `cool` and **still open**: the curator's "meh on
+    Magritte, but open to learning more". A single warmth score would render it
+    as a low number indistinguishable from *Not this*, and the honest lukewarm
+    reaction would shut out an artist they asked to keep hearing about. Moved here
+    from Ask's cards when they dropped *tell me more* (the owner, 2026-10-09).
+    """
+    written = []
+    reads = [
+        a_taste([an_affinity("Magritte")]),
+        a_taste([an_affinity("Magritte", sentiment=AffinitySentiment.DECLINES.value, open_to_more=False)]),
+        a_taste([an_affinity("Magritte", sentiment=AffinitySentiment.COOL.value, open_to_more=True)]),
+    ]
+    ui.page.route("**/api/affinities**", lambda route: _taste_route(route, reads, written))
+    ui.open("#taste")
+    ui.page.wait_for_selector(".affinity")
+
+    ui.page.get_by_role("button", name="Not this: Magritte").click()
+    ui.page.wait_for_selector("text=Not to be offered again unless you say otherwise.")
+    ui.page.get_by_role("button", name="Keep showing me: Magritte").click()
+    ui.page.wait_for_selector("text=Still open to being shown more of this.")
+
+    assert [(each["sentiment"], each["open_to_more"]) for each in written] == [("declines", False), ("cool", True)]
+
+
 def test_forgetting_a_judgment_asks_first_and_says_what_is_lost(ui):
     """Not recoverable, so the dialog names the consequence rather than the row.
 

@@ -19,11 +19,11 @@ import { api, apiLines } from "./api.js";
 import { getOne } from "./getting.js";
 import { GLYPHS } from "./glyphs.js";
 import { captioned, el, fill } from "./render.js";
-import { personLink, topicKinds, topicName, workLink, workState } from "./registry.js";
+import { personLink, topicKinds, topicName, workLink } from "./registry.js";
 import { prose } from "./reviewing.js";
 import { link, refresh } from "./router.js";
 import { dollars } from "./spend.js";
-import { reactionRow } from "./taste.js";
+import { CARD_REACTIONS, reactionRow } from "./taste.js";
 
 /* What an empty Ask offers to start from: an artist's neighbours, a mood for a
  * room, a period and a subject. Pressing one fills the box and sends nothing,
@@ -213,7 +213,7 @@ async function untilReplied(threadId, panel) {
 function turnView(asked, events) {
   const answer = el("div", { class: "ask-answer" });
   const steps = el("ul", { class: "ask-steps", "aria-label": "What Ask looked at" });
-  const offered = el("div", { class: "ask-cards" });
+  const offered = el("ul", { class: "grid ask-cards", "aria-label": "What this reply offers" });
   const ending = el("p", { class: "ask-ending" });
   let text = "";
   let ended = null;
@@ -290,30 +290,129 @@ export function paragraphs(text) {
   return blocks;
 }
 
-/* One thing the reply offers: a work with its mark and Get, an artist or a
- * topic with the reactions. */
+/* The Commons rendering a card's picture is asked at. Commons serves fixed
+ * widths only and answers any other with the next one up; 330 stays sharp on a
+ * poster at the grid's narrowest on a 3x screen (`app.css`, `.ask-cards`). */
+const POSTER_WIDTH = 330;
+
+
+function sized(url) {
+  return url ? `${url}?width=${POSTER_WIDTH}` : null;
+}
+
+function thumbnail(artworkId) {
+  return `/api/works/${encodeURIComponent(artworkId)}/thumbnail`;
+}
+
+function firstPictured(works) {
+  return sized((works || []).find((work) => work.image)?.image);
+}
+
+/* Where a card's picture comes from: a work's own; an artist's as Library ›
+ * Artists pictures them when held, else their most renowned work Wikidata has a
+ * picture of (the registry lists them by renown); a topic's first pictured
+ * representative work. Asked after the card is drawn, from the routes the
+ * Artist and Topic pages use, whose answers the server keeps for a week, so a
+ * reply never waits on Wikidata and a card seen again costs nothing. Null when
+ * there is none; a rejection when it could not be asked. */
+async function pictureFor(item) {
+  if (item.kind === "work") return item.held ? thumbnail(item.held) : sized(item.image);
+  if (item.kind === "artist" && item.held) {
+    const { pictured_artwork_id: pictured } = await api(`/api/artists/${encodeURIComponent(item.held)}`);
+    return pictured ? thumbnail(pictured) : null;
+  }
+  if (item.kind === "artist") return asked(async () => firstPictured((await api(`/api/registry/artists/${encodeURIComponent(item.qid)}`)).works));
+  return asked(() => topicPicture(item.qid));
+}
+
+/* A topic's picture from the first line of its works' stream: the ranked works,
+ * before the makers query the Topic page waits for and a card has no use for.
+ * The stream is read to its end, since the page keeps the topic's answer. */
+function topicPicture(qid) {
+  return new Promise((resolve, reject) => {
+    let found = null;
+    apiLines(`/api/topics/${encodeURIComponent(qid)}/works`, (line) => {
+      if (found === null) {
+        found = firstPictured(line.works);
+        if (found) resolve(found);
+      }
+    }).then(() => resolve(found), reject);
+  });
+}
+
+/* How many Wikidata lookups the cards make at once. A reply can name fifteen
+ * artists, each a registry query the server makes while nothing it keeps has
+ * them; three at a time keeps a reply from becoming fifteen at once, as the
+ * topic sweep's one-at-a-time keeps its own (`api-contract.md` § Topics). */
+const LOOKUPS_AT_ONCE = 3;
+const waiting = [];
+let running = 0;
+
+function asked(lookup) {
+  return new Promise((resolve, reject) => {
+    waiting.push(() => lookup().then(resolve, reject));
+    next();
+  });
+}
+
+function next() {
+  while (running < LOOKUPS_AT_ONCE && waiting.length) {
+    running += 1;
+    waiting
+      .shift()()
+      .finally(() => {
+        running -= 1;
+        next();
+      });
+  }
+}
+
+/* The card's picture box, drawn empty and filled when `pictureFor` answers:
+ * the grid keeps its shape while pictures arrive. One with no picture to show
+ * says *No picture*; one that could not be asked or would not load says so
+ * differently, since that is an outage and not a gap in what was chosen. */
+function posterPicture(item, target) {
+  const box = link(target, { class: "card-image", tabindex: "-1", "aria-hidden": true });
+  const say = (text) => fill(box, el("span", { class: "card-image-absent", text }));
+  const failed = () => say("Picture unavailable");
+  pictureFor(item).then((src) => {
+    if (!src) return say("No picture");
+    const img = el("img", { src, alt: "", loading: "lazy" });
+    img.addEventListener("error", failed);
+    fill(box, img);
+  }, failed);
+  return box;
+}
+
+/* One thing the reply offers, as a poster: its picture, its name, one line
+ * under it, and what can be done with it (a work's Get, an artist's or topic's
+ * two reactions). Held things are marked; nothing is said of what is not. */
 function card(item) {
+  const held = item.held ? el("p", { class: "card-meta" }, [el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }), " In your library"]) : null;
   if (item.kind === "work") {
     const work = { qid: item.qid, title: item.label, image: item.image, held_artwork_ids: item.held ? [item.held] : [] };
-    return el("div", { class: "ask-card" }, [
-      workState(work),
-      workLink(work),
-      item.detail ? el("span", { class: "muted", text: item.detail }) : null,
-      item.held ? null : getOne(item.qid),
-    ]);
+    const target = { view: "work", id: item.held || item.qid };
+    return poster(item, target, workLink(work), item.detail, held, item.held ? null : getOne(item.qid));
   }
   if (item.kind === "artist") {
-    return el("div", { class: "ask-card" }, [
-      personLink({ qid: item.qid, name: item.label, artist_id: item.held }),
-      item.detail ? el("span", { class: "muted", text: item.detail }) : null,
-      el("span", { class: "muted", text: item.held ? "In your library" : "Not held" }),
-      reactionRow({ kind: "artist", value: item.label }),
-    ]);
+    const target = { view: "artist", id: item.held || item.qid };
+    const name = personLink({ qid: item.qid, name: item.label, artist_id: item.held });
+    return poster(item, target, name, item.detail, held, reactionRow({ kind: "artist", value: item.label }, { only: CARD_REACTIONS }));
   }
   const kind = item.kinds.map((each) => TASTE_KIND[each]).find(Boolean);
-  return el("div", { class: "ask-card" }, [
-    link({ view: "topic", id: item.qid }, { class: "link", text: topicName(item.label, item.qid) }),
-    item.kinds.length ? el("span", { class: "muted", text: topicKinds(item.kinds) }) : null,
-    kind ? reactionRow({ kind, value: item.label }) : null,
+  const name = link({ view: "topic", id: item.qid }, { class: "link", text: topicName(item.label, item.qid) });
+  const acts = kind ? reactionRow({ kind, value: item.label }, { only: CARD_REACTIONS }) : null;
+  return poster(item, { view: "topic", id: item.qid }, name, item.kinds.length ? topicKinds(item.kinds) : "", null, acts);
+}
+
+function poster(item, target, name, detail, held, acts) {
+  return el("li", { class: "card ask-card", "data-ask-card": item.kind }, [
+    posterPicture(item, target),
+    el("div", { class: "card-body" }, [
+      el("h3", { class: "card-title" }, [name]),
+      detail ? el("p", { class: "card-meta", text: detail }) : null,
+      held,
+      acts,
+    ]),
   ]);
 }

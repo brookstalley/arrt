@@ -66,6 +66,73 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask's cards are posters, each with a picture
+
+<!-- prawduct: scope=ask-card-pictures -->
+
+**Why:** The owner, using Ask on the NAS: the cards were "dominated by the
+'more', 'not like' and 'tell me more' buttons, and none have any images", and
+"there should always be one thumbnail to give some idea of the work or the
+artist's style". Ruled 2026-10-09: a poster as Library › Artists draws one, and
+two quiet reactions.
+
+**What:**
+- **Every card is a poster:** a picture filling its width, then the name and
+  one line. A work is pictured by its own picture (a held one by its
+  thumbnail); an artist by one of their works (held: as Library › Artists
+  pictures them; otherwise their most renowned work Wikidata has a picture
+  of); a topic by its first representative work with a picture. The card
+  draws at once and the picture fills in from the routes the Artist and
+  Topic pages use, so a reply never waits on Wikidata; none found says
+  *No picture*. Commons is asked at 330 px.
+- **Two reactions on a card**, *more like this* and *not this*, smaller
+  (`CARD_REACTIONS`, which Taste's help reads). *Tell me more* moves to the
+  **Artist page**, which gains it as a third reaction, so an artist with no
+  judgment yet can still be given it; Taste's rows keep it as *Keep showing me*.
+- Pictures are looked up three at a time, a topic's from the first line of its
+  works' stream rather than after the makers query. One that could not be
+  asked or would not load says *Picture unavailable*, apart from *No picture*.
+- **"Not held" is gone**; a held work or artist says ● *In your library*.
+- A work card's *Get this work* stacks to the card's width.
+- **The curation plane pins Python 3.14** in `arrt/.python-version`, as its
+  image already did. Python 3.15 was released this week, and uv began choosing
+  it in CI to satisfy `requires-python = ">=3.14"`. `ormsgpack` 1.12.2 (through
+  `3tears-langgraph`) has no 3.15 wheel, and building it from source stops at
+  PyO3's 3.14 ceiling, so every curation job failed at install on PR #340.
+
+**Tests:** the two-fields test (declining vs. cool-and-open) moved from Ask's
+cards to Taste's rows, where the control still is; Ask's test now holds a card
+to two reactions. Each new test failed against its mutation: the first work
+taken rather than the first pictured, three reactions offered, the absent
+picture left blank, the topic pictured from the artist route, the held-artist
+branch removed, *tell me more* recorded as a decline, the lookup cap raised, a
+finished lookup not releasing the next, an outage said as *No picture*, and the
+Artist page's *Tell me more* recording *not this*. A held work's card (its
+thumbnail, *In your library*, no Get) has its own test.
+
+## 2026-10-09: Ask's cards are tested against the real payloads (#338)
+
+<!-- prawduct: scope=ask-card-payloads -->
+
+**Why:** `ask/cards.py` tells a work from an artist from a topic by field names,
+and its tests read hand-written payloads, which stay green when a binding
+renames a field. That is how held works once got no card (#338).
+
+**What:**
+- `test_registry_tools.py` calls every action in Ask's scope over the real MCP
+  surface and checks the items the card reader finds in each payload, kind and
+  held id. A test holds the cases to `ASK_SCOPE`, so an action added to Ask's
+  scope without a case fails.
+- **Surfaced:** a library listing's rows and a library topic's works carry no
+  QID, so a work the agent only listed gets no card until it reads the work
+  with `get`. Recorded at the case; nothing changed.
+- `browser.yml`'s comment no longer names the retired eval group.
+
+**Tests:** each fails against its mutation: the artist test narrowed to `born`,
+the topic label key renamed, `held_artwork_ids` renamed, an artist's held id
+dropped, and `art_catalogue(action='get')`'s `wikidata_qid` renamed in the
+binding.
+
 ## 2026-10-09: Ask as an agent: what the review left, #336, and examples on an empty Ask
 
 <!-- prawduct: scope=ask-agent -->

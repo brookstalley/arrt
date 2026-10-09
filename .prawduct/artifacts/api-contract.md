@@ -1955,8 +1955,9 @@ died with this ruling and the other was never true, since the month report shipp
 with `art_discovery`.)*
 
 **Reactions write through `/api/affinities`, not through an Ask route.** Each
-card Ask offers for an artist or topic carries "more like this" / "not this" /
-"tell me more", and each writes an `Affinity` with `derivation='stated'`. That is
+card Ask offers for an artist or topic carries "more like this" / "not this"
+("tell me more" too until 2026-10-09; it is on the Artist page and Taste's rows
+since), and each writes an `Affinity` with `derivation='stated'`. That is
 the same operation the Taste screen performs when a curator corrects one, so it
 is one service method with one route and several callers — `architecture.md`
 § Direction reduced to its simplest case.

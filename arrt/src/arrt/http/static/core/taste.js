@@ -33,6 +33,12 @@ export const REACTIONS = {
   "tell me more": { sentiment: "cool", open_to_more: true },
 };
 
+/* The reactions an Ask card offers: two, where an Artist page and Taste's rows
+ * offer all three. A reply can name fifteen artists, and three buttons a card
+ * made the grid buttons with names on rather than pictures (the owner,
+ * 2026-10-09). Taste's help reads this list, so it names what the cards carry. */
+export const CARD_REACTIONS = ["more like this", "not this"];
+
 /* Record one reaction against one thing, as the curator's own words.
  *
  * **Always `stated`, whoever is reacting and whatever the row said before.** A
@@ -55,8 +61,9 @@ export function recordReaction({ kind, value, reaction }) {
   });
 }
 
-/* The three reactions as a row of controls, for anything a curator can react
- * to: an artist or topic Ask offers, an artist's page, a row on Taste.
+/* The reactions as a row of controls, for an artist or topic Ask offers.
+ * `only` offers a subset, in its order: Ask's cards carry `CARD_REACTIONS`, and
+ * *tell me more* is on the Artist page and Taste's rows, where there is room.
  *
  * **The three record taste and stay where they are.** They write an `Affinity`
  * with `derivation='stated'` — the curator saying so directly — rather than
@@ -69,14 +76,14 @@ export function recordReaction({ kind, value, reaction }) {
  * nothing in the transcript changes — a thread that redrew itself under a
  * curator who pressed a button beside a picture would move the picture. What
  * confirms it is the control's own state, below. */
-export function reactionRow({ kind, value }) {
+export function reactionRow({ kind, value }, { only = Object.keys(REACTIONS) } = {}) {
   return el(
     "div",
     // Announced rather than only shown: the confirmation below is a change of
     // label on a control the curator has just left, and a reader who is not
     // looking at it would otherwise get no acknowledgement at all.
     { class: "reactions", "aria-live": "polite" },
-    Object.keys(REACTIONS).map((reaction) => {
+    only.map((reaction) => {
       const control = el("button", {
         class: "action quiet",
         type: "button",

@@ -19,6 +19,8 @@ from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
+from arrt.ask.cards import items_in
+from arrt.ask.prompt import ASK_SCOPE
 from arrt.library.registry import (
     CommonsFile,
     ItemId,
@@ -35,6 +37,7 @@ from arrt.library.registry import (
     RegistryWorkMatch,
     TopicKind,
 )
+from arrt.library.services.topics import OFFERED_TOPICS
 
 BRUEGEL = "Q43270"
 HUNTERS = "Q500985"
@@ -227,3 +230,65 @@ async def test_a_malformed_qid_is_refused_by_name(server_url, action):
 
     assert payload["success"] is False
     assert "not a Wikidata item id" in payload["error"]
+
+
+# -- what Ask's cards read from these payloads ------------------------------------------------
+#
+# `ask/cards.py` tells a work from an artist from a topic by field names alone. Its
+# unit tests hand it payloads written out by hand, which stay green when a binding
+# renames a field; these hand it the real ones, over the same fake registry, so a
+# rename here fails by name. One case per action Ask's agent is offered.
+
+
+def _cases(rothko_id: str, kept_id: str) -> dict[tuple[str, str], tuple[dict, dict[str, tuple[str, str | None]]]]:
+    """For each action in Ask's scope: its arguments, and each item a card reader must find, as (kind, held)."""
+    return {
+        ("art_discovery", "search"): (
+            {"q": "bruegel"},
+            {HUNTERS: ("work", None), HARVESTERS: ("work", None), BRUEGEL: ("artist", None)},
+        ),
+        ("art_discovery", "find_topics"): ({"q": "renaissance"}, {RENAISSANCE: ("topic", None)}),
+        # The held artist, so a registry work the library holds is read as held.
+        ("art_discovery", "artist"): (
+            {"qid": ROTHKO},
+            {ROTHKO: ("artist", rothko_id), HELD_ROTHKO: ("work", kept_id)},
+        ),
+        ("art_discovery", "similar_artists"): ({"qid": BRUEGEL}, {ROTHKO: ("artist", rothko_id)}),
+        ("art_discovery", "work"): ({"qid": HUNTERS}, {HUNTERS: ("work", None), BRUEGEL: ("artist", None)}),
+        ("art_discovery", "topic"): (
+            {"qid": RENAISSANCE},
+            {RENAISSANCE: ("topic", None), HUNTERS: ("work", None), BRUEGEL: ("artist", None)},
+        ),
+        ("art_catalogue", "get"): ({"artwork_id": kept_id}, {HELD_ROTHKO: ("work", kept_id)}),
+        # A listing row carries no QID, so a work the agent only listed cannot be
+        # cited and gets no card until it reads the work with `get`.
+        ("art_catalogue", "list"): ({}, {}),
+        # The library's own topic (the held work's, below) and the server's offer list.
+        ("art_catalogue", "topics"): (
+            {},
+            {RENAISSANCE: ("topic", None), **{topic.qid: ("topic", None) for topic in OFFERED_TOPICS}},
+        ),
+        # The held work is put in the topic below; its rows, like a listing's, carry no QID.
+        ("art_catalogue", "topic"): ({"qid": RENAISSANCE}, {RENAISSANCE: ("topic", None)}),
+    }
+
+
+def test_every_action_ask_is_offered_has_a_card_case():
+    assert set(_cases("a", "w")) == {(tool, action) for tool, actions in ASK_SCOPE.items() for action in actions}
+
+
+@pytest.mark.parametrize("tool_action", sorted(_cases("a", "w")), ids="{0[0]}.{0[1]}".format)
+async def test_the_card_reader_finds_each_item_a_real_payload_carries(server_url, service, held, tool_action):
+    rothko, kept = held
+    service.record_facet(artwork_id=kept.id, kind="movement", value="Renaissance", derivation="sourced", value_qid=RENAISSANCE)
+    arguments, expected = _cases(rothko.id, kept.id)[tool_action]
+    tool, action = tool_action
+    async with streamable_http_client(f"{server_url}/mcp") as (read, write, _), ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool(tool, {"action": action, **arguments})
+    payload = json.loads(result.content[0].text)
+    assert payload["success"] is True, payload
+
+    found = {qid: (item.kind, item.held) for qid, item in items_in(payload).items()}
+
+    assert found == expected
