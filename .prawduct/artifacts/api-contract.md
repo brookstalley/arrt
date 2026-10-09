@@ -1275,6 +1275,15 @@ value additively** — give it the companion first.
 > unchanged; by the table a description change is breaking, and it is made because
 > the old wording would steer an agent away from re-searching a work that never
 > had a scan. Annotated at the action in `mcp/tools.py`.
+>
+> **`look` and `source_plugins` shortened, 2026-10-08** (`build-plan-ask-agent.md`
+> Chunk 02, recorded after the cumulative review of 2026-10-09). To fit six new
+> `art_discovery` actions inside the description budget, `look` no longer says
+> "of a work you do not hold", and `source_plugins`' package, version and what
+> it provides moved from the description into a tip. Behaviour is unchanged: a
+> `look` at a held work answers `held`, as it always has. Breaking by the table,
+> and announced here and in the change-log's chunks 01 and 02 entry; no
+> annotation at the actions.
 
 **Tool names never change.** hallucinote states the rule as *"stable surface — never
 rename, only alias"* and enforces it at import time; cordyceps pins its seven tool

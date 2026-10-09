@@ -259,6 +259,9 @@ product's tools (2026-10-08), and the plan measures before it chooses a model.
   registry actions, `search`, `find_topics`, `artist`, `similar_artists`,
   `work` and `topic`, each its HTTP route's twin field for field.
   `api-contract.md` records the twins.
+- **Changed for MCP clients, by the table breaking:** `look`'s description no
+  longer says "of a work you do not hold" (a held work answers `held`), and
+  `source_plugins`' package and version notes moved into a tip.
 - **Measured:** 55 live runs across five models on Ask-shaped requests
   (`ask-agent-findings.md`). Ask's default model is
   `anthropic/claude-haiku-5.5` and a reply's step limit is 8 model calls, both
