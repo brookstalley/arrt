@@ -97,7 +97,7 @@ ruling 1 before the consumers are rewired.
 
 ## Status
 
-- [ ] Chunk 01: The quality profile replaces the artwork box, end to end
+- [x] Chunk 01: The quality profile replaces the artwork box, end to end
 - [ ] Chunk 02: The presentation master
 
 Context: branched from develop after #333. Drawn as three chunks, merged to two
