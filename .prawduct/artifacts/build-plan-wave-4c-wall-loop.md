@@ -172,8 +172,9 @@ findings were fixed and verified in the same commit.
 - **Type:** cumulative-final
 - **Surfaces:** `pull.py` (`manifest_major`; the `MANIFEST_ROUTE` constant
   retires); `heartbeat.py` (minor 2 `capabilities` and `scene_id`); both
-  drivers (their capabilities); `tests/test_pull.py`, `tests/test_heartbeat.py`,
-  `tests/test_player_contract.py`; `server_double.py` (serves `v{major}`);
+  drivers (their capabilities); `arrt-player/tests/test_pull.py`,
+  `arrt-player/tests/test_wall.py`, `arrt-player/tests/test_majors.py`,
+  `arrt-player/tests/test_player_contract.py`; `arrt-player/tests/server_double.py` (serves `v{major}`);
   `player-contract.md` § Transport, where it names the unversioned route.
 - **What:** the pull asks for each major the Player requests, highest first
   (`[1]` until 4d), takes the first that answers, and calls the wall

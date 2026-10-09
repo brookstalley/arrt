@@ -33,7 +33,7 @@ from typing import Final
 
 from arrt_player.logs import work_context
 from arrt_player.manifest import Feed
-from arrt_player.programmes.rotation import Memory
+from arrt_player.programmes.memory import Memory
 from arrt_player.wall import Clock, Display, Picture, Shown
 
 log = logging.getLogger(__name__)
@@ -81,6 +81,14 @@ class Schedule:
         self._missing: set[str] = set()
         #: The work the display last could not show, and when.
         self._refused: tuple[str, float] | None = None
+        #: The file this programme last put on the wall. **The work's id alone is
+        #: not enough**: a wall moved here from major 1 holds that work's
+        #: composed render, not its master, and a feed may give a work new
+        #: media under the same id. None until this programme has shown anything,
+        #: so the first pass after a restart or a switch shows the slot's work even
+        #: when the wall's memory already names it — on the Frame an idempotent
+        #: re-selection of a picture it holds, on a screen the draw a restart owes.
+        self._shown_path: Path | None = None
 
     @property
     def pictures(self) -> Sequence[Picture]:
@@ -118,11 +126,11 @@ class Schedule:
         if target.work_id is None:
             # A gap. The wall keeps what it has until power control can act on it.
             return
-        if target.work_id == self._memory.last_selected_work_id:
+        picture = self._picture(target.work_id)
+        if target.work_id == self._memory.last_selected_work_id and picture.path == self._shown_path:
             self._scene_id = target.scene_id
             return
 
-        picture = self._picture(target.work_id)
         with work_context(target.work_id):
             if not self._ready(picture) or not display.may_attempt() or not await display.is_ours():
                 return
@@ -130,6 +138,7 @@ class Schedule:
 
         if outcome is Shown.YES:
             self._memory.set_last_selected_work_id(target.work_id)
+            self._shown_path = picture.path
             self._scene_id = target.scene_id
             self._refused = None
         elif outcome is Shown.SKIP:

@@ -128,3 +128,31 @@ def test_the_frame_says_it_is_a_frame(settings, tv, state, clock):
     found = display.capabilities()
 
     assert (found.backend, found.screen, found.label_modes) == ("frame", None, ("none",))
+
+
+async def test_a_wall_moved_to_a_feed_naming_the_work_already_up_shows_its_master(screen, publish, wall_dir, clock):
+    """The work's id is the same; the picture is not — major 1 put up its composed render."""
+    loop, output = screen
+    publish(["w1"], interval_seconds=60)
+    await loop.tick()
+
+    clock.advance(1.3)
+    publish_feed(wall_dir, [("w1", "08:00", "18:00")])
+    await loop.tick()
+
+    assert [path.name for path in output.shown] == ["w1.jpg", f"sha256-{_sha('w1')}"]
+
+
+async def test_a_work_given_new_media_under_the_same_id_is_shown_again(screen, wall_dir, clock):
+    loop, output = screen
+    document = publish_feed(wall_dir, [("f1", "08:00", "18:00")])
+    await loop.tick()
+
+    clock.advance(1.3)
+    new = "b" * 64
+    (wall_dir / "media" / f"sha256-{new}").write_bytes(b"f1, re-mastered")
+    document["works"]["f1"]["media"] = {"url": f"/media/sha256-{new}", "sha256": new}
+    write_manifest(wall_dir, document)
+    await loop.tick()
+
+    assert [path.name for path in output.shown] == [f"sha256-{_sha('f1')}", f"sha256-{new}"]

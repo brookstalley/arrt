@@ -24,7 +24,8 @@ from arrt_player.config import WallSettings
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import ScreenState
 from arrt_player.manifest import Watcher
-from arrt_player.programmes.rotation import InMemory, Rotation
+from arrt_player.programmes.memory import InMemory
+from arrt_player.programmes.rotation import Rotation
 from arrt_player.programmes.schedule import Schedule
 from arrt_player.wall import Capabilities, Clock, DisplayRecord, Picture, Shown, Wall
 

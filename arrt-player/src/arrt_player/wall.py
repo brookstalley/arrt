@@ -7,8 +7,10 @@ small ways. What is shared now lives here and in the programme; what is a
 display's own lives in its driver (`arrt_player.displays`):
 
 * **The programme** (`arrt_player.programmes`) holds what the wall should show:
-  for a major 1 manifest the rotation and the directive. It asks the display
-  whether it may change the wall, and then to show a picture.
+  for a major 1 manifest the rotation and the directive, for a major 2 feed the
+  schedule and its scene. The wall holds one per major and uses the one whose
+  major it adopted last. A programme asks the display whether it may change the
+  wall, and then to show a picture.
 * **The display** owns everything about its screen: for the Frame, the set's
   art mode, its uploads and bindings, reconciliation, brightness and what the
   set announces; for a screen this host draws on, drawing and redrawing. It

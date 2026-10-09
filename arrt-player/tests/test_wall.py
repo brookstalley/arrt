@@ -18,7 +18,8 @@ from conftest import WALL_ID
 
 from arrt_player.heartbeat import ScreenState, path_in
 from arrt_player.manifest import REQUESTED_MAJORS, Watcher
-from arrt_player.programmes.rotation import InMemory, Rotation
+from arrt_player.programmes.memory import InMemory
+from arrt_player.programmes.rotation import Rotation
 from arrt_player.wall import Capabilities, DisplayRecord, Picture, Shown, Wall
 
 

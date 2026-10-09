@@ -16,7 +16,7 @@ import pytest
 from conftest import WALL_ID
 
 from arrt_player.manifest import Feed, parse
-from arrt_player.programmes.rotation import InMemory
+from arrt_player.programmes.memory import InMemory
 from arrt_player.programmes.schedule import RETRY_SECONDS, Schedule, what_to_show
 from arrt_player.wall import DisplayRecord, Picture, Shown
 

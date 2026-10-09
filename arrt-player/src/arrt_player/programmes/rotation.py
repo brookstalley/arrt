@@ -31,49 +31,13 @@ import logging
 import random
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
 
 from arrt_player.logs import work_context
 from arrt_player.manifest import Entry, Manifest
+from arrt_player.programmes.memory import Memory
 from arrt_player.wall import Clock, Display, Picture, Shown
 
 log = logging.getLogger(__name__)
-
-
-class Memory(Protocol):
-    """What the rotation remembers about the wall. `state.DisplayState` is one."""
-
-    @property
-    def last_acted_sequence(self) -> int | None: ...
-
-    def set_last_acted_sequence(self, sequence: int) -> None: ...
-
-    @property
-    def last_selected_work_id(self) -> str | None: ...
-
-    def set_last_selected_work_id(self, work_id: str) -> None: ...
-
-
-class InMemory:
-    """A `Memory` that lasts as long as the process."""
-
-    def __init__(self) -> None:
-        self._sequence: int | None = None
-        self._work_id: str | None = None
-
-    @property
-    def last_acted_sequence(self) -> int | None:
-        return self._sequence
-
-    def set_last_acted_sequence(self, sequence: int) -> None:
-        self._sequence = sequence
-
-    @property
-    def last_selected_work_id(self) -> str | None:
-        return self._work_id
-
-    def set_last_selected_work_id(self, work_id: str) -> None:
-        self._work_id = work_id
 
 
 class Rotation:

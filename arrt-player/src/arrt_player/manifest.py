@@ -72,7 +72,13 @@ MEDIA_DIRNAME: Final[str] = "media"
 _INSTANT: Final[re.Pattern[str]] = re.compile(
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})"
 )
-_SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
+#: A media hash as the contract spells it: lowercase hex SHA-256.
+SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
+
+
+def media_name(sha256: str) -> str:
+    """The name a medium is cached under in `MEDIA_DIRNAME`: the one spelling the pull writes and every reader looks for."""
+    return f"sha256-{sha256}"
 
 
 class ManifestUnreadable(Exception):
@@ -156,7 +162,7 @@ class Work:
     @property
     def media_path(self) -> str:
         """Where the pull keeps the media, relative to the wall's directory."""
-        return f"{MEDIA_DIRNAME}/sha256-{self.sha256}"
+        return f"{MEDIA_DIRNAME}/{media_name(self.sha256)}"
 
 
 @dataclass(frozen=True)
@@ -347,7 +353,7 @@ def _work(work_id: object, item: object) -> Work:
     media = item.get("media")
     sha = media.get("sha256") if isinstance(media, dict) else None
     url = media.get("url") if isinstance(media, dict) else None
-    if not isinstance(sha, str) or not _SHA256.fullmatch(sha) or not isinstance(url, str) or not url:
+    if not isinstance(sha, str) or not SHA256.fullmatch(sha) or not isinstance(url, str) or not url:
         raise ManifestUnreadable(f"work {work_id} carries no media with a sha256 and a url")
     label = item.get("label")
     return Work(

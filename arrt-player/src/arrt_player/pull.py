@@ -1,4 +1,9 @@
-"""Pull each wall's manifest and renders into its cache, report its heartbeat, and ask the server which walls this client drives.
+"""Pull each wall's manifest and media into its cache, report its heartbeat, and ask the server which walls this client drives.
+
+A major 1 manifest names composed renders and is cached with each entry pointed
+at its render, dropping an entry whose render cannot be had; a major 2 feed
+names each work's presentation master and is cached whole (`_adopt_feed` says
+why).
 
 **The only module in this plane that speaks HTTP**, and
 `tests/preferences/test_plane_isolation.py` holds it to that. It spells five
@@ -36,7 +41,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 from dataclasses import dataclass
 from enum import Enum
 from http import HTTPStatus
@@ -51,7 +55,7 @@ from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSet
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import path_in as heartbeat_path_in
 from arrt_player.label_rule import LabelDocument, LabelDocumentUnreadable, parse_label_document
-from arrt_player.manifest import MEDIA_DIRNAME, REQUESTED_MAJORS, Feed, ManifestUnreadable, parse
+from arrt_player.manifest import MEDIA_DIRNAME, REQUESTED_MAJORS, SHA256, Feed, ManifestUnreadable, media_name, parse
 
 log = logging.getLogger(__name__)
 
@@ -68,7 +72,6 @@ ETAG_FILENAME: Final[str] = "manifest.etag"
 #: Beside the cached client document, for the same reason.
 CLIENT_ETAG_FILENAME: Final[str] = ".client.etag"
 
-_SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
 
 #: How long to wait before asking again after the server could not be reached,
 #: doubling to the ceiling and reset on the next answer.
@@ -328,10 +331,10 @@ class Pull:
         media = entry.get("media")
         sha = media.get("sha256") if isinstance(media, dict) else None
         url = media.get("url") if isinstance(media, dict) else None
-        if not isinstance(sha, str) or not _SHA256.fullmatch(sha) or not isinstance(url, str):
+        if not isinstance(sha, str) or not SHA256.fullmatch(sha) or not isinstance(url, str):
             self._skip_once(f"no-media:{work_id}", "work %s has no usable media, so this Player skips it", work_id)
             return False
-        name = f"sha256-{sha}"
+        name = media_name(sha)
         relative = f"{MEDIA_DIRNAME}/{name}"
         if (self._media / name).is_file():
             return relative
@@ -381,7 +384,7 @@ class Pull:
         if isinstance(cached.get("works"), dict):
             # A major 2 feed: each work's media, by the name the pull gives it.
             return {
-                f"sha256-{work['media']['sha256']}"
+                media_name(work["media"]["sha256"])
                 for work in cached["works"].values()
                 if isinstance(work, dict) and isinstance(work.get("media"), dict) and isinstance(work["media"].get("sha256"), str)
             }
