@@ -219,7 +219,7 @@ a work is composed, uploaded or drawn, and shown, before any code moves.
 
 - [x] Chunk 01: The compositor and the Player's geometry
 - [x] Chunk 02: The wall composes major 2 works
-- [ ] Chunk 03: Ask for major 2
+- [x] Chunk 03: Ask for major 2
 
 Context: branched from develop after #335 (wave 4c). A second session builds
 the server's Ask work (`feature/ask-agent`), then 4e and 4g. This plan touches
