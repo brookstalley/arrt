@@ -159,7 +159,7 @@ a work is composed, uploaded or drawn, and shown, before any code moves.
 
 ## Status
 
-- [ ] Chunk 01: The compositor and the Player's geometry
+- [x] Chunk 01: The compositor and the Player's geometry
 - [ ] Chunk 02: The wall composes major 2 works
 - [ ] Chunk 03: Ask for major 2
 
