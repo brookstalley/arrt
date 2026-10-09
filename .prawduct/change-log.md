@@ -66,6 +66,29 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask's cards are tested against the real payloads (#338)
+
+<!-- prawduct: scope=ask-card-payloads -->
+
+**Why:** `ask/cards.py` tells a work from an artist from a topic by field names,
+and its tests read hand-written payloads, which stay green when a binding
+renames a field. That is how held works once got no card (#338).
+
+**What:**
+- `test_registry_tools.py` calls every action in Ask's scope over the real MCP
+  surface and checks the items the card reader finds in each payload, kind and
+  held id. A test holds the cases to `ASK_SCOPE`, so an action added to Ask's
+  scope without a case fails.
+- **Surfaced:** a library listing's rows and a library topic's works carry no
+  QID, so a work the agent only listed gets no card until it reads the work
+  with `get`. Recorded at the case; nothing changed.
+- `browser.yml`'s comment no longer names the retired eval group.
+
+**Tests:** each fails against its mutation: the artist test narrowed to `born`,
+the topic label key renamed, `held_artwork_ids` renamed, an artist's held id
+dropped, and `art_catalogue(action='get')`'s `wikidata_qid` renamed in the
+binding.
+
 ## 2026-10-09: Ask as an agent: what the review left, #336, and examples on an empty Ask
 
 <!-- prawduct: scope=ask-agent -->

@@ -1,7 +1,9 @@
 """Which items a reply offers as cards, and what each card says.
 
-The payloads are the registry actions' own shapes (`mcp/bindings.py`): a search's
-works and people, an artist's page with its museums, a topic.
+The payloads here are written out by hand, for the edge cases a fixture of the
+real surface would not reach. The real ones are read in
+`tests/integration/test_registry_tools.py`, one case per action Ask is offered,
+so a binding that renames a field fails there rather than leaving these green.
 """
 
 from arrt.ask.cards import cards_for, items_in, qids_named

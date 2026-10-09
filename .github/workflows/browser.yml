@@ -78,12 +78,11 @@ jobs:
         run: uv run playwright install --with-deps chromium
       - name: Run the browser suite
         working-directory: arrt
-        # The path is scoped as well as the marker, and that is load-bearing
-        # rather than tidy. `-m browser` alone still *collects* the whole tests
-        # tree, so the eval module — whose group is deliberately not installed
-        # here — lands an import skip in the report, and the guard below reads any
-        # skip as a provisioning failure and fails the job. Verified: unscoped,
-        # this step reported "18 passed, 1 skipped" and the guard exited 1.
+        # Each shard runs its share of tests/browser's files, never the whole
+        # tests tree: `-m browser` alone still *collects* everything, so a module
+        # that skips itself at import for a group not installed here would land a
+        # skip in the report, and the guard below reads any skip as a provisioning
+        # failure and fails the job.
         run: |
           files=$(python3 ../.github/scripts/browser_shard.py tests/browser ${{ strategy.job-total }} ${{ strategy.job-index }})
           echo "Shard ${{ matrix.shard }} of ${{ strategy.job-total }} runs: $files"
