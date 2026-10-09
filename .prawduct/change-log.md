@@ -84,6 +84,10 @@ branch (2026-10-09).
   sends nothing, and they go once something is said. The IA asked for them
   from the start.
 - Ask uses the registry's `HELP_ACTION` rather than its own `"help"`.
+- **`api-contract.md` gets back five sections** that chunk 04 deleted along with
+  the conversation-reads paragraphs: the Server↔Player surface, Clients,
+  History, Conventions and most of Security. Restored with develop's
+  wave-4 edits in them, in the merge of develop.
 
 **Tests:** each new test failed against its mutation: the predicate made
 always-true (four failures across the client, the phase 1 engine and Ask),
