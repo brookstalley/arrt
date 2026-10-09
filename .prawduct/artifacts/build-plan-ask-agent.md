@@ -247,6 +247,10 @@ Done when: the four requests from 02 work end to end in the browser; the
 browser suite drives a thread against a stubbed model; a reply that hits the
 step limit says so in the thread; the owner has used it.
 
+*Ticked 2026-10-09 with the last clause outstanding:* the owner's use waits on
+the deploy, and `operator-verification.md` § Ask as an agent holds it as
+pending until then. That entry, not this box, is the record of it.
+
 **Stated at the chunk, before code (2026-10-08).** Decisions are the agent's,
 each one the owner can veto:
 

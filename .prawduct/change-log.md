@@ -193,28 +193,6 @@ first version importing `openai` for the exception type; the status is read
 off the error instead. `PAGES_WITH_SECTIONS` drops `discover`, which is one
 thread with no sections now.
 
-## 2026-10-08: Ask as an agent, chunks 01 and 02: the rulings recorded, and models measured
-
-<!-- prawduct: scope=ask-agent -->
-
-**Why:** The owner ruled that Ask is a conversation with an agent that has the
-product's tools (2026-10-08), and the plan measures before it chooses a model.
-
-**What:**
-- **Chunk 01:** dated direction-changed notes in the product brief, the IA and
-  its proposal, the data model, the NFRs' cost visibility, and the 3tears and
-  OpenRouter findings; a project-state decision for the agent stack.
-- **New for MCP clients, additive:** `art_discovery` gains six read-only
-  registry actions, `search`, `find_topics`, `artist`, `similar_artists`,
-  `work` and `topic`, each its HTTP route's twin field for field.
-  `api-contract.md` records the twins.
-- **Measured:** 55 live runs across five models on Ask-shaped requests
-  (`ask-agent-findings.md`). Ask's default model is
-  `anthropic/claude-haiku-5.5` and a reply's step limit is 8 model calls, both
-  decisions the owner can veto.
-
-**Tests:** the eval's scorers each have a free test (`test_ask_scoring.py`).
-
 ## 2026-10-09: Ask as an agent, chunk 03: Ask is one thread with an agent in it
 
 <!-- prawduct: scope=ask-agent -->
@@ -266,6 +244,28 @@ server on haiku: 3–4 model calls, $0.0027–$0.0044 each, every reply costed
 while streamed. One was drawn in Chromium, and the screenshot showed three
 faults the suite could not: an overflowing theme picker, the cost said twice,
 and a step glyph. All three are fixed.
+## 2026-10-08: Ask as an agent, chunks 01 and 02: the rulings recorded, and models measured
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner ruled that Ask is a conversation with an agent that has the
+product's tools (2026-10-08), and the plan measures before it chooses a model.
+
+**What:**
+- **Chunk 01:** dated direction-changed notes in the product brief, the IA and
+  its proposal, the data model, the NFRs' cost visibility, and the 3tears and
+  OpenRouter findings; a project-state decision for the agent stack.
+- **New for MCP clients, additive:** `art_discovery` gains six read-only
+  registry actions, `search`, `find_topics`, `artist`, `similar_artists`,
+  `work` and `topic`, each its HTTP route's twin field for field.
+  `api-contract.md` records the twins.
+- **Measured:** 55 live runs across five models on Ask-shaped requests
+  (`ask-agent-findings.md`). Ask's default model is
+  `anthropic/claude-haiku-5.5` and a reply's step limit is 8 model calls, both
+  decisions the owner can veto.
+
+**Tests:** the eval's scorers each have a free test (`test_ask_scoring.py`).
+
 ## 2026-10-09: Wave 4c — one wall loop, a driver per display, a reader for majors 1 and 2
 
 <!-- prawduct: scope=wave-4c-wall-loop -->

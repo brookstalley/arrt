@@ -18,6 +18,9 @@ Done-when includes that you have used it.
 Built against a scripted model in the browser suite, and against the real
 model only in chunk 02's evals (`ask-agent-findings.md`). Not yet deployed.
 
+**Before deploying, copy the catalogue:** the first start drops the stored
+conversations (`retire_conversations`), and that copy is the only way back.
+
 - **Ask is one thread now.** The direct box, its *Get*, *Talk it through
   first* and the conversations list are gone; the only act is *Ask*, with
   "Searches as it answers; each reply says what it cost" under it, and the
