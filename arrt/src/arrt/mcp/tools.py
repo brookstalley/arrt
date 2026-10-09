@@ -355,6 +355,11 @@ ART_CATALOGUE: Final = ToolRecord(
                     "A work whose master image is missing from disk is refused rather than rendered blank; "
                     "action='retry_acquisition' fetches it again."
                 ),
+                (
+                    "fit is 'meets_minimum' or 'below_minimum', against the quality minimum, and null when nothing "
+                    "was rendered. Retired 2026-10-08: 'native', 'matted_small' and 'below_floor', and the "
+                    "rendered_long_edge_inches field, which judged the work against one configured television."
+                ),
             ),
         ),
         Action(
@@ -677,8 +682,8 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "A picture's facts carry the browser's names: width and height are art_review list_images' "
-                    "estimated_width and estimated_height, fit.verdict its display_fit, and "
-                    "fit.rendered_long_edge_inches its renders_at_inches, unrounded."
+                    "estimated_width and estimated_height, fit.verdict its display_fit, and below_minimum is "
+                    "fit.verdict == 'below_minimum'."
                 ),
             ),
         ),
@@ -876,7 +881,7 @@ ART_REVIEW: Final = ToolRecord(
                 _BLOCK_ORDER_TIP,
                 (
                     "This carries one image, and is_on_offer says whether it is the one a verdict would accept "
-                    "on. It is false for a work whose scans are all below the floor or all turned down — the "
+                    "on. It is false for a work whose scans are all below the quality minimum or all turned down — the "
                     "picture is still shown, because a work with no picture and a work nothing was found for "
                     "must not look alike. Use action='list_images' to see the alternates found for the work."
                 ),
@@ -888,13 +893,13 @@ ART_REVIEW: Final = ToolRecord(
         ),
         Action(
             name="list_images",
-            description="Return the image instances found for one work, ranked, each with its size on the wall.",
+            description="Return the image instances found for one work, ranked, each with its size in pixels.",
             example="art_review(action='list_images', work_id='<a work_id from action=list_works>')",
             params=(_WORK_ID,),
             tips=(
                 _BLOCK_ORDER_TIP,
                 (
-                    "Where a work has an instance on offer it leads; a work whose scans are all below the floor "
+                    "Where a work has an instance on offer it leads; a work whose scans are all below the minimum "
                     "or all turned down has none, and then the first row is simply the highest-ranked. Read "
                     "is_on_offer rather than position. The rest are alternates, kept rather than discarded so "
                     "an over-eager match stays inspectable."
@@ -905,13 +910,20 @@ ART_REVIEW: Final = ToolRecord(
                     "rejected_for_this_work on each row."
                 ),
                 (
-                    "display_fit says how an instance would meet the wall: 'native', 'matted_small', or "
-                    "'below_floor'. A below_floor instance is shown and may be chosen — it is labelled with the "
-                    "size it would appear at, never hidden."
+                    "display_fit says whether an instance meets the quality minimum (QUALITY_MINIMUM_PX on its "
+                    "long edge): 'meets_minimum' or 'below_minimum'. A below_minimum instance is shown and may be "
+                    "chosen — it is labelled with its size, never hidden."
                 ),
                 (
-                    "renders_at_inches is the number a thumbnail cannot convey. A 900-pixel scan and a "
-                    "6000-pixel scan look identical here and are not the same thing on a wall."
+                    "size_px (and, on list_images, estimated_width and estimated_height) are the numbers a thumbnail "
+                    "cannot convey. A 900-pixel "
+                    "scan and a 6000-pixel scan look identical here and are not the same thing on a wall."
+                ),
+                (
+                    "Retired 2026-10-08: display_fit's 'native', 'matted_small' and 'below_floor', and the "
+                    "renders_at_inches and renders_at_pixels fields. They judged a scan against one configured "
+                    "television, which the server no longer holds; whether a work suits a particular wall is "
+                    "judged where that wall's screen is known."
                 ),
             ),
         ),
@@ -929,8 +941,8 @@ ART_REVIEW: Final = ToolRecord(
             ),
             tips=(
                 (
-                    "This is how a below_floor scan gets onto the wall: automatic selection withholds one, and "
-                    "choosing it explicitly is the decision the floor exists to force. Nothing else overrides it."
+                    "This is how a below_minimum scan gets onto the wall: automatic selection withholds one, and "
+                    "choosing it explicitly is the decision the minimum exists to force. Nothing else overrides it."
                 ),
                 (
                     "A scan already turned down cannot be chosen again — that is what rejecting one means. Use "
@@ -1025,8 +1037,8 @@ ART_REVIEW: Final = ToolRecord(
             tips=(
                 ("scans_turned_down counts the scans the curator turned down. wikidata_qid is null " "when no item is known."),
                 (
-                    "shown is the scan the work's review card pictures it by, usually one too small for the wall "
-                    "(display_fit below_floor), or null when nothing was found or every scan was turned down."
+                    "shown is the scan the work's review card pictures it by, usually one below the quality minimum "
+                    "(display_fit below_minimum), or null when nothing was found or every scan was turned down."
                 ),
             ),
         ),

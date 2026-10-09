@@ -955,6 +955,20 @@ class SqliteCatalogue(TableAdapter):
         )
         return [row["work_id"] for row in rows]
 
+    def works_owing_a_presentation_master(self, rule: str) -> Sequence[str]:
+        # Recorded from the Original held now, which is what `is_current` means
+        # for every Rendition, and by the rule masters are made by now: a master
+        # made from a replaced Original, or the old way, is owed again, as a
+        # missing one is.
+        rows = self._store.select_rows(
+            'SELECT a."id" AS work_id FROM artworks a JOIN originals o ON o."artwork_id" = a."id" WHERE a."status" = ? '
+            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? '
+            'AND r."source_content_hash" = o."content_hash" AND r."layout" = ?) '
+            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.PRESENTATION_MASTER), rule),
+        )
+        return [row["work_id"] for row in rows]
+
     def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
         rows = self._store.select_rows(
             'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '

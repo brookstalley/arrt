@@ -11,11 +11,12 @@ import httpx
 import pytest
 from fakes import FakeRegistry
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, WorkPage
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.sources import FetchLocator, LocatorKind, SourceContext, SourceParts, navigart
 from arrt.library.sources.navigart import (
     PLUGIN,
@@ -228,8 +229,8 @@ def test_the_items_page_identifies_the_work_through_the_identity_check_with_the_
     here, and a page of the plugin's own spelling would be judged on its title.
     """
     registry = FakeRegistry(pages={RYTHME_ITEM: [WorkPage(RYTHME_PAGE)]})
-    box = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=box, registry=registry)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=profile, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Rythme couleur no 1076", artist="Sonia Delaunay", qid=RYTHME_ITEM))
 
@@ -238,14 +239,16 @@ def test_the_items_page_identifies_the_work_through_the_identity_check_with_the_
     assert entry.found.rights_status is RightsStatus.IN_COPYRIGHT
     assert entry.confidence == CONFIDENT
     assert "Wikidata item records" in entry.rationale
-    assert entry.below_floor, "navigart's 1,000 px is a placeholder, offered below the floor"
+    # 777 x 1000, navigart's largest: exactly the owner's minimum, which is met.
+    # Against the retired 42" reference floor (about 1,260 px) it fell short.
+    assert entry.fit is Fit.MEETS_MINIMUM
     assert resolution.refusals == frozenset()
 
 
 def test_another_artists_artwork_on_the_items_page_is_refused_by_the_identity_check():
     registry = FakeRegistry(pages={RYTHME_ITEM: [WorkPage(RYTHME_PAGE)]})
-    box = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=box, registry=registry)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=profile, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Rythme couleur no 1076", artist="Robert Delaunay", qid=RYTHME_ITEM))
 

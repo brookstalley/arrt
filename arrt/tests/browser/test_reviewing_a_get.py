@@ -324,7 +324,8 @@ def test_the_card_states_the_scan_s_pixels_above_the_fold(ui):
     assert resolution["y"] + resolution["height"] <= 900, "the pixels are below the fold"
     assert "″" not in ui.text()
     assert "would show at" not in ui.text()
-    assert ui.page.locator("li.card .badge-native").inner_text().split() == ["●", "native"]
+    # The scan meets the minimum, which is not news, so it carries no size badge.
+    assert ui.page.locator("li.card .badge-below_minimum").count() == 0
 
 
 def test_a_scan_whose_size_nobody_recorded_says_so_rather_than_inventing_one(ui):
@@ -338,13 +339,14 @@ def test_a_scan_whose_size_nobody_recorded_says_so_rather_than_inventing_one(ui)
 
 
 def _held_work_with_a_fit(work_with_an_image, services):
-    work = work_with_an_image("Nighthawks", width=1600, height=1200)
+    # Below the minimum, because a work that meets it draws no badge at all.
+    work = work_with_an_image("Nighthawks", width=800, height=600)
     theme = services.display.add_theme(name="Night")
     services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id, position=0)
     return work, theme
 
 
-FIT_BADGE = ".badge-native, .badge-matted_small, .badge-below_floor"
+FIT_BADGE = ".badge-below_minimum"
 
 
 @pytest.mark.parametrize("screen", ["work", "theme", "collection"])
@@ -356,7 +358,7 @@ def test_no_screen_that_draws_a_fit_badge_says_inches(ui, services, work_with_an
     ui.page.wait_for_selector(f"#view :is({FIT_BADGE})")
 
     badge = ui.page.locator(f"#view :is({FIT_BADGE})").first.inner_text()
-    assert badge.split()[-1] in {"native", "small", "floor"}, badge
+    assert badge.split()[-2:] == ["below", "minimum"], badge
     assert "″" not in ui.text()
     assert "would show at" not in ui.text()
 

@@ -1,4 +1,4 @@
-"""Artworks' clean-up facets in the rail: *Size on the wall* and *Not on any wall* (#288).
+"""Artworks' clean-up facets in the rail: *Size* and *Not on any wall* (#288).
 
 The server's half — the counts, the composition, the seam — is
 `tests/integration/test_clean_up_facet_routes.py`. This is what the rail does with
@@ -69,32 +69,29 @@ def cards(ui):
     return sorted(ui.page.locator("ul.grid li.card .card-title").all_inner_texts())
 
 
-def test_size_on_the_wall_offers_each_band_with_its_count(ui, sized):
+def test_size_offers_each_band_with_its_count(ui, sized):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    group = ui.page.locator("aside.rails .rail", has=ui.page.locator("h2:text-is('Size on the wall')"))
+    group = ui.page.locator("aside.rails .rail", has=ui.page.locator("h2:text-is('Size')"))
     assert group.locator("button.facet-option").all_inner_texts() == [
-        "Native (1)",
-        "Matted small (0)",
-        "Below floor (1)",
+        "Meets minimum (1)",
+        "Below minimum (1)",
         "No size known (3)",
     ]
-    # Disabled, not hidden, at zero, as every facet option is.
-    assert option(ui, "Matted small").is_disabled()
 
 
 def test_choosing_a_band_narrows_at_the_server_and_is_in_the_address(ui, sized):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    option(ui, "Below floor").click()
+    option(ui, "Below minimum").click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     assert cards(ui) == ["A tiny scan"]
-    assert "fit=below_floor" in ui.page.evaluate("() => window.location.hash")
-    assert option(ui, "Below floor").get_attribute("aria-pressed") == "true"
-    assert any("fit=below_floor" in url for url in ui.requests_matching("/api/works?"))
+    assert "fit=below_minimum" in ui.page.evaluate("() => window.location.hash")
+    assert option(ui, "Below minimum").get_attribute("aria-pressed") == "true"
+    assert any("fit=below_minimum" in url for url in ui.requests_matching("/api/works?"))
 
 
 def test_not_on_any_wall_leaves_out_what_a_wall_plays(ui, hung):
@@ -119,13 +116,13 @@ def test_not_on_any_wall_is_not_offered_before_anything_hangs(ui, sized):
 
 
 def test_a_clean_up_filter_that_empties_the_grid_is_named(ui, hung):
-    ui.open("#collection?wall=none&fit=native")
+    ui.open("#collection?wall=none&fit=meets_minimum")
     ui.page.wait_for_selector("#view .empty")
 
     assert "Nothing held matches this filter." in ui.text()
-    assert "size on the wall “Native”, and not on any wall" in ui.text()
+    assert "size “Meets minimum”, and not on any wall" in ui.text()
     # Still undoable from the rail, since the chosen options stay offered.
-    assert option(ui, "Native").get_attribute("aria-pressed") == "true"
+    assert option(ui, "Meets minimum").get_attribute("aria-pressed") == "true"
 
 
 def test_hidden_rails_still_say_a_clean_up_filter_is_narrowing(ui, hung):

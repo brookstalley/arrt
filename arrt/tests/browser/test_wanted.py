@@ -19,7 +19,7 @@ import pytest
 from payloads import a_candidate, a_candidate_page, a_card, an_instance, an_instance_listing
 
 from arrt.http.models import FitOut, WantedListingOut, WantedWorkOut
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.quality import Fit
 from arrt.persistence.discovery_records import InitiatedBy
 
 pytest.importorskip(
@@ -167,12 +167,12 @@ def a_wanted(title="Blue Green Red", artist="Ellsworth Kelly", work_id="work-1",
     return WantedWorkOut(work_id=work_id, title=title, artist=artist, **(defaults | fields))
 
 
-#: A museum's web-size picture of a work in copyright: far below the floor.
+#: A museum's web-size picture of a work in copyright: far below the minimum.
 TOO_SMALL = an_instance(
     is_selected=False,
     width=567,
     height=625,
-    fit=FitOut(verdict=DisplayFit.BELOW_FLOOR.value, rendered_width=567, rendered_height=625, rendered_long_edge_inches=7.5),
+    fit=FitOut(verdict=Fit.BELOW_MINIMUM.value),
 )
 
 
@@ -186,7 +186,7 @@ def test_a_wanted_work_is_pictured_by_its_too_small_scan_and_says_so(ui):
     assert picture.get_attribute("alt") == "Blue Green Red, by Ellsworth Kelly"
     assert "/api/candidate-images/image-1/preview" in picture.get_attribute("src")
     row = ui.page.locator(".wanted tbody tr").inner_text()
-    assert "below floor" in row
+    assert "below minimum" in row
     assert "Found only too small" in row
     assert "No scan found" not in row, "a picture never sits beside a claim that nothing was found"
 

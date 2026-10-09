@@ -43,7 +43,7 @@ def a_run(services, engine, settings, museum, pictures, *titles: str) -> str:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=PreviewCache(pictures),
         spawn=lambda work: work(),
     )

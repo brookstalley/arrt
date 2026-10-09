@@ -37,10 +37,11 @@ from pathlib import Path
 from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
-from arrt.library.acquisition.compose import compose, layout
+from arrt.library.acquisition.compose import ArtworkBox, compose, layout
+from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_master, master_path
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit
+from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import MatColor, MatMethod, RenditionKind
 from arrt.services.errors import ServiceError
@@ -74,10 +75,6 @@ class PreparationResult:
     mat_hex: str
     mat_method: str
     relative_path: str | None = None
-    #: How the original met the space it was rendered into, so a caller can say
-    #: "this is on the wall, and it is smaller than your floor" in one answer.
-    fit: DisplayFit | None = None
-    rendered_long_edge_inches: float | None = None
     #: What the mat choice cost, zero when no model was asked. A curator
     #: authorising a re-render is entitled to know whether it spends anything.
     cost_usd: Decimal = Decimal(0)
@@ -102,9 +99,8 @@ class PreparationSettings:
     panel_width: int
     panel_height: int
     #: The region inside the mat, already composed from the panel and the mat in
-    #: inches. Taken rather than derived for the reason `display_fit` takes it:
-    #: one answer to "how big is the mat", computed where the deployment values
-    #: are resolved.
+    #: inches. Taken rather than derived so there is one answer to "how big is
+    #: the mat", computed where the deployment values are resolved.
     box: ArtworkBox
 
     def __post_init__(self) -> None:
@@ -140,6 +136,12 @@ class PreparationSettings:
     def layout(self) -> str:
         """What a canvas composed against these settings records, and is compared against."""
         return layout(panel_width=self.panel_width, panel_height=self.panel_height, box=self.box)
+
+    @property
+    def masters_path(self) -> Path:
+        """Where presentation masters are written. Fixed under `ART_ROOT`: a master
+        names no deployment value, so there is nothing about its home to configure."""
+        return self.art_root / MASTERS_DIRNAME
 
 
 class SpendLedger(Protocol):
@@ -216,13 +218,21 @@ class PreparationService:
                 "Re-acquire it before preparing."
             )
 
+        # Before the mat and the canvas, and before the early return below: a
+        # master depends on the Original alone, so a work whose canvas is
+        # current can still owe one — every work held before masters existed is
+        # in exactly that state when the startup backfill reaches it. Never
+        # forced: `force` redraws the canvas for a changed panel or mat, and
+        # neither moves a master.
+        master_made = self._make_master_if_owed(artwork_id, source=source)
         mat, chosen = self._current_or_chosen_mat(artwork_id, source=source)
         current = self._current_tv_rendition(artwork_id, mat_hex=mat.hex_rgb)
         if current is not None and not force:
             return PreparationResult(
                 artwork_id=artwork_id,
                 outcome=PreparationOutcome.UNCHANGED,
-                detail="the television canvas was already current",
+                detail="the television canvas was already current"
+                + ("; its presentation master was made" if master_made else ""),
                 mat_hex=mat.hex_rgb,
                 mat_method=mat.method.value,
                 relative_path=current,
@@ -267,8 +277,6 @@ class PreparationService:
             mat_hex=mat.hex_rgb,
             mat_method=mat.method.value,
             relative_path=relative,
-            fit=composition.fit,
-            rendered_long_edge_inches=composition.rendered_long_edge_inches,
             cost_usd=Decimal(0) if chosen is None else chosen.cost_usd,
             mat_fallback_detail=None if chosen is None else chosen.fallback_detail,
         )
@@ -314,8 +322,6 @@ class PreparationService:
             mat_hex=result.mat_hex,
             mat_method=result.mat_method,
             relative_path=result.relative_path,
-            fit=result.fit,
-            rendered_long_edge_inches=result.rendered_long_edge_inches,
             cost_usd=choice.cost_usd,
             mat_fallback_detail=choice.fallback_detail,
         )
@@ -422,6 +428,46 @@ class PreparationService:
             model_id=choice.model_id or self._mat.model_id,
             units=1,
         )
+
+    def _make_master_if_owed(self, artwork_id: str, *, source: Path) -> bool:
+        """Make the work's presentation master unless a current one is on disk. True if one was made.
+
+        Current means what it means for every Rendition — recorded from the
+        Original the work holds now — and made by today's `MASTER_RULE`, and the
+        file is on disk: a row whose file
+        is gone is the state a restored catalogue leaves, and a Player asking for
+        it by hash would be refused. Recorded after the file exists, never
+        before, so no row names a master that was never written.
+        """
+        for view in self._catalogue.list_renditions(artwork_id):
+            rendition = view.rendition
+            if (
+                rendition.kind is RenditionKind.PRESENTATION_MASTER
+                and not view.stale
+                and rendition.layout == MASTER_RULE
+                and (self._settings.art_root / rendition.relative_path).is_file()
+            ):
+                return False
+        destination = master_path(self._settings.masters_path, artwork_id)
+        master = make_master(source, destination=destination)
+        self._catalogue.record_rendition(
+            artwork_id=artwork_id,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            # The cap, not the size produced: the row is keyed on its target, so
+            # a work's master keeps one row however its Original changes size.
+            target_width=PRESENTATION_MASTER_LONG_EDGE_PX,
+            target_height=PRESENTATION_MASTER_LONG_EDGE_PX,
+            path=str(destination.relative_to(self._settings.art_root)),
+            layout=MASTER_RULE,
+        )
+        log.info(
+            "made the presentation master for %s at %sx%s",
+            artwork_id,
+            master.width,
+            master.height,
+            extra={"event": "preparation.master_made", "artwork_id": artwork_id, "width": master.width, "height": master.height},
+        )
+        return True
 
     def _current_tv_rendition(self, artwork_id: str, *, mat_hex: str) -> str | None:
         """The path of a television canvas that is current and actually on disk.

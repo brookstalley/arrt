@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from arrt.http.pages import STATIC_DIR
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.quality import Fit
 from arrt.persistence.discovery_records import ResolutionStatus, Verdict, WorkProvenance
 from arrt.persistence.records import ArtworkStatus
 
@@ -243,13 +243,12 @@ def test_the_rules_that_check_was_run_against_are_most_of_the_stylesheet():
 #: card makes the states that matter harder to pick out rather than easier.
 #:
 #: Grouped by axis rather than pooled, because "no two look alike" is only true
-#: *within* one. `.badge-native` and `.badge-resolved` are deliberately identical
-#: rules: they are the unremarkable state of two unrelated judgements, they never
-#: occupy the same slot, and the word inside each badge is what tells them apart.
+#: *within* one.
 BADGE_AXES = {
     #: `unknown` is the client's own state for a work with no fit verdict, and it
-    #: belongs to no enum — which is why it is a literal.
-    "display fit": [str(fit) for fit in DisplayFit] + ["unknown"],
+    #: belongs to no enum — which is why it is a literal. `meets_minimum` draws
+    #: no badge at all (the owner's ruling, 2026-10-08), so it has no rule to need.
+    "size": [str(fit) for fit in Fit if fit is not Fit.MEETS_MINIMUM] + ["unknown"],
     "catalogue status": [str(status) for status in ArtworkStatus if status is not ArtworkStatus.ACCEPTED],
     "provenance": [str(provenance) for provenance in WorkProvenance if provenance is not WorkProvenance.PROPOSED],
     #: `resolutionBadge` writes `badge-${resolution_status}`. Without this row a

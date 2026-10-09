@@ -367,7 +367,7 @@ listed below so it can be disputed.
 | Activity › **To review** | New 2026-10-02 | Radarr's Queue holds what finished but needs the user; here that is a page of its own, the one queue that needs the curator, counted on Activity's link as Sonarr counts its queue. Review opens from here |
 | Activity › **Queue** | Discover's run list: runs that have not ended; and, since 2026-10-02, the images being fetched | Radarr's Queue: work in flight, downloads included. A Get and a Work open from here |
 | Activity › **History** | The event log (finished runs until 2026-10-07) | Radarr's History |
-| **Wanted** | New 2026-10-02 under Activity; a section of its own since 2026-10-05 (the owner's ruling) | Lidarr's Wanted › Missing: what the library wants and does not have. Always shown, counted when something is wanted (ruling 5 of 2026-10-07). Cutoff Unmet (wave 4) and a Watch's Missing (wave 6) become its tabs when they exist |
+| **Wanted** | New 2026-10-02 under Activity; a section of its own since 2026-10-05 (the owner's ruling) | Lidarr's Wanted › Missing: what the library wants and does not have. Always shown, counted when something is wanted (ruling 5 of 2026-10-07). *Upgrades* (works held small, `upgrades.md`; it replaces Radarr's Cutoff Unmet, since the owner ruled out a cutoff on 2026-10-02) and a Watch's Missing (wave 6) become its tabs when they exist |
 | **Settings** (its index) | New 2026-10-08 (`build-plan-lists-settings-and-scale.md` Chunk 04); Settings opened on Taste until then | Sonarr's and Radarr's v4 /settings: the section's link opens a list of its pages, each with a line on what it holds, so no page has to be "first" |
 | Settings › **Clients** | New 2026-10-02 (`clients.md`) | Radarr's Settings › Download Clients: the server's list of the external programs it works with, which here are the installed Players. Its *Assign a wall* is per client, as a download client carries its own settings there |
 | Settings › **Sources** | New 2026-10-06 (`build-plan-met-source.md` Chunk 02) | Radarr's Settings › Indexers: the places the server searches, which here are the installed source plugins. Read-only, because the order is `SOURCE_ORDER` and installing a plugin is an image build |
@@ -489,22 +489,24 @@ listed below so it can be disputed.
   have a toolbar holding *Select* alone (2026-10-08, Chunk 05); other list
   pages have none yet, because they have no actions or views to put in one.
 - **Two clean-up facets in the rail** *(2026-10-08,
-  `build-plan-lists-settings-and-scale.md` Chunk 06, #288)*: *Size on the
-  wall*, the fit bands a card's badge names (Native, Matted small, Below floor,
-  and No size known for a work with no master), and *Walls › Not on any wall*,
+  `build-plan-lists-settings-and-scale.md` Chunk 06, #288)*: *Size*, the
+  bands of the verdict against the quality minimum (Meets minimum, Below
+  minimum, and No size known for a work with no master; *Size on the wall*,
+  with Native and Matted small, until wave 4b took the panel out of the Library
+  on 2026-10-08), and *Walls › Not on any wall*,
   the works no wall plays now through the theme or selection hanging on it
   (the owner's ruling: which works a wall has shown is not recorded, so "never
   hung" is not offered). Both are counted by the server like a facet and
   compose with the search, the theme and the facets. Each group is drawn only
-  once it can narrow: *Size on the wall* when two bands hold works, *Not on any
+  once it can narrow: *Size* when two bands hold works, *Not on any
   wall* once something hangs.
 - **Wanted holds the works the curator wants** *(shown since 2026-10-02, the
   owner's ruling on #168, `build-plan-after-review.md` Chunk 05)*: a work wanted
   on a no-scan review card, or whose scan on offer was turned down, which is one
   state. Its link is always in the sidebar, with its count when something is
   wanted, as in every *arr app (ruling 5 of 2026-10-07, #292). It is also
-  where *Cutoff Unmet* (works below the quality profile's cutoff,
-  `re-architecture.md` wave 4) and *Missing* (a Watch's unmet wants, wave 6)
+  where *Upgrades* (held works and what a search for a bigger scan found,
+  `upgrades.md`, parked; there is no cutoff) and *Missing* (a Watch's unmet wants, wave 6)
   land, as tabs beside today's list. Watches themselves follow Radarr's Lists and
   go under Settings.
 - **On phones the sidebar becomes a drawer** behind a menu button, as it does in
@@ -1077,9 +1079,10 @@ thousands.** Three views, in the toolbar's View menu:
 both densities, the Artist and Topic pages' held works — and never the wall
 render, whose mat and bars are the wall's and which appears only on the Work
 page, where it is the subject (ruling 7 of 2026-10-07). A tile carries a badge
-only where it is news: archived, or a fit other than native. "Native" and the
-image's source ("wall render", "master image") say nothing on a tile and are not
-drawn there.
+only where it is news: archived, or a scan below the quality minimum. Meeting
+the minimum draws no badge anywhere (the owner, 2026-10-08), and the image's
+source ("wall render", "master image") says nothing on a tile and is not drawn
+there.
 - **Table** — one row per work: title, artist, date, medium, status. Never a
   default; for scanning by the words when the pictures are not what you are
   looking for.

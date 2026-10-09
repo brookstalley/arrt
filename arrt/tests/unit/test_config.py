@@ -23,6 +23,7 @@ from arrt.config import (
     DEFAULT_TV_PANEL_WIDTH_PX,
     ConfigError,
     Settings,
+    retired_settings_in,
 )
 from arrt.library.dimensions import Units
 
@@ -272,7 +273,14 @@ def test_a_flag_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_
 
 @pytest.mark.parametrize(
     "name",
-    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "BACKUP_INTERVAL_SECONDS", "BACKUP_KEEP"],
+    [
+        "ROTATION_INTERVAL_SECONDS",
+        "TV_PANEL_WIDTH_PX",
+        "TV_PANEL_HEIGHT_PX",
+        "BACKUP_INTERVAL_SECONDS",
+        "BACKUP_KEEP",
+        "QUALITY_MINIMUM_PX",
+    ],
 )
 def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -284,11 +292,19 @@ def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(
 
 @pytest.mark.parametrize(
     "name",
-    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "BACKUP_INTERVAL_SECONDS", "BACKUP_KEEP"],
+    [
+        "ROTATION_INTERVAL_SECONDS",
+        "TV_PANEL_WIDTH_PX",
+        "TV_PANEL_HEIGHT_PX",
+        "BACKUP_INTERVAL_SECONDS",
+        "BACKUP_KEEP",
+        "QUALITY_MINIMUM_PX",
+    ],
 )
 @pytest.mark.parametrize("value", ["0", "-1"])
 def test_a_setting_that_must_be_positive_refuses_zero_and_below(monkeypatch, tmp_path, name, value):
-    """Zero is the dangerous one: a zero interval spins, a zero panel divides by nothing."""
+    """Zero is the dangerous one: a zero interval spins, a zero panel divides by
+    nothing, and a zero minimum would let any scan at all be chosen unasked."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv(name, value)
 
@@ -313,7 +329,7 @@ def test_a_panel_with_no_size_is_refused_rather_than_dividing_by_zero(monkeypatc
 
 
 def test_pixels_per_inch_is_derived_from_the_panels_own_geometry(monkeypatch, tmp_path):
-    """What the mat and the resolution floor are computed from.
+    """What the mat is computed from.
 
     A 3840x2160 panel measures 4405.8 pixels corner to corner; over 42 inches
     that is 104.9 per inch. Derived rather than configured, so a deployment
@@ -325,7 +341,7 @@ def test_pixels_per_inch_is_derived_from_the_panels_own_geometry(monkeypatch, tm
 
 
 def test_a_larger_panel_of_the_same_resolution_has_fewer_pixels_per_inch(monkeypatch, tmp_path):
-    """The relationship the floor depends on: inches on the wall, not pixel counts."""
+    """The relationship the mat depends on: inches on the wall, not pixel counts."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "84")
 
@@ -342,11 +358,12 @@ def test_the_artwork_box_reproduces_the_reference_panels_worked_example(monkeypa
     """
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("MAT_WIDTH_INCHES", "2.5")
-    box = Settings.from_env().tv_artwork_box
+    settings = Settings.from_env()
+    box = settings.tv_artwork_box
 
     assert (box.width, box.height) == (3316, 1597)
-    assert box.width / box.pixels_per_inch == pytest.approx(31.6, abs=0.05)
-    assert box.height / box.pixels_per_inch == pytest.approx(15.2, abs=0.05)
+    assert box.width / settings.tv_pixels_per_inch == pytest.approx(31.6, abs=0.05)
+    assert box.height / settings.tv_pixels_per_inch == pytest.approx(15.2, abs=0.05)
 
 
 def test_the_same_mat_in_inches_gives_a_bigger_box_on_a_bigger_panel(monkeypatch, tmp_path):
@@ -358,10 +375,11 @@ def test_the_same_mat_in_inches_gives_a_bigger_box_on_a_bigger_panel(monkeypatch
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "75")
     monkeypatch.setenv("MAT_WIDTH_INCHES", "2.5")
-    box = Settings.from_env().tv_artwork_box
+    settings = Settings.from_env()
+    box = settings.tv_artwork_box
 
     assert (box.width, box.height) == (3546, 1844)
-    assert box.width / box.pixels_per_inch == pytest.approx(60.4, abs=0.05)
+    assert box.width / settings.tv_pixels_per_inch == pytest.approx(60.4, abs=0.05)
 
 
 def test_the_default_mat_is_an_inch_and_a_half(monkeypatch, tmp_path):
@@ -394,11 +412,11 @@ def test_the_bottom_margin_is_deeper_than_the_top(monkeypatch, tmp_path):
 
 
 def test_a_mat_wider_than_the_panel_leaves_a_box_rather_than_a_negative_one(monkeypatch, tmp_path):
-    """A misconfiguration should not produce geometry that crashes the fit rule.
+    """A misconfiguration should not produce geometry that crashes the compositor.
 
-    `assess_display_fit` refuses a box with a non-positive side, so an absurd mat
-    must clamp to something it can refuse *about* rather than something it
-    refuses to even describe.
+    `PreparationSettings` refuses a box that does not fit its panel, so an absurd
+    mat must clamp to something it can refuse *about* rather than a negative size
+    it cannot even describe.
     """
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("MAT_WIDTH_INCHES", "40")
@@ -408,12 +426,34 @@ def test_a_mat_wider_than_the_panel_leaves_a_box_rather_than_a_negative_one(monk
     assert box.height >= 1
 
 
-def test_the_floor_reaches_the_box_that_is_judged_against_it(monkeypatch, tmp_path):
-    """A configured floor nothing carried would be a setting with no effect."""
+def test_the_quality_minimum_reaches_the_profile_that_judges_against_it(monkeypatch, tmp_path):
+    """A configured minimum nothing carried would be a setting with no effect."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("RESOLUTION_FLOOR_INCHES", "18.5")
+    monkeypatch.setenv("QUALITY_MINIMUM_PX", "1500")
 
-    assert Settings.from_env().tv_artwork_box.floor_inches == 18.5
+    assert Settings.from_env().quality_profile.minimum_long_edge_px == 1500
+
+
+def test_the_default_quality_minimum_is_a_thousand_pixels(monkeypatch, tmp_path):
+    """The owner's number, 2026-10-06: about right for a 1080p display with a mat."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.delenv("QUALITY_MINIMUM_PX", raising=False)
+
+    assert Settings.from_env().quality_profile.minimum_long_edge_px == 1000
+
+
+def test_a_retired_setting_still_set_is_named_with_what_replaced_it():
+    """A key nothing reads looks exactly like one in force, so it is said out loud."""
+    [sentence] = retired_settings_in({"RESOLUTION_FLOOR_INCHES": "11.34", "ART_ROOT": "/art"})
+
+    assert sentence.startswith("RESOLUTION_FLOOR_INCHES is no longer read")
+    assert "QUALITY_MINIMUM_PX" in sentence
+
+
+def test_nothing_is_said_when_no_retired_setting_is_set():
+    """The absence is asserted too: a notice that fires on every start is one a reader learns to skip."""
+    assert retired_settings_in({"ART_ROOT": "/art", "QUALITY_MINIMUM_PX": "1000"}) == []
+    assert retired_settings_in({"RESOLUTION_FLOOR_INCHES": ""}) == []
 
 
 def test_the_thumbnail_cache_sits_inside_the_art_root(monkeypatch, tmp_path):

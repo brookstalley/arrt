@@ -27,7 +27,6 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab, scale_lightness
-from arrt.library.acquisition.compose import compose
 
 # `_DERIVED_LIGHTNESS_CEILING` is private to the engine and is imported anyway,
 # deliberately: the whole point of the test below is that the clamp's number and
@@ -36,6 +35,7 @@ from arrt.library.acquisition.compose import compose
 # `CORPUS_MAX_LIGHTNESS` is public and is imported for the opposite reason — the
 # requirement's bar belongs to the product, and a copy declared here would be a bar
 # this file guards and the operator's tool does not.
+from arrt.library.acquisition.compose import ArtworkBox, compose
 from arrt.library.acquisition.mat import (
     _DERIVED_LIGHTNESS_CEILING,
     _FALLBACK_LIGHTNESS,
@@ -47,7 +47,6 @@ from arrt.library.acquisition.mat import (
     _under_the_corpus_bar,
     dominant_color,
 )
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.persistence.records import MatMethod
 from arrt.seed.legacy import read_index
 
@@ -126,7 +125,7 @@ def test_every_corpus_colour_composes_onto_a_canvas(tmp_path, corpus):
     what a seeded deployment actually renders with on its first pass."""
     source = tmp_path / "work.jpg"
     Image.new("RGB", (600, 400), (200, 180, 160)).save(source, format="JPEG")
-    box = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.87, floor_inches=12.0)
+    box = ArtworkBox(width=3316, height=1597)
 
     for index, record in enumerate(corpus):
         result = compose(

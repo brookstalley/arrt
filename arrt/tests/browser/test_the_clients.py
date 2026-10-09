@@ -32,10 +32,11 @@ pytest.importorskip(
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
-#: Stamped now, so the report is young enough to speak for the outputs: one
-#: older than three heartbeats says nothing about now, and has its own test.
+#: A report of two outputs. `reported_at` is stamped when `report` writes it,
+#: never at import: one older than three heartbeats says nothing about now, and
+#: a stamp taken when the module loaded is that old by the time a long serial
+#: run reaches a test that reads it.
 TWO_OUTPUTS = {
-    "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
     "outputs": [
         {"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]},
         {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None},
@@ -44,8 +45,9 @@ TWO_OUTPUTS = {
 
 
 def report(settings, client, document=TWO_OUTPUTS):
-    """What a running client's heartbeat leaves under the art root."""
-    client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(document), encoding="utf-8")
+    """What a running client's heartbeat leaves under the art root, stamped now unless the document says when."""
+    stamped = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")} | document
+    client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(stamped), encoding="utf-8")
 
 
 def admitted(server_url, token) -> int:
@@ -279,7 +281,7 @@ def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):
 
 
 def test_a_report_of_no_outputs_says_so_and_lists_none(ui, settings, hall):
-    report(settings, hall, {"reported_at": TWO_OUTPUTS["reported_at"], "outputs": []})
+    report(settings, hall, {"outputs": []})
     open_clients(ui)
     ui.page.wait_for_selector("section.client")
 

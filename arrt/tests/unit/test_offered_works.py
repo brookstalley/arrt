@@ -57,7 +57,7 @@ def runner(services, engine, settings, museum, previews, collection) -> Discover
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),
@@ -304,7 +304,7 @@ def test_a_work_the_run_already_proposed_is_not_offered_a_second_time(services, 
 
 
 def test_a_work_too_small_for_the_wall_is_not_offered(services, engine, runner, collection):
-    """A named work below the floor is still shown; a volunteered one is not.
+    """A named work below the minimum is still shown; a volunteered one is not.
 
     The difference is that there are hundreds more behind the volunteered one, so
     a work that cannot go on the wall is padding rather than the answer to what
@@ -359,7 +359,7 @@ def test_a_deployment_with_no_collection_wired_simply_offers_nothing(services, e
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -386,7 +386,7 @@ def test_a_bound_of_zero_switches_the_supplement_off_without_unwiring_it(
         services.discovery,
         engine,
         replace(settings.discovery_settings, offered_works_per_run=0),
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),
@@ -483,16 +483,16 @@ def test_the_spread_yields_each_work_once_and_takes_the_facets_in_turn():
     assert taken == [("A1", "A"), ("B1", "B"), ("Shared", "A")], "expected one per facet per pass, each work once"
 
 
-def test_a_record_whose_size_is_unknown_does_not_clear_the_floor(services):
+def test_a_record_whose_size_is_unknown_does_not_meet_the_minimum(services):
     """ "We do not know how big it is" is not "it is big enough".
 
     Reached directly because the browse client refuses an unsized record before
     this is ever asked — so nothing end to end can distinguish the two answers,
     and a caller added later would inherit whichever this happens to give.
     """
-    assert services.discovery.clears_display_floor(width=None, height=4500) is False
-    assert services.discovery.clears_display_floor(width=6000, height=None) is False
-    assert services.discovery.clears_display_floor(width=6000, height=4500) is True
+    assert services.discovery.meets_quality_minimum(width=None, height=4500) is False
+    assert services.discovery.meets_quality_minimum(width=6000, height=None) is False
+    assert services.discovery.meets_quality_minimum(width=6000, height=4500) is True
 
 
 def test_a_re_search_offers_nothing_and_does_not_fail_trying(services, engine, runner, collection):

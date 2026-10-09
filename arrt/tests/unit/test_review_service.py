@@ -44,22 +44,20 @@ def preview(services):
 # -- what a thumbnail cannot convey -------------------------------------------
 
 
-def test_an_instance_reports_the_size_it_would_render_at_on_this_wall(services, resolved_work, add_image):
-    # 900x700 is `api-contract.md`'s own worked example — "would show at 8.6
-    # inches" — so this pins the surface against the number the artifact
-    # promises a curator, not against whatever the arithmetic happens to give.
+def test_an_instance_reports_its_verdict_against_the_quality_minimum(services, resolved_work, add_image):
+    # 900x700 is `api-contract.md`'s own worked example, so this pins the
+    # surface against the verdict the artifact promises a curator.
     work = resolved_work()
     add_image(work, url="https://museum.example/small", estimated_width=900, estimated_height=700)
 
     listing = services.review.list_images(work.id)
     small = next(view for view in listing.instances if view.image.url.endswith("/small"))
 
-    assert small.fit is not None
-    assert round(small.fit.rendered_long_edge_inches, 1) == 8.6
-    assert str(small.fit.fit) == "below_floor"
+    assert str(small.fit) == "below_minimum"
+    assert (small.image.estimated_width, small.image.estimated_height) == (900, 700)
 
 
-def test_a_below_floor_instance_is_offered_rather_than_withheld(services, propose, add_image):
+def test_an_instance_below_the_minimum_is_offered_rather_than_withheld(services, propose, add_image):
     # Shown, labelled, and selectable — never hidden. The curator may take it
     # anyway, and that judgement is the product. What it is excluded from is
     # being chosen *for* them, which is why nothing is on offer here.
@@ -69,8 +67,8 @@ def test_a_below_floor_instance_is_offered_rather_than_withheld(services, propos
     listing = services.review.list_images(work.id)
     view = services.review.get_work(work.id)
 
-    assert [str(instance.fit.fit) for instance in listing.instances] == ["below_floor"]
-    assert view.shown_is_on_offer is False, "a below-floor instance is never selected automatically"
+    assert [str(instance.fit) for instance in listing.instances] == ["below_minimum"]
+    assert view.shown_is_on_offer is False, "an instance below the minimum is never selected automatically"
     # But it is still pictured. A row that carried no image because nothing was
     # auto-selected would hide it one level above where "never hidden" is written.
     assert view.shown is not None
@@ -134,8 +132,7 @@ def test_a_preview_that_will_not_decode_costs_its_picture_and_nothing_else(servi
     assert only.preview is None
     assert "could not be read" in only.preview_note
     # Everything a curator judges resolution by survives the unreadable file.
-    assert only.fit is not None
-    assert str(only.fit.fit) == "native"
+    assert str(only.fit) == "meets_minimum"
 
 
 def test_a_preview_that_is_not_a_jpeg_is_re_encoded_as_one(services, propose, add_image):
@@ -471,7 +468,7 @@ def test_a_wanted_work_is_pictured_by_its_selection_even_where_a_better_scan_sta
     assert view.shown.image.id == services.review.get_work(work.id).shown.image.id
 
 
-def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(services, discovery, propose, add_image):
+def test_a_wanted_work_whose_only_scan_is_below_the_minimum_is_pictured_by_it(services, discovery, propose, add_image):
     work = propose()
     small = add_image(work, estimated_width=600, estimated_height=450)
     discovery.want(work.id)
@@ -479,7 +476,7 @@ def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(serv
     view = _wanted_view(services, work.id)
 
     assert view.shown.image.id == small.id == services.review.get_work(work.id).shown.image.id
-    assert str(view.shown.fit.fit) == "below_floor"
+    assert str(view.shown.fit) == "below_minimum"
     assert view.wanted.scans_turned_down == 0
 
 

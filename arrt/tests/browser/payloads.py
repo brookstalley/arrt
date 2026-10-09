@@ -47,7 +47,7 @@ from arrt.http.models import (
     WorkOut,
     WorkPageOut,
 )
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.quality import Fit
 from arrt.library.services.spending import cost_tier
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
@@ -238,16 +238,10 @@ def an_instance(**overrides) -> InstanceOut:
         "rejected": False,
         "rights_status": "public_domain",
         "selection_rationale": None,
-        # The scan's own pixels, which the card states as its resolution. Not
-        # the rendered size below: that is the scan fitted to one panel.
+        # The scan's own pixels, which the card states as its resolution.
         "width": 3840,
         "height": 2604,
-        "fit": FitOut(
-            verdict=DisplayFit.NATIVE.value,
-            rendered_width=3316,
-            rendered_height=1597,
-            rendered_long_edge_inches=27.4,
-        ),
+        "fit": FitOut(verdict=Fit.MEETS_MINIMUM.value),
         "fit_note": None,
         "preview_available": True,
         "preview_note": None,
@@ -508,7 +502,7 @@ def a_taste(affinities=None) -> dict:
 
 
 def a_look_picture(key="a" * 64, **overrides) -> LookPictureOut:
-    """One find a look holds, as `LookPictureOut` carries it: SMK's, native, by default."""
+    """One find a look holds, as `LookPictureOut` carries it: SMK's, meeting the minimum, by default."""
     fields = {
         "key": key,
         "provider": "smk",
@@ -517,8 +511,8 @@ def a_look_picture(key="a" * 64, **overrides) -> LookPictureOut:
         "artist": "Ejler Bille",
         "width": 2201,
         "height": 2221,
-        "fit": FitOut(verdict=str(DisplayFit.NATIVE), rendered_width=1800, rendered_height=1816, rendered_long_edge_inches=31.4),
-        "below_floor": False,
+        "fit": FitOut(verdict=str(Fit.MEETS_MINIMUM)),
+        "below_minimum": False,
         "confidence": 0.95,
         "rights_status": "public_domain",
         "selection_rationale": "smk holds this as 'Tantra-Vision' by Ejler Bille, matching the requested title and artist.",

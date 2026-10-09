@@ -19,13 +19,13 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
-from arrt.library.acquisition.preparation import PreparationResult
+from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import DisplayFit, FitAssessment
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
+from arrt.library.services.quality import Fit
 from arrt.library.services.review import (
     MAX_REVIEW_LIMIT,
     CandidatePage,
@@ -43,6 +43,7 @@ from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
+    CandidateImage,
     CandidateWork,
     DiscoveryRun,
     InitiatedBy,
@@ -334,6 +335,10 @@ def _mat_notice(result: PreparationResult) -> str | None:
 
 def _regenerate(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     result = services.preparation.prepare(arguments["artwork_id"], force=bool(arguments.get("force")))
+    # Present only when something was actually rendered. On `unchanged` there
+    # is no fresh canvas to report on, and repeating a verdict would be
+    # answering a question this call did not ask.
+    fit = services.survey.fit_of(result.artwork_id) if result.outcome is PreparationOutcome.PREPARED else None
     return ok(
         artwork_id=result.artwork_id,
         outcome=result.outcome.value,
@@ -341,28 +346,25 @@ def _regenerate(services: Services, arguments: Mapping[str, Any]) -> dict[str, A
         relative_path=result.relative_path,
         hex_rgb=result.mat_hex,
         method=result.mat_method,
-        # Present only when something was actually rendered. On `unchanged` there
-        # is no fresh assessment to report, and repeating a stored one would be
-        # answering a question this call did not ask.
-        fit=None if result.fit is None else result.fit.value,
-        rendered_long_edge_inches=result.rendered_long_edge_inches,
+        fit=None if fit is None else str(fit),
         # **Reported even though this action is usually free.** A work that has
         # never had a mat gets one chosen here, and that is a paid call — so a
         # field present only on the paying path would be indistinguishable from
         # one the caller forgot to look at. Always present, usually "0".
         cost_usd=str(result.cost_usd),
-        notice=_regenerate_notice(result),
+        notice=_regenerate_notice(result, fit),
     )
 
 
-def _regenerate_notice(result: PreparationResult) -> str | None:
-    """Said out loud when the work is on the wall smaller than the floor allows.
+def _regenerate_notice(result: PreparationResult, fit: Fit | None) -> str | None:
+    """Said out loud when the work is on the wall below the quality minimum, or
+    when its mat was not the vision model's choice.
 
     Not a refusal and not an error: the curator may have chosen this instance
     knowing it was small, and `nonfunctional-requirements.md` is explicit that
     such a work is rendered rather than hidden. But a canvas reported as composed
     with no mention of it would let a work quietly appear as a postage stamp in
-    an enormous mat, which is the gap the floor exists to close.
+    an enormous mat, which is the gap the minimum exists to close.
     """
     notices = []
     if result.mat_fallback_detail is not None:
@@ -376,11 +378,11 @@ def _regenerate_notice(result: PreparationResult) -> str | None:
             f"by the vision model, because {result.mat_fallback_detail}. It was derived from the artwork's own "
             "dominant colour, kept between the mat floor and ceiling."
         )
-    if result.fit is DisplayFit.BELOW_FLOOR and result.rendered_long_edge_inches is not None:
+    if fit is Fit.BELOW_MINIMUM:
         notices.append(
-            f"This work renders at about {result.rendered_long_edge_inches:.1f} inches on the wall, below the "
-            "configured floor, so it will appear small in a wide mat. It is on the wall regardless; "
-            "art_review's re-search finds a larger scan if one exists."
+            "This work's image is below the quality minimum (QUALITY_MINIMUM_PX on its long edge), so it will "
+            "appear small in its mat. It is on the wall regardless; art_review's re-search finds a larger scan "
+            "if one exists."
         )
     return " ".join(notices) or None
 
@@ -709,7 +711,7 @@ def _look_picture_fields(picture: LookPicture, image_block_index: int | None) ->
         "width": found.estimated_width,
         "height": found.estimated_height,
         "fit": _fit_fields(judged.fit),
-        "below_floor": judged.below_floor,
+        "below_minimum": judged.below_minimum,
         "confidence": judged.confidence,
         "rights_status": None if found.rights_status is None else str(found.rights_status),
         "selection_rationale": judged.rationale,
@@ -717,14 +719,9 @@ def _look_picture_fields(picture: LookPicture, image_block_index: int | None) ->
     }
 
 
-def _fit_fields(fit: FitAssessment) -> dict[str, Any]:
-    """A display-fit verdict in `FitOut`'s names."""
-    return {
-        "verdict": str(fit.fit),
-        "rendered_width": fit.rendered_width,
-        "rendered_height": fit.rendered_height,
-        "rendered_long_edge_inches": fit.rendered_long_edge_inches,
-    }
+def _fit_fields(fit: Fit) -> dict[str, Any]:
+    """A quality verdict in `FitOut`'s names."""
+    return {"verdict": str(fit)}
 
 
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1811,7 +1808,7 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
     """One proposed work, in the fields an action taking a work id needs.
 
     Enough to choose and to act, and no more. What an instance looks like — its
-    preview, its size on the wall, why it was selected — belongs to the review
+    preview, its size, why it was selected — belongs to the review
     surface, which returns images alongside it; duplicating a slice of that here
     would be a second review card that drifts from the real one. This exists so
     a caller can obtain a work id at all: every count-only listing left the
@@ -2115,13 +2112,13 @@ def _shown_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, Any]
     """The pictured instance, as a listing row carries it.
 
     Carries the pair `api-contract.md` requires of a review surface — the fit
-    verdict and the size on the wall — because those are exactly what a picture
-    cannot say, and dropping them to save tokens would leave the rows looking
+    verdict and the scan's size in pixels — because those are exactly what a
+    picture cannot say, and dropping them to save tokens would leave the rows looking
     complete while removing the reason the gate works.
 
     `is_on_offer` is here rather than inferred, because it is false in two very
     different situations a curator must not confuse with each other: a work whose
-    only scans are below the floor, and one whose scans were all turned down.
+    only scans are below the quality minimum, and one whose scans were all turned down.
 
     **No `image_id`.** Nothing a caller does from a listing takes one — the row's
     `work_id` is what every action here accepts — and choosing among a work's
@@ -2132,14 +2129,24 @@ def _shown_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, Any]
     fit = instance.fit
     return {
         "is_on_offer": instance.image.is_selected,
-        "display_fit": None if fit is None else str(fit.fit),
-        "renders_at_inches": None if fit is None else round(fit.rendered_long_edge_inches, 1),
+        "display_fit": None if fit is None else str(fit),
+        # One short string rather than two numbers: a listing page is priced in
+        # tokens against the client's warning threshold, and this repeats on
+        # every row. `list_images` carries the numbers apart.
+        "size_px": _size_px(instance.image),
         "image_block_index": pictures.index_of(instance.preview),
         # Both omitted when there is nothing to say, which is the common case.
         # A null repeated on forty rows is pure cost.
         **({} if instance.fit_note is None else {"fit_note": instance.fit_note}),
         **({} if instance.preview_note is None else {"preview_note": instance.preview_note}),
     }
+
+
+def _size_px(image: CandidateImage) -> str | None:
+    """A scan's size as `WxH` pixels, or None when its provider did not report it."""
+    if image.estimated_width is None or image.estimated_height is None:
+        return None
+    return f"{image.estimated_width}x{image.estimated_height}"
 
 
 def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, Any]:
@@ -2150,7 +2157,6 @@ def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, A
     listing carries a subset of this; the split is `_candidate_summary`'s.
     """
     image = instance.image
-    fit = instance.fit
     return {
         # The id lives here and not on a listing row, because this is the level
         # at which a caller picks one scan out of several and needs to name it.
@@ -2163,7 +2169,6 @@ def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, A
         # wanted, which is the whole reason instance suppression and work
         # suppression are different keys.
         "rejected_for_this_work": instance.rejected,
-        "renders_at_pixels": None if fit is None else f"{fit.rendered_width}x{fit.rendered_height}",
         "estimated_width": image.estimated_width,
         "estimated_height": image.estimated_height,
         # Provenance and source quality, returned alongside. It gates nothing.

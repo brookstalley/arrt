@@ -14,15 +14,11 @@ import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 
 const FIT_GLYPHS = {
-  native: GLYPHS.good,
-  matted_small: GLYPHS.caution,
-  below_floor: GLYPHS.problem,
+  below_minimum: GLYPHS.problem,
 };
 
 const FIT_WORDS = {
-  native: "native",
-  matted_small: "matted small",
-  below_floor: "below floor",
+  below_minimum: "below minimum",
 };
 
 /* A picture's own size, in pixels, as the curator judges it: a scan on a
@@ -41,7 +37,10 @@ export function pixelSize(width, height) {
   return `${PIXELS.format(width)} × ${PIXELS.format(height)} px`;
 }
 
-/* How this would meet the panel — native, matted small, below the floor — or why that cannot be said.
+/* Whether a picture falls short of the quality minimum, or why that cannot be said — and nothing
+ * when it meets the minimum (the owner's ruling, 2026-10-08): the badge is news, and a mark on
+ * every picture that is fine hides the one that is not. A picture's size on a particular wall is
+ * not the Library's to say; it holds no screen.
  *
  * One function for a held work, a candidate scan and a registry work's picture. Both carry the same
  * `fit`/`fit_note` pair and the same rule — a thing whose dimensions nobody
@@ -58,6 +57,7 @@ export function fitBadge(sized, absentWord = "no size known") {
     ]);
   }
   const verdict = sized.fit.verdict;
+  if (verdict === "meets_minimum") return null;
   return el("span", { class: `badge badge-${verdict}` }, [
     el("span", { class: "glyph", text: FIT_GLYPHS[verdict] || GLYPHS.unknown, "aria-hidden": true }),
     // The verdict word alone. It carried "would show at 28.2″" until the owner
@@ -68,18 +68,6 @@ export function fitBadge(sized, absentWord = "no size known") {
     // back with per-wall geometry (re-architecture wave 4).
     el("span", { text: FIT_WORDS[verdict] || verdict }),
   ]);
-}
-
-/* A tile's fit mark: only where the fit is news.
- *
- * On a library tile "native" is what nearly every work says, so it says nothing
- * (`ux-review-2026-10.md` finding 27): a mark on every tile is noise that hides
- * the tile that needs one. A work that would hang small, below the floor, or at
- * a size nobody can state keeps its badge. The Work page, a review card and a
- * theme's rows still say "native", where the fit is what is being judged. */
-export function tileFitBadge(work) {
-  if (work.fit && work.fit.verdict === "native") return null;
-  return fitBadge(work);
 }
 
 /* Which image the Work page's picture is: the wall render, or the master where
@@ -100,7 +88,7 @@ export function sourceBadge(work) {
  * work that is on the wall. */
 export function statusBadge(work) {
   if (work.status === "accepted") return null;
-  // Its own class, not `below_floor`'s: catalogue status and display fit are
+  // Its own class, not `below_minimum`'s: catalogue status and size are
   // unrelated axes, and sharing a class would make an archived work and a
   // too-small work paint identically.
   return el("span", { class: "badge badge-archived" }, [
@@ -204,7 +192,7 @@ export const REASON_SENTENCES = {
   not_held: "No wired collection holds it — this is the one reason that suggests the work may not exist.",
   identity_refused: "Something was found under this title, but its artist did not match, so it was refused.",
   size_unknown: "A scan was found, but nothing said how large it is, so it could not be judged.",
-  below_floor: "Every scan found is too small to show on this wall at a size worth looking at.",
+  below_floor: "Every scan found is below the quality minimum, so none was chosen without you.",
   all_rejected: "You have turned down everything that was found for it.",
 };
 

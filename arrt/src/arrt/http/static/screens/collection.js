@@ -34,7 +34,7 @@
 
 import { attempt } from "../core/acting.js";
 import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
-import { absentImage, shortfallNote, statusBadge, tileFitBadge, workName } from "../core/badges.js";
+import { absentImage, fitBadge, shortfallNote, statusBadge, workName } from "../core/badges.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
@@ -58,16 +58,15 @@ const FACET_LABELS = {
   palette: "Palette",
 };
 
-/* *Size on the wall*: the fit bands `GET /api/works` counts (`fit`), in the
+/* *Size*: the fit bands `GET /api/works` counts (`fit`), in the
  * words a card's fit badge uses (`core/badges.js`), and `unknown` for a work
  * with no master yet. Carried in `chosen` beside the six kinds, under the
  * route's own parameter name, so the query and *Select all*'s filter body both
  * spell it the way the server reads it. */
 const FIT = "fit";
 const FIT_LABELS = {
-  native: "Native",
-  matted_small: "Matted small",
-  below_floor: "Below floor",
+  meets_minimum: "Meets minimum",
+  below_minimum: "Below minimum",
   unknown: "No size known",
 };
 
@@ -169,7 +168,7 @@ function facetsFor(params) {
   return chosen;
 }
 
-/* Whether any rail narrowing is chosen: a facet, a size on the wall, or *Not on
+/* Whether any rail narrowing is chosen: a facet, a size band, or *Not on
  * any wall*. The theme is asked about separately, since the heading names it. */
 function anyFacetChosen(chosen) {
   return FACET_KINDS.some((kind) => chosen[kind].length) || chosen[FIT].length > 0 || notOnWall();
@@ -257,7 +256,7 @@ function workCard(work, selection) {
         class: "card-meta",
         text: [work.date_created, work.medium].filter(Boolean).join(" · ") || " ",
       }),
-      el("div", { class: "card-footer" }, [statusBadge(work), tileFitBadge(work)]),
+      el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work)]),
     ]),
   ]);
 }
@@ -446,7 +445,7 @@ function facetOption(kind, option, chosen, label = option.value) {
 
 /* The clean-up facets (#288), counted by the server like the rest.
  *
- * *Size on the wall* offers the fit bands, several at once meaning either, as
+ * *Size* offers the fit bands, several at once meaning either, as
  * a facet's values do. Drawn only once it can narrow — two bands holding works,
  * or one chosen: a catalogue whose works all fall in one band has nothing to
  * choose between, and a group that selects everything is a control with nothing
@@ -455,7 +454,7 @@ function fitRail(fits, chosen) {
   const holding = fits.filter((option) => option.count > 0).length;
   if (holding < 2 && !fits.some((option) => option.selected)) return null;
   return el("div", { class: "rail" }, [
-    el("h2", { text: "Size on the wall" }),
+    el("h2", { text: "Size" }),
     el(
       "ul",
       { class: "rail-options" },
@@ -654,7 +653,7 @@ function filterPhrase(query, chosen, shownTheme) {
     }
   }
   if (chosen[FIT].length) {
-    parts.push(`size on the wall ${chosen[FIT].map((value) => `“${FIT_LABELS[value] || value}”`).join(" or ")}`);
+    parts.push(`size ${chosen[FIT].map((value) => `“${FIT_LABELS[value] || value}”`).join(" or ")}`);
   }
   if (notOnWall()) parts.push("not on any wall");
   return parts.join(", and ");

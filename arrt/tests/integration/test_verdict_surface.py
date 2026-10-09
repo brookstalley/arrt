@@ -62,7 +62,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
@@ -318,7 +318,7 @@ async def test_the_wanted_listing_pictures_each_work_as_its_card_does_and_sends_
     listed = {entry["work_id"]: entry for entry in payload["works"]}
     assert listed[turned_down.id]["shown"] is None
     shown = listed[too_small.id]["shown"]
-    assert (shown["is_on_offer"], shown["display_fit"], shown["image_block_index"]) == (False, "below_floor", None)
+    assert (shown["is_on_offer"], shown["display_fit"], shown["image_block_index"]) == (False, "below_minimum", None)
     assert "preview_note" not in shown, "the picture exists; only its bytes stay behind"
     assert "get_work" in payload["notice"]
     assert await block_kinds(server_url, "art_review", action="list_wanted") == ["text"]

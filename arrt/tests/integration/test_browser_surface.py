@@ -225,19 +225,18 @@ class TestTheClientIsServed:
 
 
 class TestTheWorkGrid:
-    def test_every_held_work_is_listed_with_the_size_it_would_appear_at(self, http, hold):
+    def test_every_held_work_is_listed_with_its_verdict_against_the_quality_minimum(self, http, hold):
         artwork = hold("Chop Suey")
         card = card_for(http.get("/api/works").json(), artwork.id)
-        assert card["fit"]["verdict"] in {"native", "matted_small", "below_floor"}
-        # A thumbnail cannot convey resolution — the rendered size is what a
-        # curator actually judges, so it may never be absent from a card.
-        assert card["fit"]["rendered_long_edge_inches"] > 0
+        # A thumbnail cannot convey resolution, so the verdict may never be
+        # absent from a card that has a master to judge — and it names no screen.
+        assert card["fit"] == {"verdict": "meets_minimum"}
 
     def test_a_small_work_is_shown_and_labelled_rather_than_hidden(self, http, hold):
-        """Below the floor is a warning, never a filter. The curator may still take it."""
+        """Below the minimum is a warning, never a filter. The curator may still take it."""
         artwork = hold("A postage stamp", width=300, height=200)
         card = card_for(http.get("/api/works").json(), artwork.id)
-        assert card["fit"]["verdict"] == "below_floor"
+        assert card["fit"]["verdict"] == "below_minimum"
         assert card["image"]["available"] is True
 
     def test_a_work_with_no_master_carries_a_reason_rather_than_an_empty_field(self, http, seeded_service):

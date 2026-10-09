@@ -130,12 +130,7 @@ def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
                     is_selected=False,
                     width=1100,
                     height=856,
-                    fit={
-                        "verdict": "below_floor",
-                        "rendered_width": 900,
-                        "rendered_height": 700,
-                        "rendered_long_edge_inches": 7.4,
-                    },
+                    fit={"verdict": "below_minimum"},
                 ),
             ]
         ),
@@ -146,10 +141,10 @@ def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
 
     rows = [" ".join(row.split()) for row in grid.page.locator("tr.alternate").all_inner_texts()]
     assert "3,840 × 2,604 px" in rows[0], rows[0]
-    assert "native" in rows[0], rows[0]
+    assert "minimum" not in rows[0], rows[0]
     assert "on offer" in rows[0], rows[0]
     assert "1,100 × 856 px" in rows[1], rows[1]
-    assert "below floor" in rows[1], rows[1]
+    assert "below minimum" in rows[1], rows[1]
     assert "on offer" not in rows[1], rows[1]
     assert "″" not in grid.text()
 

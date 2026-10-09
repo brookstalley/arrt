@@ -243,7 +243,7 @@ export function wantedWhy(work) {
   const parts = [];
   if (work.scans_turned_down) parts.push(`${counted(work.scans_turned_down, "scan")} turned down`);
   if (work.shown) {
-    if (work.shown.fit && work.shown.fit.verdict === "below_floor") parts.push("found only too small");
+    if (work.shown.fit && work.shown.fit.verdict === "below_minimum") parts.push("found only too small");
     else if (work.shown.is_selected) parts.push("one still on offer");
     else parts.push("one found, not on offer");
   }

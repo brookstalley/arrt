@@ -787,6 +787,7 @@ technical_decisions:
         auto-selected silently. A pixel profile names no device, and its cutoff
         is what the wave 6+ upgrade job needs anyway (Radarr's quality profile).
         Advisor's recommendation, 2026-09-30; vetoable.
+      amended: "2026-10-02, the owner (upgrades.md ruling 1): no cutoff; the minimum stays and searches back off by size instead. 2026-10-06, the owner: the minimum is 1,000 px on the long edge. Built 2026-10-08 in wave 4b (build-plan-wave-4b-master-quality.md) as QUALITY_MINIMUM_PX, with two verdicts, meets_minimum and below_minimum."
     - decision: "Split into a curation plane and a display plane, communicating over a defined contract."
       rationale: >
         AMENDED 2026-07-19, same day, after auditing the constraint that originally
@@ -1439,6 +1440,7 @@ technical_decisions:
         - "Keep display_fit stored and rebuild on panel change — preserves constraint 12 literally, but adds an operational step whose omission is silent, on a product whose defining constraint is silent failure."
         - "Conventional Lanczos upscaling — fills the box, but a 900px source at 3316px is visibly soft at wall distance and a curator cannot tell a bad source from a bad renderer."
       date: 2026-07-20
+      amended: "2026-10-08, wave 4b: the floor is no longer physical. It is the Library's quality profile, a minimum in pixels on the long edge (QUALITY_MINIMUM_PX), because the Library stops holding any screen's geometry in wave 4 (re-architecture.md § Compositing moves to the Player). The mat's physical units, the bottom weighting, derived-not-stored and no upscaling all stand; display_fit's matted_small and native are retired with the box they were judged against."
     - decision: "Rights metadata is display-only and gates nothing; it is surfaced as a provenance and source-quality signal."
       rationale: >
         Decided 2026-07-20 by the operator, closing a question raised in priority on

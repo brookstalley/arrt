@@ -346,7 +346,7 @@ class CatalogueStore(Protocol):
     def original_sizes(self) -> Mapping[str, tuple[int, int]]:
         """Every held master's pixel width and height, by work id, in one read.
 
-        For a count over thousands of works — Artworks' *Size on the wall*
+        For a count over thousands of works — Artworks' *Size*
         facet — where one `get_original` per work would be one statement each.
         """
         ...
@@ -395,6 +395,10 @@ class CatalogueStore(Protocol):
 
     def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
         """Accepted works holding a television canvas, none of them drawn at `layout`, oldest acceptance first."""
+        ...
+
+    def works_owing_a_presentation_master(self, rule: str) -> Sequence[str]:
+        """Accepted works holding an Original and no master recorded from it by `rule`, oldest acceptance first."""
         ...
 
     def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:

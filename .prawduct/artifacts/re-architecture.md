@@ -103,7 +103,7 @@ accepted the plan as a whole rather than deciding each point one by one.
 
 | Role | Owns | Deploys as |
 |---|---|---|
-| **Library** | What exists and what to go and get. Works, artists, sources, originals, image instances, verdicts, mat colour (a paid judgement about the work), label *text*, library facets (facts), discovery runs and conversations, taste, spend. New: **Watches** (standing searches), upgrade monitoring, a scheduler, a **quality profile** (the resolution floor and upgrade cutoff), and a device-independent *presentation master* per work. The Library has no concept of a wall. | **Server** (one process) |
+| **Library** | What exists and what to go and get. Works, artists, sources, originals, image instances, verdicts, mat colour (a paid judgement about the work), label *text*, library facets (facts), discovery runs and conversations, taste, spend. New: **Watches** (standing searches), upgrade monitoring, a scheduler, a **quality profile** (the resolution floor, in pixels; its cutoff became a search cadence, `upgrades.md` ruling 1), and a device-independent *presentation master* per work. The Library has no concept of a wall. | **Server** (one process) |
 | **Programming** | What hangs where, and when. Themes (now *playlists*), membership, walls as logical targets, hanging (ThemeAssignment), directives (`next` / `show_now` pins), publishing the per-wall manifest, receiving player heartbeats, wall health. New: **the schedule** (rotation computed centrally, across walls), **scenes** (live overrides), **wall settings** (label mode, viewing distance), **programming tags** and **smart playlists**. | **Server** (the same process) |
 | **Player** | Making one wall's screen match its manifest. Screen geometry and backend, **compositing the mat**, drawing the label (e-ink panel, caption in the mat, or none), a local media cache, TV bindings and orphan removal, the guardrails that keep it from fighting the household for the screen, the heartbeat, which **reports its capabilities**. | **Player** (one process per wall, at the wall) |
 
@@ -354,7 +354,7 @@ server, against the operator's split | user can veto/override]`
 This is the biggest change to built code. Today curation composes a 3840×2160
 canvas with the mat in it (`Rendition.kind = tv_display`), sized from
 `TV_PANEL_*` and `MAT_*` configuration, and judges image adequacy
-(`library/services/display_fit.py`) against that panel. `data-model.md` defended this as
+(`library/services/display_fit.py`, until wave 4b) against that panel. `data-model.md` defended this as
 "a property of the artwork's presentation, not of a device". That stops being
 true the moment a second screen exists: a 1920×1200 LCD, a portrait monitor, or a
 caption drawn in the mat, which needs the mat *sized for the caption*.
@@ -667,9 +667,12 @@ the other way round.
 
 ## Open questions
 
-- **The presentation master's size cap and encoding.** About 8K long edge is a
-  starting guess, to be measured against the corpus. The Pi needs no reduction
-  for its own sake (the compositing-budget question below, answered).
+- ~~**The presentation master's size cap and encoding.**~~ *Answered 2026-10-08
+  (wave 4b):* 7,680 px on the long edge, the size the Pi's compositing budget
+  was measured against, never enlarged; JPEG at quality 95, the compositor's
+  own, upright and in sRGB as read. Measured over 46 real originals: about
+  4.9 MB a master on average, 37% of the originals' bytes
+  (`operational-spec.md`).
 - **Directive latency:** an ETag poll at about 1 s, or server-sent events.
   Polling matches today and is the default. Scenes are the test of whether it is
   fast enough (§ Scenes).
@@ -687,7 +690,8 @@ the other way round.
   in § Compositing moves to the Player). Until wave 4 builds the profile, the server's inch floor
   carries it: a deployment sets `RESOLUTION_FLOOR_INCHES` to 1,000 divided by
   its panel's pixels per inch (11.34 on a 50" 4K Frame, which cuts at exactly
-  1,000 px).
+  1,000 px). *Built 2026-10-08 (wave 4b) as `QUALITY_MINIMUM_PX`, default 1,000,
+  with no cutoff; `RESOLUTION_FLOOR_INCHES` is retired.*
 - **The smart-playlist rule language:** how rich, and whether the facade's
   query needs anything beyond AND, OR and NOT over (kind, value) plus a date
   range.

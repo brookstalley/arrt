@@ -108,7 +108,7 @@ def test_a_work_wikidata_pictures_with_nothing_shows_what_smk_holds_without_a_ge
     assert ui.requests_matching("/api/gets") == [], "nothing was got"
     assert (
         " ".join(ui.page.locator("#view .look-top .picture-size").inner_text().split())
-        == "2,201 × 2,221 px, from SMK, National Gallery of Denmark ● native"
+        == "2,201 × 2,221 px, from SMK, National Gallery of Denmark"
     )
 
 
@@ -332,7 +332,8 @@ def test_a_find_states_its_pixels_fit_source_and_why(ui):
     card.wait_for()
 
     text = " ".join(card.inner_text().split())
-    assert "2,201 × 2,221 px ● native" in text
+    assert "2,201 × 2,221 px" in text
+    assert "minimum" not in text, "a picture meeting the minimum carries no badge"
     assert "From SMK, National Gallery of Denmark" in text
     assert "matching the requested title and artist" in text
     assert card.locator("img").get_attribute("alt") == TANTRA_NAMED

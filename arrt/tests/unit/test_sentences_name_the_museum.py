@@ -23,7 +23,7 @@ from plugin_fakes import StubReader
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, _rationale
 from arrt.library.discovery.pool import ImageSourcePool, NoSourceCanAnswer
-from arrt.library.services.display_fit import DisplayFit, FitAssessment
+from arrt.library.services.quality import Fit
 from arrt.library.sources.loading import ENTRY_POINT_GROUP, PluginReading, PluginState, SourceRoster
 from arrt.library.sources.names import built_in_museums, museum_name
 from arrt.library.sources.reading import FetchLocator
@@ -113,7 +113,7 @@ def test_a_reason_for_a_scan_names_the_museum_that_holds_it(plugin):
         estimated_width=4000,
         estimated_height=3000,
     )
-    fit = FitAssessment(fit=DisplayFit.NATIVE, rendered_width=3000, rendered_height=2250, rendered_long_edge_inches=40.0)
+    fit = Fit.MEETS_MINIMUM
     names_the_museum(_rationale(found, confidence=CONFIDENT, fit=fit), plugin)
 
 

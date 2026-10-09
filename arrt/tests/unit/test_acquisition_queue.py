@@ -11,6 +11,7 @@ produces on demand and about days no test can wait.
 """
 
 import logging
+import sqlite3
 import threading
 import time
 import uuid
@@ -25,6 +26,7 @@ from PIL import Image
 from arrt.app import create_app
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
+from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import (
@@ -53,6 +55,22 @@ from arrt.persistence.records import (
     SourceClass,
 )
 from arrt.services.errors import ServiceError
+
+
+def _forget_masters(settings):
+    """Leave the catalogue as it was before masters existed. Nothing in the
+    product deletes a rendition, so this reaches the file directly."""
+    connection = sqlite3.connect(settings.catalogue_path)
+    with connection:
+        connection.execute('DELETE FROM renditions WHERE "kind" = ?', (str(RenditionKind.PRESENTATION_MASTER),))
+    connection.close()
+
+
+def stored_canvases(store, artwork_id):
+    """The work's television canvases, read from the store. A preparation also
+    makes a presentation master, a rendition of another kind."""
+    return [rendition for rendition in store.list_renditions(artwork_id) if rendition.kind is RenditionKind.TV_DISPLAY]
+
 
 _A_MOMENT = datetime(2026, 10, 2, 9, 0, tzinfo=UTC)
 
@@ -158,7 +176,7 @@ class TestThroughTheApplication:
             artwork_id = _accept_a_direct_work(discovery, run)
             until(lambda: isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork))
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        drawn = store.list_renditions(artwork_id)[0]
+        drawn = stored_canvases(store, artwork_id)[0]
         store.update_rendition(replace(drawn, layout="full-screen-mat panel=3840x2160 box=3316x1597"))
 
         services.reconcile()
@@ -167,10 +185,36 @@ class TestThroughTheApplication:
         assert isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork)
         app = create_app(services, acquire_queue=True)
         async with app.router.lifespan_context(app):
-            until(lambda: store.list_renditions(artwork_id)[0].layout == services.preparation.layout)
+            until(lambda: stored_canvases(store, artwork_id)[0].layout == services.preparation.layout)
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
+        assert stored_canvases(store, artwork_id)[0].generated_at > drawn.generated_at
         assert len(open_stream.served) == 1, "a recompose must not fetch the image again"
+
+    async def test_a_work_held_before_masters_existed_gets_one_after_the_next_start(
+        self, services, discovery, run, open_stream, store, settings
+    ):
+        """How every work held today reaches a presentation master: the startup
+        step queues it, and the queue's `prepare` makes the master without
+        fetching the image again or redrawing a canvas that is current."""
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            artwork_id = _accept_a_direct_work(discovery, run)
+            until(lambda: isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork))
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [], "an acquisition makes one"
+        _forget_masters(settings)
+        drawn = stored_canvases(store, artwork_id)[0]
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [artwork_id]
+
+        services.reconcile()
+
+        assert artwork_id in services.acquisition_queue.state_of([artwork_id])
+        app = create_app(services, acquire_queue=True)
+        async with app.router.lifespan_context(app):
+            until(lambda: store.works_owing_a_presentation_master(MASTER_RULE) == [])
+            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
+        assert stored_canvases(store, artwork_id)[0].generated_at == drawn.generated_at, "the canvas was current"
+        assert len(open_stream.served) == 1, "a master must not fetch the image again"
 
     async def test_a_mat_below_the_floor_is_chosen_again_after_the_next_start(self, services, discovery, run, open_stream, store):
         """How the 2024 mats reach the floor: the startup step queues the work, the
@@ -183,7 +227,7 @@ class TestThroughTheApplication:
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         _legacy_mat(store, artwork_id, "#1c1c1c")
         # Painted in the 2024 colour, as the wall's canvases are.
-        drawn = replace(store.list_renditions(artwork_id)[0], mat_hex="#1c1c1c")
+        drawn = replace(stored_canvases(store, artwork_id)[0], mat_hex="#1c1c1c")
         store.update_rendition(drawn)
 
         services.reconcile()
@@ -194,7 +238,7 @@ class TestThroughTheApplication:
             until(lambda: services.catalogue.current_mat_color(artwork_id).hex_rgb != "#1c1c1c")
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         assert rgb_to_lab(parse_hex(services.catalogue.current_mat_color(artwork_id).hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
-        assert store.list_renditions(artwork_id)[0].generated_at > drawn.generated_at
+        assert stored_canvases(store, artwork_id)[0].generated_at > drawn.generated_at
         assert len(open_stream.served) == 1, "choosing a mat again must not fetch the image again"
 
     async def test_the_queue_stops_when_the_application_does(self, services):

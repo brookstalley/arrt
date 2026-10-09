@@ -11,7 +11,7 @@ that read the row directly would pass even if no caller could ever get the
 answer out.
 """
 
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -53,9 +53,8 @@ def _make_showable(service, work):
     )
 
 
-#: The reference 42" deployment's artwork box, as worked out in the
-#: non-functional requirements.
-_BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=105.0, floor_inches=12.0)
+#: The owner's quality minimum, written out so the boundary below is checkable.
+_PROFILE = QualityProfile(minimum_long_edge_px=1000)
 
 
 def test_q1_which_works_belong_to_a_theme_so_the_display_plane_can_sync_them(service, display):
@@ -461,7 +460,7 @@ def test_q8_which_renditions_exist_for_which_geometry_and_are_they_current(servi
 
 
 def test_q8_whether_a_held_original_is_large_enough_is_answered_without_storing_a_verdict(service):
-    """The same fact, judged against two panels, gives two answers and stores neither."""
+    """The same fact, judged against two minimums, gives two answers and stores neither."""
     work = service.add_artwork(title="A small press image")
     source = service.add_source(
         artwork_id=work.id,
@@ -483,13 +482,8 @@ def test_q8_whether_a_held_original_is_large_enough_is_answered_without_storing_
         fetch_status=FetchStatus.OK,
     )
 
-    assessment = service.display_fit(work.id, box=_BOX)
-
-    assert assessment.fit is DisplayFit.BELOW_FLOOR
-    assert round(assessment.rendered_long_edge_inches, 1) == 7.6
-
-    bigger_wall = ArtworkBox(width=3546, height=1723, pixels_per_inch=58.7, floor_inches=12.0)
-    assert service.display_fit(work.id, box=bigger_wall).fit is DisplayFit.MATTED_SMALL
+    assert service.fit(work.id, profile=_PROFILE) is Fit.BELOW_MINIMUM
+    assert service.fit(work.id, profile=QualityProfile(minimum_long_edge_px=800)) is Fit.MEETS_MINIMUM
 
 
 def test_q9_who_the_artist_is_for_the_physical_label(service):
