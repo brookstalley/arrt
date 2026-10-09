@@ -65,7 +65,7 @@ spelling) are read by both planes for as long as major 2 lives.
 **Open assumptions / unknowns:**
 - [ASSUMPTION: `scene` and `staging` stay optional keys of the major 2 document, absent from a channel's feed, rather than moving to a separate control route; a scene reaches the Player "as a republished feed" (`feeds-and-players.md` § Feed and control), and a separate route would be a second document to poll | MED impact | user can override]
 - [ASSUMPTION: the per-major route is `GET /walls/{wall_id}/manifest/v{major}`, beside today's unversioned path, which keeps answering major 1 until 4g retires it | MED impact | user can override]
-- [ASSUMPTION: `label_modes` becomes values from `none`, `caption` (static, burned in or on a separate label), and `overlay` (timed, with fades); a Frame reports no `overlay` | MED impact | user can override]
+- [ASSUMPTION: label modes are `none`, `caption` (static for the slot) and `overlay` (timed, with fades), in both the manifest's `settings.label.mode` and the heartbeat's `label_modes`; a Frame reports no `overlay`. `panel` leaves both, because since `labels-and-surfaces.md` a label on its own surface is a label output with its own document, not a mode of the wall's display. No Player writes `label_modes` yet (checked 2026-10-08), so narrowing the heartbeat enum strands no writer | MED impact | user can override]
 - [ASSUMPTION: presentation-setting keys are all optional in the feed, and a missing key means the Player's own default, so a channel can say nothing about presentation | LOW impact | user can override]
 
 **What would raise confidence:** 01's reshaped schema read against
@@ -76,7 +76,7 @@ before the fixtures are written.
 
 ## Status
 
-- [ ] Chunk 01: Major 2 as a feed with layered settings
+- [x] Chunk 01: Major 2 as a feed with layered settings
 - [ ] Chunk 02: Capabilities, the per-major route, and the cutover rewritten
 - [ ] Chunk 03: The layout spec's mat rule and the schedule behaviour vectors
 

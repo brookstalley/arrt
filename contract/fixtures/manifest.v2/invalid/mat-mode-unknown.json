@@ -10,11 +10,10 @@
   },
   "settings": {
     "label": {
-      "mode": "panel"
+      "mode": "none"
     },
     "mat": {
-      "width_inches": 2.5,
-      "bottom_weight": 0.9
+      "mode": "double"
     },
     "viewing_distance_m": 2.5
   },

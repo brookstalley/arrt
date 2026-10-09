@@ -13,8 +13,7 @@
       "mode": "caption"
     },
     "mat": {
-      "width_inches": 2.5,
-      "bottom_weight": 1.15
+      "mode": "proportional"
     },
     "viewing_distance_m": 2.5
   },

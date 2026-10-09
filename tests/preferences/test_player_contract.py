@@ -76,8 +76,9 @@ def semantic_errors(document: dict) -> list[str]:
     errors = []
     works = document["works"]
     slots = document["schedule"]["slots"]
-    scene = document["scene"]
-    named = [slot["work_id"] for slot in slots] + document["staging"] + ([scene["work_id"]] if scene else [])
+    # A channel's feed carries no control layer, so scene and staging may be absent.
+    scene = document.get("scene")
+    named = [slot["work_id"] for slot in slots] + document.get("staging", []) + ([scene["work_id"]] if scene else [])
     if any(work_id not in works for work_id in named):
         errors.append("a work is named that is not in works")
     if any(_instant(slot["from"]) >= _instant(slot["until"]) for slot in slots):
@@ -103,6 +104,19 @@ def _semantics(row: dict) -> list[str]:
 @pytest.mark.parametrize("schema_path", sorted({row["schema"] for row in INDEX}))
 def test_every_schema_is_valid_draft_2020_12(schema_path):
     Draft202012Validator.check_schema(json.loads((CONTRACT / schema_path).read_text(encoding="utf-8")))
+
+
+def test_the_facts_a_major_2_overlay_may_show_are_exactly_the_label_keys():
+    """`settings.facts` names label keys, and the label is major 1's, reused by reference.
+
+    The enum is a copy, because a schema cannot list another definition's keys, so
+    this is what keeps the copy from drifting: a key added to the label and not
+    here would be a fact no setting could ask for.
+    """
+    facts = _schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]["facts"]["items"]["enum"]
+    label = _schema("schemas/manifest.v1.schema.json")["$defs"]["label"]["properties"]
+
+    assert facts == list(label)
 
 
 def test_every_fixture_on_disk_is_indexed_and_every_indexed_fixture_exists():

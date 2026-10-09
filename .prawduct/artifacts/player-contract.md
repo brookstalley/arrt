@@ -222,12 +222,11 @@ of walls, each on one of its outputs. It learns its walls from the server.
 
 ## Major 2 (draft)
 
-> **Direction changed 2026-10-08 (`feeds-and-players.md`).** Major 2 is
-> reshaped before wave 4 builds it: the manifest becomes a **feed** (schedule,
-> works, default presentation settings) that a public channel serves with no
-> token and no reporting, and everything wall-specific is the **control** layer.
-> `settings` widens into three layers (feed, wall, device) with mat mode,
-> overlay timing and which facts an overlay shows.
+> **Reshaped 2026-10-08 (`feeds-and-players.md`), in the schema since wave 4a.**
+> The manifest is a **feed** (schedule, works, default presentation settings)
+> that a public channel serves with no token and no reporting; `scene` and
+> `staging` are the **control** layer, and a document with neither is a complete
+> channel feed. `settings` is the first of three layers (§ Presentation settings).
 
 **A draft until wave 4 builds it.** Nothing reads major 2 before then, so every
 field here can still change, and should, if building wave 2 or 3 teaches
@@ -244,7 +243,31 @@ at once, so walls cut over once:
 | `rotation` and a Player-side shuffle | `schedule`: time-anchored slots computed centrally for all walls |
 | `directive` (`sequence`, `pinned_work_id`) | `scene`, a live override with a lifetime, and republishing the schedule (below) |
 | `theme` | `playlist`, the same thing under its planned name |
-| settings in each Player's configuration | `settings`: label mode, mat proportions, viewing distance |
+| settings in each Player's configuration | `settings`, every key optional: label mode, mat mode, overlay timing, fades, text scale, viewing distance, and which label facts are shown (§ Presentation settings) |
+
+### Presentation settings
+
+`settings` holds the feed's defaults, the first of three layers
+(`feeds-and-players.md` § Presentation settings come in three layers). A home
+wall's curator settings override it, and a viewer's preferences on the device
+override both, key by key. Every key is optional, and a key no layer sets is the
+Player's own default, so a channel may say nothing about presentation.
+
+- **The mat's colour is the work's; its mode is a setting; its width is the
+  Player's.** `mat.mode` is `none`, `proportional` or `full`. No layer carries a
+  width (`feeds-and-players.md` ruling 7): a Player that knows its pixel density
+  keeps the inch rule, and one that does not uses a fraction of its screen's
+  shorter side.
+- **`label.mode` is text on the display itself**: `none`, `caption` (static for
+  the slot, the only kind a Frame can show) or `overlay` (timed by `overlay`'s
+  lead and tail, faded over `fade_seconds`). A label on its own surface is a label
+  output with its own document (`labels-and-surfaces.md`), not a mode, which is
+  why major 2 has no `panel`.
+- **`facts`** lists which of a work's label keys a caption or overlay shows, in
+  order. Its values are exactly the label's keys, a copy the root suite holds to
+  the label definition.
+- **A Player applies what its display can honour** and ignores the rest, which
+  is why a setting is never a reason to refuse a document.
 
 ### Rules a schema cannot state
 
