@@ -21,6 +21,7 @@ import pytest
 import uvicorn
 from fakes import FakeConversationEngine, FakeEngine, FakeReader
 from fault_guard import FaultRecords
+from langchain_core.language_models import BaseChatModel
 from PIL import Image
 
 from arrt.app import create_app
@@ -558,7 +559,13 @@ def seeded_service(service: CatalogueService) -> CatalogueService:
 
 
 @pytest.fixture
-def server_url(services: Services, seeded_service: CatalogueService) -> Iterator[str]:
+def ask_model() -> BaseChatModel | None:
+    """No model: the keyless deployment, where Ask answers nothing. A test of Ask supplies a `ScriptedModel`."""
+    return None
+
+
+@pytest.fixture
+def server_url(services: Services, seeded_service: CatalogueService, ask_model: BaseChatModel | None) -> Iterator[str]:
     """A real HTTP server on an ephemeral port, serving the real application.
 
     **uvicorn is asked for port 0 and the port is read back from the socket it
@@ -570,7 +577,7 @@ def server_url(services: Services, seeded_service: CatalogueService) -> Iterator
     they draw from the same ephemeral range. Reading the port back is a little
     more to know about uvicorn and has no window at all.
     """
-    app = create_app(services)
+    app = create_app(services, ask_model=ask_model)
     config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)

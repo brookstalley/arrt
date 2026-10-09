@@ -377,6 +377,8 @@ argument. Three things decided it anyway:
   `langchain-openai`, `langchain-openrouter` and `jsonschema` into the curation
   plane's **default** install — the plane that runs co-located with display under
   a `MemoryMax`. Today that weight is opt-in, confined to the `eval` group.
+  *(2026-10-08: no longer. The server moved to the NAS, and Ask's agent put
+  this weight in the default install, `build-plan-ask-agent.md`.)*
 - **The two model uses are not the same axis.** The eval harness's model plays the
   *curator*, driving the MCP surface from outside; the engine's model is the
   *discovery worker* behind it. "One model-construction path" reads like reuse and

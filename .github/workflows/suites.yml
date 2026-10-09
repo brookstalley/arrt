@@ -90,7 +90,7 @@ jobs:
         # fails if a directory that needs ignoring is missing — or if one that
         # does not need it is listed, because over-excluding is how coverage
         # silently shrinks.
-        run: uv run pytest tests --ignore=tests/browser --ignore=tests/eval -v --junitxml=results.xml
+        run: uv run pytest tests --ignore=tests/browser -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml

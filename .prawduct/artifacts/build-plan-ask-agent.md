@@ -247,6 +247,83 @@ Done when: the four requests from 02 work end to end in the browser; the
 browser suite drives a thread against a stubbed model; a reply that hits the
 step limit says so in the thread; the owner has used it.
 
+**Stated at the chunk, before code (2026-10-08).** Decisions are the agent's,
+each one the owner can veto:
+
+- The owner confirmed the default model, `anthropic/claude-haiku-5.5`
+  (2026-10-08). It is set by `ASK_MODEL`. The step limit is 8 model replies,
+  set by `ASK_STEP_LIMIT` and enforced by LangChain's
+  `ModelCallLimitMiddleware(run_limit=…, exit_behavior="error")`, which counts
+  model calls exactly. `recursion_limit` counts graph steps instead.
+- [DECISION: the stream is NDJSON, one 3tears `StreamEvent` per line, on the
+  `POST` that sends the curator's words. The plan said SSE, but a browser
+  cannot open an `EventSource` on a POST, so SSE would be parsed by hand over
+  `fetch` either way. The client already reads a line-streamed answer
+  (`apiLines`, the Topic page's works), so this reuses it rather than adding a
+  second framing. The events are 3tears' own, unchanged: `stream_start`,
+  `stream_token`, `tool_call_start`, `tool_call_end`, then `stream_end` or
+  `stream_error`. The lifecycle is driven by hand, not by `run_graph`:
+  `run_graph` emits no tool events, and its `end()` cannot carry the reply's
+  cost | agent | owner can veto]
+- [DECISION: cards are the works, artists and topics **the answer names that
+  a tool returned**, not everything a tool returned. A registry search returns
+  dozens of items, and the answer is where the agent chose among them. A QID
+  the answer names that no tool returned gets no card, so an invented item
+  cannot be offered for Get. The cards travel on `stream_end.metadata`, built
+  on the server from the tool payloads by one function that the eval's
+  scorer also reads | agent | owner can veto]
+- [DECISION: web search is offered when `SEARXNG_URL` is set and is absent
+  otherwise. The owner ruled that the agent may search and that SearXNG is
+  free, and an unused tool costs only its definition | agent | owner can
+  veto]
+- [DECISION: a reply's cost is shown under it and logged, and no
+  `SpendRecord` is written. The sidebar's month figure is the provider's own,
+  so it already includes Ask, and a per-reply record belongs with the 3tears
+  spending cap (pacepace/3tears#583) | agent | owner can require one]
+- [DECISION: a thread is opened when the curator first sends words, not when
+  Ask is opened, because loading a page must write nothing (the UX walk's
+  refused-on-load check caught the first version) | agent | owner can veto]
+- Asking the agent is Ask's one filled act. The direct *Get* stays, unfilled,
+  until chunk 04 retires it.
+- In this chunk the thread sits on Ask, above the direct box and the
+  conversations. Chunk 04 removes those, so nothing here deletes them.
+
+**Cross-cutting, the loop (a new execution context):**
+
+- *Where it runs:* on the server's event loop. Each tool call goes to
+  `mcp.server.dispatch` on a worker thread, the way the MCP surface already
+  calls it, because the service layer is synchronous and one call can hold
+  for 45 s. The agent is a third thin binding: it is offered the MCP
+  definitions whole, and an action outside `ASK_SCOPE` is answered with a
+  teaching error and never dispatched.
+- *Bounds:* model calls per reply (the step limit); one reply in flight per
+  thread, so a second send while one runs is refused with a 409; at most 20
+  threads kept in memory, the least recently used dropped first. Nothing
+  persists, and a restart forgets every thread.
+- *Failure:* no key means the reply is refused before anything is called,
+  and says so. The step limit ends the stream with `stream_error` code
+  `STEP_LIMIT` and a sentence for the curator; the text already streamed
+  stays. Any other fault ends with 3tears' `AGENT_FAILED` and is logged with
+  its traceback. A client that disconnects cancels the run, which ends with
+  `AGENT_CANCELLED`.
+- *Observability:* one INFO line per reply on `arrt.ask`: thread, steps,
+  tool calls, cost and its uncosted replies, duration, and how the reply
+  ended. Cost is OpenRouter's `response_metadata["cost"]`, summed.
+- *Security:* only read actions are in scope. The agent cannot get, hang or
+  change anything; Get is a press on a card. It is reached only through the
+  curation plane's own HTTP surface, which has the same trust boundary as
+  every other `/api` route.
+
+**Cross-cutting, the stream surface (a new kind of response):**
+`POST /api/ask/threads/{id}/replies` answers `application/x-ndjson`.
+Refusals made before the stream opens (no key, an unknown thread, a reply
+already running) are ordinary JSON errors with a status. Once the stream
+opens it always closes with exactly one terminal event, which 3tears'
+`StreamingResponse` guarantees. `GET /api/ask/threads/{id}` returns each
+turn's events as they were sent, so a returning page repaints through the
+same renderer that drew them live. The surface is internal to the browser
+client and unversioned.
+
 ### Chunk 04: Retire the conversation, the direct box and the commit seam
 
 Retire the old conversation service, its routes, its client screen and its

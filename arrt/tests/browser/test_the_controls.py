@@ -131,11 +131,16 @@ def test_a_touch_screen_gets_44px_controls(browser, server_url, key):
 
 
 def test_ask_has_one_filled_act(ui):
-    """Get is the one filled act on Ask; Talk it through first is quiet."""
+    """Asking the agent is the one filled act on Ask; Get and Talk it through first are not.
+
+    Get was the filled act until the owner ruled that Ask is a conversation with
+    an agent (2026-10-08); the direct box stays, unfilled, until it is retired.
+    """
     _settled(ui, "discover")
     filled = ui.page.locator("#view .panel .action.primary")
     assert filled.count() == 1
-    assert filled.inner_text().strip() == "Get"
+    assert filled.inner_text().strip() == "Ask"
+    assert ui.page.locator("#view .panel button:text-is('Get')").count() == 1
     talk = ui.page.locator("#view button:text-is('Talk it through first')")
     assert "quiet" in talk.get_attribute("class")
     # Explained in one line, tied to the button, and true: a turn is priced.

@@ -26,7 +26,7 @@ import { backLink, go, link } from "../core/router.js";
 import { STATE_WORDS } from "../core/runs.js";
 import { COST_UNKNOWN, getCaption, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
-import { REACTIONS, recordReaction } from "../core/taste.js";
+import { reactionRow } from "../core/taste.js";
 
 /* The same interval the run view uses, and for the same reasons: slow enough not
  * to hammer a Pi, fast enough that a curator watching a search does not wonder
@@ -383,7 +383,7 @@ function suggestion(entry, turnId) {
                   })
                 : el("p", { class: "muted", text: "No picture travels with this record." }),
               el("figcaption", { text: sample.artist ? `${sample.title} — ${sample.artist}` : sample.title }),
-              reactions(entry, turnId),
+              reactionRow({ kind: entry.kind, value: entry.value, sourceTurnId: turnId }),
             ]),
           ),
         )
@@ -391,55 +391,9 @@ function suggestion(entry, turnId) {
         // reactions. The name is what a judgment is about, and a curator who
         // recognises a movement they dislike should not have to wait for a
         // picture of it before saying so.
-        reactions(entry, turnId),
+        reactionRow({ kind: entry.kind, value: entry.value, sourceTurnId: turnId }),
     departure(entry),
   ]);
-}
-
-/* The three reactions, and the fourth control kept away from them.
- *
- * **The three record taste and stay in the thread.** They write an `Affinity`
- * with `derivation='stated'` — the curator saying so directly — rather than
- * leaving the model to infer one from prose, and each is a different pair of the
- * two fields taste is held in. "Tell me more" is the one worth reading twice: it
- * is cool *and still open*, which is the sentence the two-field design exists
- * for.
- *
- * The page does not repaint after one. The judgment is recorded elsewhere and
- * nothing in the transcript changes — a thread that redrew itself under a
- * curator who pressed a button beside a picture would move the picture. What
- * confirms it is the control's own state, below. */
-function reactions(entry, turnId) {
-  return el(
-    "div",
-    // Announced rather than only shown: the confirmation below is a change of
-    // label on a control the curator has just left, and a reader who is not
-    // looking at it would otherwise get no acknowledgement at all.
-    { class: "reactions", "aria-live": "polite" },
-    Object.keys(REACTIONS).map((reaction) => {
-      const control = el("button", {
-        class: "action quiet",
-        type: "button",
-        text: reaction,
-        // The value in the accessible name, because the visible label is shared
-        // by every sample on the page: a screen reader moving through a turn
-        // that named three artists would otherwise hear "not this" nine times
-        // with nothing saying what "this" is.
-        "aria-label": `${reaction}: ${entry.value}`,
-        onclick: () =>
-          attempt(control, `record ${reaction} for ${entry.value}`, () => recordReaction({ kind: entry.kind, value: entry.value, reaction, sourceTurnId: turnId }), {
-            then: () => {
-              // Said, not merely styled, and said in the past tense so it reads
-              // as a record rather than as an offer. `aria-live` on the row is
-              // what carries it to a reader who is not looking at the button.
-              control.textContent = `${reaction} — recorded`;
-              control.disabled = true;
-            },
-          }),
-      });
-      return control;
-    }),
-  );
 }
 
 /* "Go to <artist>'s work" — the one control here that leaves the thread.

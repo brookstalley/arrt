@@ -355,6 +355,18 @@ DEFAULT_CONVERSATION_OUTPUT_COST_USD_PER_MTOK: Final[str] = "0.13"
 #: fraction of a cent. Output is priced at the reservation itself.
 DEFAULT_CONVERSATION_INPUT_TOKENS: Final[int] = 8_000
 
+#: Which model answers in Ask. Chosen by measurement, not by price alone
+#: (`ask-agent-findings.md`): it passed every Ask-shaped request in at most three
+#: steps for about $0.003 a reply. The cheaper qwen was as reliable and three
+#: times slower, and deepseek ran away on open requests.
+DEFAULT_ASK_MODEL: Final[str] = "anthropic/claude-haiku-5.5"
+
+#: How many times Ask's agent may ask its model in one reply before it is
+#: stopped. Set from the measured maxima, 3 for the default model and 7 for the
+#: slowest reliable one, with headroom for a harder request. A per-reply bound,
+#: not the spending ceiling: that is the provider key's limit.
+DEFAULT_ASK_STEP_LIMIT: Final[int] = 8
+
 #: The longest edge, in pixels, of the copy of the artwork the mat model sees.
 #: Images bill inside `prompt_tokens`, so this is the one dial on what a mat call
 #: costs. 768 is enough for a model to read a palette and a composition, and a
@@ -487,6 +499,13 @@ class Settings:
     #: runs this to a third party. Unset switches matching off, and the registry
     #: features say so.
     wikidata_user_agent: str | None = None
+    #: Which model Ask's agent runs on (`ASK_MODEL`).
+    ask_model: str = DEFAULT_ASK_MODEL
+    #: Model replies one Ask reply may take (`ASK_STEP_LIMIT`).
+    ask_step_limit: int = DEFAULT_ASK_STEP_LIMIT
+    #: A SearXNG instance for Ask's web search (`SEARXNG_URL`). Unset, Ask is
+    #: offered no web search and reads only the library and Wikidata.
+    searxng_url: str | None = None
 
     @property
     def discovery_settings(self) -> DiscoverySettings:
@@ -744,6 +763,10 @@ class Settings:
             monthly_budget_usd=_priced("MONTHLY_BUDGET_USD", "0") if os.environ.get("MONTHLY_BUDGET_USD") else None,
             source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),
             wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
+            ask_model=os.environ.get("ASK_MODEL") or DEFAULT_ASK_MODEL,
+            # Positive: a limit of zero would refuse every reply after charging for nothing.
+            ask_step_limit=_positive_int("ASK_STEP_LIMIT", DEFAULT_ASK_STEP_LIMIT),
+            searxng_url=os.environ.get("SEARXNG_URL") or None,
         )
 
     def redacted(self) -> dict[str, object]:

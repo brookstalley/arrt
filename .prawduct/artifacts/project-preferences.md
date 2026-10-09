@@ -33,12 +33,15 @@ Developer preferences for how code is written in this project. Captured during d
     only one.** Other artifacts point here rather than restate it — restating it is
     exactly how this claim came to sit three revisions out of date in four places
     at once, the fourth recurrence for a Python-version claim specifically. What
-    holds it today: nothing in the default install requires 3.14, the only declared
-    holder is a test-only dependency in the `eval` group, and what is left is the
-    verified fact that the whole curation dependency set resolves and imports on
-    CPython 3.14.4. So **lowering the floor is an available decision rather than a
-    correction** — the split's other two legs (hardware-pinned display plane, the
-    wall not blanking on curation restart) do not depend on it. Provisioned
+    holds it today (**since 2026-10-08**): Ask's agent put `3tears-models`,
+    `3tears-langgraph` and `3tears-agent-tools` in the default install
+    (`build-plan-ask-agent.md`), and every 3tears package at the pinned 0.65.0
+    declares `Requires-Python: >=3.14` (read from the installed metadata,
+    twelve packages). So a default dependency holds the floor again, and
+    lowering it would mean dropping 3tears. Between 2026-08-02 and that date
+    nothing in the default install required 3.14, and lowering it was an
+    available decision. The split's other two legs (hardware-pinned display
+    plane, the wall not blanking on curation restart) do not depend on it. Provisioned
     as a uv-managed standalone build (`uv python install 3.14`), not compiled: a
     prebuilt `cpython-3.14-linux-aarch64-gnu` exists, so the "30–45 minute source
     build per patch release" that made this an open question was never the real

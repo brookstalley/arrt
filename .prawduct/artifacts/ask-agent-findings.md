@@ -53,9 +53,12 @@ the answer names (by QID) is *grounded* when some tool result contained it and
 Every request also fails on a provider error, on no answer, and on any invented
 item.
 
-**Re-running it:** `cd arrt && uv sync --group eval`, then with
-`OPENROUTER_API_KEY`, `SEARXNG_URL`, `ART_EVAL_MODEL` and `ART_EVAL_RECORD` (a
-file) set, `uv run --group eval pytest -n0 -m llm_eval tests/eval/test_ask_requests.py`.
+**Re-running it:** with `OPENROUTER_API_KEY`, `SEARXNG_URL`, `ART_EVAL_MODEL`
+and `ART_EVAL_RECORD` (a file) set,
+`cd arrt && uv run pytest -n0 -m llm_eval tests/eval/test_ask_requests.py`.
+The `eval` dependency group these numbers were measured with is gone: 3tears
+is in the default install since chunk 03. The prompt and scope measured are
+the server's own (`arrt.ask.prompt`).
 Each run appends one JSON line to the record file.
 
 ## Results

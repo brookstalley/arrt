@@ -266,8 +266,13 @@ name = "arrt"
 version = "0.4.0"
 source = { editable = "." }
 dependencies = [
+    { name = "3tears-agent-tools" },
+    { name = "3tears-langgraph" },
+    { name = "3tears-models" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "langchain" },
+    { name = "langchain-core" },
     { name = "mcp" },
     { name = "pillow" },
     { name = "pydantic" },
@@ -284,21 +289,21 @@ dev = [
     { name = "black" },
     { name = "httpx" },
     { name = "jsonschema" },
-    { name = "langchain-core" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-xdist" },
     { name = "ruff" },
 ]
-eval = [
-    { name = "3tears-agent-tools" },
-    { name = "3tears-models" },
-]
 
 [package.metadata]
 requires-dist = [
+    { name = "3tears-agent-tools", specifier = "==0.65.0" },
+    { name = "3tears-langgraph", specifier = "==0.65.0" },
+    { name = "3tears-models", specifier = "==0.65.0" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "langchain" },
+    { name = "langchain-core" },
     { name = "mcp", specifier = ">=1.28.1" },
     { name = "pillow" },
     { name = "pydantic" },
@@ -313,15 +318,10 @@ dev = [
     { name = "black", specifier = ">=24" },
     { name = "httpx" },
     { name = "jsonschema", specifier = ">=4.23" },
-    { name = "langchain-core" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
     { name = "pytest-xdist", specifier = ">=3.6" },
     { name = "ruff", specifier = ">=0.6" },
-]
-eval = [
-    { name = "3tears-agent-tools", specifier = "==0.65.0" },
-    { name = "3tears-models", specifier = "==0.65.0" },
 ]
 
 [[package]]

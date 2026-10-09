@@ -1,5 +1,10 @@
 /* Ask — asking for something in words.
  *
+ * **On top, the thread with Ask's agent** (`core/asking.js`), which searches
+ * as it answers and offers what it found (the owner, 2026-10-08). The direct
+ * box and the conversations below it are what Ask was before; they go when
+ * `build-plan-ask-agent.md` retires them.
+ *
  * Where Radarr's Add New stood, under Artworks, at the address `#discover` it
  * has had since before the *arr labels; ruling 3 of `ia-proposal.md` dissolved
  * Add New into Get, an action on a selection, and this page, where a direction is
@@ -9,6 +14,7 @@
 
 import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
+import { askPanel } from "../core/asking.js";
 import { table } from "../core/badges.js";
 import { captioned, el, render } from "../core/render.js";
 import { go, link } from "../core/router.js";
@@ -21,7 +27,10 @@ export async function viewDiscover(generation) {
   // made in the field beside it, so a screen that fetched it afterwards would
   // be showing a receipt. An estimate that cannot be read leaves the page
   // usable and says so under Get, rather than taking the whole page down.
-  const [estimate, conversations] = await Promise.all([
+  const [thread, estimate, conversations] = await Promise.all([
+    // Words handed over from the top bar's "Ask about …" row, as Sonarr hands
+    // its term to Add New: filled in and never sent.
+    askPanel({ term: state.params.term || "" }),
     api("/api/estimate").catch((failure) => {
       console.warn(`The estimate for a Get could not be read: ${failure.message}`);
       return null;
@@ -30,14 +39,11 @@ export async function viewDiscover(generation) {
   ]);
 
   const intent = el("textarea", { id: "intent", rows: 3, required: true });
-  // Words handed over from the top bar's "Ask about …" row, as Sonarr hands
-  // its term to Add New. Filled in and never started: a Get here spends, and
-  // the curator presses the button beside its price.
-  intent.value = state.params.term || "";
   const start = el("button", {
-    // The one filled act on the page, with what it costs under it (below):
+    // Not filled: asking the agent above is the page's one filled act now
+    // (the owner, 2026-10-08), and this box goes when the agent replaces it.
     // "Get", as every spending request is called (`ia-proposal.md` § Objects).
-    class: "action primary",
+    class: "action",
     type: "button",
     text: "Get",
     "aria-label": "Get what you asked for",
@@ -82,7 +88,7 @@ export async function viewDiscover(generation) {
     ]),
   ]);
 
-  const panels = [el("h1", { text: "Ask" }), entry];
+  const panels = [el("h1", { text: "Ask" }), thread, entry];
 
   // The conversations, where the searches listed under Activity come from.
   // Every row opens the thread it names — there is no summary line yet, because

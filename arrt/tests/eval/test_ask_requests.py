@@ -15,12 +15,6 @@ what its request asked. `ART_EVAL_MODEL` picks the model.
 import os
 
 import pytest
-
-pytest.importorskip(
-    "threetears.models",
-    reason="the model-driven evaluation needs the eval group — run `uv sync --group eval`",
-)
-
 from ask import ASK_BUDGET, ASK_SCOPE, ASK_SYSTEM, REQUESTS, passed, record, score
 from driver import drive
 

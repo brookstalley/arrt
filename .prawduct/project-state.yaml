@@ -1977,8 +1977,9 @@ technical_decisions:
         upstream one. RE-BASED AGAIN 2026-08-02: that revision said the floor now
         rested on 3tears-models, "arrives with the discovery work". It did not
         arrive — discovery reaches OpenRouter through a first-party client, and the
-        package is confined to the opt-in eval group — so no default dependency
-        requires 3.14 today. What holds the floor is stated once, in
+        package was confined to the opt-in eval group. RE-BASED A THIRD TIME
+        2026-10-08: Ask's agent moved 3tears into the default install. What holds
+        the floor is stated once, in
         artifacts/project-preferences.md § Language & Runtime, and is not restated
         here. The build-vs-relax analysis below is retained as the reason the
         floor is affordable, not as a live dependency claim.

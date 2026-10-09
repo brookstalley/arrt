@@ -172,7 +172,7 @@ def test_searching_museums_hands_the_words_to_add_new_and_spends_nothing(ui, ser
     ui.page.click(f"{LISTBOX} [role='option']:has-text('Ask about')")
 
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
-    assert ui.page.input_value("#intent") == "Vermeer interiors"
+    assert ui.page.input_value("#ask-words") == "Vermeer interiors"
     assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Vermeer%20interiors"
     # Nothing was asked of any museum or model: no run exists.
     assert ui.page.evaluate("async () => (await (await fetch('/api/runs')).json()).total") == 0
@@ -183,7 +183,7 @@ def test_add_new_reached_without_a_term_starts_empty(ui, seeded_service):
     ui.open("#discover")
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
-    assert ui.page.input_value("#intent") == ""
+    assert ui.page.input_value("#ask-words") == ""
 
 
 def test_enter_with_several_matches_opens_the_results_page_not_the_first(ui, seeded_service):

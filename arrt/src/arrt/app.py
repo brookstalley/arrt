@@ -19,20 +19,24 @@ makes the mount work.
 """
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
+from functools import partial
 from typing import Final
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
-from arrt.config import DEFAULT_BACKUP_INTERVAL_SECONDS
-from arrt.http import api, pages, player
+from arrt.ask.agent import Ask
+from arrt.config import DEFAULT_ASK_STEP_LIMIT, DEFAULT_BACKUP_INTERVAL_SECONDS
+from arrt.http import api, ask, pages, player
 from arrt.library.acquisition.queue import start_acquisition_queue
 from arrt.library.services.topic_sweep import start_topic_sweep
-from arrt.mcp.server import build_server
+from arrt.mcp.server import build_server, dispatch
 from arrt.persistence.backup import CatalogueBackup, start_backups
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
@@ -66,6 +70,9 @@ def create_app(
     acquire_queue: bool = False,
     backup: CatalogueBackup | None = None,
     backup_interval_seconds: int = DEFAULT_BACKUP_INTERVAL_SECONDS,
+    ask_model: BaseChatModel | None = None,
+    ask_step_limit: int = DEFAULT_ASK_STEP_LIMIT,
+    ask_tools: Sequence[BaseTool] = (),
 ) -> FastAPI:
     """Build the application around already-constructed services.
 
@@ -84,6 +91,11 @@ def create_app(
     **The acquisition queue is off unless asked for, for the same reason and a
     stronger one**: it writes originals, renditions and spend rows behind a test
     that accepted a work, and with a live transport it would fetch from a museum.
+
+    **Ask answers nothing without `ask_model`**, the keyless deployment. Its
+    agent is built here, over the same `dispatch` the MCP surface calls, so its
+    tools cannot be wired to anything but these services. `ask_tools` are tools
+    beside the surface's, such as web search.
     """
     mcp_server = build_server(services)
     session_manager = StreamableHTTPSessionManager(
@@ -121,6 +133,7 @@ def create_app(
     # once, at startup, over one open catalogue file — a per-request dependency
     # would advertise a lifetime they do not have.
     app.state.services = services
+    app.state.ask = Ask(partial(dispatch, services), ask_model, step_limit=ask_step_limit, local_tools=ask_tools)
 
     async def handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
         await session_manager.handle_request(scope, receive, send)
@@ -161,6 +174,7 @@ def create_app(
         return PlainTextResponse("ok")
 
     app.include_router(api.router)
+    app.include_router(ask.router)
     app.include_router(player.router)
     app.include_router(pages.router)
     app.mount(STATIC_PATH, pages.ClientFiles(directory=pages.STATIC_DIR), name="static")

@@ -62,6 +62,58 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask as an agent, chunk 03: Ask is one thread with an agent in it
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The owner ruled that Ask is a conversation with an agent that has the
+product's tools and searches as it talks (2026-10-08), and confirmed
+`anthropic/claude-haiku-5.5` as its model.
+
+**What:**
+- `arrt/ask/`: the agent, a LangChain `create_agent` loop in the server
+  process. It is offered the MCP surface's tool definitions whole and calls the
+  MCP `dispatch` on a worker thread; an action outside `ASK_SCOPE` gets a
+  teaching error and is never dispatched. Replies stream as 3tears stream
+  events, one a line (NDJSON, not the SSE the plan named: a browser cannot
+  open an `EventSource` on a POST). They end with the reply's cost (OpenRouter's
+  own figure) and cards for the works, artists and topics the answer names
+  that a tool returned. Threads are in memory, at most 20, forgotten on
+  restart. Up to 8 model calls a reply (`ASK_STEP_LIMIT`), beyond which the
+  reply says it stopped.
+- Routes `GET /api/ask`, `POST`/`GET /api/ask/threads`,
+  `POST /api/ask/threads/{id}/replies`; settings `ASK_MODEL`,
+  `ASK_STEP_LIMIT`, `SEARXNG_URL` (web search offered only when set).
+- The Ask page: the thread on top, with *Ask* now its one filled act; the old
+  box, its *Get* (no longer filled) and the conversations below until chunk
+  04. *Ask about "…"* fills the agent's box. Opening the page writes nothing.
+  The reaction row moved into `core/taste.js`, shared by both threads.
+- 3tears (`models`, `langgraph`, `agent-tools`, pinned 0.65.0) and LangChain
+  are default dependencies; the `eval` group is gone. They put the
+  `>=3.14` floor back on a default dependency, which `project-preferences.md`
+  records. The eval reads the server's prompt, scope and item reader.
+
+**Tests:** `test_ask_surface.py` drives a scripted model through the real
+server. `test_a_reply_that_reaches_the_step_limit_says_so` failed first
+because LangGraph's default `recursion_limit` (25 graph steps) stopped an
+8-call reply as a fault; the graph's bound is now set past the call limit.
+`test_ask_needs_no_infrastructure.py` answers a turn in a fresh interpreter
+with NATS and Postgres pointed at nothing and asserts no socket connection is
+attempted; the same script with a web search records one. The abandoned-reply
+test failed with the cancel removed, and the cited-QID browser test failed
+with the stripping removed. `test_the_entry_point_gives_ask_its_configured_model_limit_and_web_search`
+caught that 3tears names its tool `threetears.web_search`.
+`test_ask_has_one_filled_act` now names *Ask* as the filled act, per the
+ruling; three browser assertions moved from `#intent` to `#ask-words` with
+the term. The eval scorer's fixture gained the fields the real search payload
+carries (years, `artist_id`), which is what tells an artist from a museum.
+
+**Verified live (2026-10-09):** the four chunk 02 requests through the real
+server on haiku: 3–4 model calls, $0.0027–$0.0044 each, every reply costed
+while streamed. One was drawn in Chromium, and the screenshot showed three
+faults the suite could not: an overflowing theme picker, the cost said twice,
+and a step glyph. All three are fixed.
+
 ## 2026-10-08: Get and review clarity: the boundary review's findings
 
 <!-- prawduct: scope=get-and-review-clarity -->

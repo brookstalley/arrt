@@ -4,8 +4,7 @@
 use the product's tools well enough to answer a curator in words: the requests
 below, offered the tools Ask's agent will be offered, with web search beside
 them when a SearXNG instance is configured. The prompt and the scope are
-drafts of what Chunk 03 ships; they live here until it does, so what was
-measured is what is built.
+the server's own (`arrt.ask.prompt`), so what is measured is what ships.
 
 Scoring reads the transcript and the answer, never the model's account of
 itself: an item the answer names counts as grounded only if a tool returned it.
@@ -14,37 +13,17 @@ itself: an item the answer names counts as grounded only if a tool returned it.
 import json
 import os
 import re
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from driver import LOCAL, Outcome
 
-#: The agent's standing instruction, as Chunk 03 will ship it unless the
-#: measurements say otherwise.
-ASK_SYSTEM = """\
-You help a curator find art for the screens on their walls. Their library is the art they already hold; \
-Wikidata, and the web when web_search is offered, are everything else.
+from arrt.ask.cards import items_in
+from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
 
-Look things up rather than answering from memory. art_catalogue reads the library. art_discovery's search, \
-artist, similar_artists, work, topic and find_topics read Wikidata, and mark what the library already holds. \
-A tool's action='help' lists its parameters.
-
-You do not get, hang or change anything: the curator acts on what you offer.
-
-Answer in a few sentences, then list what you found: each work as its title, its maker and its Wikidata item \
-in brackets, like "The Hunters in the Snow, Pieter Bruegel the Elder [Q500985]", and each artist or topic by \
-name and item the same way. Name only items a tool returned. Say which works the library already holds."""
-
-#: What Ask's agent may do beside `help`: read the library and the registry.
-#: Nothing that spends, writes, or reaches a wall; `look` is left out because
-#: its pictures travel as image blocks this harness does not relay.
-ASK_SCOPE: Mapping[str, frozenset[str]] = {
-    "art_catalogue": frozenset({"list", "get", "topics", "topic"}),
-    "art_discovery": frozenset({"search", "find_topics", "artist", "similar_artists", "work", "topic"}),
-}
+__all__ = ["ASK_SCOPE", "ASK_SYSTEM"]
 
 #: Tool calls a run may make before it is stopped. Generous on purpose: this
 #: chunk measures how many a request takes, and Chunk 03's limit is set from it.
@@ -116,30 +95,15 @@ def score(outcome: Outcome) -> Score:
         seen.update(_QID.findall(json.dumps(call.payload, default=str)))
         if call.action == LOCAL:
             continue
-        for node in _dicts(call.payload):
-            qid = node.get("qid")
-            if isinstance(qid, str) and "title" in node:
-                works[qid] = _makers(node)
-                if node.get("held_artwork_ids"):
+        # Read as Ask's cards read it, so a work here is a work a curator is shown.
+        for qid, item in items_in(call.payload).items():
+            if item.kind == "work":
+                works.setdefault(qid, item.detail)
+                if item.held:
                     held.add(qid)
-            elif isinstance(qid, str) and isinstance(node.get("name"), str):
-                people[qid] = node["name"]
+            elif item.kind == "artist":
+                people.setdefault(qid, item.label)
     return Score(outcome=outcome, named=named, grounded=named & seen, works=works, held=held, people=people)
-
-
-def _dicts(value: Any) -> Iterator[Mapping[str, Any]]:
-    if isinstance(value, Mapping):
-        yield value
-        for child in value.values():
-            yield from _dicts(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from _dicts(child)
-
-
-def _makers(work: Mapping[str, Any]) -> str:
-    creators = work.get("creators") or ([work["creator"]] if work.get("creator") else [])
-    return ", ".join(str(creator.get("name")) for creator in creators if isinstance(creator, Mapping))
 
 
 def _at_least_three_gettable(found: Score) -> str | None:

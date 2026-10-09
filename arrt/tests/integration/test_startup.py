@@ -820,3 +820,41 @@ def test_startup_prices_a_conversation_turn_at_the_deployments_settings(tmp_path
 
     # 4,000 x $1/M + 500 x $10/M.
     assert seen["usd"] == Decimal("0.009")
+
+
+def _built_by_main(tmp_path, monkeypatch, **overrides) -> dict:
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, **overrides)
+    built: dict = {}
+
+    def capture(services, **kwargs):
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+    entry_point.main()
+    return built
+
+
+def test_the_entry_point_gives_ask_its_configured_model_limit_and_web_search(tmp_path, monkeypatch):
+    """Ask's settings reach the agent, each at a value no default would produce."""
+    built = _built_by_main(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key="sk-test",
+        ask_model="example/some-other-model",
+        ask_step_limit=3,
+        searxng_url="http://searxng.invalid:8080",
+    )
+
+    assert built["ask_model"].model_name == "example/some-other-model"
+    assert built["ask_step_limit"] == 3
+    assert [tool.name for tool in built["ask_tools"]] == ["threetears.web_search"]
+
+
+def test_with_no_key_ask_has_no_model_and_with_no_searxng_no_web_search(tmp_path, monkeypatch):
+    built = _built_by_main(tmp_path, monkeypatch)
+
+    assert built["ask_model"] is None
+    assert built["ask_tools"] == []

@@ -8,6 +8,8 @@ import sys
 from collections.abc import Callable, Sequence
 
 import uvicorn
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
 
 from arrt import art_root, logs
 from arrt.app import create_app
@@ -120,6 +122,24 @@ def _conversation_engine(settings: Settings) -> ConversationEngine:
         model=settings.conversation_model,
         max_output_tokens=settings.conversation_max_output_tokens,
     )
+
+
+def _ask_model(settings: Settings) -> BaseChatModel | None:
+    """The model Ask's agent runs on, or None when there is no key and Ask answers nothing."""
+    if not settings.openrouter_api_key:
+        return None
+    from threetears.models import create_chat_model
+
+    return create_chat_model(settings.ask_model, api_key=settings.openrouter_api_key, provider="openrouter")
+
+
+def _ask_tools(settings: Settings) -> list[BaseTool]:
+    """Web search through 3tears when a SearXNG instance is configured, and nothing otherwise."""
+    if not settings.searxng_url:
+        return []
+    from threetears.agent.tools.builtin.web_search import create_web_search_tool
+
+    return [create_web_search_tool({"base_url": settings.searxng_url}, "Search the web. Returns titles, addresses and snippets.")]
 
 
 def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
@@ -299,6 +319,15 @@ def main(argv: Sequence[str] = ()) -> None:
         settings.ready_path,
     )
 
+    # Ask's agent: which model, how many steps a reply may take, and whether it
+    # can search the web. Not the SearXNG address itself, which is the operator's.
+    log.info(
+        "ask model=%s step_limit=%d web_search=%s",
+        settings.ask_model if settings.openrouter_api_key else "none (no key; Ask answers nothing)",
+        settings.ask_step_limit,
+        "on" if settings.searxng_url else "off (SEARXNG_URL is not set)",
+    )
+
     # Which model answers a conversational turn, on its own line for the reason
     # the mat model's is: it is a third model with a third reservation, and a
     # deployment whose threads all refuse is a question best answered at startup.
@@ -411,6 +440,9 @@ def main(argv: Sequence[str] = ()) -> None:
                     )
                 ),
                 backup_interval_seconds=settings.backup_interval_seconds,
+                ask_model=_ask_model(settings),
+                ask_step_limit=settings.ask_step_limit,
+                ask_tools=_ask_tools(settings),
             ),
             host=settings.host,
             port=settings.port,

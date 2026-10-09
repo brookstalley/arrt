@@ -10,10 +10,25 @@ from scenarios import Call, Transcript
 
 SEARCH = {
     "success": True,
-    "artists": [{"qid": "Q485635", "name": "Keith Haring"}, {"qid": "Q151679", "name": "Roy Lichtenstein"}],
+    # A search's people in `_registry_search`'s fields: years and `artist_id` are
+    # what tell a person from a museum, which carries a name and a QID too.
+    "artists": [
+        {"qid": "Q485635", "name": "Keith Haring", "born": 1958, "died": 1990, "artist_id": None},
+        {"qid": "Q151679", "name": "Roy Lichtenstein", "born": 1923, "died": 1997, "artist_id": None},
+    ],
     "works": [
-        {"qid": "Q4000955", "title": "Tuttomondo", "creator": {"qid": "Q485635", "name": "Keith Haring"}, "held_artwork_ids": []},
-        {"qid": "Q3567592", "title": "Whaam!", "creator": {"qid": "Q151679", "name": "Roy Lichtenstein"}, "held_artwork_ids": []},
+        {
+            "qid": "Q4000955",
+            "title": "Tuttomondo",
+            "creator": {"qid": "Q485635", "name": "Keith Haring", "artist_id": None},
+            "held_artwork_ids": [],
+        },
+        {
+            "qid": "Q3567592",
+            "title": "Whaam!",
+            "creator": {"qid": "Q151679", "name": "Roy Lichtenstein", "artist_id": None},
+            "held_artwork_ids": [],
+        },
         {"qid": "Q25729", "title": "The Persistence of Memory", "creators": [], "held_artwork_ids": ["a1"]},
     ],
 }

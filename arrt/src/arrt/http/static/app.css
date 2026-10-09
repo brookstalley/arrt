@@ -3406,3 +3406,20 @@ input[type="checkbox"] {
 table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):first-child {
   display: none;
 }
+
+/* Ask's thread (`core/asking.js`): each turn is what the curator said, then the
+ * reply — what the agent looked at, its answer, and the cards for what it
+ * offers, in a grid that is one column on a phone. */
+.ask-turns { display: grid; gap: var(--space-4); margin-bottom: var(--space-4); }
+.ask-turn { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.ask-turn:first-child { border-top: 0; padding-top: 0; }
+.ask-asked { margin: 0 0 var(--space-2); color: var(--text-strong); }
+.ask-steps { list-style: none; margin: 0 0 var(--space-2); padding: 0; font-size: var(--text-sm); color: var(--text-muted); }
+.ask-step .glyph { margin-right: var(--space-1); }
+.ask-card select { max-width: 100%; }
+.ask-card .row { flex-wrap: wrap; }
+.ask-answer p, .ask-answer ul { margin: 0 0 var(--space-2); }
+.ask-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
+.ask-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); background: var(--surface-1); min-width: 0; }
+.ask-card .reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }

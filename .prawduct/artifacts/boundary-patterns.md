@@ -609,12 +609,11 @@ was already wrong twice over: `live_binary` and `browser` had both been added to
 the real one. A quoted config value is a second place for that config to be
 wrong, and it drifts silently because nothing reads it.
 
-**The evaluation level's dependency** is an opt-in group (`uv sync --group eval`)
-rather than `dev`, because it is the heaviest install in the repo and no
-first-party module imports it. Both eval modules therefore `importorskip` at
-import time, not inside a fixture: a marker deselection still *collects* the
-module, so a missing group has to skip rather than fail — otherwise the default
-run breaks for everyone who took the default.
+**The evaluation level's dependency** is the default install. It was an opt-in
+group (`eval`) until 2026-10-08, when Ask's agent made 3tears and LangChain
+runtime dependencies (`build-plan-ask-agent.md`). The eval modules' import-time
+`importorskip` guards went with the group, because nothing they import can now
+be missing from a default install.
 
 **The browser level, added 2026-08-05, is deselected for a fourth reason and
 none of the first three.** It spends nothing, reaches no foreign API, and is

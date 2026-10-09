@@ -18,7 +18,9 @@
  * of the three that closes the door.
  */
 
+import { attempt } from "./acting.js";
 import { api } from "./api.js";
+import { el } from "./render.js";
 
 /* Each reaction as the pair of fields it writes.
  *
@@ -56,4 +58,51 @@ export function recordReaction({ kind, value, reaction, sourceTurnId = null }) {
       ...REACTIONS[reaction],
     }),
   });
+}
+
+/* The three reactions as a row of controls, for anything a curator can react
+ * to: a sample in a conversation, an artist or topic Ask offers.
+ *
+ * **The three record taste and stay where they are.** They write an `Affinity`
+ * with `derivation='stated'` — the curator saying so directly — rather than
+ * leaving the model to infer one from prose, and each is a different pair of the
+ * two fields taste is held in. "Tell me more" is the one worth reading twice: it
+ * is cool *and still open*, which is the sentence the two-field design exists
+ * for.
+ *
+ * The page does not repaint after one. The judgment is recorded elsewhere and
+ * nothing in the transcript changes — a thread that redrew itself under a
+ * curator who pressed a button beside a picture would move the picture. What
+ * confirms it is the control's own state, below. */
+export function reactionRow({ kind, value, sourceTurnId = null }) {
+  return el(
+    "div",
+    // Announced rather than only shown: the confirmation below is a change of
+    // label on a control the curator has just left, and a reader who is not
+    // looking at it would otherwise get no acknowledgement at all.
+    { class: "reactions", "aria-live": "polite" },
+    Object.keys(REACTIONS).map((reaction) => {
+      const control = el("button", {
+        class: "action quiet",
+        type: "button",
+        text: reaction,
+        // The value in the accessible name, because the visible label is shared
+        // by every sample on the page: a screen reader moving through a turn
+        // that named three artists would otherwise hear "not this" nine times
+        // with nothing saying what "this" is.
+        "aria-label": `${reaction}: ${value}`,
+        onclick: () =>
+          attempt(control, `record ${reaction} for ${value}`, () => recordReaction({ kind, value, reaction, sourceTurnId }), {
+            then: () => {
+              // Said, not merely styled, and said in the past tense so it reads
+              // as a record rather than as an offer. `aria-live` on the row is
+              // what carries it to a reader who is not looking at the button.
+              control.textContent = `${reaction} — recorded`;
+              control.disabled = true;
+            },
+          }),
+      });
+      return control;
+    }),
+  );
 }

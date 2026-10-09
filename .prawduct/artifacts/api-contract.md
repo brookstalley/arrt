@@ -124,6 +124,15 @@ table fifty lines above it, and was one of three surviving sites of the retired
 exemption.)* A blanket policy would either over-engineer the HTTP API or
 under-protect the other two.
 
+**Built 2026-10-08 as Ask's agent (`build-plan-ask-agent.md` Chunk 03), in
+process rather than as a client over HTTP.** It is offered the MCP surface's own
+tool definitions, whole, and each call goes to the same `dispatch` an MCP
+client's call reaches (`arrt/ask/agent.py`). That keeps the property argued
+for above, one definition of each tool, which the MCP layer owns, without a
+loopback HTTP hop or an MCP session per thread. Its scope is the read actions
+in `arrt.ask.prompt.ASK_SCOPE`; an action outside it is answered with a teaching
+error and never dispatched.
+
 Built on the **official `mcp` SDK** (`mcp>=1.28.1`), not `3tears-mcp` — that package
 would drag NATS in via `3tears-epoch`, and its RBAC-gated server has nothing to
 gate in a single-principal product. See `project-state.yaml` →
@@ -1479,6 +1488,9 @@ spellings for "change this" costs more than the orthodoxy is worth here.
 | `POST /api/conversations/{id}/turns` | One exchange. **Spends** — `SpendRecord` category `conversation_tokens`. **Built 2026-08-12**; a retry sends no new text, so the transcript is the idempotency key and asking again spends nothing twice. | `ConversationTurn`, built | none proposed |
 | `POST /api/conversations/{id}/commit` | Commit a direction: starts a `DiscoveryRun` and sets the turn's `committed_run_id`. **Built 2026-08-12.** | `ConversationTurn`, built | none proposed |
 | `DELETE /api/conversations/{id}` | Deletes the thread and its turns. **Detaches rather than cascades** — see below. **Built 2026-08-12.** The detach is a loop over the citing rows rather than a schema rule, so its atomicity rests on the transaction it runs in and on reading the code — it is the one behaviour in this chunk no mutation could express. | `ConversationTurn`, built | none proposed |
+| `GET /api/ask` | Whether Ask can answer here: `{"available": bool}`, false with no key. Read by the page before a thread is open, so opening Ask writes nothing. **Built 2026-10-08** (`build-plan-ask-agent.md` Chunk 03). | none | none (Ask is the agent; it is not offered as a tool) |
+| `POST /api/ask/threads`, `GET /api/ask/threads/{id}` | Open an empty thread (201; spends nothing), and read one back: `thread_id`, `available`, `replying`, and `turns`, each `{asked, events}` with the events exactly as its reply sent them. 404 for a thread the server does not hold: threads live in memory, at most 20, and a restart forgets them (the owner, 2026-10-08). **Built 2026-10-08.** | in memory, not stored | none |
+| `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. | none written; spend is the provider's | none |
 | `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every sample reaction in a conversation. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and refuses to overwrite a stronger provenance with a weaker one. | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
 | `POST /api/works/{id}/mat` | Re-derive a work's mat. **Owned by issue #91, not by this set** — see below. | `MatColor`, built | `art_catalogue(action='set_mat_color')`, built |
 | `POST /api/directives` | The Walls screen's `next`. **Shape settled and built 2026-08-12** — see below. | `Directive`, built | `art_display(action='next')`, built |

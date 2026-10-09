@@ -486,10 +486,10 @@ class TestWhenWikidataListsNoWorks:
         ui.page.wait_for_selector("#view a:text-is('Ask for their work')")
 
         ui.page.click("#view a:text-is('Ask for their work')")
-        ui.page.wait_for_selector("#view textarea#intent")
+        ui.page.wait_for_selector("#view textarea#ask-words")
 
         assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Paintings%20by%20Lucy%20Bull"
-        assert ui.page.input_value("#intent") == "Paintings by Lucy Bull"
+        assert ui.page.input_value("#ask-words") == "Paintings by Lucy Bull"
 
     def test_a_held_artist_wikidata_lists_nothing_for_offers_it_too(self, ui, services, service, lucy_bull):
         painter = service.add_artist(name="Lucy Bull", born=1990)
