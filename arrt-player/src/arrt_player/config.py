@@ -407,7 +407,7 @@ class FrameSettings:
 
 @dataclass(frozen=True)
 class Settings(WallSettings, FrameSettings):
-    """One wall on the Frame: what the Frame's loop (`Daemon`) is built from.
+    """One wall on the Frame: what a wall on the Frame (`displays.frame.frame_wall`) is built from.
 
     **Both halves, as one object, because the loop reads both.** It is a
     `WallSettings`, so the same pull that serves a wall on any output serves this

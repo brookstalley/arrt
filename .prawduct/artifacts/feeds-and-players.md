@@ -325,6 +325,10 @@ size.
   the label. They become one wall loop, a display driver per kind, and a label
   renderer. This is done in wave 4, when rotation leaves the Player, rather
   than before it, so the code about to be deleted is not refactored first.
+  *(Done 2026-10-09, wave 4c: `wall.py` is the one loop, `displays/` holds a
+  driver per kind, and major 1's rotation and directive moved unchanged into
+  `programmes/rotation.py`, which 4g deletes. The label renderer had already
+  been split out.)*
 
 ## What changes, in order
 

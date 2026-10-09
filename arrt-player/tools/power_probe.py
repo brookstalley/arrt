@@ -239,7 +239,7 @@ class Probe:
 
     Both channels close on one path, in `run`'s `finally`. That is not tidiness:
     this set has been observed refusing art-channel connections for minutes after
-    a client went away without closing, and `daemon.py` carries a `finally` for
+    a client went away without closing, and the wall loop (`wall.py`) carries a `finally` for
     exactly that reason after an exception once turned one crash into a daemon that
     could not reach its own television. A second channel is a second way to
     reproduce it, so it gets the same single lifetime.

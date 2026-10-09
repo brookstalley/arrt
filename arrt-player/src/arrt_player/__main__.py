@@ -7,9 +7,9 @@ imports the pull, which holds this plane's one HTTP client.
 
 **One process per client, one worker per wall** (`clients.md` § The Player). The
 supervisor (`client.Supervisor`) asks the server which walls this client drives
-and runs a worker for each on its output: `run_frame_wall` for the Frame, which
-is the Frame's loop and its pull exactly as they ran when a Player served one
-wall, and `run_screen_wall` for a screen this host draws on.
+and runs a worker for each on its output: one wall loop (`wall.Wall`) and the
+wall's pull, with the Frame's driver for the Frame (`run_frame_wall`) and the
+screen's for a screen this host draws on (`run_screen_wall`).
 
 **And one label renderer per mapped label output** (`labels-and-surfaces.md`):
 `run_label` for the e-paper panel, which this module opens once per process
@@ -50,16 +50,17 @@ from arrt_player.config import (
     WallSettings,
     load,
 )
-from arrt_player.daemon import Clock, Daemon
+from arrt_player.displays.frame import frame_wall
+from arrt_player.displays.screen import ScreenOutput, screen_wall
 from arrt_player.kms import KmsOutput
 from arrt_player.label_renderer import LabelPanel, LabelRenderer
 from arrt_player.manifest import Watcher
 from arrt_player.panel import Geometry, LabelSurface, SurfaceUnavailable
 from arrt_player.panel.legibility import TypeScale, ViewingConditionsUnknown, margin_for, type_scale_for
 from arrt_player.pull import ClientPull, LabelPull, Pull
-from arrt_player.screen import ScreenOutput, ScreenWall
 from arrt_player.state import DisplayState, StateSchemaTooNew
 from arrt_player.tv.samsung import SamsungTv
+from arrt_player.wall import Clock
 
 log = logging.getLogger(__name__)
 
@@ -227,9 +228,9 @@ async def run_label(
 
 
 async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
-    """One wall on the Frame: the Frame's loop and the wall's pull, until stopped.
+    """One wall on the Frame: the wall's loop on the Frame and the wall's pull, until stopped.
 
-    The Frame's loop draws no label: the panel is a label output of the client,
+    The Frame draws no label: the panel is a label output of the client,
     mapped to a wall by the server and drawn by `run_label`.
     """
     settings.wall_dir.mkdir(parents=True, exist_ok=True)
@@ -240,7 +241,7 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
     )
     tv = frame_tv(settings)
 
-    # One clock for both, because the daemon measures an upload's retry wait
+    # One clock for both, because the Frame measures an upload's retry wait
     # against a timestamp the store wrote. Two sources here would be two answers
     # to the same question, and the store's is the one that has to survive a
     # restart.
@@ -262,25 +263,25 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
         await stop.wait()
         return
     with state:
-        daemon = Daemon(
+        frame = frame_wall(
             settings=settings,
             tv=tv,
             state=state,
             watcher=watcher,
             clock=clock,
         )
-        await _beside_its_pull(settings, stop, daemon.run)
+        await _beside_its_pull(settings, stop, frame.run)
 
 
 async def run_screen_wall(wall: WallSettings, output: str, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
-    """One wall on a screen this host draws on: the screen loop and the wall's pull, until stopped."""
+    """One wall on a screen this host draws on: the wall's loop on the screen and the wall's pull, until stopped."""
     wall.wall_dir.mkdir(parents=True, exist_ok=True)
     watcher = Watcher(
         wall.manifest_path,
         rotation_interval_fallback=wall.rotation_interval_fallback_seconds,
         shuffle_fallback=wall.rotation_shuffle_fallback,
     )
-    screen = ScreenWall(
+    screen = screen_wall(
         wall=wall,
         output=screen_output(wall, output),
         watcher=watcher,
@@ -298,7 +299,7 @@ def screen_output(
 
 
 async def run_wall(settings: ClientSettings, wall: WallSettings, output: OutputReport, stop: asyncio.Event) -> None:
-    """The supervisor's worker: the Frame's loop for the Frame, the screen loop for anything else."""
+    """The supervisor's worker: the wall on the Frame for the Frame, on a screen this host draws for anything else."""
     if output.kind == FRAME_KIND:
         await run_frame_wall(settings.frame_wall(wall.wall_id), stop)
     else:

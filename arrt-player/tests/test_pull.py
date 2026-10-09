@@ -27,7 +27,7 @@ from server_double import CONTRACT, ROUTES, TOKEN
 from server_double import MANIFEST_FIXTURE as FIXTURE
 from server_double import ServerDouble as Stub
 
-from arrt_player.daemon import Daemon
+from arrt_player.displays.frame import frame_wall
 from arrt_player.manifest import Watcher
 from arrt_player.pull import (
     CLIENT_HEARTBEAT_ROUTE,
@@ -259,7 +259,7 @@ async def test_the_server_stopped_while_the_wall_runs_and_rotation_continues_fro
     """The test this chunk exists for."""
     stub.publish("w1", "w2")
     await pull.cycle(session)
-    daemon = Daemon(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
+    daemon = frame_wall(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
     await daemon.tick()
     first = tv.on_the_wall
 
@@ -488,7 +488,7 @@ async def test_the_daemon_writes_its_heartbeat_into_the_walls_directory_where_th
 ):
     stub.publish("w1")
     await pull.cycle(session)
-    daemon = Daemon(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
+    daemon = frame_wall(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
 
     await daemon.tick()
     await pull.cycle(session)

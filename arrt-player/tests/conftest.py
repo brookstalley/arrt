@@ -17,9 +17,10 @@ from fakes import FakeTv
 from hypothesis import settings as hypothesis_settings
 
 from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, FrameSettings, PanelSettings, Settings
-from arrt_player.daemon import Clock, Daemon
+from arrt_player.displays.frame import frame_wall
 from arrt_player.manifest import Watcher
 from arrt_player.state import DisplayState
+from arrt_player.wall import Clock, Wall
 
 #: **The property suite is derandomized, and that is a decision rather than a
 #: default.** Hypothesis normally draws fresh examples per run, so a property
@@ -212,13 +213,13 @@ def clock() -> FakeClock:
 
 
 @pytest.fixture
-def daemon(settings: Settings, tv: FakeTv, state: DisplayState, clock: FakeClock) -> Daemon:
+def daemon(settings: Settings, tv: FakeTv, state: DisplayState, clock: FakeClock) -> Wall:
     watcher = Watcher(
         settings.manifest_path,
         rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
         shuffle_fallback=settings.rotation_shuffle_fallback,
     )
-    return Daemon(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
+    return frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
 
 
 @pytest.fixture

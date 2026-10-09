@@ -15,9 +15,10 @@ import pytest
 from fakes import RecordingOutput
 from jsonschema import Draft202012Validator
 
+from arrt_player.displays.screen import screen_wall
 from arrt_player.heartbeat import INTERVAL_SECONDS, path_in
 from arrt_player.manifest import Watcher
-from arrt_player.screen import ScreenWall
+from arrt_player.wall import Wall
 
 
 @pytest.fixture
@@ -31,9 +32,9 @@ def output() -> RecordingOutput:
 
 
 @pytest.fixture
-def screen(wall, output, clock) -> ScreenWall:
+def screen(wall, output, clock) -> Wall:
     watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    return ScreenWall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock(), rng=random.Random(7))
+    return screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock(), rng=random.Random(7))
 
 
 def shown(output: RecordingOutput) -> list[str]:
@@ -70,6 +71,24 @@ async def test_a_missing_render_is_skipped_and_said_once(screen, output, publish
 
     assert shown(output) == ["w1", "w3", "w1", "w3"]
     assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 1
+
+
+async def test_a_missing_render_is_said_again_for_a_new_manifest(screen, output, publish, clock, wall_dir, caplog):
+    """Once per manifest, not once per process: a republished theme is news, and so is its gap."""
+    publish(["w1", "w2"], interval_seconds=60)
+    (wall_dir / "ready" / "w2.jpg").unlink()
+
+    with caplog.at_level(logging.WARNING):
+        for _ in range(3):
+            await screen.tick()
+            clock.advance(60.3)
+        publish(["w1", "w2"], interval_seconds=61, renders=False)
+        for _ in range(3):
+            await screen.tick()
+            clock.advance(61.3)
+
+    assert shown(output) == ["w1", "w1", "w1", "w1", "w1"], "w2 came back, so the gap was never said again"
+    assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 2
 
 
 async def test_a_theme_with_no_render_at_all_shows_nothing_and_does_not_spin(screen, output, publish, wall_dir):
