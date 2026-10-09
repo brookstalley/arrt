@@ -100,7 +100,7 @@ step by step, before any code moves.
 
 - [x] Chunk 01: One wall loop, a Frame driver and a screen driver
 - [x] Chunk 02: The major 2 reader and its schedule
-- [ ] Chunk 03: Per-major requests and the heartbeat's capabilities
+- [x] Chunk 03: Per-major requests and the heartbeat's capabilities
 
 Context: branched from develop after #334 (wave 4b). Chunk 01 committed as
 49269c52 after a `final` review with no blocking finding; its observations
