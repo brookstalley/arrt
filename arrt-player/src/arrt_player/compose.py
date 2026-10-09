@@ -178,6 +178,12 @@ def composition_key(*, master_sha256: str, mat_color: object, mode: str, geometr
     return hashlib.sha256("|".join(parts).encode()).hexdigest()
 
 
+def composed_path(directory: Path, *, master_sha256: str, mat_color: object, mode: str, geometry: Geometry) -> Path:
+    """The file a work composes to in `directory`: one name, used by `compose` and by whoever looks for its output."""
+    key = composition_key(master_sha256=master_sha256, mat_color=mat_color, mode=mode, geometry=geometry)
+    return directory / f"{key}.jpg"
+
+
 def compose(
     master: Path,
     *,
@@ -197,8 +203,7 @@ def compose(
     `OSError` from writing through: a full disk is this machine's fault, not
     the master's, and the two send whoever reads the journal to different places.
     """
-    key = composition_key(master_sha256=master_sha256, mat_color=mat_color, mode=mode, geometry=geometry)
-    destination = directory / f"{key}.jpg"
+    destination = composed_path(directory, master_sha256=master_sha256, mat_color=mat_color, mode=mode, geometry=geometry)
     if destination.is_file():
         return destination
     drawn_mode, rgb = _drawn(mode, mat_color)
@@ -209,9 +214,11 @@ def compose(
     try:
         canvas.save(staged, format="JPEG", quality=JPEG_QUALITY, optimize=True)
         staged.replace(destination)
-    except OSError:
+    finally:
+        # Gone already when the write succeeded; on any failure, never left for
+        # a later pass to mistake for a picture. A killed process can still
+        # leave one, which the schedule's tidy removes.
         staged.unlink(missing_ok=True)
-        raise
     log.info(
         "composed %s for %sx%s in mode %s",
         master.name,
@@ -279,6 +286,7 @@ __all__ = [
     "Rect",
     "Uncomposable",
     "compose",
+    "composed_path",
     "composition_key",
     "layout",
     "mat_mode",

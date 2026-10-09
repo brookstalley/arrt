@@ -242,6 +242,21 @@ class TestTheDrawing:
         assert sorted(p.name for p in out.iterdir()) == ["another-work.jpg"]
         assert neighbour.read_bytes() == b"composed earlier"
 
+    def test_a_failure_that_is_not_the_disks_leaves_no_half_written_file_either(self, tmp_path: Path, monkeypatch):
+        master = a_master(tmp_path / "m.jpg", (600, 400))
+        out = tmp_path / "out"
+
+        def broken_encoder(self, fp, *args, **kwargs):
+            Path(fp).write_bytes(b"half a pic")
+            raise ValueError("encoder refused")
+
+        monkeypatch.setattr(Image.Image, "save", broken_encoder)
+
+        with pytest.raises(ValueError, match="encoder"):
+            compose(master, master_sha256=SHA, mat_color=MAT, mode="proportional", geometry=SCREEN, directory=out)
+
+        assert list(out.iterdir()) == []
+
     def test_a_work_already_composed_is_not_composed_again(self, tmp_path: Path, monkeypatch):
         master = a_master(tmp_path / "m.jpg", (600, 400))
         first = compose(master, master_sha256=SHA, mat_color=MAT, mode="proportional", geometry=SCREEN, directory=tmp_path)

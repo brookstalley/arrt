@@ -156,6 +156,54 @@ a work is composed, uploaded or drawn, and shown, before any code moves.
   and the mat are read and named in the startup line. Ruling 7 reversed the
   rule that test encoded; the new test pins the obligation that replaced it
   (`operational-spec.md`: each plane logs its own panel geometry at startup).
+- 02: composed files are evicted by the schedule programme (`_tidy`), not by
+  the pull as the plan said. Only the schedule knows the composition keys
+  (feed × geometry), and a screen's mode change owes a tidy that the pull
+  never sees. The tidy runs between compositions, so it never takes a file
+  being written, and it also removes a `.composing` file a killed process
+  left (Chunk 01 review observation 2).
+- 02: the geometry reaches the schedule as a callable from the wall's builder,
+  not as a new `Display` method. A screen's mode is asked on every pass, and
+  the `Display` protocol stays as 4c left it.
+- 02: a switch of major calls `Programme.entered()` before the adoption. The
+  schedule forgets the picture it last put up. The rotation treats the switch
+  as a restart: it re-selects the work on the wall in its own form, at once,
+  rather than at its next interval (the 4c cumulative review's O-1, which
+  named "the rotation's equivalent"). `test_majors.py`'s switch-back test
+  changed accordingly: major 1 takes the wall on the switching pass, not 60 s
+  later. *Inferred, not settled by the goals:* showing major 1's own render at
+  once was preferred over leaving major 2's picture of another work up for an
+  interval, because the switch means major 2 is gone.
+- 02: `Schedule.settle()` is public, for a caller that must see compositions
+  finished (the tests), as `Wall.tick` is public for the tests. The loop
+  never calls it.
+- 02, the passes on which a work is composed, uploaded and shown (the step
+  Level said would raise confidence, written after the review asked for it):
+  *Frame* — the pass that adopts a feed lists every work's composed path in
+  `pictures`; `prepare` uploads only files that exist, so it uploads nothing
+  yet; `step` starts the target's composition and passes it over. A later
+  pass finds the composition finished, `prepare` uploads it (one upload per
+  pass, as for a major 1 render), and `step` selects it. *Screen* — no
+  upload: the pass whose `step` finds the composition finished draws it.
+  The rest of the feed is composed one work per pass in between.
+- 02: the tidy keeps the picture on the wall until another replaces it, and
+  the replaced one is removed when the new one is shown (Chunk 02 review,
+  blocking: a screen redraws its picture on a mode change, and in a gap
+  nothing replaces it). The tidy passes over directories, and a composed
+  directory it cannot read or empty is said once and costs nothing else.
+- 02: one name for a composed file, `compose.composed_path`, used by both
+  `compose` and the schedule (Chunk 02 review), so the two cannot drift.
+- 02: `settle()` composes each file at most once per call. A sweep mutation
+  that left a composed work owed made it loop for hours rather than fail; a
+  test helper that can hang reads as a slow suite, not a finding.
+- 02: `_collect` has no branch for a cancelled task. A composition is
+  cancelled only when the wall shuts down, and no pass follows that, so the
+  branch was unreachable; the sweep showed nothing could test it, and it was
+  deleted rather than kept as a guard nobody defends.
+- 02: the major 2 tests that asserted the master reached the display now
+  assert the composition does, from real JPEG masters. That is the behaviour
+  this chunk exists to change, not a weakened test; each still names the same
+  file it did, by the key the schedule names it.
 
 ## Status
 
@@ -212,9 +260,10 @@ nothing under `arrt/`.
 
 - **Critic mode:** final. It changes what the Frame driver uploads and what a
   screen draws.
-- **Surfaces:** `programmes/schedule.py` (a work's picture becomes its composed
-  file); `programmes/memory.py` (its docstring); `wall.py` (`Picture`, if it
-  needs the master's dimensions); both drivers (each says its geometry: the
+- **Surfaces:** `arrt-player/src/arrt_player/programmes/schedule.py` (a work's
+  picture becomes its composed file); `arrt-player/src/arrt_player/programmes/memory.py`
+  (its docstring); `arrt-player/src/arrt_player/wall.py` (`Picture`, if it needs the
+  master's dimensions); both drivers (each says its geometry: the
   Frame from configuration with a density, a screen from its connector's mode
   without one); `pull.py` (evict composed files with the media); `kms.py`
   (`fitted` already passes a picture of the screen's own size through, which

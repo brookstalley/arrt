@@ -71,7 +71,14 @@ def frame_wall(
         display=FrameDisplay(settings=settings, tv=tv, state=state, clock=clock),
         programmes={
             1: Rotation(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock, rng=rng),
-            2: Schedule(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock),
+            2: Schedule(
+                wall_id=settings.wall_id,
+                render_root=settings.render_root,
+                composed_root=settings.composed_root,
+                geometry=lambda: settings.geometry,
+                memory=state,
+                clock=clock,
+            ),
         },
         watcher=watcher,
         clock=clock,

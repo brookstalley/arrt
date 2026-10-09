@@ -53,6 +53,10 @@ from arrt_player.heartbeat import path_in as heartbeat_path_in
 #: The Frame worker is its sole writer and nothing else ever opens it.
 STATE_FILENAME: Final[str] = "display-state.sqlite"
 
+#: This wall's composed pictures, in the wall's directory. The schedule
+#: programme is their only writer and removes those no work composes to.
+COMPOSED_DIRNAME: Final[str] = "composed"
+
 #: The last good pulled manifest, in the wall's directory.
 CACHED_MANIFEST_FILENAME: Final[str] = "manifest.json"
 
@@ -269,6 +273,11 @@ class WallSettings:
         watcher reads a document whose every picture is already here.
         """
         return self.wall_dir / CACHED_MANIFEST_FILENAME
+
+    @property
+    def composed_root(self) -> Path:
+        """Where this wall's major 2 works are composed for its display, each named by its composition key."""
+        return self.wall_dir / COMPOSED_DIRNAME
 
     @property
     def render_root(self) -> Path:
