@@ -10,6 +10,18 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Ask's cards are posters — added 2026-10-09
+
+**Visual change: yes.** Ask a question that names several artists (the
+Delaunays' circle did) and look at the grid:
+
+- Each card leads with a picture: a work its own, an artist one of their
+  works, a topic one of its works. They fill in a moment after the reply.
+  Check the artist pictures give an idea of the style, and how many say
+  *No picture*.
+- Two small reactions per artist or topic; no *tell me more*, no "Not held".
+- A work card's *Get this work* fits the card.
+
 ### Ask as an agent: one thread, its cards and what it cost — added 2026-10-09
 
 **`build-plan-ask-agent.md` Chunks 03 and 04.** Visual change: yes. Chunk 03's

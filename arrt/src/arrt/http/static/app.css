@@ -847,8 +847,8 @@ h1 {
 }
 
 /* -- a tile: the work on its mat, and its label beneath -------------------
-   A work's tile (Artworks, an artist's works, a topic's) and an artist's poster
-   are the thing itself, so they are not boxed: no border, no paper, no shadow
+   A work's tile (Artworks, an artist's works, a topic's), an artist's poster
+   and an Ask reply's card are the thing itself, so they are not boxed: no border, no paper, no shadow
    around the tile. The picture sits on a `--surface-2` mat with room round it,
    and the label sits on the page's ground underneath, as a wall label sits
    under a hung work. A theme's card and a work under review keep their card,
@@ -857,7 +857,7 @@ h1 {
    markup had to change to opt in. The Artworks skeleton's placeholder carries
    `.tile-skeleton` instead, so it occupies the tile's final geometry rather
    than a card's. */
-.card:is([data-artwork], [data-artist], .tile-skeleton) {
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) {
   background: none;
   border: none;
   border-radius: 0;
@@ -865,12 +865,12 @@ h1 {
   overflow: visible;
 }
 
-.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image,
-.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image:has(img) {
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) .card-image,
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) .card-image:has(img) {
   background: var(--surface-2);
 }
 
-.card:is([data-artwork], [data-artist], .tile-skeleton) .card-image img {
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) .card-image img {
   inset: var(--space-4);
   width: calc(100% - 2 * var(--space-4));
   height: calc(100% - 2 * var(--space-4));
@@ -3327,7 +3327,19 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
 .ask-card select { max-width: 100%; }
 .ask-card .row { flex-wrap: wrap; }
 .ask-answer p, .ask-answer ul { margin: 0 0 var(--space-2); }
-.ask-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: var(--space-3); margin: var(--space-3) 0; }
-.ask-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); background: var(--surface-1); min-width: 0; }
-.ask-card .reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+/* A reply's cards are posters, as Library › Artists draws an artist: the
+   picture leads, the name and one line under it. 11rem rather than the Artists
+   index's 9rem, because a card here also carries its acts, and two reactions
+   side by side fit at 11rem where they would wrap at 9. */
+.grid.ask-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: var(--space-4) var(--space-3); margin: var(--space-3) 0; }
+.ask-cards:empty { display: none; }
+.ask-card { min-width: 0; }
+.ask-card .card-body { padding: var(--space-2) 0 0; gap: 2px; }
+.ask-card .card-title { font-size: var(--text-md); }
+.ask-card .reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
+.ask-card .reactions .action { padding: 2px var(--space-2); font-size: var(--text-sm); }
+/* A work's Get, stacked to the card's width: the theme picker sizes itself to
+   its longest theme name, which is wider than a poster. */
+.ask-card .get-control { flex-direction: column; align-items: stretch; gap: var(--space-1); margin-top: var(--space-1); }
+.ask-card .get-control :is(label, select) { width: 100%; max-width: 100%; min-width: 0; }
 .ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }

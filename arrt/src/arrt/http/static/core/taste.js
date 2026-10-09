@@ -55,8 +55,10 @@ export function recordReaction({ kind, value, reaction }) {
   });
 }
 
-/* The three reactions as a row of controls, for anything a curator can react
- * to: an artist or topic Ask offers, an artist's page, a row on Taste.
+/* The reactions as a row of controls, for anything a curator can react to: an
+ * artist or topic Ask offers, an artist's page, a row on Taste. `only` offers a
+ * subset, in its order: Ask's cards carry two, so a grid of them is pictures
+ * rather than buttons, and *tell me more* stays where there is room for it.
  *
  * **The three record taste and stay where they are.** They write an `Affinity`
  * with `derivation='stated'` — the curator saying so directly — rather than
@@ -69,14 +71,14 @@ export function recordReaction({ kind, value, reaction }) {
  * nothing in the transcript changes — a thread that redrew itself under a
  * curator who pressed a button beside a picture would move the picture. What
  * confirms it is the control's own state, below. */
-export function reactionRow({ kind, value }) {
+export function reactionRow({ kind, value }, { only = Object.keys(REACTIONS) } = {}) {
   return el(
     "div",
     // Announced rather than only shown: the confirmation below is a change of
     // label on a control the curator has just left, and a reader who is not
     // looking at it would otherwise get no acknowledgement at all.
     { class: "reactions", "aria-live": "polite" },
-    Object.keys(REACTIONS).map((reaction) => {
+    only.map((reaction) => {
       const control = el("button", {
         class: "action quiet",
         type: "button",
