@@ -25,6 +25,7 @@ from scenarios import connect
 from arrt.http import player
 from arrt.library.readiness import MEDIA_PATH_TEMPLATE
 from arrt.mcp.tools import TOOLS
+from arrt.persistence.records import RenditionKind
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS
 
 CONTRACT = Path(__file__).resolve().parents[3] / "contract"
@@ -216,6 +217,28 @@ def test_media_answers_to_any_clients_token_even_one_with_no_walls(server_url, s
     entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
 
     assert httpx.get(server_url + entry["media"]["url"], headers=_bearer(idle_token)).status_code == 200
+
+
+def test_a_presentation_master_is_served_by_its_hash(server_url, services, ready_work, wall_settings, decodable_jpeg, token):
+    """From wave 4 a Player composes from the master, fetched by hash on the
+    route that already serves renders: no new route, and the bytes are checked
+    against the name as a render's are."""
+    work = ready_work(rendition=False)
+    original = services.catalogue.get_original(work.id)
+    decodable_jpeg(wall_settings.art_root / original.relative_path, width=2400, height=1800)
+    services.preparation.prepare(work.id)
+    master = next(
+        view.rendition
+        for view in services.catalogue.list_renditions(work.id)
+        if view.rendition.kind is RenditionKind.PRESENTATION_MASTER
+    )
+
+    response = httpx.get(server_url + _path("media", sha256=master.content_sha256), headers=_bearer(token))
+
+    assert response.status_code == 200
+    assert response.content == (wall_settings.art_root / master.relative_path).read_bytes()
+    assert hashlib.sha256(response.content).hexdigest() == master.content_sha256
+    assert response.headers["content-type"] == "image/jpeg"
 
 
 def test_an_unknown_or_malformed_hash_answers_404(server_url, token):

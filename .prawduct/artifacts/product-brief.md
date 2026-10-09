@@ -650,7 +650,9 @@ The separation therefore stands on its own merits:
 - It matches the data contract recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract — upstream
   artifacts (`raw/`) are expensive and device-independent; derived artifacts
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and device-specific and must
-  never be transported. (`label/` belonged to this list in the 2024 layout; it is
+  never be transported. (`presentation/`, the presentation masters added in
+  wave 4b, is derived but specific to no device, and is the one derived class a
+  Player receives, by hash; `boundary-patterns.md` records the ruling. `label/` belonged to this list in the 2024 layout; it is
   retired from the prospective contract — labels render on the display plane.
   `tile-cache/` was listed here as upstream until 2026-08-03, when acquisition
   was built and it turned out to be neither: it is transient working space

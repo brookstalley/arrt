@@ -66,7 +66,7 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
-## 2026-10-08: Wave 4b — the quality profile replaces the artwork box in the Library
+## 2026-10-08: Wave 4b — the quality profile, and the presentation master
 
 <!-- prawduct: scope=wave-4b-master-quality -->
 
@@ -109,6 +109,18 @@ environment setting with no Settings screen.
   `information-architecture.md`, `procurement-corpus.md`, `project-state.yaml`),
   and the API contract, operational spec, observability strategy and
   `.env.example` describe the new setting.
+
+- **The presentation master** (Chunk 02): one device-independent image per held
+  work, the Original upright and unmatted, at most 7,680 px on its long edge,
+  JPEG at quality 95, as `presentation/{artwork_id}.jpg`, recorded as a
+  `presentation_master` Rendition. `prepare()` makes it current before it looks
+  at the canvas, so every acquisition, regenerate and mat change leaves one, and a
+  mat change never rewrites it. At startup every accepted work with no master
+  made from its Original is queued prepare-only (`preparation.masters_queued`),
+  so the first start after the upgrade makes one for each held work, without
+  refetching or redrawing. `GET /media/{hash}` serves it as it serves any
+  rendition; no manifest names it until 4e. Measured over the 46 local
+  originals: about 4.9 MB a master, 37% of the originals' bytes.
 
 **Surfaced:** navigart serves at most 1,000 px, and its test expected that to
 fall below the floor, which held only against the 42" reference default (about

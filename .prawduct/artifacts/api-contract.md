@@ -2201,7 +2201,9 @@ this whole surface is judged by.
   (`player-contract.md` § Transport).
 - **ETag polling or server-sent events** for directive latency. Polling matches
   today's roughly 1 s behaviour and is the default.
-- **The presentation master's encoding and cap.**
+- ~~**The presentation master's encoding and cap.**~~ Settled 2026-10-08: 7,680 px
+  on the long edge, JPEG at quality 95 (`re-architecture.md` § Open questions).
+  Served by `GET /media/{hash}` like any rendition; no manifest names one yet (4e).
 
 ### History, selections and *Not this one again* — BUILT 2026-10-07 (`build-plan-walls-work-and-trust.md` Chunks 03, 04)
 
@@ -2435,7 +2437,7 @@ is self-contained:
 - **Opened 2026-09-30, and owned by `re-architecture.md` § Open questions:**
   - authentication on the Server↔Player surface;
   - ETag polling versus server-sent events;
-  - the presentation master's cap and encoding;
+  - the presentation master's cap and encoding (settled 2026-10-08, wave 4b);
   - how a review card shows fit once no single panel exists.
 
   New MCP actions will be needed for Watches, programming tags and smart

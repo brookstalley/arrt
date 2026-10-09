@@ -667,9 +667,12 @@ the other way round.
 
 ## Open questions
 
-- **The presentation master's size cap and encoding.** About 8K long edge is a
-  starting guess, to be measured against the corpus. The Pi needs no reduction
-  for its own sake (the compositing-budget question below, answered).
+- ~~**The presentation master's size cap and encoding.**~~ *Answered 2026-10-08
+  (wave 4b):* 7,680 px on the long edge, the size the Pi's compositing budget
+  was measured against, never enlarged; JPEG at quality 95, the compositor's
+  own, upright and in sRGB as read. Measured over 46 real originals: about
+  4.9 MB a master on average, 37% of the originals' bytes
+  (`operational-spec.md`).
 - **Directive latency:** an ETag poll at about 1 s, or server-sent events.
   Polling matches today and is the default. Scenes are the test of whether it is
   fast enough (§ Scenes).

@@ -336,6 +336,10 @@
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and are **regenerated, never
   transported**. (`label/` removed from this row 2026-07-20 — see the retirement
   bullet below. `thumbs/` added 2026-08-01 — see the bullet below it.)
+  **`presentation/` joined on 2026-10-08 (wave 4b)**: one presentation master
+  per work, derived from `raw/` and regenerated from it like the rest, and the
+  one derived class that *is* transported, to Players by content hash, under
+  the ruling above (it is rendered for no geometry).
 - **`tile-cache/` is neither, and `api-cache/` does not exist** *(corrected
   2026-08-03, when acquisition was built and the row's first list turned out to
   name one directory that is working space and one that has no producer)*.

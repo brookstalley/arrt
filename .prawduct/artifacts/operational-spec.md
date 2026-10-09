@@ -553,6 +553,16 @@ that will actually get run rather than skipped.
 >   claim gets tested.
 > - **The Player backs up nothing.** Its media cache re-pulls, and its TV bindings
 >   are rebuilt by reconciliation against the set, as today.
+> - **`presentation/` holds one master per work from wave 4b (2026-10-08)**,
+>   excluded from backups like every derived class and regenerated at startup
+>   for any accepted work that lacks one. **Measured 2026-10-08** over the 46
+>   originals in the owner's local 2024 tree (574 MB on disk): masters totalled
+>   225 MB, about 4.9 MB a work on average (median 3.3 MB, largest 15.9 MB), 37%
+>   of the originals; one original exceeded the 7,680 px cap. Making each took
+>   0.34 s median and 1.8 s at most on the development Mac. So budget roughly
+>   5 MB a work on the NAS, about 10 GB at 2,000 works. On the first start after
+>   the upgrade the acquisition queue makes every held work's master, one at a
+>   time, logging `preparation.masters_queued` with the count.
 > - **The self-healing walk-through above changes shape in wave 4.** "No current
 >   render" becomes "no presentation master", and a Player whose cache is empty
 >   re-pulls once the server has regenerated the masters.

@@ -486,6 +486,9 @@ class Services:
         # Mats darker than the floor, all of them older than it, are chosen
         # again the same way: a queue row each, the queue's `prepare` choosing.
         self.acquisition_queue.owe_mats_over_the_floor()
+        # And every work with no presentation master made from its Original,
+        # the same way: the queue's `prepare` makes it, before the canvas.
+        self.acquisition_queue.owe_presentation_masters()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()

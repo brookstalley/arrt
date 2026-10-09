@@ -129,11 +129,17 @@ class RenditionKind(StrEnum):
     The two browser kinds differ in their parent, and the kind is what records
     it: a thumbnail is always drawn from the master, a wall preview from the
     current canvas when there is one.
+
+    A `PRESENTATION_MASTER` is the Original, upright and unmatted, capped at
+    7,680 px on its long edge: the device-independent image a Player composes
+    its own wall from (re-architecture wave 4). Its target size is the cap,
+    not the size it came out at.
     """
 
     TV_DISPLAY = "tv_display"
     THUMBNAIL = "thumbnail"
     WALL_PREVIEW = "wall_preview"
+    PRESENTATION_MASTER = "presentation_master"
 
 
 class MatMethod(StrEnum):

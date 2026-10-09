@@ -397,6 +397,10 @@ class CatalogueStore(Protocol):
         """Accepted works holding a television canvas, none of them drawn at `layout`, oldest acceptance first."""
         ...
 
+    def works_owing_a_presentation_master(self) -> Sequence[str]:
+        """Accepted works holding an Original and no master recorded from it, oldest acceptance first."""
+        ...
+
     def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
         """(work, current mat hex or None) for every accepted work holding a television canvas, oldest acceptance first."""
         ...

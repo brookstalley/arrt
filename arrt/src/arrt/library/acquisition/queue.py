@@ -384,6 +384,33 @@ class AcquisitionQueue:
             self.nudge()
         return queued
 
+    def owe_presentation_masters(self) -> int:
+        """Queue a preparation for every accepted work with no master made from its Original. Returns how many.
+
+        Run at startup, so every work held before masters existed gets one, and
+        so does a work whose Original was replaced while this process was down.
+        `prepare` makes the master before it looks at the canvas, so a work whose
+        canvas is current gets its master and nothing else; no mat is chosen and
+        nothing is spent. A recorded master whose file is gone is not found here,
+        as no recorded file's absence is by a query, and `prepare` remakes it the
+        next time it runs for the work. A work the queue already holds a row for
+        is left as it is, so this never resets a failure count.
+        """
+        queued = 0
+        with self._state_lock:
+            for artwork_id in self._store.works_owing_a_presentation_master():
+                if self._store.get_queued_acquisition(artwork_id) is None:
+                    self._store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id))
+                    queued += 1
+        log.info(
+            "%d works queued to have a presentation master made",
+            queued,
+            extra={"event": "preparation.masters_queued", "queued": queued},
+        )
+        if queued:
+            self.nudge()
+        return queued
+
     def owe_mats_over_the_floor(self) -> int:
         """Queue a preparation for every work on a canvas with no mat it may keep. Returns how many.
 
