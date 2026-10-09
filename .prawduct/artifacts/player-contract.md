@@ -131,7 +131,8 @@ of walls, each on one of its outputs. It learns its walls from the server.
 | `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
 | `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen, identity?}], label_outputs?: [{name, kind, connected, size}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
 | `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
-| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second |
+| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. Major 1's original spelling, served until major 1 retires |
+| `GET /walls/{wall_id}/manifest/v{major}` | none | The manifest at that major (decimal, no leading zero), answered as above; `404` for a major the server does not publish for this wall (§ The cutover). Named in `contract/routes.json` (`manifest_major`) |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
 
@@ -211,7 +212,8 @@ of walls, each on one of its outputs. It learns its walls from the server.
 - **Every failure keeps the cache.** Transport errors, timeouts and `5xx` mean
   the server is unreachable: the Player backs off and keeps showing what it
   has. `401`, `403` and a `404` on the wall are configuration errors, stated
-  once in the journal. A `404` on a media hash skips that work and keeps
+  once in the journal; on the per-major route a `404` is one only when every
+  major the Player reads answers it (§ The cutover). A `404` on a media hash skips that work and keeps
   rotating. An unknown major is refused and the last good manifest is kept. The
   wall going black is always worse than the wall being incomplete.
 - **In waves 2 and 3, `/media/...` serves the composed render** that
@@ -353,9 +355,15 @@ The heartbeat does not need a new major: capabilities are additive. Minor 2 adds
 
 - **`capabilities`:** `screen` (pixels), `backend` (`frame` or `framebuffer`),
   the `label_modes` this Player can do, and the `manifest_majors` it reads.
-  Programming chooses a wall's label mode from `label_modes`. It judges whether a
-  work is big enough for that wall from `screen`, and uses `manifest_majors` to
-  say before a cutover which Players it would leave on yesterday's wall.
+  `label_modes` are the modes of text on the display itself: `none`, `caption`
+  (static for the slot, all a Frame can do) and `overlay` (timed, with fades),
+  the same values as major 2's `settings.label.mode`; a label on its own surface
+  is a label output, not a mode. Programming offers a wall only the modes its
+  display reports. `screen` is reported again whenever it changes, and
+  Programming judges whether a work is big enough for that wall from the largest
+  size reported recently, not the latest (`feeds-and-players.md` § What a
+  display reports it can do). `manifest_majors` says which majors a Player can
+  be served (§ The cutover).
 - **`scene_id`:** the scene the wall is showing, or null.
 
 ### The heartbeat, minor 3
@@ -377,19 +385,27 @@ heartbeat: a later minor may add a state, and Players upgrade before the server.
 
 ### The cutover
 
-> **Direction changed 2026-10-08 (`feeds-and-players.md` § Versioning when
-> Players cannot be upgraded).** App Store Players cannot be upgraded on demand,
-> so each major is served at its own URL while a reader of it may exist, and a
-> Player requests the highest it reads. The single-major cutover below holds
-> until wave 4 builds that.
+**Each major is served at its own URL while a reader of it may exist, and a
+Player requests the highest major it reads** (`feeds-and-players.md` ruling 4,
+which replaced a single-major cutover because an App Store Player cannot be
+upgraded on demand).
 
-A major 1 Player refuses a major 2 manifest as an unsupported version and keeps
-its wall. Arrt Player's suite pins that refusal for every major 2 fixture. So
-wave 4 upgrades Players first and switches the server second, and a Player
-missed in the upgrade is visible, because its heartbeat's `manifest_majors`
-lacks 2. The server publishes one major for all walls. Serving each Player the
-major it reads was considered and not planned: it would mean building two
-documents for every wall through a transition that lasts minutes in a household.
+- **The route is `GET /walls/{wall_id}/manifest/v{major}`.** A major the server
+  does not publish for that wall answers `404`, and the Player asks for the next
+  major down that it reads. It treats the wall as misconfigured only when every
+  major it reads answers `404`. A Player may keep the major that last answered
+  and ask for a higher one less often than it polls.
+- **A major 1 Player refuses a major 2 document** as an unsupported version and
+  keeps its wall, as it refuses any unknown major. Arrt Player's suite pins that
+  refusal for every major 2 fixture.
+- **For a home wall, the server serves each major it still builds and retires
+  one once no heartbeat lists it in `manifest_majors`.** So wave 4 upgrades the
+  Players first, and the server stops building major 1, and with it the
+  composed render and the unversioned route, once every Player reports 2. A
+  Player missed in the upgrade is visible before that, because its heartbeat
+  lacks 2.
+- **For a public channel, a major is retired by decision**, because nothing
+  reports.
 
 ### Settled before wave 4
 

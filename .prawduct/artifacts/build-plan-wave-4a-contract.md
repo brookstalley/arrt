@@ -77,7 +77,7 @@ before the fixtures are written.
 ## Status
 
 - [x] Chunk 01: Major 2 as a feed with layered settings
-- [ ] Chunk 02: Capabilities, the per-major route, and the cutover rewritten
+- [x] Chunk 02: Capabilities, the per-major route, and the cutover rewritten
 - [ ] Chunk 03: The layout spec's mat rule and the schedule behaviour vectors
 
 Context: branched from develop after #332. The owner's 2026-10-08 rulings

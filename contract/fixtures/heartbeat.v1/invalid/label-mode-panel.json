@@ -20,7 +20,7 @@
     },
     "backend": "frame",
     "label_modes": [
-      "caption",
+      "panel",
       "none"
     ],
     "manifest_majors": [

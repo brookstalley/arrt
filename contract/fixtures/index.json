@@ -196,6 +196,12 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/heartbeat.v1/invalid/label-mode-panel.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-major-minor.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
@@ -215,6 +221,11 @@
     },
     {
       "path": "fixtures/heartbeat.v1/valid/as-built.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/framebuffer-with-overlay.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": true
     },
