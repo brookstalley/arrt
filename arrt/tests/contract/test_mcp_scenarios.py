@@ -371,7 +371,7 @@ class TestReviewingWhatDiscoveryFound:
             discovery=discovery_store,
             display_settings=wall_settings,
             thumbnails=thumbnail_settings,
-            artwork_box=settings.tv_artwork_box,
+            quality_profile=settings.quality_profile,
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum),

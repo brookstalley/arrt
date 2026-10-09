@@ -25,7 +25,6 @@ from arrt.library.acquisition.preparation import (
     PreparationService,
     PreparationSettings,
 )
-from arrt.library.services.display_fit import DisplayFit
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -154,14 +153,6 @@ class TestPreparingAWorkForTheFirstTime:
         assert result.mat_method == MatMethod.DOMINANT_COLOR_FALLBACK.value
         assert service.current_mat_color(work.id).method is MatMethod.DOMINANT_COLOR_FALLBACK
 
-    def test_the_fit_and_the_size_on_the_wall_come_back(self, prep, service, settings):
-        work, _ = _work_with_original(service, settings, width=4000, height=3000)
-
-        result = prep.prepare(work.id)
-
-        assert result.fit is DisplayFit.NATIVE
-        assert result.rendered_long_edge_inches > 0
-
 
 class TestPreparingAgain:
     def test_a_current_canvas_is_left_alone(self, prep, service, settings):
@@ -266,7 +257,7 @@ class TestStaleness:
             prep_settings,
             panel_width=1920,
             panel_height=1080,
-            box=replace(prep_settings.box, width=1658, height=798, pixels_per_inch=52.4),
+            box=replace(prep_settings.box, width=1658, height=798),
         )
         result = PreparationService(service, engine, smaller_panel, spend=discovery).prepare(work.id)
 

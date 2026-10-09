@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Size badges and the *Size* facet read plainly — added 2026-10-08
+
+**`build-plan-wave-4b-master-quality.md`, Chunk 01.** Visual change: yes.
+
+The Library judges scans against the quality minimum (`QUALITY_MINIMUM_PX`,
+default 1,000 px on the long edge) instead of the panel. Built against the
+browser suite only; not yet deployed. Check, on the NAS after deploy:
+
+- **The journal at start** names `RESOLUTION_FLOOR_INCHES` as no longer read, if
+  the `.env` still sets it, and logs `quality_minimum=1000px`. Then remove the
+  old key (and set `QUALITY_MINIMUM_PX` only if you want another minimum).
+- **Artworks:** no badge on a tile whose scan meets the minimum; "▲ below
+  minimum" on one that does not. The rail's *Size* offers *Meets minimum*,
+  *Below minimum* and *No size known*, each counted.
+- **A review card and a Get's page:** a scan's pixels, with no badge when it
+  meets the minimum and "below minimum" when it does not; no inches anywhere.
+- **A theme's rows:** the *Size* column is empty for a work that meets the
+  minimum.
+
 ### The Pi runs Arrt Player — added 2026-10-08
 
 **`build-plan-rename-arrt-player.md`.** Postarr is now Arrt Player: the project

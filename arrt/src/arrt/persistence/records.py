@@ -6,12 +6,11 @@ accidentally reach the database through it. Reads that need more go back through
 the store, whose contract is `catalogue.py`.
 
 **Only stored facts live here.** A value the catalogue derives rather than keeps
-belongs with the function that derives it — `DisplayFit` is the worked example
-and it is deliberately in `library/services/display_fit.py`, because a verdict about
-whether an image is big enough depends on panel geometry and mat configuration,
-which are deployment values this plane does not own. Storing it would make the
-row a claim about one particular television that goes silently wrong the day the
-television changes.
+belongs with the function that derives it — the quality verdict is the worked
+example and it is deliberately in `library/services/quality.py`, because whether
+an image is big enough depends on the deployment's quality minimum. Storing it
+would make the row a claim about one configuration that goes silently wrong the
+day the minimum changes.
 """
 
 from collections.abc import Sequence
@@ -364,7 +363,7 @@ class Original:
     content_hash: str
     #: How the fetch that produced *these bytes* ended — `OK` or `PARTIAL_TILES`.
     #: A fact about a past event, not a verdict about a deployment, which is why
-    #: it is stored where `display_fit` deliberately is not.
+    #: it is stored where the quality verdict deliberately is not.
     #:
     #: It cannot be read off `Source.last_fetch_status` instead: that column holds
     #: the source's *most recent* attempt, and one failed re-fetch overwrites it to

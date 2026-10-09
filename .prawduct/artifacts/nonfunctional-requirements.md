@@ -1216,6 +1216,14 @@ the numbers reproduce. Panel dimensions therefore join
 > must land it in the same change that removes the panel settings. Losing the
 > floor silently would let a below-floor scan be auto-selected, the exact silent
 > acceptance this section forbids.
+>
+> **Built 2026-10-08 in wave 4b, ahead of the change that removes the panel
+> settings (4g), not in it.** The sentence above exists so that no gap opens
+> between the box leaving and the profile arriving, and landing the profile
+> first leaves none; the departure is recorded as a decision in
+> `build-plan-wave-4b-master-quality.md`. The profile has a minimum and no
+> cutoff (`upgrades.md` ruling 1). From then the box is read only to compose
+> the canvas.
 
 Everything else follows arithmetically:
 
@@ -1247,7 +1255,8 @@ the long edge.
 > long edge**, the number the quality profile was waiting for
 > (`re-architecture.md` § Open questions). The inch floor stays the mechanism
 > until wave 4, and a deployment expresses the minimum in it as 1,000 px divided
-> by its panel's pixels per inch.
+> by its panel's pixels per inch. *(Wave 4b, 2026-10-08: the minimum is now
+> `QUALITY_MINIMUM_PX`, in pixels, and the inch floor is retired.)*
 
 **Below the floor, the work is not rejected and the image is not hidden.** Phase 2
 does not *auto-select* a below-floor instance; the review grid shows it labelled
@@ -1256,7 +1265,9 @@ select it anyway. *(Since 2026-10-02 the browser shows the scan's own pixels and
 the fit verdict's word instead of the inches — the owner's ruling,
 `build-plan-topics-and-destinations.md` Chunk 07: the inches are the long edge on
 the one panel this server is configured for, and read as a fact about the scan.
-The floor itself is unchanged, and still in inches.)* If every instance is below floor the work lands at
+The floor itself was unchanged, and still in inches, until wave 4b made it the
+quality minimum in pixels on 2026-10-08; "below the floor" in this section now
+reads "below the quality minimum".)* If every instance is below floor the work lands at
 `resolution_status = unresolved`, which is already a first-class outcome that may
 never be silently omitted (`data-model.md` constraint 9), and the work stays
 eligible for re-search. Nothing is silently dropped and nothing is silently

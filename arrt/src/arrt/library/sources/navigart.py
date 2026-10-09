@@ -3,8 +3,8 @@
 One host serves dozens of French public collections, each a *publication* with
 its own *vault* on `api.navigart.fr`. This plugin finds a work's artwork from the
 navigart pages the work's Wikidata item records, and reports the largest image
-navigart serves, which is never more than 1,000 pixels on its long side: under
-the floor, so a placeholder until a better copy is found. It needs no key. Every
+navigart serves, which is never more than 1,000 pixels on its long side: at
+most the quality minimum, so a stand-in until a better copy is found. It needs no key. Every
 shape below was measured against the live API on 2026-10-06
 (`navigart-api-findings.md`). Five of them decide what this module does:
 

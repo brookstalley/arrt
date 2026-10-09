@@ -15,11 +15,12 @@ import httpx
 import pytest
 from fakes import FakeRegistry
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, WorkPage
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources import Declined, FetchLocator, LocatorKind, SourceContext, SourceParts
 from arrt.library.sources.nga import (
     DATA_URL,
@@ -504,8 +505,8 @@ def test_an_object_whose_title_the_open_data_lacks_is_not_offered(world):
 def test_the_items_page_identifies_the_work_through_the_identity_check_with_the_artist_matched(world):
     registry = FakeRegistry(pages={MURILLO_ITEM: [WorkPage(MURILLO_PAGE)]})
     finder = NgaFinder(catalogue=world.catalogue(), registry=registry, user_agent="t")
-    box = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([finder]), box=box, registry=registry)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([finder]), profile=profile, registry=registry)
 
     # A title NGA does not use (the Spanish one), so only the item's link can identify it.
     resolution = engine.resolve(ImageQuery(title="Mujeres en la ventana", artist="Bartolomé Esteban Murillo", qid=MURILLO_ITEM))
@@ -514,14 +515,14 @@ def test_the_items_page_identifies_the_work_through_the_identity_check_with_the_
     assert entry.found.url == MURILLO_PAGE
     assert entry.confidence == CONFIDENT
     assert "Wikidata item records" in entry.rationale
-    assert not entry.below_floor
+    assert not entry.below_minimum
 
 
 def test_another_artists_object_on_the_items_page_is_refused_by_the_identity_check(world):
     registry = FakeRegistry(pages={MURILLO_ITEM: [WorkPage(MURILLO_PAGE)]})
     finder = NgaFinder(catalogue=world.catalogue(), registry=registry, user_agent="t")
-    box = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([finder]), box=box, registry=registry)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([finder]), profile=profile, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Two Women at a Window", artist="Diego Velázquez", qid=MURILLO_ITEM))
 

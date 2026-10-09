@@ -35,7 +35,7 @@ from typing import Final
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -507,12 +507,12 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         return self._store.get_original(artwork_id)
 
-    def display_fit(self, artwork_id: str, *, box: ArtworkBox) -> FitAssessment:
-        """Judge the work's held original against the space it would be rendered into."""
+    def fit(self, artwork_id: str, *, profile: QualityProfile) -> Fit:
+        """Judge the work's held original against the quality profile."""
         original = self.get_original(artwork_id)
         if original is None:
             raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to judge.")
-        return assess_display_fit(width=original.width, height=original.height, box=box)
+        return profile.judge(width=original.width, height=original.height)
 
     # -- reads: what has been rendered ----------------------------------------
 

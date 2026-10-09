@@ -24,7 +24,7 @@ def composed(work_with_an_image, service, settings, decodable_jpeg):
     """A held work whose master is portrait and whose wall render is 16:9."""
 
     def _composed(title="Nighthawks"):
-        # Larger than the panel's artwork box on both edges, so its fit is native.
+        # Well over the quality minimum, so its fit draws no badge.
         work = work_with_an_image(title, width=3000, height=4000)
         rendered = f"ready/{work.id}.jpg"
         decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
@@ -71,10 +71,10 @@ def test_the_work_page_shows_the_wall_render_larger_than_a_tile(ui, composed):
 
 
 def test_a_tile_carries_no_badge_that_says_nothing(ui, composed, work_with_an_image):
-    """'native' and the picture's source say nothing on a tile; a fit that is news still shows.
+    """Meeting the minimum and the picture's source say nothing on a tile; a fit that is news still shows.
 
     Two works, so the absence is not the badge row failing to draw: the small
-    one (below the panel's floor at 400 px) keeps its fit badge in the same grid.
+    one (below the minimum at 400 px) keeps its fit badge in the same grid.
     """
     big = composed("Nighthawks")
     small = work_with_an_image("Automat", width=400, height=300)
@@ -82,10 +82,10 @@ def test_a_tile_carries_no_badge_that_says_nothing(ui, composed, work_with_an_im
     ui.page.wait_for_selector(f"li.card[data-artwork='{small.id}'] .card-footer .badge")
 
     verdict = ui.page.evaluate(f"() => fetch('/api/works/{big.id}').then(r => r.json()).then(d => d.work.fit.verdict)")
-    assert verdict == "native", "the fixture no longer makes the case this test is about"
+    assert verdict == "meets_minimum", "the fixture no longer makes the case this test is about"
     footer = ui.page.locator(f"li.card[data-artwork='{big.id}'] .card-footer").inner_text()
-    for word in ("native", "wall render", "master image"):
+    for word in ("minimum", "wall render", "master image"):
         assert word not in footer, f"the tile still says {word!r}"
     small_footer = ui.page.locator(f"li.card[data-artwork='{small.id}'] .card-footer").inner_text()
     assert small_footer.strip(), "a fit worth saying went with the ones that say nothing"
-    assert "native" not in small_footer
+    assert "below minimum" in small_footer

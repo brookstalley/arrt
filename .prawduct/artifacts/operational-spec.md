@@ -349,6 +349,14 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   it came from, because a wrong mat is otherwise visible only as works being
   labelled oddly in the review grid.)*
 
+  *(**`RESOLUTION_FLOOR_INCHES` was retired on 2026-10-08** (wave 4b). The floor
+  became the Library's quality profile, `QUALITY_MINIMUM_PX`, a minimum in pixels
+  on the long edge that names no screen, default 1,000. The TV panel and the mat
+  are now needed only to compose the canvas, and leave the server with
+  compositing in wave 4. A deployment whose `.env` still sets the old key starts
+  normally and logs a WARNING naming it and its replacement
+  (`config.retired_setting`).)*
+
   *(**Three more joined them on 2026-08-03**, when the mat engine landed, and are
   curation-only for a different reason — display never asks a model anything:
   `MAT_MODEL`, `MAT_MAX_OUTPUT_TOKENS` and `MAT_IMAGE_MAX_EDGE`. The middle one

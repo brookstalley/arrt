@@ -47,7 +47,7 @@ from arrt.config import (
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PORT,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_RESOLUTION_FLOOR_INCHES,
+    DEFAULT_QUALITY_MINIMUM_PX,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
     DEFAULT_SEARCH_COST_USD,
@@ -275,7 +275,7 @@ def settings(tmp_path) -> Settings:
         tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
         mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
         mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
-        resolution_floor_inches=DEFAULT_RESOLUTION_FLOOR_INCHES,
+        quality_minimum_px=DEFAULT_QUALITY_MINIMUM_PX,
         phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
         phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
         offered_works_per_run=DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -380,8 +380,8 @@ def services(
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
         # Derived by the same property the entry point calls, so a test never
-        # asserts against a box a real deployment would not produce.
-        artwork_box=settings.tv_artwork_box,
+        # judges against a profile a real deployment would not produce.
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         # Panel and box from the same resolved settings, as the entry point does

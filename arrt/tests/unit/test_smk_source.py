@@ -11,11 +11,12 @@ import httpx
 import pytest
 from fakes import FakeRegistry
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, WorkPage
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources import FetchLocator, LocatorKind, SourceContext, SourceParts, smk
 from arrt.library.sources.smk import PLUGIN, SmkFinder, SmkReader, claims, object_number
 from arrt.persistence.discovery_records import UnresolvedReason
@@ -194,8 +195,8 @@ def test_the_fragment_page_identifies_the_work_through_the_identity_check():
     reported a page of its own spelling would be refused here on its title.
     """
     registry = FakeRegistry(pages={TREE_TRUNKS_ITEM: [FRAGMENT_PAGE]})
-    box = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=box, registry=registry)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=profile, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Tree Trunks", artist="Vilhelm Hammershøi", qid=TREE_TRUNKS_ITEM))
 
@@ -317,8 +318,8 @@ def test_another_artists_object_among_the_hits_is_reported_as_theirs_and_refused
     assert by_artist["KMS7121"] == "Willy Ørskov"
     assert by_artist["KMS2094"] == "Arne Kavli"
 
-    box = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
-    resolution = PhaseTwoEngine(ImageSourcePool([finder]), box=box).resolve(query)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    resolution = PhaseTwoEngine(ImageSourcePool([finder]), profile=profile).resolve(query)
     assert [entry.found.url for entry in resolution.instances] == ["https://open.smk.dk/artwork/image/KMS7121"]
     assert UnresolvedReason.IDENTITY_REFUSED in resolution.refusals
 

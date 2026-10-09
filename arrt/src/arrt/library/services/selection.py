@@ -1,7 +1,7 @@
 """Which image instance represents a candidate work, decided in one place.
 
 A work usually has several instances and exactly one of them stands for it while
-any unrejected instance clears the display floor. **Two states hold none**, and
+any unrejected instance meets the quality minimum. **Two states hold none**, and
 `best()` below returns `None` for both: every instance rejected, and every
 surviving instance too small to show without being asked for. The second is the
 floor working rather than a gap — it is why acceptance refuses a work with no
@@ -24,7 +24,7 @@ is exactly one ordering, and that a caller never invents its own.
 
 from collections.abc import Callable, Iterable
 
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.persistence.discovery_records import CandidateImage
 
 #: Where a source stands in the deployment's preference order, lower preferred:
@@ -41,18 +41,18 @@ def surviving(images: Iterable[CandidateImage], *, precedence: Precedence | None
     keeping instance suppression on a different key from work suppression:
     turning down a scan must never blacklist the painting.
 
-    **Below-floor instances are included here.** They are the alternates a review
-    card offers, labelled with the size they would appear at, and a curator may
+    **Instances below the quality minimum are included here.** They are the
+    alternates a review card offers, labelled with their size, and a curator may
     choose one. What they are excluded from is being chosen *for* the curator —
     see `best`.
     """
     return sorted((image for image in images if image.rejected_at is None), key=lambda image: _rank(image, precedence))
 
 
-def below_floor(image: CandidateImage, box: ArtworkBox) -> bool:
-    """Whether this instance would render smaller on the wall than the floor allows.
+def below_minimum(image: CandidateImage, profile: QualityProfile) -> bool:
+    """Whether this instance falls short of the quality profile's minimum.
 
-    An instance whose dimensions were never recorded is **not** below floor:
+    An instance whose dimensions were never recorded is **not** below it:
     "we do not know how big it is" and "we know it is too small" are different
     facts, and only the second justifies withholding it from selection. The
     engine that records instances refuses ones it cannot size, so this is the
@@ -60,8 +60,7 @@ def below_floor(image: CandidateImage, box: ArtworkBox) -> bool:
     """
     if image.estimated_width is None or image.estimated_height is None:
         return False
-    fit = assess_display_fit(width=image.estimated_width, height=image.estimated_height, box=box)
-    return fit.fit is DisplayFit.BELOW_FLOOR
+    return profile.judge(width=image.estimated_width, height=image.estimated_height) is Fit.BELOW_MINIMUM
 
 
 def _rank(image: CandidateImage, precedence: Precedence | None = None) -> tuple[float, int, float, int, str]:
@@ -92,22 +91,21 @@ def _preference(provider: str, precedence: Precedence | None) -> int:
 
 
 def best(
-    images: Iterable[CandidateImage], *, box: ArtworkBox | None = None, precedence: Precedence | None = None
+    images: Iterable[CandidateImage], *, profile: QualityProfile | None = None, precedence: Precedence | None = None
 ) -> CandidateImage | None:
     """The instance that should represent the work, or None if none may be chosen.
 
-    **A below-floor instance is never chosen automatically**, which is why the
-    artwork box comes in: the floor is a rendered size on the wall, so it cannot
-    be read off a row without the panel geometry that turns pixels into inches.
-    Passing no box means "no floor applies" and is what a caller with no
-    deployment geometry to hand gets — the ranking, and nothing withheld.
+    **An instance below the quality minimum is never chosen automatically**,
+    which is why the profile comes in. Passing none means "no minimum applies"
+    and is what a caller with no deployment profile to hand gets — the ranking,
+    and nothing withheld.
 
-    Returning `None` when every survivor is below floor is the specified
+    Returning `None` when every survivor is below the minimum is the specified
     outcome, not a gap: such a work holds no selection and is reported
     `unresolved`, which keeps a wall of postage stamps from being assembled
     silently while leaving every instance on the card for a curator who wants one
     anyway.
     """
     ranked = surviving(images, precedence=precedence)
-    eligible = [image for image in ranked if not below_floor(image, box)] if box is not None else ranked
+    eligible = [image for image in ranked if not below_minimum(image, profile)] if profile is not None else ranked
     return eligible[0] if eligible else None

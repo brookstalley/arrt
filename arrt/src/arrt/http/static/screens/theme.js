@@ -559,14 +559,14 @@ function memberList(themeId, themeName, { works, shuffled }, paint) {
           ),
       }),
     ]);
-    return [String(index + 1), work.title, work.artist ? work.artist.name : "—", fitBadge(work), controls];
+    return [String(index + 1), work.title, work.artist ? work.artist.name : "—", fitBadge(work) || "", controls];
   });
   return table(
     orderCaption(shuffled),
     // The last column is named rather than left blank: an empty `th` is
     // announced as an empty column header, which tells a screen-reader user
     // nothing about the buttons in every row beneath it.
-    ["#", "Title", "Artist", "Size on the wall", "Order and membership"],
+    ["#", "Title", "Artist", "Size", "Order and membership"],
     rows,
   );
 }

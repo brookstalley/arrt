@@ -18,11 +18,12 @@ import httpx
 import pytest
 from fakes import FakeRegistry
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, WorkPage
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources import FetchLocator, LocatorKind, SourceContext, SourceParts, getty
 from arrt.library.sources.getty import PLUGIN, GettyFinder, GettyReader, claims, slug_of
 from arrt.persistence.discovery_records import UnresolvedReason
@@ -199,7 +200,7 @@ def service_of(stem: str) -> str:
     return fixture(f"info_{stem}.json")["id"]
 
 
-BOX = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 
 # -- claims ------------------------------------------------------------------------------
@@ -272,7 +273,7 @@ def test_the_page_as_the_item_spells_it_identifies_the_work_through_the_identity
     """Driven through phase 2, the caller that reads the link: a page of the plugin's own spelling would not count."""
     spelled = "http://www.getty.edu/art/collection/object/103JNH/"
     registry = pages(spelled)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Irises", artist="Vincent van Gogh", qid=IRISES_ITEM))
 
@@ -285,7 +286,7 @@ def test_the_page_as_the_item_spells_it_identifies_the_work_through_the_identity
 def test_another_artists_object_linked_by_mistake_is_refused_by_the_identity_check():
     """An item naming the Brockhurst's page for a Hopper: the link stands, the artist does not."""
     registry = pages(BROCKHURST_PAGE, qid=OTHER_ITEM)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Portrait of J. Paul Getty", artist="Edward Hopper", qid=OTHER_ITEM))
 
@@ -491,7 +492,7 @@ def test_a_work_is_searched_for_by_its_makers_name_then_its_title_words():
 
 def test_a_search_reports_the_gettys_title_equal_to_the_one_asked_and_identity_accepts_it():
     """Getty prefers "La Ville" and records "The City": asked for the second, the second is reported."""
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(None)]), box=BOX, registry=FakeRegistry())
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(None)]), profile=PROFILE, registry=FakeRegistry())
 
     resolution = engine.resolve(ImageQuery(title="the  city", artist="Fédèle Azari"))
 

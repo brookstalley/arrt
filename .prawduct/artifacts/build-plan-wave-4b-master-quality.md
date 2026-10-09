@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: wave-4b-master-quality
 branch: feature/wave-4b-master-quality
-partition: serial — 01 and 02 are one verdict's two halves (02 renders what 01 computes, and its wire values are 01's enum), and 03 edits `preparation.py`, `container.py` and `queue.py`, which 01 also edits
+partition: serial — 02 edits `preparation.py`, `container.py` and `queue.py`, which 01 also edits, and 02's cap is the constant 01's ranking saturates at
 depends_on:
   - artifact: re-architecture
   - artifact: upgrades
@@ -12,7 +12,7 @@ depends_on:
 governed_by:
   - artifact: data-model
     dispositions:
-      - "derived artifacts are regenerated, never transported (in-transition; ruling 2026-09-30) → conforms: 03's master is rendered for no geometry and is content-addressed, which is the ruling's case exactly. The interim rule (no new geometry-specific render is served to a Player) holds: the master has no geometry, and no manifest names it until 4e"
+      - "derived artifacts are regenerated, never transported (in-transition; ruling 2026-09-30) → conforms: 02's master is rendered for no geometry and is content-addressed, which is the ruling's case exactly. The interim rule (no new geometry-specific render is served to a Player) holds: the master has no geometry, and no manifest names it until 4e"
       - "a work is distinct from an image of it, at every stage → conforms: the master is a Rendition of the work's Original, current only while its `source_content_hash` matches that Original's hash, like every other kind"
       - "per-device runtime state never lives in the catalogue → conforms, and more strictly than today: 01 takes the artwork box (a fact about one television) out of every Library service; only the compositor keeps it, until 4g"
   - artifact: architecture
@@ -24,10 +24,10 @@ governed_by:
     dispositions:
       - "§ The mat is geometric, the floor paragraph: the profile 'must land in the same change that removes the panel settings' → departs, recorded as a decision below: it lands in 4b, ahead of 4g's removal"
       - "below the floor, the work is not rejected and the image is not hidden; the curator may select it anyway → conforms: 01 changes what the floor is measured in, not what happens beneath it"
-      - "never upscale → conforms: 03's master is never larger than its Original"
+      - "never upscale → conforms: 02's master is never larger than its Original"
   - artifact: accessibility-spec
     dispositions:
-      - "norm 2, WCAG 2.1 AA and colour never the sole carrier of state → conforms: 02's badge keeps a glyph and a word for every state, as today"
+      - "norm 2, WCAG 2.1 AA and colour never the sole carrier of state → conforms: 01's badge keeps a glyph and a word for every state, as today"
   - artifact: upgrades
     dispositions:
       - "ruling 1, no cutoff; searches back off by size → conforms: the profile has a minimum and nothing else, and 01 retires every record that still promises a cutoff"
@@ -83,7 +83,7 @@ The first is read by MCP clients as well as the browser.
 - [ASSUMPTION: `QUALITY_MINIMUM_PX` defaults to 1,000 and must be a positive integer. A `RESOLUTION_FLOOR_INCHES` still set at startup is logged as retired, by name, with the new key it maps to, and is otherwise ignored, so the NAS keeps starting after the upgrade | LOW impact | user can override]
 - [ASSUMPTION: the master is generated for every held work, including one below the minimum, because a curator may choose such a scan and the wall then needs an image of it | LOW impact | user can override]
 
-**What would raise confidence:** 01's verdict function and its callers read
+**What would raise confidence:** The verdict function and its callers read
 against `nonfunctional-requirements.md`'s floor section and `upgrades.md`
 ruling 1 before the consumers are rewired.
 
@@ -91,23 +91,28 @@ ruling 1 before the consumers are rewired.
 
 `[DECISION: phase two ranks scans in two bands, meets the minimum above below it, and within a band by the long edge in pixels, rising until the master's 7,680 cap and level after it | the box coverage it uses today needs the box. The long edge is the measure the minimum, the master's cap and the parked upgrade tiers already share, and a scan larger than the master gains nothing anyone can see | the builder's, 2026-10-08; user can veto]`
 
-`[DECISION: MCP's fit fields change shape: \`renders_at_inches\`, \`rendered_long_edge_inches\` and \`renders_at_pixels\` are retired, and \`display_fit\` takes the two new values. This is a breaking change to result fields, which \`api_versioning_approach\` calls additive-only, so it is announced the way its deprecation policy says: in the tool descriptions and in the change-log, with no compatibility shim | the inch figures describe one television the server will stop knowing about, and the owner already took them out of the browser on 2026-10-02 for that reason. Keeping them in MCP would keep the panel settings alive for an agent's sake | the builder's, 2026-10-08; user can veto]`
+`[DECISION: MCP's fit fields change shape: \`renders_at_inches\`, \`rendered_long_edge_inches\` (on a look picture and on \`regenerate\`) and \`renders_at_pixels\` are retired, \`display_fit\` and \`regenerate\`'s \`fit\` take the two new values, a look picture's \`below_floor\` becomes \`below_minimum\`, and a listing row gains \`size_px\` (\`WxH\`) so the size a curator judges by is still on the row. This is a breaking change to result fields, which \`api_versioning_approach\` calls additive-only, so it is announced the way its deprecation policy says: in the tool descriptions and in the change-log, with no compatibility shim | the inch figures describe one television the server will stop knowing about, and the owner already took them out of the browser on 2026-10-02 for that reason. Keeping them in MCP would keep the panel settings alive for an agent's sake | the builder's, 2026-10-08; user can veto]`
 
-`[DECISION: the master is a JPEG at quality 95, the compositor's own setting, upright (EXIF orientation applied) and in sRGB as read, with no ICC conversion, at most 7,680 px on the long edge and never upscaled. It is stored as \`presentation/{artwork_id}.jpg\` under \`ART_ROOT\` and recorded as a Rendition of a new kind, \`presentation_master\` | 7,680 is the cap the Pi 4's compositing budget was measured against (nonfunctional-requirements.md § Performance, 2026-10-04). Quality 95 matches the canvas a Player is shown today, so moving composition to the Player costs no fidelity. \`color.py\` already treats every image as sRGB with no colour management. 03 measures the store's size over the local corpus and records it | the builder's, 2026-10-08; user can veto]`
+`[DECISION: the master is a JPEG at quality 95, the compositor's own setting, upright (EXIF orientation applied) and in sRGB as read, with no ICC conversion, at most 7,680 px on the long edge and never upscaled. It is stored as \`presentation/{artwork_id}.jpg\` under \`ART_ROOT\` and recorded as a Rendition of a new kind, \`presentation_master\` | 7,680 is the cap the Pi 4's compositing budget was measured against (nonfunctional-requirements.md § Performance, 2026-10-04). Quality 95 matches the canvas a Player is shown today, so moving composition to the Player costs no fidelity. \`color.py\` already treats every image as sRGB with no colour management. 02 measures the store's size over the local corpus and records it | the builder's, 2026-10-08; user can veto]`
 
 ## Status
 
-- [ ] Chunk 01: The quality profile replaces the artwork box in the Library
-- [ ] Chunk 02: Every surface states the two-state verdict
-- [ ] Chunk 03: The presentation master
+- [ ] Chunk 01: The quality profile replaces the artwork box, end to end
+- [ ] Chunk 02: The presentation master
 
-Context: branched from develop after #333.
+Context: branched from develop after #333. Drawn as three chunks, merged to two
+before building (2026-10-08): the verdict's service half and its surfaces cannot
+land separately, because a commit between them would send wire values the
+client and the MCP bindings do not know, with every suite red.
 
-### Chunk 01: The quality profile replaces the artwork box in the Library
+### Chunk 01: The quality profile replaces the artwork box, end to end
+
+- **Visual change:** yes
 
 - **Surfaces:** `arrt/src/arrt/config.py` (the new key; the floor and
   `tv_artwork_box`'s floor field retired; the retired-key warning);
-  `library/services/display_fit.py` (the profile and the two-value verdict);
+  `library/services/display_fit.py` (the profile and the two-value verdict;
+  built as new `library/services/quality.py`, the old module deleted);
   every Library consumer of the box: `selection.py`, `discovery.py`,
   `runner.py` (the collection supplement), `discovery/phase_two.py` (bands and
   within-band), `look.py`, `review.py`, `catalogue.py`, `survey.py`,
@@ -127,7 +132,8 @@ Context: branched from develop after #333.
   `procurement-corpus.md` where it names the floor. A grep of the whole repo for
   `RESOLUTION_FLOOR`, `floor_inches`, `artwork box` and `cutoff` closes the
   chunk, with every survivor either changed or named as still true.
-- **Tests:** `test_display_fit.py` rewritten for the profile: exactly at the
+- **Tests:** `test_display_fit.py` rewritten for the profile (as new
+  `arrt/tests/unit/test_quality.py`): exactly at the
   minimum meets it, one pixel under does not, a tall narrow work is judged on
   its long edge, a work smaller than the old box but over the minimum meets it
   (the case `matted_small` used to catch), refusals of a zero size and a
@@ -139,11 +145,7 @@ Context: branched from develop after #333.
   through the service, with a non-default minimum so the setting is proven
   wired. Every rewritten assertion names in its commit why the old one went
   (the box is gone), and each new guard is watched failing once.
-
-### Chunk 02: Every surface states the two-state verdict
-
-- **Visual change:** yes
-- **Surfaces:** `http/models.py` (`FitOut` loses `rendered_*`); `http/api.py`
+- **Surfaces, continued (the verdict's wire half):** `http/models.py` (`FitOut` loses `rendered_*`); `http/api.py`
   (the `fit` filter and facet values); `mcp/bindings.py` and `mcp/tools.py`
   (the fields and descriptions the decision above retires, and the regenerate
   notice); `http/static/core/badges.js`, `core/reviewing.js`,
@@ -151,9 +153,9 @@ Context: branched from develop after #333.
   `app.css` (badge classes); `api-contract.md` (the `fit` rows and the MCP
   result fields); `information-architecture.md` (the facet's name, and
   *Cutoff Unmet* retired in favour of `upgrades.md`'s *Wanted › Upgrades*).
-- **What:** every surface shows exactly the 01 verdict, with no inch or box
-  figure anywhere. The tile hides `meets_minimum` as it hides `native` today.
-- **Tests:** the HTTP and MCP tests that pin fit fields, rewritten to the new
+- **What, continued:** every surface shows exactly this verdict, with no inch
+  or box figure anywhere. The tile hides `meets_minimum` as it hides `native` today.
+- **Tests, continued:** the HTTP and MCP tests that pin fit fields, rewritten to the new
   values, and `fit=below_minimum` filtering through the real server; the
   surface-parity test across HTTP and MCP; the browser suite (`-m browser`) for
   the badge, the facet, the review grid's "found only too small" and the work
@@ -161,7 +163,7 @@ Context: branched from develop after #333.
   by name, not ignored. `tests/preferences/test_screen_tables.py` stays green
   against the renamed facet.
 
-### Chunk 03: The presentation master
+### Chunk 02: The presentation master
 
 - **Type:** cumulative-final
 - **Surfaces:** `persistence/records.py` (`RenditionKind.PRESENTATION_MASTER`);

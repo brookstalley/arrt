@@ -37,7 +37,7 @@ from decimal import Decimal
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.services.remembered import checked_qid
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
@@ -186,19 +186,17 @@ class DiscoveryService:
         self,
         store: DiscoveryStore,
         catalogue: CatalogueService,
-        artwork_box: ArtworkBox | None = None,
+        profile: QualityProfile | None = None,
         *,
         precedence: selection.Precedence | None = None,
     ) -> None:
         self._store = store
         self._catalogue = catalogue
-        #: The space a work is rendered into, which is what turns an instance's
-        #: pixels into a size on the wall. Held because automatic selection has
-        #: to withhold an instance that would render below the floor, and the
-        #: floor is physical — so the rule cannot be evaluated from a row alone.
-        #: Optional so a caller with no deployment geometry gets the ranking
-        #: without a floor rather than a constructor it cannot satisfy.
-        self._artwork_box = artwork_box
+        #: The quality profile. Held because automatic selection has to withhold
+        #: an instance below its minimum. Optional so a caller with no deployment
+        #: profile gets the ranking without a minimum rather than a constructor
+        #: it cannot satisfy.
+        self._profile = profile
         #: The image sources' preference order, so a level tie between two
         #: sources is settled here as phase 2 settled it. None with no sources.
         self.precedence = precedence
@@ -944,7 +942,7 @@ class DiscoveryService:
         left out.
 
         The selected instance leads where one exists. A work whose scans are all
-        below the floor or all turned down has no selection, and then the leading
+        below the quality minimum or all turned down has no selection, and then the leading
         row is simply the highest-ranked, which may be a scan already refused.
         `is_selected` is what distinguishes them; position is not.
 
@@ -982,10 +980,10 @@ class DiscoveryService:
         with instances is never selectionless; a later choice moves the selection
         rather than adding a second one.
 
-        **Unless it would render below the floor**, which is never selected
+        **Unless it is below the quality minimum**, which is never selected
         without a curator asking for it by name. Such an instance is still
-        recorded, still offered as an alternate, and still carries the size it
-        would appear at — a work whose every instance is below floor simply holds
+        recorded, still offered as an alternate, and still carries its size — a
+        work whose every instance is below the minimum simply holds
         no selection, and is reported `unresolved` rather than putting a postage
         stamp on the wall on nobody's authority.
 
@@ -1045,8 +1043,8 @@ class DiscoveryService:
                 selection_rationale=selection_rationale,
             )
             # Decided from the built row rather than from the arguments, so the
-            # floor is evaluated against exactly the dimensions being stored.
-            claimed = not any(other.is_selected for other in held) and not self._below_floor(image)
+            # minimum is judged against exactly the dimensions being stored.
+            claimed = not any(other.is_selected for other in held) and not self._below_minimum(image)
             image = replace(image, is_selected=claimed)
             store_write(self._store.add_candidate_image, image)
         return image
@@ -1188,7 +1186,7 @@ class DiscoveryService:
         # would be silent.
         survivors = self._store.list_candidate_images(work.id)
         if not any(other.is_selected for other in survivors):
-            replacement = selection.best(survivors, box=self._artwork_box, precedence=self.precedence)
+            replacement = selection.best(survivors, profile=self._profile, precedence=self.precedence)
             if replacement is not None:
                 self._select(replacement, rationale=None)
 
@@ -1256,7 +1254,7 @@ class DiscoveryService:
         with self._store.transaction():
             work = self.get_candidate_work(candidate_work_id)
             held = self._store.list_candidate_images(work.id)
-            chosen = selection.best(held, box=self._artwork_box, precedence=self.precedence)
+            chosen = selection.best(held, profile=self._profile, precedence=self.precedence)
             status = ResolutionStatus.RESOLVED if chosen is not None else ResolutionStatus.UNRESOLVED
             reason = None if chosen is not None else self._unresolved_reason(held, refusals)
             if work.verdict.is_terminal:
@@ -1282,8 +1280,8 @@ class DiscoveryService:
         The rows the work already holds answer first, because a row on the card
         is further than a result that never became one. Those two cases are
         mutually exclusive rather than ordered: rejected instances are filtered
-        out before the floor applies, so surviving-but-unselectable means every
-        survivor is below the floor, and no survivors at all means the curator
+        out before the minimum applies, so surviving-but-unselectable means every
+        survivor is below the minimum, and no survivors at all means the curator
         turned down everything there was.
 
         Only when the work holds no rows does what the search discarded decide
@@ -1419,14 +1417,14 @@ class DiscoveryService:
         "can this be re-acquired from scratch".
 
         **A work with instances but no selection is refused too, and that is the
-        floor doing its job.** There are two ways to hold none: every instance
-        rejected, and every instance below the display floor — `selection.best`
-        declines the second, so nothing under the floor is ever chosen without
+        minimum doing its job.** There are two ways to hold none: every instance
+        rejected, and every instance below the quality minimum — `selection.best`
+        declines the second, so nothing under the minimum is ever chosen without
         being asked for. Promoting anyway would mint an artwork whose sources are
         every one `is_primary=False`: no record of which scan produced the
         original, and a postage stamp on the wall chosen by nobody. The remedy is
         for the curator to choose an instance explicitly, which is exactly the
-        decision the floor exists to force.
+        decision the minimum exists to force.
         """
         # Asked of the images rather than of `resolution_status`, which answers a
         # different question: only a resolution attempt recomputes that column, so
@@ -1443,7 +1441,7 @@ class DiscoveryService:
                 "Re-search it with resolve_images, or reject it."
             )
         # The second selectionless state, which the guard above does not cover:
-        # instances survive, and every one of them is below the display floor, so
+        # instances survive, and every one of them is below the quality minimum, so
         # `selection.best` declined them all. Constraint 8 in `data-model.md` names
         # both exceptions; this is the one that reaches acceptance with sources to
         # promote and nothing to make primary.
@@ -1457,7 +1455,7 @@ class DiscoveryService:
             # what they just did.
             cause = (
                 "every scan found for it is below the size this deployment will show without being asked"
-                if all(self._below_floor(image) for image in images)
+                if all(self._below_minimum(image) for image in images)
                 else "the scans you have not turned down are all below that size, and the ones that cleared "
                 "it you have already rejected"
             )
@@ -1507,38 +1505,37 @@ class DiscoveryService:
             duplicate_candidates=attributed.near_misses if minted is not None else (),
         )
 
-    def clears_display_floor(self, *, width: int | None, height: int | None) -> bool:
+    def meets_quality_minimum(self, *, width: int | None, height: int | None) -> bool:
         """Whether an image this size could be selected without a curator asking.
 
         Public because the supplement has to answer it *before* writing anything.
         A work phase 1 named is worth showing whatever size the collection holds
-        it at — it is the work that was asked for, and its below-floor instance is
+        it at — it is the work that was asked for, and its small instance is
         recorded, labelled and offered. A work the collection merely *volunteered*
         is not: there are hundreds more behind it, and one that cannot go on the
         wall is padding a curator has to read past.
 
-        The box is the only thing that can answer this, and it lives here, so the
-        question is asked here rather than a caller being handed the geometry and
-        trusted to apply the same rule. `False` for dimensions that are absent:
+        The profile is the only thing that can answer this, and it lives here, so
+        the question is asked here rather than a caller being handed the profile
+        and trusted to apply the same rule. `False` for dimensions that are absent:
         an unsizeable record cannot be shown to clear anything.
         """
         if width is None or height is None:
             return False
-        if self._artwork_box is None:
-            # No geometry configured is no floor stated — the same reading
+        if self._profile is None:
+            # No profile configured is no minimum stated — the same reading
             # `selection.best` takes, rather than this inventing one.
             return True
-        return assess_display_fit(width=width, height=height, box=self._artwork_box).fit is not DisplayFit.BELOW_FLOOR
+        return self._profile.judge(width=width, height=height) is Fit.MEETS_MINIMUM
 
-    def _below_floor(self, image: CandidateImage) -> bool:
+    def _below_minimum(self, image: CandidateImage) -> bool:
         """Whether this instance is too small to be selected without being asked for.
 
-        Answers `False` when no artwork box was configured, which is the same
-        thing `selection.best` does with no box: a deployment that has not said
-        how big its wall is has not stated a floor either, and inventing one here
-        would withhold instances against a rule nobody wrote.
+        Answers `False` when no profile was configured, which is the same thing
+        `selection.best` does with none: inventing a minimum here would withhold
+        instances against a rule nobody wrote.
         """
-        return self._artwork_box is not None and selection.below_floor(image, self._artwork_box)
+        return self._profile is not None and selection.below_minimum(image, self._profile)
 
     def _select(self, image: CandidateImage, *, rationale: str | None) -> CandidateImage:
         """Make one instance the selected one, standing every other one down."""

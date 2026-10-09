@@ -4,9 +4,9 @@
  * § Component Patterns, Badges). A glyph is the signal that survives greyscale
  * and a dimmed room, so a reader learns it once: ● on a Work page and ● on the
  * Queue have to say the same thing. The word beside it carries the specifics
- * ("native", "the Get found an image", "on The wall"); the glyph carries only
- * the kind of state. Before this table each screen chose its own, and ◇ meant
- * "matted small", "cool" and "you chose" depending on where it was read.
+ * ("below minimum", "the Get found an image", "on The wall"); the glyph carries
+ * only the kind of state. Before this table each screen chose its own, and ◇
+ * meant three different things depending on where it was read.
  *
  * So a screen never writes a glyph literal: it names a meaning here, and
  * `tests/unit/test_glyphs_have_one_meaning.py` fails on a literal anywhere else and on two
@@ -16,7 +16,7 @@
  * `app.js`. Where one of them is also here it means the same thing (↻ Activity
  * and fetching; ◑ Wanted and wanted), and the test holds that overlap to those. */
 export const GLYPHS = Object.freeze({
-  // Present, fits, done, well: native, found, resolved, in your library, on a wall.
+  // Present, done, well: found, resolved, in your library, on a wall.
   good: "●",
   // Looked, and there is none: a source holding nothing, not held.
   none: "○",
@@ -30,11 +30,9 @@ export const GLYPHS = Object.freeze({
   paused: "‖",
   // Waiting on the curator's verdict.
   forReview: "◔",
-  // Went wrong, or falls short: failed, gave up, below the floor, unreachable,
+  // Went wrong, or falls short: failed, gave up, below the minimum, unreachable,
   // the Get found none, unwell.
   problem: "▲",
-  // Usable with a cost the curator should know: matted small.
-  caution: "◇",
   // Turned away: turned down, refused, archived, kept off every wall.
   refused: "⊘",
   // Affirmed: the curator said yes, or a source recorded the value.

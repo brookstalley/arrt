@@ -13,11 +13,12 @@ import httpx
 import pytest
 from fakes import FakeRegistry
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, RegistryUnavailable, WorkPage
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources import FetchLocator, LocatorKind, SourceContext, SourceParts, yale
 from arrt.library.sources.yale import PLUGIN, ObjectRef, YaleFinder, YaleReader, claims, object_ref
 from arrt.persistence.discovery_records import UnresolvedReason
@@ -128,7 +129,7 @@ def manifests_read(asked: list[httpx.Request]) -> list[str]:
     return [r.url.path for r in asked if r.url.host == "manifests.collections.yale.edu"]
 
 
-BOX = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 
 # -- claims ------------------------------------------------------------------------------
@@ -200,7 +201,7 @@ def test_the_page_as_the_item_spells_it_identifies_the_work_through_the_identity
     """
     spelled = "http://artgallery.yale.edu/collections/objects/12507/"
     registry = pages(spelled)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="The Night Café", artist="Vincent van Gogh", qid=NIGHT_CAFE_ITEM))
 
@@ -214,7 +215,7 @@ def test_the_page_as_the_item_spells_it_identifies_the_work_through_the_identity
 def test_another_artists_object_linked_by_mistake_is_refused_by_the_identity_check():
     """An item naming Rothko's page for a Hopper: the link stands, the artist does not."""
     registry = pages(ROTHKO_PAGE, qid=SUNLIGHT_ITEM)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Sunlight in a Cafeteria", artist="Edward Hopper", qid=SUNLIGHT_ITEM))
 

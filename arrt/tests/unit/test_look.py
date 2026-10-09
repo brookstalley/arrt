@@ -148,7 +148,7 @@ def build(services, settings, registry, clock):
             works=services.registry_works,
             discovery=services.discovery,
             pool=pool,
-            judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry),
+            judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry),
             # The plane's store directory, fetching from these finders, as the
             # plane's store fetches from the pool its looks ask.
             pictures=PictureStore(
@@ -512,7 +512,7 @@ def test_two_answers_judged_at_once_ask_the_registry_for_the_work_s_pages_once(s
 
     registry.pages_about = slowly
     pool = ImageSourcePool([Source()])
-    link = PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry).link(
+    link = PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry).link(
         ImageQuery(title="Tantra-Vision", qid=TANTRA)
     )
     answers: list[str | None] = []
@@ -675,7 +675,7 @@ def test_a_look_thread_that_never_starts_turns_its_row_unreachable(services, set
         works=services.registry_works,
         discovery=services.discovery,
         pool=pool,
-        judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry),
+        judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry),
         pictures=services.pictures,
         now=clock,
         spawn=cannot_start,
@@ -738,11 +738,11 @@ def test_no_registry_asks_nothing_and_says_why(services, store, settings, clock)
     pool = ImageSourcePool([smk])
     look = LookService(
         works=RegistryWorkService(
-            store, None, kept=KeptAnswers.in_memory(), wanted=services.discovery, box=settings.tv_artwork_box
+            store, None, kept=KeptAnswers.in_memory(), wanted=services.discovery, profile=settings.quality_profile
         ),
         discovery=services.discovery,
         pool=pool,
-        judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=None),
+        judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=None),
         pictures=services.pictures,
         now=clock,
     )

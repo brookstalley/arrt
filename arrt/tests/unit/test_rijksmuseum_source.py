@@ -17,11 +17,12 @@ import httpx
 import pytest
 from fakes import FakeRegistry
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import ItemId, WorkPage
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources import FetchLocator, LocatorKind, SourceContext, SourceParts, rijksmuseum
 from arrt.library.sources.rijksmuseum import PLUGIN, RijksmuseumFinder, RijksmuseumReader, claims, number_of
 from arrt.persistence.discovery_records import UnresolvedReason
@@ -162,7 +163,7 @@ def digital(stem: str) -> str:
     return fixture(f"visualitem_{stem}.json")["digitally_shown_by"][0]["id"]
 
 
-BOX = ArtworkBox(width=3840, height=2160, pixels_per_inch=104.9, floor_inches=12.0)
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 
 # -- claims ------------------------------------------------------------------------------
@@ -243,7 +244,7 @@ def test_the_record_as_the_item_spells_it_identifies_the_work_through_the_identi
     """Driven through phase 2, the caller that reads the link: a URL of the plugin's own spelling would not count."""
     spelled = "http://id.rijksmuseum.nl/200108369"
     registry = pages(spelled)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="The Milkmaid", artist="Johannes Vermeer", qid=MILKMAID_ITEM))
 
@@ -256,7 +257,7 @@ def test_the_record_as_the_item_spells_it_identifies_the_work_through_the_identi
 def test_another_artists_object_linked_by_mistake_is_refused_by_the_identity_check():
     """An item naming van der Elsken's photograph for a Hopper: the link stands, the artist does not."""
     registry = pages(ELSKEN, qid=OTHER_ITEM)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Nighthawks", artist="Edward Hopper", qid=OTHER_ITEM))
 
@@ -425,7 +426,7 @@ def test_an_attribution_written_in_parentheses_is_kept_where_evidence_would_be_d
 def test_an_attributed_work_is_refused_by_the_identity_check_as_not_certainly_the_masters():
     """Even on the page the item records: an attribution is another name than the master's."""
     registry = pages(SAMSON, qid=OTHER_ITEM)
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(registry)]), profile=PROFILE, registry=registry)
 
     resolution = engine.resolve(ImageQuery(title="Samson and Delilah", artist="Rembrandt van Rijn", qid=OTHER_ITEM))
 
@@ -560,7 +561,7 @@ def test_a_work_is_searched_for_by_its_title_and_maker_among_objects_with_an_ima
 def test_a_maker_with_accents_that_finds_nothing_is_asked_once_more_without_them_and_identity_accepts_it():
     """Driven through phase 2: the museum spells him "Isaac Israels", Wikidata "Isaac Israëls"."""
     asked: list[httpx.Request] = []
-    engine = PhaseTwoEngine(ImageSourcePool([a_finder(None, asked)]), box=BOX, registry=FakeRegistry())
+    engine = PhaseTwoEngine(ImageSourcePool([a_finder(None, asked)]), profile=PROFILE, registry=FakeRegistry())
 
     resolution = engine.resolve(ImageQuery(title="Two Young Women in the Snow", artist="Isaac Israëls"))
 

@@ -66,6 +66,56 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wave 4b — the quality profile replaces the artwork box in the Library
+
+<!-- prawduct: scope=wave-4b-master-quality -->
+
+**Why:** The second of wave 4's seven plans (`build-plan-wave-4b-master-quality.md`).
+The Library judged every scan against an artwork box worked out from one
+television's `TV_PANEL_*` and `MAT_*` settings, with a floor in inches. Wave 4
+takes screens out of the server, so the Library now judges against a quality
+profile that names no device: a minimum in pixels on the long edge. The owner
+ruled the two open behaviours on 2026-10-08: two badge states (none when a scan
+meets the minimum, "below minimum" when it does not), and the minimum as an
+environment setting with no Settings screen.
+
+**What:**
+- `QUALITY_MINIMUM_PX` (default 1,000, the owner's figure of 2026-10-06)
+  replaces `RESOLUTION_FLOOR_INCHES`. **`RESOLUTION_FLOOR_INCHES` is retired**: a
+  deployment still setting it starts normally and logs a WARNING naming it and
+  its replacement (`config.retired_setting`).
+- `library/services/quality.py` replaces `display_fit.py`: a `QualityProfile`
+  and a two-value verdict, `meets_minimum` or `below_minimum`, judged on the
+  long edge. Selection, discovery, the collection supplement, phase two, the
+  review card, the survey, the registry work page and the *Size* facet all take
+  the profile; no Library service receives an `ArtworkBox`, which now lives in
+  `compose.py` with width and height only, until 4g.
+- Phase two ranks meets-the-minimum above below-it, and within a band by the
+  long edge, level past the presentation master's 7,680 px cap.
+- **Breaking for MCP clients, announced in the tool tips:** `display_fit` and
+  `regenerate`'s `fit` take the new values; `renders_at_inches`,
+  `renders_at_pixels` and `rendered_long_edge_inches` are retired; a look
+  picture's `below_floor` is `below_minimum`; a listing row gains `size_px`.
+  On HTTP, `FitOut` is `{verdict}` alone, the `fit` filter takes the new bands
+  and refuses a retired one by name, and a look picture's `below_floor` is
+  `below_minimum`. The stored `unresolved_reason` value `below_floor` keeps its
+  spelling.
+- The browser: no badge for a scan that meets the minimum, anywhere; "below
+  minimum" for one that does not; the facet is *Size*, with *Meets minimum*,
+  *Below minimum* and *No size known*. The unused `caution` glyph is gone.
+- `regenerate` still warns when a work goes on the wall below the minimum.
+- Records: the cutoff is struck wherever it was still promised (`data-model.md`,
+  `nonfunctional-requirements.md`, `re-architecture.md`,
+  `information-architecture.md`, `procurement-corpus.md`, `project-state.yaml`),
+  and the API contract, operational spec, observability strategy and
+  `.env.example` describe the new setting.
+
+**Surfaced:** navigart serves at most 1,000 px, and its test expected that to
+fall below the floor, which held only against the 42" reference default (about
+1,260 px). On the owner's 50" deployment (11.34") the floor already cut at
+exactly 1,000 px, and the owner's minimum is inclusive, so nothing changes on
+the wall.
+
 ## 2026-10-08: Wave 4a — the major 2 contract settled
 
 <!-- prawduct: scope=wave-4a-contract -->

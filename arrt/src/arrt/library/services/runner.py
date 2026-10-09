@@ -415,7 +415,7 @@ def _round_robin(groups: Sequence[OfferedGroup]) -> Iterator[tuple[FoundImage, O
     same painting offered twice is two cards for one thing.
 
     Yields everything rather than stopping at a bound: the caller declines works
-    for reasons only it knows — below the floor, already in the run, suppressed —
+    for reasons only it knows — below the quality minimum, already in the run, suppressed —
     so a generator that counted its own yields would count the wrong thing.
     """
     queues = [list(group.works) for group in groups]
@@ -1178,15 +1178,15 @@ class DiscoveryRunner:
 
     def _offer_one(self, run_id: str, found: FoundImage, group: OfferedGroup, previews: PreviewCache) -> bool:
         """Record one offered work and the instance that is it. `False` if it was declined."""
-        if not self._discovery.clears_display_floor(width=found.estimated_width, height=found.estimated_height):
+        if not self._discovery.meets_quality_minimum(width=found.estimated_width, height=found.estimated_height):
             # Journalled like the other two declines, and for a stronger reason
-            # than symmetry: this is the systemic one. A single wrong artwork-box
-            # setting makes every browse result fall below the floor, and the
+            # than symmetry: this is the systemic one. A single wrong minimum
+            # makes every browse result fall below it, and the
             # supplement then offers nothing for ever while reporting only
             # `works_offered: 0` — a silence indistinguishable from a collection
             # that holds nothing.
             log.info(
-                "not offering a work that would render below the display floor",
+                "not offering a work below the quality minimum",
                 extra={
                     "event": "browse.below_floor",
                     "work_title": found.title,

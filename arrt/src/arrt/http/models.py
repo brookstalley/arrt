@@ -54,19 +54,15 @@ class ArtistOut(BaseModel):
 
 
 class FitOut(BaseModel):
-    """How the held master would meet the space it is rendered into.
+    """Whether a picture meets the Library's quality profile.
 
-    Derived on every read from this deployment's panel and mat, never stored: a
-    stored verdict is a judgement about one particular television.
+    Derived on every read from the picture's pixels and `QUALITY_MINIMUM_PX`,
+    never stored: the minimum is a deployment value. The picture's own size
+    travels beside this, where a curator reads it.
     """
 
-    #: `native`, `matted_small` or `below_floor`.
+    #: `meets_minimum` or `below_minimum`.
     verdict: str
-    rendered_width: int
-    rendered_height: int
-    #: The number a curator can actually judge — "would show at 8.6 inches". A
-    #: thumbnail cannot convey resolution, which is why this is not optional.
-    rendered_long_edge_inches: float
 
 
 class ImageOut(BaseModel):
@@ -260,7 +256,7 @@ class LookPictureOut(BaseModel):
     width: int | None
     height: int | None
     fit: FitOut
-    below_floor: bool
+    below_minimum: bool
     confidence: float
     rights_status: str | None
     #: Why phase 2 keeps it, in the words a review card uses, under the name a
@@ -600,8 +596,8 @@ class WorkPageOut(BaseModel):
     #: time, so there are tens of them. If that stops being true, so does the
     #: case for sending them whole with each page.
     themes: list[ThemeOptionOut] = []
-    #: *Size on the wall*: one option per fit band, always all four in the order
-    #: `native`, `matted_small`, `below_floor`, `unknown` (no master yet), each
+    #: *Size*: one option per fit band, always all three in the order
+    #: `meets_minimum`, `below_minimum`, `unknown` (no master yet), each
     #: counted over every other filter but the bands, as a facet is.
     fits: list[FacetOptionOut] = []
     #: *Not on any wall*: the works no wall plays now, through the theme or
@@ -1670,7 +1666,7 @@ class InstanceOut(BaseModel):
     confidence: float
     #: Whether this is the instance a verdict would accept on. Not the same
     #: question as whether it is the one pictured on the card — a work whose scans
-    #: are all below the floor or all turned down has no selection and is still
+    #: are all below the quality minimum or all turned down has no selection and is still
     #: shown, which is what `shown_is_on_offer` reports one level up.
     is_selected: bool
     #: Whether the curator has turned this scan down. A rejected instance stays on
@@ -1682,9 +1678,9 @@ class InstanceOut(BaseModel):
     selection_rationale: str | None
     #: The scan's own size in pixels, as its provider reported it, or null when
     #: nobody recorded it. What the browser shows a curator as the scan's
-    #: resolution: pixels are a fact about the scan, where the fit below is a
-    #: fact about the one panel this server is configured for. Each is null when
-    #: the provider did not report it, and `fit` is null whenever either is.
+    #: resolution, and the fit below says whether those pixels meet the quality
+    #: minimum. Each is null when the provider did not report it, and `fit` is
+    #: null whenever either is.
     width: int | None
     height: int | None
     fit: FitOut | None
@@ -1711,7 +1707,7 @@ class CandidateCardOut(BaseModel):
     #: `instances_held` and `instances_surviving` tell those two apart.
     shown: InstanceOut | None
     #: Whether the pictured instance is also the one a verdict would accept on. A
-    #: work with no selection still arrives pictured, because a below-floor scan
+    #: work with no selection still arrives pictured, because a below-minimum scan
     #: must be shown, labelled and selectable rather than hidden — and a card
     #: carrying no image because nothing was auto-selected would hide it.
     shown_is_on_offer: bool
@@ -1899,8 +1895,8 @@ class WantedWorkOut(BaseModel):
     #: because nothing was found. Counted from its scans, not stored.
     scans_turned_down: int
     #: The scan its review card pictures it by (`CandidateCardOut.shown`), or null
-    #: when nothing was found or every scan was turned down. Usually below the
-    #: floor, since a wanted work holds no scan the curator would accept.
+    #: when nothing was found or every scan was turned down. Usually below the quality
+    #: minimum, since a wanted work holds no scan the curator would accept.
     shown: InstanceOut | None = None
 
 

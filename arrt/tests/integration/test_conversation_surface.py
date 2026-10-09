@@ -82,7 +82,7 @@ def test_a_turn_shows_the_pictures_the_collection_holds(
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(collection=a_collection_holding(**{"Agnes Martin": ["Untitled No. 5", "Friendship"]})),

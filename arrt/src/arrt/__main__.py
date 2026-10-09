@@ -11,7 +11,7 @@ import uvicorn
 
 from arrt import art_root, logs
 from arrt.app import create_app
-from arrt.config import Settings
+from arrt.config import Settings, retired_settings_in
 from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.acquisition.service import AcquisitionSettings
@@ -209,17 +209,22 @@ def main(argv: Sequence[str] = ()) -> None:
         settings.rotation_interval_seconds,
         settings.rotation_shuffle,
     )
-    # The derived geometry as well as its inputs: whether a work is judged large
-    # enough for the wall depends on this box, and a wrong mat or floor is
-    # otherwise only visible as works being labelled oddly in the grid.
+    # The derived geometry as well as its inputs: where the mat ends depends on
+    # this box, and a wrong mat is otherwise only visible on the wall. The
+    # quality minimum beside it, because a wrong one is otherwise only visible
+    # as scans labelled oddly in the grid.
     log.info(
-        'artwork_box=%dx%dpx mat=%.2f" (bottom x%.2f) floor=%.1f"',
+        'artwork_box=%dx%dpx mat=%.2f" (bottom x%.2f) quality_minimum=%dpx',
         box.width,
         box.height,
         settings.mat_width_inches,
         settings.mat_bottom_weight,
-        settings.resolution_floor_inches,
+        settings.quality_minimum_px,
     )
+    # A setting this server no longer reads is named, once each, rather than
+    # left to look like one still in force.
+    for retired in retired_settings_in(os.environ):
+        log.warning(retired, extra={"event": "config.retired_setting"})
     # What discovery may spend and what it is priced at, on one line, because a
     # bounded estimate a curator authorises against is only as good as the
     # numbers behind it — and those are the ones most likely to be stale.
@@ -342,7 +347,7 @@ def main(argv: Sequence[str] = ()) -> None:
             ),
             label_units=settings.label_units,
             thumbnails=ThumbnailSettings(art_root=settings.art_root, directory=settings.thumbnails_path),
-            artwork_box=box,
+            quality_profile=settings.quality_profile,
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
             conversation_pricing=settings.conversation_pricing,
@@ -369,11 +374,10 @@ def main(argv: Sequence[str] = ()) -> None:
                 ready_path=settings.ready_path,
                 panel_width=settings.tv_panel_width_px,
                 panel_height=settings.tv_panel_height_px,
-                # The same object passed as `artwork_box` above, and passed twice
-                # on purpose rather than derived twice: it is *computed from* the
-                # panel dimensions on the line above it, so a second derivation
-                # here is the only way the canvas and the box could disagree
-                # about where the mat ends.
+                # The same object logged above, derived once: it is *computed
+                # from* the panel dimensions on the lines above it, so a second
+                # derivation here is the only way the canvas and the box could
+                # disagree about where the mat ends.
                 box=box,
             ),
             mat_engine=_mat_engine(settings),

@@ -130,14 +130,15 @@ class TestAWorkNotHeld:
 
         assert _fact(ui, "Size") == "117 × 162 cm (46.1 × 63.8 in)"
         size = ui.page.locator("#view .picture-size")
-        assert " ".join(size.inner_text().split()) == "6,000 × 4,400 px ● native"
+        # Meeting the minimum is not news, so no badge follows the pixels.
+        assert " ".join(size.inner_text().split()) == "6,000 × 4,400 px"
         assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Not held · Image found"
 
     def test_a_picture_too_small_for_the_wall_says_so(self, ui):
         ui.open("#work/Q10")
         ui.page.wait_for_selector("#view .picture-size")
 
-        assert " ".join(ui.page.locator("#view .picture-size").inner_text().split()) == "300 × 200 px ▲ below floor"
+        assert " ".join(ui.page.locator("#view .picture-size").inner_text().split()) == "300 × 200 px ▲ below minimum"
         assert _fact(ui, "Size") is None
 
     def test_with_one_dimension_and_no_picture_size_it_says_only_what_it_knows(self, ui):

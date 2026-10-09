@@ -1,4 +1,4 @@
-"""Artworks' clean-up facets: *Size on the wall* and *Not on any wall* (#288).
+"""Artworks' clean-up facets: *Size* and *Not on any wall* (#288).
 
 `build-plan-lists-settings-and-scale.md` Chunk 06. Both are counted by the
 server like the existing facets — each option's count is what choosing it
@@ -20,7 +20,6 @@ recorded, so "never hung" is not what it answers.
 import httpx
 import pytest
 
-from arrt.library.services.display_fit import assess_display_fit
 from arrt.library.services.survey import FIT_BANDS
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -31,15 +30,15 @@ from arrt.persistence.records import (
     VocabularyKind,
 )
 
-#: Three masters, each meant to land in its own band on the test deployment's
-#: box. The fixture asserts that they do, so a box that changed under the test
-#: fails there rather than making the counts below mean something else.
+#: Three masters, one meeting the test deployment's quality minimum and two
+#: below it. The fixture asserts that they do, so a minimum that changed under
+#: the test fails there rather than making the counts below mean something else.
 SIZES = {
     "A large scan": (12000, 8000),
-    "A middling scan": (1600, 1000),
+    "A middling scan": (900, 600),
     "A tiny scan": (120, 80),
 }
-EXPECTED = {"A large scan": "native", "A middling scan": "matted_small", "A tiny scan": "below_floor"}
+EXPECTED = {"A large scan": "meets_minimum", "A middling scan": "below_minimum", "A tiny scan": "below_minimum"}
 
 
 def _with_master(service, title, width, height):
@@ -68,11 +67,11 @@ def _with_master(service, title, width, height):
 
 @pytest.fixture
 def sized(seeded_service, settings):
-    """The three seeded works, which hold no master, and three that do, one per band."""
+    """The three seeded works, which hold no master, and three that do, across both bands."""
     works = {title: _with_master(seeded_service, title, *size) for title, size in SIZES.items()}
     for title, (width, height) in SIZES.items():
-        band = str(assess_display_fit(width=width, height=height, box=settings.tv_artwork_box).fit)
-        assert band == EXPECTED[title], f"{title} is {band} on this box, so the fixture no longer spans the bands"
+        band = str(settings.quality_profile.judge(width=width, height=height))
+        assert band == EXPECTED[title], f"{title} is {band} at this minimum, so the fixture no longer spans the bands"
     return works
 
 
@@ -90,33 +89,34 @@ def _titles(page):
     return sorted(work["title"] for work in page["works"])
 
 
-class TestSizeOnTheWall:
+class TestSize:
     def test_every_band_is_offered_in_order_and_counted(self, http, sized):
         page = http.get("/api/works").json()
 
         assert [option["value"] for option in page["fits"]] == list(FIT_BANDS)
         assert _fits(page) == {
-            "native": (1, False, False),
-            "matted_small": (1, False, False),
-            "below_floor": (1, False, False),
+            "meets_minimum": (1, False, False),
+            "below_minimum": (2, False, False),
             # The seeded three hold no master, and are a band of their own
             # rather than left out, so the bands add up to the works.
             "unknown": (3, False, False),
         }
 
     def test_a_band_narrows_the_works_and_its_own_counts_ignore_it(self, http, sized):
-        page = http.get("/api/works", params={"fit": "below_floor"}).json()
+        page = http.get("/api/works", params={"fit": "below_minimum"}).json()
 
-        assert _titles(page) == ["A tiny scan"]
-        assert page["total"] == 1
+        assert _titles(page) == ["A middling scan", "A tiny scan"]
+        assert page["total"] == 2
         # The other bands keep their counts, so the curator can change their mind.
-        assert _fits(page)["native"] == (1, False, False)
-        assert _fits(page)["below_floor"] == (1, True, False)
+        assert _fits(page)["meets_minimum"] == (1, False, False)
+        assert _fits(page)["below_minimum"] == (2, True, False)
 
     def test_two_bands_mean_either(self, http, sized):
-        page = http.get("/api/works", params=[("fit", "native"), ("fit", "matted_small")]).json()
+        page = http.get("/api/works", params=[("fit", "meets_minimum"), ("fit", "unknown")]).json()
 
-        assert _titles(page) == ["A large scan", "A middling scan"]
+        assert len(_titles(page)) == 4
+        assert "A large scan" in _titles(page)
+        assert "A tiny scan" not in _titles(page)
 
     def test_a_band_composes_with_the_search(self, http, sized):
         page = http.get("/api/works", params={"q": "scan", "fit": "unknown"}).json()
@@ -124,7 +124,7 @@ class TestSizeOnTheWall:
         # "scan" selects only works with a master, so no work is both.
         assert page["total"] == 0
         assert _fits(page)["unknown"] == (0, True, False)
-        assert _fits(page)["native"] == (1, False, False)
+        assert _fits(page)["meets_minimum"] == (1, False, False)
 
     def test_a_band_narrows_the_other_facets_counts(self, http, sized, seeded_service):
         for title in ("A large scan", "A tiny scan"):
@@ -132,16 +132,19 @@ class TestSizeOnTheWall:
                 artwork_id=sized[title].id, kind=VocabularyKind.MOVEMENT, value="Realism", derivation=FacetDerivation.INFERRED
             )
 
-        page = http.get("/api/works", params={"fit": "native"}).json()
+        page = http.get("/api/works", params={"fit": "meets_minimum"}).json()
 
         movement = next(group for group in page["facets"] if group["kind"] == "movement")
         assert {option["value"]: option["count"] for option in movement["options"]} == {"Realism": 1}
 
-    def test_an_unknown_band_is_refused_by_name(self, http, sized):
-        answer = http.get("/api/works", params={"fit": "huge"})
+    @pytest.mark.parametrize("band", ["huge", "matted_small", "native", "below_floor"])
+    def test_an_unknown_band_is_refused_by_name(self, http, sized, band):
+        """A retired band included: a bookmark from before the quality profile is
+        refused by name rather than read as no filter at all."""
+        answer = http.get("/api/works", params={"fit": band})
 
         assert answer.status_code == 400
-        assert "'huge'" in answer.json()["error"]
+        assert f"'{band}'" in answer.json()["error"]
 
 
 @pytest.fixture
@@ -189,12 +192,12 @@ class TestNotOnAnyWall:
         assert "A large scan" in _titles(page)
 
     def test_it_composes_with_a_band_both_ways(self, http, hung):
-        page = http.get("/api/works", params={"not_on_wall": "true", "fit": "native"}).json()
+        page = http.get("/api/works", params={"not_on_wall": "true", "fit": "meets_minimum"}).json()
 
-        # The only native work is on the wall.
+        # The only work meeting the minimum is on the wall.
         assert page["total"] == 0
-        assert _fits(page)["native"] == (0, True, False)
-        assert _fits(page)["below_floor"] == (1, False, False)
+        assert _fits(page)["meets_minimum"] == (0, True, False)
+        assert _fits(page)["below_minimum"] == (2, False, False)
         # And counted under the band, *Not on any wall* says it would select none.
         assert page["not_on_wall"]["count"] == 0
 
@@ -210,8 +213,9 @@ def test_select_all_by_a_clean_up_filter_acts_on_exactly_its_works(http, service
     target = services.display.add_theme(name="To look at")
 
     answer = http.post(
-        f"/api/themes/{target.id}/works/bulk", json={"filter": {"not_on_wall": True, "fit": ["native", "matted_small"]}}
+        f"/api/themes/{target.id}/works/bulk", json={"filter": {"not_on_wall": True, "fit": ["meets_minimum", "below_minimum"]}}
     )
 
-    assert answer.json() == {"added": 1, "already": 0}
-    assert services.display.theme_work_ids(target.id) == [sized["A middling scan"].id]
+    # The large scan is on the wall; the seeded three hold no master.
+    assert answer.json() == {"added": 2, "already": 0}
+    assert set(services.display.theme_work_ids(target.id)) == {sized["A middling scan"].id, sized["A tiny scan"].id}

@@ -346,7 +346,7 @@ class CatalogueStore(Protocol):
     def original_sizes(self) -> Mapping[str, tuple[int, int]]:
         """Every held master's pixel width and height, by work id, in one read.
 
-        For a count over thousands of works — Artworks' *Size on the wall*
+        For a count over thousands of works — Artworks' *Size*
         facet — where one `get_original` per work would be one statement each.
         """
         ...

@@ -37,10 +37,9 @@ from pathlib import Path
 from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
-from arrt.library.acquisition.compose import compose, layout
+from arrt.library.acquisition.compose import ArtworkBox, compose, layout
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import MatColor, MatMethod, RenditionKind
 from arrt.services.errors import ServiceError
@@ -74,10 +73,6 @@ class PreparationResult:
     mat_hex: str
     mat_method: str
     relative_path: str | None = None
-    #: How the original met the space it was rendered into, so a caller can say
-    #: "this is on the wall, and it is smaller than your floor" in one answer.
-    fit: DisplayFit | None = None
-    rendered_long_edge_inches: float | None = None
     #: What the mat choice cost, zero when no model was asked. A curator
     #: authorising a re-render is entitled to know whether it spends anything.
     cost_usd: Decimal = Decimal(0)
@@ -102,9 +97,8 @@ class PreparationSettings:
     panel_width: int
     panel_height: int
     #: The region inside the mat, already composed from the panel and the mat in
-    #: inches. Taken rather than derived for the reason `display_fit` takes it:
-    #: one answer to "how big is the mat", computed where the deployment values
-    #: are resolved.
+    #: inches. Taken rather than derived so there is one answer to "how big is
+    #: the mat", computed where the deployment values are resolved.
     box: ArtworkBox
 
     def __post_init__(self) -> None:
@@ -267,8 +261,6 @@ class PreparationService:
             mat_hex=mat.hex_rgb,
             mat_method=mat.method.value,
             relative_path=relative,
-            fit=composition.fit,
-            rendered_long_edge_inches=composition.rendered_long_edge_inches,
             cost_usd=Decimal(0) if chosen is None else chosen.cost_usd,
             mat_fallback_detail=None if chosen is None else chosen.fallback_detail,
         )
@@ -314,8 +306,6 @@ class PreparationService:
             mat_hex=result.mat_hex,
             mat_method=result.mat_method,
             relative_path=result.relative_path,
-            fit=result.fit,
-            rendered_long_edge_inches=result.rendered_long_edge_inches,
             cost_usd=choice.cost_usd,
             mat_fallback_detail=choice.fallback_detail,
         )
