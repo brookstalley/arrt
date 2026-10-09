@@ -494,7 +494,7 @@ def load(environ: dict[str, str] | None = None) -> ClientSettings:
         if env.get(name):
             raise ConfigError(f"{name} is retired: {replaced_by}.")
 
-    cache_dir = Path(_require(env, "CACHE_DIR")).expanduser()
+    cache_dir = _absolute(_require(env, "CACHE_DIR"), "CACHE_DIR")
     return ClientSettings(
         server_url=_require(env, "SERVER_URL").rstrip("/"),
         client_token=_require(env, "CLIENT_TOKEN"),
@@ -525,7 +525,7 @@ def _frame(env: dict[str, str], cache_dir: Path) -> FrameSettings | None:
     return FrameSettings(
         tv_address=_require(env, "TV_ADDRESS"),
         tv_port=_int(env, "TV_PORT", 8002),
-        tv_token_file=Path(token_file).expanduser() if token_file else cache_dir / "token_file",
+        tv_token_file=_absolute(token_file, "TV_TOKEN_FILE") if token_file else cache_dir / "token_file",
         tv_client_name=env.get("TV_CLIENT_NAME") or DEFAULT_TV_CLIENT_NAME,
         latitude=_float(env, "LATITUDE", None),
         longitude=_float(env, "LONGITUDE", None),
@@ -561,6 +561,19 @@ def _require(env: dict[str, str], name: str) -> str:
     if not value:
         raise ConfigError(f"{name} is not set. Copy .env.example to .env and fill it in.")
     return value
+
+
+def _absolute(raw: str, name: str) -> Path:
+    """A path to the Player's own state, refused unless absolute once `~` is expanded.
+
+    A relative one resolves against the unit's working directory, which is inside
+    the checkout: a redeploy that removes a project directory would delete the
+    store and the television's pairing with it.
+    """
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        raise ConfigError(f"{name} must be an absolute path, not {raw!r}.")
+    return path
 
 
 def _int(env: dict[str, str], name: str, default: int | None) -> int:

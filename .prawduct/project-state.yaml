@@ -3512,7 +3512,7 @@ norm_health:
       display-independence: "Conforms; test_pull.py:251,271 test the cache claim. Interim condition (wave 3 retires the file channel) has fired; row still says Critic."
       library-programming-seam: "Rules 1, 2, 4: 0 violations. Rule 3: 2 cross-seam foreign keys (sqlite.py:320,349), equal to the inventory. Its trigger (store split, wave 3) was skipped when wave 3 shipped without it; no wave or issue now."
       heartbeat-contract: "Guard green. Filename half no longer crosses planes (Players POST); a third REPORTED_AT_KEY sits outside the guard."
-      tv-belongs-to-user: "0 power keys in arrt-player/src. Row's 'lands with Chunk 27' points at an abandoned chunk; no static guard."
+      tv-belongs-to-user: "0 power keys in postarr/src. Row's 'lands with Chunk 27' points at an abandoned chunk; no static guard."
       provider-enforced-spend: "0 application-side gates: halt_run_for_budget reached only from the provider's 403. OPENROUTER_API_KEY in .env.example with ceiling notes. Legacy ai.py OPENAI_KEY has none (wave 5)."
       wcag-aa-curation-ui: "0 failing pairs; text on --scrim since 2026-08-12 (app.css:957) is unchecked by the token test (hand-computed 4.95:1 / 7.11:1, passes)."
       epaper-label-legible: "Panel 0 violations, 192 tests green. Caption surface unbuilt; HDMI walls now ship with no label. Tracking ref is a doc section the stalled-transition probe cannot watch."

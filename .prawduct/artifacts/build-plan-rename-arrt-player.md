@@ -89,7 +89,7 @@ are the proof.
 
 ## Status
 
-- [ ] Chunk 01: Postarr → Arrt Player
+- [x] Chunk 01: Postarr → Arrt Player
 
 ### Chunk 01: Postarr → Arrt Player
 
@@ -131,8 +131,9 @@ are the proof.
      `arrt_player` module, then reverted.
 - **Measured 2026-10-08:** all three suites pass, with lint and format. The
   grep leaves only the lines recording the names: `re-architecture.md`'s
-  naming paragraph, wave-5 recipe and seam note, and `project-state.yaml`'s naming comment
-  and dated sweep. Roster: 71 tracked files under `postarr/`, 71 renamed into
+  naming paragraph, wave-5 recipe and seam note, `product-brief.md`'s naming
+  paragraph, and `project-state.yaml`'s naming comment and dated sweep. This
+  chunk's own text names `postarr/` as what was moved, which is why it stays. Roster: 71 tracked files under `postarr/`, 71 renamed into
   `arrt-player/`, none added or deleted. Prefix: one unanchored
   `startswith("arrt")`, in `arrt/tests/contract/test_player_surface.py`, left
   because it filters only the server's own process. The isolation test failed

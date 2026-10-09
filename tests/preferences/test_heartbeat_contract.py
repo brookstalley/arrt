@@ -47,7 +47,7 @@ SCHEMAS = REPOSITORY_ROOT / "contract" / "schemas"
 
 #: Every declaration both planes make separately and must spell identically, as
 #: `(constant, display's copy, curation's copy)`. The Player writes both bodies'
-#: key from one constant (`arrt-player/heartbeat.py`), and Arrt reads each body with
+#: key from one constant (`arrt_player/heartbeat.py`), and Arrt reads each body with
 #: its own, so each of Arrt's copies is compared with the Player's.
 SHARED_CONSTANTS = (
     ("REPORTED_AT_KEY", WRITER, READER),

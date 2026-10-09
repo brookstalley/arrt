@@ -211,12 +211,18 @@ one is removed and the new directory gets a fresh one. That also clears the
     sudo systemctl stop display.service
     cd /opt/samsung-frame-art-loader
     sudo -u tvpi git rev-parse HEAD    # write this down: "To go back" returns to it
+    # Both must start with / or ~. A relative one lives inside postarr/, so move
+    # it out and make it absolute in .env before going on; the Player now refuses
+    # to start on a relative one.
+    grep -nE '^(CACHE_DIR|TV_TOKEN_FILE)=' .env
+    grep -n postarr .env    # any hit names the old path: edit it
     sudo -u tvpi git pull
     # git moves the tracked files; postarr/ keeps only what was untracked.
-    # Expect nothing but .venv and caches before removing it:
-    ls -A postarr
+    # Lists every file left in it that is not a venv, a cache or bytecode.
+    # It must print nothing; stop if it prints anything:
+    find postarr -type f -not -path '*/.venv/*' -not -path '*/__pycache__/*' \
+        -not -path '*/.pytest_cache/*' -not -path '*/.ruff_cache/*' -not -path '*/.hypothesis/*'
     sudo rm -rf postarr
-    grep -n postarr .env    # any hit names the old path: edit it
     cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     cd /opt/samsung-frame-art-loader
     sudo cp deploy/display.service /etc/systemd/system/
@@ -225,7 +231,7 @@ one is removed and the new directory gets a fresh one. That also clears the
 
 Logger names now start `arrt_player.`, so a saved journal filter on `postarr.`
 stops matching. **To go back**, stop the unit, check out the commit you wrote
-down, remove `arrt-player/`, `uv sync` in `postarr/`, copy that commit's
+down, remove `arrt-player/`, run `uv sync --group raster --group epaper` in `postarr/`, copy that commit's
 `display.service` in, reload and start.
 
 ## The panel's GPIO package (2026-10-08, #181)
