@@ -18,6 +18,8 @@ SEARCH = {
     ],
 }
 
+MORE = {"success": True, "works": [{"qid": "Q175036", "title": "Guernica", "creators": [], "held_artwork_ids": []}]}
+
 
 def outcome(answer: str, *payloads: dict) -> Outcome:
     calls = [Call("art_discovery", "search", True, payload) for payload in payloads]
@@ -63,3 +65,15 @@ def test_a_run_naming_an_invented_item_has_not_passed_whatever_its_check_says():
 
     assert CHECK["taste_exclusions"](found) is None
     assert passed(found, None) is False
+
+
+def test_three_gettable_works_pass_and_held_ones_do_not_count():
+    found = score(outcome("[Q3567592] [Q4000955] [Q25729]", SEARCH))
+
+    assert "offered 2 gettable works" in CHECK["early_dali"](found)
+    assert CHECK["early_dali"](score(outcome("[Q3567592] [Q4000955] [Q25729] [Q175036]", SEARCH, MORE))) is None
+
+
+def test_the_held_request_passes_only_on_naming_the_held_work():
+    assert CHECK["held_dali"](score(outcome("You hold The Persistence of Memory [Q25729].", SEARCH))) is None
+    assert "Persistence of Memory" in CHECK["held_dali"](score(outcome("You hold nothing of his.", SEARCH)))

@@ -115,7 +115,7 @@ and a wider tool set are later waves, each with its own plan when it starts.
 ## Status
 
 - [x] Chunk 01: The requirements say what the owner ruled
-- [ ] Chunk 02: Measure cheap models on Ask-shaped requests
+- [x] Chunk 02: Measure cheap models on Ask-shaped requests
 - [ ] Chunk 03: Ask is one thread with an agent in it
 - [ ] Chunk 04: Retire the conversation, the direct box and the commit seam
 
