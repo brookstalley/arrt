@@ -607,7 +607,8 @@ product_definition:
     # will be Curatarr, the device side playback will be Displayarr." The same
     # day the operator renamed the player Arrt. On 2026-10-01, under a hard
     # requirement, the operator renamed both: the server Arrt and the player
-    # Arrt Player. This repo
+    # Postarr. On 2026-10-08 the owner renamed the player Arrt Player (#311),
+    # the Plex and Jellyfin convention of a client carrying its server's name. This repo
     # holds both until the wave 5 split, when it becomes Arrt alone.
     name: "Arrt and Arrt Player"
     personality: >

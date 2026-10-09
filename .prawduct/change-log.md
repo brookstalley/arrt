@@ -90,6 +90,11 @@ It lands before wave 4, which adds most of the Player's new modules.
   history now spans four paths, so pass 2 adds `postarr/` and `arrt-player/`.
   Pass 1 is unchanged, because its `b"arrt/"` prefix does not match
   `arrt-player/`. The new repository is `arrt-player`.
+- One behaviour change, from the boundary review: the Player refuses to start on
+  a relative `CACHE_DIR` or `TV_TOKEN_FILE` (a leading `~` is expanded first).
+  The Pi's rename steps delete the old checkout directory, and a relative cache
+  resolved inside it would have taken the store and the TV pairing with it.
+  `.env.example` says both must be absolute.
 
 **Left as written:** archived plans, `change-log-archive/`, earlier entries
 here, the dated `operator-verification.md` entries, the live plans whose chunks

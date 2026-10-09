@@ -14,7 +14,7 @@ governed_by:
       - "the mechanical norm-index rows (formatting, naming, imports) → conforms: every renamed import is re-sorted by ruff, and each plane's lint and format run"
   - artifact: nonfunctional-requirements
     dispositions:
-      - "the display plane never requires the curation plane to be reachable → inapplicable because: no behaviour changes; only names do"
+      - "the display plane never requires the curation plane to be reachable → conforms: the rename changes only names. The one behaviour change the review brought in, the Player refusing a relative CACHE_DIR or TV_TOKEN_FILE at startup, is a config refusal that reads no server"
 last_validated: null
 ---
 
