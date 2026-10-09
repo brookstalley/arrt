@@ -104,8 +104,12 @@ is written once, not once per loop.
   label modes, the majors asked for) for a display that knows its screen's
   size: an HDMI screen now, the Frame once its geometry moves to the Player.
 - **The contract:** `contract/fixtures/index.json` marks which invalid major 2
-  documents a Player must refuse, and `player-contract.md` § The cutover is
-  amended for a reader of two majors.
+  documents a Player must refuse. `player-contract.md` § The cutover is
+  amended for a reader of two majors, and gains a rule **the server must
+  honour when it retires a major (4e/4g): a heartbeat with no `capabilities`
+  counts as `manifest_majors: [1]`**, because a Frame wall writes none until
+  the Player owns its geometry. § Transport notes that the Player asks for
+  `v{major}`.
 
 **Deploying it:** no server change, and nothing to migrate. The Player now
 requests `…/manifest/v1`, which Arrt has served since wave 4a, so the server

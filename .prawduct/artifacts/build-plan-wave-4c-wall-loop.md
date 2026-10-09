@@ -102,14 +102,7 @@ step by step, before any code moves.
 - [x] Chunk 02: The major 2 reader and its schedule
 - [x] Chunk 03: Per-major requests and the heartbeat's capabilities
 
-Context: branched from develop after #334 (wave 4b). Chunk 01 committed as
-49269c52 after a `final` review with no blocking finding; its observations
-O-1, O-7, O-8 and O-9 (the screen's changed rules said nowhere, two log lines
-naming no wall) are fixed in the commit after it, which Chunk 02's review
-covers; O-2 to O-6 are accepted on the record. O-5's acceptance owes Chunk 02 a
-test that the schedule programme asks `may_attempt` and `is_ours` before it
-shows anything. Chunk 02 committed after a `chunk` review whose three blocking
-findings were fixed and verified in the same commit.
+Context: branched from develop after #334 (wave 4b).
 
 ### Chunk 01: One wall loop, a Frame driver and a screen driver
 

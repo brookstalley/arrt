@@ -451,16 +451,17 @@ upgraded on demand).
   rule for a major 1 reader; `build-plan-wave-4c-wall-loop.md` records the
   decision.)*
 - **For a home wall, the server serves each major it still builds and retires
-  one once no heartbeat lists it in `manifest_majors`.** **A heartbeat with no
-  `capabilities` counts as `manifest_majors: [1]`**: it is a Player from before
-  minor 2, which reads only major 1, or one whose display cannot yet say its
-  size (a Frame, until the Player owns its geometry), which since wave 4c asks
-  only for major 1. Reading its silence as "lists nothing" would let the server
-  retire the major that wall is running on. *(Added 2026-10-09, wave 4c.)* So wave 4 upgrades the
+  one once no heartbeat lists it in `manifest_majors`.** So wave 4 upgrades the
   Players first, and the server stops building major 1, and with it the
   composed render and the unversioned route, once every Player reports 2. A
   Player missed in the upgrade is visible before that, because its heartbeat
   lacks 2.
+- **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
+  a Player from before minor 2, which reads only major 1, or one whose display
+  cannot yet say its size (a Frame, until the Player owns its geometry), which
+  since wave 4c asks only for major 1. Reading its silence as "lists nothing"
+  would let the server retire the major that wall is running on. *(Added
+  2026-10-09, wave 4c.)*
 - **For a public channel, a major is retired by decision**, because nothing
   reports.
 
