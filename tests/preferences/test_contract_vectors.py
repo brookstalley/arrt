@@ -2,8 +2,9 @@
 
 `contract/vectors/` holds inputs and the outcome every Player must reach from
 them, wherever it runs: the mat's geometry for a screen, and what a feed says to
-show at an instant. Each Player's suite runs the same files against its own
-code. This file holds the **reference statement** of both rules, as
+show at an instant. Arrt Player's suite runs the same files against its own
+code once wave 4 builds the code they describe (its reader in 4c, its
+compositor in 4d); until then nothing in it reads them. This file holds the **reference statement** of both rules, as
 `semantic_errors` in `test_player_contract.py` is for the rules a schema cannot
 state, so a vector that disagrees with `player-contract.md` § Layout or § Time
 fails here before any Player is asked to match it.
@@ -21,9 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-from test_player_contract import semantic_errors
+from test_player_contract import _instant, _schema, _validator, semantic_errors
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 MAT = json.loads((CONTRACT / "vectors" / "mat-geometry.json").read_text(encoding="utf-8"))
@@ -66,10 +65,6 @@ def mat_geometry(case: dict) -> dict:
     return {"work": work, "mat": mat}
 
 
-def _instant(text: str) -> datetime:
-    return datetime.fromisoformat(text)
-
-
 def what_to_show(feed: dict, now: datetime) -> dict:
     """`player-contract.md` § Time and § Scenes: the work a feed says to show at `now`, or dark.
 
@@ -88,13 +83,6 @@ def what_to_show(feed: dict, now: datetime) -> dict:
         if _instant(slot["from"]) <= moved < _instant(slot["until"]):
             return {"work_id": slot["work_id"], "scene_id": None}
     return {"work_id": None, "scene_id": None}
-
-
-def _manifest_v2_validator() -> Draft202012Validator:
-    schemas = [json.loads(path.read_text(encoding="utf-8")) for path in (CONTRACT / "schemas").glob("*.json")]
-    registry = Registry().with_resources((schema["$id"], Resource.from_contents(schema)) for schema in schemas)
-    schema = next(schema for schema in schemas if schema["$id"].endswith("manifest.v2.schema.json"))
-    return Draft202012Validator(schema, registry=registry)
 
 
 @pytest.mark.parametrize("vector", MAT["vectors"], ids=lambda vector: vector["name"])
@@ -118,19 +106,21 @@ def test_each_mat_vector_keeps_the_work_inside_its_mat_and_the_screen(vector):
     assert work["width"] <= vector["input"]["work"]["width_px"] and work["height"] <= vector["input"]["work"]["height_px"]
 
 
-def test_the_mat_vectors_cover_every_mode_with_and_without_a_density():
-    seen = {(vector["input"]["mat_mode"], vector["input"].get("pixels_per_inch") is None) for vector in MAT["vectors"]}
+def test_the_mat_vectors_cover_every_mode_the_schema_names_with_and_without_a_density():
+    """Read from the schema, so a mode added there with no vector fails here."""
+    settings = _schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]
+    modes = settings["mat"]["properties"]["mode"]["enum"]
+    seen = {(vector["input"]["mat_mode"], vector["input"]["pixels_per_inch"] is None) for vector in MAT["vectors"]}
 
-    assert {"proportional", "full"} <= {mode for mode, _ in seen}
-    assert ("proportional", True) in seen and ("proportional", False) in seen
-    assert ("none", False) in seen or ("none", True) in seen
+    for mode in modes:
+        assert (mode, True) in seen and (mode, False) in seen, mode
 
 
 @pytest.mark.parametrize("name", sorted(SCHEDULE["feeds"]))
 def test_each_schedule_feed_is_a_valid_major_2_document(name):
     feed = SCHEDULE["feeds"][name]
 
-    assert [error.message for error in _manifest_v2_validator().iter_errors(feed)] == []
+    assert [error.message for error in _validator("schemas/manifest.v2.schema.json").iter_errors(feed)] == []
     assert semantic_errors(feed) == []
 
 

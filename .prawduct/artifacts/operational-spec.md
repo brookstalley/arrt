@@ -425,6 +425,13 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 > Player running it is exactly the "device drawing its label into the mat area"
 > the `EPD_MARGIN_PX` note above anticipated.
 >
+> *(2026-10-08, pointer only: `feeds-and-players.md` ruling 7 made the mat's
+> width the client's, so `MAT_*` moves to the Player's configuration with
+> `TV_PANEL_*` rather than becoming a wall setting; the manifest carries only the
+> mat's mode. The label mode's values are `none`, `caption` and `overlay`, a
+> label on its own surface being a label output. `player-contract.md`
+> § Presentation settings.)*
+>
 > In wave 2 the shared `.env` stops being shared. The Player gains the server's
 > base URL and a cache directory, and keeps the `WALL_ID` it already has.
 > *(2026-10-02, `clients.md`: the Player is now a client. It holds

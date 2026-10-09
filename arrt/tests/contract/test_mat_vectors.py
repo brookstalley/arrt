@@ -32,7 +32,9 @@ DRAWN_HERE = [
     if vector["input"]["mat_mode"] == "proportional" and vector["input"]["pixels_per_inch"] is not None
 ]
 
-#: Image libraries round a fitted size differently, which the vectors allow.
+#: The spec rounds a half up; this compositor rounds through Python's `round`,
+#: which takes a half to even, and Pillow fits a thumbnail with its own rounding.
+#: The vectors allow a pixel for that.
 _TOLERANCE_PX = 1
 
 

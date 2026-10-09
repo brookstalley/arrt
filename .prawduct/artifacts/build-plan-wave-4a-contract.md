@@ -143,7 +143,9 @@ are recorded in the artifacts on this branch, committed with this plan.
   known), output (the work's rectangle and the mat's rectangle). Cases: each
   mode; with density (the inch rule) and without (6% of the shorter side, bottom
   weighted the same); a work smaller than its box (no upscaling); portrait,
-  landscape, square, and a work of the screen's own shape. **Schedule vectors:**
+  landscape, square, and a work of the box's own shape (the shape whose
+  `proportional` mat meets every edge, which a work of the screen's shape does
+  not, because the bottom margin is the deeper one). **Schedule vectors:**
   (feed, now) → the work to show, or dark, or the scene's work: inside a slot, in
   a gap, after the horizon (replay by one and by two horizons), across the
   clock-change fixture, a scene active, a scene expired, a held scene.
