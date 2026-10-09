@@ -17,7 +17,8 @@ import { agree, agreePartitive, counted } from "../core/counting.js";
 import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
-import { reviewSection } from "../core/reviewing.js";
+import { museumName } from "../core/providers.js";
+import { reviewSection, rowPicture } from "../core/reviewing.js";
 import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
 import { dollars, tierMark } from "../core/spend.js";
@@ -82,17 +83,10 @@ export function runSentence(view) {
         ? `This Get finished: ${tally.resolved} of the ${counted(tally.total, "work")} it covers ${agreePartitive(tally.resolved, tally.total, "has", "have")} an image.`
         : run.kind === "get"
           ? `This Get finished: ${tally.resolved} of the ${counted(tally.chosen, "work")} you chose ${agreePartitive(tally.resolved, tally.chosen, "has", "have")} an image.`
-          : `This Get finished: ${tally.resolved_proposals} of ${counted(tally.proposed, "work")} it was asked for ${agreePartitive(tally.resolved_proposals, tally.proposed, "has", "have")} an image.`;
-    if (run.kind === "discovery" && tally.offered) {
-      // "found no image for" rather than "could not confirm". The run did name
-      // works for those artists — they are in the table directly below this
-      // sentence, badged `not held` — so a word that reads as "named nothing for"
-      // is denied by the screen it is printed on. That was issue #95 on the
-      // review grid, and it lived here too: the same claim, one surface over, on
-      // the page a curator lands on first.
-      sentence += ` Separately, the collection offered ${counted(tally.offered, "more work", "more works")} by artists this Get found no image for. They are labelled below and are not what was asked for.`;
-    }
-    if (tally.unresolved) {
+          : // A Get from words says its figures as three counts under this line
+            // (`runCounts`), each named, so no two are read as one.
+            "This Get finished.";
+    if (tally.unresolved && run.kind !== "discovery") {
       sentence += ` ${tally.unresolved} could not be matched to any image and ${agree(tally.unresolved, "is", "are")} reported rather than dropped — each says which kind of nothing below.`;
     }
     if (tally.pending) {
@@ -152,6 +146,75 @@ export const RUN_POLL_MS = 2000;
  * that will never exist every two seconds for as long as the tab stays open. */
 export const RUN_POLL_MAX_FAILURES = 5;
 
+
+/* A run's works in sections: the ones it was asked for, then the ones a
+ * museum offered on top of them, under that museum's name, one section per
+ * museum. Every row carries the picture found for it.
+ *
+ * The asked-for rows say why the run named each work, which is what a curator
+ * judges a list by. The offered rows do not: the run named none of them, and
+ * their heading says so once. Which museum offered a work
+ * is the server's record of it (`offered_by`), never the museum of the scan it
+ * shows now, which can be another museum's once the first is turned down; an
+ * offer recorded before that was kept sits under "the collection". */
+function worksBySource(works, reviewPage) {
+  const cards = new Map((reviewPage ? reviewPage.works : []).map((card) => [card.work.work_id, card]));
+  const asked = works.filter((work) => work.provenance !== "offered");
+  const offeredBy = new Map();
+  for (const work of works.filter((each) => each.provenance === "offered")) {
+    const museum = work.offered_by ? museumName(work.offered_by) : "the collection";
+    if (!offeredBy.has(museum)) offeredBy.set(museum, []);
+    offeredBy.get(museum).push(work);
+  }
+  const rowOf = (work) => [rowPicture(cards.get(work.work_id), work, reviewPage !== null), work.title, work.artist || "—", el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)])];
+  const sections = [];
+  if (asked.length) {
+    sections.push(
+      el("section", { class: "asked-for" }, [
+        el("h3", { text: `Asked for (${asked.length})` }),
+        table(
+          "The works this Get was asked for, each with the picture found for it and why the run named it.",
+          ["Picture", "Title", "Artist", "Image", "Why it is here"],
+          asked.map((work) => [...rowOf(work), work.rationale]),
+          { stacked: true },
+        ),
+      ]),
+    );
+  }
+  for (const [museum, offered] of offeredBy) {
+    sections.push(
+      el("section", { class: "offered" }, [
+        el("h3", { text: `Also offered by ${museum} (${offered.length})` }),
+        table(
+          `Works ${museum} offered on top of the ones asked for, each with its picture.`,
+          ["Picture", "Title", "Artist", "Image"],
+          offered.map(rowOf),
+          { stacked: true },
+        ),
+      ]),
+    );
+  }
+  return sections;
+}
+
+/* A finished Get from words, as three counts: how many works it was asked
+ * for, how many of those were found with an image, and how many could not be
+ * matched to one. Offered works are not among them; they are listed under the
+ * museum that offered them. Null for any other run, whose sentence carries its
+ * own figures. */
+function runCounts(view) {
+  if (view.run.kind !== "discovery" || view.run.status !== "completed") return null;
+  const list = facts([
+    ["Asked for", view.tally.proposed],
+    ["Found with an image", view.tally.resolved_proposals],
+    // Counted here over the works asked for: the tally's `unresolved` is over
+    // every work, and an offered work turned down and searched again in vain
+    // would otherwise make the three counts disagree.
+    ["Not matched", view.works.filter((work) => work.provenance === "proposed" && work.resolution_status === "unresolved").length],
+  ]);
+  list.classList.add("run-counts");
+  return list;
+}
 /* Consecutive failures for the run currently being watched.
  *
  * Keyed by run id rather than by poll generation, though the issue that produced
@@ -303,14 +366,16 @@ export async function viewRun(runId, generation) {
     if (!pollIsCurrent(pollGeneration)) return;
   }
 
-  /* A Get's works as review cards, read only when the page is about to be
-   * painted, like the themes above. A failure is said where the cards would be
+  /* The works as review cards, read only when the page is about to be
+   * painted, like the themes above: a Get of chosen works is judged here as
+   * cards, and every other run's rows take their pictures and the museum that
+   * offered them from the same cards. A failure is said where the works would be
    * rather than thrown: the watch, the sentence and the costs are still worth
    * having, and a Get page that went blank because one listing failed would
    * hide that the Get itself is fine. */
   let reviewPage = null;
   let reviewProblem = null;
-  if (run.kind === "get" && view.works.length) {
+  if (view.works.length) {
     try {
       reviewPage = await fetchAllCandidates(runId);
     } catch (failure) {
@@ -375,6 +440,7 @@ export async function viewRun(runId, generation) {
     el("h1", { text: runTitle(run) }),
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
+      runCounts(view),
       // Why the worker ended it, in its own words, under the sentence saying
       // what that ending means. Text, never markup: a halt's reason quotes the
       // provider.
@@ -444,61 +510,22 @@ export async function viewRun(runId, generation) {
       view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
     ]);
     panels.push(section);
-  } else panels.push(
-    el("div", { class: "panel" }, [
-      el("h2", { text: `Works (${tally.total})` }),
-      // The way from watching a run to judging what it brought back. Offered
-      // only once the run holds works: a button onto an empty grid is a promise
-      // the next screen cannot keep.
-      view.works.length
-        ? el("p", {}, [
-            link({ view: "review", id: runId }, { class: "action", text: "Review these works" }),
-          ])
-        : null,
-      el("p", {
-        class: "muted",
-        // Both counts, always, including when the collection offered nothing —
-        // a line that appeared only when there was a supplement would train a
-        // reader to read its absence as "these are all what I asked for".
-        text: `${tally.proposed} asked for, ${tally.offered} offered by the collection on top of them.`,
-      }),
-      view.works.length
-        ? table(
-            "Every work this Get holds, asked-for and offered together. The counts above say how many of each.",
-            // NO PROVENANCE COLUMN, and its removal is the fix rather than a
-            // simplification. It was headed "Where it came from" and meant *how
-            // this row entered the run* — named by the model, or volunteered by
-            // a wired collection. In an art catalogue that phrase reads as the
-            // work's own provenance: which museum holds it. On the one screen
-            // where a curator is scanning titles and artists, the heading
-            // pointed at the wrong fact entirely.
-            //
-            // Renaming it was the obvious repair and the wrong one. The
-            // distinction is real and load-bearing — a curator authorised a list
-            // of a stated size and the supplement adds to it — but this table is
-            // the fourth place it is stated, after the tally's separate counts,
-            // the run sentence, and the line directly above these rows. What it
-            // adds per row is which *particular* work was offered, and nothing
-            // on this screen is decided per work: the deciding happens on the
-            // review card, where the badge stays.
-            // "Why it is here", not "Why the run named it". This table is
-            // deliberately every work the run holds, asked-for and offered
-            // together — and the run named none of the offered ones, whose cell
-            // in this very column now says so in as many words. A heading that
-            // asserts naming above a cell that denies it is the defect this whole
-            // change exists to remove, one column apart instead of one page.
-            ["Title", "Artist", "Image", "Why it is here"],
-            view.works.map((work) => [
-              work.title,
-              work.artist || "—",
-              el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)]),
-              work.rationale,
-            ]),
-            { stacked: true },
-          )
-        : el("p", { class: "muted", text: "This Get has not settled on any works yet." }),
-    ]),
-  );
+  } else
+    panels.push(
+      el("div", { class: "panel" }, [
+        el("h2", { text: `Works (${tally.total})` }),
+        // The way from watching a run to judging what it brought back. Offered
+        // only once the run holds works: a button onto an empty grid is a promise
+        // the next screen cannot keep.
+        view.works.length
+          ? el("p", {}, [link({ view: "review", id: runId }, { class: "action", text: "Review these works" })])
+          : null,
+        reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
+        ...(view.works.length
+          ? worksBySource(view.works, reviewPage)
+          : [el("p", { class: "muted", text: "This Get has not settled on any works yet." })]),
+      ]),
+    );
 
   render(generation, ...panels);
   shownReview = { generation, section };

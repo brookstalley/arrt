@@ -21,10 +21,10 @@ import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
-import { el, guard, render } from "../core/render.js";
+import { captioned, el, guard, render } from "../core/render.js";
 import { backLink, go, link } from "../core/router.js";
 import { STATE_WORDS } from "../core/runs.js";
-import { askingCost, tierMark } from "../core/spend.js";
+import { COST_UNKNOWN, getCaption, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 import { REACTIONS, recordReaction } from "../core/taste.js";
 
@@ -125,7 +125,7 @@ async function turnEstimate(conversationId) {
 /* The tier beside a control that asks the model, or the words for its absence:
  * an unpriced control must not read as a free one. */
 function turnTier(estimate) {
-  return estimate ? tierMark(estimate.tier) : el("span", { class: "muted", text: "Cost unknown just now" });
+  return estimate ? tierMark(estimate.tier) : el("span", { class: "muted", text: COST_UNKNOWN });
 }
 
 export async function viewConversation(conversationId, generation) {
@@ -544,37 +544,29 @@ function commitCard(view, { run, runProblem, estimate, direction, conversationId
       el("p", { class: "muted", text: "This is what the Get would look for. Change it if it is not quite right." }),
       el("div", { class: "field" }, [el("label", { for: "direction", text: "Direction" }), intent]),
       el("div", { class: "row" }, [
-        el("button", {
-          class: "action primary",
-          type: "button",
-          text: "Get",
-          "aria-label": "Get this direction",
-          onclick: (event) =>
-            attempt(
-              event.currentTarget,
-              "start the Get",
-              () =>
-                api(`/api/conversations/${encodeURIComponent(conversationId)}/commit`, {
-                  method: "POST",
-                  body: JSON.stringify({ intent: intent.value }),
-                }),
-              // Painted, never navigated. This one line is the seam.
-              { then: (next) => repaint(next, { conversationId, generation }) },
-            ),
-        }),
-        // Unpriced when the estimate could not be read, which the note says.
-        estimate ? tierMark(estimate.tier) : null,
+        // Roughly what it costs under it, as on Ask, which starts the same Get.
+        captioned(
+          el("button", {
+            class: "action primary",
+            type: "button",
+            text: "Get",
+            "aria-label": "Get this direction",
+            onclick: (event) =>
+              attempt(
+                event.currentTarget,
+                "start the Get",
+                () =>
+                  api(`/api/conversations/${encodeURIComponent(conversationId)}/commit`, {
+                    method: "POST",
+                    body: JSON.stringify({ intent: intent.value }),
+                  }),
+                // Painted, never navigated. This one line is the seam.
+                { then: (next) => repaint(next, { conversationId, generation }) },
+              ),
+          }),
+          getCaption(estimate),
+        ),
       ]),
-      el("p", {
-        class: "muted act-note",
-        // Under the act it prices, as on Ask, which starts the same Get. Stated
-        // as a bound rather than a typical figure, because a search may freely
-        // use its whole allowance and an estimate it can exceed is not one. The
-        // absence of a price is said out loud rather than left blank.
-        text: estimate
-          ? askingCost(estimate)
-          : "The cost of this Get could not be read just now. Pressing Get still starts it.",
-      }),
     );
   } else {
     children.push(

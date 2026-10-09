@@ -130,16 +130,21 @@ def test_a_touch_screen_gets_44px_controls(browser, server_url, key):
         context.close()
 
 
-def test_a_cost_is_words_beside_its_act_not_a_box(ui):
+def test_ask_has_one_filled_act(ui):
+    """Get is the one filled act on Ask; Talk it through first is quiet."""
     _settled(ui, "discover")
-    mark = ui.page.locator("#view button:text-is('Get') + .badge-tier")
-    look = mark.evaluate("""(node) => {
-          const s = getComputedStyle(node);
-          return {border: s.borderTopStyle, background: s.backgroundColor, wrap: s.whiteSpace,
-                  label: node.textContent.replace(/\\s+/g, ' ').trim()};
-        }""")
-    assert look["border"] == "none"
-    assert look["background"] == "rgba(0, 0, 0, 0)"
-    assert look["label"].startswith("Cost: ")
-    # Kept whole: "Cost:" never wraps away from its tier in a narrow row.
-    assert look["wrap"] == "nowrap"
+    filled = ui.page.locator("#view .panel .action.primary")
+    assert filled.count() == 1
+    assert filled.inner_text().strip() == "Get"
+    talk = ui.page.locator("#view button:text-is('Talk it through first')")
+    assert "quiet" in talk.get_attribute("class")
+    # Explained in one line, tied to the button, and true: a turn is priced.
+    said = talk.evaluate("(b) => document.getElementById(b.getAttribute('aria-describedby')).textContent.trim()")
+    assert said == "Free to start; each reply shows its cost"
+
+
+def test_ask_does_not_link_taste(ui):
+    """Taste lives under Settings; Ask is for asking (owner, 2026-10-08)."""
+    _settled(ui, "discover")
+    assert ui.page.locator("#view a[href='#taste']").count() == 0
+    assert "thinks you like" not in ui.page.inner_text("#view")

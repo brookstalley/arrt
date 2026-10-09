@@ -8,7 +8,7 @@ all.
 """
 
 import pytest
-from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend, an_estimate
+from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend, an_estimate, an_instance
 
 from arrt.http.models import RunListOut
 from arrt.persistence.discovery_records import ResolutionStatus, RunStatus, UnresolvedReason, WorkProvenance
@@ -39,6 +39,8 @@ def at_the_gate(ui):
     repaint to cost them something.
     """
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate()]))
+    # The page reads the works' cards for their pictures, as it does for a real run.
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
     ui.serve("**/api/estimate?*", an_estimate())
     return ui
 
@@ -189,6 +191,7 @@ def test_leaving_the_run_view_stops_its_polling(at_the_gate):
 def a_finished_run(ui):
     """A run that has stopped, which is the only state that fetches the rollup."""
     ui.serve("**/api/estimate?*", an_estimate())
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
     ui.serve(
         f"**/api/runs/{RUN_ID}",
         a_run_view(
@@ -538,7 +541,14 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
     together would have removed the fact rather than the fourth copy of it.
     """
     ui.serve("**/api/estimate?*", an_estimate())
-    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate()]))
+    offered = a_candidate(
+        work_id="gift",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=2,
+    )
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate(), offered]))
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(), a_card(work=offered)]))
 
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
@@ -549,8 +559,9 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
         "the offered/asked-for distinction must survive its per-row copy being removed — "
         "it is what tells a curator the list is longer than the one they authorised"
     )
-    assert "asked for" in text, why
-    assert "offered by the collection" in text, why
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Asked for (1)" in headings, why
+    assert "Also offered by Art Institute of Chicago (1)" in headings, why
 
 
 def test_the_review_card_still_says_which_works_were_offered(ui):
@@ -593,16 +604,12 @@ def test_the_run_sentence_agrees_with_itself_at_a_count_of_one(ui):
         resolution_status=ResolutionStatus.UNRESOLVED.value,
         unresolved_reason=UnresolvedReason.NOT_HELD.value,
     )
-    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
-    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[named]))
-    ui.open(f"#get/{RUN_ID}")
-    ui.page.wait_for_selector("table")
+    _a_finished_discovery(ui, [named], [a_card(work=named, shown=None)])
 
+    # Said as counts now, which carry no agreement to get wrong; the plural
+    # spellings stay asserted absent so a sentence creeping back is caught.
+    assert _counts(ui) == {"Asked for": "1", "Found with an image": "0", "Not matched": "1"}
     shown = ui.text()
-    assert "0 of 1 work it was asked for has an image" in shown
-    assert "1 could not be matched to any image and is reported" in shown
-    # The plural spellings of the very same clauses, so this fails on a partial
-    # fix rather than on the absence of the sentence entirely.
     assert "1 works" not in shown
     assert "and are reported" not in shown
 
@@ -628,7 +635,8 @@ def test_a_settled_work_list_of_one_says_so_in_the_singular(ui):
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [
-        ("discovery", "1 of 2 works it was asked for has an image"),
+        # A Get from words says counts, not this sentence
+        # (`test_a_finished_get_says_three_counts_rather_than_a_paragraph`).
         ("resolve", "1 of the 2 works it covers has an image"),
     ],
 )
@@ -778,13 +786,10 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     the defect standing exactly where a curator meets it first, while the records
     said it was gone.
 
-    "found no image for" is what all three surfaces say now. The third is the MCP
-    run summary, pinned by its own assertion in
-    `tests/unit/test_offered_works.py` — **not** by `test_surface_parity.py`,
-    which an earlier version of this docstring claimed: that module pins field
-    *names* and `_verdict_notice`, says nothing about `_run_notice`, and cannot
-    reach `app.js` at all, so no parity test can ever cover this particular
-    trio.
+    This page now says the offered works by a section heading naming the museum,
+    which makes no claim about the works asked for. The review grid and the MCP
+    run summary still say "found no image for"; the MCP one is pinned in
+    `tests/unit/test_offered_works.py`.
     """
     named = a_candidate(
         work_id="named",
@@ -799,16 +804,12 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
         offered_for_artist="Salvador Dalí",
         offered_artist_matched=25,
     )
-    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
-    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[named, offered]))
-    ui.open(f"#get/{RUN_ID}")
-    ui.page.wait_for_selector("table")
+    _a_finished_discovery(ui, [named, offered], [a_card(work=named, shown=None), a_card(work=offered)])
 
     shown = ui.text()
-    # Singular at a count of one. The first version of this assertion pinned
-    # "1 more works" — a test can hold a grammatical bug still just as firmly as
-    # it holds a behaviour, and this one did until a reviewer read the string.
-    assert "the collection offered 1 more work by artists this Get found no image for" in shown
+    # The offered work is said by its section's heading, which names the museum
+    # and denies nothing about the works asked for.
+    assert "Also offered by Art Institute of Chicago (1)" in shown
     assert "1 more works" not in shown
     assert "could not confirm" not in shown, "the run view still denies work it lists directly below"
 
@@ -818,9 +819,9 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     # `all_text_contents`, not `all_inner_texts`: the header cells carry
     # `text-transform: uppercase`, and inner_text returns what the transform
     # renders rather than what the client wrote.
-    headings = ui.page.locator("table th").all_text_contents()
+    headings = ui.page.locator("#view section.asked-for table th").all_text_contents()
     assert "Why it is here" in headings, headings
-    assert "Why the run named it" not in headings
+    assert "Why the run named it" not in ui.page.locator("table th").all_text_contents()
 
 
 # -- why a run ended ----------------------------------------------------------------
@@ -879,3 +880,197 @@ def test_a_reason_quoting_the_provider_reaches_the_page_as_text(ui):
 
     assert "Why it stopped: OpenRouter refused the call: <b>Key</b> limit exceeded." in shown
     assert ui.page.locator("#view b").count() == 0
+
+
+# -- a Get's page: asked for, and offered by whom ----------------------------------
+
+
+def _a_finished_discovery(ui, works, cards):
+    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works))
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page(cards, run=run))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.serve_image("**/api/candidate-images/**")
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view section.asked-for")
+
+
+def _counts(ui):
+    """The summary's counts, as label → figure."""
+    return ui.page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#view .run-counts dt')]
+              .map((dt) => [dt.textContent.trim(), dt.nextElementSibling.textContent.trim()]))""")
+
+
+def test_a_finished_get_says_three_counts_rather_than_a_paragraph(ui):
+    """Asked for, found with an image, not matched (`build-plan-get-and-review-clarity.md`)."""
+    found = a_candidate(work_id="found", title="The Persistence of Memory")
+    missing = [
+        a_candidate(
+            work_id=f"missing-{n}",
+            title=f"Lost {n}",
+            resolution_status=ResolutionStatus.UNRESOLVED.value,
+            unresolved_reason=UnresolvedReason.NOT_HELD.value,
+        )
+        for n in range(2)
+    ]
+    offered = a_candidate(
+        work_id="gift",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+    )
+    # An offered work turned down and searched again in vain: unresolved, but
+    # not one of the works asked for, so not among "Not matched".
+    offered_lost = a_candidate(
+        work_id="gift-lost",
+        title="Mae West Lips Sofa",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    works = [found, *missing, offered, offered_lost]
+    _a_finished_discovery(ui, works, [a_card(work=w) for w in works])
+
+    # Distinct figures, so a count read from the wrong tally field cannot pass.
+    assert _counts(ui) == {"Asked for": "3", "Found with an image": "1", "Not matched": "2"}
+    assert "it was asked for has an image" not in ui.text()
+    assert "Separately, the collection offered" not in ui.text()
+
+
+def test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason(ui):
+    asked = a_candidate(work_id="asked", title="The Persistence of Memory", rationale="The intent names melting clocks.")
+    by_artic = a_candidate(
+        work_id="gift-1",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        rationale="Offered by the collection, not proposed by the model: one of 25 works …",
+    )
+    by_met = a_candidate(
+        work_id="gift-2",
+        title="Mae West Lips Sofa",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=3,
+        offered_by="met",
+        rationale="Offered by the collection, not proposed by the model: one of 3 works …",
+    )
+    cards = [
+        a_card(work=asked),
+        a_card(work=by_artic, shown=an_instance(work_id="gift-1", image_id="img-artic", provider="artic")),
+        a_card(work=by_met, shown=an_instance(work_id="gift-2", image_id="img-met", provider="met")),
+    ]
+    _a_finished_discovery(ui, [asked, by_artic, by_met], cards)
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert headings == [
+        "Asked for (1)",
+        "Also offered by Art Institute of Chicago (1)",
+        "Also offered by Metropolitan Museum of Art (1)",
+    ]
+    asked_section = ui.page.locator("#view section.asked-for")
+    assert "Why it is here" in asked_section.locator("th").all_text_contents()
+    assert "The intent names melting clocks." in asked_section.inner_text()
+    for offered_section in ui.page.locator("#view section.offered").all():
+        assert "Why it is here" not in offered_section.locator("th").all_text_contents()
+    # The stored per-row sentence is gone with its column: the heading says it once.
+    assert "not proposed by the model" not in ui.text()
+    met = ui.page.locator("#view section.offered", has_text="Metropolitan Museum of Art")
+    assert "Mae West Lips Sofa" in met.inner_text()
+    assert "Lobster Telephone" not in met.inner_text()
+
+
+def test_each_row_shows_the_picture_found_for_it(ui):
+    found = a_candidate(work_id="found", title="The Persistence of Memory")
+    none = a_candidate(
+        work_id="none",
+        title="Lost",
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    cards = [a_card(work=found, shown=an_instance(work_id="found", image_id="img-found")), a_card(work=none, shown=None)]
+    _a_finished_discovery(ui, [found, none], cards)
+
+    rows = ui.page.locator("#view section.asked-for tbody tr")
+    first = rows.filter(has_text="The Persistence of Memory")
+    first.locator("img").wait_for()
+    assert "/api/candidate-images/img-found/preview" in first.locator("img").get_attribute("src")
+    assert first.locator("img").evaluate("(i) => i.complete && i.naturalWidth") > 0
+    lost = rows.filter(has_text="Lost")
+    assert lost.locator("img").count() == 0
+    assert "No image found" in lost.inner_text()
+
+
+@pytest.mark.parametrize(
+    ("cards_answer", "status", "said"),
+    [
+        ("fails", ResolutionStatus.RESOLVED.value, "Its picture could not be read just now."),
+        ("reads", ResolutionStatus.PENDING.value, "Still being looked for."),
+    ],
+)
+def test_a_row_without_a_picture_says_which_kind_of_nothing(ui, cards_answer, status, said):
+    work = a_candidate(work_id="w", title="The Persistence of Memory", resolution_status=status)
+    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[work]))
+    if cards_answer == "fails":
+        ui.serve(f"**/api/runs/{RUN_ID}/candidates*", [(500, {"detail": "down"})])
+    else:
+        ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(work=work, shown=None)], run=run))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view section.asked-for")
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    assert said in row.inner_text()
+    assert "No image found" not in row.inner_text()
+
+
+def test_a_row_s_picture_stays_small_on_a_phone(ui):
+    """Stacked into a card, a row's picture would otherwise fill the phone's width."""
+    found = a_candidate(work_id="found", title="The Persistence of Memory")
+    ui.page.set_viewport_size({"width": 390, "height": 844})
+    _a_finished_discovery(ui, [found], [a_card(work=found, shown=an_instance(work_id="found", image_id="img-found"))])
+
+    image = ui.page.locator("#view section.asked-for img")
+    image.wait_for()
+    width = image.evaluate("(i) => i.getBoundingClientRect().width")
+    rem = ui.page.evaluate("() => parseFloat(getComputedStyle(document.documentElement).fontSize)")
+    assert width <= 8 * rem + 0.5, f"{width}px wide on a 390px screen"
+
+
+def test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture_changes(ui):
+    """Its scan turned down and another museum's found: the offer is still the first museum's."""
+    gift = a_candidate(
+        work_id="gift",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        offered_by="artic",
+    )
+    asked = a_candidate(work_id="asked")
+    cards = [a_card(work=asked), a_card(work=gift, shown=an_instance(work_id="gift", image_id="img-met", provider="met"))]
+    _a_finished_discovery(ui, [asked, gift], cards)
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Also offered by Art Institute of Chicago (1)" in headings
+    assert not any("Metropolitan" in heading for heading in headings)
+
+
+def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection(ui):
+    gift = a_candidate(
+        work_id="gift",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        offered_by=None,
+    )
+    asked = a_candidate(work_id="asked")
+    _a_finished_discovery(ui, [asked, gift], [a_card(work=asked), a_card(work=gift)])
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Also offered by the collection (1)" in headings

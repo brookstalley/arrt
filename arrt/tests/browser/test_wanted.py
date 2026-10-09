@@ -54,6 +54,7 @@ def test_a_work_its_search_found_nothing_for_offers_want_and_forget_not_accept(u
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([nothing_found()]))
 
     ui.open(f"#review/{RUN_ID}")
+    ui.open_folds()
     ui.page.wait_for_selector("li.card button:text-is('Want')")
 
     buttons = ui.page.locator("li.card .row button").all_inner_texts()
@@ -89,6 +90,7 @@ def test_want_records_the_verdict_and_the_card_says_where_the_work_went(ui):
     requests = posted(ui, "/candidates/work-1/want")
 
     ui.open(f"#review/{RUN_ID}")
+    ui.open_folds()
     ui.page.click("li.card button:text-is('Want')")
     ui.page.wait_for_selector("li.card:has-text('It waits in Wanted')")
 
@@ -104,6 +106,7 @@ def test_forget_is_a_rejection(ui):
     requests = posted(ui, "/verdict")
 
     ui.open(f"#review/{RUN_ID}")
+    ui.open_folds()
     ui.page.click("li.card button:text-is('Forget')")
     ui.page.wait_for_function("() => document.querySelector('li.card .badge-rejected') !== null")
 

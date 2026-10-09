@@ -201,7 +201,7 @@ def test_retry_all_retries_every_work_of_a_cause_in_one_request_and_fetches_noth
         "refused": [{"reason": "The work has no source to acquire from.", "works": 1}],
     }
     assert {store.get_queued_acquisition(work.id).failures for work in gave_up} == {0}
-    assert all(store.get_original(work.id) is None for work in gave_up), "Retry all fetched in the request"
+    assert all(store.get_original(work.id) is None for work in gave_up), "a cause's Retry fetched in the request"
 
 
 def test_retry_all_on_a_cause_no_work_holds_is_refused_with_why(http, accepted):

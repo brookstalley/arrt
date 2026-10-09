@@ -603,7 +603,7 @@ def list_cause_works(
 
 @router.post("/acquisitions/causes/retry")
 def retry_failure_cause(request: Request, body: RetryCause) -> RetryCauseOut:
-    """Retry all: every work that failed for `cause`, in one request, fetching nothing in it.
+    """A cause's Retry (Queue's *Retry 3*): every work that failed for `cause`, in one request, fetching nothing in it.
 
     Each is put back in line as its own Retry would put it; one the queue
     refuses (no source, being fetched now) is counted under why, naming no work.
@@ -2454,6 +2454,7 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         provenance=str(work.provenance),
         offered_for_artist=work.offered_for_artist,
         offered_artist_matched=work.offered_artist_matched,
+        offered_by=work.offered_by,
         wikidata_qid=work.wikidata_qid,
         verdict=str(work.verdict),
         decided=work.verdict.is_terminal,

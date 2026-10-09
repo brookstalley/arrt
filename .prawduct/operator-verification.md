@@ -10,6 +10,30 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Get and review clarity: do Ask, a Get's page and Review read plainly? — added 2026-10-08
+
+**`build-plan-get-and-review-clarity.md`, all chunks.** Visual change: yes.
+
+Built against stubbed pages in the browser suite. The walk on the 2,000-work
+synthetic corpus (`.ux-walk/clarity-synthetic`) gave 84 captures across 21
+screens with no accessibility violations, console errors or dead ends, the
+same as before; it holds no Gets, so a Get's page and Review were seen only
+from stubbed pages. Not yet deployed.
+
+- **Ask:** Get is the one filled button, with "About $0.01" under it; *Talk it
+  through first* is quiet, with "Free to start; each reply shows its cost"
+  under it (your ruling said "a conversation is free", but every reply is a
+  priced model call, so the caption says what is true). No Taste link.
+- **A finished Get's page:** three counts in place of the paragraph; works
+  under *Asked for* and *Also offered by <museum>*, each row with its
+  picture; no reason column on offered rows.
+- **Review:** cards with a picture first; *N found no image* and *N decided*
+  folded at the end. Check especially whether a wanted work with no scan
+  belongs under *found no image*, where it now sits.
+- **Queue:** a failed group's button says *Retry 3*, or *Retry* for one.
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/clarity-deployed`.
+
 ### Wall label: does it still look amateur? — added 2026-10-08
 
 **`build-plan-wall-label.md`, all chunks.** Visual change: yes. This is the

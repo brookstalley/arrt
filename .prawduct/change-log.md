@@ -62,6 +62,187 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Get and review clarity: the boundary review's findings
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The cumulative review of the plan (`rev-20261009T000127Z-d99ef2f2`).
+
+**What:**
+- An offered work records which source offered it (`offered_by`, a new
+  nullable column, widened into older files), and a Get's page names the
+  museum from that. It had read the museum off the work's current scan, which
+  names the wrong museum once the offered scan is turned down and another
+  museum's found. An offer recorded before the column sits under "the
+  collection". The HTTP work and the MCP row carry it;
+  `data-model.md` and `api-contract.md` say so.
+- `COST_UNKNOWN` is said in one place; Ask logs why an estimate could not be
+  read; two comments in `run.js` say what the code does, not what it
+  replaced; the server's docstrings call Queue's control a cause's Retry; the
+  IA's per-screen table describes Ask and a Get's page as they are now.
+
+**Tests:** `test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture_changes`
+and `test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection`
+failed first; `test_an_offered_work_carries_which_query_produced_it_and_how_many_it_matched`
+asserts `offered_by`, and the proposed-work test asserts it null.
+`test_an_offered_work_arrives_saying_which_query_and_which_museum_offered_it`
+asserts the offer's facts through `/api/runs/{id}`, the route the page reads,
+and failed with `offered_by` dropped from the route. A commit-card
+assertion that could not fail (`"Get" in card`) is deleted; the caption test
+holds what it meant to.
+
+## 2026-10-08: Get and review clarity, chunk 04: Queue's Retry, and the walk
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** "Retry all" on one failure group read as retrying every failure on
+the page (`build-plan-get-and-review-clarity.md` chunk 04).
+
+**What:**
+- A failure group's button says how many it retries: *Retry 3*, or *Retry*
+  for a group of one. Its spoken name is "Retry the 3 works that failed:
+  <cause>". The line above the groups says each group's Retry puts its works
+  back in line. `information-architecture.md` and `api-contract.md` say so.
+- The walk was re-run on the synthetic corpus (`.ux-walk/clarity-synthetic`):
+  84 captures, 21 screens, no accessibility violations, console errors or
+  dead ends. The corpus holds no Gets, so a Get's page and Review were seen
+  from stubbed pages only. The owner's look at the whole plan is queued in
+  `operator-verification.md`.
+
+**Tests:** the two Queue tests that pressed *Retry all* now assert the label,
+*Retry* for one and *Retry 4* for four, and press it by that label. Both
+failed before the change.
+
+## 2026-10-08: Get and review clarity, chunk 03: Review
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The owner walked Review and found the cards to judge mixed in with
+cards that had no picture and cards already decided
+(`build-plan-get-and-review-clarity.md` chunk 03, owner's rulings of
+2026-10-08).
+
+**What:**
+- Review's cards still to judge come first, in the server's order. After them
+  one line, *N found no image*, folds the cards whose Get found none; it only
+  opens, onto the same cards with their *Want* and *Forget*. Last, one line,
+  *N decided*, folds the accepted and rejected cards. The same on a Get of
+  chosen works' page, which draws the same cards.
+- Folding happens when the page is drawn: a card decided now stays where the
+  curator's hand is until the next visit (the builder's call, so a verdict
+  never moves the card out from under the keyboard).
+- A page whose every card is folded says "Nothing here is left to judge by
+  its picture."
+- A Get still looking redraws its page every poll, so each card's place and
+  each fold's open state are read back from the section being replaced and
+  kept: a card decided there stays put, and an opened fold stays open (the
+  review caught both). Only a decision is held back: a card whose search
+  ends with nothing while the Get looks still folds (the next review caught
+  the first fix holding every card in place).
+- `information-architecture.md` § Review records the rule as the owner's, and
+  that the server's order already put works with an image first. The plan's
+  premise that it put named works first was wrong.
+
+**Tests:** `tests/browser/test_review_folds.py`, six tests, five watched
+failing first (the sixth, no fold lines on a page with nothing to fold,
+passed before as it must). Eleven tests about a decided or found-none card's
+own behaviour now open the folds first (`Ui.open_folds`), as a curator would;
+what each asserts about the card is unchanged.
+`test_a_card_decided_while_a_get_looks_stays_where_it_was` and
+`test_a_fold_opened_while_a_get_looks_stays_open` failed before the
+placement was carried across redraws;
+`test_a_card_whose_search_ends_with_nothing_folds_while_the_get_looks`
+failed against the first fix; the "nothing left to judge" sentence
+is tested present and absent.
+`test_a_discovery_run_s_page_is_unchanged` no longer asserts that the page
+never reads the cards, which chunk 02 changed on purpose (it reads them for
+the pictures). It asserts what it was for: a table, and no cards.
+
+## 2026-10-08: Get and review clarity, chunk 02: a Get's page
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The owner found a finished Get's page hard to read: one paragraph
+holding two different counts that are often the same number, and one table
+mixing the works asked for with works a museum volunteered, each offered row
+repeating a long stored sentence (`build-plan-get-and-review-clarity.md`
+chunk 02).
+
+**What:**
+- A finished Get from words says "This Get finished." and three counts:
+  *Asked for*, *Found with an image*, *Not matched*. The pending clause
+  ("could not be looked up at all…") still follows when there is one.
+- Its works are listed under *Asked for (N)*, with why the run named each,
+  then under *Also offered by <museum> (N)*, one section per museum, with no
+  reason column. Every row carries the picture found for it (`rowPicture`),
+  8rem wide at every width.
+- The page reads every run's review cards for the pictures, not only a Get
+  of chosen works'.
+- Chunk 01's review observations are fixed here: `design-direction.md` no
+  longer says the caption is centred; `captioned` sits above `render`'s doc
+  comment rather than inside it; `aboutCost` says "Cost unknown just now"
+  for a figure that is not one, and its zero and non-figure branches are
+  tested.
+- The review caught *Not matched* reading the tally's `unresolved`, which
+  counts offered works too: it now counts the unresolved works asked for. A
+  row with no picture says which kind of nothing: the cards could not be
+  read, the search is still running, or it found none.
+
+**Tests:** `test_a_finished_get_says_three_counts_rather_than_a_paragraph`
+(now with an offered work that ended unresolved),
+`test_a_row_without_a_picture_says_which_kind_of_nothing`,
+`test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason`,
+`test_each_row_shows_the_picture_found_for_it` and
+`test_a_row_s_picture_stays_small_on_a_phone` were watched failing first.
+Four tests pinned the paragraph and now pin what replaced it: the provenance
+test asserts the two section headings instead of the words "asked for" and
+"offered by the collection"; the count-of-one test asserts the counts; the
+singular-verb test keeps its re-search case and drops the discovery one,
+which no longer has a verb; the does-not-deny test asserts the museum
+heading instead of "the collection offered 1 more work". The run-view
+fixtures now stub the cards listing, as a real run has one.
+
+## 2026-10-08: Get and review clarity, chunk 01: Ask
+
+<!-- prawduct: scope=get-and-review-clarity -->
+
+**Why:** The owner walked Wall label and found Ask confusing: three acts of
+equal weight, a link to Taste among them, and a cost they could not place
+(`build-plan-get-and-review-clarity.md` chunk 01, with the owner's rulings
+of 2026-10-08).
+
+**What:**
+- Get is Ask's one filled act. Under it, a caption tied to it for a screen
+  reader says roughly what it costs, as an order of magnitude: "About $0.01",
+  "About $0.10", "About $1" (`aboutCost`, the nearest power of ten, never
+  below a cent). It replaces the "Cost: $" mark and the "This Get costs at
+  most …" sentence. A conversation's commit card, which starts the same Get,
+  says the same under its Get.
+- *Talk it through first* is quiet, with "Free to start; each reply shows its
+  cost" under it. The plan's ruling said "a conversation is free", but every
+  reply is a priced model call, so the caption says what is true (the
+  builder's wording).
+- Ask no longer links to Taste, which is under Settings.
+- Ask opens when the estimate cannot be read, and says "Cost unknown just
+  now" under Get. It used to fail the whole page.
+- `captioned` (core/render.js) and `.captioned` / `.act-caption` replace the
+  `.act-note` line; `askingCost` is gone.
+- `information-architecture.md` (Ask, Taste) and `design-direction.md`
+  (Cost, the caption) say so.
+
+**Tests:** `test_ask_says_about_what_a_get_costs_under_it` (six bounds),
+`test_ask_still_opens_when_the_estimate_cannot_be_read`,
+`test_ask_has_one_filled_act`, `test_ask_does_not_link_taste` and
+`test_the_commit_card_says_about_what_its_get_costs_under_it` were each
+watched failing first. Three tests are replaced because the owner's ruling
+replaced what they held: `test_asks_button_shows_its_tier_before_it_is_pressed`
+(the tier mark beside Get), `test_discover_offers_the_way_into_taste` (the
+Taste link; Taste's own route is still held by
+`test_taste_is_a_page_under_settings`), and the commit card's "costs at
+most" assertion. The tier mark's look, which the controls test checked on
+Ask, moves to `test_a_tier_mark_is_words_on_one_line_not_a_box` on a Get's
+Approve, where the mark still is.
+
 ## 2026-10-08: A label states dimensions in one system, rounded to whole units
 
 <!-- prawduct: scope=feature-label-units -->
@@ -312,6 +493,7 @@ failing with `newsreader/latin-normal.woff2` renamed: the face's status was
 `error`, and the served-font test got a 404. `test_component_rules.py`'s h1
 probe now reads `--text-3xl`. The contract is unchanged: one h1 size on every
 page; the size it names is what changed.
+
 ## 2026-10-08: A label is one panel refresh, not a clear and then a frame
 
 <!-- prawduct: scope=fix-epaper-single-refresh -->

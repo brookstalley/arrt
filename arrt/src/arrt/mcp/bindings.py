@@ -1862,6 +1862,7 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
         # prose was carrying, which is most of why they are facts now.
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        "offered_by": work.offered_by,
         # The item a chosen work was asked for by; null on proposed and offered works.
         "wikidata_qid": work.wikidata_qid,
         "verdict": str(work.verdict),

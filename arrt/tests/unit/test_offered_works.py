@@ -143,6 +143,10 @@ def test_an_offered_work_carries_which_query_produced_it_and_how_many_it_matched
     (gift,) = offered(services, run_id)
     assert gift.offered_for_artist == "Ellsworth Kelly"
     assert gift.offered_artist_matched == 400
+    # And which museum offered it, kept on the work: the scan it arrived with
+    # can be turned down and replaced by another museum's, which would then
+    # be credited with an offer it never made.
+    assert gift.offered_by == "artic"
     # Still marked as the collection's doing on the work itself, because a card
     # read out of its group must not read as something the model proposed.
     assert "collection" in gift.rationale.lower()
@@ -165,6 +169,7 @@ def test_a_proposed_work_claims_no_query_and_no_holdings_count(services, engine,
     for work in named:
         assert work.offered_for_artist is None
         assert work.offered_artist_matched is None
+        assert work.offered_by is None
 
 
 def test_an_offered_work_arrives_reviewable_rather_than_as_a_bare_title(services, engine, runner, collection):

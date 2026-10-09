@@ -770,14 +770,14 @@ class CauseWorksOut(BaseModel):
 
 
 class RefusedRetryOut(BaseModel):
-    """Why Retry all left some works where they were, naming no work, and how many."""
+    """Why a cause's Retry left some works where they were, naming no work, and how many."""
 
     reason: str
     works: int
 
 
 class RetryCauseOut(BaseModel):
-    """What Retry all did: how many works it put back in line, and why it refused any it did not."""
+    """What a cause's Retry did: how many works it put back in line, and why it refused any it did not."""
 
     cause: str
     retried: int
@@ -1475,6 +1475,10 @@ class CandidateWorkOut(BaseModel):
     #: two are meant to be read against each other.
     offered_for_artist: str | None
     offered_artist_matched: int | None
+    #: The source that offered an offered work, by provider id; null on any
+    #: other work, and on an offer recorded before it was kept. Not read off the
+    #: work's scans, which can be replaced by another museum's.
+    offered_by: str | None = None
     verdict: str
     #: Whether the verdict is final (`Verdict.is_terminal`): accepted or rejected.
     #: A decided work takes no second verdict and no change of scan, so the review
@@ -2098,7 +2102,7 @@ class StepDisplay(BaseModel):
 
 
 class RetryCause(BaseModel):
-    """Retry all: the cause, exactly as `/api/acquisitions/causes` words it."""
+    """A cause's Retry: the cause, exactly as `/api/acquisitions/causes` words it."""
 
     cause: str
 

@@ -1894,6 +1894,23 @@ details > summary {
   padding: var(--space-2) 0;
 }
 
+/* Review's fold lines: the cards with no picture to judge, then the decided
+   ones, each behind one line at the end. A rule above each, as every section
+   has, so the line reads as the start of something rather than a stray link. */
+details.fold {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+details.fold > summary {
+  font-size: var(--text-base);
+}
+
+details.fold[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
 /* Things stacked inside one table cell, closer than `.stack` sets them: a
    scan's pixels and its fit, or its two actions. Each is one statement about
    one scan, not two sections. */
@@ -2222,11 +2239,26 @@ button.action:disabled:hover {
   margin-top: var(--space-4);
 }
 
-/* A line under a row of acts that says what pressing costs or does. Close to
-   the row it explains, and small. */
-.row + .act-note {
-  margin: var(--space-2) 0 0;
+/* An act with one line under it that says what pressing costs or starts
+   (`captioned` in core/render.js). The line starts where its act starts, close
+   under it, small and muted, and kept whole, so it is read as that act's and
+   never as a second act beside it. A row of them is spaced wider than a row of
+   bare acts, so two captions never read as one sentence. */
+.captioned {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.row:has(> .captioned) {
+  column-gap: var(--space-6);
+}
+
+.act-caption {
+  color: var(--text-muted);
   font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold
@@ -2612,6 +2644,23 @@ dialog.confirm::backdrop {
 .wanted .wanted-picture .card-image {
   width: 8rem;
   border-radius: var(--radius-sm);
+}
+
+/* A Get's works: a picture in each row, the size Wanted's rows use, at every
+   width, so a phone's stacked row stays a row and not a poster. Each section
+   after the first starts a step below the table it follows. */
+.row-picture,
+.row-picture .card-image {
+  width: 8rem;
+}
+
+.row-picture .card-image {
+  border-radius: var(--radius-sm);
+}
+
+section.asked-for + section.offered,
+section.offered + section.offered {
+  margin-top: var(--space-6);
 }
 
 /* -- the Work page ------------------------------------------------------------

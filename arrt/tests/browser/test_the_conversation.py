@@ -193,14 +193,15 @@ def test_the_commit_card_agrees_with_itself_at_a_count_of_one(talking, status, e
 def test_the_commit_card_offers_a_direction_before_anything_is_committed(talking):
     open_thread(talking)
 
-    card = talking.page.inner_text("#commit-card")
     # The direction is in the field rather than in the card's text, because it is
     # editable: what would be searched for is the curator's decision, and a card
     # that only printed it would be asking them to approve something they cannot
     # change.
     assert talking.page.input_value("#direction") == "Agnes Martin"
-    # The bound, said as a bound. A price a search may exceed is not a price.
-    assert "This Get costs at most $" in card
+    # What the Get costs is said before it is pressed, under Get, as an order
+    # of magnitude rather than the bound (owner, 2026-10-08); what it says is
+    # `test_the_commit_card_says_about_what_its_get_costs_under_it`'s.
+    assert talking.page.locator("#commit-card .act-caption").count() == 1
 
 
 def test_a_failed_turn_stays_in_the_thread_and_can_be_asked_again(ui):
@@ -425,31 +426,25 @@ def test_a_turn_whose_price_cannot_be_read_says_so_rather_than_reading_as_free(t
     assert row.locator(".badge-tier").count() == 0
 
 
-#: Where a priced act's sentence sits, read as "the paragraph right after the
-#: row holding the act". Ask and the commit card start the same Get, so the
-#: sentence is under the row on both (`design-direction.md` § Controls).
-COST_AFTER_ROW = """(button) => {
-  const row = button.closest('.row');
-  const next = row.nextElementSibling;
-  return next && next.tagName === 'P' ? next.textContent : null;
+#: Under the commit card's Get, the caption tied to it, as on Ask, which starts
+#: the same Get (owner, 2026-10-08).
+GET_CAPTION = """(button) => {
+  const id = button.getAttribute('aria-describedby');
+  const caption = id && document.getElementById(id);
+  return caption ? caption.textContent.trim() : null;
 }"""
 
 
 @pytest.mark.parametrize("priced", [True, False], ids=["priced", "unpriced"])
-def test_the_commit_card_says_its_cost_under_the_get_it_prices(talking, priced):
-    if not priced:
+def test_the_commit_card_says_about_what_its_get_costs_under_it(talking, priced):
+    if priced:
+        talking.serve("**/api/estimate*", an_estimate(phase="phase_1", estimated_cost_usd="0.012", run_id=None))
+    else:
         talking.serve("**/api/estimate*", [(503, {"detail": "the estimate is down"})])
     open_thread(talking)
 
     get = talking.page.locator("#commit-card button:text-is('Get')")
-    sentence = get.evaluate(COST_AFTER_ROW)
-    assert sentence is not None, "no sentence directly under the Get row"
-    assert ("costs at most" if priced else "could not be read") in sentence
-    # And not above the field as well: one place, not two.
-    before_field = talking.page.evaluate(
-        "() => { const f = document.getElementById('direction').closest('.field');"
-        " let t = ''; for (let n = f.previousElementSibling; n; n = n.previousElementSibling) t += n.textContent;"
-        " return t; }"
-    )
-    assert "costs at most" not in before_field
-    assert "could not be read" not in before_field
+    assert get.evaluate(GET_CAPTION) == ("About $0.01" if priced else "Cost unknown just now")
+    card = talking.page.inner_text("#commit-card")
+    assert "costs at most" not in card
+    assert talking.page.locator("#commit-card .badge-tier").count() == 0

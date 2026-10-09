@@ -155,6 +155,10 @@ def a_run(**overrides) -> RunOut:
     return RunOut(**(fields | overrides))
 
 
+def fields_offered(overrides) -> bool:
+    return overrides.get("provenance") == WorkProvenance.OFFERED.value
+
+
 def a_candidate(**overrides) -> CandidateWorkOut:
     """A candidate work, defaulting to one the run asked for and resolved."""
     fields = {
@@ -178,6 +182,10 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         # `unconfirmed` or `unknown`, as the server reports them.
         "confirmation": Confirmation.CONFIRMED.value,
     }
+    # The museum an offered work came from, as the server records it at the
+    # offer: Art Institute of Chicago, the museum `an_instance` defaults to, so
+    # an offered work's card and its offer agree unless a test says otherwise.
+    fields["offered_by"] = "artic" if fields_offered(overrides) else None
     fields |= overrides
     # Derived, never passed: a fixture free to say a pending work is decided
     # could assert a card no server could produce.

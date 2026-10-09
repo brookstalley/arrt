@@ -1208,6 +1208,7 @@ class DiscoveryRunner:
             # separately, verbatim, which `product-brief.md` requires.
             offered_for_artist=group.query.artist,
             offered_artist_matched=group.matched,
+            offered_by=found.provider,
         )
         if work is None:
             return False

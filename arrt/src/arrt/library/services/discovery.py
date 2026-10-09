@@ -826,6 +826,7 @@ class DiscoveryService:
         work_dedup_key: str,
         offered_for_artist: str,
         offered_artist_matched: int,
+        offered_by: str,
     ) -> CandidateWork | None:
         """Record a work the collection offered, or `None` if it should not be shown.
 
@@ -882,6 +883,7 @@ class DiscoveryService:
                 # browse returned.
                 offered_for_artist=require_text(offered_for_artist, field="offered_for_artist"),
                 offered_artist_matched=offered_artist_matched,
+                offered_by=require_text(offered_by, field="offered_by"),
             )
             store_write(self._store.add_candidate_work, work)
         return work

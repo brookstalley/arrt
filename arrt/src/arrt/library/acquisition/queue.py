@@ -236,7 +236,7 @@ class QueueListing:
 
 @dataclass(frozen=True, slots=True)
 class RetryAllResult:
-    """What Retry all did to one cause's works: how many it put back in line, and why it refused the rest."""
+    """What retrying one cause's group did to its works: how many it put back in line, and why it refused the rest."""
 
     cause: str
     retried: int
