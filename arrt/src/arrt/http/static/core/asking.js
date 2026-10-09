@@ -392,7 +392,7 @@ function card(item) {
   if (item.kind === "work") {
     const work = { qid: item.qid, title: item.label, image: item.image, held_artwork_ids: item.held ? [item.held] : [] };
     const target = { view: "work", id: item.held || item.qid };
-    return poster(item, target, workLink(work), item.detail, held, item.held ? null : getOne(item.qid));
+    return poster(item, target, workLink(work), item.detail, held, item.held ? null : getOne(item.qid, { bare: true }));
   }
   if (item.kind === "artist") {
     const target = { view: "artist", id: item.held || item.qid };

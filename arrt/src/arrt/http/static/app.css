@@ -3336,8 +3336,6 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
 .ask-card .card-title { font-size: var(--text-md); }
 .ask-card .reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
 .ask-card .reactions .action { padding: 2px var(--space-2); font-size: var(--text-sm); }
-/* A work's Get, stacked to the card's width: the theme picker sizes itself to
-   its longest theme name, which is wider than a poster. */
+/* A work's Get, its button and what it started stacked to the card's width. */
 .ask-card .get-control { flex-direction: column; align-items: stretch; gap: var(--space-1); margin-top: var(--space-1); }
-.ask-card .get-control :is(label, select) { width: 100%; max-width: 100%; min-width: 0; }
 .ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }

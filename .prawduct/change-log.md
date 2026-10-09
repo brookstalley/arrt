@@ -66,6 +66,35 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: A work card's Get in Ask carries no theme picker and no tier
+
+<!-- prawduct: scope=ask-card-get-trim -->
+
+**Why:** The owner's ruling, the same day as the posters: drop the theme
+picker and "Cost: Free" from a work card's *Get*. On a poster, the
+picture and the name should lead.
+
+**What:**
+- A work card's *Get this work* gets the work into the default theme, with
+  no *Add to* and no tier beside it. Its sentence still names the theme the
+  work went into ("Getting 1 work into All works."). The themes are read
+  when the button is pressed, and a listing that cannot be read starts
+  nothing and says why, as the picker's own Get does. Every other *Get*
+  keeps both (`getOne(…, { bare: true })`, `core/getting.js`).
+- `information-architecture.md`: the Ask row says so, and *Every spending
+  control shows its tier* now excepts the card by name. The Ask row no
+  longer names the reply's cost twice.
+- `screens/taste.js`: `either` no longer sits between `howTasteIsRecorded`
+  and its doc comment.
+
+**Tests:** two browser tests in `test_asking.py`. The first holds that the
+card has no select, no *Add to*, no tier and no "Cost", that its Get sends
+no `theme_id`, and that its sentence names the default theme, read as
+*Everyday* so a hard-coded name fails. The second holds that an unreadable
+theme listing starts nothing. Each failed against its mutation: the card
+not bare, the tier kept, an unreadable listing taken as no themes, and the
+default's name assumed.
+
 ## 2026-10-09: Ask's cards are posters, each with a picture
 
 <!-- prawduct: scope=ask-card-pictures -->
