@@ -15,12 +15,11 @@ exactly is a rounding error in a running total that nobody will ever reconcile
 against the provider's own figure.
 """
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Final
+from typing import Final
 
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass, VocabularyKind
 
@@ -296,12 +295,10 @@ class SpendCategory(StrEnum):
     re-search spend and attributes to the resolve run that incurred it, rolling
     up to the original intent through the run's parent.
 
-    `CONVERSATION_TOKENS` is intent-forming spend, and it is deliberately **not**
-    attributed to the run a conversation eventually seeds. "What did talking
-    cost" and "what did asking for Kandinsky cost" are separate questions, and
-    folding the first into the second would make a run's `estimated_cost_usd`
-    unfalsifiable against its actuals — the estimate never covered the
-    conversation.
+    `CONVERSATION_TOKENS` is what the retired intent-forming conversation spent.
+    Nothing writes it now, and it stays so those rows still read and still count
+    in the month: the money was spent. Ask's replies write no row; the
+    provider's own month figure already includes them.
     """
 
     DISCOVERY_TOKENS = "discovery_tokens"
@@ -527,11 +524,6 @@ class SpendRecord:
     input_tokens: int | None = None
     output_tokens: int | None = None
     units: int | None = None
-    #: Set for intent-forming spend, and **nulled rather than cascaded when the
-    #: conversation is deleted**: the money was spent whatever became of the
-    #: thread, and a ledger whose totals fall when somebody tidies a transcript
-    #: is the under-reporting this table exists to prevent.
-    conversation_turn_id: str | None = None
 
 
 class AffinitySentiment(StrEnum):
@@ -562,10 +554,9 @@ class AffinityDerivation(StrEnum):
     reject behaviour, and a row asserting behaviour that never happened is
     indistinguishable afterwards from one the product earned.
 
-    **`INFERRED` and `OBSERVED` both require a `rationale`.** It is the only
-    evidence that survives a deleted conversation — `source_turn_id` is nulled
-    rather than cascaded — and an inferred judgment with neither turn nor
-    rationale is one the product can neither explain nor revisit.
+    **`INFERRED` and `OBSERVED` both require a `rationale`.** Neither cites
+    anything stored, so the rationale is the only evidence either has, and a
+    judgment without one is one the product can neither explain nor revisit.
     """
 
     STATED = "stated"
@@ -577,11 +568,10 @@ class AffinityDerivation(StrEnum):
 class Affinity:
     """One standing judgment about a thing the curator has reacted to.
 
-    Retained across conversations by design, and the thing a new conversation
-    opens knowing. Unique on (`kind`, `value`): one live judgment per thing,
-    corrected in place rather than accumulating a history of contradictions the
-    product would then have to arbitrate between. The history that matters is the
-    turns, which are retained separately.
+    Retained by design, and consulted when discovery proposes. Unique on
+    (`kind`, `value`): one live judgment per thing, corrected in place rather
+    than accumulating a history of contradictions the product would then have
+    to arbitrate between.
 
     **`value` is a string and never a foreign key, and that is this record's
     central decision.** The product exists to surface artists the curator could
@@ -592,11 +582,10 @@ class Affinity:
     `artist_id` *follows* the name where a match happens to exist, and its absence
     means nothing.
 
-    **`source_turn_id` may be null on an `inferred` row, and that is a legal state
-    rather than a corruption.** Deleting a conversation nulls it. The rule that an
-    inferred judgment cites a turn is an invariant on the **write path** — see
-    `library/services/taste.py` — and building it into the file would make the delete
-    impossible, which is the opposite of what the deletion ruling asks for.
+    **An `inferred` row cites nothing.** It was read out of a conversation that
+    the store no longer keeps, and its `rationale` is the evidence it has left.
+    No new one can be written until saved threads give it something to cite
+    (`library/services/taste.py`).
     """
 
     id: str
@@ -612,11 +601,8 @@ class Affinity:
     updated_at: datetime
     #: The account of the judgment in the curator's terms. Null is normal for
     #: `stated`, where the curator's own words are the account; required by the
-    #: write path for the other two, where it is the only evidence a deleted
-    #: thread leaves behind.
+    #: write path for the other two, where it is the only evidence there is.
     rationale: str | None = None
-    #: The turn this was derived from, where one is cited and still exists.
-    source_turn_id: str | None = None
     #: Set only where `kind` is `artist` **and** the name resolves to a catalogue
     #: artist. Derived and re-derivable; never the identity.
     artist_id: str | None = None
@@ -651,79 +637,6 @@ class Sighting:
 
     wikidata_qid: str
     url: str
-
-
-class TurnRole(StrEnum):
-    """Who spoke a turn — the product's own two words, not the provider's.
-
-    `CURATOR` and `SYSTEM`, never `user`/`assistant`. The distinction is not
-    pedantry: the provider refuses a role it does not know (measured — *"curator
-    is not one of ['system', 'assistant', 'user', 'tool', 'function']"*), so the
-    translation to its vocabulary happens once, at the client seam, and the
-    transcript a curator reads back is in the product's terms rather than in a
-    chat API's.
-    """
-
-    CURATOR = "curator"
-    SYSTEM = "system"
-
-
-@dataclass(frozen=True, slots=True)
-class Conversation:
-    """One intent-forming session.
-
-    **Not a run, and never confused with one:** it acquires nothing, writes no
-    `Artwork`, and reaches no museum API to *resolve* anything. It ends by
-    seeding a `DiscoveryRun` or by ending.
-
-    `summary` is a short account of where the conversation got to, written at
-    rest for the list. **Never read back as taste** — `Affinity` is the only
-    thing the product consults for that, and a summary consulted as one would be
-    a second, prose-shaped opinion about a curator free to drift from the
-    recorded one.
-    """
-
-    id: str
-    started_at: datetime
-    #: Orders the conversation list, and indexed for it. Distinct from
-    #: `started_at` because a thread returned to a week later is the one a
-    #: curator is looking for, and the day it began says nothing about that.
-    last_turn_at: datetime
-    summary: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ConversationTurn:
-    """One thing said in a conversation, and what it offered.
-
-    `ordinal` orders the thread and is unique per conversation. **Not a
-    timestamp**: two turns can share a second — the curator's question and the
-    answer to it routinely do, since the answer is written in the same request —
-    and an order derived from time would then be a coin toss.
-
-    `text` is verbatim and required. A model turn that was cut off arrives from
-    the provider as `content: null`, and storing that null is what would make the
-    *next* turn fail with a refusal about a required content field rather than
-    about anything that went wrong. So the column cannot hold one, and the empty
-    string is what a turn with nothing in it holds.
-
-    `committed_run_id` is the seam. It is set on the turn where the curator
-    committed a direction, and it is the only edge from this side of the product
-    to a `DiscoveryRun`.
-    """
-
-    id: str
-    conversation_id: str
-    ordinal: int
-    role: TurnRole
-    text: str
-    created_at: datetime
-    #: What this turn offered, as `[{kind, value, samples}]`. Denormalised on
-    #: purpose: a record of *what was said*, not a live index — so a thread read
-    #: back next month shows the pictures it showed at the time rather than
-    #: whatever the collection would answer today.
-    suggested: Sequence[Mapping[str, Any]] | None = None
-    committed_run_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -185,14 +185,64 @@ def test_reacting_to_an_artist_records_it_as_the_curators_own(ui, ask_model, dis
     assert (recorded["kind"], recorded["value"], recorded["derivation"]) == ("artist", "Pieter Brueghel the Elder", "stated")
 
 
+def _affinities(ui) -> dict:
+    return json.loads(ui.page.evaluate("async () => JSON.stringify(await (await fetch('/api/affinities')).json())"))
+
+
+def test_declining_and_asking_for_more_are_different_pairs_of_the_two_fields(ui, ask_model):
+    """The two-fields rule, at the only place a control could collapse it.
+
+    "Tell me more" is `cool` and **still open** — the curator's own "meh on
+    Magritte, but open to learning more". A single warmth score would render it
+    as a low number indistinguishable from "not this", and the honest lukewarm
+    reaction would blacklist an artist they explicitly asked to keep hearing
+    about. Read back after each press, since the second overwrites the first.
+    """
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-card")
+
+    ui.page.get_by_role("button", name="not this: Pieter Brueghel the Elder").click()
+    ui.page.wait_for_selector(".ask-card button:has-text('not this — recorded')")
+    (declined,) = _affinities(ui)["affinities"]
+    ui.page.get_by_role("button", name="tell me more: Pieter Brueghel the Elder").click()
+    ui.page.wait_for_selector(".ask-card button:has-text('tell me more — recorded')")
+    (cooled,) = _affinities(ui)["affinities"]
+
+    assert (declined["sentiment"], declined["open_to_more"]) == ("declines", False)
+    assert (cooled["sentiment"], cooled["open_to_more"]) == ("cool", True)
+
+
+def test_reacting_does_not_redraw_the_thread_under_the_curator(ui, ask_model):
+    """A judgment is recorded elsewhere and nothing in the thread changes.
+
+    A page that repainted here would move the card the curator was looking at
+    out from under the button they had just pressed. Asserted on the node
+    itself, which a repaint replaces even when the words come back the same.
+    """
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-card")
+    ui.page.evaluate("() => { document.querySelector('.ask-answer').dataset.seen = 'before'; }")
+
+    ui.page.get_by_role("button", name="more like this: Pieter Brueghel the Elder").click()
+    ui.page.wait_for_selector(".ask-card button:has-text('more like this — recorded')")
+
+    assert ui.page.evaluate("() => document.querySelector('.ask-answer').dataset.seen") == "before"
+    assert "Bruegel's winter is the obvious place to start." in ui.page.locator(".ask-answer").inner_text()
+
+
 class TestWithNoKey:
     @pytest.fixture
     def ask_model(self):
         return None
 
-    def test_ask_says_it_needs_a_key_and_the_page_still_works(self, ui):
+    def test_ask_says_it_needs_a_key(self, ui):
         ui.open("#discover")
         ui.page.wait_for_selector("#ask-words")
 
         assert "Ask needs an OpenRouter key" in ui.page.locator(".panel.ask").inner_text()
-        assert ui.page.locator("#intent").count() == 1

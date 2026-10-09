@@ -83,11 +83,11 @@ def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
 
 
 def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
-    """The third empty, and the one a conversation makes common.
+    """The third empty, and the one Ask makes common.
 
-    The artists a conversation surfaces are by definition ones the curator could
-    not have named, so a collection holding nothing by them is the overwhelmingly
-    common outcome. Reporting that as "nothing matches these filters" would be
+    The artists Ask surfaces are often ones the curator could not have named,
+    so a collection holding nothing by them is the overwhelmingly common
+    outcome. Reporting that as "nothing matches these filters" would be
     true and useless.
     """
     ui.open("#collection?artist=Wassily%20Kandinsky")

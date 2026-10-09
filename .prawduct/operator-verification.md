@@ -10,6 +10,34 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Ask as an agent: one thread, its cards and what it cost — added 2026-10-09
+
+**`build-plan-ask-agent.md` Chunks 03 and 04.** Visual change: yes. Chunk 03's
+Done-when includes that you have used it.
+
+Built against a scripted model in the browser suite, and against the real
+model only in chunk 02's evals (`ask-agent-findings.md`). Not yet deployed.
+
+- **Ask is one thread now.** The direct box, its *Get*, *Talk it through
+  first* and the conversations list are gone; the only act is *Ask*, with
+  "Searches as it answers; each reply says what it cost" under it, and the
+  quiet *Start over*.
+- **A reply:** a line for each thing it looked at (◌ then ✓ or ✗), its words,
+  then a card for each work, artist or topic it named that a tool returned.
+  Works carry *Get this work*; artists and topics the three reactions. Under
+  it, what it cost. Check whether the cards are the ones you would have
+  wanted from the words, since that choice (only items the answer names, and
+  only ones a tool returned) is the plan's and yours to overrule.
+- **At the cap:** a reply refused because the key's limit is spent says
+  "This month's budget is spent…", the sidebar's words.
+- **Taste:** its help says reactions come from "an artist or topic Ask
+  offers"; an inferred judgment shows its rationale and no way back to a
+  thread, since threads are not saved.
+- **An empty Ask has no worked examples.** The IA asked for two or three;
+  none were ever built. Want them?
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/ask-agent-deployed`.
+
 ### Get and review clarity: do Ask, a Get's page and Review read plainly? — added 2026-10-08
 
 **`build-plan-get-and-review-clarity.md`, all chunks.** Visual change: yes.
@@ -20,10 +48,10 @@ screens with no accessibility violations, console errors or dead ends, the
 same as before; it holds no Gets, so a Get's page and Review were seen only
 from stubbed pages. Not yet deployed.
 
-- **Ask:** Get is the one filled button, with "About $0.01" under it; *Talk it
+- ~~**Ask:** Get is the one filled button, with "About $0.01" under it; *Talk it
   through first* is quiet, with "Free to start; each reply shows its cost"
-  under it (your ruling said "a conversation is free", but every reply is a
-  priced model call, so the caption says what is true). No Taste link.
+  under it.~~ *Superseded 2026-10-09: the box, its Get and Talk it through first
+  are retired (the entry above).* No Taste link still holds.
 - **A finished Get's page:** three counts in place of the paragraph; works
   under *Asked for* and *Also offered by <museum>*, each row with its
   picture; no reason column on offered rows.
@@ -796,10 +824,11 @@ Artists; typing `seurat` in the search box offered *Ask about "seurat"*, which
 opened Ask with the words filled in and nothing started. The address is still
 `#discover`, as `#collection` is still Artworks, so bookmarks keep working. For you:
 
-1. **The name.** *Ask* for the intent box and the conversations, under Artworks.
-   Does it read as the place to ask for a direction?
-2. **The buttons.** They still say *Start the search* and *Talk it through first*;
-   the plan had proposed *Search now* and *Talk it through*. Keep or change?
+1. **The name.** *Ask*, under Artworks. Does it read as the place to ask for a
+   direction?
+2. ~~**The buttons.** They still say *Start the search* and *Talk it through first*;
+   the plan had proposed *Search now* and *Talk it through*. Keep or change?~~
+   *Superseded 2026-10-09: both buttons are retired with the box.*
 
 ### Get, from the Artist page, the results page and a work's page — added 2026-10-02
 
@@ -1402,7 +1431,7 @@ is on a different line from the name.
 
 **Chunk 11.** Run `cd arrt && uv run python -m arrt` and open Taste.
 
-1. **Reactions on a conversation sample are keyed on the artist, not the
+1. **Reactions (on a conversation sample then, on an Ask card now) are keyed on the artist, not the
    picture.** The three controls sit under each sample, but an affinity is one row
    per (kind, value) — so reacting to one Kandinsky and then to another writes the
    same row, and the second overwrites the first. Built as specified. **If you
@@ -1410,15 +1439,19 @@ is on a different line from the name.
 2. **"Tell me more" is cool *and* still open**, which is the pair the whole
    two-field design exists for. Check that the three controls read as three
    distinct things rather than as a warmth slider with gaps.
-3. **A stronger provenance is not overwritten by a weaker one** — `stated` beats
+3. *Superseded 2026-10-09: only `stated` can be written now, so the ranking below
+   has nothing to refuse and was removed (`build-plan-ask-agent.md` Chunk 04).*
+   ~~**A stronger provenance is not overwritten by a weaker one** — `stated` beats
    `observed` beats `inferred`, equal ranks permitted so a re-inference can correct
    an inference. *That ranking is the builder's ruling, not an artifact's, and they
    flagged it as the thing most worth challenging.* The visible effect: something
-   you said yourself cannot be silently replaced by something a model inferred.
-4. **Deleting a conversation detaches rather than cascades**, per your #118
-   ruling. The affinities it produced survive with their rationale and lose only
-   the citation; the spend stays on the books. The confirmation names what is lost
-   in those terms rather than reporting a row count — judge whether it does.
+   you said yourself cannot be silently replaced by something a model inferred.~~
+4. *Superseded 2026-10-09: conversations are no longer stored, and the migration
+   that dropped them applied your #118 rule to every one at once.* ~~**Deleting a
+   conversation detaches rather than cascades**, per your #118 ruling. The
+   affinities it produced survive with their rationale and lose only the
+   citation; the spend stays on the books. The confirmation names what is lost
+   in those terms rather than reporting a row count — judge whether it does.~~
 
 **Visual change: yes.**
 

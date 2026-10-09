@@ -232,7 +232,8 @@ direction it settles on becomes a **Get**, in place (the seam ruling in
 > only box: an agent that searches as it talks, for named work as well as open
 > intent. Its suggestions as artists, works and topics, each showing its state,
 > stand and become its cards. The seam ruling does not: with no separate run to
-> commit to, Get is an act on a card. `build-plan-ask-agent.md`.
+> commit to, Get is an act on a card. `build-plan-ask-agent.md`, built
+> 2026-10-09.
 
 ### Theme
 

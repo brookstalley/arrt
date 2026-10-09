@@ -239,9 +239,8 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
     looking wrong.
 
     Deliberately paired with the two tests above rather than written as a
-    variant of them: what makes this the run view's own branch is that the
-    conversation screen has its own reading of "stopped", so a test over one
-    says nothing about the other.
+    variant of them: "stopped" is the run view's own reading, passed to the
+    shared poll chain, so a test of the chain alone says nothing about it.
     """
     ui = a_finished_run
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())

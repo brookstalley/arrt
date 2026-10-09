@@ -37,6 +37,7 @@ from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_C
 
 from arrt.ask.cards import cards_for
 from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM, HELP
+from arrt.library.discovery.openrouter import budget_spent
 from arrt.mcp.envelope import IMAGE_BLOCKS
 from arrt.mcp.server import tool_definitions
 
@@ -51,6 +52,13 @@ THREADS_KEPT: Final[int] = 20
 #: than 3tears' `AGENT_FAILED`, because the client says something different:
 #: the agent ran out of steps, nothing broke.
 STEP_LIMIT_CODE: Final[str] = "STEP_LIMIT"
+
+#: The stream's error code when the provider refused at the key's credit limit.
+BUDGET_SPENT_CODE: Final[str] = "BUDGET_SPENT"
+
+#: OpenRouter's status for a call refused because the key's credit limit is
+#: spent (`openrouter-api-findings.md` § Exhaustion is 403).
+_KEY_SPENT_STATUS: Final[int] = 403
 
 #: The events that end a reply's stream.
 TERMINALS: Final[frozenset[str]] = frozenset({"stream_end", "stream_error", "stream_interrupt"})
@@ -188,9 +196,13 @@ class Ask:
             await stream.error(code=CANCELLED_ERROR_CODE, message="The reply was stopped.")
             raise
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- reply boundary: a fault ends the stream with an error
-            ended = "failed"
-            log.exception("ask reply failed in thread %s", thread.id)
-            await stream.error(code=DEFAULT_ERROR_CODE, message=f"Ask could not answer: {type(exc).__name__}.")
+            if _refused_at_the_cap(exc):
+                ended = "budget_spent"
+                await stream.error(code=BUDGET_SPENT_CODE, message=budget_spent(str(getattr(exc, "message", exc))))
+            else:
+                ended = "failed"
+                log.exception("ask reply failed in thread %s", thread.id)
+                await stream.error(code=DEFAULT_ERROR_CODE, message=f"Ask could not answer: {type(exc).__name__}.")
         finally:
             # A reply stopped before it wrote anything is still a turn the model
             # must see next time, and an empty assistant message is one a provider
@@ -208,6 +220,16 @@ class Ask:
                 time.monotonic() - started,
             )
             await queue.put(None)
+
+
+def _refused_at_the_cap(exc: Exception) -> bool:
+    """Whether the provider refused because the key's credit limit is spent.
+
+    OpenRouter answers that with a 403 (`openrouter-api-findings.md`, measured
+    2026-08-02). Read off the error's `status_code` rather than its type, so this
+    module imports no HTTP client: the model is injected, and the network is its.
+    """
+    return getattr(exc, "status_code", None) == _KEY_SPENT_STATUS
 
 
 class _Lines:

@@ -328,3 +328,39 @@ def walls_name_displays(connection: sqlite3.Connection) -> None:
         "Moved %d assigned wall(s) onto display records and dropped walls.client_id and walls.output.",
         len(carried),
     )
+
+
+#: The citing columns and the index over each, which has to go before its column.
+_TURN_CITATIONS: Final[tuple[tuple[str, str, str], ...]] = (
+    ("affinities", "source_turn_id", "affinities_by_turn"),
+    ("spend_records", "conversation_turn_id", "spend_records_by_turn"),
+)
+
+
+def retire_conversations(connection: sqlite3.Connection) -> None:
+    """Drop the stored conversations, and the two columns that cited a turn.
+
+    Before 2026-10-09 Ask kept its threads here. They are no longer stored: the
+    owner ruled that old ones may simply go (2026-10-08). Deleting a conversation
+    always nulled `affinities.source_turn_id` and `spend_records.conversation_turn_id`
+    and left the rows, because a judgment and a cent outlive the thread they came
+    from. So this keeps every row in both tables and only takes the citations away.
+
+    Guarded by the file, and ordered so that any prefix is finished by the next
+    open: the citing columns go before the tables they point at, and each step is
+    skipped where it is already done.
+    """
+    citing = [(table, column, index) for table, column, index in _TURN_CITATIONS if _has_column(connection, table, column)]
+    if citing:
+        _require_drop_column(predates="the retirement of stored conversations")
+    for table, column, index in citing:
+        # SQLite refuses to drop a column an index names.
+        connection.execute(f'DROP INDEX IF EXISTS "{index}"')
+        connection.execute(f'ALTER TABLE "{table}" DROP COLUMN "{column}"')
+        log.info("Dropped %s.%s: conversations are no longer stored, so there is no turn to cite.", table, column)
+    connection.commit()
+    for table in ("conversation_turns", "conversations"):
+        if _has_table(connection, table):
+            connection.execute(f'DROP TABLE "{table}"')
+            log.info("Dropped table %s: Ask's threads are not stored.", table)
+    connection.commit()

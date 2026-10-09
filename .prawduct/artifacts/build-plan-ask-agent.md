@@ -337,3 +337,52 @@ Type: cumulative-final
 
 Done when: nothing reaches the old conversation code; all three suites and
 the browser suite are green; the cumulative review is clean.
+
+**Stated at the chunk, before code (2026-10-09).** Removing the stored turns
+forces four decisions the plan did not name. Each is the agent's, and the owner
+can veto it:
+
+- [DECISION: a catalogue migration drops `conversations` and
+  `conversation_turns`, and the two columns that cite a turn,
+  `affinities.source_turn_id` and `spend_records.conversation_turn_id`, with
+  their indexes. Dropping a turn already nulled both, so the migration only
+  does to every row what deleting a conversation did to some. The owner
+  ruled that old threads may go | agent | owner can veto]
+- [DECISION: the `conversation_tokens` spend category stays readable, and
+  nothing writes it any more. Its rows are money that was spent, and the
+  month total and the ledger must keep counting them | agent | owner can
+  veto]
+- [DECISION: an `inferred` judgment can no longer be written, and the rows
+  that exist keep their derivation and rationale. Its rule was that it cites
+  the turn it was read out of. Ask's threads are not saved, so there is
+  nothing to cite. In practice only the retired conversation could satisfy
+  the rule, since an MCP client had no turn to name. The wave that saves
+  threads decides how a judgment cites one. Until then `art_taste` loses
+  `source_turn_id`, and a judgment's view loses `conversation_id` | agent |
+  owner can veto]
+- [DECISION: the box's routes stay: `POST /api/runs` with an intent, and
+  `GET /api/estimate`. MCP's `art_discovery` and a Get's approval gate still use them.
+  Only the browser's way into them from Ask goes. `#conversation/<id>`
+  stops being a route, so an old bookmark lands where any unknown address
+  does | agent | owner can veto]
+
+**Found while building (2026-10-09).**
+
+- **A requirement the retired code carried, moved to Ask.** The owner's
+  ruling 3 of 2026-10-07 (#290) has a reply refused at the spending cap lead
+  with "This month's budget is spent". The conversation met it through the
+  OpenRouter client, and Ask's agent did not: a spent key ended a reply with
+  "Ask could not answer: PermissionDeniedError." OpenRouter's 403 now ends an
+  Ask reply with `stream_error` code `BUDGET_SPENT` and the same sentence,
+  built by one function both callers share.
+- **Two pieces of code the retirement left unreachable went with it.** The
+  rule that a weaker provenance may not overwrite a stronger one has nothing
+  to refuse once only `stated` is writable, and the order-of-magnitude caption
+  under Ask's *Get* had no Get left to sit under.
+- **The security model never covered Ask's agent.** Chunk 03 sent the
+  curator's words to OpenRouter and SearXNG, and let web pages reach the
+  model, without `security-model.md` saying so. § The curator's own words now
+  does, in place of the retired exception for stored turns.
+- **Ask's Screen States row asked for two or three worked examples on an
+  empty thread. They were never built, for the direct box or for Ask**, and
+  the row now says so rather than claiming them.

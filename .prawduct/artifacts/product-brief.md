@@ -152,8 +152,11 @@ is what makes the spend ceiling feel like a guardrail rather than a surprise; fl
 > there is one box, and what the curator types says which kind of request it is.
 > The agent spends without asking, and each reply shows what it cost after it
 > ends; the ceiling stays on the provider's key (`nonfunctional-requirements.md`
-> § Direction). The amendment below stays true of what runs today until
-> `build-plan-ask-agent.md` lands; that plan is the target.
+> § Direction). **Built 2026-10-09** (`build-plan-ask-agent.md` Chunks 03 and
+> 04), so the amendment below is history: threads are held in memory and not
+> saved at first (old ones "are just gone"), which also retires the transcripts
+> it kept for rebuilding affinities, and the direct box and the commit seam are
+> gone.
 >
 > **Amended 2026-08-10: intent may be *arrived at* in conversation, not only
 > stated.** This flow assumed a curator who already knows what to ask for. The one

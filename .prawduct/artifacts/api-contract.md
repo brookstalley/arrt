@@ -527,35 +527,28 @@ is the curator saying it, `inferred` is a model reading it out of what they said
 Only the review path can assert the third truthfully, and an `observed` row written
 by a caller is a fabricated observation — indistinguishable afterwards from one the
 product earned. That matters beyond tidiness because `data-model.md` makes
-derivation load-bearing: affinities are rebuilt from the retained turns when the
-derivation improves (Q14), and a row claiming behaviour that never happened has
-nothing to rebuild from and cannot be audited.
+derivation load-bearing (Q14), and a row claiming behaviour that never happened
+cannot be audited.
 
-**`inferred` requires a `source_turn_id`; `stated` does not.** Both are writable —
-the in-UI agent is an MCP client, so the tool is a path a model takes while the
-curator is talking to it — but that justification is about *one* caller, and the
-tool cannot check which caller it has. Any other client (Claude Code at a terminal
-is the stated consumer) could otherwise write "the model read this out of what they
-said" citing nothing, which is the same unrebuildable, unauditable row the
-`observed` refusal exists to refuse, arriving through the door left open beside it.
-`stated` needs no turn because the curator saying a thing is the whole provenance —
-`data-model.md` already makes `rationale` normally null for it. *(Added 2026-08-11,
-Critic R-11: the first draft guarded one derivation and left its neighbour able to
-break the identical invariant.)*
+**`set` may not write `derivation='inferred'` either, since 2026-10-09.** An
+inferred judgment had to cite the conversation turn it was read out of (Critic
+R-11, 2026-08-11: guarding `observed` alone left any client able to write "the
+model read this out of what they said" citing nothing). Conversations are no
+longer stored, so there is nothing to cite, and the refusal names `stated`,
+which needs no citation because the curator saying a thing is the whole
+provenance. The `inferred` rows already held stay readable with their
+`rationale`. The wave that saves Ask's threads decides how a judgment cites one,
+and this paragraph changes with it.
 
-**An upsert may not overwrite a row's provenance with a weaker one.** `set` lands on
-(`kind`, `value`), and that row may already carry `derivation='observed'` and a
-`source_turn_id` — the sample-reaction path writes exactly that pair. So the rule the
-building chunk must not violate: a `set` **replaces the judgment** (`sentiment`,
-`open_to_more`, `rationale`) and **replaces the provenance with its own** —
-`derivation` becomes what the caller wrote, and `source_turn_id` becomes the turn the
-caller cited or null if it cited none. What it may never do is keep the old
-`source_turn_id` under the new judgment. That is the cheap default — write the fields
-given, leave the rest — and it produces a row whose turn did not produce the judgment
-stored on it, indistinguishable afterwards from real provenance, from which Q14's
-rebuild then either resurrects a superseded judgment or overwrites the curator's
-correction. A correction is a new judgment with its own provenance or it is not
-auditable at all. *(Added 2026-08-11, Critic R-17.)*
+**An upsert replaces the row's provenance with its own.** `set` lands on
+(`kind`, `value`), and that row may already carry `derivation='inferred'` and a
+`rationale`. A `set` **replaces the judgment** (`sentiment`, `open_to_more`) and
+**replaces the provenance with its own**: `derivation` becomes what the caller
+wrote and `rationale` what it sent, or null. Keeping the old rationale under the
+new judgment is the cheap default, and it produces a row explained by an
+account that did not produce it (Critic R-17, 2026-08-11). With only `stated`
+writable, a write can never weaken a row's provenance, so the earlier rule
+against that has nothing left to refuse.
 
 **Sentiment and openness are both required, because the pair is the entity's
 point.** `data-model.md` keeps `sentiment` and `open_to_more` apart so that "meh on
@@ -1361,7 +1354,7 @@ Added 2026-08-05 with the run half of the browser surface, and exercised by
 | Route | What it is |
 |---|---|
 | `GET /api/estimate` | What asking would cost, before anything is committed. Optional `run_id` asks the phase-2 question instead. Spends nothing. **`tier`** (added 2026-10-07, #290): `free` \| `$` \| `$$` \| `$$$`, the estimate as a spending control shows it before the action is taken: free only at zero, `$` under $0.05, `$$` under $0.50, `$$$` otherwise (`spending.cost_tier`, its boundaries `CENTS_BELOW` and `DIMES_BELOW`). Asking's is the tier of its bound. A Get is free by construction (its run is priced at nothing). The MCP twin `art_discovery(action='estimate')` carries the same `tier`. |
-| `GET /api/budget` | **What is left of this month's budget**, for the sidebar (#290, the owner's ruling 3 of 2026-10-07). Always a 200: `{state, remaining_usd, budget_usd, spent_usd, note, tiers: {cents_below_usd, dimes_below_usd}}`, money as decimal strings. `state` is `known` (the key has a monthly limit: `remaining_usd` is the provider's `limit_remaining`, never below zero, `budget_usd` its `limit`), `configured` (the key has no limit: `MONTHLY_BUDGET_USD` less the provider's own `usage_monthly`, with a `note` that nothing enforces it), `uncapped` (no limit, no budget: `spent_usd` alone), `not_configured` (no key; nothing spends) or `unavailable` (the provider could not be asked, or did not say the month's spend). Read from `GET /api/v1/key`, never tallied from the ledger (`nonfunctional-requirements.md` § Direction), and kept for a minute; a failure is not kept. **Display only**: `/key` lags by minutes and nothing gates on it. When the provider refuses at the cap, a halted run's `end_reason` and a refused conversation turn lead with "This month's budget is spent". **Built 2026-10-07** (server half, `spending.BudgetService`); no MCP twin, as the sidebar is the browser's. |
+| `GET /api/budget` | **What is left of this month's budget**, for the sidebar (#290, the owner's ruling 3 of 2026-10-07). Always a 200: `{state, remaining_usd, budget_usd, spent_usd, note, tiers: {cents_below_usd, dimes_below_usd}}`, money as decimal strings. `state` is `known` (the key has a monthly limit: `remaining_usd` is the provider's `limit_remaining`, never below zero, `budget_usd` its `limit`), `configured` (the key has no limit: `MONTHLY_BUDGET_USD` less the provider's own `usage_monthly`, with a `note` that nothing enforces it), `uncapped` (no limit, no budget: `spent_usd` alone), `not_configured` (no key; nothing spends) or `unavailable` (the provider could not be asked, or did not say the month's spend). Read from `GET /api/v1/key`, never tallied from the ledger (`nonfunctional-requirements.md` § Direction), and kept for a minute; a failure is not kept. **Display only**: `/key` lags by minutes and nothing gates on it. When the provider refuses at the cap, a halted run's `end_reason` and an Ask reply refused at the cap (`stream_error` code `BUDGET_SPENT`) lead with "This month's budget is spent". **Built 2026-10-07** (server half, `spending.BudgetService`); no MCP twin, as the sidebar is the browser's. |
 | `POST /api/runs` | Begin a run. Returns a handle at once; phase 1 proceeds on a worker behind it. Records `initiated_by: web_ui`. |
 | `GET /api/runs` | The newest runs, newest first, capped at `MAX_RUNS_LISTED` in the service so this route and its MCP twin report the same history (#54). `total` and `truncated` say what the cap left out, and there is no paging: optional `status` and `kind` filters are how a caller reaches older runs. Activity's Queue and History split this one capped listing on `is_terminal`, and each says when the cap left runs out. `awaiting_works` counts every work, across all runs, that found an image and has no verdict, and `awaiting` gives the same by listed run (a run with none is absent); `awaiting=true` narrows the listing to such runs before the cap, which is what Activity › To review reads. `art_discovery(action='list_runs', awaiting=true)` carries the same. |
 | `GET /api/runs/{id}` | The run, its works, its tallies and its search usage. |
@@ -1482,16 +1475,11 @@ spellings for "change this" costs more than the orthodoxy is worth here.
 | `POST /api/works/{id}/wikidata`, `POST /api/artists/{id}/wikidata` | The curator's word on which Wikidata item a work or artist is: body `{"qid": "Q160149"}`, or `{"qid": null}` for "there is none". A QID is trimmed and upper-cased; anything else (a URL included) is refused naming the shape. Since 2026-10-01 two more refusals, on both surfaces: an artist's QID another catalogue artist already carries (naming that artist), and, when a registry is configured, a QID Wikidata has no item for, or one it could not be asked about. With no registry configured, a well-formed QID is stored unchecked. The work route answers with the dossier, the artist route with `ArtistOut`. `WorkOut` and `ArtistOut` gain `wikidata_qid` and `wikidata_qid_set_by` (`matched` \| `curator` \| null), added fields. **Built 2026-10-01**; the Artist and Work pages call them from a control that looks a new item up first (`build-plan-one-world-search.md` Chunk 05). | `Artwork`/`Artist` registry identity (`data-model.md`) | `art_catalogue(action='set_work_qid'\|'set_artist_qid')`, new actions, where `qid='none'` says there is none; both fields added to every work and artist the tools return |
 | `POST /api/themes/{id}/default` | Make this the theme newly accepted works join, taking the mark off whichever had it (`data-model.md` § Theme, `is_default`). Answers with `ThemeListOut`, because the act changes two themes. `ThemeOut` gains `is_default`, an added field. **Built 2026-10-01.** | `Theme.is_default`, `DefaultThemeOffer` | `art_theme(action='make_default')`, a new action; `is_default` added to every theme the tool returns |
 | `DELETE /api/themes/{id}` | Delete. **The refusal it must reuse is already built** — see below. **Built 2026-08-12**; answers with `ThemeListOut`, the themes that remain, so the list repaints from the response like every other membership act. | `Theme`, built, and `DisplayService.delete_theme`'s guard with it | `art_theme(action='delete')`, built and wired to that guard |
-| `GET`/`POST /api/conversations` | The thread list, ordered by `last_turn_at`; and starting one. **Built 2026-08-12.** | `Conversation`, built | none proposed — see below |
-| `GET /api/conversations/{id}` | One thread with its turns. **Built 2026-08-12.** | `ConversationTurn`, built | none proposed |
-| `GET /api/conversations/{id}/estimate` | What the next turn in this thread may cost, for the tier beside *Say it* and *Ask again*: the `GET /api/estimate` shape with `phase` `conversation_turn` and `run_id` null. A flat allowance at the conversation model's own prices (`CONVERSATION_INPUT_TOKENS` of question and thread, output at `CONVERSATION_MAX_OUTPUT_TOKENS`, `CONVERSATION_*_COST_USD_PER_MTOK`; `ConversationPricing`), so no turn moves it. An estimate shown before spending: it reads no spend and writes none. 400 for an unknown thread. **Added 2026-10-08** (#306). Additive. | none | none proposed |
-| `POST /api/conversations/{id}/turns` | One exchange. **Spends** — `SpendRecord` category `conversation_tokens`. **Built 2026-08-12**; a retry sends no new text, so the transcript is the idempotency key and asking again spends nothing twice. | `ConversationTurn`, built | none proposed |
-| `POST /api/conversations/{id}/commit` | Commit a direction: starts a `DiscoveryRun` and sets the turn's `committed_run_id`. **Built 2026-08-12.** | `ConversationTurn`, built | none proposed |
-| `DELETE /api/conversations/{id}` | Deletes the thread and its turns. **Detaches rather than cascades** — see below. **Built 2026-08-12.** The detach is a loop over the citing rows rather than a schema rule, so its atomicity rests on the transaction it runs in and on reading the code — it is the one behaviour in this chunk no mutation could express. | `ConversationTurn`, built | none proposed |
+| `/api/conversations`, every route | **Retired 2026-10-09** with the stored conversations (`build-plan-ask-agent.md` Chunk 04); each answers 404. Ask's thread is `/api/ask` below. | none | none |
 | `GET /api/ask` | Whether Ask can answer here: `{"available": bool}`, false with no key. Read by the page before a thread is open, so opening Ask writes nothing. **Built 2026-10-08** (`build-plan-ask-agent.md` Chunk 03). | none | none (Ask is the agent; it is not offered as a tool) |
 | `POST /api/ask/threads`, `GET /api/ask/threads/{id}` | Open an empty thread (201; spends nothing), and read one back: `thread_id`, `available`, `replying`, and `turns`, each `{asked, events}` with the events exactly as its reply sent them. 404 for a thread the server does not hold: threads live in memory, at most 20, and a restart forgets them (the owner, 2026-10-08). **Built 2026-10-08.** | in memory, not stored | none |
-| `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. | none written; spend is the provider's | none |
-| `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every sample reaction in a conversation. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and refuses to overwrite a stronger provenance with a weaker one. | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
+| `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `BUDGET_SPENT`, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. | none written; spend is the provider's | none |
+| `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every reaction on a card Ask offers or an Artist page. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and writes only `stated` (§ `art_taste`). | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
 | `POST /api/works/{id}/mat` | Re-derive a work's mat. **Owned by issue #91, not by this set** — see below. | `MatColor`, built | `art_catalogue(action='set_mat_color')`, built |
 | `POST /api/directives` | The Walls screen's `next`. **Shape settled and built 2026-08-12** — see below. | `Directive`, built | `art_display(action='next')`, built |
 | `GET /api/spend` | The Health screen's spend history, across runs. | `SpendRecord`, built | `art_discovery(action='spend')` already answers the cross-run question by calendar month — see below |
@@ -1920,34 +1908,12 @@ that, the deferral had its own cost — item
 8's parity claim would have read as met while the surface knowingly withheld an
 operation the web UI has, and a "revisit trigger" is a promise nothing enforces.
 
-**Conversation keeps its deferral, and the ruling strengthens it rather than
-weakening it.** The reasons were never the Frozen-tier argument: the in-UI agent
-*is* an MCP client, so a model conducting a conversation would be reading its own
-thread back through a tool; and the operation a model actually wants is the taste,
-not the transcript. Granting the first while withholding the second is precisely
-what that reasoning asked for. `DELETE /api/conversations/{id}` keeps its
-deferral on the *tool* side for the same reasons; what it no longer lacks is a
-shape.
-
-**`DELETE /api/conversations/{id}` has one now — ruled by the operator 2026-08-12,
-closing issue #118.** The rule and its reasoning live in `security-model.md`
-§ Deleting a conversation, which is the authority; what this section owes is the
-route's own obligations:
-
-- **It deletes the thread and its turns, and detaches everything derived from
-  them.** `Affinity.source_turn_id` and `SpendRecord.conversation_turn_id` are
-  nulled. Nothing else is touched.
-- **The response names what was detached**, because the confirmation has to state
-  a consequence rather than a row count: how many affinities keep their judgment
-  and lose their derivation, and that those can no longer be rebuilt when the
-  derivation improves. The IA's rule for archive and for activation — a
-  confirmation names the consequence in the curator's terms — binds here, and this
-  is the one operation in the product that genuinely destroys a record.
-- **It must not enforce `inferred ⇒ source_turn_id` as a stored constraint.** That
-  rule, stated in § `art_taste` above, is an invariant on the write path only;
-  built into the schema it makes this route impossible. This is the sentence a
-  builder needs, and it is why the constraint's *site* is named rather than left
-  to reading.
+**Conversation never got a tool, and is retired.** The reasons were that the
+in-UI agent would be reading its own thread back through a tool, and that the
+operation a model wants is the taste, not the transcript. Stored conversations
+and their routes, `DELETE /api/conversations/{id}` among them (ruled by the
+operator 2026-08-12, issue #118), were retired on 2026-10-09; Ask is not offered
+as a tool either.
 
 **Spend history needs no new tool, and its row no longer borrows taste's reasoning.**
 Item 8 reaches content management, and a read of what was spent is not that under
@@ -1960,13 +1926,12 @@ deferral as taste" until 2026-08-11, which was two claims stapled together: one
 died with this ruling and the other was never true, since the month report shipped
 with `art_discovery`.)*
 
-**Sample reactions write through `/api/affinities`, not through a conversation
-route.** The IA's flow 1 gives each sample "more like this" / "not this" / "tell
-me more", and each writes an `Affinity` with `derivation='stated'` and
-`source_turn_id` set. That is the same operation the Taste screen performs when a
-curator corrects one, so it is one service method with one route and two callers —
-`architecture.md` § Direction reduced to its simplest case. A reaction route on
-the conversation would have been a second way to write one entity.
+**Reactions write through `/api/affinities`, not through an Ask route.** Each
+card Ask offers for an artist or topic carries "more like this" / "not this" /
+"tell me more", and each writes an `Affinity` with `derivation='stated'`. That is
+the same operation the Taste screen performs when a curator corrects one, so it
+is one service method with one route and several callers — `architecture.md`
+§ Direction reduced to its simplest case.
 
 **What each of these owes the chunk that builds it.** Field-level request and
 response shapes are deliberately not here. `architecture.md` § Direction binds
@@ -1978,365 +1943,6 @@ violate. Everything else in this artifact still binds them, in particular the
 `limit`-and-report-the-total rule under § Conditional Patterns and the single
 `400` error shape.
 
-**The two conversation reads are unpaged, and by the same reasoning `art_taste`
-gives.** `GET /api/conversations` returns every thread and `GET
-/api/conversations/{id}` returns every turn with its frozen samples, with no
-`limit` and no total — because a household's threads and one thread's exchanges
-are tens of rows, on the same scale as its taste, and a page control over ten
-items is a control with nothing behind it. Recorded 2026-08-12 after Critic
-review observed that every other collection in the surface names what bounds it —
-`history_turns`, `SAMPLES_PER_SUGGESTION`, `PAGE_CEILING` with its shortfall note
-— and these two named nothing, which reads as an oversight rather than as the
-judgement it is.
-
-**What would change it, so the next reader can check rather than re-argue.** The
-threads accumulate on the curator's own rate and are deleted by hand, which is
-the ruled lifecycle rather than a retention policy; the turns within one thread
-are bounded by the conversation ending. If either stops being tens — a thread
-that runs for months, or a household that never deletes — the
-`limit`-and-report-the-total rule under § Conditional Patterns is what they take,
-and `POST /turns` answering with the whole thread is the call that will feel it
-first, since each exchange re-sends everything said before it.
-
-**The last three rows came from the screens, not from the debt list, and that is a
-correction worth recording.** The set above was first taken from
-`information-architecture.md` § Status's five-item enumeration — and an enumeration
-is not an inventory. Reading the screens' own Actions columns instead turned up
-three designed controls with no route: the Work screen's **re-mat**, the Walls
-screen's **next**, and the Health screen's **spend history**. Two of the three were
-missed in the same way, by trusting a list that was written to record a debt rather
-than to bound a surface.
-
-> **`POST /api/works/{id}/mat` is listed here but is NOT this set's to decide.**
-> Issue **#91** (`curation-ui: mat colour has no control on any human surface`,
-> stage `design`) owns it, and its statement of the defect is *"an agent can change
-> a mat colour and a curator cannot"*. An earlier draft of the paragraph below
-> justified the route's absence with "re-deriving a mat is an operation
-> `art_catalogue` already has" — **which is the exact reasoning #91 was filed
-> against**, restated as though it were a settled decision. The row is here so the
-> Work screen's builder finds it rather than inventing a route outside this set;
-> its shape is #91's.
-
-> **`next` was the one screen action with an MCP action and no HTTP route, and
-> the shape it was waiting on arrived. Settled and built 2026-08-12.**
->
-> It was left open on purpose: `art_display(action='next')` incremented the
-> directive sequence while the built HTTP surface only ever *reported*
-> `directive_sequence` in the manifest payload, so the Walls screen had a control
-> the browser could not perform — and the multi-display blockers in § More than
-> one wall landed on exactly this route. A directive is per-wall the moment there
-> is more than one, so writing the installation-wide shape then would have been
-> writing the shape that had to change. Walls became first-class; the shape
-> followed.
->
-> **`POST /api/directives`, body `{wall_id}`, returning `DirectiveOut {wall_id,
-> sequence, pinned_work_id}`.** One service call, no new domain logic — the
-> advance rule already lived in `DisplayService`.
->
-> **It returns the directive rather than the wall**, which is the one part worth
-> stating here rather than leaving in a docstring. A directive is what the caller
-> changed and `sequence` is the thing that moved; returning the wall would answer
-> a question nobody asked and would make the caller diff two wall payloads to
-> discover whether the advance took. The read-back convention is honoured — the
-> response is the written row, re-read — and the *row* is the directive.
-
-**Still deliberately absent, so these omissions are not read as oversights:**
-nothing here writes an artwork's own metadata, a source or an original. Title,
-artist and date come from the source and are the physical label's evidence
-(`information-architecture.md` § Boundaries). *(This paragraph carried the theme rename
-and delete until 2026-08-11, correctly, and stopped being true when the IA was
-approved. Its earlier correction of 2026-08-05 stands and is why the acquisition
-routes are not listed as absent-because-unbuilt: acquisition **is** built —
-`art_catalogue` gained the fetch, retry and mat actions on 2026-08-03 — and the
-routes are absent because no browser screen has needed them.)*
-
-**Annotations are mandatory on every tool**, because their defaults are worst-case:
-omit them and MCP assumes `destructiveHint: true` and `openWorldHint: true`, which
-costs the operator a confirmation prompt on every call. Each tool declares `title`
-plus honest `readOnlyHint` / `destructiveHint`.
-
-## The Server↔Player surface — PLANNED 2026-09-30, BUILT 2026-09-30
-
-> **Built (wave 2b Chunk 03): the server's three routes, and wall tokens.**
-> `arrt/src/arrt/http/player.py` mounts them at the root beside `/api`,
-> spelled exactly as `contract/routes.json` spells them, and a test holds the
-> router to that file. The manifest route serves the published file's bytes with
-> their SHA-256 as the `ETag`, and answers `404` for a wall with nothing
-> published. The media route hashes the bytes it is about to send and refuses
-> (`404`) if they no longer match. The heartbeat POST accepts exactly what the
-> health panel can read and answers `400` otherwise, in the error shape `/api`
-> already uses. Tokens were issued per wall from `POST /api/walls/{wall_id}/token`
-> and `art_display(action='issue_token')` until 2026-10-02, when clients replaced
-> them (below). The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
-> `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
-> disagrees with the code or with `player-contract.md`, those win.
-
-### Clients — BUILT 2026-10-02 (`build-plan-clients.md` Chunk 01)
-
-`clients.md` is the requirement: a **client** is an installed Player with one
-token, driving any number of walls, each on one of its outputs by name. The
-Player routes take the client's token (`player-contract.md` § Transport is the
-specification); the curator's routes below bind `programming/clients.py` and
-`programming/access.py`. **The MCP twins arrived with Settings › Clients
-(Chunk 02, 2026-10-02)** as `art_display` actions, thin bindings over the same
-two services: until then these routes were HTTP-only, a recorded gap in parity.
-`art_display` became `destructiveHint: true` with them, because
-`remove_client` and `issue_client_token` cannot be undone (the reason
-`art_taste` gives for its own flag).
-
-| Route | Tool | What it is for |
-|---|---|---|
-| `GET /client` *(Player)* | — | The presenting client, the walls it shows now with each one's output and display, and its label outputs that caption a wall, `ETag`/`304`. `401` without a valid client token |
-| `POST /client/heartbeat` *(Player)* | — | The client's outputs (name, kind, connected, screen, identity) and label outputs, kept as `client-heartbeat-{client_id}.json` under `ART_ROOT` beside the wall heartbeats, and the displays and label outputs it reports recorded or refreshed (`data-model.md` § Display). `204`; `400` naming the problem |
-| `GET /labels/{label_id}` *(Player)* | — | The label document for a label output this client holds (`contract/schemas/label.v1.schema.json`), `ETag`/`304`. `401` without a valid client token; `403` for another client's label output or an unknown id; `404` for its own label output that captions no wall |
-| `GET /api/clients` | `art_display(action='clients')` | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs, age and `description` (the reading as one sentence, the same on both surfaces; added Chunk 02). From 2026-10-08, additively: `displays` (each display whose client it is, with `fault`), `label_outputs`, `faults` (each display it and another client both report now, naming both, with a `description`), and `identity` and `label_outputs` in the heartbeat |
-| `POST /api/clients` `{name}` | `art_display(action='add_client', name)` | Record a client. No token, no walls |
-| `POST /api/clients/{client_id}` `{name}` | `art_display(action='rename_client', client_id, name)` | Rename. Token and walls unchanged |
-| `DELETE /api/clients/{client_id}` | `art_display(action='remove_client', client_id)` | Forget a client: its token stops working, its displays and label outputs go, the walls on its displays become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list; the tool answers the walls released (`released_walls`), named in its notice |
-| `POST /api/clients/{client_id}/token` | `art_display(action='issue_client_token', client_id)` | Issue or rotate; answers `{client_id, token, token_issued_at}` once. The tool adds a notice naming `CLIENT_TOKEN` and `SERVER_URL` |
-| `POST /api/walls/{wall_id}/client` `{client_id, output}` | `art_display(action='assign_wall', wall_id, client_id, output)` | Show the wall on the display on that client's output, recording one keyed by place where the client has reported none. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that display already shows another wall |
-| `POST /api/walls/{wall_id}/display` `{display_id}` *(2026-10-08)* | `art_display(action='assign_display', wall_id, display_id)` | Show the wall on a display by its id, wherever it now is. Answers `{wall, notice}`; `notice` says when no client reports the display or two do. Refused when it already shows another wall |
-| `POST /api/walls/{wall_id}/labels` `{client_id, output}` *(2026-10-08)* | `art_display(action='add_label', wall_id, client_id, output)` | Caption the wall with a client's label output, by name. Answers `{wall, label_id, notice}`; `notice` says when the client has not reported a label output by that name. Refused when it captions another wall |
-| `DELETE /api/walls/{wall_id}/labels/{label_id}` *(2026-10-08)* | `art_display(action='remove_label', wall_id, label_id)` | Stop it captioning the wall; it stays recorded. Idempotent; refused for one captioning another wall |
-| `DELETE /api/walls/{wall_id}/client` | `art_display(action='unassign_wall', wall_id)` | Take the wall off its display. Idempotent |
-
-`WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
-`output` (both null while no client shows the wall). From 2026-10-08 both are read
-from the wall's display (its client, and its output while it has one), and the
-shapes gain, additively, `display_id`, `display` (`{display_id, identity, kind,
-client_id, output, first_seen, wall_id, fault}`, `fault` naming every client that
-reports the display while two do) and `labels` (`[{label_id, client_id,
-client_name, output}]`).
-
-**Each wall's display state — built 2026-10-08** (`build-plan-display-state.md`
-Chunk 04; `labels-and-surfaces.md` § Display state). `WallOut` and the MCP wall
-shape (`art_display(action='walls')`, and every answer carrying a wall) gain
-`display_state`, additive:
-`{state, work_id, since, reported_at, age_seconds, last}`. `state` is the
-controller's (`showing_art`, `in_use`, `dark`, `no_screen`, `unreachable`) read
-from the wall's heartbeat, or the server's own: **`unassigned`** when no client
-output shows the wall, whatever its heartbeat file says, and **`silent`** when
-there is no readable heartbeat or it is older than `STALE_AFTER_SECONDS` (three
-heartbeat intervals, `programming/manifest/heartbeat.py`; held to the Player's
-and the browser's by `tests/preferences/test_staleness_threshold.py`). `work_id`
-only with `showing_art`, null there for a picture the wall did not put there.
-`since` is the controller's, null from a Player before minor 3 and for
-`unassigned`; for `silent` it is the last report's instant. `last` is set only
-for `silent`: `{state, work_id, since}` from the last readable report, null when
-there never was one. A heartbeat before minor 3 reads as `showing_art` with its
-`current_work_id`, and as `unreachable` when it names no work. Derived in one
-function (`programming/display_state.py`) for both surfaces.
-On `POST /walls/{wall_id}/heartbeat`, a `display_state` that is malformed (not exactly `state`, `work_id` and `since`, a work beside a known state other than `showing_art`, a `since` without an offset) is refused with a 400 and nothing written. **A state name the server does not know is accepted** and read as `unreachable` with no work, because minors only add and Players upgrade first (`player-contract.md`); refusing it would make an upgraded Player's wall silent. A heartbeat file that fails the same test reads as unreadable on every screen alike (`heartbeat.read` applies it).
-
-**Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
-`art_display(action='issue_token')`, with the Walls screen's Player token panel.
-A wall token admits nothing. This is breaking for a Player configured with
-`WALL_TOKEN`, by the plan's ruling that no transition is kept.
-
-**Before 2026-09-30 nothing in this section existed in code.** It records the target that
-`re-architecture.md` § Seam 2 sets. **The contract artifact now exists:
-`player-contract.md`, with its schemas and fixtures under `contract/`.** Where
-this section and that file disagree, that file wins.
-
-**Why it replaces the file channel.** Once the server moves to the NAS, the
-shared `ART_ROOT` would have to become a network mount on every Pi. Network
-mounts hang the processes that read them when the NAS reboots, which is the exact
-failure the availability norm exists to prevent. A pull into a Player-local cache
-keeps the norm true across the hop: the cache is the only path the Player ever
-renders from, so it is exercised on every rotation rather than being a fallback
-that is tested only on the night it matters. The norm amendment itself is
-recorded in `architecture.md` § Direction.
-
-| Route | Direction | Shape | Obligation |
-|---|---|---|---|
-| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
-| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
-| `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`). From wave 4 it also carries the Player's **capabilities** (geometry, backend, label hardware) **as observations**. | **Bounded**, like the manifest. Programming reads the capabilities and judges per-wall adequacy from them; the Library never sees them. |
-
-**Every route carries the wall's token** (decided 2026-09-30,
-`re-architecture.md` § Seam 2) as a bearer credential. A missing or wrong token
-is `401`, and a token for another wall is `403`. *(Amended 2026-10-02: the
-client's token, admitted for the walls assigned to that client; `403` for a wall
-that is not its client's. § Clients above.)* The Player treats either as a
-configuration error, stated once in the journal, and keeps its cache, like a
-`404` on its wall.
-
-**Versioning carries over rather than being re-decided.** `SCHEMA_MAJOR` and
-`SCHEMA_MINOR` keep their meanings: additive changes are free, and a breaking
-change bumps the major, which the Player refuses while keeping the manifest it
-has.
-- **The HTTP channel is a minor bump (wave 2).** It is built *alongside* the
-  file channel, and the document itself does not change shape. Only its
-  transport and its media references are new.
-- **Major 2 (wave 4) carries every breaking change at once.** `render_path` to a
-  composed 4K canvas is replaced by a presentation-master reference plus the mat
-  colour, and the playlist and directive become the schedule and scenes. A
-  major-1 Player cannot draw a wall from either. The refusal rule is
-  what makes the cutover safe: an un-upgraded Player keeps showing yesterday's
-  wall instead of misreading today's.
-
-**The error model follows the manifest's existing posture, not the MCP
-envelope.** The consumer is a daemon, not a model, so errors do not need to
-teach. They need to be classifiable.
-- **Transport failures, 5xx responses and timeouts** are "server unreachable":
-  keep the cache and back off, the same ladder an unreachable television gets.
-- **404 on a wall** is a configuration error, stated once in the journal.
-- **404 on a media hash** is a work that cannot be shown: skip it and keep
-  rotating, as with a missing render file today.
-- **An unrecognised major** is refused, and the last good manifest is kept.
-
-The wall going black stays worse than the wall being incomplete. That is the rule
-this whole surface is judged by.
-
-**Open, each settled before the wave named in `re-architecture.md` § Open questions:**
-- **Authentication** is settled: a bearer token per wall, on every route
-  (`player-contract.md` § Transport).
-- **ETag polling or server-sent events** for directive latency. Polling matches
-  today's roughly 1 s behaviour and is the default.
-- **The presentation master's encoding and cap.**
-
-### History, selections and *Not this one again* — BUILT 2026-10-07 (`build-plan-walls-work-and-trust.md` Chunks 03, 04)
-
-The server halves of the owner's rulings 1 and 6 of 2026-10-07 (`ia-proposal.md`
-§ Rulings). Exercised against a booted server by
-`arrt/tests/integration/test_history_surface.py` and
-`arrt/tests/integration/test_selections_and_exclusions.py`, both surfaces.
-
-| Route | What it is |
-|---|---|
-| `GET /api/history` | What happened, newest first: `events` of `{event_id, kind, occurred_at, artwork_id, run_id, wall_id, theme_id, detail}`, with `total`, `limit`, `offset`. `kind` repeats and any named matches (`EventKind`'s values; an unknown one is refused by name); `wall_id` is one wall's history, what was hung there and what was kept off from there. `limit` 1–100, default 25. Every id may no longer resolve, so `detail` carries the words: `title`, `theme_name`, `wall_name`, `selection`, `works`, `run_kind`, `intent`, `status`, `reason`, `candidate_work_id`. Recorded from 2026-10-07 on; nothing earlier. Twin: `art_catalogue(action='history', kinds=[...], wall_id=...)`. |
-| `POST /api/walls/{wall_id}/selection` | Hang `{artwork_ids}` (one or more, in order) on the wall until something else is hung there. Stored as a theme with `hidden: true`. Returns the manifest build, as `activate` does. Refused, with nothing hung, for an empty list or an id the Library does not hold. Twin: `art_theme(action='hang_selection')`. |
-| `POST /api/walls/{wall_id}/not-again` | *Not this one again*, `{artwork_id, scope}`: `theme` takes the work out of the theme hanging on that wall; `every_wall` keeps it off every wall (a `WorkExclusion`), and it stays held and in its themes. The walls carrying it lose it from their published manifests at once, and a pin naming it is withdrawn without advancing; nothing else on any wall changes. Returns `{scope, artwork_id, wall, left_theme, excluded_at}`, the wall read back. Twin: `art_theme(action='not_again')`. |
-| `GET /api/exclusions` | Every work kept off every wall, `{artwork_id, excluded_at}`, oldest first. Twin: `art_theme(action='kept_off')`. |
-| `DELETE /api/exclusions/{artwork_id}` | The undo: the work may go on walls again. Republishes nothing; the next hang or sync carries it. Returns the exclusions that remain. Refused for a work not kept off. Twin: `art_theme(action='allow_again')`. |
-| `ThemeOut.hidden`, and `theme_fields`' `hidden` | Every theme shape carries it. `GET /api/themes`, `art_theme(action='list')` and the works grid's theme options leave hidden themes out (the grid keeps one only while it is the filter in force); a wall's `theme` may be one. A selection is deleted once no wall hangs it, and `POST /api/gets`, `art_discovery(action='get')` and `POST /api/themes/{id}/default` refuse one with a 400 naming it a selection. |
-| `GET /api/works/{artwork_id}/placements` | Where a held work is, for the Work page's state strip: `{artwork_id, themes, excluded_at}`. `themes` is every theme holding the work as `ThemePlacementOut` (`theme`, `hanging_on`), **selections (`hidden`) included**, since a selection is how one work hangs by itself; the page says a selection as its wall. A selection that no wall hangs is deleted, so none is listed hanging nowhere. `excluded_at` is when it was kept off every wall, or null. One read scope. Refused for a work the catalogue does not hold. No twin: an agent reaches the same facts through `art_theme`'s `list`, `get` and `kept_off`, and this is the page's layout of them. Exercised by `arrt/tests/integration/test_work_placements.py`. **Built 2026-10-07** (Chunk 06). |
-| `ExclusionOut.reason` gains `kept_off_every_wall` | A manifest build names an excluded work with this reason, ahead of any reason the Library would give. |
-
-Each act writes one `HistoryEvent` (`data-model.md`), and a refused act writes
-none. *Not this one again*'s two answers are one service method,
-`DisplayService.not_this_one_again`, so the HTTP route and the tool do not each
-decide which act a scope means.
-
-**The Library facade is a second, internal interface, drawn now to be
-network-ready later.** `re-architecture.md` § Seam 1 has Programming calling the
-Library only through a small facade, centred on
-`playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. It is
-coarse-grained, id-based, returns plain data and is idempotent. Since
-2026-10-07 it also takes `record(ProgrammingAct)`, Programming's acts on the walls
-for the history, written after Programming's own change commits. That one call is
-a write and is not idempotent: a retried call records a second line. It is **not an
-exposed API** today and carries no versioning obligation, because both sides ship
-in one process. It is recorded here because it is written *as if* it were
-remote. If the Library and Programming ever split, this facade becomes a network
-surface and inherits the bounded obligation above. Nothing about its shape should
-need to change when that happens.
-
-## Conventions
-
-**One binding norm already governs this artifact** — `architecture.md` § Direction,
-ratified by the owner 2026-07-20, with its enforcement row in
-`project-preferences.md`:
-
-> **Operation logic lives ONLY in the service layer. MCP tools and HTTP handlers
-> are thin bindings and contain no business logic.**
-
-This is what makes the chosen architecture safe. UI controls call HTTP, agents
-call MCP — two entry points, one implementation. A handler that validates,
-orders, or decides is a violation; a handler that unpacks arguments, calls one
-service method, and formats the result is the norm.
-
-Without it, "MCP at parity with the web UI" degrades into two implementations of
-every operation that diverge invisibly — an agent and a click producing different
-results, with no test that would catch it.
-
-**The registry gives that norm a structural home.** hallucinote separates
-declarative action records (schema, description, example, tips — no logic) from
-handlers (the work). That split *is* this norm, expressed as a directory boundary
-rather than a rule someone has to remember: an action record that contains a
-decision is visibly in the wrong file. Adopting the same shape here means the norm
-is enforced by where code lives, not only by review.
-
-**Consolidation is vertical, never horizontal.** A tool may do several internal
-steps to serve one operator intention. What it may not become is a generic
-multiplexer — an `art_request(method=..., path=...)` passthrough is the
-anti-pattern Anthropic's Directory review rejects outright, and it would put routing
-logic in the binding, which the norm above forbids.
-
-## Security
-
-**Trust model:** the network layer carries it. The MCP server is LAN-only, reached
-remotely via an overlay network (Tailscale/VPN). No authentication, no TLS
-termination, no rate limiting in the application — proportionate for a
-single-principal household tool, and recorded as a decision in
-`project-state.yaml` → `technical_decisions.integrations`.
-
-**`initiated_by` is provenance, not authorisation.** Every surface has identical
-authority. Agent-initiated runs queue candidates for the same reason UI-initiated
-runs do — the review gate is universal, not a restriction on agents. Branching
-authority on the caller would reintroduce the parity split MCP exists to prevent.
-
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The server moves
-> to the operator's NAS and gains a **LAN listener for Players**, whose clients
-> are devices, not the curator. "Anyone on the network is the curator" was
-> sound when every inbound caller was a person. It needs restating once a Pi at
-> a wall holds a write route: the heartbeat POST can make a wall's health read
-> green or red.
->
-> Whether the Player surface authenticates is open, and `security-model.md`
-> § Trust Boundary owns the answer. Two more things apply:
-> - **Watches** are standing, scheduled searches, and can auto-accept. They fire
->   the "unattended discovery" trigger that `security-model.md` § Prompt Injection
->   names. That section must be re-derived before Watches are built.
-> - **`initiated_by`** will need a value for a Watch.
-
-**The real exposure is prompt injection, and it is bounded — but less tightly than
-this artifact previously claimed.**
-
-Discovery reads arbitrary gallery sites, prize pages, and artist portfolios —
-attacker-influencable text — and feeds it to an agent whose tools mutate the
-catalogue and spend money.
-
-> **A bound was voided on 2026-07-19 and is corrected here rather than quietly
-> dropped.** This section used to open with *"Agents cannot auto-accept. Every
-> addition stops at curator review."* That was true while the review gate was
-> withheld from the MCP surface. It is no longer: `art_review(action='set_verdict')`
-> exists, decided the same day, because the gate's real content is that a human
-> *saw the artwork* — not that a surface was denied a tool. An injected
-> instruction now has a verdict tool within reach.
->
-> Leaving the old sentence in place would have been the worse outcome: a future
-> reader would have taken a stale guarantee as current and built on it.
-
-What actually bounds the exposure now, in descending order of strength:
-
-1. **The spend cap fails closed.** A poisoned page cannot run up an unbounded bill.
-   This bound is unchanged and is the strongest one.
-2. **Tool authority stays narrow** — no filesystem access, no shell, no arbitrary
-   fetch. The blast radius stays inside the catalogue.
-3. **Acceptance is visible and fully reversible.** It changes the wall, which is the
-   most conspicuous surface the product has; archive restores.
-4. **The curator is present in the session** that issued the request, and the
-   accepted set is enumerated in the transcript.
-
-Bounds 3 and 4 are materially weaker than "cannot", and are stated as such. Bound 4
-in particular is a property of how the operator works, not something the system
-enforces.
-
-**One design consequence follows, DECIDED 2026-07-20: `set_verdict` requires
-explicit work ids and refuses a bare "accept everything pending."**
-
-It does not stop a determined injection — an agent can enumerate first — but that
-was never the bar. The bar is that **the accepted set appears in the transcript
-where the curator sees it.** Given the review gate's durable justification is
-content appropriateness rather than spend, the ids being visible at the moment of
-acceptance *is* the gate doing its job; an `accept_all` that leaves no record of
-what "all" was would hollow it out while looking identical in the happy path.
-
-Accepted cost: friction on the legitimate "accept them all" path, which is the
-common case after a good run. The curation UI can still offer a select-all
-affordance — it simply sends the ids, which is what a UI naturally has anyway.
-
 Worth stating plainly: the realistic worst case is a poisoned page steering
 candidate selection, burning budget, or getting an unwanted image onto the wall
 until someone looks. Annoying and visible, not a breach. There is no
@@ -2344,18 +1950,21 @@ multi-tenancy and no payment surface.
 
 > **The "no PII" half of that sentence was retired on 2026-08-12** and is struck
 > rather than quietly deleted, because the threat assessment above rests on it.
-> `security-model.md` § The one exception designates `ConversationTurn.text` as
-> the product's only retained free-text record of a person. **It does not change
-> this section's conclusion**: the vector reasoned about here is content coming
-> *inward* from a museum or search page into the candidate pipeline, and nothing
-> an injected page can reach reads a conversation turn back out. What it does
+> From then until 2026-10-09 `ConversationTurn.text` was the product's only
+> retained free-text record of a person; the curator's words now live only in
+> the server's memory for a thread's life (`security-model.md` § The curator's
+> own words). **Neither changes this section's conclusion**: the vector reasoned
+> about here is content coming *inward* from a museum or search page into the
+> candidate pipeline, and nothing an injected page can reach reads the curator's
+> words back out. What it does
 > change is that "not a breach" can no longer be argued from the product holding
 > nothing personal — it is argued from what this particular vector reaches. That
 > is a narrower claim, and it is the true one.
 >
-> **The outward direction is real and is not this paragraph's**: `commit` passes
-> the curator's own committed sentence to `DiscoveryRunner.start(intent_text=…)`,
-> which is what a search provider is asked. That is by design — a run cannot be
+> **The outward direction is real and is not this paragraph's**: a Get from words
+> passes the curator's sentence to `DiscoveryRunner.start(intent_text=…)`, and
+> Ask passes their words to OpenRouter and its queries to SearXNG; that is what a
+> search provider is asked. That is by design — a run cannot be
 > explained without it — and it is why `observability-strategy.md` names the
 > words the one thing here whose logging is a decision rather than a freedom.
 >

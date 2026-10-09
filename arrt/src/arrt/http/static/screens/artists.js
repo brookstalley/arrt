@@ -333,8 +333,8 @@ async function paintSimilar(section, qid) {
   );
 }
 
-/* *More like this* and *Not this*, the same two of the three reactions a
- * conversation sample offers and in the same words (`core/taste.js`): one
+/* *More like this* and *Not this*, the same two of the three reactions an
+ * artist Ask offers carries, in the same words (`core/taste.js`): one
  * judgment about one artist, wherever it is made. */
 function tasteControls(artist) {
   const said = el("p", { class: "muted", "aria-live": "polite" });

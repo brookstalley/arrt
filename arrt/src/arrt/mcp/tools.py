@@ -1796,9 +1796,9 @@ _DERIVATION = Param(
     name="derivation",
     type="string",
     description=(
-        "Where a judgment came from: 'stated' is the curator saying it, 'inferred' is a model reading it out "
-        "of what they said and needs the turn it read, 'observed' is the product reading it out of what was "
-        "accepted and rejected in review. action='set' writes the first two and refuses the third."
+        "Where a judgment came from: 'stated' is the curator saying it, 'inferred' is a model's reading of a "
+        "conversation the product no longer keeps, 'observed' is the product reading it out of what was "
+        "accepted and rejected in review. action='set' writes only 'stated'."
     ),
     choices=tuple(str(member) for member in AffinityDerivation),
 )
@@ -1835,8 +1835,8 @@ ART_TASTE: Final = ToolRecord(
                 ),
                 (
                     "A `stated` judgment carries no rationale and that is normal — the curator's own words are "
-                    "the account. An `inferred` one whose `source_turn_id` is null had its conversation deleted; "
-                    "its rationale is the evidence that survived."
+                    "the account. An `inferred` one came from a conversation the product no longer keeps; its "
+                    "rationale is the evidence it has."
                 ),
             ),
         ),
@@ -1867,14 +1867,9 @@ ART_TASTE: Final = ToolRecord(
                     name="rationale",
                     type="string",
                     description=(
-                        "The account of the judgment in the curator's terms. Required for 'inferred'; normally "
-                        "absent for 'stated', where their own words are the account."
+                        "The account of the judgment in the curator's terms. Normally absent for 'stated', where "
+                        "their own words are the account."
                     ),
-                ),
-                Param(
-                    name="source_turn_id",
-                    type="string",
-                    description="The conversation turn an 'inferred' judgment was read out of. Required for it.",
                 ),
             ),
             tips=(
@@ -1883,16 +1878,9 @@ ART_TASTE: Final = ToolRecord(
                     "corrected in place. There is nothing to fetch first."
                 ),
                 (
-                    "It refuses derivation='observed'. That value is a claim only the review path can make, and a "
-                    "row asserting behaviour that never happened cannot be audited afterwards."
-                ),
-                (
-                    "It refuses to overwrite a stronger provenance with a weaker one: a reading of what the "
-                    "curator said cannot overwrite what they said or did. Ask them, then write it as 'stated'."
-                ),
-                (
-                    "Writing replaces the provenance as well as the judgment, so a correction cites the turn it "
-                    "came from or none — never the turn the previous judgment cited."
+                    "It refuses derivation='observed', a claim only the review path can make, and "
+                    "derivation='inferred', which would have to cite a stored conversation and there are none. "
+                    "If you read a judgment out of what the curator said, ask them, then write it as 'stated'."
                 ),
             ),
         ),

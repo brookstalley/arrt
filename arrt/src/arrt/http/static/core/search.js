@@ -97,8 +97,8 @@ export function fold(text) {
  * cannot nest groups, so each group's name carries its half ("Held: artists",
  * "Not held: works") and the half's own heading is drawn for the eye only. */
 function installSuggestions(field) {
-  // Its own class name: `.suggestions` is a conversation turn's block, and a
-  // shared name gave every turn the dropdown's absolute positioning.
+  // Its own class name, so no other block on a page that happens to be called
+  // `.suggestions` takes the dropdown's absolute positioning.
   const list = el("ul", { id: "search-suggestions", class: "search-suggestions", role: "listbox", "aria-label": "Suggestions" });
   list.hidden = true;
   // The registry's rows arrive after the list is open: said here, once, rather

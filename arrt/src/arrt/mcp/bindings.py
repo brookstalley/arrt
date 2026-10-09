@@ -36,7 +36,6 @@ from arrt.library.services.review import (
     WantedView,
 )
 from arrt.library.services.runner import RunListing, RunView
-from arrt.library.services.taste import AffinityView
 from arrt.library.services.twins import InReview
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.plugin import API_VERSION
@@ -44,6 +43,7 @@ from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import (
+    Affinity,
     AffinityDerivation,
     CandidateWork,
     DiscoveryRun,
@@ -1480,7 +1480,6 @@ def _set_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         # of that default is a second thing to keep agreeing.
         derivation=arguments.get("derivation", str(AffinityDerivation.STATED)),
         rationale=arguments.get("rationale"),
-        source_turn_id=arguments.get("source_turn_id"),
     )
     return ok(affinity=_affinity_fields(affinity))
 
@@ -1491,19 +1490,18 @@ def _delete_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str,
         affinity=_affinity_fields(forgotten),
         notice=(
             "That judgment is gone and nothing restores it. The product now knows nothing about "
-            f"{forgotten.affinity.value!r} rather than knowing to leave it alone."
+            f"{forgotten.value!r} rather than knowing to leave it alone."
         ),
     )
 
 
-def _affinity_fields(view: AffinityView) -> dict[str, Any]:
+def _affinity_fields(affinity: Affinity) -> dict[str, Any]:
     """One judgment as the tool surface reports it.
 
     Field names match `AffinityOut` on the browser surface exactly, because the
     two carry the same fact and an agent and a click that call it two things is
     how they come to disagree about the same taste.
     """
-    affinity = view.affinity
     return {
         "affinity_id": affinity.id,
         "kind": str(affinity.kind),
@@ -1512,13 +1510,6 @@ def _affinity_fields(view: AffinityView) -> dict[str, Any]:
         "open_to_more": affinity.open_to_more,
         "derivation": str(affinity.derivation),
         "rationale": affinity.rationale,
-        # Null on an `inferred` row whose conversation was deleted, which is a
-        # legal state: the judgment stands and the citation is gone.
-        "source_turn_id": affinity.source_turn_id,
-        # Resolved from the cited turn by the service, so a model following a
-        # judgment back to its thread and a curator clicking through reach the
-        # same one. Null wherever `source_turn_id` is.
-        "conversation_id": view.conversation_id,
         "artist_id": affinity.artist_id,
         "created_at": affinity.created_at.isoformat(),
         "updated_at": affinity.updated_at.isoformat(),

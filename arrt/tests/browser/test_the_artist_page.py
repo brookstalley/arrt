@@ -315,7 +315,7 @@ class TestTheArtistPage:
         ui.page.click("button:has-text('More like this')")
         ui.page.wait_for_selector("text=Recorded: more like this for Mark Rothko.")
 
-        affinities = {(view.affinity.kind, view.affinity.value): view.affinity for view in services.taste.list_affinities()}
+        affinities = {(affinity.kind, affinity.value): affinity for affinity in services.taste.list_affinities()}
         recorded = affinities[("artist", "Mark Rothko")]
         assert (str(recorded.sentiment), recorded.open_to_more) == ("loves", True)
 

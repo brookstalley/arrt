@@ -2134,174 +2134,6 @@ class MoveWork(BaseModel):
     position: int | None = Field(default=None)
 
 
-class SampleOut(BaseModel):
-    """One picture shown beside a name a reply gave, to make the name concrete.
-
-    **Not a candidate and not on its way to becoming one.** Nothing here has been
-    proposed, judged, or acquired — it is a work the wired collection holds by an
-    artist the model named. `image_url` is the collection's own preview address,
-    loaded by the browser directly, because a conversation keeps no files of its
-    own. Moving such pictures behind Arrt's routes, into the picture store, is a
-    plan of its own (`build-plan-picture-store.md` § Not in this plan).
-    """
-
-    title: str
-    artist: str | None
-    #: Null when the deployment browses no collection, or when the collection's
-    #: record carries no preview. The name is still shown; a sample without a
-    #: picture is a fact stated plainly rather than a blank box.
-    image_url: str | None
-
-
-class SuggestionOut(BaseModel):
-    """One thing a turn named, and whatever pictures were found for it.
-
-    `kind` is drawn from the same closed set an affinity is recorded against —
-    artist, movement, era, subject, medium, palette — because a suggestion is
-    what an affinity would later be recorded *about*, and two vocabularies would
-    leave the thing said and the thing remembered unable to be matched up.
-    """
-
-    kind: str
-    value: str
-    #: Frozen at the moment the turn was written, never looked up on read. The
-    #: transcript is a record of what was said, so a thread re-read next month
-    #: shows the pictures it showed at the time rather than whatever the
-    #: collection would answer today. Empty for a kind the collection cannot be
-    #: browsed by, which today is everything but `artist`.
-    samples: list[SampleOut]
-
-
-class ConversationTurnOut(BaseModel):
-    """One thing said in a conversation.
-
-    `role` is `curator` or `system` — the product's own words, deliberately not
-    the provider's `user`/`assistant`. The transcript a curator reads back is in
-    the product's terms, and the translation to a chat API's happens once, far
-    below this surface.
-    """
-
-    turn_id: str
-    ordinal: int
-    role: str
-    #: Verbatim, and never null. A model turn that was cut off arrives from the
-    #: provider with no content at all; storing that null is what would make the
-    #: *next* turn fail over a missing content field rather than over anything
-    #: that went wrong, so a turn with nothing in it carries the empty string.
-    text: str
-    suggested: list[SuggestionOut]
-    #: The seam. Set on the turn where the curator committed a direction, and the
-    #: only edge from a conversation to a run. A run started from the Discover
-    #: box has none, and neither does any turn before the commit.
-    committed_run_id: str | None
-    created_at: str
-
-
-class ConversationOut(BaseModel):
-    """One conversation as a list row shows it."""
-
-    conversation_id: str
-    started_at: str
-    #: What the list is ordered by. Distinct from `started_at` because the thread
-    #: a curator is looking for is the one they last said something in, and the
-    #: day it began says nothing about that.
-    last_turn_at: str
-    #: A short account of where the conversation got to, for the list. **Never
-    #: read back as taste** — an affinity is the only thing the product consults
-    #: for that, and a summary consulted as one would be a second, prose-shaped
-    #: opinion free to drift from the recorded one.
-    summary: str | None
-
-
-class ConversationViewOut(BaseModel):
-    """A whole thread, and whatever is outstanding on it.
-
-    `failure` and `unanswered_turn_id` are the retryable failed turn, and they
-    are deliberately different kinds of fact. `unanswered_turn_id` is derived
-    from the transcript — a thread whose last turn is the curator's is one whose
-    question was not answered — so it survives a reload and cannot disagree with
-    what the thread says. `failure` is the account of why *this* attempt did not
-    answer, and it lives only on the response to that attempt: it is a fact about
-    a call rather than about the conversation, and a transcript that kept it
-    would report a provider's transient complaint as part of what was said.
-
-    **Every write returns this whole view rather than the turn it wrote.** A
-    failed turn must stay in the thread and be retryable, which a client cannot
-    render from an error body — so a turn that could not be answered is a 200
-    carrying the thread and the reason, and only a refusal that recorded nothing
-    at all is a 400.
-    """
-
-    conversation: ConversationOut
-    turns: list[ConversationTurnOut]
-    #: The run this conversation seeded, if it has seeded one — the most recent,
-    #: because a curator may commit a second direction from the same thread and
-    #: the card at the bottom is about the last thing they did. This is what the
-    #: commit card polls, and it is why committing never has to navigate.
-    committed_run_id: str | None
-    failure: str | None
-    unanswered_turn_id: str | None
-
-
-class ConversationListOut(BaseModel):
-    """Every conversation, the most recently spoken in first."""
-
-    conversations: list[ConversationOut]
-    count: int
-
-
-class Speak(BaseModel):
-    """Something to say, or nothing — which asks again for the last answer.
-
-    **Omitting the text is how a failed turn is retried, and that is what keeps a
-    spend-triggering POST safe to press twice.** Retrying asks for the answer to
-    the question already standing at the end of the thread rather than re-sending
-    the question, so a thread whose last turn *was* answered has nothing to retry
-    and is told so — which is exactly the case where the model was billed and the
-    response was lost on the way back to the browser. The transcript closes the
-    double-spend window, in place of an idempotency key a client would have to
-    remember to send.
-    """
-
-    text: str | None = None
-
-
-class CommitDirection(BaseModel):
-    """The direction to search for, in the words the curator is committing to.
-
-    Sent rather than derived on the server from the last turn's suggestions, for
-    the reason the direct-intent box exists at all: what gets searched for is the
-    curator's decision, and a commit button that sent something they had not read
-    would be the wizard this flow is arranged to avoid.
-    """
-
-    intent: str
-
-
-class ConversationDeletionOut(BaseModel):
-    """What deleting a conversation destroyed, and what it left standing.
-
-    **`description` is the response's point and the counts qualify it.** This is
-    the one operation in the product that genuinely destroys a record, and the
-    requirement is that the confirmation names a consequence — the ability to
-    rebuild those judgments when the derivation improves, which is gone — rather
-    than reporting how many rows moved.
-    """
-
-    conversation_id: str
-    turns_deleted: int
-    #: Judgments that kept their judgment and lost their derivation. Their rows
-    #: are untouched but for `source_turn_id`, which is now null.
-    affinities_detached: int
-    #: Ledger entries that kept their amount and lost their citation. **No month
-    #: total changes**, which is why these are detached rather than cascaded.
-    spend_records_detached: int
-    #: Searches this thread committed. They are untouched; what is gone is the
-    #: record that this conversation is where they came from.
-    runs_unattributed: int
-    description: str
-
-
 class AffinityOut(BaseModel):
     """One standing judgment about a thing the curator has reacted to.
 
@@ -2317,8 +2149,8 @@ class AffinityOut(BaseModel):
     #: *likes* can be matched at all.
     kind: str
     #: The thing itself, as it was named. A string and never a foreign key: the
-    #: artists a conversation surfaces are the ones the curator could not have
-    #: named, so most judgments are about a name this catalogue does not hold.
+    #: artists Ask surfaces are often ones the curator could not have named, so
+    #: most judgments are about a name this catalogue does not hold.
     value: str
     sentiment: str
     open_to_more: bool
@@ -2327,18 +2159,8 @@ class AffinityOut(BaseModel):
     #: claim they are arguing with.
     derivation: str
     #: The account of the judgment in the curator's terms. Null is normal for
-    #: `stated`; required on the write path for the other two, where it is the
-    #: only evidence a deleted conversation leaves behind.
+    #: `stated`; present on the other two, where it is the only evidence.
     rationale: str | None
-    #: The turn this was read out of, where one was cited and still exists.
-    #: **Null on an `inferred` row whose conversation was deleted**, which is a
-    #: legal state rather than a corruption.
-    source_turn_id: str | None
-    #: The thread that turn belongs to, resolved by the service rather than
-    #: stored — the affinity cites a turn, and a turn already knows its
-    #: conversation. This is what the Taste screen's way back to a judgment's
-    #: provenance is addressed by; null exactly where `source_turn_id` is.
-    conversation_id: str | None
     artist_id: str | None
     created_at: str
     updated_at: str
@@ -2373,12 +2195,9 @@ class SetAffinity(BaseModel):
     sentiment: str
     open_to_more: bool
     #: Defaults to `stated`, which is what the Taste screen's correction and every
-    #: reaction in a thread are. `observed` is refused whoever sends it.
+    #: reaction are. The service writes nothing else.
     derivation: str = "stated"
     rationale: str | None = None
-    #: Required by the service when `derivation` is `inferred`, and meaningless
-    #: otherwise: a curator saying a thing is the whole provenance.
-    source_turn_id: str | None = None
 
 
 class WorksFilter(BaseModel):

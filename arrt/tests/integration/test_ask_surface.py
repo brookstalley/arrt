@@ -12,6 +12,7 @@ import threading
 import time
 
 import httpx
+import openai
 import pytest
 from fakes import FakeRegistry
 from scripted_model import COST_PER_REPLY, HeldModel, ScriptedModel, calls, says
@@ -239,6 +240,39 @@ def test_a_fault_ends_the_stream_once_as_agent_failed_and_frees_the_thread(serve
     assert failed[0].exc_info is not None
     assert any("ended=failed" in record.getMessage() for record in caplog.records if record.name == "arrt.ask")
     assert httpx.get(f"{server_url}/api/ask/threads/{thread_id}").json()["replying"] is False
+
+
+class RefusingModel(ScriptedModel):
+    """A model whose provider refuses the call, as OpenRouter does when the key's limit is spent."""
+
+    error: Exception
+
+    def _next(self, messages):
+        self.seen.append(list(messages))
+        raise self.error
+
+
+class TestAtTheSpendingCap:
+    """The owner's ruling 3 of 2026-10-07 (#290): a reply refused at the cap leads with the budget."""
+
+    @pytest.fixture
+    def ask_model(self):
+        refused = httpx.Response(
+            403,
+            json={"error": {"message": "Key limit exceeded (total limit).", "code": 403}},
+            request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"),
+        )
+        return RefusingModel(
+            replies=[], error=openai.PermissionDeniedError("Key limit exceeded (total limit).", response=refused, body=None)
+        )
+
+    def test_a_reply_refused_at_the_cap_says_the_budget_is_spent(self, server_url):
+        events = send(server_url, open_thread(server_url), "Bruegel")
+
+        terminals = [event for event in events if event["type"] in {"stream_end", "stream_error"}]
+        assert [(event["type"], event["code"]) for event in terminals] == [("stream_error", "BUDGET_SPENT")]
+        assert terminals[0]["message"].startswith("This month's budget is spent")
+        assert "Key limit exceeded (total limit)." in terminals[0]["message"]
 
 
 def test_words_that_are_only_white_space_are_refused_before_anything_is_spent(server_url, ask_model):

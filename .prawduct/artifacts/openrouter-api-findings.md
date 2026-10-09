@@ -491,6 +491,12 @@ unparseable answer is a normal outcome of an unenforced schema, not an incident.
 
 ## The conversation call: a longer `messages` array, and two defects it exposes (measured 2026-08-12)
 
+> **Its consumer was retired on 2026-10-09** (`build-plan-ask-agent.md` Chunk 04).
+> Ask now runs on 3tears-models, not on this client. The measurements stand as
+> the provider's behaviour, `complete_thread` is still the client's multi-message
+> path, and `tests/unit/test_conversation_client.py` still holds it to these
+> captures.
+
 Probed against the live API, nine days after the vision call above, because the
 curation-UX build plan needed its least confident assumption tested before code
 was written against it:

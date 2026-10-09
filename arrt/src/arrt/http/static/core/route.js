@@ -13,7 +13,7 @@
  *
  * `information-architecture.md` § Navigation Structure requires that "every
  * screen and every consequential state (a search query, an active filter set, a
- * run, a conversation) is addressable". The query half was added when the
+ * run) is addressable". The query half was added when the
  * fragment could carry a view and an id and nothing else, so a search and a
  * filter set had nowhere to live and a contextual screen had no way to record
  * which page it was opened from.

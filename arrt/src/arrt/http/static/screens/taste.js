@@ -121,8 +121,8 @@ function paint(taste, generation) {
  *
  * Said on the empty page and the full one alike, because a curator wondering
  * why a judgment is here, or how to add one, needs the list either way. Each
- * control is named as it reads where it is: a conversation's three reactions
- * are lower-case on its samples, and an artist's page says *More like this* and
+ * control is named as it reads where it is: Ask's three reactions are
+ * lower-case on the cards it offers, and an artist's page says *More like this* and
  * *Not this*. The corrections on this page are listed too, since a correction
  * records a judgment of its own (`core/taste.js`). An assistant writes through
  * `art_taste`, which records what it read out of something the curator said. */
@@ -132,7 +132,7 @@ function howTasteIsRecorded() {
     el("p", { class: "muted", text: "What the product has come to think you like. A judgment is recorded when you:" }),
     el("ul", { class: "muted" }, [
       el("li", {}, [
-        "react to a picture in a conversation in Ask, with ",
+        "react to an artist or topic Ask offers, with ",
         control("more like this"),
         ", ",
         control("not this"),
@@ -164,8 +164,8 @@ function howTasteIsRecorded() {
 function empty() {
   return emptyState(
     "Nothing is known about your taste yet.",
-    "Any of the ways above records the first judgment; a conversation in Ask is the quickest.",
-    [link({ view: "discover" }, { class: "action", text: "Start a conversation in Ask" })],
+    "Any of the ways above records the first judgment; asking in Ask is the quickest.",
+    [link({ view: "discover" }, { class: "action", text: "Ask for something" })],
   );
 }
 
@@ -234,43 +234,22 @@ function correctionLabel(reaction) {
   return "Keep showing me";
 }
 
-/* The derivation, and the model's own account where there is one.
- *
- * **A missing `source_turn_id` on an inferred row is not reported as a fault.**
- * It means the conversation that produced the judgment was deleted, which is a
- * legal state the curator themselves caused — and the rationale is what they
- * were left with, so it is what this says. */
+/* The derivation, and the model's own account where there is one. An inferred
+ * judgment came from a conversation the product no longer keeps, so its
+ * rationale is the evidence there is, and it is what this says. */
 function provenance(affinity) {
-  const parts = [
-    el("span", { text: DERIVATION_WORDS[affinity.derivation] || affinity.derivation }),
-  ];
-  if (affinity.source_turn_id) {
-    parts.push(
-      // The turn's own thread, addressed by the conversation the client is
-      // told about. A row whose thread is gone has no `source_turn_id` at all,
-      // so this link is never offered onto a conversation that is not there.
-      link(
-        { view: "conversation", id: affinity.conversation_id },
-        {
-          class: "action quiet",
-          text: "See the conversation",
-          "aria-label": `Open the conversation that produced this judgment about ${affinity.value}`,
-        },
-      ),
-    );
-  }
   return el("div", { class: "affinity-provenance" }, [
-    el("p", { class: "muted" }, parts),
+    el("p", { class: "muted", text: DERIVATION_WORDS[affinity.derivation] || affinity.derivation }),
     affinity.rationale ? el("p", { class: "muted", text: `“${affinity.rationale}”` }) : null,
   ]);
 }
 
-/* Correct a judgment. The same act a reaction in a thread performs.
+/* Correct a judgment. The same act a reaction in Ask performs.
  *
  * Through the shared writer rather than a POST of this screen's own, so a
- * correction here and a reaction there cannot come to mean different things. It
- * cites no turn: a correction made on this screen is the curator saying so
- * directly, and the provenance it replaces is exactly what they are overruling.
+ * correction here and a reaction there cannot come to mean different things. A
+ * correction made on this screen is the curator saying so directly, and the
+ * provenance it replaces is exactly what they are overruling.
  *
  * Repainted by re-reading rather than from the response, because a correction
  * can move a row between groups — changing what this whole page shows, not one

@@ -166,8 +166,8 @@ class VocabularyKind(StrEnum):
     what makes the agreement structural. Widening one without the other would
     silently break the join that makes taste useful, and the only way to stop
     that being a promise is for there to be one enum to widen. `Affinity` itself
-    lives in `discovery_records.py`, beside the conversations a judgment is
-    derived from and inside the transaction its detachment has to hold.
+    lives in `discovery_records.py`, with the rest of what the curator's
+    asking produces.
 
     Closed on purpose. A free-text kind turns a typo into a new dimension, and
     nothing downstream can tell `subject` from `subjcet`; a seventh kind is a

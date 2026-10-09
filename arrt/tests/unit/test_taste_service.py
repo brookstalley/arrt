@@ -5,12 +5,11 @@ Service level, over the real store, because every rule here is about what the
 with itself about a shape SQLite would refuse.
 
 **Every check in this file is a check on the write path, and that is the point
-rather than an implementation detail.** Deleting a conversation nulls
-`Affinity.source_turn_id`, so a stored `NOT NULL` or a cascading foreign key
-would make the delete impossible or destructive. The invariants therefore live
-where a *write* can be refused without saying anything about a row already on
-disk, and the tests that prove they exist have to be here rather than against the
-schema.
+rather than an implementation detail.** The catalogue holds `inferred` rows that
+no caller can write any more, read out of conversations that are no longer
+stored. The invariants therefore live where a *write* can be refused without
+saying anything about a row already on disk, and the tests that prove they
+exist have to be here rather than against the schema.
 """
 
 from datetime import UTC, datetime
@@ -18,14 +17,7 @@ from datetime import UTC, datetime
 import pytest
 
 from arrt.library.services.taste import NEEDS_RATIONALE, TasteService, validated_write
-from arrt.persistence.discovery_records import (
-    Affinity,
-    AffinityDerivation,
-    AffinitySentiment,
-    Conversation,
-    ConversationTurn,
-    TurnRole,
-)
+from arrt.persistence.discovery_records import Affinity, AffinityDerivation, AffinitySentiment
 from arrt.persistence.records import VocabularyKind
 from arrt.services.errors import ServiceError
 
@@ -35,22 +27,25 @@ def taste(services):
     return services.taste
 
 
-@pytest.fixture
-def a_turn(discovery_store):
-    """A real conversation turn, so an `inferred` judgment has something to cite."""
+def an_inferred_row(discovery_store, *, value="Agnes Martin", rationale="they asked for stillness") -> Affinity:
+    """An `inferred` judgment as the catalogue holds one: written before conversations stopped being stored.
+
+    Through the store directly, because no caller can write one now.
+    """
     now = datetime.now(UTC)
-    conversation = Conversation(id="conversation-1", started_at=now, last_turn_at=now)
-    discovery_store.add_conversation(conversation)
-    turn = ConversationTurn(
-        id="turn-1",
-        conversation_id=conversation.id,
-        ordinal=0,
-        role=TurnRole.CURATOR,
-        text="Something calm for the living room.",
+    row = Affinity(
+        id=f"affinity-{value}",
+        kind=VocabularyKind.ARTIST,
+        value=value,
+        sentiment=AffinitySentiment.LIKES,
+        open_to_more=True,
+        derivation=AffinityDerivation.INFERRED,
         created_at=now,
+        updated_at=now,
+        rationale=rationale,
     )
-    discovery_store.add_conversation_turn(turn)
-    return turn
+    discovery_store.add_affinity(row)
+    return row
 
 
 # -- what `set` refuses -------------------------------------------------------
@@ -81,8 +76,8 @@ def test_set_refuses_observed_and_names_the_path_that_can_write_it(taste):
 
 
 @pytest.mark.parametrize("derivation", sorted(str(member) for member in NEEDS_RATIONALE))
-def test_the_two_derivations_that_are_claims_about_the_curator_need_a_rationale(derivation, a_turn):
-    """Required for `inferred` and `observed`, because it is what survives a delete.
+def test_the_two_derivations_that_are_claims_about_the_curator_need_a_rationale(derivation):
+    """Required for `inferred` and `observed`, because neither cites anything else.
 
     Driven through `validated_write` rather than through `set_affinity`, and
     deliberately: `set` refuses `observed` outright, so the rationale rule for
@@ -97,16 +92,14 @@ def test_the_two_derivations_that_are_claims_about_the_curator_need_a_rationale(
             sentiment="likes",
             open_to_more=True,
             derivation=derivation,
-            source_turn_id=a_turn.id,
         )
 
     assert "rationale" in str(refused.value)
-    # The reason, not just the requirement: this is the only evidence such a row
-    # can be left with once the conversation behind it is gone.
-    assert "Deleting a conversation" in str(refused.value)
+    # The reason, not just the requirement.
+    assert "only evidence" in str(refused.value)
 
 
-def test_a_stated_judgment_needs_no_rationale_and_no_turn(taste):
+def test_a_stated_judgment_needs_no_rationale(taste):
     """The curator saying a thing is the whole provenance.
 
     The mirror of the test above, and it is not decoration: a rule applied to all
@@ -114,21 +107,19 @@ def test_a_stated_judgment_needs_no_rationale_and_no_turn(taste):
     this" beside a picture — impossible to record without inventing an account of
     a judgment they made themselves.
     """
-    view = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
+    written = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
 
-    assert view.affinity.derivation is AffinityDerivation.STATED
-    assert view.affinity.rationale is None
-    assert view.affinity.source_turn_id is None
-    assert view.conversation_id is None
+    assert written.derivation is AffinityDerivation.STATED
+    assert written.rationale is None
 
 
-def test_an_inferred_judgment_must_cite_the_turn_it_was_read_out_of(taste):
-    """The invariant the acceptance criterion is about, on the write and nowhere else.
+def test_an_inferred_judgment_cannot_be_written_even_with_a_rationale(taste):
+    """An inference had to cite the stored turn it was read out of, and none are stored.
 
-    Both derivations are writable by a caller, so guarding only `observed` would
-    leave the neighbouring door open: any client could otherwise write "the model
-    read this out of what they said" citing nothing, which is the same
-    unrebuildable, unauditable row.
+    With a rationale, so the refusal is this rule's and not the rationale rule's.
+    Writing one citing nothing would be a row claiming "the model read this out
+    of what they said" with nothing behind it, and the refusal names the
+    derivation a caller can write instead.
     """
     with pytest.raises(ServiceError) as refused:
         taste.set_affinity(
@@ -140,24 +131,10 @@ def test_an_inferred_judgment_must_cite_the_turn_it_was_read_out_of(taste):
             rationale="they asked for calm grids",
         )
 
-    assert "turn" in str(refused.value)
+    assert "inferred" in str(refused.value)
+    assert "not stored" in str(refused.value)
     assert "stated" in str(refused.value)
-
-
-def test_an_inferred_judgment_citing_a_turn_that_does_not_exist_is_refused(taste):
-    """A citation nobody can follow is the same as none, and worse for looking real."""
-    with pytest.raises(ServiceError) as refused:
-        taste.set_affinity(
-            kind="artist",
-            value="Kandinsky",
-            sentiment="likes",
-            open_to_more=True,
-            derivation="inferred",
-            rationale="they asked for calm grids",
-            source_turn_id="no-such-turn",
-        )
-
-    assert "no-such-turn" in str(refused.value)
+    assert taste.list_affinities() == []
 
 
 def test_openness_is_required_beside_sentiment_rather_than_defaulted(taste):
@@ -201,10 +178,10 @@ def test_set_is_an_upsert_on_the_thing_rather_than_on_an_id(taste):
 
     second = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
 
-    assert second.affinity.id == first.affinity.id
-    assert second.affinity.sentiment is AffinitySentiment.DECLINES
-    assert second.affinity.open_to_more is False
-    assert second.affinity.created_at == first.affinity.created_at
+    assert second.id == first.id
+    assert second.sentiment is AffinitySentiment.DECLINES
+    assert second.open_to_more is False
+    assert second.created_at == first.created_at
     assert len(taste.list_affinities()) == 1
 
 
@@ -218,126 +195,33 @@ def test_the_same_name_under_two_kinds_is_two_judgments(taste):
     assert len(taste.list_affinities()) == 2
 
 
-def test_a_correction_replaces_the_provenance_and_never_keeps_the_old_turn(taste, a_turn):
-    """The R-17 rule: a row must never carry a turn that did not produce its judgment.
+def test_a_correction_replaces_the_provenance_and_keeps_no_old_rationale(taste, discovery_store):
+    """A row must never carry an account that did not produce its judgment.
 
     Writing the fields given and leaving the rest is the cheap default, and it
-    produces provenance that is a lie — indistinguishable afterwards from the
-    real thing, from which a later rebuild either resurrects a superseded
-    judgment or overwrites the curator's own correction.
+    produces provenance that is a lie: the curator's own correction, still
+    explained by the model's old reading of them.
     """
-    inferred = taste.set_affinity(
-        kind="artist",
-        value="Kandinsky",
-        sentiment="likes",
-        open_to_more=True,
-        derivation="inferred",
-        rationale="they asked for calm grids",
-        source_turn_id=a_turn.id,
-    )
-    assert inferred.affinity.source_turn_id == a_turn.id
+    standing = an_inferred_row(discovery_store, value="Kandinsky", rationale="they asked for calm grids")
 
     corrected = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
 
-    assert corrected.affinity.derivation is AffinityDerivation.STATED
-    assert corrected.affinity.source_turn_id is None
-    assert corrected.affinity.rationale is None
-
-
-def test_a_weaker_provenance_cannot_overwrite_a_stronger_one(taste, a_turn):
-    """A model's reading may not overwrite what the curator said.
-
-    The ranks are the builder's ruling, stated at `_PROVENANCE_RANK`: `stated` is
-    the curator's own words, `observed` is their own behaviour, `inferred` is a
-    reading of what they said. Without this an agent's inference silently
-    replaces a correction the curator made by hand, and the row that results
-    looks exactly like one they never touched.
-    """
-    taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
-
-    with pytest.raises(ServiceError) as refused:
-        taste.set_affinity(
-            kind="artist",
-            value="Kandinsky",
-            sentiment="loves",
-            open_to_more=True,
-            derivation="inferred",
-            rationale="they kept asking for grids",
-            source_turn_id=a_turn.id,
-        )
-
-    assert "stated" in str(refused.value)
-    standing = taste.list_affinities()[0].affinity
-    assert standing.sentiment is AffinitySentiment.DECLINES
-    assert standing.derivation is AffinityDerivation.STATED
-
-
-def test_an_inference_may_correct_an_earlier_inference(taste, a_turn):
-    """Equal rank passes, and it has to: re-deriving a judgment when the eliciting
-    prompt improves is exactly the correction the retained turns exist for."""
-    taste.set_affinity(
-        kind="artist",
-        value="Kandinsky",
-        sentiment="likes",
-        open_to_more=True,
-        derivation="inferred",
-        rationale="an early reading",
-        source_turn_id=a_turn.id,
-    )
-
-    again = taste.set_affinity(
-        kind="artist",
-        value="Kandinsky",
-        sentiment="loves",
-        open_to_more=True,
-        derivation="inferred",
-        rationale="a better reading",
-        source_turn_id=a_turn.id,
-    )
-
-    assert again.affinity.sentiment is AffinitySentiment.LOVES
-    assert again.affinity.rationale == "a better reading"
-
-
-def test_a_judgment_carries_the_thread_its_citation_belongs_to(taste, a_turn):
-    """The way back from a judgment to the conversation that produced it.
-
-    Resolved by the service rather than stored, so it cannot come apart from the
-    citation — and so a browser link and a tool result cannot disagree about
-    which thread a judgment came from.
-    """
-    view = taste.set_affinity(
-        kind="artist",
-        value="Kandinsky",
-        sentiment="likes",
-        open_to_more=True,
-        derivation="inferred",
-        rationale="they asked for calm grids",
-        source_turn_id=a_turn.id,
-    )
-
-    assert view.conversation_id == a_turn.conversation_id
+    assert corrected.id == standing.id
+    assert corrected.derivation is AffinityDerivation.STATED
+    assert corrected.rationale is None
 
 
 # -- reading and forgetting ---------------------------------------------------
 
 
-def test_the_listing_narrows_by_each_of_the_three_things_worth_narrowing_by(taste, a_turn):
+def test_the_listing_narrows_by_each_of_the_three_things_worth_narrowing_by(taste, discovery_store):
     taste.set_affinity(kind="artist", value="Kandinsky", sentiment="loves", open_to_more=True)
     taste.set_affinity(kind="movement", value="Bauhaus", sentiment="declines", open_to_more=False)
-    taste.set_affinity(
-        kind="artist",
-        value="Agnes Martin",
-        sentiment="loves",
-        open_to_more=True,
-        derivation="inferred",
-        rationale="they asked for stillness",
-        source_turn_id=a_turn.id,
-    )
+    an_inferred_row(discovery_store, value="Agnes Martin")
 
-    assert [view.affinity.value for view in taste.list_affinities(kind="artist")] == ["Agnes Martin", "Kandinsky"]
-    assert [view.affinity.value for view in taste.list_affinities(sentiment="declines")] == ["Bauhaus"]
-    assert [view.affinity.value for view in taste.list_affinities(derivation="inferred")] == ["Agnes Martin"]
+    assert [affinity.value for affinity in taste.list_affinities(kind="artist")] == ["Agnes Martin", "Kandinsky"]
+    assert [affinity.value for affinity in taste.list_affinities(sentiment="declines")] == ["Bauhaus"]
+    assert [affinity.value for affinity in taste.list_affinities(derivation="inferred")] == ["Agnes Martin"]
 
 
 def test_forgetting_answers_with_what_was_forgotten(taste):
@@ -348,9 +232,9 @@ def test_forgetting_answers_with_what_was_forgotten(taste):
     """
     written = taste.set_affinity(kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False)
 
-    gone = taste.delete_affinity(written.affinity.id)
+    gone = taste.delete_affinity(written.id)
 
-    assert gone.affinity.value == "Kandinsky"
+    assert gone.value == "Kandinsky"
     assert taste.list_affinities() == []
 
 
@@ -364,34 +248,17 @@ def test_forgetting_something_that_is_not_there_is_refused_by_name(taste):
 # -- the shape the file is allowed to hold ------------------------------------
 
 
-def test_an_inferred_judgment_with_no_turn_stores_and_reads_back(discovery_store):
-    """**The acceptance criterion, from the storage side.**
+def test_an_inferred_judgment_already_held_reads_back_with_its_rationale(discovery_store):
+    """**The rows no caller can write still read.**
 
-    The write path refuses this combination, and the *file* must not — because
-    deleting a conversation produces exactly it, and a stored constraint would
-    make that delete impossible or would take the judgment with it. Written
+    The write path refuses `inferred` and the *file* must not, because the
+    catalogue already holds such rows and they are the curator's history. Written
     through the store directly, which is the only way to express "a row that
-    exists but could not have been written", and read back through the service so
-    the refusal cannot be hiding in the read either.
+    exists but could not have been written now", and read back through the
+    service so the refusal cannot be hiding in the read either.
     """
-    now = datetime.now(UTC)
-    orphaned = Affinity(
-        id="affinity-1",
-        kind=VocabularyKind.ARTIST,
-        value="Kandinsky",
-        sentiment=AffinitySentiment.LIKES,
-        open_to_more=True,
-        derivation=AffinityDerivation.INFERRED,
-        created_at=now,
-        updated_at=now,
-        rationale="they asked for calm grids",
-        source_turn_id=None,
-    )
+    an_inferred_row(discovery_store, value="Kandinsky", rationale="they asked for calm grids")
 
-    discovery_store.add_affinity(orphaned)
-
-    (view,) = TasteService(discovery_store).list_affinities()
-    assert view.affinity.derivation is AffinityDerivation.INFERRED
-    assert view.affinity.source_turn_id is None
-    assert view.affinity.rationale == "they asked for calm grids"
-    assert view.conversation_id is None
+    (read,) = TasteService(discovery_store).list_affinities()
+    assert read.derivation is AffinityDerivation.INFERRED
+    assert read.rationale == "they asked for calm grids"

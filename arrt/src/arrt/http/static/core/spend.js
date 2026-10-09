@@ -47,29 +47,6 @@ export function dollars(value) {
   return `$${number.toFixed(2)}`;
 }
 
-/* What a Get from words costs, as its order of magnitude: "About $0.01",
- * "About $0.10", "About $1". The owner asked for this rather than the bound
- * (2026-10-08): the curator is deciding whether an act is cents, dimes or
- * dollars, and an exact figure reads as a promise the bound is not. Rounded to
- * the nearest power of ten, never below a cent; nothing at all reads "Free". */
-/* What a price that could not be read says, wherever one is shown: never left
- * blank, which would read as free. */
-export const COST_UNKNOWN = "Cost unknown just now";
-
-export function aboutCost(value) {
-  const number = Number(value);
-  // A figure that is not one says so, rather than reading as a price or as free.
-  if (value === null || value === undefined || value === "" || !Number.isFinite(number)) return COST_UNKNOWN;
-  if (number <= 0) return "Free";
-  const scale = 10 ** Math.max(-2, Math.round(Math.log10(number)));
-  return `About $${scale < 1 ? scale.toFixed(2) : String(scale)}`;
-}
-
-/* The caption under Get: its order of magnitude, or that it is not known. */
-export function getCaption(estimate) {
-  return aboutCost(estimate ? estimate.estimated_cost_usd : null);
-}
-
 /* The budget's line and, where the server says something more, its note. */
 export function budgetWords(budget) {
   switch (budget.state) {

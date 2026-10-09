@@ -62,6 +62,54 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask as an agent, chunk 04: the conversation, the direct box and the commit seam retired
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** Chunk 03 put the agent on Ask beside what it replaces. The owner ruled
+that old threads may simply go and that Ask is one box (2026-10-08).
+
+**What:**
+- **Removed:** the conversation service and engine, `/api/conversations` and
+  its routes, the Conversation screen and its route, the direct intent box with
+  its *Get* and *Talk it through first*, the commit card, the `CONVERSATION_*`
+  settings, `AffinityView`, and the client's order-of-magnitude caption under
+  Ask's *Get*, which had no Get left to sit under. `POST /api/runs` and
+  `GET /api/estimate` stay for MCP and a Get's approval gate.
+- **Stored data:** the migration `retire_conversations` drops `conversations`
+  and `conversation_turns`, and `affinities.source_turn_id` and
+  `spend_records.conversation_turn_id` with their indexes. Every affinity and
+  spend row stays; `conversation_tokens` still reads and counts.
+- **Taste:** `inferred` can no longer be written (there is no stored turn to
+  cite), and the rows held keep their rationale. `art_taste` loses
+  `source_turn_id`; a judgment loses `conversation_id`. The provenance ranking
+  went with it, since only `stated`, the strongest, can be written.
+- **Carried to Ask:** a reply refused at the key's credit limit (OpenRouter's
+  403) now ends with `stream_error` code `BUDGET_SPENT` and "This month's
+  budget is spent…", the owner's #290 wording the conversation had carried
+  through the OpenRouter client. `budget_spent()` builds the sentence for both.
+- **Artifacts:** IA (inventory, flows 1 and 2, hierarchy, states), data model,
+  API contract, security model (§ The curator's own words replaces the stored
+  turns' exception and now says where Ask sends the curator's words),
+  observability, design direction, the brief, operator verification (an Ask
+  entry for chunks 03 and 04; superseded items struck).
+
+**Tests:** removed with their subject: the conversation service, engine,
+deletion and surface tests, the Conversation browser test, the conversation
+live-shape test, the three caption tests, two config tests and a startup
+pricing test for retired settings, the turn-role and suggestion-kind
+vocabulary tests, and the taste tests that cited a turn or ranked an
+inference. Kept and repointed: the startup wiring test now checks the
+collection reaches the runner. Moved: the two-fields and no-redraw reaction
+tests now drive Ask's cards. New: `test_conversation_retirement.py` (the
+migration, including an interrupted open; it failed with the migration
+unwired); `inferred` refused over HTTP and MCP, and a held one still
+rendering; the old routes 404; Ask at the cap (it failed before the fix and
+again with the status mutated to 402). `test_persistence_boundary` caught a
+first version importing `openai` for the exception type; the status is read
+off the error instead. `PAGES_WITH_SECTIONS` drops `discover`, which is one
+thread with no sections now.
+
 ## 2026-10-09: Ask as an agent, chunk 03: Ask is one thread with an agent in it
 
 <!-- prawduct: scope=ask-agent -->

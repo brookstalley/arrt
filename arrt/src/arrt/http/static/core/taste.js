@@ -1,11 +1,11 @@
 /* The three reactions, and the one call that records any of them.
  *
  * **In `core/` because two screens perform the identical act.** A curator
- * reacting to a sample in a conversation and a curator correcting a row on the
- * Taste screen are writing the same judgment about the same thing, and a copy of
- * this table in each would be two products: a "not this" that means one thing in
- * a thread and something else on the screen listing what the thread produced is
- * a taste model nobody can predict. `screens/` modules never import each other
+ * reacting to an artist Ask offers and a curator correcting a row on the Taste
+ * screen are writing the same judgment about the same thing, and a copy of this
+ * table in each would be two products: a "not this" that means one thing in a
+ * thread and something else on the screen listing what was recorded is a taste
+ * model nobody can predict. `screens/` modules never import each other
  * (`architecture.md` § Components & Responsibilities), so shared vocabulary
  * lives here or it lives twice.
  *
@@ -41,27 +41,22 @@ export const REACTIONS = {
  * writing it as anything weaker would let the product go on attributing to a
  * model a judgment the person made by hand.
  *
- * `sourceTurnId` is passed where there is one, and its absence is not a defect:
- * a correction made on the Taste screen has no turn behind it, and `stated`
- * needs none because the curator's own words are the whole provenance.
- *
  * An upsert on (`kind`, `value`), so there is nothing to fetch first and
  * pressing a reaction twice records one judgment. */
-export function recordReaction({ kind, value, reaction, sourceTurnId = null }) {
+export function recordReaction({ kind, value, reaction }) {
   return api("/api/affinities", {
     method: "POST",
     body: JSON.stringify({
       kind,
       value,
       derivation: "stated",
-      source_turn_id: sourceTurnId,
       ...REACTIONS[reaction],
     }),
   });
 }
 
 /* The three reactions as a row of controls, for anything a curator can react
- * to: a sample in a conversation, an artist or topic Ask offers.
+ * to: an artist or topic Ask offers, an artist's page, a row on Taste.
  *
  * **The three record taste and stay where they are.** They write an `Affinity`
  * with `derivation='stated'` — the curator saying so directly — rather than
@@ -74,7 +69,7 @@ export function recordReaction({ kind, value, reaction, sourceTurnId = null }) {
  * nothing in the transcript changes — a thread that redrew itself under a
  * curator who pressed a button beside a picture would move the picture. What
  * confirms it is the control's own state, below. */
-export function reactionRow({ kind, value, sourceTurnId = null }) {
+export function reactionRow({ kind, value }) {
   return el(
     "div",
     // Announced rather than only shown: the confirmation below is a change of
@@ -87,12 +82,12 @@ export function reactionRow({ kind, value, sourceTurnId = null }) {
         type: "button",
         text: reaction,
         // The value in the accessible name, because the visible label is shared
-        // by every sample on the page: a screen reader moving through a turn
+        // by every card on the page: a screen reader moving through a reply
         // that named three artists would otherwise hear "not this" nine times
         // with nothing saying what "this" is.
         "aria-label": `${reaction}: ${value}`,
         onclick: () =>
-          attempt(control, `record ${reaction} for ${value}`, () => recordReaction({ kind, value, reaction, sourceTurnId }), {
+          attempt(control, `record ${reaction} for ${value}`, () => recordReaction({ kind, value, reaction }), {
             then: () => {
               // Said, not merely styled, and said in the past tense so it reads
               // as a record rather than as an offer. `aria-live` on the row is

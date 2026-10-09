@@ -43,7 +43,7 @@ reader should not conclude these were forgotten.
 | Structured logs | **Yes** — the primary signal | Both planes, to the systemd journal |
 | Health/heartbeat state | **Yes** | Display writes it; the curation UI reads and displays it |
 | Spend | **Per run, yes; the month's remaining budget, yes, in the sidebar** *(since 2026-10-07; it was "never" until the owner reversed it, see the note below the table)* | Recorded spend is on the run and reported by the discovery surface. What is left this month is `GET /api/budget`, read from `limit_remaining` (`library/services/spending.py`), display only and never on the health panel |
-| Ask's replies | **Yes, per reply, since 2026-10-08** | One INFO line on `arrt.ask` per reply: thread, how it ended (`answered`, `step_limit`, `failed`, `cancelled`), model calls, tool calls, cost (OpenRouter's own `response_metadata["cost"]`, summed) with the number of calls that carried none, and seconds. A failed reply also logs its traceback. The cost is shown to the curator under the reply. **No `SpendRecord` is written for it**: the month's figure in the sidebar is the provider's own, so it already includes Ask. A per-reply record is the 3tears spending cap's question (pacepace/3tears#583) |
+| Ask's replies | **Yes, per reply, since 2026-10-08** | One INFO line on `arrt.ask` per reply: thread, how it ended (`answered`, `step_limit`, `budget_spent`, `failed`, `cancelled`), model calls, tool calls, cost (OpenRouter's own `response_metadata["cost"]`, summed) with the number of calls that carried none, and seconds. A failed reply also logs its traceback. The cost is shown to the curator under the reply. **No `SpendRecord` is written for it**: the month's figure in the sidebar is the provider's own, so it already includes Ask. A per-reply record is the 3tears spending cap's question (pacepace/3tears#583) |
 | Metrics (time series) | No | No store, no query surface, nobody to read them. Revisit only if a real question needs a trend |
 | Distributed tracing | No | Two processes with no request/response between them. There is no distributed call to trace. *(2026-09-30: after wave 2 there is one: the Player's manifest poll and media pull, and its heartbeat POST. Each is a single hop with no fan-out, so `work_id` and the wall id remain enough correlation, and this row still holds. See `re-architecture.md`.)* |
 | Uptime monitoring (external) | No | Follows from the operator's alerting decision below |
@@ -782,24 +782,24 @@ metadata and curatorial intent.
 
 > **"No PII" stopped being true on 2026-08-12 and this paragraph did not notice**
 > — found by Critic review, and corrected here rather than argued with.
-> `security-model.md` § The one exception designates `ConversationTurn.text` as
-> **the product's only retained free-text record of a person**, and rules that
-> deleting a conversation destroys it. That is a classification this section owns
-> the log-filtering consequences of, and the path is live: `ConversationService`
-> hands the curator's own words to `DiscoveryRunner.start(intent_text=...)`, and
+> From then until 2026-10-09 `ConversationTurn.text` was the product's only
+> retained free-text record of a person; since then the curator's words are held
+> only in the server's memory for a thread's life (`security-model.md` § The
+> curator's own words). Either way that is a classification this section owns the
+> log-filtering consequences of, and the path is live: a Get from words hands the
+> curator's sentence to `DiscoveryRunner.start(intent_text=...)`, and
 > § Correlation's stated reason for structured logging is that "an intent is the
 > curator's own words and goes in a log line".
 >
-> **So the delete does not reach the journal, and that is a limit rather than a
-> gap to close.** A log line is written once and shipped; a retraction mechanism
+> **So forgetting a thread does not reach the journal, and that is a limit rather
+> than a gap to close.** A log line is written once and shipped; a retraction mechanism
 > over journald would be a second, weaker copy of a deletion guarantee this
 > product does not otherwise make. What follows instead is that **the words are
 > the one thing here whose logging is a decision rather than a freedom**: an
 > intent is logged because a run cannot be explained without the sentence that
 > started it, and a turn's full text is not. That is the built shape rather than
-> an aspiration: `run.started` carries `intent_text`, and every line
-> `ConversationService` writes — `conversation.started`, `.failed`, `.committed`,
-> `.deleted` — carries ids and counts and no text at all. If that ever changes,
+> an aspiration: `run.started` carries `intent_text`, and Ask's one line per
+> reply carries its thread, steps and cost and no words at all. If that ever changes,
 > it changes here first. `security-model.md` is the authority on what the record is; this
 > section is the authority on where it may be repeated.
 

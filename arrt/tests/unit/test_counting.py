@@ -11,7 +11,7 @@ worse gap than an uncovered sentence: a reader trusting it would believe the
 check was here. `mcp/bindings.py`'s notices are in `tests/unit/test_offered_works.py`;
 `library/services/runner.py`'s phase-2 basis in `tests/unit/test_resolve_run.py` and its
 unreachable-provider log line in `tests/unit/test_phase_two_run.py`; and
-`screens/run.js`, `screens/conversation.js` and `core/badges.js` in the browser
+`screens/run.js` and `core/badges.js` in the browser
 suite, which is the only thing that runs them.
 
 **Written as a list rather than as a count**, for the reason `counting.py`'s own

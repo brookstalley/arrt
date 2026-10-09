@@ -130,22 +130,19 @@ def test_a_touch_screen_gets_44px_controls(browser, server_url, key):
         context.close()
 
 
-def test_ask_has_one_filled_act(ui):
-    """Asking the agent is the one filled act on Ask; Get and Talk it through first are not.
+def test_ask_has_one_filled_act_and_no_other_way_in(ui):
+    """Asking the agent is Ask's one act (the owner, 2026-10-08).
 
-    Get was the filled act until the owner ruled that Ask is a conversation with
-    an agent (2026-10-08); the direct box stays, unfilled, until it is retired.
+    The direct box, its Get and *Talk it through first* were the other ways in,
+    and they are retired: a Get is a press on what the agent offers.
     """
     _settled(ui, "discover")
     filled = ui.page.locator("#view .panel .action.primary")
     assert filled.count() == 1
     assert filled.inner_text().strip() == "Ask"
-    assert ui.page.locator("#view .panel button:text-is('Get')").count() == 1
-    talk = ui.page.locator("#view button:text-is('Talk it through first')")
-    assert "quiet" in talk.get_attribute("class")
-    # Explained in one line, tied to the button, and true: a turn is priced.
-    said = talk.evaluate("(b) => document.getElementById(b.getAttribute('aria-describedby')).textContent.trim()")
-    assert said == "Free to start; each reply shows its cost"
+    assert ui.page.locator("#intent").count() == 0
+    assert ui.page.locator("#view button:text-is('Get')").count() == 0
+    assert ui.page.locator("#view button:text-is('Talk it through first')").count() == 0
 
 
 def test_ask_does_not_link_taste(ui):

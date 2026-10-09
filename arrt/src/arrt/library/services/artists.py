@@ -149,8 +149,7 @@ class WantedItems(Protocol):
     A work wanted through Review names a Wikidata item once it is matched, and
     every list of registry works marks it *Wanted* beside *Held* — the owner's
     ruling on #172 that the three states read apart. Taken as this one method,
-    as the conversation takes its two, so these services do not depend on the
-    whole discovery service.
+    so these services do not depend on the whole discovery service.
     """
 
     def wanted_qids(self) -> frozenset[str]: ...

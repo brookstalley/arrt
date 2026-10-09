@@ -379,8 +379,8 @@ class OpenRouterClient:
         (images × remaining turns) and a caller deciding how much history to
         carry is deciding what it spends.
 
-        `reasoning` is the parameter `complete` has no need of and a
-        conversational turn cannot do without. On an open-ended prompt the routed
+        `reasoning` is the parameter `complete` has no need of and an
+        open-ended multi-turn call cannot do without. On an open-ended prompt the routed
         model consumed its **entire** output reservation on reasoning before
         emitting a character — measured at 16, 200 and 900 tokens alike, ten
         calls in a row, each returning empty content and each billed in full.
@@ -467,6 +467,20 @@ def _timeout(overall: float) -> httpx.Timeout:
     return httpx.Timeout(overall, connect=CONNECT_TIMEOUT_SECONDS)
 
 
+def budget_spent(provider_said: str) -> str:
+    """What a call refused at the key's credit limit says, led by the budget.
+
+    One sentence for every caller OpenRouter refuses this way (a halted run, an
+    Ask reply), in the words the sidebar uses for the budget (the owner's ruling
+    3 of 2026-10-07, #290).
+    """
+    return (
+        "This month's budget is spent: OpenRouter refused the call because the key's credit limit is used up. "
+        f"{provider_said} The ceiling is a per-key credit limit with a monthly reset, so this clears when the "
+        "month turns or when the limit is raised in the OpenRouter console."
+    )
+
+
 def _read_body(response: httpx.Response) -> Mapping[str, Any]:
     """Turn a response into a payload, or into the right kind of refusal.
 
@@ -477,11 +491,7 @@ def _read_body(response: httpx.Response) -> Mapping[str, Any]:
     if response.status_code == httpx.codes.FORBIDDEN:
         # Led by the budget, in the words the sidebar uses for it, because this
         # sentence is what a halted run and a refused turn show the curator.
-        raise KeyExhausted(
-            f"This month's budget is spent: OpenRouter refused the call because the key's credit limit is used up. "
-            f"{_provider_message(response)} The ceiling is a per-key credit limit with a monthly reset, so this "
-            "clears when the month turns or when the limit is raised in the OpenRouter console."
-        )
+        raise KeyExhausted(budget_spent(_provider_message(response)))
     if response.status_code == httpx.codes.PAYMENT_REQUIRED:
         raise RequestUnaffordable(
             f"OpenRouter declined the request as unaffordable, with credit still in the account: "
