@@ -13,8 +13,7 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.color import ColorError
-from arrt.library.acquisition.compose import compose
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit
+from arrt.library.acquisition.compose import ArtworkBox, compose
 from arrt.services.errors import ServiceError
 
 #: The reference 42" 4K Frame, as `nonfunctional-requirements.md` works it out.
@@ -22,7 +21,7 @@ PANEL_WIDTH = 3840
 PANEL_HEIGHT = 2160
 SIDE_MAT = 262
 BOTTOM_MAT = 301
-REFERENCE_BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.87, floor_inches=12.0)
+REFERENCE_BOX = ArtworkBox(width=3316, height=1597)
 
 MAT_HEX = "#27285b"
 MAT_RGB = (39, 40, 91)
@@ -250,18 +249,12 @@ class TestNoUpscaling:
     def test_a_source_smaller_than_the_box_is_pasted_at_its_own_size(self, tmp_path):
         """Not a degraded path: the work is simply smaller. Upscaling is the one
         option that turns an honest "this image is small" into an apparent
-        rendering fault.
-
-        1600 px is chosen to clear the floor as well as sit inside the box — at
-        the reference panel's ~105 ppi it renders at 15 inches against a 12-inch
-        floor, so the verdict under test is `matted_small` and not `below_floor`,
-        which takes precedence over it."""
+        rendering fault."""
         source = _source(tmp_path, 1600, 1200)
 
         result, _ = _composed(tmp_path, source)
 
         assert (result.rendered_width, result.rendered_height) == (1600, 1200)
-        assert result.fit is DisplayFit.MATTED_SMALL
         # The picture did not grow, and neither did the mat: it keeps its own
         # width around the small work, and black takes up the rest.
         assert result.artwork_left - result.mat_left == SIDE_MAT
@@ -277,7 +270,6 @@ class TestNoUpscaling:
 
         assert result.rendered_height == REFERENCE_BOX.height
         assert result.rendered_width <= REFERENCE_BOX.width
-        assert result.fit is DisplayFit.NATIVE
 
     def test_downscaling_preserves_the_aspect_ratio(self, tmp_path):
         """A tall narrow work legitimately fills little of a 16:9 canvas, and
@@ -298,26 +290,17 @@ class TestNoUpscaling:
         assert canvas.size == (PANEL_WIDTH, PANEL_HEIGHT)
 
 
-class TestTheFloor:
-    def test_a_work_below_the_floor_is_still_rendered(self, tmp_path):
-        """The floor informs a curator's choice in the review grid, before this
+class TestTheMinimum:
+    def test_a_work_below_the_quality_minimum_is_still_rendered(self, tmp_path):
+        """The minimum informs a curator's choice in the review grid, before this
         point. A renderer that second-guessed it would suppress a picture the
         curator explicitly asked for."""
         source = _source(tmp_path, 300, 200)
 
         result, canvas = _composed(tmp_path, source)
 
-        assert result.fit is DisplayFit.BELOW_FLOOR
+        assert (result.rendered_width, result.rendered_height) == (300, 200)
         assert canvas.size == (PANEL_WIDTH, PANEL_HEIGHT)
-
-    def test_the_rendered_size_on_the_wall_is_reported_in_inches(self, tmp_path):
-        """So a caller can say "this is on the wall, and it is smaller than your
-        floor" in one answer rather than recomputing the scaling to find out."""
-        source = _source(tmp_path, 300, 200)
-
-        result, _ = _composed(tmp_path, source)
-
-        assert result.rendered_long_edge_inches == pytest.approx(300 / REFERENCE_BOX.pixels_per_inch, abs=0.01)
 
 
 class TestWhatItRefuses:
@@ -431,7 +414,7 @@ class TestWritingTheFile:
 class TestSourcesThatArriveOddly:
     def test_a_portrait_work_stored_sideways_is_composed_upright(self, tmp_path):
         """`measure()` reports EXIF-corrected dimensions to the catalogue, so a
-        compositor that ignored the tag would render a work the display-fit
+        compositor that ignored the tag would render a work the quality
         verdict was never computed for."""
         path = tmp_path / "rotated.jpg"
         image = Image.new("RGB", (3000, 1500), (220, 30, 30))

@@ -258,7 +258,7 @@ everything above the paint call.
   testable while each platform measures with its own text stack. Vectors are
   checked to a tolerance, not pixel for pixel, because text stacks differ.
 - **The Pi's label code is the reference implementation**
-  (`postarr/src/postarr/panel/layout.py`, `legibility.py`). Its behaviour is
+  (`arrt-player/src/arrt_player/panel/layout.py`, `legibility.py`). Its behaviour is
   written out as vectors before a second platform ports it.
 - **Behaviour vectors beyond layout**: (feed, now) → the slot or scene to show;
   (display state, label document, age) → what a label shows; invalid feeds →
@@ -315,7 +315,7 @@ size.
 
 - **Arrt** owns `contract/`: schemas, fixtures, conformance vectors and the
   Player spec, released by tag.
-- **Postarr** is one repository holding every Player: the Pi Player (Python, the
+- **Arrt Player** is one repository holding every Player: the Pi Player (Python, the
   reference), one Swift package with a tvOS app target and a macOS screensaver
   target, and later Windows. It pins a contract tag and its hash, and every
   Player's suite runs the same vectors.
@@ -325,6 +325,12 @@ size.
   the label. They become one wall loop, a display driver per kind, and a label
   renderer. This is done in wave 4, when rotation leaves the Player, rather
   than before it, so the code about to be deleted is not refactored first.
+  *(Done 2026-10-09, wave 4c: `wall.py` is the one loop, `displays/` holds a
+  driver per kind, and major 1's rotation and directive moved into
+  `programmes/rotation.py`, which 4g deletes. Where the two loops differed, the
+  screen took the Frame's rules unless its own tests pinned its version
+  (`build-plan-wave-4c-wall-loop.md`). The label renderer had already
+  been split out.)*
 
 ## What changes, in order
 
@@ -344,10 +350,11 @@ size.
 
 ## Open questions
 
-- **The relative mat width** for a client with no pixel density: its number
-  (a fraction of the screen's shorter side is the obvious form) is set when the
-  layout spec is written in wave 4, ideally so it matches the inch rule on a
-  50" 4K Frame.
+- ~~**The relative mat width** for a client with no pixel density.~~
+  *Answered 2026-10-08 by the owner:* **6% of the screen's shorter side.** It
+  matches the inch rule on a 50" Frame (`MAT_WIDTH_INCHES` 1.5 over a 24.5 in
+  shorter side is 6.1%), so a Frame and a screen with no physical size show
+  the same proportion. Wave 4's layout spec carries it.
 - **A display's identity for kinds other than the Frame.** An HDMI connector or a
   Mac's screen has no device id the client can read reliably; the client and
   connector name may have to stand in, which is what `clients.md` does today.

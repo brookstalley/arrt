@@ -58,6 +58,10 @@
 > the server is **Arrt** and the player is **Postarr**
 > (`build-plan-rename-arrt-postarr.md`). Paths and package names here are the
 > old ones.
+>
+> **Names, 2026-10-08.** Postarr is now **Arrt Player**: `postarr/` became
+> `arrt-player/` and the `postarr` package `arrt_player`
+> (`build-plan-rename-arrt-player.md`). Entries before this date keep `postarr`.
 
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
@@ -225,6 +229,221 @@ server on haiku: 3–4 model calls, $0.0027–$0.0044 each, every reply costed
 while streamed. One was drawn in Chromium, and the screenshot showed three
 faults the suite could not: an overflowing theme picker, the cost said twice,
 and a step glyph. All three are fixed.
+## 2026-10-09: Wave 4c — one wall loop, a driver per display, a reader for majors 1 and 2
+
+<!-- prawduct: scope=wave-4c-wall-loop -->
+
+**Why:** The third of wave 4's seven plans (`build-plan-wave-4c-wall-loop.md`).
+The Pi Player ran two wall loops, the Frame's and an HDMI screen's, each
+adopting, rotating, acting on directives and beating, and already drifting
+apart. `feeds-and-players.md` asks for one wall loop and a driver per display
+before the repository split, and major 2 is the reason to do it now: its reader
+is written once, not once per loop.
+
+**What:**
+- **One loop** (`arrt-player/src/arrt_player/wall.py`): a programme says what
+  should be on the wall, a display driver puts it there, and the loop beats.
+  `displays/frame.py` keeps every behaviour of the Frame's loop (uploads spread
+  across passes, the art-mode gate, reconciliation, brightness, the set's
+  announcements, closing the art channel on every way out); `displays/screen.py`
+  draws over kernel mode setting as before. `daemon.py` and `screen.py` are gone.
+- **Major 1's rotation and directive** moved into `programmes/rotation.py`, to
+  be deleted whole in 4g. Where the two loops disagreed and only the Frame's
+  tests pinned a version, the screen takes the Frame's: an empty screen retries
+  as soon as a new manifest lands, and a directive that shows nothing does not
+  restamp the timer.
+- **The major 2 reader**: `manifest.py` reads a feed, refusing it for the
+  shape a Player reads, an instant without an offset, and the five rules a
+  schema cannot state, never for a presentation setting. `programmes/schedule.py`
+  shows the active scene, else the slot after replay by whole horizons, else
+  keeps the last work through a gap; it asks the display's wait and then
+  whether the wall is ours before it shows anything. Every vector in
+  `contract/vectors/schedule.json` runs in the Player's suite.
+- **The pull** caches a feed whole with every work's media, staged works
+  included, and asks for the manifest at `/walls/{wall_id}/manifest/v{major}`,
+  highest first, falling back on 404. **It asks only for major 1 until 4d**
+  (`REQUESTED_MAJORS`), because a major 2 work needs a mat drawn around it.
+- **The heartbeat** carries `scene_id`, and `capabilities` (screen, backend,
+  label modes, the majors asked for) for a display that knows its screen's
+  size: an HDMI screen now, the Frame once its geometry moves to the Player.
+- **The contract:** `contract/fixtures/index.json` marks which invalid major 2
+  documents a Player must refuse. `player-contract.md` § The cutover is
+  amended for a reader of two majors, and gains a rule **the server must
+  honour when it retires a major (4e/4g): a heartbeat with no `capabilities`
+  counts as `manifest_majors: [1]`**, because a Frame wall writes none until
+  the Player owns its geometry. § Transport notes that the Player asks for
+  `v{major}`.
+
+**Deploying it:** no server change, and nothing to migrate. The Player now
+requests `…/manifest/v1`, which Arrt has served since wave 4a, so the server
+must be at 4a or later before a Player from this branch is started. Rolling
+back is checkout and restart: the Player's store is unchanged.
+
+## 2026-10-08: Wave 4b — the quality profile, and the presentation master
+
+<!-- prawduct: scope=wave-4b-master-quality -->
+
+**Why:** The second of wave 4's seven plans (`build-plan-wave-4b-master-quality.md`).
+The Library judged every scan against an artwork box worked out from one
+television's `TV_PANEL_*` and `MAT_*` settings, with a floor in inches. Wave 4
+takes screens out of the server, so the Library now judges against a quality
+profile that names no device: a minimum in pixels on the long edge. The owner
+ruled the two open behaviours on 2026-10-08: two badge states (none when a scan
+meets the minimum, "below minimum" when it does not), and the minimum as an
+environment setting with no Settings screen.
+
+**What:**
+- `QUALITY_MINIMUM_PX` (default 1,000, the owner's figure of 2026-10-06)
+  replaces `RESOLUTION_FLOOR_INCHES`. **`RESOLUTION_FLOOR_INCHES` is retired**: a
+  deployment still setting it starts normally and logs a WARNING naming it and
+  its replacement (`config.retired_setting`).
+- `library/services/quality.py` replaces `display_fit.py`: a `QualityProfile`
+  and a two-value verdict, `meets_minimum` or `below_minimum`, judged on the
+  long edge. Selection, discovery, the collection supplement, phase two, the
+  review card, the survey, the registry work page and the *Size* facet all take
+  the profile; no Library service receives an `ArtworkBox`, which now lives in
+  `compose.py` with width and height only, until 4g.
+- Phase two ranks meets-the-minimum above below-it, and within a band by the
+  long edge, level past the presentation master's 7,680 px cap.
+- **Breaking for MCP clients, announced in the tool tips:** `display_fit` and
+  `regenerate`'s `fit` take the new values; `renders_at_inches`,
+  `renders_at_pixels` and `rendered_long_edge_inches` are retired; a look
+  picture's `below_floor` is `below_minimum`; a listing row gains `size_px`.
+  On HTTP, `FitOut` is `{verdict}` alone, the `fit` filter takes the new bands
+  and refuses a retired one by name, and a look picture's `below_floor` is
+  `below_minimum`. The stored `unresolved_reason` value `below_floor` keeps its
+  spelling.
+- The browser: no badge for a scan that meets the minimum, anywhere; "below
+  minimum" for one that does not; the facet is *Size*, with *Meets minimum*,
+  *Below minimum* and *No size known*. The unused `caution` glyph is gone.
+- `regenerate` still warns when a work goes on the wall below the minimum.
+- Records: the cutoff is struck wherever it was still promised (`data-model.md`,
+  `nonfunctional-requirements.md`, `re-architecture.md`,
+  `information-architecture.md`, `procurement-corpus.md`, `project-state.yaml`),
+  and the API contract, operational spec, observability strategy and
+  `.env.example` describe the new setting.
+
+- **The presentation master** (Chunk 02): one device-independent image per held
+  work, the Original upright and unmatted, at most 7,680 px on its long edge,
+  JPEG at quality 95, as `presentation/{artwork_id}.jpg`, recorded as a
+  `presentation_master` Rendition. `prepare()` makes it current before it looks
+  at the canvas, so every acquisition, regenerate and mat change leaves one, and a
+  mat change never rewrites it. Each master records the rule it was made by
+  (cap and quality), so a changed rule makes every master owed again. At
+  startup every accepted work with no master recorded from its Original by
+  today's rule is queued prepare-only (`preparation.masters_queued`),
+  so the first start after the upgrade makes one for each held work, without
+  refetching or redrawing. `GET /media/{hash}` serves it as it serves any
+  rendition; no manifest names it until 4e. Measured over the 46 local
+  originals: about 4.9 MB a master, 37% of the originals' bytes.
+- **Rollback is not checkout and restart.** The first start records a
+  `presentation_master` Rendition for every held work, and the release before
+  this one cannot read that kind (`RenditionKind(row["kind"])` raises), so it
+  starts and then fails on every work's renditions. To roll back, restore
+  `catalogue.sqlite` from the pre-deploy backup, or delete the
+  `presentation_master` rows and the `presentation/` directory first; and put
+  `RESOLUTION_FLOOR_INCHES` back in `.env`, or the old code falls to its 12"
+  default. On the first start, expect `preparation.masters_queued` to name
+  every held work and `presentation/` to grow by about 5 MB a work.
+
+**Surfaced:** navigart serves at most 1,000 px, and its test expected that to
+fall below the floor, which held only against the 42" reference default (about
+1,260 px). On the owner's 50" deployment (11.34") the floor already cut at
+exactly 1,000 px, and the owner's minimum is inclusive, so nothing changes on
+the wall.
+
+## 2026-10-08: Wave 4a — the major 2 contract settled
+
+<!-- prawduct: scope=wave-4a-contract -->
+
+**Why:** The first of wave 4's seven plans (`re-architecture.md` § Order of
+work, row 4). The Player's reader (4c), its compositor (4d) and the server's
+builder (4e) all build against major 2, and a Player must read the final shape
+before the server switches, so the shape is fixed first. The owner ruled the
+open values the same day: a three-day horizon, a twenty-minute preview default,
+and a relative mat of 6% of the shorter side; and the program itself, with
+scenes after the cutover and one household-wide rule (no work on two walls at
+once).
+
+**What:**
+- `manifest.v2`: a feed. `settings` is the first of three presentation layers,
+  itself optional, and every key in it optional: label mode (`none`, `caption`, `overlay`), mat mode
+  (`none`, `proportional`, `full`), overlay lead and tail, fades, text scale,
+  viewing distance, and which label facts show. The mat width leaves the
+  document (`feeds-and-players.md` ruling 7), and with it the
+  `mat-bottom-weight-below-one` fixture, whose rule no longer exists. `scene`
+  and `staging` are optional, so a document without them is a channel's feed.
+  `label-mode-unknown` now carries `panel`, which major 2 no longer has. A root
+  test holds `facts` to the label's keys.
+- `heartbeat.v1` `capabilities.label_modes` are `none`, `caption` and
+  `overlay`; `panel` leaves, because a label on its own surface is a label
+  output. No Player writes the field yet, so nothing is stranded.
+  `capabilities.screen` is reported again whenever it changes, and Programming
+  judges adequacy from the largest size reported recently.
+- `routes.json` names `manifest_major`, `/walls/{wall_id}/manifest/v{major}`.
+  The server answers `v1` with the unversioned route's document and `404` for
+  any other spelling, `01` included. `player-contract.md` § The cutover follows
+  ruling 4: each major is served while a heartbeat lists it, and a Player steps
+  down a major on `404`.
+- Conformance vectors: `contract/vectors/mat-geometry.json` and
+  `schedule.json`, with reference statements in the root suite, and the
+  server's compositor held to the `proportional` vectors that have a density.
+  `player-contract.md` gains § Layout, and § Time says spans are half-open and
+  an instant before the horizon is moved into it as one after it is.
+
+**Tests:** all three suites green. Each new rule was watched failing once: the
+new invalid fixtures against a schema re-widened to admit them, the `facts`
+guard against a trimmed enum, the per-major route against a lenient integer
+parse (`01`), each reference rule against a mutated copy (closed spans, an
+enlarging scale, no replay), and the server's vectors against a shifted vector
+and a compositor that centres the work on the screen.
+
+## 2026-10-08: Postarr becomes Arrt Player
+
+<!-- prawduct: scope=rename-arrt-player -->
+
+**Why:** The owner, 2026-10-08 (#311): the playback side "is just a player like
+plex or jellyfin and not really a *arr app". "Poster" was the first choice and
+was dropped the same day: it is taken on PyPI, and in this repo it already means
+Lidarr's poster cards and a poster as a kind of object. The owner chose the
+Plex and Jellyfin convention instead, where a client carries its server's name.
+It lands before wave 4, which adds most of the Player's new modules.
+
+**What:**
+- `postarr/` → `arrt-player/`, package `postarr` → `arrt_player`, distribution
+  `arrt-player`, run with `python -m arrt_player`. Every import, the lockfile's
+  own entry, the CI job, root excludes, the root guards' paths, learnings
+  globs, `display.service`, and the prose of live artifacts. The hypothesis
+  profile is renamed with it.
+- `deploy/README.md` § The Player renamed Arrt Player: the Pi's steps and the
+  way back. The queue entry at the top of `operator-verification.md` points
+  there, and says the older entries keep their day's paths.
+- `re-architecture.md`: the naming paragraph gains 2026-10-08. Wave 5's
+  history now spans four paths, so pass 2 adds `postarr/` and `arrt-player/`.
+  Pass 1 is unchanged, because its `b"arrt/"` prefix does not match
+  `arrt-player/`. The new repository is `arrt-player`.
+- One behaviour change, from the boundary review: the Player refuses to start on
+  a relative `CACHE_DIR` or `TV_TOKEN_FILE` (a leading `~` is expanded first).
+  The Pi's rename steps delete the old checkout directory, and a relative cache
+  resolved inside it would have taken the store and the TV pairing with it.
+  `.env.example` says both must be absolute.
+
+**Left as written:** archived plans, `change-log-archive/`, earlier entries
+here, the dated `operator-verification.md` entries, the live plans whose chunks
+are all ticked, and the 2026-10-05 norm-sweep measurements in
+`project-state.yaml`. All of them record their day.
+
+**Tests:** all three suites pass, with lint and format. `git grep -niP postarr`
+outside those history files leaves only the lines recording the names. All 71
+tracked files under `postarr/` are renamed into `arrt-player/`, with nothing
+added or deleted. `test_plane_isolation.py` failed on a planted `import
+arrt.config` in `arrt_player/config.py`, naming it as the curation plane, and
+passed once it was removed. The new names share the server's `arrt` prefix,
+so the search for unanchored prefixes was run over the renamed tree. It found
+one, `record.name.startswith("arrt")` in the curation suite's
+`test_player_surface.py`. It is left: that filter reads only the server's own
+process, where `arrt_player` is not installed, and matching more would only
+make the assertion stricter.
 
 ## 2026-10-08: Get and review clarity: the boundary review's findings
 

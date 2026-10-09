@@ -39,6 +39,55 @@ model only in chunk 02's evals (`ask-agent-findings.md`). Not yet deployed.
 - **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
   <the deployment> --out ../.ux-walk/ask-agent-deployed`.
 
+### Both walls rotate on the one wall loop — added 2026-10-09
+
+**`build-plan-wave-4c-wall-loop.md`.** The Frame's and the HDMI screen's loops
+are one loop now, and the Player asks for its manifest at `…/manifest/v1`.
+Live integration: the suite drives doubles of the set and the connector. On the
+Pi, after pulling this branch and restarting the unit (SIGTERM, never SIGKILL):
+
+- **The journal** logs `daemon.started` for the Frame wall and `screen.started`
+  for the HDMI wall, and `pull.adopted` for each, with no `pull.refused`.
+- **The Frame** steps on at its interval, a `next` from Arrt steps it once, and
+  switching the set to a programme leaves the wall alone
+  (`rotation.wall_not_ours`) until it is back in art mode.
+- **The HDMI wall** steps on at its interval, and a monitor unplugged and
+  plugged back in shows the wall's picture again.
+- **Walls in Arrt** shows both walls' display states as before; the HDMI wall's
+  heartbeat now carries `capabilities` with the screen's size.
+
+### Size badges and the *Size* facet read plainly — added 2026-10-08
+
+**`build-plan-wave-4b-master-quality.md`, Chunk 01.** Visual change: yes.
+
+The Library judges scans against the quality minimum (`QUALITY_MINIMUM_PX`,
+default 1,000 px on the long edge) instead of the panel. Built against the
+browser suite only; not yet deployed. Check, on the NAS after deploy:
+
+- **The journal at start** names `RESOLUTION_FLOOR_INCHES` as no longer read, if
+  the `.env` still sets it, and logs `quality_minimum=1000px`. Then remove the
+  old key (and set `QUALITY_MINIMUM_PX` only if you want another minimum).
+- **Artworks:** no badge on a tile whose scan meets the minimum; "▲ below
+  minimum" on one that does not. The rail's *Size* offers *Meets minimum*,
+  *Below minimum* and *No size known*, each counted.
+- **A review card and a Get's page:** a scan's pixels, with no badge when it
+  meets the minimum and "below minimum" when it does not; no inches anywhere.
+- **A theme's rows:** the *Size* column is empty for a work that meets the
+  minimum.
+
+### The Pi runs Arrt Player — added 2026-10-08
+
+**`build-plan-rename-arrt-player.md`.** Postarr is now Arrt Player: the project
+is `arrt-player/` and the module `arrt_player`. Until the Pi takes this, its
+`display.service` names a directory and module that no longer exist after a
+pull. The steps and the way back are in `deploy/README.md` § The Player renamed
+Arrt Player. Check: the unit is active, the journal's logger names start
+`arrt_player.`, and the next rotation logs `label.drawn` on `epd-0`.
+
+**Entries below this one are dated and keep the paths of their day.** Read
+`postarr/` as `arrt-player/` and `postarr.` as `arrt_player.` in any command
+you run from them.
+
 ### Get and review clarity: do Ask, a Get's page and Review read plainly? — added 2026-10-08
 
 **`build-plan-get-and-review-clarity.md`, all chunks.** Visual change: yes.

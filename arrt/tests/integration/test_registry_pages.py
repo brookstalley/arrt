@@ -27,7 +27,7 @@ from arrt.library.registry import (
     RegistryWorkMatch,
 )
 from arrt.library.services.artists import ArtistService, RegistryState
-from arrt.library.services.display_fit import DisplayFit, assess_display_fit
+from arrt.library.services.quality import Fit
 from arrt.library.services.registry_search import RegistrySearchService, RegistrySearchState
 from arrt.library.services.registry_works import RegistryWorkService, RegistryWorkState
 from arrt.persistence.discovery_records import ResolutionStatus, Verdict
@@ -124,14 +124,14 @@ class TestAWorkByQid:
 
         assert (page["height_cm"], page["width_cm"]) == (117.0, 162.0)
         assert (page["image_width"], page["image_height"]) == (6000, 4400)
-        assert page["fit"]["verdict"] == "native"
+        assert page["fit"]["verdict"] == "meets_minimum"
 
-    def test_a_picture_too_small_for_the_wall_is_judged_as_the_review_grid_judges_it(self, http, settings):
+    def test_a_picture_below_the_minimum_is_judged_as_the_review_grid_judges_it(self, http, settings):
         page = http.get(f"/api/registry/works/{SMALL}").raise_for_status().json()
 
-        expected = assess_display_fit(width=300, height=200, box=settings.tv_artwork_box)
-        assert page["fit"]["verdict"] == "below_floor"
-        assert page["fit"]["rendered_long_edge_inches"] == expected.rendered_long_edge_inches
+        expected = settings.quality_profile.judge(width=300, height=200)
+        assert page["fit"] == {"verdict": str(expected)}
+        assert expected is Fit.BELOW_MINIMUM
         assert (page["height_cm"], page["width_cm"]) == (None, None)
 
     def test_a_work_with_no_picture_asks_commons_nothing(self, http, registry):
@@ -465,7 +465,7 @@ class TestAfterARestart:
         yield SimpleNamespace(
             registry=down,
             artists=ArtistService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),
-            registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted(), box=settings.tv_artwork_box),
+            registry_works=RegistryWorkService(store, down, kept=kept, wanted=NothingWanted(), profile=settings.quality_profile),
             registry_search=RegistrySearchService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),
         )
         kept.close()
@@ -487,7 +487,7 @@ class TestAfterARestart:
         # Held is the library's to say, read fresh, not kept with the answer.
         assert similar.held == {ROTHKO: rothko.id}
         assert (work.state, work.known) == (RegistryWorkState.KNOWN, registry.works[HUNTERS])
-        assert (work.image_size, work.fit.fit) == (registry.image_sizes[HUNTERS_FILE], DisplayFit.NATIVE)
+        assert (work.image_size, work.fit) == (registry.image_sizes[HUNTERS_FILE], Fit.MEETS_MINIMUM)
         assert restarted.registry.sizes_asked == []
         assert search.state is RegistrySearchState.KNOWN
         assert (restarted.registry.asked_about, restarted.registry.similar_asked, restarted.registry.works_asked) == ([], [], [])

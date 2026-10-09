@@ -38,12 +38,12 @@ line-length = 130
 # targets happen to produce identical output for this code today, which is
 # exactly why nobody would notice the plane split had stopped holding for
 # formatting while it still held for lint.
-extend-exclude = "^/(arrt|postarr)/"
+extend-exclude = "^/(arrt|arrt-player)/"
 
 [tool.ruff]
 line-length = 130
 target-version = "py312"
-extend-exclude = ["arrt", "postarr"]
+extend-exclude = ["arrt", "arrt-player"]
 
 [tool.ruff.lint]
 # Mechanical rows from the project-preferences norm index, migrated from the

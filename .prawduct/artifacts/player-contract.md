@@ -12,7 +12,7 @@ status: major 1 describes the running system plus wave 2's additive changes; maj
 
 # The Player Contract
 
-**What Arrt publishes for a wall, what Postarr reports back, and how both
+**What Arrt publishes for a wall, what Arrt Player reports back, and how both
 travel.** This file is the contract's home. `api-contract.md` § The Server↔Player
 surface points here. `re-architecture.md` § Seam 2 is where the decisions behind
 it were made.
@@ -36,8 +36,11 @@ exactly one rule, the one its filename names. Arrt's suite validates
 manifests its real builder writes, runs its heartbeat reader over the
 heartbeat fixtures, validates the `GET /client` document it serves against the
 client schema, and holds its client-heartbeat reader to the client-heartbeat
-fixtures (`arrt/tests/contract/test_client_surface.py`). Postarr's suite runs its manifest reader over the manifest
-fixtures and validates the heartbeat it writes. When Postarr moves to its own
+fixtures (`arrt/tests/contract/test_client_surface.py`). Arrt Player's suite runs its manifest reader over the manifest
+fixtures and validates the heartbeat it writes. The conformance vectors in
+`contract/vectors/` (the label rule, the mat's geometry, what a feed shows at
+an instant) are held to reference statements in the root suite, and each
+Player's suite runs them against its own code. When Arrt Player moves to its own
 repository (wave 5), it pins a copy of `contract/` and runs the same tests
 against it. Arrt owns the contract, and a Player that needs a field asks
 for it here.
@@ -131,7 +134,8 @@ of walls, each on one of its outputs. It learns its walls from the server.
 | `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
 | `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen, identity?}], label_outputs?: [{name, kind, connected, size}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
 | `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
-| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second |
+| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. Major 1's original spelling, served until major 1 retires; Arrt Player asks for `v{major}` instead since wave 4c |
+| `GET /walls/{wall_id}/manifest/v{major}` | none | The manifest at that major (decimal, no leading zero), answered as above; `404` for a major the server does not publish for this wall (§ The cutover). Named in `contract/routes.json` (`manifest_major`) |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
 
@@ -180,7 +184,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
   them. It runs the rule rather than being told the outcome because the
   30-minute hold must still run while the server is unreachable. A state the
   renderer does not know is read as `unreachable`.
-- **As built in Postarr** (`label_rule.py`, `label_renderer.py`; build plan
+- **As built in Arrt Player** (`label_rule.py`, `label_renderer.py`; build plan
   displays-and-label-outputs, Chunks 05 and 06). The Frame's identity is read
   by the client, not by a wall's worker, with one `GET /api/v2/` on a REST-only
   client that opens no art channel and checks no token, so a Frame with no wall
@@ -211,7 +215,8 @@ of walls, each on one of its outputs. It learns its walls from the server.
 - **Every failure keeps the cache.** Transport errors, timeouts and `5xx` mean
   the server is unreachable: the Player backs off and keeps showing what it
   has. `401`, `403` and a `404` on the wall are configuration errors, stated
-  once in the journal. A `404` on a media hash skips that work and keeps
+  once in the journal; on the per-major route a `404` is one only when every
+  major the Player reads answers it (§ The cutover). A `404` on a media hash skips that work and keeps
   rotating. An unknown major is refused and the last good manifest is kept. The
   wall going black is always worse than the wall being incomplete.
 - **In waves 2 and 3, `/media/...` serves the composed render** that
@@ -222,12 +227,11 @@ of walls, each on one of its outputs. It learns its walls from the server.
 
 ## Major 2 (draft)
 
-> **Direction changed 2026-10-08 (`feeds-and-players.md`).** Major 2 is
-> reshaped before wave 4 builds it: the manifest becomes a **feed** (schedule,
-> works, default presentation settings) that a public channel serves with no
-> token and no reporting, and everything wall-specific is the **control** layer.
-> `settings` widens into three layers (feed, wall, device) with mat mode,
-> overlay timing and which facts an overlay shows.
+> **Reshaped 2026-10-08 (`feeds-and-players.md`), in the schema since wave 4a.**
+> The manifest is a **feed** (schedule, works, default presentation settings)
+> that a public channel serves with no token and no reporting; `scene` and
+> `staging` are the **control** layer, and a document with neither is a complete
+> channel feed. `settings` is the first of three layers (§ Presentation settings).
 
 **A draft until wave 4 builds it.** Nothing reads major 2 before then, so every
 field here can still change, and should, if building wave 2 or 3 teaches
@@ -244,7 +248,31 @@ at once, so walls cut over once:
 | `rotation` and a Player-side shuffle | `schedule`: time-anchored slots computed centrally for all walls |
 | `directive` (`sequence`, `pinned_work_id`) | `scene`, a live override with a lifetime, and republishing the schedule (below) |
 | `theme` | `playlist`, the same thing under its planned name |
-| settings in each Player's configuration | `settings`: label mode, mat proportions, viewing distance |
+| settings in each Player's configuration | `settings`, every key optional: label mode, mat mode, overlay timing, fades, text scale, viewing distance, and which label facts are shown (§ Presentation settings) |
+
+### Presentation settings
+
+`settings` holds the feed's defaults, the first of three layers
+(`feeds-and-players.md` § Presentation settings come in three layers). A home
+wall's curator settings override it, and a viewer's preferences on the device
+override both, key by key. Every key is optional, and a key no layer sets is the
+Player's own default, so a channel may say nothing about presentation.
+
+- **The mat's colour is the work's; its mode is a setting; its width is the
+  Player's.** `mat.mode` is `none`, `proportional` or `full`. No layer carries a
+  width (`feeds-and-players.md` ruling 7): a Player that knows its pixel density
+  keeps the inch rule, and one that does not uses a fraction of its screen's
+  shorter side.
+- **`label.mode` is text on the display itself**: `none`, `caption` (static for
+  the slot, the only kind a Frame can show) or `overlay` (timed by `overlay`'s
+  lead and tail, faded over `fade_seconds`). A label on its own surface is a label
+  output with its own document (`labels-and-surfaces.md`), not a mode, which is
+  why major 2 has no `panel`.
+- **`facts`** lists which of a work's label keys a caption or overlay shows, in
+  order. Its values are exactly the label's keys, a copy the root suite holds to
+  the label definition.
+- **A Player applies what its display can honour** and ignores the rest, which
+  is why a setting is never a reason to refuse a document.
 
 ### Rules a schema cannot state
 
@@ -273,11 +301,19 @@ is the reference statement, and each rule has an invalid fixture.
   is how the server can: a heartbeat stamped far from the server's own time is a
   clock fault.
 - **A time no slot covers is dark.** The dark hours are gaps, not a flag. Until
-  Postarr power control exists (wave 6+), a Player that reaches a gap keeps
+  Arrt Player power control exists (wave 6+), a Player that reaches a gap keeps
   showing the last slot's work, because it cannot yet send the set to sleep. The
   gap still means dark; the Player just cannot act on it.
+- **Every span is half-open.** A slot or a scene covers its `from` and not its
+  `until`, so the slot that ends at an instant is over at it and the next has
+  begun.
 - **When the horizon ends with no fresh manifest,** the Player replays the slots
-  shifted by one horizon, then by two, and so on. Because the horizon is whole
+  shifted by one horizon, then by two, and so on. **An instant before the
+  horizon begins** (a Player's clock behind the server's) is moved forward by
+  whole horizons the same way, so the Player has one rule for every instant:
+  move it into the horizon by whole horizons, then find its slot. A scene is
+  never moved: it is shown at its own absolute times, past the horizon
+  included. Because the horizon is whole
   days, each slot keeps its time of day, and so does each dark gap. A wall cut
   off from the server for a week goes on keeping its household's hours. It never
   goes dark because it has not heard from the server.
@@ -290,6 +326,41 @@ is the reference statement, and each rule has an invalid fixture.
   time until it hears from the server again. That was chosen over putting a
   time zone in the Player, which would make every Player keep a zone database
   current to fix a case that needs an outage of days.
+
+**Conformance vectors:** `contract/vectors/schedule.json` gives feeds and
+instants and the work (or dark, and the scene) each must show. The root suite
+holds them to a reference statement of these rules
+(`tests/preferences/test_contract_vectors.py`), and every Player's suite runs them.
+
+### Layout
+
+What a Player draws for one work on one screen, as numbers. The vectors are
+`contract/vectors/mat-geometry.json`; the reference statement is in
+`tests/preferences/test_contract_vectors.py`, and Arrt's compositor is held to
+the `proportional` vectors that have a density
+(`arrt/tests/contract/test_mat_vectors.py`), because that is what it has drawn
+on the Frame since wave 2.
+
+- **The mat width.** A Player that knows its pixel density (a configured Frame)
+  takes its configured width in inches times the density. One that does not
+  takes **6% of the screen's shorter side** (the owner, 2026-10-08), which on a
+  50" Frame is within a few pixels of 1.5 inches. That is the side and top
+  margin, rounded half up to whole pixels; the bottom is that rounded margin
+  times the Player's bottom weight, rounded half up again.
+- **The box** is the screen less the side margins, the top margin and the
+  bottom margin, at least a pixel each way. The work is scaled to fit it,
+  **never up**, rounded half up, and centred in the box, an odd pixel left over
+  going to the right and below. Because the box sits higher than centre, so does the work: centring it on
+  the screen would undo the bottom weighting.
+- **The mat**, by mode: `proportional` is the work's rectangle grown by the side
+  margin left, right and above and by the bottom margin below, black beyond;
+  `full` fills the screen with the mat colour; `none` has no mat, and the box is
+  the whole screen.
+- **A Player may differ from a vector by one pixel**, because image libraries
+  round a fitted size differently.
+- **The label and overlay layout** (regions, type sizes, an overlay's opacity
+  over time) has no vectors yet. They are written before a second platform
+  ports the Pi's label code (`feeds-and-players.md` § Reuse across platforms).
 
 ### Scenes
 
@@ -330,9 +401,15 @@ The heartbeat does not need a new major: capabilities are additive. Minor 2 adds
 
 - **`capabilities`:** `screen` (pixels), `backend` (`frame` or `framebuffer`),
   the `label_modes` this Player can do, and the `manifest_majors` it reads.
-  Programming chooses a wall's label mode from `label_modes`. It judges whether a
-  work is big enough for that wall from `screen`, and uses `manifest_majors` to
-  say before a cutover which Players it would leave on yesterday's wall.
+  `label_modes` are the modes of text on the display itself: `none`, `caption`
+  (static for the slot, all a Frame can do) and `overlay` (timed, with fades),
+  the same values as major 2's `settings.label.mode`; a label on its own surface
+  is a label output, not a mode. Programming offers a wall only the modes its
+  display reports. `screen` is reported again whenever it changes, and
+  Programming judges whether a work is big enough for that wall from the largest
+  size reported recently, not the latest (`feeds-and-players.md` § What a
+  display reports it can do). `manifest_majors` says which majors a Player can
+  be served (§ The cutover).
 - **`scene_id`:** the scene the wall is showing, or null.
 
 ### The heartbeat, minor 3
@@ -354,29 +431,52 @@ heartbeat: a later minor may add a state, and Players upgrade before the server.
 
 ### The cutover
 
-> **Direction changed 2026-10-08 (`feeds-and-players.md` § Versioning when
-> Players cannot be upgraded).** App Store Players cannot be upgraded on demand,
-> so each major is served at its own URL while a reader of it may exist, and a
-> Player requests the highest it reads. The single-major cutover below holds
-> until wave 4 builds that.
+**Each major is served at its own URL while a reader of it may exist, and a
+Player requests the highest major it reads** (`feeds-and-players.md` ruling 4,
+which replaced a single-major cutover because an App Store Player cannot be
+upgraded on demand).
 
-A major 1 Player refuses a major 2 manifest as an unsupported version and keeps
-its wall. Postarr's suite pins that refusal for every major 2 fixture. So
-wave 4 upgrades Players first and switches the server second, and a Player
-missed in the upgrade is visible, because its heartbeat's `manifest_majors`
-lacks 2. The server publishes one major for all walls. Serving each Player the
-major it reads was considered and not planned: it would mean building two
-documents for every wall through a transition that lasts minutes in a household.
+- **The route is `GET /walls/{wall_id}/manifest/v{major}`.** A major the server
+  does not publish for that wall answers `404`, and the Player asks for the next
+  major down that it reads. It treats the wall as misconfigured only when every
+  major it reads answers `404`. A Player may keep the major that last answered
+  and ask for a higher one less often than it polls.
+- **A Player refuses a major it does not read** as an unsupported version and
+  keeps its wall, as a major 1 Player refuses a major 2 document. Since wave 4c
+  Arrt Player reads majors 1 and 2: its suite adopts every valid fixture of
+  both whole, refuses every invalid one the index marks `player_must_refuse`
+  (for major 2, never one that breaks only a presentation setting), and pins
+  the version refusal with a major 3 document. *(Amended 2026-10-09, wave 4c:
+  this said the suite pins a refusal of every major 2 fixture, which is the
+  rule for a major 1 reader; `build-plan-wave-4c-wall-loop.md` records the
+  decision.)*
+- **For a home wall, the server serves each major it still builds and retires
+  one once no heartbeat lists it in `manifest_majors`.** So wave 4 upgrades the
+  Players first, and the server stops building major 1, and with it the
+  composed render and the unversioned route, once every Player reports 2. A
+  Player missed in the upgrade is visible before that, because its heartbeat
+  lacks 2.
+- **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
+  a Player from before minor 2, which reads only major 1, or one whose display
+  cannot yet say its size (a Frame, until the Player owns its geometry), which
+  since wave 4c asks only for major 1. Reading its silence as "lists nothing"
+  would let the server retire the major that wall is running on. *(Added
+  2026-10-09, wave 4c.)*
+- **For a public channel, a major is retired by decision**, because nothing
+  reports.
 
-### Still open in the draft
+### Settled before wave 4
 
-These are settled before wave 4 builds major 2, not in wave 1. Wave 1 wrote the
-fields that carry them.
+Wave 1 wrote the fields that carry these; the owner set the values on
+2026-10-08, before wave 4 builds major 2.
 
-- **The horizon's length.** One day is the proposal. The schema allows any whole
-  number of days, and a week costs a few hundred kilobytes at a three-minute
-  rotation.
-- **A preview's default lifetime.** Twenty minutes is the proposal. It is a
-  server default, not a contract field, because `until` is always explicit.
+- **The horizon's length: three days.** The server publishes a three-day
+  horizon to home walls. The schema still allows any whole number of days, so
+  this is the server's value, not a contract rule; a Player reads whatever
+  horizon it is sent. Three days rides out a weekend with the server down
+  before the replay rule takes over, at a few hundred kilobytes a week of
+  schedule at a three-minute rotation. One day was the proposal.
+- **A preview's default lifetime: twenty minutes.** It is a server default,
+  not a contract field, because `until` is always explicit.
 - **Whether `works` may carry works nothing names.** It is allowed. It is not
   needed, and a server that sends them only makes the Player fetch less wisely.

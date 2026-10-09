@@ -591,6 +591,13 @@ the art tree that rsync carries and git does not.
 > card judge against the Library's quality profile, which is stated in pixels
 > and names no device. The Library keeps only `width` and `height`, as this
 > section already requires.
+>
+> **Built 2026-10-08 (wave 4b).** The verdict is now judged against the quality
+> profile (§ Quality profile), by `library/services/quality.py`: `meets_minimum`
+> or `below_minimum`, and none when a size is unknown. `native` and
+> `matted_small` are retired with the box they were judged against; the
+> paragraphs above stay as the record of why the verdict is derived, which is
+> unchanged. Programming's per-wall judgement is wave 4e.
 
 ### AcquisitionQueue
 
@@ -633,7 +640,7 @@ A derived, device-specific output. **Regenerated, never transported.**
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `kind` | enum | required | `tv_display` \| `thumbnail` \| `wall_preview`. A `thumbnail` is the work itself, drawn from the Original, for a library tile; a `wall_preview` is the `tv_display` canvas (or the Original, where there is none yet) downscaled for the Work page. **`wall_preview` was added and `thumbnail` stopped being drawn from the canvas 2026-10-07** (ruling 7, `ia-proposal.md`: tiles show the work at its own aspect). **`label` was removed 2026-07-20** — see below. |
+| `kind` | enum | required | `tv_display` \| `thumbnail` \| `wall_preview` \| `presentation_master`. A `presentation_master` is the Original, upright and unmatted, capped at 7,680 px on its long edge, JPEG at quality 95: the device-independent image a Player composes from (re-architecture wave 4). Its target is the cap, so a work keeps one row however its Original changes; it records the rule it was made by (`MASTER_RULE`: cap and quality) in `layout`, so a changed rule makes it owed again as a changed layout does a canvas; it is made by `prepare()` before the canvas and backfilled at startup for every accepted work with none recorded from its Original by today's rule (**added 2026-10-08, wave 4b**). Transported to Players by hash, which conforms under the 2026-09-30 ruling in § Direction. A `thumbnail` is the work itself, drawn from the Original, for a library tile; a `wall_preview` is the `tv_display` canvas (or the Original, where there is none yet) downscaled for the Work page. **`wall_preview` was added and `thumbnail` stopped being drawn from the canvas 2026-10-07** (ruling 7, `ia-proposal.md`: tiles show the work at its own aspect). **`label` was removed 2026-07-20** — see below. |
 | `target_width` | integer | required | e.g. 3840 for the TV canvas. |
 | `target_height` | integer | required | e.g. 2160. |
 | `relative_path` | string | required | Relative to `ART_ROOT`. |
@@ -1443,7 +1450,7 @@ artworks.
 | `wikidata_qid` | string | nullable | The Wikidata item a `chosen` work was asked for by, or, on any undecided work, the item the curator picked from Wikidata's matches for its title (`DiscoveryService.set_wikidata_item`, since 2026-10-02, `build-plan-after-review.md` Chunk 04; never matched by title on its own, § Registry identity). Null otherwise. Handed to the image sources, so a source that looks a work up by item (Commons) can, and stored on the artwork at acceptance, set by the curator. Nullable so widening adds it to older files. |
 | `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered` \| `chosen`. Who put this work in front of the curator: the model named it, a wired collection volunteered it, or the curator chose it from Wikidata for a Get. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
 | `resolution_status` | enum | required | `pending` \| `resolved` \| `unresolved`. Reflects the **latest** resolution attempt, whether that was the original phase 2 or a later re-search. `unresolved` ⇒ that attempt found no credible instance the curator has not already rejected. **Q12.** |
-| `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **Q12.** |
+| `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **`below_floor` keeps its stored spelling** although since 2026-10-08 it means *below the quality minimum*: it is a persisted value, and renaming it would strand every row written before. **Q12.** |
 | `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `wanted`. See State Machines. `wanted` was `awaiting_better_image` until 2026-10-02 (`build-plan-after-review.md` Chunk 03); a migration on open rewrites stored rows, and nothing reads the old spelling. **Q36, Q37.** |
 | `rejected_reason` | text | nullable | Optional curator note. |
 | `decided_at` | datetime | nullable | |
@@ -2690,7 +2697,9 @@ suppresses it and leaves the verdict where it was.
     intent, "resolution policy in one place rather than implicit in each renderer",
     is now met by the service-layer norm (`architecture.md` § Direction): the review
     grid and the renderer call the same function, and neither has a policy of its
-    own.
+    own. *(2026-10-08, wave 4b: the verdict is judged against the quality profile,
+    a deployment's minimum in pixels, rather than panel geometry. The rule stands
+    for the same reason: the minimum is a deployment value too.)*
 13. **`Source.rights_status` is recorded for every source, including `unknown`.**
     Absence of a value is not permitted — "we did not check" and "we checked and
     could not tell" are different facts, and only the second is honest as
@@ -2945,7 +2954,8 @@ label type. Wave 4.
 ### Schedule entry *(Programming)*
 
 A work for one wall over a time span (from, until), computed for all walls
-together over a horizon of about a day, so rules such as "no work on two walls
+together over a horizon of three days (`player-contract.md` § Settled before
+wave 4), so rules such as "no work on two walls
 at once" are central calculations. Dark hours are gaps. The Player follows the
 clock from its cache. Wave 4, with schema major 2.
 
@@ -2962,10 +2972,15 @@ assembled. Wave 4.
 
 ### Quality profile *(Library)*
 
-A resolution floor and an upgrade cutoff, in pixels, naming no device. Instance
-selection and the review card judge against the minimum. The upgrade job stops
-at the cutoff. It replaces the artwork box derived from `TV_PANEL_*` / `MAT_*`
-in wave 4.
+A minimum in pixels on the long edge, naming no device: `QUALITY_MINIMUM_PX`,
+default 1,000 (the owner, 2026-10-06). Instance selection, the review card, the
+collection supplement and the *Size* facet judge against it, and a scan below
+it is offered and labelled but never chosen for the curator. It has **no
+cutoff** (the owner, 2026-10-02, `upgrades.md` ruling 1): Arrt never stops
+looking for a bigger scan, and how often it looks falls with the held size.
+Configuration, not a stored entity, while it is one number (the owner,
+2026-10-08). Built in wave 4b, replacing the artwork box derived from
+`TV_PANEL_*` / `MAT_*` everywhere but the compositor.
 
 ## Deliberately not modelled
 

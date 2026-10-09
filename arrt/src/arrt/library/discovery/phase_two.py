@@ -39,12 +39,11 @@ refused a quarter of the NGA's imaged items for it
 two people, so they count only where the item already vouches for the page,
 never beside a title match alone (`_renaming`).
 
-**Quality is whether the render is a downscale or a native-size paste**, graded
-by how much of the artwork box the master covers — deliberately *not* the size
-the instance renders at. Aspect-ratio mismatch dominates rendered size, so a tall
-master with resolution to spare comes out shorter on a wide box than a small one
-that suits the shape. The verdict comes from the same function the review grid
-and the renderer use, so phase 2 does not grow a resolution policy of its own.
+**Quality is whether the scan meets the quality profile's minimum**, graded by
+its long edge in pixels — deliberately *not* by any size it would render at on a
+screen, which the Library does not know. The verdict comes from the same profile
+the review grid judges against, so phase 2 does not grow a resolution policy of
+its own.
 
 Quality breaks ties; it never overturns confidence, because a gorgeous scan of
 the wrong painting is worse than a modest scan of the right one.
@@ -61,9 +60,9 @@ several institutional copies of one work, from more than one source, resolution
 and rights still decide, and the order the sources are listed in breaks a level
 tie; `data-model.md` records why no source is preferred outright.
 
-**Below the floor is not a rejection.** Such an instance is recorded, offered,
-and labelled with the size it would appear at — it is simply not selected without
-a curator saying so. A work whose every instance is below the floor holds no
+**Below the minimum is not a rejection.** Such an instance is recorded, offered,
+and labelled with its size — it is simply not selected without a curator saying
+so. A work whose every instance is below the minimum holds no
 selection and is reported `unresolved`, which is a first-class outcome rather
 than an absent row.
 """
@@ -78,7 +77,7 @@ from arrt.library.discovery.dedup import artist_key, title_key
 from arrt.library.discovery.images import FoundImage, FoundPage, ImageQuery, ImageSearchFailure
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import Registry, RegistryUnavailable
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
+from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX, Fit, QualityProfile
 from arrt.library.sources.names import museum_name
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import RightsStatus
@@ -118,44 +117,36 @@ _RIGHTS_TERM: Final[dict[RightsStatus | None, float]] = {
     None: 0.5,
 }
 
-#: Where each fit verdict's band starts. Ordered and evenly spaced so that the
-#: verdict dominates and coverage grades within it — a downscaled instance always
-#: outranks one pasted at native size, whatever their rendered sizes work out to.
-_BAND_BASE: Final[dict[DisplayFit, float]] = {
-    DisplayFit.BELOW_FLOOR: 0.0,
-    DisplayFit.MATTED_SMALL: 1 / 3,
-    DisplayFit.NATIVE: 2 / 3,
+#: Where each verdict's band starts. The verdict dominates and the long edge
+#: grades within it, so an instance meeting the minimum always outranks one
+#: below it, however close the second came.
+_BAND_BASE: Final[dict[Fit, float]] = {
+    Fit.BELOW_MINIMUM: 0.0,
+    Fit.MEETS_MINIMUM: 1 / 2,
 }
 
-_BAND_WIDTH: Final[float] = 1 / 3
-
-#: How many times the artwork box a master must cover before extra resolution
-#: stops counting. Not a cliff — it is where the top band saturates, so a
-#: gigapixel scan and a merely generous one are distinguished but a scan ten
-#: times larger than the wall can show gains nothing further for it.
-_NATIVE_SATURATION: Final[float] = 4.0
+_BAND_WIDTH: Final[float] = 1 / 2
 
 
 @dataclass(frozen=True, slots=True)
 class JudgedImage:
     """One instance, judged against the work it was found for.
 
-    The `FitAssessment` travels with the judgement rather than being recomputed
-    by a caller, because the rendered size is what the review card labels a
-    below-floor instance with — and computing it twice is how the label and the
-    decision come to disagree.
+    The verdict travels with the judgement rather than being recomputed by a
+    caller, because computing it twice is how the label on the review card and
+    the decision come to disagree.
     """
 
     found: FoundImage
     confidence: float
     quality_score: float
     rationale: str
-    fit: FitAssessment
+    fit: Fit
 
     @property
-    def below_floor(self) -> bool:
-        """Whether this would render smaller on the wall than the floor allows."""
-        return self.fit.fit is DisplayFit.BELOW_FLOOR
+    def below_minimum(self) -> bool:
+        """Whether this falls short of the quality profile's minimum."""
+        return self.fit is Fit.BELOW_MINIMUM
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,9 +176,9 @@ class Resolution:
 class PhaseTwoEngine:
     """Turn one work into the instances that are credibly it, best first."""
 
-    def __init__(self, sources: ImageSourcePool, *, box: ArtworkBox, registry: Registry | None = None) -> None:
+    def __init__(self, sources: ImageSourcePool, *, profile: QualityProfile, registry: Registry | None = None) -> None:
         self._sources = sources
-        self._box = box
+        self._profile = profile
         #: Where a work's item says it is described. `None` is a deployment with
         #: no registry, where only the title comparison identifies a work.
         self._registry = registry
@@ -206,8 +197,8 @@ class PhaseTwoEngine:
         refusal set is read downstream as `NOT_HELD`: no record came back whose
         title matched, which is exactly what happened, vacuously.
 
-        **When a source could not be asked, only an instance that clears the
-        floor settles the work.** Without one, the source that was down may hold
+        **When a source could not be asked, only an instance that meets the
+        minimum settles the work.** Without one, the source that was down may hold
         the image the others lack, so the work is reported unreachable, as it is
         when no source answers, and is searched again later. Calling it
         unresolved would record a fact about the work that nobody observed.
@@ -223,10 +214,10 @@ class PhaseTwoEngine:
             else:
                 judged.append(outcome)
         judged.sort(key=self.rank)
-        if answer.unreachable and all(entry.below_floor for entry in judged):
+        if answer.unreachable and all(entry.below_minimum for entry in judged):
             raise ImageSearchFailure(
                 f"{', '.join(answer.unreachable)} could not be asked, and no other source has an image of "
-                f"{query.title!r} that clears the floor."
+                f"{query.title!r} that meets the quality minimum."
             )
         log.info(
             "judged a work's instances",
@@ -234,7 +225,7 @@ class PhaseTwoEngine:
                 "event": "phase_two.judged",
                 "work_title": query.title,
                 "instances_credible": len(judged),
-                "instances_below_floor": sum(1 for entry in judged if entry.below_floor),
+                "instances_below_floor": sum(1 for entry in judged if entry.below_minimum),
                 "refused_at": sorted(str(reason) for reason in refusals),
                 "unreachable": list(answer.unreachable),
             },
@@ -248,12 +239,12 @@ class PhaseTwoEngine:
     def rank(self, entry: JudgedImage) -> tuple[bool, float, float, int, str]:
         """Where an instance stands among a work's, best first: the order `resolve` returns them in.
 
-        Clearing the floor first, then confidence, then quality, then the order
+        Meeting the minimum first, then confidence, then quality, then the order
         the sources are listed in, and the URL last, so two runs over the same
         answers order them alike.
         """
         return (
-            entry.below_floor,
+            entry.below_minimum,
             -entry.confidence,
             -entry.quality_score,
             self._sources.precedence(entry.found.provider),
@@ -329,9 +320,9 @@ class PhaseTwoEngine:
                 },
             )
         if found.estimated_width is None or found.estimated_height is None:
-            # An instance whose rendered size cannot be computed cannot be judged
-            # against the floor, and one recorded anyway is indistinguishable
-            # from one that clears it — which is the single thing the floor
+            # An instance whose size is unknown cannot be judged against the
+            # minimum, and one recorded anyway is indistinguishable from one
+            # that meets it — which is the single thing the minimum
             # exists to make visible. Dropped rather than recorded unassessable,
             # and logged so a provider that stops reporting dimensions shows up
             # as a run finding nothing rather than as a run finding everything.
@@ -340,13 +331,12 @@ class PhaseTwoEngine:
                 extra={"event": "phase_two.size_unknown", "work_title": query.title, "found_title": found.title},
             )
             return UnresolvedReason.SIZE_UNKNOWN
-        fit = assess_display_fit(width=found.estimated_width, height=found.estimated_height, box=self._box)
+        fit = self._profile.judge(width=found.estimated_width, height=found.estimated_height)
         quality = _quality(
             fit,
             found.rights_status,
-            width=found.estimated_width,
-            height=found.estimated_height,
-            box=self._box,
+            long_edge=max(found.estimated_width, found.estimated_height),
+            profile=self._profile,
         )
         return JudgedImage(
             found=found,
@@ -506,62 +496,57 @@ def _confidence(query: ImageQuery, found: FoundImage) -> float | None:
     return UNATTRIBUTED_RECORD
 
 
-def _quality(fit: FitAssessment, rights: RightsStatus | None, *, width: int, height: int, box: ArtworkBox) -> float:
+def _quality(fit: Fit, rights: RightsStatus | None, *, long_edge: int, profile: QualityProfile) -> float:
     """How good this file is, as one number in 0..1.
 
-    **The resolution metric is the fit verdict, not the rendered size**, and the
-    difference is not academic. A 6949x8400 master rendered into a wide artwork
-    box is limited by the box's height and comes out shorter on the wall than a
-    2000x1500 one that happens to suit the shape — while having four times the
-    resolution to spare. Ranking on rendered inches prefers the smaller file, and
-    the requirement says so in as many words: canvas occupancy is dominated by
-    aspect-ratio mismatch, and what isolates resolution is whether the render is a
-    downscale or a native-size paste.
+    **The verdict picks the band and the long edge grades within it.** Crossing
+    the minimum is a genuine step rather than a continuous one, because it is
+    the point where the scan may be chosen without a curator asking.
 
-    So the verdict picks the band and coverage grades within it. Crossing from
-    "pasted at native size" to "downscaled to fit" is a genuine step up rather
-    than a continuous one, because it is the point where the file stops being the
-    limiting factor.
+    **The long edge, not megapixels or a rendered size.** Megapixels undercount
+    a tall narrow work, and a rendered size needs a screen the Library does not
+    hold. The long edge is what the minimum, the presentation master's cap and
+    the upgrade tiers all measure.
     """
-    resolution = _BAND_BASE.get(fit.fit, 0.0) + _BAND_WIDTH * _within_band(fit, width=width, height=height, box=box)
+    resolution = _BAND_BASE.get(fit, 0.0) + _BAND_WIDTH * _within_band(fit, long_edge=long_edge, profile=profile)
     # `.get` with the neutral term rather than indexing: a rights value added to
     # the enum later is an unranked one, not a crash in a worker thread that
     # would end the run.
     return _RESOLUTION_WEIGHT * resolution + (1 - _RESOLUTION_WEIGHT) * _RIGHTS_TERM.get(rights, 0.5)
 
 
-def _within_band(fit: FitAssessment, *, width: int, height: int, box: ArtworkBox) -> float:
+def _within_band(fit: Fit, *, long_edge: int, profile: QualityProfile) -> float:
     """Where in its band this instance sits, in 0..1.
 
-    Below the floor, how close it came to reaching it — the only band where the
-    rendered size is the right measure, because the floor is itself a rendered
-    size. Otherwise how much of the artwork box the master covers at its own
-    resolution, saturating once it has several times more than the box can use:
-    beyond that the extra pixels are not usable on this wall, and the losing
-    instances are retained anyway.
+    Below the minimum, how close it came to reaching it. Above it, how far it
+    goes towards the presentation master's cap, and level beyond: a master is
+    never larger than the cap, so two scans both past it show identically on
+    every wall, and the losing instance is retained anyway.
     """
-    if fit.fit is DisplayFit.BELOW_FLOOR:
-        return min(1.0, fit.rendered_long_edge_inches / box.floor_inches) if box.floor_inches > 0 else 0.0
-    coverage = min(width / box.width, height / box.height)
-    if fit.fit is DisplayFit.MATTED_SMALL:
-        return min(1.0, coverage)
-    return min(1.0, coverage / _NATIVE_SATURATION)
+    minimum = profile.minimum_long_edge_px
+    if fit is Fit.BELOW_MINIMUM:
+        return min(1.0, long_edge / minimum)
+    headroom = PRESENTATION_MASTER_LONG_EDGE_PX - minimum
+    if headroom <= 0:
+        # A minimum at or above the cap leaves nothing to grade: every scan that
+        # meets it is cut to the same master.
+        return 1.0
+    return min(1.0, (long_edge - minimum) / headroom)
 
 
-def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, linked: bool = False, renamed: bool = False) -> str:
+def _rationale(found: FoundImage, *, confidence: float, fit: Fit, linked: bool = False, renamed: bool = False) -> str:
     """Why this instance was chosen, in the words a curator asking gets back.
 
     Written for the review card rather than for a log: it names what the museum
     calls the work, how the identity was established, and the scan's size — the
-    last because a curator judging a below-floor instance needs the number, not
-    the verdict.
+    last because a curator judging a small instance needs the number, not the
+    verdict.
 
     **The size is the scan's pixels, never inches on a wall** (the owner's
-    ruling, 2026-10-02). Inches are the long edge on the one panel this server
-    is configured for, after the mat, and in a sentence beside a picture they
-    read as a fact about the picture. The verdict's consequence is still said in
-    words. A sentence already stored is a record of what the run said and is
-    left as written; this governs runs from now on.
+    ruling, 2026-10-02). A size on a wall belongs to one screen, and the Library
+    holds none. The verdict's consequence is still said in words. A sentence
+    already stored is a record of what the run said and is left as written;
+    this governs runs from now on.
     """
     holder = f"{museum_name(found.provider)} holds this as {found.title!r}"
     holder += f" by {found.artist}" if found.artist else ", with no artist recorded"
@@ -590,10 +575,8 @@ def _rationale(found: FoundImage, *, confidence: float, fit: FitAssessment, link
     else:
         identity = "matching the requested title; the record names no artist to confirm it"
     size = f"It is {found.estimated_width:,} × {found.estimated_height:,} px"
-    if fit.fit is DisplayFit.BELOW_FLOOR:
-        size += ", too small to reach this wall's size floor, so it is offered but not selected automatically"
-    elif fit.fit is DisplayFit.MATTED_SMALL:
-        size += ", smaller than the artwork box, so it is matted wider rather than downscaled"
+    if fit is Fit.BELOW_MINIMUM:
+        size += ", below the quality minimum, so it is offered but not selected automatically"
     else:
-        size += ", enough to fill the artwork box"
+        size += ", which meets the quality minimum"
     return f"{holder}, {identity}. {size}."

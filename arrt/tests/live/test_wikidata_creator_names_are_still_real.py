@@ -19,12 +19,13 @@ process:
 
 import pytest
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.dedup import artist_key
 from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry.wikidata import WikidataRegistry
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 
 pytestmark = pytest.mark.live_museum
@@ -87,8 +88,8 @@ class ArtUkPage:
 
 
 def test_the_lowry_art_uk_holds_is_accepted_through_the_live_registry(registry):
-    box = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([ArtUkPage()]), box=box, registry=registry)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([ArtUkPage()]), profile=profile, registry=registry)
 
     (entry,) = engine.resolve(ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)).instances
 

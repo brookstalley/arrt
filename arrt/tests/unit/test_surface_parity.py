@@ -37,8 +37,8 @@ from arrt.http import api as http_api
 from arrt.http import models as http_models
 from arrt.library.discovery.phase_two import JudgedImage
 from arrt.library.services.discovery import VerdictOutcome, WantedWork
-from arrt.library.services.display_fit import DisplayFit, FitAssessment
 from arrt.library.services.look import LookPicture, LookState, LookView, SourceLook, SourceState
+from arrt.library.services.quality import Fit
 from arrt.library.services.review import WantedView
 from arrt.library.sources.loading import PluginIdentity, PluginPart, PluginReading, PluginState
 from arrt.mcp import bindings
@@ -487,7 +487,7 @@ MCP_ONLY_ON_LOOK_PICTURE = frozenset({"image_block_index"})
 
 def _a_look() -> LookView:
     found = an_image("Tantra-Vision", artist="Ejler Bille", width=2201, height=2221, provider="smk")
-    fit = FitAssessment(fit=DisplayFit.NATIVE, rendered_width=1800, rendered_height=1816, rendered_long_edge_inches=31.4)
+    fit = Fit.MEETS_MINIMUM
     picture = LookPicture(
         key="a" * 64, judged=JudgedImage(found=found, confidence=0.95, quality_score=0.8, rationale="Why.", fit=fit)
     )

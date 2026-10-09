@@ -28,7 +28,7 @@ from typing import Protocol
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
 # package to compose its settings objects". It does not. `arrt.config`
-# imports `manifest.builder`, `manifest.heartbeat`, `services.display_fit` and
+# imports `manifest.builder`, `manifest.heartbeat`, `services.quality` and
 # `services.runner`, and none of those reaches this module — `services/__init__`
 # is a docstring. The deferral hid container→config from anything reading the
 # import graph while teaching a pattern on a premise that was never true. If a
@@ -36,12 +36,15 @@ from typing import Protocol
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_LABEL_UNITS,
+    DEFAULT_MAT_BOTTOM_WEIGHT,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
+    DEFAULT_MAT_WIDTH_INCHES,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
+    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
     DEFAULT_TV_PANEL_HEIGHT_PX,
     DEFAULT_TV_PANEL_WIDTH_PX,
     ORIGINALS_DIRNAME,
@@ -49,6 +52,7 @@ from arrt.config import (
     PREVIEWS_DIRNAME,
     READY_DIRNAME,
     TILE_CACHE_DIRNAME,
+    artwork_box,
 )
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.mat import MatEngine
@@ -68,12 +72,12 @@ from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
 from arrt.library.services.look import LookService
 from arrt.library.services.pictures import PictureStore, import_previews
 from arrt.library.services.previews import PreviewCache
+from arrt.library.services.quality import QualityProfile
 from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
@@ -217,7 +221,7 @@ class Services:
         discovery: DiscoveryStore,
         display_settings: DisplaySettings,
         thumbnails: ThumbnailSettings,
-        artwork_box: ArtworkBox,
+        quality_profile: QualityProfile,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
         #: The system every label states a work's dimensions in. Defaulted for the
@@ -273,15 +277,12 @@ class Services:
         """
         catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
         kept = kept or KeptAnswers.in_memory()
-        # The artwork box reaches discovery for one reason: automatic selection
-        # must withhold an instance that would render below the floor, and the
-        # floor is a size on the wall rather than a pixel count — so the rule
-        # cannot be evaluated without the panel geometry that converts one to the
-        # other.
+        # The quality profile reaches discovery for one reason: automatic
+        # selection must withhold an instance below its minimum.
         sources = SourceRoster.empty() if sources is None else sources
         pool = ImageSourcePool(sources.finders) if sources.finds_images else None
         discovery_service = DiscoveryService(
-            discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
+            discovery, catalogue_service, quality_profile, precedence=None if pool is None else pool.precedence
         )
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
@@ -331,7 +332,7 @@ class Services:
             # mistake spend money from a test suite rather than failing where
             # it was made — the same reason `open_stream` defaults to refusing.
             mat_engine or _default_mat_engine(),
-            preparation or _default_preparation(thumbnails.art_root, artwork_box),
+            preparation or _default_preparation(thumbnails.art_root),
             # The ledger is discovery's today, reached through its one method.
             spend=discovery_service,
         )
@@ -342,7 +343,7 @@ class Services:
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
         sighting_service = SightingService(discovery, catalogue, route=sources.route)
         # One judge for a run and a look, so the two cannot judge a find apart.
-        judge = None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry)
+        judge = None if pool is None else PhaseTwoEngine(pool, profile=quality_profile, registry=registry)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
@@ -359,7 +360,7 @@ class Services:
             # answers, or the system's.
             **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
         )
-        registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, box=artwork_box)
+        registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, profile=quality_profile)
         clients = ClientService(catalogue, display_settings, library)
         return cls(
             catalogue=catalogue_service,
@@ -371,8 +372,8 @@ class Services:
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
-            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box, acquisition=acquisition_queue),
-            review=ReviewService(discovery_service, box=artwork_box, pictures=pictures),
+            survey=SurveyService(catalogue_service, thumbnail_service, quality_profile, acquisition=acquisition_queue),
+            review=ReviewService(discovery_service, profile=quality_profile, pictures=pictures),
             pictures=pictures,
             # The receipt is located off the thumbnail settings' `art_root`, as
             # the picture store is above, and for the same reason. It is
@@ -445,6 +446,9 @@ class Services:
         # Mats darker than the floor, all of them older than it, are chosen
         # again the same way: a queue row each, the queue's `prepare` choosing.
         self.acquisition_queue.owe_mats_over_the_floor()
+        # And every work with no presentation master made from its Original,
+        # the same way: the queue's `prepare` makes it, before the canvas.
+        self.acquisition_queue.owe_presentation_masters()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()
@@ -492,19 +496,23 @@ def _default_mat_engine() -> MatEngine:
     return MatEngine(None, image_max_edge=DEFAULT_MAT_IMAGE_MAX_EDGE)
 
 
-def _default_preparation(art_root: Path, artwork_box: ArtworkBox) -> PreparationSettings:
+def _default_preparation(art_root: Path) -> PreparationSettings:
     """Preparation settings for a caller that expressed no preference.
 
-    The panel comes from the reference defaults, as every other value in this
-    file's defaults does. **A caller passing its own `artwork_box` and letting
-    the panel default would get a mismatched pair**, which is why the entry point
-    passes both from one resolved `Settings` — the box is *derived from* the
-    panel there, so the two cannot disagree.
+    The panel and the mat come from the reference defaults, as every other value
+    in this file's defaults does, and the box is derived from that same panel, so
+    the canvas and the box cannot disagree about where the mat ends.
     """
     return PreparationSettings(
         art_root=art_root,
         ready_path=art_root / READY_DIRNAME,
         panel_width=DEFAULT_TV_PANEL_WIDTH_PX,
         panel_height=DEFAULT_TV_PANEL_HEIGHT_PX,
-        box=artwork_box,
+        box=artwork_box(
+            panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
+            panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
+            panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
+            mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
+            mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
+        ),
     )

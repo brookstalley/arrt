@@ -348,6 +348,14 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   it came from, because a wrong mat is otherwise visible only as works being
   labelled oddly in the review grid.)*
 
+  *(**`RESOLUTION_FLOOR_INCHES` was retired on 2026-10-08** (wave 4b). The floor
+  became the Library's quality profile, `QUALITY_MINIMUM_PX`, a minimum in pixels
+  on the long edge that names no screen, default 1,000. The TV panel and the mat
+  are now needed only to compose the canvas, and leave the server with
+  compositing in wave 4. A deployment whose `.env` still sets the old key starts
+  normally and logs a WARNING naming it and its replacement
+  (`config.retired_setting`).)*
+
   *(**Three more joined them on 2026-08-03**, when the mat engine landed, and are
   curation-only for a different reason — display never asks a model anything:
   `MAT_MODEL`, `MAT_MAX_OUTPUT_TOKENS` and `MAT_IMAGE_MAX_EDGE`. The middle one
@@ -423,6 +431,13 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 > too, chosen from what the Player reports. Caption mode arrives in wave 6+. A
 > Player running it is exactly the "device drawing its label into the mat area"
 > the `EPD_MARGIN_PX` note above anticipated.
+>
+> *(2026-10-08, pointer only: `feeds-and-players.md` ruling 7 made the mat's
+> width the client's, so `MAT_*` moves to the Player's configuration with
+> `TV_PANEL_*` rather than becoming a wall setting; the manifest carries only the
+> mat's mode. The label mode's values are `none`, `caption` and `overlay`, a
+> label on its own surface being a label output. `player-contract.md`
+> § Presentation settings.)*
 >
 > In wave 2 the shared `.env` stops being shared. The Player gains the server's
 > base URL and a cache directory, and keeps the `WALL_ID` it already has.
@@ -537,6 +552,20 @@ that will actually get run rather than skipped.
 >   claim gets tested.
 > - **The Player backs up nothing.** Its media cache re-pulls, and its TV bindings
 >   are rebuilt by reconciliation against the set, as today.
+> - **`presentation/` holds one master per work from wave 4b (2026-10-08)**,
+>   excluded from backups like every derived class. At startup every accepted
+>   work with no master *recorded* from its Original by today's rule (cap and
+>   quality, `MASTER_RULE`) is queued to have one made. **A recorded master
+>   whose file is gone is not found at startup**, since that is a query over rows;
+>   it is remade the next time the work is prepared, which is the shape of #180
+>   (a restored catalogue does not heal) and is tracked there. **Measured 2026-10-08** over the 46
+>   originals in the owner's local 2024 tree (574 MB on disk): masters totalled
+>   225 MB, about 4.9 MB a work on average (median 3.3 MB, largest 15.9 MB), 37%
+>   of the originals; one original exceeded the 7,680 px cap. Making each took
+>   0.34 s median and 1.8 s at most on the development Mac. So budget roughly
+>   5 MB a work on the NAS, about 10 GB at 2,000 works. On the first start after
+>   the upgrade the acquisition queue makes every held work's master, one at a
+>   time, logging `preparation.masters_queued` with the count.
 > - **The self-healing walk-through above changes shape in wave 4.** "No current
 >   render" becomes "no presentation master", and a Player whose cache is empty
 >   re-pulls once the server has regenerated the masters.

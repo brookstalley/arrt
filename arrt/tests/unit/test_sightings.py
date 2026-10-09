@@ -268,7 +268,7 @@ def test_a_finder_of_pages_that_could_not_be_asked_alone_still_leaves_the_work_w
 def test_phase_two_settles_a_work_every_image_source_answered_for_while_the_finder_of_pages_was_down(settings):
     """The caller that read `unreachable`: it raised here, keeping the work waiting for a source that holds no image."""
     roster = SourceRoster.of(finders=[_Raw("artic", list), _pages_only(_Raw("wikidata", _unreachable))])
-    engine = PhaseTwoEngine(ImageSourcePool(roster.finders), box=settings.tv_artwork_box)
+    engine = PhaseTwoEngine(ImageSourcePool(roster.finders), profile=settings.quality_profile)
 
     resolution = engine.resolve(ImageQuery(title="Drowning Girl"))
 
@@ -319,7 +319,7 @@ class TestARosterOfPagesAloneGivesPhaseTwoNoSource:
 def test_phase_two_passes_the_pages_on_untouched(settings):
     engine = PhaseTwoEngine(
         ImageSourcePool(SourceRoster.of(finders=[_Pages("wikidata", _page(MOMA))]).finders),
-        box=settings.tv_artwork_box,
+        profile=settings.quality_profile,
     )
 
     resolution = engine.resolve(ImageQuery(title="Drowning Girl", qid=ItemId(DROWNING_GIRL)))
@@ -340,7 +340,7 @@ def test_a_get_records_the_pages_its_search_found(services, engine, settings):
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(pool, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(pool, profile=settings.quality_profile),
         previews=PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=pool)),
         sightings=services.sightings,
         spawn=lambda work: work(),

@@ -39,7 +39,7 @@ from arrt.config import (
     DEFAULT_PHASE1_SEARCH_ALLOWANCE,
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_RESOLUTION_FLOOR_INCHES,
+    DEFAULT_QUALITY_MINIMUM_PX,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
     DEFAULT_SEARCH_COST_USD,
@@ -105,7 +105,7 @@ def _defaults(art_root, **overrides) -> Settings:
             tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
             mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
             mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
-            resolution_floor_inches=DEFAULT_RESOLUTION_FLOOR_INCHES,
+            quality_minimum_px=DEFAULT_QUALITY_MINIMUM_PX,
             phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
             phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
             offered_works_per_run=DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -233,10 +233,10 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
         tv_panel_width_px=1920,
         tv_panel_height_px=1080,
         tv_panel_diagonal_inches=55.0,
-        # Likewise the mat and the floor, for the same reason.
+        # Likewise the mat and the quality minimum, for the same reason.
         mat_width_inches=3.0,
         mat_bottom_weight=2.0,
-        resolution_floor_inches=7.5,
+        quality_minimum_px=1234,
         # And likewise every discovery value: the estimate below is arithmetic
         # over all of them, so a line built from the constants rather than the
         # resolved settings cannot reproduce it.
@@ -268,14 +268,15 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
     assert "40.1 px per inch" in logged
     assert "rotation=931s" in logged
     assert "shuffle=False" in logged
-    # The derived artwork box as well as its inputs. A wrong mat or floor is
-    # otherwise visible only as works being labelled oddly in the grid, which
-    # reads as a catalogue problem rather than a configuration one. 3" of mat at
+    # The derived artwork box as well as its inputs, and the quality minimum. A
+    # wrong minimum is otherwise visible only as scans labelled oddly in the
+    # grid, which reads as a catalogue problem rather than a configuration one,
+    # and a wrong mat only on the wall. 3" of mat at
     # 40.05 px per inch is 120 px, taken twice horizontally and 1+2.0 times
     # vertically: 1920-240 by 1080-360.
     assert "artwork_box=1680x720px" in logged
     assert 'mat=3.00" (bottom x2.00)' in logged
-    assert 'floor=7.5"' in logged
+    assert "quality_minimum=1234px" in logged
     # The e-paper panel belongs to the display plane, and this one must hold no
     # fact about it.
     #
@@ -831,3 +832,28 @@ def test_with_no_key_ask_has_no_model_and_with_no_searxng_no_web_search(tmp_path
 
     assert built["ask_model"] is None
     assert built["ask_tools"] == []
+
+
+@pytest.mark.parametrize("set_in_env", [True, False])
+def test_startup_names_a_retired_setting_still_set_and_says_nothing_otherwise(tmp_path, monkeypatch, caplog, set_in_env):
+    """`RESOLUTION_FLOOR_INCHES` is no longer read, and a `.env` outlives the code
+    that read it. Startup says so by name, once, at WARNING — and says nothing
+    when it is not set, so the line is never noise a reader learns to skip."""
+    if set_in_env:
+        monkeypatch.setenv("RESOLUTION_FLOOR_INCHES", "11.34")
+    else:
+        monkeypatch.delenv("RESOLUTION_FLOOR_INCHES", raising=False)
+    _stub_settings(monkeypatch, tmp_path / "art")
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    with caplog.at_level("INFO"):
+        entry_point.main()
+
+    retired = [record for record in caplog.records if getattr(record, "event", None) == "config.retired_setting"]
+    if set_in_env:
+        [record] = retired
+        assert record.levelname == "WARNING"
+        assert record.getMessage().startswith("RESOLUTION_FLOOR_INCHES is no longer read")
+        assert "QUALITY_MINIMUM_PX" in record.getMessage()
+    else:
+        assert retired == []

@@ -1585,15 +1585,7 @@ h1 {
   border-color: var(--accent);
 }
 
-.badge-native {
-  border-style: solid;
-}
-
-.badge-matted_small {
-  border-style: dashed;
-}
-
-.badge-below_floor {
+.badge-below_minimum {
   border-style: double;
   border-width: 3px;
   font-weight: 600;
@@ -1605,7 +1597,7 @@ h1 {
 }
 
 /* Catalogue status is a different axis from display fit, and it gets its own
-   block rather than borrowing `below_floor`'s. Sharing one would have made an
+   block rather than borrowing `below_minimum`'s. Sharing one would have made an
    archived work and a too-small work paint identically, and would have made a
    later change to one of them silently change the other. */
 .badge-archived {

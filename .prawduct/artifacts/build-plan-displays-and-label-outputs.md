@@ -3,7 +3,7 @@ artifact: build-plan
 version: 1
 scope: displays-and-label-outputs
 # branch: feature/displays-and-label-outputs — merged to develop on 2026-10-08. Chunk 07, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
-partition: Chunk 01 serial (the contract both sides build to); then two delegates in isolated worktrees — A the server (02, 03; arrt/ and contract tests only), B the Player (05, 06; postarr/ only); the coordinator integrates, reviews and verifies. Chunk 04 (the interface) is serial and waits for feature/lists-settings-and-scale to merge, because that branch is rewriting the Walls and Settings screens. Chunk 07 is the operator's.
+partition: Chunk 01 serial (the contract both sides build to); then two delegates in isolated worktrees — A the server (02, 03; arrt/ and contract tests only), B the Player (05, 06; arrt-player/ only); the coordinator integrates, reviews and verifies. Chunk 04 (the interface) is serial and waits for feature/lists-settings-and-scale to merge, because that branch is rewriting the Walls and Settings screens. Chunk 07 is the operator's.
 depends_on:
   - artifact: feeds-and-players
   - artifact: labels-and-surfaces
@@ -102,7 +102,7 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 - `architecture.md` § Direction, the Player channel (pull-to-local-cache only; the Player never writes what the server owns): **conforms**: the label document is pulled with an ETag like the manifest; nothing is pushed.
 - `nonfunctional-requirements.md`, the label redraws within 15 s of a picture change: **conforms by design** (on-change heartbeat, about 1 s polls, `labels-and-surfaces.md` § Latency); Chunk 07 measures it.
 - `security-model.md`, client tokens: **conforms**: `GET /labels/{label_id}` admits only the client holding that label output (`403` otherwise), the same rule as the per-wall routes.
-- `tests/preferences/test_plane_isolation.py` (an HTTP client only in `postarr/src/postarr/pull.py`): **conforms**: the renderer's fetch goes through `pull.py`, and its route is added to `contract/routes.json`.
+- `tests/preferences/test_plane_isolation.py` (an HTTP client only in `arrt-player/src/arrt_player/pull.py`): **conforms**: the renderer's fetch goes through `pull.py`, and its route is added to `contract/routes.json`.
 - `architecture.md` § Direction, "a display device renders its own label, and the label travels as metadata": **conforms**: the label document carries the label's text and the wall's state, never a layout; the renderer lays out and draws.
 - `architecture.md` § Direction, "operation logic lives only in the service layer": **conforms**: Chunk 03's mapping is one service that HTTP and MCP both call.
 - `architecture.md` § Direction, the Library/Programming seam (`in-transition`): **conforms**: Display and LabelOutput are Programming records; the label document reads a work's label text through the Library facade, as the manifest builder does, never from Library tables.
@@ -226,7 +226,7 @@ Done when:
    description (`device.duid`), read once per connection and never by a key press. HDMI outputs report no identity.
 2. A configured panel (`EPD_DEVICE`) is reported as a label output, and
    `config.py` no longer refuses `EPD_DEVICE` without `TV_ADDRESS`.
-3. Tests in `postarr/tests` validate the heartbeat the client writes against the
+3. Tests in `arrt-player/tests` validate the heartbeat the client writes against the
    schema, with and without a panel, and with a Frame whose id cannot be read
    (reported without `identity`, said once in the journal).
 
@@ -238,7 +238,7 @@ Done when:
    maps, and stops it when the mapping goes. The renderer polls its label
    document through `pull.py` about once a second, applies the rule, and redraws
    only when the outcome changes (an e-paper redraw flashes; `platform-and-dependency-findings.md` § The e-paper panel has its cost).
-2. The rule is one pure function, and `postarr/tests` runs it over every vector
+2. The rule is one pure function, and `arrt-player/tests` runs it over every vector
    in `contract/vectors/label-rule.json`.
 3. With the server unreachable, the renderer keeps its last document and still
    runs the 30-minute clock from its own `since`, so a wall that goes away still

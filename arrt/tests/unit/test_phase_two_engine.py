@@ -20,14 +20,13 @@ from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFai
 from arrt.library.discovery.phase_two import CONFIDENT, TITLE_ONLY, UNATTRIBUTED_RECORD, JudgedImage, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import RegistryUnavailable
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit
+from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX, Fit, QualityProfile
 from arrt.persistence.discovery_records import UnresolvedReason
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
-#: A 42" panel, as `Settings.tv_artwork_box` composes it — a fixed geometry chosen
-#: so the numbers below are checkable, NOT the operator's set, which is 50". A
-#: 12-inch floor sits at about 1,260 pixels on the long edge here.
-BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
+#: The owner's minimum, written out rather than read from the default so the
+#: numbers below are checkable against it.
+PROFILE = QualityProfile(minimum_long_edge_px=1000)
 
 
 def an_instance(title: str, *, artist: str | None = None, width: int = 6949, height: int = 8400, **kwargs) -> FoundImage:
@@ -73,7 +72,7 @@ def resolve(*instances: FoundImage, title: str, artist: str | None = None):
     accidentally reading a refusal set that happens to be empty.
     """
     return (
-        PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX)
+        PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), profile=PROFILE)
         .resolve(ImageQuery(title=title, artist=artist))
         .instances
     )
@@ -82,7 +81,7 @@ def resolve(*instances: FoundImage, title: str, artist: str | None = None):
 def refusals(*instances: FoundImage, title: str, artist: str | None = None) -> frozenset[UnresolvedReason]:
     """Which gates turned results away for this work."""
     return (
-        PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX)
+        PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), profile=PROFILE)
         .resolve(ImageQuery(title=title, artist=artist))
         .refusals
     )
@@ -283,48 +282,50 @@ def test_confidence_never_reaches_certainty():
     assert 0 < judged[0].confidence < 1.0
 
 
-# -- the floor ------------------------------------------------------------------
+# -- the quality minimum --------------------------------------------------------
 
 
-def test_a_below_floor_instance_is_kept_and_labelled_rather_than_hidden():
+def test_an_instance_below_the_minimum_is_kept_and_labelled_rather_than_hidden():
     """Not a rejection: shown, sized, and selectable by a curator who wants it."""
     judged = resolve(an_instance("Small Study", artist="Someone", width=600, height=400), title="Small Study", artist="Someone")
 
     assert len(judged) == 1
-    assert judged[0].below_floor is True
-    assert judged[0].fit.fit is DisplayFit.BELOW_FLOOR
-    assert "too small to reach this wall's size floor" in judged[0].rationale
+    assert judged[0].below_minimum is True
+    assert judged[0].fit is Fit.BELOW_MINIMUM
+    assert "below the quality minimum" in judged[0].rationale
     assert "not selected automatically" in judged[0].rationale
 
 
 @pytest.mark.parametrize(
-    ("width", "height", "said"),
+    ("width", "height", "said", "unsaid"),
     [
-        pytest.param(600, 400, "too small to reach this wall's size floor", id="below the floor"),
-        pytest.param(2000, 1500, "matted wider rather than downscaled", id="matted small"),
-        pytest.param(6000, 4000, "enough to fill the artwork box", id="native"),
+        pytest.param(600, 400, "below the quality minimum", "meets", id="below the minimum"),
+        pytest.param(2000, 1500, "meets the quality minimum", "below", id="meets the minimum"),
     ],
 )
-def test_the_selection_sentence_names_the_scan_s_pixels_and_no_inches(width, height, said):
+def test_the_selection_sentence_names_the_scan_s_pixels_and_no_inches(width, height, said, unsaid):
     """The owner's ruling, 2026-10-02: the scan's size in pixels, and no inches.
 
     This replaced an assertion that the sentence carried the rendered size in
     inches. Inches are the long edge on the one panel this server is configured
     for, after the mat, and beside a picture they read as a fact about the
-    picture; the number a curator judging a below-floor scan needs is still in
-    the sentence, as the scan's pixels. Every verdict, because each has its own
-    clause and any of them could carry a unit back in.
+    picture; the number a curator judging a small scan needs is still in the
+    sentence, as the scan's pixels. Every verdict, because each has its own
+    clause and any of them could carry a unit back in. Since 2026-10-08 there
+    are two verdicts, and each clause is asserted absent from the other's
+    sentence.
     """
     judged = resolve(an_instance("Study", artist="Someone", width=width, height=height), title="Study", artist="Someone")
 
     sentence = judged[0].rationale
     assert f"{width:,} × {height:,} px" in sentence
     assert said in sentence
+    assert unsaid not in sentence
     assert "inch" not in sentence
     assert "″" not in sentence
 
 
-def test_below_floor_instances_sort_behind_every_instance_that_clears_it():
+def test_instances_below_the_minimum_sort_behind_every_instance_that_meets_it():
     """Ordering is what makes the first-recorded instance the one that gets selected."""
     judged = resolve(
         an_instance("Study", artist="Someone", width=600, height=400),
@@ -333,7 +334,7 @@ def test_below_floor_instances_sort_behind_every_instance_that_clears_it():
         artist="Someone",
     )
 
-    assert [entry.below_floor for entry in judged] == [False, True]
+    assert [entry.below_minimum for entry in judged] == [False, True]
 
 
 def test_a_bigger_scan_of_the_same_work_outranks_a_smaller_one():
@@ -349,17 +350,14 @@ def test_a_bigger_scan_of_the_same_work_outranks_a_smaller_one():
     assert judged[0].quality_score > judged[1].quality_score
 
 
-def test_a_tall_master_with_resolution_to_spare_outranks_a_smaller_one_that_suits_the_shape():
+def test_a_tall_master_with_resolution_to_spare_outranks_a_smaller_one_that_suits_a_wide_screen():
     """Aspect ratio must not be read as resolution — the requirement says so outright.
 
-    The artwork box is much wider than it is tall, so a 6949x8400 portrait is
-    limited by the box's height and renders *shorter* on the wall than a
-    2000x1500 landscape that happens to fit the shape. It nonetheless has four
-    times the resolution to spare, and it is the better file: canvas occupancy is
-    dominated by aspect-ratio mismatch, and what isolates resolution is whether
-    the render is a downscale or a native-size paste.
-
-    An earlier ranking here used rendered inches and preferred the smaller file.
+    On a wide screen a 6949x8400 portrait renders *shorter* than a 2000x1500
+    landscape that suits the shape, and a ranking by rendered inches once
+    preferred the smaller file for it. The long edge has no screen to be fooled
+    by: the portrait's is four times the landscape's, and it is the better file.
+    Both meet the minimum, so the order is decided within the band.
     """
     portrait = an_instance("Study", artist="Someone", width=6949, height=8400)
     landscape = an_instance("Study", artist="Someone", width=2000, height=1500)
@@ -367,10 +365,28 @@ def test_a_tall_master_with_resolution_to_spare_outranks_a_smaller_one_that_suit
     judged = resolve(landscape, portrait, title="Study", artist="Someone")
 
     assert judged[0].found is portrait
-    # And the reason is visible in the verdict, not only in the ordering.
-    assert judged[0].fit.fit is DisplayFit.NATIVE
-    assert judged[1].fit.fit is DisplayFit.MATTED_SMALL
-    assert judged[1].fit.rendered_long_edge_inches > judged[0].fit.rendered_long_edge_inches
+    assert [entry.fit for entry in judged] == [Fit.MEETS_MINIMUM, Fit.MEETS_MINIMUM]
+    assert judged[0].quality_score > judged[1].quality_score
+
+
+def test_extra_pixels_stop_counting_at_the_presentation_master_s_cap():
+    """No wall is shown more than the master holds, so two scans both past the
+    cap tie on resolution, while below it the bigger still wins."""
+    past_the_cap = [
+        an_instance("Study", artist="Someone", width=PRESENTATION_MASTER_LONG_EDGE_PX + 320, height=6000),
+        an_instance("Study", artist="Someone", width=PRESENTATION_MASTER_LONG_EDGE_PX * 2, height=9000),
+    ]
+    under = [
+        an_instance("Study", artist="Someone", width=5000, height=4000),
+        an_instance("Study", artist="Someone", width=7000, height=5000),
+    ]
+
+    level = resolve(*past_the_cap, title="Study", artist="Someone")
+    graded = resolve(*under, title="Study", artist="Someone")
+
+    assert level[0].quality_score == level[1].quality_score
+    assert graded[0].found.estimated_width == 7000
+    assert graded[0].quality_score > graded[1].quality_score
 
 
 def test_quality_never_overturns_confidence():
@@ -392,7 +408,7 @@ def test_quality_never_overturns_confidence():
 
 
 def test_an_instance_the_provider_could_not_size_is_dropped():
-    """One recorded without dimensions is indistinguishable from one that clears the floor."""
+    """One recorded without dimensions is indistinguishable from one that meets the minimum."""
     judged = resolve(
         FoundImage(
             url="https://example.org/1",
@@ -442,7 +458,7 @@ def test_rights_never_exclude_an_instance_and_never_beat_resolution():
 
 def test_a_provider_that_cannot_be_reached_raises_rather_than_answering_empty():
     """Empty means "your painting is not in this collection"; that is a different claim."""
-    engine = PhaseTwoEngine(ImageSourcePool([StubSearch(fails=True)]), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch(fails=True)]), profile=PROFILE)
 
     with pytest.raises(ImageSearchFailure):
         engine.resolve(ImageQuery(title="Nighthawks"))
@@ -484,7 +500,7 @@ def a_moma_page(title: str = "Composition", *, artist: str | None = "Sophie Taeu
 
 
 def linked_resolution(*instances: FoundImage, registry, qid: str | None = "Q19884054", artist: str | None = "Sophie Taeuber-Arp"):
-    return PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX, registry=registry).resolve(
+    return PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), profile=PROFILE, registry=registry).resolve(
         ImageQuery(title=LONG_TITLE, artist=artist, qid=qid)
     )
 
@@ -675,7 +691,7 @@ def lowry_registry(*, pages=(ARTUK_PAGE,), names=None) -> FakeRegistry:
 
 
 def lowry_resolution(*instances: FoundImage, registry, artist: str | None = "L. S. Lowry", qid: str | None = LOWRY_WORK):
-    return PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), box=BOX, registry=registry).resolve(
+    return PhaseTwoEngine(ImageSourcePool([StubSearch(*instances)]), profile=PROFILE, registry=registry).resolve(
         ImageQuery(title="Portrait of a House", artist=artist, qid=qid)
     )
 
@@ -781,7 +797,7 @@ def test_names_wikidata_could_not_be_asked_refuse_and_say_so(caplog):
         raise RegistryUnavailable("Wikidata is down")
 
     registry.creator_names = down
-    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=registry)
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), profile=PROFILE, registry=registry)
     query = ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)
     link = engine.link(query)
     with caplog.at_level(logging.INFO):
@@ -796,7 +812,7 @@ def test_names_wikidata_could_not_be_asked_refuse_and_say_so(caplog):
 
 def test_a_pages_outage_on_a_title_match_with_a_differing_artist_marks_the_link_unavailable():
     """The title matched, so before this rule nothing was asked; now the page is, and a look must read its outage."""
-    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=FakeRegistry(failing=True))
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), profile=PROFILE, registry=FakeRegistry(failing=True))
     query = ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)
     link = engine.link(query)
 
@@ -805,7 +821,7 @@ def test_a_pages_outage_on_a_title_match_with_a_differing_artist_marks_the_link_
 
 
 def test_a_link_that_asked_everything_successfully_is_not_unavailable():
-    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=lowry_registry())
+    engine = PhaseTwoEngine(ImageSourcePool([StubSearch()]), profile=PROFILE, registry=lowry_registry())
     query = ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=LOWRY_WORK)
     link = engine.link(query)
 
@@ -816,7 +832,7 @@ def test_a_link_that_asked_everything_successfully_is_not_unavailable():
 @pytest.mark.parametrize(("registry", "qid", "reason"), [(None, LOWRY_WORK, "no_registry"), (lowry_registry(), None, "no_qid")])
 def test_a_link_asked_names_with_nothing_to_ask_says_why_and_asks_nothing(registry, qid, reason):
     """The engine asks for the page first, which answers these two already; a link asked directly must not reach the registry."""
-    link = PhaseTwoEngine(ImageSourcePool([StubSearch()]), box=BOX, registry=registry).link(
+    link = PhaseTwoEngine(ImageSourcePool([StubSearch()]), profile=PROFILE, registry=registry).link(
         ImageQuery(title="Portrait of a House", artist="L. S. Lowry", qid=qid)
     )
 

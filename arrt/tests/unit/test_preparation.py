@@ -10,6 +10,7 @@ stale looks exactly like one that is correct, on every surface, until someone
 walks past the television.
 """
 
+import sqlite3
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -19,13 +20,13 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MatChoice, MatEngine
 from arrt.library.acquisition.preparation import (
     PreparationOutcome,
     PreparationService,
     PreparationSettings,
 )
-from arrt.library.services.display_fit import DisplayFit
 from arrt.persistence.discovery_records import SpendCategory
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -37,6 +38,17 @@ from arrt.persistence.records import (
     SourceClass,
 )
 from arrt.services.errors import ServiceError
+
+
+def canvases(service, artwork_id):
+    """The work's television canvases. A preparation also makes a presentation
+    master, a rendition of another kind, which these assertions are not about."""
+    return [view for view in service.list_renditions(artwork_id) if view.rendition.kind is RenditionKind.TV_DISPLAY]
+
+
+def stored_canvases(store, artwork_id):
+    """`canvases`, read straight from the store."""
+    return [rendition for rendition in store.list_renditions(artwork_id) if rendition.kind is RenditionKind.TV_DISPLAY]
 
 
 @pytest.fixture
@@ -130,7 +142,7 @@ class TestPreparingAWorkForTheFirstTime:
 
         prep.prepare(work.id)
 
-        [view] = service.list_renditions(work.id)
+        [view] = canvases(service, work.id)
         assert view.rendition.kind is RenditionKind.TV_DISPLAY
         assert view.rendition.target_width == settings.tv_panel_width_px
         assert view.rendition.target_height == settings.tv_panel_height_px
@@ -141,7 +153,7 @@ class TestPreparingAWorkForTheFirstTime:
 
         prep.prepare(work.id)
 
-        [view] = service.list_renditions(work.id)
+        [view] = canvases(service, work.id)
         assert view.stale is False
 
     def test_a_deployment_with_no_key_records_the_mechanical_method(self, prep, service, settings):
@@ -153,14 +165,6 @@ class TestPreparingAWorkForTheFirstTime:
 
         assert result.mat_method == MatMethod.DOMINANT_COLOR_FALLBACK.value
         assert service.current_mat_color(work.id).method is MatMethod.DOMINANT_COLOR_FALLBACK
-
-    def test_the_fit_and_the_size_on_the_wall_come_back(self, prep, service, settings):
-        work, _ = _work_with_original(service, settings, width=4000, height=3000)
-
-        result = prep.prepare(work.id)
-
-        assert result.fit is DisplayFit.NATIVE
-        assert result.rendered_long_edge_inches > 0
 
 
 class TestPreparingAgain:
@@ -203,7 +207,7 @@ class TestPreparingAgain:
         prep.prepare(work.id, force=True)
         prep.prepare(work.id, force=True)
 
-        assert len(service.list_renditions(work.id)) == 1
+        assert len(canvases(service, work.id)) == 1
 
 
 class TestStaleness:
@@ -225,12 +229,12 @@ class TestStaleness:
             content_hash="hash-two",
             fetch_status=FetchStatus.OK,
         )
-        assert service.list_renditions(work.id)[0].stale is True
+        assert canvases(service, work.id)[0].stale is True
 
         result = prep.prepare(work.id)
 
         assert result.outcome is PreparationOutcome.PREPARED
-        assert service.list_renditions(work.id)[0].stale is False
+        assert canvases(service, work.id)[0].stale is False
 
     def test_a_canvas_missing_from_disk_is_re_rendered_though_the_row_looks_current(self, prep, service, settings):
         """**The condition the hash cannot see.** A restored catalogue, or a
@@ -240,7 +244,7 @@ class TestStaleness:
         work, _ = _work_with_original(service, settings)
         first = prep.prepare(work.id)
         (settings.art_root / first.relative_path).unlink()
-        assert service.list_renditions(work.id)[0].stale is False
+        assert canvases(service, work.id)[0].stale is False
 
         result = prep.prepare(work.id)
 
@@ -266,13 +270,138 @@ class TestStaleness:
             prep_settings,
             panel_width=1920,
             panel_height=1080,
-            box=replace(prep_settings.box, width=1658, height=798, pixels_per_inch=52.4),
+            box=replace(prep_settings.box, width=1658, height=798),
         )
         result = PreparationService(service, engine, smaller_panel, spend=discovery).prepare(work.id)
 
         assert result.outcome is PreparationOutcome.PREPARED
         with Image.open(settings.art_root / result.relative_path) as canvas:
             assert canvas.size == (1920, 1080)
+
+
+def _forget_the_master(settings, artwork_id):
+    """Leave a work as it was before masters existed: a canvas, and no master row.
+    Nothing in the product deletes a rendition, so this reaches the file directly."""
+    connection = sqlite3.connect(settings.catalogue_path)
+    with connection:
+        connection.execute(
+            'DELETE FROM renditions WHERE "artwork_id" = ? AND "kind" = ?',
+            (artwork_id, str(RenditionKind.PRESENTATION_MASTER)),
+        )
+    connection.close()
+
+
+def masters(service, artwork_id):
+    return [view for view in service.list_renditions(artwork_id) if view.rendition.kind is RenditionKind.PRESENTATION_MASTER]
+
+
+class TestThePresentationMaster:
+    def test_a_first_preparation_makes_a_current_master_beside_the_canvas(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings, width=9000, height=6000)
+
+        prep.prepare(work.id)
+
+        [view] = masters(service, work.id)
+        assert view.stale is False
+        assert view.rendition.relative_path == f"presentation/{work.id}.jpg"
+        with Image.open(settings.art_root / view.rendition.relative_path) as written:
+            assert written.size == (7680, 5120)
+        assert view.rendition.content_sha256, "a Player fetches it by this hash"
+
+    def test_a_work_whose_canvas_is_current_still_gets_its_master(self, prep, service, settings):
+        """The state every work held before masters existed is in: the backfill
+        reaches it through `prepare`, which must not return early on the canvas."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        _forget_the_master(settings, work.id)
+        assert masters(service, work.id) == []
+
+        result = prep.prepare(work.id)
+
+        assert result.outcome is PreparationOutcome.UNCHANGED, "the canvas is not redrawn for it"
+        assert "presentation master was made" in result.detail
+        assert len(masters(service, work.id)) == 1
+
+    def test_a_current_master_is_left_alone(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        [before] = masters(service, work.id)
+
+        result = prep.prepare(work.id, force=True)
+
+        [after] = masters(service, work.id)
+        assert after.rendition.generated_at == before.rendition.generated_at, "force redraws the canvas, not the master"
+        assert "presentation master" not in result.detail
+
+    def test_a_new_original_makes_the_master_stale_and_it_is_replaced(self, prep, service, settings, store):
+        work, path = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        [before] = masters(service, work.id)
+        source = service.list_sources(work.id)[0]
+        Image.new("RGB", (1600, 1200), (200, 40, 40)).save(path, format="JPEG", quality=90)
+        service.record_original(
+            artwork_id=work.id,
+            source_id=source.id,
+            path=str(path.relative_to(settings.art_root)),
+            width=1600,
+            height=1200,
+            byte_size=path.stat().st_size,
+            content_hash="hash-two",
+            fetch_status=FetchStatus.OK,
+        )
+        assert masters(service, work.id)[0].stale is True
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [work.id], "the startup backfill sees it too"
+
+        prep.prepare(work.id)
+
+        [after] = masters(service, work.id)
+        assert after.stale is False
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == []
+        assert after.rendition.id == before.rendition.id, "one row per work, rewritten"
+        assert after.rendition.content_sha256 != before.rendition.content_sha256
+
+    def test_a_master_made_by_an_older_rule_is_made_again(self, prep, service, settings, store):
+        """The hash cannot see a changed cap or quality: the Original is the same.
+        So a master records the rule it was made by, and one made the old way is
+        owed again, at startup and in `prepare`, as a canvas drawn at an old
+        layout is."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        [before] = masters(service, work.id)
+        assert before.rendition.layout == MASTER_RULE
+        store.update_rendition(replace(before.rendition, layout="presentation-master long-edge=4096 jpeg-q=85"))
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [work.id]
+
+        prep.prepare(work.id)
+
+        [after] = masters(service, work.id)
+        assert after.rendition.layout == MASTER_RULE
+        assert after.rendition.generated_at > before.rendition.generated_at
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == []
+
+    def test_a_master_missing_from_disk_is_made_again(self, prep, service, settings):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        [view] = masters(service, work.id)
+        (settings.art_root / view.rendition.relative_path).unlink()
+
+        prep.prepare(work.id)
+
+        assert (settings.art_root / view.rendition.relative_path).is_file()
+
+    def test_a_new_mat_leaves_the_master_as_it_was(self, prep, service, settings):
+        """The master carries no mat, so a mat change must not touch it: a Player
+        holding it by hash keeps a copy that is still right."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        [before] = masters(service, work.id)
+
+        service.record_mat_color(artwork_id=work.id, hex_rgb="#ff0000", method=MatMethod.MANUAL)
+        prep.prepare(work.id)
+
+        [after] = masters(service, work.id)
+        assert after.rendition.content_sha256 == before.rendition.content_sha256
+        assert after.rendition.generated_at == before.rendition.generated_at
 
 
 class TestTheLayout:
@@ -285,7 +414,7 @@ class TestTheLayout:
 
         prep.prepare(work.id)
 
-        assert service.list_renditions(work.id)[0].rendition.layout == prep.layout
+        assert canvases(service, work.id)[0].rendition.layout == prep.layout
 
     def test_a_canvas_drawn_with_another_mat_is_re_rendered(self, service, discovery, settings, prep_settings, store):
         work, _ = _work_with_original(service, settings)
@@ -298,7 +427,7 @@ class TestTheLayout:
         result = PreparationService(service, engine, narrower_mat, spend=discovery).prepare(work.id)
 
         assert result.outcome is PreparationOutcome.PREPARED
-        assert service.list_renditions(work.id)[0].rendition.layout == narrower_mat.layout
+        assert canvases(service, work.id)[0].rendition.layout == narrower_mat.layout
         assert narrower_mat.layout != prep_settings.layout
 
     def test_a_canvas_recorded_before_layouts_were_is_re_rendered(self, prep, service, settings, store):
@@ -306,13 +435,13 @@ class TestTheLayout:
         them has the full-screen mat. Unknown reads as out of date."""
         work, _ = _work_with_original(service, settings)
         prep.prepare(work.id)
-        recorded = store.list_renditions(work.id)[0]
+        recorded = stored_canvases(store, work.id)[0]
         store.update_rendition(replace(recorded, layout=None))
 
         result = prep.prepare(work.id)
 
         assert result.outcome is PreparationOutcome.PREPARED
-        assert store.list_renditions(work.id)[0].layout == prep.layout
+        assert stored_canvases(store, work.id)[0].layout == prep.layout
 
 
 class TestChoosingTheMatAgain:
@@ -773,12 +902,12 @@ class TestACanvasRecordsItsMat:
 
         assert result.outcome is PreparationOutcome.PREPARED
         assert canvas.read_bytes() != before
-        assert service.list_renditions(work.id)[0].rendition.mat_hex == "#6e4848"
+        assert canvases(service, work.id)[0].rendition.mat_hex == "#6e4848"
 
     def test_a_canvas_from_before_canvases_recorded_their_mat_is_redrawn(self, prep, service, settings):
         work, _ = _work_with_original(service, settings)
         prep.prepare(work.id)
-        (view,) = service.list_renditions(work.id)
+        (view,) = canvases(service, work.id)
         service._store.update_rendition(replace(view.rendition, mat_hex=None))
 
         assert prep.prepare(work.id).outcome is PreparationOutcome.PREPARED

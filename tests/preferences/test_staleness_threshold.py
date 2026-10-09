@@ -2,7 +2,7 @@
 
 Walls and Clients call a report stale past three heartbeat intervals
 (`arrt/src/arrt/http/static/core/outputs.js`), and the interval is the Player's
-own `INTERVAL_SECONDS` (`postarr/src/postarr/heartbeat.py`), which paces both the
+own `INTERVAL_SECONDS` (`arrt-player/src/arrt_player/heartbeat.py`), which paces both the
 wall heartbeat and the client heartbeat. Neither plane can import the other, so
 the number is written twice, and this compares the two, reading both sources as
 `test_heartbeat_contract.py` does.
@@ -23,7 +23,7 @@ import pathlib
 import re
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-PLAYER = REPOSITORY_ROOT / "postarr" / "src" / "postarr" / "heartbeat.py"
+PLAYER = REPOSITORY_ROOT / "arrt-player" / "src" / "arrt_player" / "heartbeat.py"
 SERVER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "heartbeat.py"
 CLIENT = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "http" / "static" / "core" / "outputs.js"
 

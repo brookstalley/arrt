@@ -28,6 +28,11 @@ it, and by whom).
 > a reader at a distance and not against a panel. Norm 1 below carries the
 > amendment; § The television carries the one decision it reverses. Nothing about
 > the panel as built changes. The caption mode is Player work in wave 6+.
+>
+> *(2026-10-08, pointer only: `labels-and-surfaces.md` made a label on its own
+> surface a label output with its own document, so the per-wall mode is text on
+> the display itself, `none`, `caption` or `overlay`, and `panel` is no longer
+> one of its values. `player-contract.md` § Presentation settings.)*
 
 ## Direction
 
@@ -123,7 +128,7 @@ requirement below is about the drawn result rather than about a mechanism.
 
 ### The panel must be driven at 16 grey levels, and the mode must be read back
 
-**Practised** — `postarr/src/postarr/panel/epaper.py` sets `mode = "gray16"` and
+**Practised** — `arrt-player/src/arrt_player/panel/epaper.py` sets `mode = "gray16"` and
 asserts what the driver took.
 
 This is an accessibility requirement rather than a driver detail, and the reason it
@@ -141,7 +146,7 @@ success from every direction except standing in front of it.
 
 ### Type never shrinks to fit, except for the facts that identify the work
 
-**Practised** — `postarr/src/postarr/panel/layout.py`. The optional tier's drop
+**Practised** — `arrt-player/src/arrt_player/panel/layout.py`. The optional tier's drop
 rule was built first; **the mandatory tier landed 2026-08-13 with the fill
 model**, and with it the journal event the tier is conditional on
 (`label.shrunk`, a warning rather than an info line — a dropped medium is the
@@ -149,9 +154,9 @@ engine working, and type below the floor is a deployment that cannot show this
 corpus legibly).
 
 Which tier a fact belongs to is carried on the fact itself
-(`postarr/src/postarr/panel/content.py`), so nothing downstream infers it from a
-position. Guarded by `postarr/tests/test_label_layout.py` for what the rules are
-and by `postarr/tests/test_label_properties.py` for the claim that they always
+(`arrt-player/src/arrt_player/panel/content.py`), so nothing downstream infers it from a
+position. Guarded by `arrt-player/tests/test_label_layout.py` for what the rules are
+and by `arrt-player/tests/test_label_properties.py` for the claim that they always
 hold — ten independently optional fields is 1024 content shapes, and both defects
 this replaced were about *which* fields a record happened to have rather than
 about any one line.
@@ -241,7 +246,7 @@ because converting what it could read would drop a dimension silently. The store
 
 ### The type floor is derived from viewing distance, not chosen for a panel
 
-**Practised** — `postarr/src/postarr/panel/legibility.py`, built 2026-08-11 as
+**Practised** — `arrt-player/src/arrt_player/panel/legibility.py`, built 2026-08-11 as
 13B-1. It replaces the settlement below rather than answering it. Settled
 2026-08-11 with the operator, at the panel, once the two physical facts were
 known: the reference panel is **6 inches diagonal at 1448×1072**, which is
@@ -449,12 +454,12 @@ because it is a set of decisions and not a layout tweak.**
 
 **Practised.** 13B-3 built the *content model* — the ordering, the one-line
 identification block, the stored name parts and the commentary field, all in
-`postarr/src/postarr/panel/metadata.py` and carried there by the manifest.
+`arrt-player/src/arrt_player/panel/metadata.py` and carried there by the manifest.
 **13B-2 built the typography on 2026-08-13**: a line is a tuple of styled runs
-(`postarr/src/postarr/panel/styling.py`), the family name is set bold and
+(`arrt-player/src/arrt_player/panel/styling.py`), the family name is set bold and
 capitalised, titles are set in italic, and the renderer applies Pango attributes
 over byte ranges. **13B-4 built the fill model and the name ladder the same
-day** — `postarr/src/postarr/panel/content.py` for what a fact is and
+day** — `arrt-player/src/arrt_player/panel/content.py` for what a fact is and
 `layout.py` for what survives.
 
 **The styling cost room, the ladder gave it back, and both figures are from the
@@ -493,7 +498,7 @@ of composing two rules this section states separately:
   same name twice.
 
 **Built 2026-08-11 as 13B-3**, with the tests in
-`postarr/tests/test_label_metadata.py` § TestWhoMadeIt.
+`arrt-player/tests/test_label_metadata.py` § TestWhoMadeIt.
 
 **The artist outranks the work.** The 2024-era ordering led with the title, and on
 a 6-inch panel that is what wastes it: measured on the panel, "Under the Well of
@@ -782,9 +787,9 @@ panel wrong. Every figure in this amendment is from the panel's own machine.
   character count is invisible on `O'Keeffe` and wrong on everything else — an en
   dash spends three bytes, so every life date on this wall already contains one.
   What a character offset produces is a run of the wrong length set in the wrong
-  weight, with nothing raising. Guarded by `postarr/tests/test_label_styling.py`
+  weight, with nothing raising. Guarded by `arrt-player/tests/test_label_styling.py`
   (the offsets, including a capital that changes byte length) and by
-  `postarr/tests/raster/test_pango.py` § TestTheStylingReachesTheType, which
+  `arrt-player/tests/raster/test_pango.py` § TestTheStylingReachesTheType, which
   checks a style over non-ASCII text against a reference that uses no indices at
   all.
 
@@ -972,8 +977,8 @@ rather than being added after the fill rule was tuned without it.
 **Closed 2026-08-11 by 13B-1. Kept as a record of how they failed**, because the
 way they failed is the reason the sections above are written the way they are.
 
-`postarr/src/postarr/panel/layout.py` carried `TITLE_SIZE_PX = 40`,
-`ARTIST_SIZE_PX = 32` and `BODY_SIZE_PX = 26`; `postarr/src/postarr/config.py`
+`arrt-player/src/arrt_player/panel/layout.py` carried `TITLE_SIZE_PX = 40`,
+`ARTIST_SIZE_PX = 32` and `BODY_SIZE_PX = 26`; `arrt-player/src/arrt_player/config.py`
 carried `DEFAULT_EPD_MARGIN_PX = 40`. **None of the four exists any more**, and
 none of them was ever a measurement. The operator's 2026-08-04 look at the real
 panel killed the 2024 `"Sans 18"` and narrowed the live range to roughly the
@@ -1011,7 +1016,7 @@ rather than deleted.
 
 ### Line length has a bound, and this panel will stop reaching it
 
-**Practised** — `MEASURE_EM` in `postarr/src/postarr/panel/layout.py`, added
+**Practised** — `MEASURE_EM` in `arrt-player/src/arrt_player/panel/layout.py`, added
 2026-08-11. `design_decisions.accessibility_approach` names three things that
 carry legibility — type size at reading distance, contrast on a non-emissive
 panel, and **line length** — and the third had no mechanism at all. Layout wrapped
@@ -1047,7 +1052,7 @@ label, and the label travels as metadata"* (`architecture.md` § Direction, rati
 
 Its accessibility content is easy to miss: several devices may carry panels of
 different sizes, and the 2024 plane's baked-in 648×480 is the anti-pattern being
-retired. Geometry arrives as a parameter; `postarr/src/postarr/config.py` defaults to the reference
+retired. Geometry arrives as a parameter; `arrt-player/src/arrt_player/config.py` defaults to the reference
 1448×1072 and every value is overridable. **A device with no label surface at all
 is a configuration, not a fault** — which matters here because a household adding a
 display without a panel must not read as a broken one.
@@ -1063,7 +1068,7 @@ display without a panel must not read as a broken one.
 ### The panel has no brightness control, and that is why the rest of this matters
 
 The label surface is non-emissive: there is no backlight to raise and no ambient
-adaptation available to it. `postarr/src/postarr/brightness.py` follows the sun,
+adaptation available to it. `arrt-player/src/arrt_player/brightness.py` follows the sun,
 but it maps onto **the television's** scale — the panel is not in that loop. So the
 panel's legibility in a dim room is entirely a function of the 16 levels, the type
 size and the measure. There is no runtime lever that compensates for getting them
@@ -1423,8 +1428,8 @@ is the same reason `information-architecture.md` § Boundaries lists it.
 | No colour outside the token blocks | Test, with an asserted scan scope | same file |
 | Every badge state has a distinct block | Test, derived from the enums | same file |
 | Every server enum has a client sentence | Test, reads the served `app.js` | `arrt/tests/unit/test_client_vocabulary.py` |
-| The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `postarr/tests/test_epaper.py` |
-| Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `postarr/tests/test_label_layout.py` |
+| The panel runs at 16 levels | Test — the mode is set, and a panel that quietly stays in one bit is refused | `arrt-player/tests/test_epaper.py` |
+| Content drops rather than shrinking | Test, against an injected measurer so it runs without a font | `arrt-player/tests/test_label_layout.py` |
 | Glyph actually distinguishes state | **Critic judgment.** No test can see this | `/prawduct:critic` |
 | Focus lands where it should, and a poll does not steal it | **Browser suite**, `-m browser` — a real Chromium against a booted server | `arrt/tests/browser/` |
 | Type size, margin and measure at reading distance | **The operator, at the panel.** Nothing else can | Chunk 13B, `Visual change: yes` |

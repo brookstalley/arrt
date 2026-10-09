@@ -35,10 +35,11 @@ import struct
 
 import pytest
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery
 from arrt.library.discovery.phase_two import CONFIDENT, PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources.artic import PROVIDER, ArticReader, build_image_search
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 
@@ -62,13 +63,10 @@ def museum():
 
 @pytest.fixture
 def engine(museum):
-    # A fixed 42" geometry, so the fit verdicts mean something against a known
-    # panel. NOT the operator's set, which is 50" — this is a reference the
-    # numbers are checkable against, and pinning it keeps the test stable when a
-    # deployment value changes.
-    return PhaseTwoEngine(
-        ImageSourcePool([museum]), box=ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
-    )
+    # The default quality minimum rather than a deployment's, so the verdicts
+    # mean something against a known number and stay stable when a deployment
+    # value changes.
+    return PhaseTwoEngine(ImageSourcePool([museum]), profile=QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX))
 
 
 def _jpeg_size(blob: bytes) -> tuple[int, int]:
@@ -108,7 +106,7 @@ def test_the_search_response_still_carries_the_masters_dimensions_not_the_previe
     """The client sizes an instance from the search response and makes no IIIF call.
 
     If `thumbnail.width`/`height` ever started describing the *preview*, every
-    instance would suddenly measure 843 pixels and land below the floor — a
+    instance would suddenly measure 843 pixels and land below the minimum — a
     silent collapse to "nothing is good enough", which is the failure shape this
     product is built around.
     """
@@ -181,7 +179,7 @@ def test_a_held_work_still_resolves_confidently_end_to_end(engine):
 
     assert judged, "a work the collection holds resolved to nothing — the comparison is too strict"
     assert judged[0].confidence == CONFIDENT
-    assert judged[0].below_floor is False
+    assert judged[0].below_minimum is False
     assert HELD[0] in judged[0].rationale
 
 

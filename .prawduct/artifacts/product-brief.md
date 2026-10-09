@@ -67,11 +67,14 @@ reason to continue this project rather than adopt an existing one.
 > a monitor with no e-ink. It is a label the Player sets in the mat area under the
 > label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
-**Names, from 2026-10-01:** **Arrt** is the server (the Library and
-Programming), and **Postarr** is the player at each wall. Both names are the
-operator's, given under a hard requirement. They replace the names of
-2026-09-30, Curatarr for the server and Arrt for the player. "Samsung Frame Art
-Loader" describes the product as built, and retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
+**Names, from 2026-10-08:** **Arrt** is the server (the Library and
+Programming), and **Arrt Player** is the player at each wall. Both names are the
+operator's. The server's was given on 2026-10-01 under a hard requirement,
+replacing Curatarr. The player was Arrt on 2026-09-30, then Postarr, until the
+owner renamed it on 2026-10-08: it is a player in the manner of a Plex or
+Jellyfin client, not an *arr app, so it carries its server's name as theirs do.
+"Samsung Frame Art Loader" describes the product as built, and retires as the
+waves land. The server's *arr suffix is deliberate: the model is Radarr and
 Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear
 only on the curator's and operator's surfaces.
 
@@ -662,7 +665,9 @@ The separation therefore stands on its own merits:
 - It matches the data contract recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract — upstream
   artifacts (`raw/`) are expensive and device-independent; derived artifacts
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and device-specific and must
-  never be transported. (`label/` belonged to this list in the 2024 layout; it is
+  never be transported. (`presentation/`, the presentation masters added in
+  wave 4b, is derived but specific to no device, and is the one derived class a
+  Player receives, by hash; `boundary-patterns.md` records the ruling. `label/` belonged to this list in the 2024 layout; it is
   retired from the prospective contract — labels render on the display plane.
   `tile-cache/` was listed here as upstream until 2026-08-03, when acquisition
   was built and it turned out to be neither: it is transient working space

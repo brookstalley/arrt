@@ -73,7 +73,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
@@ -160,23 +160,24 @@ class TestTheGrid:
         page = http.get(f"/api/runs/{run_id}/candidates").json()
         card = card_for(page, "Swans Reflecting Elephants")
 
-        assert card["shown"] is not None, "a below-floor instance was hidden rather than labelled"
+        assert card["shown"] is not None, "an instance below the minimum was hidden rather than labelled"
         assert card["shown"]["preview_available"] is True
         assert card["shown_is_on_offer"] is False
-        assert card["shown"]["fit"]["verdict"] == "below_floor"
+        assert card["shown"]["fit"]["verdict"] == "below_minimum"
 
-    def test_every_instance_carries_the_size_it_would_show_at_on_this_wall(self, http):
-        """The number a curator judges, since a thumbnail cannot convey resolution.
+    def test_every_instance_carries_its_verdict_against_the_quality_minimum(self, http):
+        """The verdict a curator judges by, since a thumbnail cannot convey resolution.
 
-        900 px and 6949 px are the same picture in a card, and the only thing that
-        separates them on screen is this figure.
+        900 px and 6949 px are the same picture in a card, and the verdict beside
+        the pixels is what says which one would be chosen unasked. No size on a
+        wall travels with it: that belongs to a screen the Library does not hold.
         """
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
 
-        big = card_for(page, "The Elephants")["shown"]["fit"]["rendered_long_edge_inches"]
-        small = card_for(page, "Swans Reflecting Elephants")["shown"]["fit"]["rendered_long_edge_inches"]
-        assert big > small
+        big = card_for(page, "The Elephants")["shown"]["fit"]
+        small = card_for(page, "Swans Reflecting Elephants")["shown"]["fit"]
+        assert (big, small) == ({"verdict": "meets_minimum"}, {"verdict": "below_minimum"})
 
     def test_every_instance_carries_the_scan_s_own_pixels(self, http):
         """What the card states as the scan's resolution: its pixels, not inches on one panel.
@@ -489,7 +490,7 @@ class TestWanting:
             }
         ]
 
-    def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(self, http):
+    def test_a_wanted_work_whose_only_scan_is_below_the_minimum_is_pictured_by_it(self, http):
         """The picture its card shows, labelled too small, so a curator recognises what they want."""
         run_id = a_finished_run(http)
         card = card_for(http.get(f"/api/runs/{run_id}/candidates").json(), "Swans Reflecting Elephants")
@@ -501,7 +502,7 @@ class TestWanting:
         listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
         shown = listed[work_id]["shown"]
         assert shown["image_id"] == card["shown"]["image_id"]
-        assert (shown["width"], shown["height"], shown["fit"]["verdict"]) == (900, 700, "below_floor")
+        assert (shown["width"], shown["height"], shown["fit"]["verdict"]) == (900, 700, "below_minimum")
         assert shown["preview_available"] is True
         assert listed[work_id]["scans_turned_down"] == 0
         preview = http.get(f"/api/candidate-images/{shown['image_id']}/preview")

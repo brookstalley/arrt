@@ -336,6 +336,10 @@
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and are **regenerated, never
   transported**. (`label/` removed from this row 2026-07-20 — see the retirement
   bullet below. `thumbs/` added 2026-08-01 — see the bullet below it.)
+  **`presentation/` joined on 2026-10-08 (wave 4b)**: one presentation master
+  per work, derived from `raw/` and regenerated from it like the rest, and the
+  one derived class that *is* transported, to Players by content hash, under
+  the ruling above (it is rendered for no geometry).
 - **`tile-cache/` is neither, and `api-cache/` does not exist** *(corrected
   2026-08-03, when acquisition was built and the row's first list turned out to
   name one directory that is working space and one that has no producer)*.
@@ -434,7 +438,7 @@
 
 ### display ↔ television
 
-- **Exists:** **yes**, as of 2026-08-06 — `postarr/src/postarr/tv/client.py` is the
+- **Exists:** **yes**, as of 2026-08-06 — `arrt-player/src/arrt_player/tv/client.py` is the
   interface and `samsung.py` the one implementation.
 - **Producer:** the television (a foreign device running Tizen). **Consumer:**
   display plane. **Crosses a machine boundary**, over two websockets and a REST
@@ -458,7 +462,7 @@
   uploads and removals read the set's list back, and selections read what it says
   it is displaying. `samsung-tv-state-findings.md` is the state-by-state map, and
   it is the artifact to read before adding a verb.
-- **Tested at the seam and only at the seam** — `postarr/tests/test_samsung_client.py`
+- **Tested at the seam and only at the seam** — `arrt-player/tests/test_samsung_client.py`
   stubs the library, because the daemon suite runs against `FakeTv` and proves
   nothing about this file. A mutation sweep once deleted the close-on-failure here
   with no test objecting, for exactly that reason.
@@ -477,7 +481,7 @@
 
 ### display ↔ its label typesetter (`Measure` / `Block`)
 
-- **Exists:** **yes**, as of 2026-08-11 — `postarr/src/postarr/panel/layout.py`
+- **Exists:** **yes**, as of 2026-08-11 — `arrt-player/src/arrt_player/panel/layout.py`
   declares `Measure` and returns `Block`s; the daemon hands a surface's own
   measurer in and never supplies one of its own.
 - **Producer:** `layout.py`. **Consumers:** every surface that can be drawn to or

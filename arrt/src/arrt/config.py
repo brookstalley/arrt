@@ -19,9 +19,10 @@ from typing import Final
 
 from dotenv import load_dotenv
 
+from arrt.library.acquisition.compose import ArtworkBox
 from arrt.library.dimensions import Units
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.services.runner import DiscoverySettings
 from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
@@ -158,10 +159,10 @@ DEFAULT_BACKUP_KEEP: Final[int] = 14
 
 #: These defaults describe a 42" Frame at 4K. That is a REFERENCE, not this
 #: deployment — the operator's set is 50", and a stale diagonal produces a running
-#: system that quietly mis-sizes every judgement rather than failing. Nothing may hardcode a
-#: panel: the mat is specified in physical units and the resolution floor is a
-#: minimum size on the wall, so both are wrong on a different television. These
-#: are defaults for the reference panel, overridable per deployment.
+#: system that quietly mis-sizes every canvas rather than failing. Nothing may
+#: hardcode a panel: the mat is specified in physical units, so it is wrong on a
+#: different television. These are defaults for the reference panel,
+#: overridable per deployment.
 DEFAULT_TV_PANEL_WIDTH_PX: Final[int] = 3840
 DEFAULT_TV_PANEL_HEIGHT_PX: Final[int] = 2160
 DEFAULT_TV_PANEL_DIAGONAL_INCHES: Final[float] = 42.0
@@ -177,10 +178,28 @@ DEFAULT_MAT_WIDTH_INCHES: Final[float] = 1.5
 #: product's mat is specified against.
 DEFAULT_MAT_BOTTOM_WEIGHT: Final[float] = 1.15
 
-#: The smallest a work may render along its long edge, in inches on the wall,
-#: before it is labelled as below the floor. Below-floor works are shown and
-#: remain selectable; the floor is a warning, never a filter.
-DEFAULT_RESOLUTION_FLOOR_INCHES: Final[float] = 12.0
+#: The quality profile's minimum: the shortest long edge, in pixels, a picture
+#: may have and still be chosen without a curator asking for it. Pictures below
+#: it are shown, labelled and selectable; the minimum withholds nothing from a
+#: curator. 1,000 px is the owner's figure (2026-10-06: "on a 1080p display with
+#: a mat that's about right for a minimum").
+DEFAULT_QUALITY_MINIMUM_PX: Final[int] = 1000
+
+#: Settings this server no longer reads, and what replaced each. A deployment's
+#: `.env` outlives the code that read it, and a key that silently stops working
+#: looks exactly like one still in force, so startup names each one still set.
+RETIRED_SETTINGS: Final[dict[str, str]] = {
+    "RESOLUTION_FLOOR_INCHES": (
+        "the floor is a quality profile in pixels now, which names no screen; set QUALITY_MINIMUM_PX "
+        f"(default {DEFAULT_QUALITY_MINIMUM_PX}) and remove RESOLUTION_FLOOR_INCHES"
+    ),
+}
+
+
+def retired_settings_in(environ: dict[str, str] | os._Environ[str]) -> list[str]:
+    """One sentence for each retired setting `environ` still sets, in the order they are listed."""
+    return [f"{key} is no longer read: {reason}." for key, reason in RETIRED_SETTINGS.items() if environ.get(key)]
+
 
 #: How many works a run may offer from a wired collection, on top of the list it
 #: proposed. A bound rather than everything held, because the collection's supply
@@ -350,6 +369,53 @@ class ConfigError(RuntimeError):
     """A required deployment value is missing or unusable."""
 
 
+def pixels_per_inch(*, panel_width_px: int, panel_height_px: int, panel_diagonal_inches: float) -> float:
+    """Canvas pixels to an inch on the wall, from a panel's own geometry.
+
+    Derived rather than configured: a diagonal and a pixel count already fix
+    it, and a third setting that could disagree with the other two is a way
+    for a deployment to be quietly wrong about how big anything is.
+    """
+    diagonal_px = (panel_width_px**2 + panel_height_px**2) ** 0.5
+    return diagonal_px / panel_diagonal_inches
+
+
+def artwork_box(
+    *,
+    panel_width_px: int,
+    panel_height_px: int,
+    panel_diagonal_inches: float,
+    mat_width_inches: float,
+    mat_bottom_weight: float,
+) -> ArtworkBox:
+    """The region of a television canvas an artwork is rendered into.
+
+    Composed here because every input is a deployment value: the panel and the
+    mat in inches. The bottom margin is deeper than the top, so the vertical mat
+    is not twice the horizontal one — a box drawn from a four-equal-sides
+    approximation would sit the work lower than the mat it is given.
+
+    **The mat is rounded to whole pixels before anything is subtracted, and
+    the bottom margin is derived from that rounded top.** A mat is drawn in
+    pixels, so this is the arithmetic the compositor will do; carrying
+    fractions through and rounding at the end gives a box a pixel or two
+    different from the one that ends up on the panel. On the reference 42"
+    4K Frame it reproduces `nonfunctional-requirements.md`'s own worked
+    example exactly — 262 px of mat, a 3316 x 1597 box — which is the
+    strongest available evidence that the default bottom weighting matches
+    what that example was drawn from.
+    """
+    scale = pixels_per_inch(
+        panel_width_px=panel_width_px, panel_height_px=panel_height_px, panel_diagonal_inches=panel_diagonal_inches
+    )
+    top_mat_px = round(mat_width_inches * scale)
+    bottom_mat_px = round(top_mat_px * mat_bottom_weight)
+    return ArtworkBox(
+        width=max(1, panel_width_px - 2 * top_mat_px),
+        height=max(1, panel_height_px - top_mat_px - bottom_mat_px),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     """The resolved deployment values the curation plane runs on."""
@@ -375,16 +441,16 @@ class Settings:
     backup_interval_seconds: int
     backup_keep: int
     #: The **television's** panel, never the e-paper one. Curation composes the
-    #: mat and judges whether a source is large enough for the wall, so it needs
-    #: the TV's physical size; it must hold no fact about the label panel, which
-    #: belongs to the plane that owns it.
+    #: mat, so it needs the TV's physical size; it must hold no fact about the
+    #: label panel, which belongs to the plane that owns it.
     tv_panel_width_px: int
     tv_panel_height_px: int
     tv_panel_diagonal_inches: float
-    #: The mat's geometry, in inches on the wall, and the floor judged against it.
+    #: The mat's geometry, in inches on the wall.
     mat_width_inches: float
     mat_bottom_weight: float
-    resolution_floor_inches: float
+    #: The quality profile's minimum, in pixels on the long edge.
+    quality_minimum_px: int
     #: What acquisition may fetch, how, and what it refuses to risk. The free
     #: space floor is the one that is not about images at all — see its default.
     acquisition_user_agent: str
@@ -572,43 +638,28 @@ class Settings:
 
     @property
     def tv_pixels_per_inch(self) -> float:
-        """Canvas pixels to an inch on the wall, from the panel's own geometry.
-
-        Derived rather than configured: a diagonal and a pixel count already fix
-        it, and a third setting that could disagree with the other two is a way
-        for a deployment to be quietly wrong about how big anything is.
-        """
-        diagonal_px = (self.tv_panel_width_px**2 + self.tv_panel_height_px**2) ** 0.5
-        return diagonal_px / self.tv_panel_diagonal_inches
+        """Canvas pixels to an inch on the wall, from the panel's own geometry."""
+        return pixels_per_inch(
+            panel_width_px=self.tv_panel_width_px,
+            panel_height_px=self.tv_panel_height_px,
+            panel_diagonal_inches=self.tv_panel_diagonal_inches,
+        )
 
     @property
     def tv_artwork_box(self) -> ArtworkBox:
-        """The region of the television canvas an artwork is rendered into.
-
-        Composed here because every input is a deployment value: the panel, the
-        mat in inches, and the floor. The bottom margin is deeper than the top,
-        so the vertical mat is not twice the horizontal one — a work judged
-        against a four-equal-sides approximation would be reported as larger on
-        the wall than it will actually appear.
-
-        **The mat is rounded to whole pixels before anything is subtracted, and
-        the bottom margin is derived from that rounded top.** A mat is drawn in
-        pixels, so this is the arithmetic the compositor will do; carrying
-        fractions through and rounding at the end gives a box a pixel or two
-        different from the one that ends up on the panel. On the reference 42"
-        4K Frame it reproduces `nonfunctional-requirements.md`'s own worked
-        example exactly — 262 px of mat, a 3316 x 1597 box — which is the
-        strongest available evidence that the default bottom weighting matches
-        what that example was drawn from.
-        """
-        top_mat_px = round(self.mat_width_inches * self.tv_pixels_per_inch)
-        bottom_mat_px = round(top_mat_px * self.mat_bottom_weight)
-        return ArtworkBox(
-            width=max(1, self.tv_panel_width_px - 2 * top_mat_px),
-            height=max(1, self.tv_panel_height_px - top_mat_px - bottom_mat_px),
-            pixels_per_inch=self.tv_pixels_per_inch,
-            floor_inches=self.resolution_floor_inches,
+        """The region of this deployment's television canvas an artwork is rendered into."""
+        return artwork_box(
+            panel_width_px=self.tv_panel_width_px,
+            panel_height_px=self.tv_panel_height_px,
+            panel_diagonal_inches=self.tv_panel_diagonal_inches,
+            mat_width_inches=self.mat_width_inches,
+            mat_bottom_weight=self.mat_bottom_weight,
         )
+
+    @property
+    def quality_profile(self) -> QualityProfile:
+        """What the Library chooses without being asked, judged in pixels and naming no screen."""
+        return QualityProfile(minimum_long_edge_px=self.quality_minimum_px)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -646,7 +697,7 @@ class Settings:
             tv_panel_diagonal_inches=_positive_float("TV_PANEL_DIAGONAL_INCHES", DEFAULT_TV_PANEL_DIAGONAL_INCHES),
             mat_width_inches=_positive_float("MAT_WIDTH_INCHES", DEFAULT_MAT_WIDTH_INCHES),
             mat_bottom_weight=_positive_float("MAT_BOTTOM_WEIGHT", DEFAULT_MAT_BOTTOM_WEIGHT),
-            resolution_floor_inches=_positive_float("RESOLUTION_FLOOR_INCHES", DEFAULT_RESOLUTION_FLOOR_INCHES),
+            quality_minimum_px=_positive_int("QUALITY_MINIMUM_PX", DEFAULT_QUALITY_MINIMUM_PX),
             acquisition_user_agent=os.environ.get("ACQUISITION_USER_AGENT") or DEFAULT_ACQUISITION_USER_AGENT,
             # Resolved off `PATH` by name, and configurable because it is the one
             # dependency this plane does not install: a deployment that built it

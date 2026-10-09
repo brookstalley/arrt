@@ -53,7 +53,7 @@ def runner(services, engine, settings, museum, previews) -> DiscoveryRunner:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -522,7 +522,7 @@ def test_status_on_a_re_search_holds_while_the_work_is_actually_happening(servic
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
     )
     run = threaded.start(intent_text="Surrealist paintings", initiated_by=InitiatedBy.MCP_CLIENT)

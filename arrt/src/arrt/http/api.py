@@ -189,8 +189,8 @@ from arrt.library.acquisition.queue import AcquisitionState, FailureCause, Queue
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
+from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
@@ -308,8 +308,8 @@ def list_works(
     unknown theme is refused by name rather than ignored, because ignoring it
     would answer with the whole catalogue labelled as the theme's.
 
-    `fit` narrows to works whose size on the wall is in one of the bands named
-    (`native`, `matted_small`, `below_floor`, or `unknown` for a work with no
+    `fit` narrows to works whose size is in one of the bands named
+    (`meets_minimum`, `below_minimum`, or `unknown` for a work with no
     master), and `not_on_wall` to works no wall plays now. Both are counted
     like a facet, each ignoring its own selection, and every other count
     narrows by them (`_Narrowing`).
@@ -367,7 +367,7 @@ class _Narrowing:
 
     **The bindings compose; neither plane reaches the other.** The Library
     answers what its own narrowings select (`matching_ids`) and each work's
-    size on the wall (`fit_bands`); Programming answers a theme's members and
+    size band (`fit_bands`); Programming answers a theme's members and
     which works a wall plays now (`work_ids_on_walls`), all as opaque ids. Here
     they meet as sets, and the Library is handed the result as `within`, the
     restriction it already lists theme slices by (`architecture.md` seam rule 1).
@@ -2710,21 +2710,16 @@ def _look_picture(picture: LookPicture) -> LookPictureOut:
         width=found.estimated_width,
         height=found.estimated_height,
         fit=_fit(judged.fit),
-        below_floor=judged.below_floor,
+        below_minimum=judged.below_minimum,
         confidence=judged.confidence,
         rights_status=None if found.rights_status is None else str(found.rights_status),
         selection_rationale=judged.rationale,
     )
 
 
-def _fit(fit: FitAssessment) -> FitOut:
-    """A display-fit verdict as every surface that shows one carries it: the work, a scan, a registry picture."""
-    return FitOut(
-        verdict=str(fit.fit),
-        rendered_width=fit.rendered_width,
-        rendered_height=fit.rendered_height,
-        rendered_long_edge_inches=fit.rendered_long_edge_inches,
-    )
+def _fit(fit: Fit) -> FitOut:
+    """A quality verdict as every surface that shows one carries it: the work, a scan, a registry picture."""
+    return FitOut(verdict=str(fit))
 
 
 # -- taste --------------------------------------------------------------------

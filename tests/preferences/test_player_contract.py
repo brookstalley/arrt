@@ -1,7 +1,7 @@
 """The Player contract's schemas and fixtures agree with each other.
 
-The contract under `contract/` is what Arrt and Postarr are each tested
-against, and after the repo split it is what Postarr pins. So the fixtures are
+The contract under `contract/` is what Arrt and Arrt Player are each tested
+against, and after the repo split it is what Arrt Player pins. So the fixtures are
 a claim about the schemas, and this file is what makes the claim true: every
 valid fixture validates, and every invalid one fails for exactly one reason.
 
@@ -76,8 +76,9 @@ def semantic_errors(document: dict) -> list[str]:
     errors = []
     works = document["works"]
     slots = document["schedule"]["slots"]
-    scene = document["scene"]
-    named = [slot["work_id"] for slot in slots] + document["staging"] + ([scene["work_id"]] if scene else [])
+    # A channel's feed carries no control layer, so scene and staging may be absent.
+    scene = document.get("scene")
+    named = [slot["work_id"] for slot in slots] + document.get("staging", []) + ([scene["work_id"]] if scene else [])
     if any(work_id not in works for work_id in named):
         errors.append("a work is named that is not in works")
     if any(_instant(slot["from"]) >= _instant(slot["until"]) for slot in slots):
@@ -103,6 +104,19 @@ def _semantics(row: dict) -> list[str]:
 @pytest.mark.parametrize("schema_path", sorted({row["schema"] for row in INDEX}))
 def test_every_schema_is_valid_draft_2020_12(schema_path):
     Draft202012Validator.check_schema(json.loads((CONTRACT / schema_path).read_text(encoding="utf-8")))
+
+
+def test_the_facts_a_major_2_overlay_may_show_are_exactly_the_label_keys():
+    """`settings.facts` names label keys, and the label is major 1's, reused by reference.
+
+    The enum is a copy, because a schema cannot list another definition's keys, so
+    this is what keeps the copy from drifting: a key added to the label and not
+    here would be a fact no setting could ask for.
+    """
+    facts = _schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]["facts"]["items"]["enum"]
+    label = _schema("schemas/manifest.v1.schema.json")["$defs"]["label"]["properties"]
+
+    assert facts == list(label)
 
 
 def test_every_fixture_on_disk_is_indexed_and_every_indexed_fixture_exists():
@@ -150,7 +164,7 @@ def test_a_fixture_invalid_by_semantics_passes_the_schema_and_breaks_exactly_one
 def test_each_fixtures_directory_agrees_with_its_flag():
     """`valid/` holds only valid fixtures and `invalid/` only invalid ones.
 
-    A reader choosing fixtures by directory, as Postarr's suite and the curation
+    A reader choosing fixtures by directory, as Arrt Player's suite and the curation
     plane's both do, would otherwise be told the opposite of what the index says.
     """
     for row in INDEX:
@@ -166,7 +180,7 @@ def test_every_invalid_fixture_says_what_it_breaks():
 
 
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():
-    """Postarr's suite reads this flag while collecting, so a row without it stops that suite at collection."""
+    """Arrt Player's suite reads this flag while collecting, so a row without it stops that suite at collection."""
     for row in INDEX:
-        if row["path"].startswith("fixtures/manifest.v1/invalid/"):
+        if row["path"].startswith(("fixtures/manifest.v1/invalid/", "fixtures/manifest.v2/invalid/")):
             assert isinstance(row.get("player_must_refuse"), bool), row["path"]

@@ -1,10 +1,9 @@
-"""Composing a work onto the television canvas: the mat, the picture, the floor.
+"""Composing a work onto the television canvas: the mat and the picture.
 
 The geometry is not this module's to invent. `Settings.tv_artwork_box` already
 computes the space a work is rendered into, from the panel's own dimensions and
-the mat in inches, and `assess_display_fit` already judges an original against
-it. This module draws what those two decided, which is what stops a third answer
-to "how big is the mat" existing.
+the mat in inches. This module draws what that decided, which is what stops a
+second answer to "how big is the mat" existing.
 
 **The mat takes the work's shape, not the screen's, and everything outside it is
 black.** A framer would never put a square work in a wide mat, so the mat is the
@@ -21,11 +20,15 @@ acquisition at gallery resolution is a product promise. Upscaling is the one
 option that actively misrepresents quality, converting an honest "this image is
 small" into an apparent rendering fault.
 
-**Below the floor is rendered, not refused.** A work whose original would appear
-smaller on the wall than the configured minimum still composes — the floor's job
-is to inform a curator's choice, and it does that in the review grid, before this
-point. A renderer that second-guessed it would suppress a picture the curator
-explicitly asked for.
+**A picture below the quality minimum is rendered, not refused.** The minimum's
+job is to inform a curator's choice, and it does that in the review grid, before
+this point. A renderer that second-guessed it would suppress a picture the
+curator explicitly asked for.
+
+**This module is the last in the server that knows a screen's size.** The
+Library judges pictures against its quality profile (`services/quality.py`), and
+when the Player composes its own screen (re-architecture wave 4) this module and
+the panel settings leave together.
 """
 
 import logging
@@ -36,7 +39,6 @@ from typing import Final
 from PIL import Image, ImageOps
 
 from arrt.library.acquisition.color import parse_hex
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit, FitAssessment, assess_display_fit
 from arrt.library.services.imaging import reading
 
 log = logging.getLogger(__name__)
@@ -46,7 +48,23 @@ log = logging.getLogger(__name__)
 #: lossless format would multiply the size of the one tree that is deliberately
 #: not backed up.
 _FORMAT: Final[str] = "JPEG"
-_QUALITY: Final[int] = 95
+JPEG_QUALITY: Final[int] = 95
+
+
+@dataclass(frozen=True, slots=True)
+class ArtworkBox:
+    """The region of the television canvas an artwork is rendered into, in canvas pixels.
+
+    Constructed by whoever resolves deployment configuration, because both values
+    come from one: the panel's size and the mat's width in inches. It arrives
+    already composed rather than as a panel plus a mat width because the mat's own
+    geometry — in particular the conservator's weighting of the bottom margin
+    heavier than the top — is settled once, in `Settings.tv_artwork_box`, and
+    recovered from the box here rather than worked out a second time.
+    """
+
+    width: int
+    height: int
 
 
 #: The drawing rule, named. It goes into every canvas's recorded layout, so a
@@ -69,9 +87,9 @@ def layout(*, panel_width: int, panel_height: int, box: ArtworkBox) -> str:
 class Composition:
     """A composed canvas and the facts a caller records about it.
 
-    The rendered size and the fit come back because the caller reports them and
-    recomputing them from the file would be a second implementation of the
-    scaling arithmetic this module exists to hold once.
+    The rendered size comes back because recomputing it from the file would be a
+    second implementation of the scaling arithmetic this module exists to hold
+    once.
     """
 
     path: Path
@@ -98,10 +116,6 @@ class Composition:
     mat_top: int
     mat_width: int
     mat_height: int
-    #: How the original met the space, for a caller that reports it.
-    fit: DisplayFit
-    #: How large the work appears on the wall along its long edge, in inches.
-    rendered_long_edge_inches: float
 
 
 def compose(
@@ -139,7 +153,7 @@ def compose(
     # would report a full disk as an unreadable original — pointing at the museum
     # for a fault on the machine. The write below keeps raising `OSError`.
     with reading(source, lambda: Image.open(source)) as image:
-        artwork, assessment = reading(source, lambda: _fit_into_box(image, panel_width, panel_height, box))
+        artwork = reading(source, lambda: _fit_into_box(image, panel_width, panel_height, box))
 
         # **The margins are recovered from the box, never recomputed from the
         # configured weight.** `tv_artwork_box` builds the box as
@@ -172,20 +186,18 @@ def compose(
     destination.parent.mkdir(parents=True, exist_ok=True)
     staged = destination.with_name(f"{destination.name}.composing")
     try:
-        canvas.save(staged, format=_FORMAT, quality=_QUALITY, optimize=True)
+        canvas.save(staged, format=_FORMAT, quality=JPEG_QUALITY, optimize=True)
         staged.replace(destination)
     except OSError:
         staged.unlink(missing_ok=True)
         raise
 
     log.info(
-        "composed %s at %sx%s in a %s mat (%s, %.1f inches on the wall)",
+        "composed %s at %sx%s in a %s mat",
         destination.name,
         rendered_width,
         rendered_height,
         mat_hex,
-        assessment.fit.value,
-        assessment.rendered_long_edge_inches,
     )
     return Composition(
         path=destination,
@@ -199,12 +211,10 @@ def compose(
         mat_top=mat_top,
         mat_width=mat_width,
         mat_height=mat_height,
-        fit=assessment.fit,
-        rendered_long_edge_inches=assessment.rendered_long_edge_inches,
     )
 
 
-def _fit_into_box(image: Image.Image, panel_width: int, panel_height: int, box: ArtworkBox) -> tuple[Image.Image, FitAssessment]:
+def _fit_into_box(image: Image.Image, panel_width: int, panel_height: int, box: ArtworkBox) -> Image.Image:
     """Decode the source upright, in RGB, scaled to fit the artwork box.
 
     Split out so the decode is one expression the translation can wrap, leaving
@@ -215,12 +225,11 @@ def _fit_into_box(image: Image.Image, panel_width: int, panel_height: int, box: 
     # CMYK and greyscale scans both appear in museum downloads, and a mat painted
     # in RGB cannot be pasted onto without a common mode.
     artwork = upright.convert("RGB")
-    assessment = assess_display_fit(width=artwork.width, height=artwork.height, box=box)
     # `thumbnail` fits inside the box and never enlarges, so "no upscaling" is a
     # property of the operation rather than a rule to remember. A source already
     # smaller than the box passes through untouched.
     artwork.thumbnail((box.width, box.height), Image.Resampling.LANCZOS)
-    return artwork, assessment
+    return artwork
 
 
-__all__ = ["Composition", "compose", "layout"]
+__all__ = ["JPEG_QUALITY", "ArtworkBox", "Composition", "compose", "layout"]

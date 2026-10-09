@@ -229,7 +229,7 @@ between planes.
 > | Event | Says |
 > |---|---|
 > | `phase_two.searched` | which collection was asked about which work, how many results came back, and how many were usable at all |
-> | `phase_two.judged` | how many instances were credible, how many of those are below the floor, and `refused_at` — the gates that turned the rest away, which is the per-work summary of the `not_the_work` and `size_unknown` lines below |
+> | `phase_two.judged` | how many instances were credible, how many of those are below the quality minimum (`instances_below_floor`, named when the minimum was an inch floor), and `refused_at` — the gates that turned the rest away, which is the per-work summary of the `not_the_work` and `size_unknown` lines below |
 > | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it, its `found_url`, the work's `qid`, and `link`: why no Wikidata link settled a differing title (`no_registry`, `no_qid`, `registry_unavailable`, `not_recorded`), or how the title was settled before the artist refused it (`title_matched`, `linked`); and, on an artist refusal, `names`: why Wikidata's names for the creator did not settle it (the page link's own word when the page is not the item's, `names_unavailable`, or `not_a_creators_name`) |
 > | `phase_two.renamed` | a result whose artist is named differently was kept, on a page the work's item records, because Wikidata records both names for one of the item's creators; naming both artists, the page and the item |
 > | `phase_two.linked` | a result whose title differs was kept because the work's Wikidata item records its page, naming both titles, the page and the item |
@@ -264,7 +264,7 @@ between planes.
 > | `browse.unreachable` | the collection could not be browsed. **A supplement failing must not fail the run**, so this is the only signal that one was attempted and lost |
 > | `browse.surname_retried` | an artist was recovered under a different spelling, naming the surname and the artist the collection filed it under. **The one line to read when a wrong-hand offer reaches a curator**: this is the only path that returns work under a name nobody asked for, and it is licensed by a measurement the museum could change under us |
 > | `browse.surname_ambiguous` | a retry was refused because the surname reaches several artists — the guard working, and the counterpart to the line above |
-> | `browse.below_floor` | a work was not offered because it would render too small. **Systemic rather than per-work**: one wrong artwork-box setting makes every browse result fall below the floor, and without this line the supplement offers nothing for ever while reporting only `works_offered: 0` |
+> | `browse.below_floor` | a work was not offered because it is below the quality minimum (the event keeps its name from when that was an inch floor, so a journal query written then still finds it). **Systemic rather than per-work**: one wrong `QUALITY_MINIMUM_PX` makes every browse result fall below it, and without this line the supplement offers nothing for ever while reporting only `works_offered: 0` |
 > | `work.suppressed` / `work.already_present` | an offer was declined because the curator rejected that work earlier, or because the run already carries it |
 >
 > **Acquisition's events, which start here.** `acquisition.source_read` (named
