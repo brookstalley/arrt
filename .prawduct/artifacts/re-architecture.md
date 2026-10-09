@@ -659,11 +659,22 @@ rebuilt in this program:
 whoever is using it) keeps its interim rule until power control is built: no
 code that runs unattended sends a power key until the transitions are measured.
 
-**Agents.** Through wave 5, run one Claude session in this repo, so prawduct's
-hooks and gates apply. Parallel agents in worktrees are fine inside a wave. After
+**Agents.** Through wave 5, run one Claude session per plane in this repo, so
+prawduct's hooks and gates apply (amended below; it said one session). Parallel agents in worktrees are fine inside a wave. After
 the split, run one session per repo, with the contract as their only shared
 ground: a player agent that needs a field files it against the server repo, not
 the other way round.
+
+*(Amended 2026-10-09 by the owner, in conversation. A second session had been
+running the server's Ask work in another worktree, which the owner called
+accidental, and asked for the "balance of work across the two sessions".)*
+**Until the split, two sessions may run, one per plane, each on its own plan's
+branch in its own worktree.** One builds the Player and the other the server.
+Each tells the other before touching a file outside its plane. Shared governance
+files (the change log, `project-state.yaml`, the artifacts both planes cite)
+conflict as ordinary merges, and the session that merges second rebases. Under
+the agreed allocation of 2026-10-09, the Player's session builds 4d, and the
+server's session finishes Ask and then builds 4e and 4g.
 
 ## Open questions
 
