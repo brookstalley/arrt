@@ -66,6 +66,50 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-08: Wave 4a — the major 2 contract settled
+
+<!-- prawduct: scope=wave-4a-contract -->
+
+**Why:** The first of wave 4's seven plans (`re-architecture.md` § Order of
+work, row 4). The Player's reader (4c), its compositor (4d) and the server's
+builder (4e) all build against major 2, and a Player must read the final shape
+before the server switches, so the shape is fixed first. The owner ruled the
+open values the same day: a three-day horizon, a twenty-minute preview default,
+and a relative mat of 6% of the shorter side; and the program itself, with
+scenes after the cutover and one household-wide rule (no work on two walls at
+once).
+
+**What:**
+- `manifest.v2`: a feed. `settings` is the first of three presentation layers,
+  every key optional: label mode (`none`, `caption`, `overlay`), mat mode
+  (`none`, `proportional`, `full`), overlay lead and tail, fades, text scale,
+  viewing distance, and which label facts show. The mat width leaves the
+  document (`feeds-and-players.md` ruling 7), and with it the
+  `mat-bottom-weight-below-one` fixture, whose rule no longer exists. `scene`
+  and `staging` are optional, so a document without them is a channel's feed.
+  `label-mode-unknown` now carries `panel`, which major 2 no longer has. A root
+  test holds `facts` to the label's keys.
+- `heartbeat.v1` `capabilities.label_modes` are `none`, `caption` and
+  `overlay`; `panel` leaves, because a label on its own surface is a label
+  output. No Player writes the field yet, so nothing is stranded.
+- `routes.json` names `manifest_major`, `/walls/{wall_id}/manifest/v{major}`.
+  The server answers `v1` with the unversioned route's document and `404` for
+  any other spelling, `01` included. `player-contract.md` § The cutover follows
+  ruling 4: each major is served while a heartbeat lists it, and a Player steps
+  down a major on `404`.
+- Conformance vectors: `contract/vectors/mat-geometry.json` and
+  `schedule.json`, with reference statements in the root suite, and the
+  server's compositor held to the `proportional` vectors that have a density.
+  `player-contract.md` gains § Layout, and § Time says spans are half-open and
+  an instant before the horizon is moved into it as one after it is.
+
+**Tests:** all three suites green. Each new rule was watched failing once: the
+new invalid fixtures against a schema re-widened to admit them, the `facts`
+guard against a trimmed enum, the per-major route against a lenient integer
+parse (`01`), each reference rule against a mutated copy (closed spans, an
+enlarging scale, no replay), and the server's vectors against a shifted vector
+and a compositor that centres the work on the screen.
+
 ## 2026-10-08: Postarr becomes Arrt Player
 
 <!-- prawduct: scope=rename-arrt-player -->

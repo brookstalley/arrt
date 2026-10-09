@@ -1,0 +1,612 @@
+{
+  "_about": "What a feed says to show at an instant (player-contract.md § Time and § Scenes): an active scene wins at its own absolute times; otherwise the instant is moved by whole horizons into the horizon and the slot covering it is shown, and a time no slot covers is dark (work_id null). Spans are half-open. scene_id names the scene being shown, which is what the heartbeat reports. Every feed is a valid major 2 document.",
+  "feeds": {
+    "three-days": {
+      "schema": {
+        "major": 2,
+        "minor": 0
+      },
+      "generated_at": "2026-09-30T23:00:00+00:00",
+      "playlist": {
+        "id": "th-surrealism",
+        "name": "Surrealism"
+      },
+      "works": {
+        "w-dali-1": {
+          "media": {
+            "url": "/media/sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 7680,
+            "height": 5600
+          },
+          "mat_color": "#27285b",
+          "label": {
+            "title": "The Persistence of Memory",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1931",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-dali-2": {
+          "media": {
+            "url": "/media/sha256-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 6900,
+            "height": 7680
+          },
+          "mat_color": "#3b2f2a",
+          "label": {
+            "title": "The Elephants",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1948",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-dali-3": {
+          "media": {
+            "url": "/media/sha256-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 7680,
+            "height": 6100
+          },
+          "mat_color": "#1f2a33",
+          "label": {
+            "title": "Swans Reflecting Elephants",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1937",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-moche-1": {
+          "media": {
+            "url": "/media/sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 5400,
+            "height": 7680
+          },
+          "mat_color": "#e9e4d8",
+          "label": {
+            "title": "Stirrup-spout vessel",
+            "artist": null,
+            "artist_family_name": null,
+            "artist_given_name": null,
+            "artist_nationality": null,
+            "artist_dates": null,
+            "date_created": "100 BCE–500 CE",
+            "medium": "Ceramic",
+            "dimensions": null,
+            "commentary": null
+          }
+        }
+      },
+      "schedule": {
+        "horizon": {
+          "from": "2026-10-01T00:00:00+00:00",
+          "until": "2026-10-04T00:00:00+00:00"
+        },
+        "slots": [
+          {
+            "work_id": "w-dali-1",
+            "from": "2026-10-01T07:00:00+00:00",
+            "until": "2026-10-01T12:00:00+00:00"
+          },
+          {
+            "work_id": "w-moche-1",
+            "from": "2026-10-01T12:00:00+00:00",
+            "until": "2026-10-01T17:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-2",
+            "from": "2026-10-01T17:00:00+00:00",
+            "until": "2026-10-01T23:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-3",
+            "from": "2026-10-02T07:00:00+00:00",
+            "until": "2026-10-02T23:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-1",
+            "from": "2026-10-03T07:00:00+00:00",
+            "until": "2026-10-03T15:00:00+00:00"
+          },
+          {
+            "work_id": "w-moche-1",
+            "from": "2026-10-03T15:00:00+00:00",
+            "until": "2026-10-03T23:00:00+00:00"
+          }
+        ]
+      }
+    },
+    "with-preview": {
+      "schema": {
+        "major": 2,
+        "minor": 0
+      },
+      "generated_at": "2026-09-30T23:00:00+00:00",
+      "playlist": {
+        "id": "th-surrealism",
+        "name": "Surrealism"
+      },
+      "works": {
+        "w-dali-1": {
+          "media": {
+            "url": "/media/sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 7680,
+            "height": 5600
+          },
+          "mat_color": "#27285b",
+          "label": {
+            "title": "The Persistence of Memory",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1931",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-dali-2": {
+          "media": {
+            "url": "/media/sha256-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 6900,
+            "height": 7680
+          },
+          "mat_color": "#3b2f2a",
+          "label": {
+            "title": "The Elephants",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1948",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-dali-3": {
+          "media": {
+            "url": "/media/sha256-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 7680,
+            "height": 6100
+          },
+          "mat_color": "#1f2a33",
+          "label": {
+            "title": "Swans Reflecting Elephants",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1937",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-moche-1": {
+          "media": {
+            "url": "/media/sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 5400,
+            "height": 7680
+          },
+          "mat_color": "#e9e4d8",
+          "label": {
+            "title": "Stirrup-spout vessel",
+            "artist": null,
+            "artist_family_name": null,
+            "artist_given_name": null,
+            "artist_nationality": null,
+            "artist_dates": null,
+            "date_created": "100 BCE–500 CE",
+            "medium": "Ceramic",
+            "dimensions": null,
+            "commentary": null
+          }
+        }
+      },
+      "schedule": {
+        "horizon": {
+          "from": "2026-10-01T00:00:00+00:00",
+          "until": "2026-10-04T00:00:00+00:00"
+        },
+        "slots": [
+          {
+            "work_id": "w-dali-1",
+            "from": "2026-10-01T07:00:00+00:00",
+            "until": "2026-10-01T12:00:00+00:00"
+          },
+          {
+            "work_id": "w-moche-1",
+            "from": "2026-10-01T12:00:00+00:00",
+            "until": "2026-10-01T17:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-2",
+            "from": "2026-10-01T17:00:00+00:00",
+            "until": "2026-10-01T23:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-3",
+            "from": "2026-10-02T07:00:00+00:00",
+            "until": "2026-10-02T23:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-1",
+            "from": "2026-10-03T07:00:00+00:00",
+            "until": "2026-10-03T15:00:00+00:00"
+          },
+          {
+            "work_id": "w-moche-1",
+            "from": "2026-10-03T15:00:00+00:00",
+            "until": "2026-10-03T23:00:00+00:00"
+          }
+        ]
+      },
+      "scene": {
+        "id": "sc-preview",
+        "work_id": "w-dali-2",
+        "from": "2026-10-01T13:00:00+00:00",
+        "until": "2026-10-01T13:20:00+00:00"
+      },
+      "staging": []
+    },
+    "with-hold": {
+      "schema": {
+        "major": 2,
+        "minor": 0
+      },
+      "generated_at": "2026-09-30T23:00:00+00:00",
+      "playlist": {
+        "id": "th-surrealism",
+        "name": "Surrealism"
+      },
+      "works": {
+        "w-dali-1": {
+          "media": {
+            "url": "/media/sha256-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 7680,
+            "height": 5600
+          },
+          "mat_color": "#27285b",
+          "label": {
+            "title": "The Persistence of Memory",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1931",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-dali-2": {
+          "media": {
+            "url": "/media/sha256-dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 6900,
+            "height": 7680
+          },
+          "mat_color": "#3b2f2a",
+          "label": {
+            "title": "The Elephants",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1948",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-dali-3": {
+          "media": {
+            "url": "/media/sha256-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 7680,
+            "height": 6100
+          },
+          "mat_color": "#1f2a33",
+          "label": {
+            "title": "Swans Reflecting Elephants",
+            "artist": "Salvador Dalí",
+            "artist_family_name": "Dalí",
+            "artist_given_name": "Salvador",
+            "artist_nationality": "Spanish",
+            "artist_dates": "1904–1989",
+            "date_created": "1937",
+            "medium": "Oil on canvas",
+            "dimensions": "24.1 × 33 cm",
+            "commentary": null
+          }
+        },
+        "w-moche-1": {
+          "media": {
+            "url": "/media/sha256-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "bytes": 5200000,
+            "content_type": "image/jpeg",
+            "width": 5400,
+            "height": 7680
+          },
+          "mat_color": "#e9e4d8",
+          "label": {
+            "title": "Stirrup-spout vessel",
+            "artist": null,
+            "artist_family_name": null,
+            "artist_given_name": null,
+            "artist_nationality": null,
+            "artist_dates": null,
+            "date_created": "100 BCE–500 CE",
+            "medium": "Ceramic",
+            "dimensions": null,
+            "commentary": null
+          }
+        }
+      },
+      "schedule": {
+        "horizon": {
+          "from": "2026-10-01T00:00:00+00:00",
+          "until": "2026-10-04T00:00:00+00:00"
+        },
+        "slots": [
+          {
+            "work_id": "w-dali-1",
+            "from": "2026-10-01T07:00:00+00:00",
+            "until": "2026-10-01T12:00:00+00:00"
+          },
+          {
+            "work_id": "w-moche-1",
+            "from": "2026-10-01T12:00:00+00:00",
+            "until": "2026-10-01T17:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-2",
+            "from": "2026-10-01T17:00:00+00:00",
+            "until": "2026-10-01T23:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-3",
+            "from": "2026-10-02T07:00:00+00:00",
+            "until": "2026-10-02T23:00:00+00:00"
+          },
+          {
+            "work_id": "w-dali-1",
+            "from": "2026-10-03T07:00:00+00:00",
+            "until": "2026-10-03T15:00:00+00:00"
+          },
+          {
+            "work_id": "w-moche-1",
+            "from": "2026-10-03T15:00:00+00:00",
+            "until": "2026-10-03T23:00:00+00:00"
+          }
+        ]
+      },
+      "scene": {
+        "id": "sc-hold",
+        "work_id": "w-dali-3",
+        "from": "2026-10-01T20:00:00+00:00",
+        "until": null
+      },
+      "staging": []
+    }
+  },
+  "vectors": [
+    {
+      "name": "inside a slot",
+      "feed": "three-days",
+      "now": "2026-10-01T08:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "a slot that ends now is over; the next begins",
+      "feed": "three-days",
+      "now": "2026-10-01T12:00:00+00:00",
+      "expect": {
+        "work_id": "w-moche-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "the last second of a slot",
+      "feed": "three-days",
+      "now": "2026-10-01T11:59:59+00:00",
+      "expect": {
+        "work_id": "w-dali-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "a gap late at night is dark",
+      "feed": "three-days",
+      "now": "2026-10-01T23:30:00+00:00",
+      "expect": {
+        "work_id": null,
+        "scene_id": null
+      }
+    },
+    {
+      "name": "a gap before the first slot is dark",
+      "feed": "three-days",
+      "now": "2026-10-01T03:00:00+00:00",
+      "expect": {
+        "work_id": null,
+        "scene_id": null
+      }
+    },
+    {
+      "name": "the second day",
+      "feed": "three-days",
+      "now": "2026-10-02T10:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-3",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "the third day",
+      "feed": "three-days",
+      "now": "2026-10-03T16:00:00+00:00",
+      "expect": {
+        "work_id": "w-moche-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "past the horizon by one, the first day replays",
+      "feed": "three-days",
+      "now": "2026-10-04T08:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "past the horizon by two",
+      "feed": "three-days",
+      "now": "2026-10-07T13:00:00+00:00",
+      "expect": {
+        "work_id": "w-moche-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "past the horizon, the second day replays",
+      "feed": "three-days",
+      "now": "2026-10-05T10:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-3",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "the horizon's end is the first day's start, which is dark",
+      "feed": "three-days",
+      "now": "2026-10-04T00:00:00+00:00",
+      "expect": {
+        "work_id": null,
+        "scene_id": null
+      }
+    },
+    {
+      "name": "before the horizon, the last day replays backwards",
+      "feed": "three-days",
+      "now": "2026-09-30T08:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "a preview wins while it runs",
+      "feed": "with-preview",
+      "now": "2026-10-01T13:10:00+00:00",
+      "expect": {
+        "work_id": "w-dali-2",
+        "scene_id": "sc-preview"
+      }
+    },
+    {
+      "name": "a preview that ends now is over",
+      "feed": "with-preview",
+      "now": "2026-10-01T13:20:00+00:00",
+      "expect": {
+        "work_id": "w-moche-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "a preview not yet started",
+      "feed": "with-preview",
+      "now": "2026-10-01T12:59:00+00:00",
+      "expect": {
+        "work_id": "w-moche-1",
+        "scene_id": null
+      }
+    },
+    {
+      "name": "a held scene wins over a dark gap",
+      "feed": "with-hold",
+      "now": "2026-10-01T23:30:00+00:00",
+      "expect": {
+        "work_id": "w-dali-3",
+        "scene_id": "sc-hold"
+      }
+    },
+    {
+      "name": "a held scene is not replayed: it still wins past the horizon",
+      "feed": "with-hold",
+      "now": "2026-10-10T08:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-3",
+        "scene_id": "sc-hold"
+      }
+    },
+    {
+      "name": "before a held scene starts, the schedule",
+      "feed": "with-hold",
+      "now": "2026-10-01T19:00:00+00:00",
+      "expect": {
+        "work_id": "w-dali-2",
+        "scene_id": null
+      }
+    }
+  ]
+}

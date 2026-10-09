@@ -37,7 +37,10 @@ manifests its real builder writes, runs its heartbeat reader over the
 heartbeat fixtures, validates the `GET /client` document it serves against the
 client schema, and holds its client-heartbeat reader to the client-heartbeat
 fixtures (`arrt/tests/contract/test_client_surface.py`). Arrt Player's suite runs its manifest reader over the manifest
-fixtures and validates the heartbeat it writes. When Arrt Player moves to its own
+fixtures and validates the heartbeat it writes. The conformance vectors in
+`contract/vectors/` (the label rule, the mat's geometry, what a feed shows at
+an instant) are held to reference statements in the root suite, and each
+Player's suite runs them against its own code. When Arrt Player moves to its own
 repository (wave 5), it pins a copy of `contract/` and runs the same tests
 against it. Arrt owns the contract, and a Player that needs a field asks
 for it here.
@@ -301,8 +304,16 @@ is the reference statement, and each rule has an invalid fixture.
   Arrt Player power control exists (wave 6+), a Player that reaches a gap keeps
   showing the last slot's work, because it cannot yet send the set to sleep. The
   gap still means dark; the Player just cannot act on it.
+- **Every span is half-open.** A slot or a scene covers its `from` and not its
+  `until`, so the slot that ends at an instant is over at it and the next has
+  begun.
 - **When the horizon ends with no fresh manifest,** the Player replays the slots
-  shifted by one horizon, then by two, and so on. Because the horizon is whole
+  shifted by one horizon, then by two, and so on. **An instant before the
+  horizon begins** (a Player's clock behind the server's) is moved forward by
+  whole horizons the same way, so the Player has one rule for every instant:
+  move it into the horizon by whole horizons, then find its slot. A scene is
+  never moved: it is shown at its own absolute times, past the horizon
+  included. Because the horizon is whole
   days, each slot keeps its time of day, and so does each dark gap. A wall cut
   off from the server for a week goes on keeping its household's hours. It never
   goes dark because it has not heard from the server.
@@ -315,6 +326,41 @@ is the reference statement, and each rule has an invalid fixture.
   time until it hears from the server again. That was chosen over putting a
   time zone in the Player, which would make every Player keep a zone database
   current to fix a case that needs an outage of days.
+
+**Conformance vectors:** `contract/vectors/schedule.json` gives feeds and
+instants and the work (or dark, and the scene) each must show. The root suite
+holds them to a reference statement of these rules
+(`tests/preferences/test_contract_vectors.py`), and every Player's suite runs them.
+
+### Layout
+
+What a Player draws for one work on one screen, as numbers. The vectors are
+`contract/vectors/mat-geometry.json`; the reference statement is in
+`tests/preferences/test_contract_vectors.py`, and Arrt's compositor is held to
+the `proportional` vectors that have a density
+(`arrt/tests/contract/test_mat_vectors.py`), because that is what it has drawn
+on the Frame since wave 2.
+
+- **The mat width.** A Player that knows its pixel density (a configured Frame)
+  takes its configured width in inches times the density. One that does not
+  takes **6% of the screen's shorter side** (the owner, 2026-10-08), which on a
+  50" Frame is within a few pixels of 1.5 inches. That is the side and top
+  margin, rounded half up to whole pixels; the bottom is that rounded margin
+  times the Player's bottom weight, rounded half up again.
+- **The box** is the screen less the side margins, the top margin and the
+  bottom margin, at least a pixel each way. The work is scaled to fit it,
+  **never up**, rounded half up, and centred in the box, an odd pixel left over
+  going to the right and below. Because the box sits higher than centre, so does the work: centring it on
+  the screen would undo the bottom weighting.
+- **The mat**, by mode: `proportional` is the work's rectangle grown by the side
+  margin left, right and above and by the bottom margin below, black beyond;
+  `full` fills the screen with the mat colour; `none` has no mat, and the box is
+  the whole screen.
+- **A Player may differ from a vector by one pixel**, because image libraries
+  round a fitted size differently.
+- **The label and overlay layout** (regions, type sizes, an overlay's opacity
+  over time) has no vectors yet. They are written before a second platform
+  ports the Pi's label code (`feeds-and-players.md` § Reuse across platforms).
 
 ### Scenes
 

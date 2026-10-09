@@ -72,6 +72,8 @@ spelling) are read by both planes for as long as major 2 lives.
 `feeds-and-players.md` § Presentation settings come in three layers, key by key,
 before the fixtures are written.
 
+`[DECISION: an instant before the horizon is moved into it by whole horizons, as one after it is, and a scene is never moved | § Time said what happens after the horizon and nothing about before it, which a Player whose clock runs behind the server's reaches on every fresh manifest; one rule for both directions keeps it showing its household's hours rather than inventing a second behaviour, and a scene is a live override at absolute times, so replaying it would show a preview again days later | the builder's, 2026-10-08, surfaced writing the schedule vectors; user can veto]`
+
 `[DECISION: 03 writes only the vectors wave 4 builds against — mat geometry, and (feed, now) → what to show. The label and overlay layout vectors (regions, type sizes, opacity over time) wait for the first non-Pi Player | `feeds-and-players.md` § Reuse across platforms writes them "before a second platform ports" the Pi's label code, and wave 4 has one platform; vectors with no second implementation to disagree with would only restate the Pi's code | the builder's, 2026-10-08; user can veto]`
 
 ## Status
