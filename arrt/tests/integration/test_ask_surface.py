@@ -12,9 +12,9 @@ import threading
 import time
 
 import httpx
-import openai
 import pytest
 from fakes import FakeRegistry
+from openrouter.errors import ForbiddenResponseError, ForbiddenResponseErrorData
 from scripted_model import COST_PER_REPLY, HeldModel, ScriptedModel, calls, says
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
@@ -252,27 +252,45 @@ class RefusingModel(ScriptedModel):
         raise self.error
 
 
+def a_403(message: str) -> ForbiddenResponseError:
+    """The error the OpenRouter SDK raises for a 403, as Ask's model does in production."""
+    body = {"error": {"message": message, "code": 403}}
+    response = httpx.Response(403, json=body, request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"))
+    return ForbiddenResponseError(ForbiddenResponseErrorData.model_validate(body), response)
+
+
+def terminals(events: list[dict]) -> list[dict]:
+    return [event for event in events if event["type"] in {"stream_end", "stream_error"}]
+
+
 class TestAtTheSpendingCap:
     """The owner's ruling 3 of 2026-10-07 (#290): a reply refused at the cap leads with the budget."""
 
     @pytest.fixture
     def ask_model(self):
-        refused = httpx.Response(
-            403,
-            json={"error": {"message": "Key limit exceeded (total limit).", "code": 403}},
-            request=httpx.Request("POST", "https://openrouter.ai/api/v1/chat/completions"),
-        )
-        return RefusingModel(
-            replies=[], error=openai.PermissionDeniedError("Key limit exceeded (total limit).", response=refused, body=None)
-        )
+        # OpenRouter's own words for a spent key (`openrouter-api-findings.md`, measured).
+        return RefusingModel(replies=[], error=a_403("Key limit exceeded (total limit). Manage it using the API keys page."))
 
     def test_a_reply_refused_at_the_cap_says_the_budget_is_spent(self, server_url):
-        events = send(server_url, open_thread(server_url), "Bruegel")
+        (ending,) = terminals(send(server_url, open_thread(server_url), "Bruegel"))
 
-        terminals = [event for event in events if event["type"] in {"stream_end", "stream_error"}]
-        assert [(event["type"], event["code"]) for event in terminals] == [("stream_error", "BUDGET_SPENT")]
-        assert terminals[0]["message"].startswith("This month's budget is spent")
-        assert "Key limit exceeded (total limit)." in terminals[0]["message"]
+        assert (ending["type"], ending["code"]) == ("stream_error", "BUDGET_SPENT")
+        assert ending["message"].startswith("This month's budget is spent")
+        assert "Key limit exceeded (total limit)." in ending["message"]
+
+
+class TestAFlaggedInput:
+    """OpenRouter also answers 403 when a moderated model flags the input, which is not the budget."""
+
+    @pytest.fixture
+    def ask_model(self):
+        return RefusingModel(replies=[], error=a_403("Your chosen model requires moderation and your input was flagged."))
+
+    def test_a_403_that_is_not_the_limit_is_not_called_the_budget(self, server_url):
+        (ending,) = terminals(send(server_url, open_thread(server_url), "Bruegel"))
+
+        assert (ending["type"], ending["code"]) == ("stream_error", "AGENT_FAILED")
+        assert "budget" not in ending["message"]
 
 
 def test_words_that_are_only_white_space_are_refused_before_anything_is_spent(server_url, ask_model):

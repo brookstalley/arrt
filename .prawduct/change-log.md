@@ -62,6 +62,46 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Ask as an agent: the boundary review's findings
+
+<!-- prawduct: scope=ask-agent -->
+
+**Why:** The plan's cumulative review (rev-20261009T165619Z-61679e13) found one
+blocking gap and nine warnings, most in chunk 03's Ask code.
+
+**What:**
+- **Topic cards are tested** (blocking): a browser test reacts to a period and
+  reads back taste kind `era`, and `TASTE_KIND` is held to the server's
+  `FACET_KINDS`, values and all.
+- **A thread can no longer be stuck replying.** The in-flight flag is a claim
+  token, released when the stream ends or, for a stream dropped before it
+  starts, when it is collected; a late release cannot free a newer reply.
+- **A thread is bounded**: its last 10 turns are kept and sent
+  (`TURNS_REMEMBERED`), cut where the curator spoke.
+- **A send after a restart recovers**: the page answers a 404 by opening a new
+  thread and sending the words there.
+- **A library work becomes a card**: `art_catalogue(action='get')` names its
+  item `wikidata_qid`, which the card reader now reads, as held.
+- **Only a 403 naming the key's limit is the budget**; a flagged input is an
+  ordinary failure. The cap test raises the OpenRouter SDK's own error, and
+  `openrouter` is declared in `dev`. The discovery client's identical
+  conflation is filed to the backlog.
+- The eval calls the shipped `outside` instead of a copy; the held-wins merge
+  in `ask/cards.py` is one function; project-state no longer defers phase 1
+  to a plan that never decided it.
+- Accepted: `complete_thread` stays as the client's multi-message path; a
+  tick can land on the wrong line when two calls to one tool finish out of
+  order (3tears' event carries no call id).
+
+**Tests:** every new test failed against its mutation: the finalizer removed,
+the token check removed, the turn cut removed from what is sent and from
+what is kept, the 404 retry removed, `period` mapped to itself, `medium`
+dropped from the table, and the limit check removed.
+`test_a_returning_page_draws_the_thread_as_it_was` (chunk 03) failed one run
+in three, with or without these fixes: it compared the turn while a work
+card's theme picker still read "Reading themes…". It now waits for the picker
+on both reads, and passed five runs in a row.
+
 ## 2026-10-09: Ask as an agent, chunk 04: the conversation, the direct box and the commit seam retired
 
 <!-- prawduct: scope=ask-agent -->

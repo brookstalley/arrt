@@ -98,3 +98,25 @@ def test_years_say_what_is_known():
     assert years(born=1950, died=None) == "born 1950"
     assert years(born=None, died=1500) == "died 1500"
     assert years(born=None, artist_id=None) == ""
+
+
+def test_a_work_read_from_the_library_becomes_a_held_card():
+    """`art_catalogue(action='get')` names its item `wikidata_qid` and its library id `artwork_id`.
+
+    Neither is the registry's `qid`, so a card built only from that key never
+    offered a work the agent read from the library.
+    """
+    payload = {
+        "success": True,
+        "artwork": {
+            "artwork_id": "work-9",
+            "title": "Hunters in the Snow",
+            "wikidata_qid": HUNTERS,
+            "artist": {"artist_id": "artist-7", "name": "Pieter Brueghel the Elder", "born": 1525},
+        },
+    }
+
+    (card,) = cards_for(f"You hold it [{HUNTERS}].", [payload])
+
+    assert (card["kind"], card["qid"], card["held"]) == ("work", HUNTERS, "work-9")
+    assert card["detail"] == "Pieter Brueghel the Elder"

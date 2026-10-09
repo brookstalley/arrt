@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import time
+import weakref
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -60,6 +61,12 @@ BUDGET_SPENT_CODE: Final[str] = "BUDGET_SPENT"
 #: spent (`openrouter-api-findings.md` § Exhaustion is 403).
 _KEY_SPENT_STATUS: Final[int] = 403
 
+#: How many of a thread's turns the model is sent and the thread keeps. Every
+#: reply resends what the thread holds, tool results included, so an unbounded
+#: thread would cost more each reply and in time pass the model's context. Ten
+#: is several directions' worth; the oldest go first, whole turns at a time.
+TURNS_REMEMBERED: Final[int] = 10
+
 #: The events that end a reply's stream.
 TERMINALS: Final[frozenset[str]] = frozenset({"stream_end", "stream_error", "stream_interrupt"})
 
@@ -84,8 +91,14 @@ class Thread:
     #: What the model is given next time: every message so far, tool results included.
     messages: list[BaseMessage] = field(default_factory=list)
     turns: list[Turn] = field(default_factory=list)
-    #: Set while a reply runs. A thread answers one thing at a time.
-    replying: bool = False
+    #: The reply that holds the thread, while one runs: a thread answers one
+    #: thing at a time. A token rather than a flag, so a reply releasing it late
+    #: cannot release a newer one's.
+    claim: object | None = None
+
+    @property
+    def replying(self) -> bool:
+        return self.claim is not None
 
 
 class Threads:
@@ -134,16 +147,25 @@ class Ask:
     def reply(self, thread: Thread, words: str) -> AsyncIterator[bytes]:
         """Answer `words` in `thread`, one NDJSON line per event.
 
-        The caller checks `available` and `replying` first. This marks the
-        thread replying before it returns, with no await in between, so a
-        second send arriving while this one streams is refused.
-        """
-        thread.replying = True
-        return self._lines(thread, words)
+        The caller checks `available` and `replying` first. This claims the
+        thread before it returns, with no await in between, so a second send
+        arriving while this one streams is refused.
 
-    async def _lines(self, thread: Thread, words: str) -> AsyncIterator[bytes]:
+        The claim is released by the stream's end, or, for a stream the server
+        drops before it first reads it (a client gone while the response
+        starts), when that stream is collected. Without the second, the thread
+        would refuse every send until it was evicted.
+        """
+        claim = object()
+        thread.claim = claim
+        lines = self._lines(thread, words, claim)
+        weakref.finalize(lines, _release, thread, claim)
+        return lines
+
+    async def _lines(self, thread: Thread, words: str, claim: object) -> AsyncIterator[bytes]:
         turn = Turn(asked=words)
         thread.turns.append(turn)
+        del thread.turns[:-TURNS_REMEMBERED]
         queue: asyncio.Queue[bytes | None] = asyncio.Queue()
         task = asyncio.create_task(self._run(thread, words, queue))
         try:
@@ -156,13 +178,13 @@ class Ask:
             if not task.done():
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-            thread.replying = False
+            _release(thread, claim)
 
     async def _run(self, thread: Thread, words: str, queue: asyncio.Queue[bytes | None]) -> None:
         started = time.monotonic()
         stream = StreamingResponse(transport=_Lines(queue), correlation_id=uuid4(), conversation_id=UUID(thread.id))
         tally = _Tally()
-        sent = [*thread.messages, HumanMessage(words)]
+        sent = [*_recent(thread.messages, TURNS_REMEMBERED - 1), HumanMessage(words)]
         ended = "answered"
         try:
             await stream.start()
@@ -208,7 +230,7 @@ class Ask:
             # must see next time, and an empty assistant message is one a provider
             # may refuse; so it says what happened instead.
             said = stream.accumulated_content or f"(I stopped without answering: {ended}.)"
-            thread.messages = tally.messages or [*sent, AIMessage(said)]
+            thread.messages = _recent(tally.messages or [*sent, AIMessage(said)], TURNS_REMEMBERED)
             log.info(
                 "ask reply thread=%s ended=%s steps=%d tool_calls=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
                 thread.id,
@@ -225,11 +247,33 @@ class Ask:
 def _refused_at_the_cap(exc: Exception) -> bool:
     """Whether the provider refused because the key's credit limit is spent.
 
-    OpenRouter answers that with a 403 (`openrouter-api-findings.md`, measured
-    2026-08-02). Read off the error's `status_code` rather than its type, so this
-    module imports no HTTP client: the model is injected, and the network is its.
+    OpenRouter answers that with a 403 whose message names the key's limit
+    ("Key limit exceeded", `openrouter-api-findings.md`, measured 2026-08-02).
+    It also answers 403 when a moderated model flags the input, so the message
+    is read as well as the status. Both are read off the error rather than its
+    type, so this module imports no HTTP client: the model is injected, and the
+    network is its.
     """
-    return getattr(exc, "status_code", None) == _KEY_SPENT_STATUS
+    said = str(getattr(exc, "message", "")).lower()
+    return getattr(exc, "status_code", None) == _KEY_SPENT_STATUS and "limit" in said
+
+
+def _release(thread: Thread, claim: object) -> None:
+    """End `claim`'s hold on the thread, unless a newer reply holds it now."""
+    if thread.claim is claim:
+        thread.claim = None
+
+
+def _recent(messages: list[BaseMessage], turns: int) -> list[BaseMessage]:
+    """The last `turns` turns of `messages`, each from the curator's words on.
+
+    Cut only where the curator spoke, so a tool result is never sent without
+    the call it answers.
+    """
+    if turns <= 0:
+        return []
+    starts = [index for index, message in enumerate(messages) if isinstance(message, HumanMessage)]
+    return messages[starts[-turns] :] if len(starts) >= turns else messages
 
 
 class _Lines:

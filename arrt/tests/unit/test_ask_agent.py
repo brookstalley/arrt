@@ -4,10 +4,11 @@ import asyncio
 import json
 import threading
 
+from langchain_core.messages import HumanMessage, ToolMessage
 from scripted_model import ScriptedModel, calls, says
 from threetears.agent.tools.builtin.web_search import create_web_search_tool
 
-from arrt.ask.agent import Ask, Threads, said, surface_tools
+from arrt.ask.agent import TURNS_REMEMBERED, Ask, Threads, said, surface_tools
 from arrt.ask.prompt import ASK_SCOPE
 
 SEARCH = ("art_discovery", {"action": "search", "q": "bruegel"})
@@ -104,3 +105,51 @@ async def test_a_reply_stopped_before_it_said_anything_is_remembered_as_a_senten
     [line async for line in ask.reply(thread, "Bruegel")]
 
     assert thread.messages[-1].content == "(I stopped without answering: step_limit.)"
+
+
+def test_a_reply_dropped_before_it_starts_frees_the_thread():
+    """The server can drop a stream before it first reads it, when the client goes while the response starts.
+
+    The stream's own `finally` never runs then, so without a release on
+    collection the thread would refuse every send until it was evicted.
+    """
+    ask = Ask(answered, ScriptedModel(replies=[]), step_limit=8)
+    thread = ask.threads.open()
+
+    lines = ask.reply(thread, "Hi")
+    assert thread.replying is True
+    del lines
+
+    assert thread.replying is False
+
+
+def test_an_old_reply_collected_late_does_not_free_a_newer_one():
+    ask = Ask(answered, ScriptedModel(replies=[]), step_limit=8)
+    thread = ask.threads.open()
+    first = ask.reply(thread, "Hi")
+    thread.claim = None  # the first reply ended
+    second = ask.reply(thread, "Again")
+
+    del first
+
+    assert thread.replying is True
+    del second
+
+
+async def test_the_model_is_sent_only_the_turns_remembered_and_the_thread_keeps_no_more():
+    """Every reply resends the thread, so a thread is bounded by turns, cut where the curator spoke."""
+    turns = TURNS_REMEMBERED + 3
+    model = ScriptedModel(replies=[reply for _ in range(turns) for reply in (calls(SEARCH), says("Noted."))])
+    ask = Ask(answered, model, step_limit=8)
+    thread = ask.threads.open()
+
+    for index in range(turns):
+        [line async for line in ask.reply(thread, f"Ask {index}")]
+
+    last_sent = model.seen[-2]
+    asked = [message.content for message in last_sent if isinstance(message, HumanMessage)]
+    assert asked == [f"Ask {index}" for index in range(turns - TURNS_REMEMBERED, turns)]
+    # A tool result is never sent without the call it answers.
+    assert not isinstance(last_sent[0], ToolMessage)
+    assert [turn.asked for turn in thread.turns] == [f"Ask {index}" for index in range(turns - TURNS_REMEMBERED, turns)]
+    assert sum(isinstance(message, HumanMessage) for message in thread.messages) == TURNS_REMEMBERED

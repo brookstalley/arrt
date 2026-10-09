@@ -23,6 +23,7 @@ from arrt.http.pages import STATIC_DIR
 from arrt.library.services.get import SkipReason
 from arrt.library.services.look import SourceState
 from arrt.library.services.spending import CostTier
+from arrt.library.services.topics import FACET_KINDS
 from arrt.mcp.bindings import RESTORE_NOTICE
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
@@ -538,3 +539,13 @@ def test_every_rights_and_fetch_state_has_words(name):
 
     enum = {"RIGHTS_WORDS": RightsStatus, "FETCH_WORDS": FetchStatus}[name]
     assert _object_keys(name) == {str(member) for member in enum}
+
+
+def test_a_topic_card_records_each_topic_kind_as_the_taste_kind_the_server_maps_it_to():
+    """Ask's topic cards write a topic's reaction under `TASTE_KIND[kind]`, a copy of the server's `FACET_KINDS`.
+
+    A kind the server adds and the client lacks would get no reactions, and a
+    kind mapped differently would record taste under the wrong dimension, so
+    the copy is held to its source here, values and all.
+    """
+    assert _object_values("TASTE_KIND") == {topic.value: str(facet) for topic, facet in FACET_KINDS.items()}

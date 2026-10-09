@@ -12,11 +12,21 @@ from fakes import FakeRegistry
 from scripted_model import HeldModel, ScriptedModel, calls, says
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
-from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryPerson, RegistryText, RegistryWorkMatch
+from arrt.library.registry import (
+    CommonsFile,
+    ItemId,
+    RegistryCreator,
+    RegistryPerson,
+    RegistryText,
+    RegistryTopic,
+    RegistryWorkMatch,
+    TopicKind,
+)
 
 pytestmark = pytest.mark.browser
 
 HUNTERS = "Q500985"
+BAROQUE = "Q37853"
 BRUEGEL = "Q43270"
 SEARCH = ("art_discovery", {"action": "search", "q": "bruegel"})
 ANSWER = (
@@ -30,6 +40,8 @@ ANSWER = (
 def registry():
     bruegel = RegistryCreator(qid=ItemId(BRUEGEL), name=RegistryText("Pieter Brueghel the Elder"))
     return FakeRegistry(
+        # A period, so the card's reactions have to write it as taste's `era`.
+        topics_found={"baroque": [RegistryTopic(qid=ItemId(BAROQUE), label=RegistryText("Baroque"), kinds=(TopicKind.PERIOD,))]},
         people={
             "bruegel": [
                 RegistryPerson(qid=ItemId(BRUEGEL), label=RegistryText("Pieter Brueghel the Elder"), born=1525, died=1569)
@@ -132,14 +144,20 @@ def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
     ui.page.wait_for_selector("#ask-words")
     ask(ui, "Something wintry")
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
-    live = ui.page.locator(".ask-turn").inner_text()
+    live = _settled_turn(ui)
 
     ui.open("#walls")
     ui.page.wait_for_selector("#view h1")
     ui.open("#discover")
     ui.page.wait_for_selector(".ask-turn")
 
-    assert ui.page.locator(".ask-turn").inner_text() == live
+    assert _settled_turn(ui) == live
+
+
+def _settled_turn(ui) -> str:
+    """The turn's text once a work card's theme picker has read the themes, which it does after the card is drawn."""
+    ui.page.wait_for_function("() => !document.querySelector('.ask-turn').innerText.includes('Reading themes')")
+    return ui.page.locator(".ask-turn").inner_text()
 
 
 def test_a_second_turn_follows_the_first_and_start_over_clears_them(ui, ask_model):
@@ -234,6 +252,47 @@ def test_reacting_does_not_redraw_the_thread_under_the_curator(ui, ask_model):
 
     assert ui.page.evaluate("() => document.querySelector('.ask-answer').dataset.seen") == "before"
     assert "Bruegel's winter is the obvious place to start." in ui.page.locator(".ask-answer").inner_text()
+
+
+def test_reacting_to_a_topic_records_it_under_taste_s_kind_for_it(ui, ask_model):
+    """A topic card's reactions write the topic's kind as taste names it: a period is an `era`."""
+    ask_model.replies += [
+        calls(("art_discovery", {"action": "find_topics", "q": "baroque"})),
+        says(f"Try the Baroque [{BAROQUE}]."),
+    ]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+    ask(ui, "Something theatrical")
+    ui.page.wait_for_selector(".ask-card")
+
+    ui.page.get_by_role("button", name="more like this: Baroque").click()
+    ui.page.wait_for_selector(".ask-card button:has-text('more like this — recorded')")
+
+    (recorded,) = _affinities(ui)["affinities"]
+    assert (recorded["kind"], recorded["value"], recorded["derivation"]) == ("era", "Baroque", "stated")
+
+
+def test_a_thread_the_server_forgot_is_replaced_and_the_words_still_go(ui, ask_model):
+    """After a restart the page still holds the old thread's id; the send gets a 404 and must not keep getting it."""
+    ask_model.replies += [says("First."), says("Second.")]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+    ask(ui, "One")
+    ui.page.wait_for_selector(".ask-turn:nth-child(1) .ask-ending:has-text('cost')")
+
+    # The next send only, as the restarted server answers it.
+    ui.page.route(
+        "**/api/ask/threads/*/replies",
+        lambda route: route.fulfill(
+            status=404, content_type="application/json", body=json.dumps({"error": "That thread has gone."})
+        ),
+        times=1,
+    )
+    ask(ui, "Two")
+    ui.page.wait_for_selector(".ask-turn:nth-child(2) .ask-ending:has-text('cost')")
+
+    assert "Second." in ui.page.locator(".ask-turn").nth(1).inner_text()
+    assert "That thread has gone." not in ui.page.inner_text("#view")
 
 
 class TestWithNoKey:

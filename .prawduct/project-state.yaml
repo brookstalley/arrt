@@ -1105,7 +1105,7 @@ technical_decisions:
       alternatives_considered:
         - "3tears-models via langchain-openrouter — investigated properly rather than dismissed; it preserves the cost fields, and was declined on install weight and on carrying an abstraction with no second provider behind it."
       date: 2026-08-02
-    - decision: "Ask's agent runs on 3tears-models, 3tears-langgraph and 3tears-agent-tools, pinned exactly. Partly reverses the 2026-08-02 entry above for Ask; discovery's first-party client is unaffected until build-plan-ask-agent.md decides phase 1's fate."
+    - decision: "Ask's agent runs on 3tears-models, 3tears-langgraph and 3tears-agent-tools, pinned exactly. Partly reverses the 2026-08-02 entry above for Ask; discovery's first-party client is unaffected. build-plan-ask-agent.md left phase 1 as it was: a Get from words is started only by an MCP client now (the browser's direct box is retired), still through that client. Moving discovery onto 3tears is open, owned by no plan yet (arrt/pyproject.toml says the same)."
       rationale: >
         The owner, 2026-10-08: Ask becomes one conversation with an agent that has
         the product's tools and searches as it talks; the spending cap belongs in

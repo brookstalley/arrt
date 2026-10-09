@@ -127,6 +127,11 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # The OpenRouter SDK's errors, which Ask's model raises (3tears-models over
+    # langchain-openrouter): the cap test raises the one production does.
+    # Declared for the reason jsonschema is, and unpinned because 3tears' pins
+    # decide it.
+    "openrouter",
     # The suite has no hotspot — ~1,750 tests at roughly 67ms mean, the slowest
     # single one 1.4s — and most of the total is integration tests booting a real
     # uvicorn per class and waiting on it. That wait is exactly what

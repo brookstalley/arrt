@@ -65,14 +65,8 @@ def items_in(payload: object) -> dict[str, Item]:
     found: dict[str, Item] = {}
     for node in _dicts(payload):
         item = _item(node)
-        if item is None:
-            continue
-        known = found.get(item.qid)
-        if known is None:
-            found[item.qid] = item
-        elif known.held is None and item.held is not None:
-            # The same item seen twice, once marked held: the library's answer wins.
-            found[item.qid] = item
+        if item is not None:
+            _keep(found, item)
     return found
 
 
@@ -80,15 +74,35 @@ def cards_for(answer: str, payloads: Iterable[object]) -> list[dict[str, Any]]:
     """The cards a reply offers: each item the answer names that some payload returned, in the answer's order."""
     known: dict[str, Item] = {}
     for payload in payloads:
-        for qid, item in items_in(payload).items():
-            if qid not in known or (known[qid].held is None and item.held is not None):
-                known[qid] = item
+        for item in items_in(payload).values():
+            _keep(known, item)
     return [known[qid].card() for qid in qids_named(answer) if qid in known]
 
 
+def _keep(known: dict[str, Item], item: Item) -> None:
+    """Add `item` to `known`, where the same item seen twice, once marked held, keeps the library's answer."""
+    standing = known.get(item.qid)
+    if standing is None or (standing.held is None and item.held is not None):
+        known[item.qid] = item
+
+
 def _item(node: Mapping[str, Any]) -> Item | None:
+    return _held_work(node) or _registry_item(node)
+
+
+def _held_work(node: Mapping[str, Any]) -> Item | None:
+    """A work the library holds, as `art_catalogue(action='get')` gives it: its item is `wikidata_qid`."""
+    if not (_is_qid(node.get("wikidata_qid")) and isinstance(node.get("artwork_id"), str) and isinstance(node.get("title"), str)):
+        return None
+    artist = node.get("artist")
+    maker = _text(artist.get("name")) if isinstance(artist, Mapping) else _text(artist)
+    return Item("work", node["wikidata_qid"], node["title"], maker or "", held=node["artwork_id"])
+
+
+def _registry_item(node: Mapping[str, Any]) -> Item | None:
+    """A work, artist or topic as the registry actions give one: its item is `qid`."""
     qid = node.get("qid")
-    if not isinstance(qid, str) or not _QID.fullmatch(qid):
+    if not _is_qid(qid):
         return None
     if "title" in node:
         title = node.get("title")
@@ -104,6 +118,10 @@ def _item(node: Mapping[str, Any]) -> Item | None:
         kinds = tuple(str(kind) for kind in node.get("kinds") or ())
         return Item("topic", qid, label, ", ".join(kinds), kinds=kinds)
     return None
+
+
+def _is_qid(value: object) -> bool:
+    return isinstance(value, str) and _QID.fullmatch(value) is not None
 
 
 def _makers(work: Mapping[str, Any]) -> str:

@@ -25,6 +25,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.tools import BaseTool, ToolException
 from mcp.shared.exceptions import McpError
 
+from arrt.ask.agent import outside
+
 # The contract suite's runner. Its directory is on `sys.path` under pytest's
 # default import mode, but only once something in it has been collected, and
 # collection order is not something to rest on.
@@ -48,10 +50,6 @@ SYSTEM = (
     "or what you found. If a tool call fails, read the error — it lists what is valid."
 )
 
-
-#: The action every tool answers, which a scope never refuses: reading it is the
-#: documented first move, and refusing it would measure the scope, not the model.
-HELP = "help"
 
 #: What a tool call to something outside the run's scope is recorded under.
 #: The tool name is the one the model sent; the action is this marker.
@@ -208,19 +206,14 @@ def _count(outcome: Outcome, reply: AIMessage) -> None:
 
 
 def _outside(scope: Mapping[str, frozenset[str]] | None, request: Mapping[str, Any]) -> dict[str, Any] | None:
-    """The teaching error for a call outside the run's scope, or None for one inside it."""
+    """The teaching error for a call outside the run's scope, or None for one inside it.
+
+    The shipped agent's own refusal, so the eval measures a model against what
+    Ask actually says rather than against a copy of it.
+    """
     if scope is None:
         return None
-    tool = request["name"]
-    action = (request.get("args") or {}).get("action")
-    allowed = scope.get(tool)
-    if allowed is not None and (action == HELP or action in allowed):
-        return None
-    available = sorted(f"{name}(action='{each}')" for name, actions in scope.items() for each in actions)
-    return {
-        "success": False,
-        "error": f"{tool}(action={action!r}) is not available here. Available: {', '.join(available)}.",
-    }
+    return outside(scope, request["name"], (request.get("args") or {}).get("action"))
 
 
 async def _run_local(caller: Any, tool: BaseTool, request: Mapping[str, Any]) -> dict[str, Any]:

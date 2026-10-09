@@ -96,13 +96,23 @@ export async function askPanel({ term = "" } = {}) {
     words.value = "";
     send.disabled = true;
     status.textContent = "Ask is answering…";
+    const sendTo = async () =>
+      apiLines(`/api/ask/threads/${encodeURIComponent(await opened())}/replies`, (event) => view.take(event), {
+        method: "POST",
+        body: JSON.stringify({ words: said }),
+      });
     try {
-      await attempt(send, "ask", async () =>
-        apiLines(`/api/ask/threads/${encodeURIComponent(await opened())}/replies`, (event) => view.take(event), {
-          method: "POST",
-          body: JSON.stringify({ words: said }),
-        }),
-      );
+      await attempt(send, "ask", async () => {
+        try {
+          await sendTo();
+        } catch (failure) {
+          // The server forgot the thread (it restarted, or let the thread go):
+          // what it held is gone either way, so the words go to a new one.
+          if (failure.status !== 404) throw failure;
+          openThread = null;
+          await sendTo();
+        }
+      });
     } finally {
       send.disabled = false;
       status.textContent = view.summary();
