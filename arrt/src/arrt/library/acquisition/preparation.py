@@ -38,7 +38,7 @@ from typing import Final, Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
 from arrt.library.acquisition.compose import ArtworkBox, compose, layout
-from arrt.library.acquisition.master import MASTERS_DIRNAME, make_master, master_path
+from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_master, master_path
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
@@ -433,7 +433,8 @@ class PreparationService:
         """Make the work's presentation master unless a current one is on disk. True if one was made.
 
         Current means what it means for every Rendition — recorded from the
-        Original the work holds now — and the file is on disk: a row whose file
+        Original the work holds now — and made by today's `MASTER_RULE`, and the
+        file is on disk: a row whose file
         is gone is the state a restored catalogue leaves, and a Player asking for
         it by hash would be refused. Recorded after the file exists, never
         before, so no row names a master that was never written.
@@ -443,6 +444,7 @@ class PreparationService:
             if (
                 rendition.kind is RenditionKind.PRESENTATION_MASTER
                 and not view.stale
+                and rendition.layout == MASTER_RULE
                 and (self._settings.art_root / rendition.relative_path).is_file()
             ):
                 return False
@@ -456,6 +458,7 @@ class PreparationService:
             target_width=PRESENTATION_MASTER_LONG_EDGE_PX,
             target_height=PRESENTATION_MASTER_LONG_EDGE_PX,
             path=str(destination.relative_to(self._settings.art_root)),
+            layout=MASTER_RULE,
         )
         log.info(
             "made the presentation master for %s at %sx%s",

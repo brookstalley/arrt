@@ -115,8 +115,10 @@ environment setting with no Settings screen.
   JPEG at quality 95, as `presentation/{artwork_id}.jpg`, recorded as a
   `presentation_master` Rendition. `prepare()` makes it current before it looks
   at the canvas, so every acquisition, regenerate and mat change leaves one, and a
-  mat change never rewrites it. At startup every accepted work with no master
-  made from its Original is queued prepare-only (`preparation.masters_queued`),
+  mat change never rewrites it. Each master records the rule it was made by
+  (cap and quality), so a changed rule makes every master owed again. At
+  startup every accepted work with no master recorded from its Original by
+  today's rule is queued prepare-only (`preparation.masters_queued`),
   so the first start after the upgrade makes one for each held work, without
   refetching or redrawing. `GET /media/{hash}` serves it as it serves any
   rendition; no manifest names it until 4e. Measured over the 46 local

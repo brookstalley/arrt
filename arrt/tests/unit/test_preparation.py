@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MatChoice, MatEngine
 from arrt.library.acquisition.preparation import (
     PreparationOutcome,
@@ -349,15 +350,34 @@ class TestThePresentationMaster:
             fetch_status=FetchStatus.OK,
         )
         assert masters(service, work.id)[0].stale is True
-        assert store.works_owing_a_presentation_master() == [work.id], "the startup backfill sees it too"
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [work.id], "the startup backfill sees it too"
 
         prep.prepare(work.id)
 
         [after] = masters(service, work.id)
         assert after.stale is False
-        assert store.works_owing_a_presentation_master() == []
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == []
         assert after.rendition.id == before.rendition.id, "one row per work, rewritten"
         assert after.rendition.content_sha256 != before.rendition.content_sha256
+
+    def test_a_master_made_by_an_older_rule_is_made_again(self, prep, service, settings, store):
+        """The hash cannot see a changed cap or quality: the Original is the same.
+        So a master records the rule it was made by, and one made the old way is
+        owed again, at startup and in `prepare`, as a canvas drawn at an old
+        layout is."""
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        [before] = masters(service, work.id)
+        assert before.rendition.layout == MASTER_RULE
+        store.update_rendition(replace(before.rendition, layout="presentation-master long-edge=4096 jpeg-q=85"))
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [work.id]
+
+        prep.prepare(work.id)
+
+        [after] = masters(service, work.id)
+        assert after.rendition.layout == MASTER_RULE
+        assert after.rendition.generated_at > before.rendition.generated_at
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == []
 
     def test_a_master_missing_from_disk_is_made_again(self, prep, service, settings):
         work, _ = _work_with_original(service, settings)

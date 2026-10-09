@@ -26,6 +26,7 @@ from PIL import Image
 from arrt.app import create_app
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
+from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import (
@@ -200,17 +201,17 @@ class TestThroughTheApplication:
             artwork_id = _accept_a_direct_work(discovery, run)
             until(lambda: isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork))
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        assert store.works_owing_a_presentation_master() == [], "an acquisition makes one"
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [], "an acquisition makes one"
         _forget_masters(settings)
         drawn = stored_canvases(store, artwork_id)[0]
-        assert store.works_owing_a_presentation_master() == [artwork_id]
+        assert store.works_owing_a_presentation_master(MASTER_RULE) == [artwork_id]
 
         services.reconcile()
 
         assert artwork_id in services.acquisition_queue.state_of([artwork_id])
         app = create_app(services, acquire_queue=True)
         async with app.router.lifespan_context(app):
-            until(lambda: store.works_owing_a_presentation_master() == [])
+            until(lambda: store.works_owing_a_presentation_master(MASTER_RULE) == [])
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         assert stored_canvases(store, artwork_id)[0].generated_at == drawn.generated_at, "the canvas was current"
         assert len(open_stream.served) == 1, "a master must not fetch the image again"

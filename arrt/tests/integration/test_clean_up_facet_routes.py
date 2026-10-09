@@ -126,6 +126,15 @@ class TestSize:
         assert _fits(page)["unknown"] == (0, True, False)
         assert _fits(page)["meets_minimum"] == (1, False, False)
 
+    def test_a_band_that_would_select_nothing_is_offered_disabled_not_dropped(self, http, sized):
+        """Disabled at zero, not hidden, as every facet option is: a band that
+        vanished would leave the rail a different shape on every search."""
+        page = http.get("/api/works", params={"q": "tiny"}).json()
+
+        assert _titles(page) == ["A tiny scan"]
+        assert _fits(page)["meets_minimum"] == (0, False, True)
+        assert _fits(page)["below_minimum"] == (1, False, False)
+
     def test_a_band_narrows_the_other_facets_counts(self, http, sized, seeded_service):
         for title in ("A large scan", "A tiny scan"):
             seeded_service.record_facet(

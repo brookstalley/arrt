@@ -27,11 +27,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from arrt.library.acquisition.compose import JPEG_QUALITY
 from arrt.library.services.imaging import encode_downscaled, reading
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
 
-#: The compositor's quality (`compose.py`), for the reason in the module docstring.
-_QUALITY: Final[int] = 95
+#: How a master is made, recorded on its Rendition the way a canvas records its
+#: layout. A master is current only while it was made by this rule *and* from
+#: the Original held now: the hash alone cannot see a changed cap or quality,
+#: and every master made the old way would stay current for good.
+MASTER_RULE: Final[str] = f"presentation-master long-edge={PRESENTATION_MASTER_LONG_EDGE_PX} jpeg-q={JPEG_QUALITY}"
 
 #: Where masters live under `ART_ROOT`, one file per work.
 MASTERS_DIRNAME: Final[str] = "presentation"
@@ -62,7 +66,7 @@ def make_master(source: Path, *, destination: Path) -> Master:
     `OSError`. The file at `destination` is replaced only once a whole master has
     been written, so a failure partway costs the work nothing it already had.
     """
-    frame = reading(source, lambda: encode_downscaled(source, max_edge=PRESENTATION_MASTER_LONG_EDGE_PX, quality=_QUALITY))
+    frame = reading(source, lambda: encode_downscaled(source, max_edge=PRESENTATION_MASTER_LONG_EDGE_PX, quality=JPEG_QUALITY))
     destination.parent.mkdir(parents=True, exist_ok=True)
     staged = destination.with_name(f"{destination.name}.making")
     try:
@@ -74,4 +78,4 @@ def make_master(source: Path, *, destination: Path) -> Master:
     return Master(path=destination, width=frame.width, height=frame.height)
 
 
-__all__ = ["MASTERS_DIRNAME", "Master", "make_master", "master_path"]
+__all__ = ["MASTERS_DIRNAME", "MASTER_RULE", "Master", "make_master", "master_path"]

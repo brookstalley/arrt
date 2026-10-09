@@ -48,7 +48,7 @@ log = logging.getLogger(__name__)
 #: lossless format would multiply the size of the one tree that is deliberately
 #: not backed up.
 _FORMAT: Final[str] = "JPEG"
-_QUALITY: Final[int] = 95
+JPEG_QUALITY: Final[int] = 95
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,7 +186,7 @@ def compose(
     destination.parent.mkdir(parents=True, exist_ok=True)
     staged = destination.with_name(f"{destination.name}.composing")
     try:
-        canvas.save(staged, format=_FORMAT, quality=_QUALITY, optimize=True)
+        canvas.save(staged, format=_FORMAT, quality=JPEG_QUALITY, optimize=True)
         staged.replace(destination)
     except OSError:
         staged.unlink(missing_ok=True)
@@ -232,4 +232,4 @@ def _fit_into_box(image: Image.Image, panel_width: int, panel_height: int, box: 
     return artwork
 
 
-__all__ = ["ArtworkBox", "Composition", "compose", "layout"]
+__all__ = ["JPEG_QUALITY", "ArtworkBox", "Composition", "compose", "layout"]

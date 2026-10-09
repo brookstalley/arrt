@@ -554,8 +554,12 @@ that will actually get run rather than skipped.
 > - **The Player backs up nothing.** Its media cache re-pulls, and its TV bindings
 >   are rebuilt by reconciliation against the set, as today.
 > - **`presentation/` holds one master per work from wave 4b (2026-10-08)**,
->   excluded from backups like every derived class and regenerated at startup
->   for any accepted work that lacks one. **Measured 2026-10-08** over the 46
+>   excluded from backups like every derived class. At startup every accepted
+>   work with no master *recorded* from its Original by today's rule (cap and
+>   quality, `MASTER_RULE`) is queued to have one made. **A recorded master
+>   whose file is gone is not found at startup**, since that is a query over rows;
+>   it is remade the next time the work is prepared, which is the shape of #180
+>   (a restored catalogue does not heal) and is tracked there. **Measured 2026-10-08** over the 46
 >   originals in the owner's local 2024 tree (574 MB on disk): masters totalled
 >   225 MB, about 4.9 MB a work on average (median 3.3 MB, largest 15.9 MB), 37%
 >   of the originals; one original exceeded the 7,680 px cap. Making each took
