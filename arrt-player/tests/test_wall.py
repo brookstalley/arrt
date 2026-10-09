@@ -7,7 +7,9 @@ either: it names its own unavailable error, and the loop must treat that error,
 and only that one, as the display going away.
 """
 
+import asyncio
 import json
+import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -104,7 +106,7 @@ def display(clock) -> ThirdDisplay:
 @pytest.fixture
 def wall(wall_settings, display, clock) -> Wall:
     watcher = Watcher(wall_settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    programme = Rotation(render_root=wall_settings.render_root, memory=InMemory(), clock=clock.as_clock())
+    programme = Rotation(wall_id=WALL_ID, render_root=wall_settings.render_root, memory=InMemory(), clock=clock.as_clock())
     return Wall(wall=wall_settings, display=display, programme=programme, watcher=watcher, clock=clock.as_clock())
 
 
@@ -166,3 +168,16 @@ async def test_a_pass_that_reaches_the_display_says_so(wall, display, publish, w
     assert interval == wall_settings.poll_interval_seconds
     assert display.calls[-1] == "answering"
     assert heartbeat(wall_settings)["television_reachable"] is True
+
+
+async def test_a_crash_says_which_wall_fell_over(wall, display, publish, caplog):
+    """Every wall of a client runs in one process, so a crash line naming no wall names nothing."""
+    publish(["w1"])
+    display.fail_with = Broken("something nobody predicted")
+
+    with caplog.at_level(logging.ERROR), pytest.raises(Broken):
+        await wall.run(asyncio.Event())
+
+    (crashed,) = [record for record in caplog.records if record.__dict__.get("event") == "third.crashed"]
+    assert crashed.__dict__.get("wall_id") == WALL_ID
+    assert display.closed

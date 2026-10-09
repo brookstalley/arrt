@@ -91,6 +91,25 @@ async def test_a_missing_render_is_said_again_for_a_new_manifest(screen, output,
     assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 2
 
 
+async def test_an_empty_screen_tries_a_new_manifest_at_once(screen, output, publish, clock, wall_dir):
+    """A screen showing nothing does not sit out the interval when renders arrive.
+
+    The Frame's rule, which the screen now shares: the timer is stamped by an
+    attempt, and an attempt that showed nothing must not hold the wall black for
+    a whole interval once there is something to show.
+    """
+    publish(["w1"], interval_seconds=180, renders=False)
+    await screen.tick()
+    assert output.shown == []
+
+    clock.advance(1.3)
+    (wall_dir / "ready" / "w1.jpg").write_bytes(b"a render, at last")
+    publish(["w1"], interval_seconds=180)
+    await screen.tick()
+
+    assert shown(output) == ["w1"]
+
+
 async def test_a_theme_with_no_render_at_all_shows_nothing_and_does_not_spin(screen, output, publish, wall_dir):
     publish(["w1", "w2"])
     for name in ("w1", "w2"):
@@ -139,7 +158,8 @@ async def test_a_sequence_that_goes_backwards_rebaselines_without_acting(screen,
         await screen.tick()
 
     assert shown(output) == ["w1"]
-    assert "directive.regressed" in [record.__dict__.get("event") for record in caplog.records]
+    (regressed,) = [record for record in caplog.records if record.__dict__.get("event") == "directive.regressed"]
+    assert regressed.__dict__.get("wall_id") == "living-room", "the line does not say which wall"
 
 
 async def test_a_sync_mid_interval_keeps_the_place(screen, output, publish, clock):

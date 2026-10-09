@@ -90,13 +90,21 @@ step by step, before any code moves.
 
 `[DECISION: the Player suite's pin "every major 2 fixture is refused" becomes "valid major 2 fixtures are adopted whole, invalid ones refused, an unknown major refused as a version", and player-contract.md § The cutover is amended to match | the sentence describes a major 1 reader, which this Player stops being; keeping it would forbid the reader the program exists to build. The rule it protected — a reader refuses a major it cannot read and keeps its wall — is kept and pinned with major 3 | the builder's, 2026-10-09; user can veto]`
 
+`[DECISION: where the two loops disagreed and only the Frame's tests pinned a version, the screen takes the Frame's: an empty wall retries as soon as a new manifest lands, a directive that shows nothing does not restamp the rotation timer, the baseline is said in the journal, and a crash is logged as one. Where each loop's tests pinned its own version (the missing-render report; where the rotation's memory lives) the difference survives as a parameter of the programme | the Frame's rules were each written against a failure seen on the wall, and the screen's versions were the absence of that work, not a choice; settling them costs nothing a screen test held, and a second set of rules in code 4g deletes buys nothing | the builder's, 2026-10-09, surfaced by Chunk 01's review; user can veto]`
+
 ## Status
 
-- [ ] Chunk 01: One wall loop, a Frame driver and a screen driver
+- [x] Chunk 01: One wall loop, a Frame driver and a screen driver
 - [ ] Chunk 02: The major 2 reader and its schedule
 - [ ] Chunk 03: Per-major requests and the heartbeat's capabilities
 
-Context: branched from develop after #334 (wave 4b).
+Context: branched from develop after #334 (wave 4b). Chunk 01 committed as
+49269c52 after a `final` review with no blocking finding; its observations
+O-1, O-7, O-8 and O-9 (the screen's changed rules said nowhere, two log lines
+naming no wall) are fixed in the commit after it, which Chunk 02's review
+covers; O-2 to O-6 are accepted on the record. O-5's acceptance owes Chunk 02 a
+test that the schedule programme asks `may_attempt` and `is_ours` before it
+shows anything.
 
 ### Chunk 01: One wall loop, a Frame driver and a screen driver
 

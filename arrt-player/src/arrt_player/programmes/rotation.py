@@ -1,8 +1,11 @@
 """Major 1's programme: the manifest's entries in rotation, and the directive.
 
 Retires with major 1 (wave 4g), when the schedule replaces rotation and a
-republished schedule replaces the directive. Until then it is the rules both
-displays already ran, in one place:
+republished schedule replaces the directive. Until then it is the Frame's
+rules, in one place. Where the screen's loop had differed and no screen test
+pinned its version, the screen now runs the Frame's (an empty wall retries on
+a new manifest; a directive that shows nothing does not restamp the timer);
+where each loop's tests pinned its own, the difference is a parameter here:
 
 **A directive is acted on when the sequence advances, and adopted silently when
 it moves any other way.** A first start has never acted on anything, so it takes
@@ -79,12 +82,14 @@ class Rotation:
     def __init__(
         self,
         *,
+        wall_id: str,
         render_root: Path,
         memory: Memory,
         clock: Clock,
         rng: random.Random | None = None,
         say_missing_once: bool = False,
     ) -> None:
+        self._wall_id = wall_id
         self._render_root = render_root
         self._memory = memory
         self._clock = clock
@@ -193,7 +198,7 @@ class Rotation:
             log.info(
                 "adopting directive sequence %d as this device's baseline without acting on it",
                 observed,
-                extra={"event": "directive.baselined", "sequence": observed},
+                extra={"event": "directive.baselined", "wall_id": self._wall_id, "sequence": observed},
             )
             return False
 
@@ -210,7 +215,7 @@ class Rotation:
                 "which is what a catalogue restore looks like from here",
                 observed,
                 acted_on,
-                extra={"event": "directive.regressed", "sequence": observed, "previous": acted_on},
+                extra={"event": "directive.regressed", "wall_id": self._wall_id, "sequence": observed, "previous": acted_on},
             )
             return False
 
@@ -263,7 +268,7 @@ class Rotation:
             log.info(
                 "directive %d: stepping to the next work",
                 observed,
-                extra={"event": "directive.acted", "sequence": observed, "directive": "next"},
+                extra={"event": "directive.acted", "wall_id": self._wall_id, "sequence": observed, "directive": "next"},
             )
             return outcome is Shown.YES
 
@@ -280,6 +285,7 @@ class Rotation:
                 manifest.pinned_work_id,
                 extra={
                     "event": "directive.pin_unresolvable",
+                    "wall_id": self._wall_id,
                     "sequence": observed,
                     "pinned_work_id": manifest.pinned_work_id,
                 },
@@ -302,7 +308,7 @@ class Rotation:
             "directive %d: jumping to work %s",
             observed,
             manifest.pinned_work_id,
-            extra={"event": "directive.acted", "sequence": observed, "directive": "show_now"},
+            extra={"event": "directive.acted", "wall_id": self._wall_id, "sequence": observed, "directive": "show_now"},
         )
         return outcome is Shown.YES
 
@@ -386,7 +392,7 @@ class Rotation:
                         "skipping %s: its render is not at %s",
                         entry.work_id,
                         picture.path,
-                        extra={"event": "rotation.render_missing", "render_path": str(picture.path)},
+                        extra={"event": "rotation.render_missing", "wall_id": self._wall_id, "render_path": str(picture.path)},
                     )
                 return Shown.SKIP
             outcome = await display.show(picture)

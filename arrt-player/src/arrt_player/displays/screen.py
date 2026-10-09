@@ -75,7 +75,9 @@ def screen_wall(
     return Wall(
         wall=wall,
         display=ScreenDisplay(wall=wall, output=output, clock=clock),
-        programme=Rotation(render_root=wall.render_root, memory=InMemory(), clock=clock, rng=rng, say_missing_once=True),
+        programme=Rotation(
+            wall_id=wall.wall_id, render_root=wall.render_root, memory=InMemory(), clock=clock, rng=rng, say_missing_once=True
+        ),
         watcher=watcher,
         clock=clock,
     )

@@ -243,7 +243,11 @@ class Wall:
             # a crash left the stopped line at INFO, which is the identical line a
             # clean shutdown writes.
             crashed = True
-            log.exception("%s is stopping on an error", self._display.description, extra={"event": f"{name}.crashed"})
+            log.exception(
+                "%s is stopping on an error",
+                self._display.description,
+                extra={"event": f"{name}.crashed", "wall_id": self._wall.wall_id},
+            )
             raise
         finally:
             # **Let go of on every way out, including the unexpected one.** The
