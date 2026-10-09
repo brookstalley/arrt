@@ -231,7 +231,11 @@ def test_the_cards_ask_wikidata_three_at_a_time(ui, ask_model):
     """Five artists named, five lookups owed: three go at once and the rest wait, so a
     reply naming fifteen never becomes fifteen registry queries together."""
     held = []
-    ui.page.route("**/api/registry/artists/*", lambda route: held.append(route))
+
+    def hold(route):
+        held.append(route)
+
+    ui.page.route("**/api/registry/artists/*", hold)
     names = " ".join(f"[Q10{n}]" for n in range(5))
     ask_model.replies += [calls(("art_discovery", {"action": "search", "q": "painters"})), says(f"Five painters: {names}")]
     ui.open("#discover")
