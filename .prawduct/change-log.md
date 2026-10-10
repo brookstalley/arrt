@@ -89,6 +89,11 @@ wait for sync". `build-plan-feed-follows-theme.md` carries the plan.
   re-hang.
 - The restore and undo sentences say the wall catches up by itself.
 
+**Deploy:** the server first, then the Player, the reverse of the contract's
+usual Player-first order: an older server refuses a heartbeat without a screen
+block, so Walls would show that wall as silent until the server catches up. To
+roll back, revert the Player first (`deploy/README.md` § Heartbeat minor 4).
+
 ## 2026-10-10: The cutover: walls on manifest major 2 alone (wave 4g)
 
 <!-- prawduct: scope=wave-4g-cutover -->
