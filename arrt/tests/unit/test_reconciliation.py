@@ -486,7 +486,10 @@ def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_
 
 @pytest.mark.parametrize("act", ["add", "allow", "remove", "remove_many"])
 def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_work, hung, wall_id, monkeypatch, act):
-    """Adding to or taking from a hung theme, or allowing a work back, writes the feed in its transaction, so a full disk refuses the edit."""
+    """Adding to or taking from a hung theme, or allowing a work back, writes the feed in its transaction.
+
+    So a full disk refuses the edit.
+    """
     work = ready_work(title="Automat")
     theme = hung(wall_id, ready_work(title="Nighthawks"), *([] if act == "add" else [work]))
     if act == "allow":
