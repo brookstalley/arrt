@@ -19,6 +19,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from feed_guard import problems
 from jsonschema import Draft202012Validator
 from scenarios import connect
 
@@ -163,17 +164,77 @@ def test_major_1_at_its_own_url_is_the_same_document_as_the_unversioned_route(se
     assert unchanged.status_code == 304
 
 
-@pytest.mark.parametrize("major", ["2", "0", "01", "one"])
+@pytest.mark.parametrize("major", ["3", "0", "01", "02", "one"])
 def test_a_major_the_server_does_not_build_answers_404_in_the_error_shape(server_url, playing, token, wall_id, major):
     """A wall that has a manifest still answers 404 for a major nobody builds, so a Player steps down a major.
 
-    `01` is here because a lenient integer parse would serve major 1 under a
-    second spelling, and the contract names one URL per major.
+    `01` and `02` are here because a lenient integer parse would serve a built
+    major under a second spelling, and the contract names one URL per major.
+    Major 2 was in this list until wave 4e built it; `3` keeps the case of the
+    next major up, which is the one a newer Player asks for first.
     """
     response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major=major), headers=_bearer(token))
 
     assert response.status_code == 404
     assert set(response.json()) == {"error"}
+
+
+@pytest.fixture
+def playing_v2(services, ready_work, wall_id, wall_settings, render_bytes, decodable_jpeg):
+    """A wall whose one work has a render and a presentation master, so both majors are published."""
+    work = ready_work()
+    render = next(view.rendition for view in services.catalogue.list_renditions(work.id))
+    (wall_settings.art_root / render.relative_path).parent.mkdir(parents=True, exist_ok=True)
+    (wall_settings.art_root / render.relative_path).write_bytes(render_bytes)
+    master = f"masters/{work.id}.jpg"
+    decodable_jpeg(wall_settings.art_root / master, width=3000, height=2000)
+    services.catalogue.record_rendition(
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=master
+    )
+    theme = services.display.add_theme(name="Late night")
+    services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    services.display.activate_theme(theme.id, wall_id=wall_id)
+    return work
+
+
+def test_major_2_is_the_walls_feed_with_its_etag(server_url, playing_v2, token, wall_id, wall_settings):
+    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(token))
+
+    assert response.status_code == 200
+    assert response.content == wall_settings.manifest_v2_path(wall_id).read_bytes()
+    assert response.json()["schema"]["major"] == 2
+    assert problems(response.json()) == []
+    unchanged = httpx.get(
+        server_url + _path("manifest_major", wall_id=wall_id, major="2"),
+        headers={**_bearer(token), "If-None-Match": response.headers["etag"]},
+    )
+    assert unchanged.status_code == 304
+
+
+def test_the_master_a_feed_names_is_served_by_its_hash(server_url, playing_v2, token, wall_id):
+    feed = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(token)).json()
+    media = feed["works"][playing_v2.id]["media"]
+
+    response = httpx.get(server_url + media["url"], headers=_bearer(token))
+
+    assert response.status_code == 200
+    assert hashlib.sha256(response.content).hexdigest() == media["sha256"]
+    assert len(response.content) == media["bytes"]
+
+
+def test_major_2_of_a_wall_whose_works_have_no_master_answers_404_so_its_player_stays_on_1(server_url, playing, token, wall_id):
+    two = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(token))
+    one = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="1"), headers=_bearer(token))
+
+    assert two.status_code == 404
+    assert set(two.json()) == {"error"}
+    assert one.status_code == 200
+
+
+def test_major_2_answers_only_the_walls_own_client(server_url, playing_v2, study_token, wall_id):
+    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(study_token))
+
+    assert response.status_code == 403
 
 
 def test_major_1_of_a_wall_with_nothing_published_answers_404(server_url, token, wall_id):

@@ -28,6 +28,7 @@ from arrt.library.readiness import (
     WorkInputs,
     assess,
     label_of,
+    master_rendition_of,
     not_in_catalogue,
     playable_from,
     tv_rendition_of,
@@ -177,7 +178,11 @@ class LibraryFacade:
         # Hashed on first need for a render recorded before hashes were, so the
         # answer can say where its bytes are and how to check them.
         rendition = self._catalogue.with_content(inputs.tv_rendition) if inputs.tv_rendition else None
-        playable = playable_from(replace(inputs, tv_rendition=rendition), units=self._label_units)
+        master = self._catalogue.with_content(inputs.master) if inputs.master else None
+        size = self._catalogue.pixel_size(master) if master is not None else None
+        playable = playable_from(
+            replace(inputs, tv_rendition=rendition, master=master, master_size=size), units=self._label_units
+        )
         if playable.media is None:
             # Said here, where the gap is decided: the work still reaches a wall
             # on the file channel, which reads `render_path`, and a Player on HTTP
@@ -204,10 +209,13 @@ class LibraryFacade:
         detail = self._catalogue.find_artwork(work_id)
         if detail is None:
             return None
+        original = self._catalogue.get_original(work_id)
+        renditions = [view.rendition for view in self._catalogue.list_renditions(work_id)]
         return WorkInputs(
             artwork=detail.artwork,
             artist=detail.artist,
-            original=self._catalogue.get_original(work_id),
-            tv_rendition=tv_rendition_of([view.rendition for view in self._catalogue.list_renditions(work_id)]),
+            original=original,
+            tv_rendition=tv_rendition_of(renditions),
             mat_color=self._catalogue.current_mat_color(work_id),
+            master=master_rendition_of(renditions, original),
         )

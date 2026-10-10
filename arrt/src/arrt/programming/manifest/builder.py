@@ -157,6 +157,9 @@ class ManifestBuild:
     shuffle: bool
     directive_sequence: int
     pinned_work_id: str | None
+    #: The Library's answer for each entry, in the entries' order. Major 2 is
+    #: built from these, from the same ask, so both majors publish one verdict.
+    playable: Sequence[PlayableWork] = ()
 
     @property
     def considered(self) -> int:

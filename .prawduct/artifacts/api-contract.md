@@ -315,9 +315,9 @@ display plane a command; it writes desired state, and display converges on it.**
 | Action | What curation does | What display does |
 |---|---|---|
 | `status` | Reads the display plane's heartbeat file | Nothing — it wrote the heartbeat already |
-| `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
-| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest | Jumps to that work, then continues rotating from there |
-| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest | Steps to the next work in the list |
+| `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` — and, since wave 4e, its major 2 feed beside it (`player-contract.md` § The cutover) | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
+| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest. Since wave 4e it also republishes the wall's major 2 feed starting now with that work | Jumps to that work, then continues rotating from there |
+| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest. Since wave 4e it also republishes the wall's major 2 feed starting now with the work that was next | Steps to the next work in the list |
 
 > **Built 2026-09-30 (wave 2b Chunk 02): the directive reaches the manifest.**
 > Until then `show_now` and `next` advanced the stored directive and nothing

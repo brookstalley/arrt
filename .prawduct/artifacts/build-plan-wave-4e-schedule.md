@@ -191,10 +191,10 @@ the Player) is built in a sibling worktree and touches nothing under `arrt/`.
 
 - **Critic mode:** final. This is the keystone 02 publishes, and stability and the
   household rule are where the design can be wrong.
-- **Surfaces:** new `arrt/src/arrt/programming/schedule.py` (pure: walls, their
-  ordered playable work ids, each theme's interval and shuffle, the last
-  published schedules, *now*, and each wall's "start fresh" flag go in; slots per
-  wall and the named clashes come out); new `arrt/tests/unit/test_schedule.py`.
+- **Surfaces:** new `arrt/src/arrt/programming/schedule.py` (pure: one wall's
+  ordered work ids, its theme's interval and shuffle, every wall's published
+  slots, *now* and how to start go in; that wall's slots and its named clashes
+  come out); new `arrt/tests/unit/test_schedule.py`.
 - **What:** three days of abutting half-open slots per wall, from *now* or from
   the end of the kept slot. Shuffle cycles that show every work once. The
   household rule: a work never in two walls' slots over overlapping spans,
@@ -213,12 +213,12 @@ the Player) is built in a sibling worktree and touches nothing under `arrt/`.
 
 ### Chunk 02: The major 2 feed, published and served
 
-- **Surfaces:** `library/facade.py` (the master as a `Media` on `PlayableWork`,
-  or None); `programming/manifest/` (new `v2.py`: document from schedule, works,
-  settings); `programming/display.py` (one publish step writing both majors,
+- **Surfaces:** `arrt/src/arrt/library/facade.py` (the master as a `Media` on `PlayableWork`,
+  or None); `arrt/src/arrt/programming/manifest/` (new `arrt/src/arrt/programming/manifest/v2.py`: document from schedule, works,
+  settings); `arrt/src/arrt/programming/display.py` (one publish step writing both majors,
   called from every path that publishes major 1, including the event patch
   and startup reconciliation; `show_work_now` and `step_display` republish v2
-  starting fresh; the heartbeat rolls the horizon); `http/player.py`
+  starting fresh; the heartbeat rolls the horizon); `arrt/src/arrt/http/player.py`
   (`/walls/{id}/manifest/v2` serves the published v2 with its ETag); the tests
   for each; `player-contract.md` § The cutover if the built behaviour teaches
   it anything.

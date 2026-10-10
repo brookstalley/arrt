@@ -163,14 +163,19 @@ def wall_manifest(request: Request, wall_id: str) -> Response:
 def wall_manifest_at_major(request: Request, wall_id: str, major: str) -> Response:
     """The wall's manifest at one major, so a Player can ask for the highest it reads.
 
-    Only major 1 is built today, and it is the same document the unversioned route
-    serves. Any other spelling answers 404, which is how a Player learns to step
-    down a major (`player-contract.md` § The cutover). The match is on the exact
-    string, so `01` is not a second URL for major 1.
+    Major 1 is the document the unversioned route serves, and major 2 the wall's
+    feed. Any other spelling answers 404, which is how a Player learns to step
+    down a major (`player-contract.md` § The cutover); so does a major 2 not yet
+    published for this wall, so its Player stays on major 1 until a sync. The
+    match is on the exact string, so `01` is not a second URL for major 1.
     """
-    if major != "1":
-        return JSONResponse(status_code=404, content={"error": f"No manifest major {major} is published for this wall."})
-    return wall_manifest(request, wall_id)
+    if major == "1":
+        return wall_manifest(request, wall_id)
+    if major == "2":
+        body = _services(request).display.published_manifest_v2(wall_id)
+        if body is not None:
+            return _etagged(request, body)
+    return JSONResponse(status_code=404, content={"error": f"No manifest major {major} is published for this wall."})
 
 
 @router.get(LABEL_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_label)])

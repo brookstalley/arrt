@@ -1075,6 +1075,7 @@ heartbeat's.
 | `pictures/` — every picture fetched from outside, kept for good (`library/services/pictures.py`), since 2026-10-06 | curation | curation |
 | `sources/<plugin>/` — each source plugin's own copy of what it can fetch again (`SourceContext.data_dir`, interface 1.2); `sources/nga/` holds the NGA's open data, since 2026-10-06 | curation (that plugin) | curation (that plugin) |
 | `theme-manifest-{wall_id}.json` — **one file per wall**, since 2026-08-12 | curation | display |
+| `theme-manifest-{wall_id}.v2.json` — the wall's major 2 feed, beside it, since 2026-10-09 (wave 4e); served at `/walls/{wall_id}/manifest/v2` | curation | display (over HTTP) |
 | image tree (`raw/`, `ready/`, …) | curation | display |
 | `display-state.sqlite` | display | display |
 | `display-heartbeat-{wall_id}.json` (heartbeat) — **likewise one per wall** | display | curation |

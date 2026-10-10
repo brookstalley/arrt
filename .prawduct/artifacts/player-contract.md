@@ -456,7 +456,13 @@ upgraded on demand).
   Players first, and the server stops building major 1, and with it the
   composed render and the unversioned route, once every Player reports 2. A
   Player missed in the upgrade is visible before that, because its heartbeat
-  lacks 2.
+  lacks 2. *(Wave 4e, 2026-10-09:)* While both majors are built, Arrt
+  publishes a wall's major 2 only when it
+  carries at least one of the works major 1 does, or when the theme is empty on
+  both. A theme whose works have no presentation master yet answers `v2` with
+  404, so its Player stays on major 1, rather than being sent a feed with
+  nothing in it while `v1` has the theme. A work without a master is left off
+  major 2 and named in the server's log.
 - **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
   a Player from before minor 2, which reads only major 1, or one whose display
   cannot say its size. Reading its silence as "lists nothing" would let the

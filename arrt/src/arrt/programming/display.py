@@ -24,7 +24,7 @@ import uuid
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
@@ -55,6 +55,11 @@ from arrt.programming.manifest.builder import (
     write_atomically,
 )
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
+from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
+from arrt.programming.manifest.v2 import as_document as as_v2_document
+from arrt.programming.manifest.v2 import read_published as read_published_v2
+from arrt.programming.schedule import Keep, Schedule, Start, StartFresh
+from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member, require_text
@@ -121,6 +126,10 @@ class DisplaySettings:
     def manifest_path(self, wall_id: str) -> Path:
         """Where this plane publishes one wall's desired state."""
         return manifest_path_in(self.art_root, wall_id)
+
+    def manifest_v2_path(self, wall_id: str) -> Path:
+        """Where this plane publishes one wall's major 2 feed, beside its major 1 manifest."""
+        return manifest_v2_path_in(self.art_root, wall_id)
 
     def heartbeat_path(self, wall_id: str) -> Path:
         """Where the display serving one wall reports. Never written by this plane."""
@@ -260,10 +269,12 @@ class Reconciliation:
     republished: Sequence[str]
     #: Walls whose standing pin was withdrawn.
     pins_withdrawn: Sequence[str]
+    #: Walls whose major 2 feed was rewritten.
+    republished_v2: Sequence[str] = ()
 
     @property
     def changed(self) -> bool:
-        return bool(self.republished or self.pins_withdrawn)
+        return bool(self.republished or self.pins_withdrawn or self.republished_v2)
 
 
 class DisplayService:
@@ -1190,7 +1201,7 @@ class DisplayService:
             # The manifest leaves it out, so a pin would name a work no wall
             # carries: the silence this method's readiness check exists to stop.
             raise ServiceError(f"Artwork {answer.title!r} is kept off every wall. Allow it again from its page first.")
-        return self._advance(wall_id, pinned_work_id=artwork_id)
+        return self._advance(wall_id, pinned_work_id=artwork_id, pinned=answer)
 
     # -- the manifest ---------------------------------------------------------
 
@@ -1212,6 +1223,7 @@ class DisplayService:
         directive = self._store.get_directive(wall_id)
 
         entries = []
+        playable = []
         exclusions = []
         kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
         # One question for the whole theme rather than one per work: the facade
@@ -1225,6 +1237,7 @@ class DisplayService:
                 exclusions.append(Exclusion.kept_off(answer))
             elif isinstance(answer, PlayableWork):
                 entries.append(ManifestEntry.of(answer))
+                playable.append(answer)
             else:
                 exclusions.append(Exclusion.of(answer))
 
@@ -1246,6 +1259,7 @@ class DisplayService:
             # advance — firing a jump nobody asked for on every sync.
             directive_sequence=directive.sequence,
             pinned_work_id=directive.pinned_work_id,
+            playable=playable,
         )
 
     def sync(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
@@ -1273,6 +1287,7 @@ class DisplayService:
         with self._store.transaction():
             build = self.build_manifest(wall_id, theme_id)
             write_atomically(self._settings.manifest_path(wall_id), as_document(build))
+            self._sync_v2(build)
         if build.exclusions:
             # Named at WARNING with the count, because a theme quietly showing
             # fewer works than it holds is precisely this product's
@@ -1320,6 +1335,15 @@ class DisplayService:
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this plane can read: {problem}")
         write_atomically(self._settings.heartbeat_path(wall_id), document)
+        self._roll_v2(wall_id)
+
+    def published_manifest_v2(self, wall_id: str) -> bytes | None:
+        """The bytes of this wall's major 2 feed as last published, or None if nothing has been."""
+        self.get_wall(wall_id)
+        try:
+            return self._settings.manifest_v2_path(wall_id).read_bytes()
+        except FileNotFoundError:
+            return None
 
     # -- keeping published manifests true to the Library ---------------------
 
@@ -1363,8 +1387,10 @@ class DisplayService:
         with self._store.transaction():
             walls = self._store.list_walls()
             published = {wall.id: read_published(self._settings.manifest_path(wall.id)) for wall in walls}
+            feeds = {wall.id: read_published_v2(self._settings.manifest_v2_path(wall.id)) for wall in walls}
             directives = {directive.wall_id: directive for directive in self._store.list_directives()}
             mentioned = {entry["work_id"] for document in published.values() if document for entry in document["entries"]}
+            mentioned |= {work_id for feed in feeds.values() if feed for work_id in feed.works}
             mentioned |= {directive.pinned_work_id for directive in directives.values() if directive.pinned_work_id}
             asked = mentioned if work_ids is None else mentioned & set(work_ids)
             answers = self._library.playable(sorted(asked))
@@ -1405,11 +1431,14 @@ class DisplayService:
                 write_atomically(self._settings.manifest_path(wall.id), document)
                 republished[wall.id] = (removed, [entry["work_id"] for entry in refreshed])
 
+            republished_v2 = [wall.id for wall in walls if self._reconcile_v2(wall.id, feeds[wall.id], answers, cause=cause)]
+
         result = Reconciliation(
             asked=len(asked),
             refused=tuple(sorted(refused)),
             republished=tuple(republished),
             pins_withdrawn=tuple(withdrawn),
+            republished_v2=tuple(republished_v2),
         )
         names = {wall.id: wall.name for wall in walls}
         for wall_id, (removed, refreshed_ids) in republished.items():
@@ -1440,6 +1469,268 @@ class DisplayService:
         if work_ids is None and not result.changed:
             log.info("Reconciled %d walls against the Library at startup: nothing to change.", len(walls))
         return result
+
+    # -- major 2: the schedule ---------------------------------------------------
+    #
+    # Published from every path that publishes major 1 (`build-plan-wave-4e-schedule.md`
+    # keeps the table of paths and what each does to the slot on the wall now).
+    # Each reads the wall's published feed back rather than a copy of its own, for
+    # the reason `manifest/v2.py` gives.
+
+    def _sync_v2(self, build: ManifestBuild) -> None:
+        """Publish the wall's feed from the build that just published its major 1 manifest.
+
+        The same theme as the feed already carries keeps the slot on the wall now
+        (re-hanging it is how a curator republishes); another theme starts fresh.
+        A work with no presentation master yet stays on major 1 and is left off
+        this feed, said once per sync.
+        """
+        previous = read_published_v2(self._settings.manifest_v2_path(build.wall.id))
+        works: dict[str, Mapping[str, Any]] = {}
+        unmastered: list[str] = []
+        for work in build.playable:
+            if work.master is None:
+                unmastered.append(work.work_id)
+            else:
+                works[work.work_id] = work_document(work)
+        start: Start = StartFresh()
+        guests: dict[str, Mapping[str, Any]] = {}
+        if previous is not None and previous.playlist_id == build.theme.id:
+            start = Keep()
+            # A work on the wall now that the theme does not hold (shown from
+            # outside it, or just taken out of it) finishes its slot. A member is
+            # never a guest: one the Library now refuses, or one that lost its
+            # master, would otherwise finish its slot on a superseded entry.
+            members = {entry.work_id for entry in build.entries} | {exclusion.work_id for exclusion in build.exclusions}
+            guests = {work_id: entry for work_id, entry in previous.works.items() if work_id not in members}
+        if unmastered:
+            log.warning(
+                "Wall %r, theme %r: major 2 leaves out the works with no presentation master yet (%s).",
+                build.wall.name,
+                build.theme.name,
+                ", ".join(unmastered),
+            )
+        self._write_v2(
+            build.wall.id,
+            playlist=(build.theme.id, build.theme.name),
+            order=list(works),
+            works={**guests, **works},
+            slot_seconds=build.rotation_interval_seconds,
+            shuffle=build.shuffle,
+            start=start,
+        )
+
+    def _restart_v2(self, wall_id: str, *, pinned: PlayableWork | None) -> None:
+        """Republish the wall's feed starting now: with the pinned work, or with the one after the work on the wall.
+
+        `show_now` and `next` become republishes of the schedule
+        (`player-contract.md` § What happens to `show_now` and `next`). A wall
+        with no feed yet has nothing to restart, and its first sync starts fresh.
+        """
+        previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if previous is None:
+            return
+        works = dict(previous.works)
+        if pinned is None:
+            first = previous.after(datetime.now(UTC))
+        elif pinned.master is None:
+            log.warning("Work %s has no presentation master yet, so walls on major 2 go on with their schedule.", pinned.work_id)
+            return
+        else:
+            works[pinned.work_id] = work_document(pinned)
+            first = pinned.work_id
+        self._rebuild_v2(wall_id, previous, works=works, start=StartFresh(first))
+
+    def _withdraw_v2(self, wall_id: str, refused: set[str], *, cause: str) -> bool:
+        """Take these works off the wall's feed, adding none. True if the feed carried any of them.
+
+        The slot on the wall now is kept unless it shows one of them, and then the
+        wall starts fresh: `Keep` keeps only a work the rebuild still carries.
+        """
+        previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if previous is None or not refused & set(previous.works):
+            return False
+        works = {work_id: entry for work_id, entry in previous.works.items() if work_id not in refused}
+        self._rebuild_v2(wall_id, previous, works=works, start=Keep())
+        log.info(
+            "Wall %r: took %s off the major 2 feed (after %s).",
+            self.get_wall(wall_id).name,
+            ", ".join(sorted(refused & set(previous.works))),
+            cause,
+        )
+        return True
+
+    def _roll_v2(self, wall_id: str) -> None:
+        """Extend the wall's horizon when less than `ROLL_WHEN_LEFT` of it is left.
+
+        Run on the wall's heartbeat, which a live wall sends every few seconds, so
+        no scheduler is needed; a wall nobody is running needs no fresh horizon,
+        and its Player replays the one it has when it comes back.
+        """
+        with self._store.transaction():
+            previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            if previous is None or previous.horizon_until - datetime.now(UTC) >= ROLL_WHEN_LEFT:
+                return
+            self._rebuild_v2(wall_id, previous, works=dict(previous.works), start=Keep())
+
+    def _rebuild_v2(self, wall_id: str, previous: Published, *, works: Mapping[str, Mapping[str, Any]], start: Start) -> None:
+        """Rebuild a wall's feed from what it carries now: no work arrives that is not already in it.
+
+        Deciding when new work reaches the wall is what sync is for (the
+        operator's ruling, 2026-09-30), so a horizon rolled forward or a work
+        withdrawn cycles through the works already published, in the theme's
+        order and at its pace.
+        """
+        order, slot_seconds, shuffle = self._v2_pace(previous.playlist_id, works)
+        self._write_v2(
+            wall_id,
+            playlist=(previous.playlist_id, previous.playlist_name),
+            order=order,
+            works=works,
+            slot_seconds=slot_seconds,
+            shuffle=shuffle,
+            start=start,
+        )
+
+    def _v2_pace(self, playlist_id: str, works: Mapping[str, Any]) -> tuple[list[str], int, bool]:
+        """The cycle (the theme's members the feed carries, in its order), the slot length and the shuffle.
+
+        A theme deleted since (possible once it hangs nowhere, after `clear_wall`)
+        leaves the works the feed carries in id order at the default pace.
+        """
+        theme = self._store.get_theme(playlist_id)
+        if theme is None:
+            return sorted(works), self._settings.rotation_interval_seconds, self._settings.shuffle
+        members = [membership.artwork_id for membership in self._store.list_memberships(theme.id)]
+        interval = (
+            theme.rotation_interval_seconds
+            if theme.rotation_interval_seconds is not None
+            else self._settings.rotation_interval_seconds
+        )
+        return [work_id for work_id in members if work_id in works], interval, self.shuffles(theme)
+
+    def _write_v2(
+        self,
+        wall_id: str,
+        *,
+        playlist: tuple[str, str],
+        order: Sequence[str],
+        works: Mapping[str, Mapping[str, Any]],
+        slot_seconds: int,
+        shuffle: bool,
+        start: Start,
+    ) -> Schedule | None:
+        """Schedule the wall against every other wall's published feed, and publish it.
+
+        `order` is the cycle; any other work in `works` may only finish the slot
+        it is in now, or be the one a `StartFresh` names.
+
+        **Until 4g retires major 1, a feed carries at least one of the works its
+        wall's manifest carries, or there is no feed** (`player-contract.md`
+        § The cutover). A Player asks for v2 first, and would keep the last work
+        through a schedule with nothing of the theme in it, which may be the very
+        work just withdrawn, while v1 still carried the theme. So the
+        feed is removed instead, its Player falls back to v1, and None is
+        returned. Here, where every path that writes a feed passes, so no path can
+        skip it.
+        """
+        manifest = read_published(self._settings.manifest_path(wall_id)) or {}
+        carried = {entry["work_id"] for entry in manifest.get("entries", [])}
+        # Measured against major 1's works, not against emptiness: a guest is
+        # never one of them, so a feed holding only a guest shadows v1 as surely
+        # as an empty one does.
+        if carried and not carried & set(works):
+            self._settings.manifest_v2_path(wall_id).unlink(missing_ok=True)
+            log.warning(
+                "Wall %r: none of the works on its manifest has a presentation master, so it has no major 2 feed "
+                "and its Player stays on major 1.",
+                self.get_wall(wall_id).name,
+            )
+            return None
+        now = datetime.now(UTC)
+        published = {
+            wall.id: feed.slots
+            for wall in self._store.list_walls()
+            if (feed := read_published_v2(self._settings.manifest_v2_path(wall.id))) is not None
+        }
+        cycle = [work_id for work_id in order if work_id in works]
+        schedule = build_schedule(
+            wall_id=wall_id,
+            work_ids=cycle,
+            slot_seconds=slot_seconds,
+            shuffle=shuffle,
+            now=now,
+            start=start,
+            published=published,
+            seed=f"{wall_id}:{now.isoformat()}",
+            also_showable=set(works) - set(cycle),
+        )
+        feed = Feed(playlist_id=playlist[0], playlist_name=playlist[1], schedule=schedule, works=works)
+        write_atomically(self._settings.manifest_v2_path(wall_id), as_v2_document(feed))
+        if schedule.clashes:
+            # Named, because a clash is the household rule giving way, and a rule
+            # that gives way silently is one nobody can tell is still in force.
+            shared = sorted({(clash.work_id, clash.other_wall_id) for clash in schedule.clashes})
+            log.info(
+                "Wall %r shows works another wall shows at the same time, having nothing else to show then: %s.",
+                self.get_wall(wall_id).name,
+                ", ".join(f"{work_id} (with {other})" for work_id, other in shared),
+            )
+        return schedule
+
+    def _reconcile_v2(
+        self, wall_id: str, feed: Published | None, answers: Mapping[str, PlayableWork | Unplayable], *, cause: str
+    ) -> bool:
+        """Bring one wall's feed in line with the Library's answers. True if it was rewritten.
+
+        A work the Library refuses, or one that lost its master, leaves; a work
+        whose master, colour or label changed has its entry replaced where it
+        stands. Works the Library was not asked about are left as they are.
+        """
+        if feed is None:
+            return False
+        gone: set[str] = set()
+        fresh: dict[str, Mapping[str, Any]] = {}
+        for work_id, entry in feed.works.items():
+            answer = answers.get(work_id)
+            if answer is None:
+                continue
+            if not isinstance(answer, PlayableWork) or answer.master is None:
+                gone.add(work_id)
+            elif (current := work_document(answer)) != entry:
+                fresh[work_id] = current
+        if gone:
+            works = {work_id: fresh.get(work_id, entry) for work_id, entry in feed.works.items() if work_id not in gone}
+            self._rebuild_v2(wall_id, feed, works=works, start=Keep())
+            log.info(
+                "Wall %r: took works the Library no longer offers off the major 2 feed (%s, after %s).",
+                self.get_wall(wall_id).name,
+                ", ".join(sorted(gone)),
+                cause,
+            )
+            return True
+        if fresh:
+            self._patch_v2_works(wall_id, feed, fresh)
+            log.info(
+                "Wall %r: pointed the major 2 feed at the current master or colour of %s (after %s).",
+                self.get_wall(wall_id).name,
+                ", ".join(sorted(fresh)),
+                cause,
+            )
+            return True
+        return False
+
+    def _patch_v2_works(self, wall_id: str, feed: Published, entries: Mapping[str, Mapping[str, Any]]) -> None:
+        """Replace these works' entries in the wall's published feed, and nothing else in it.
+
+        A re-render or a new mat colour changes what the Player composes, not when:
+        the schedule is republished exactly as it stands, through the same builder
+        every other feed goes through.
+        """
+        schedule = Schedule(feed.horizon_from, feed.horizon_until, feed.slots, ())
+        works = {**feed.works, **entries}
+        document = as_v2_document(Feed(feed.playlist_id, feed.playlist_name, schedule, works, feed.settings))
+        write_atomically(self._settings.manifest_v2_path(wall_id), document)
 
     # -- internals ------------------------------------------------------------
 
@@ -1486,27 +1777,32 @@ class DisplayService:
         advancing the sequence, and nothing arrives.
         """
         for wall_id in wall_ids:
-            directive = self._store.get_directive(wall_id)
-            if directive.pinned_work_id == artwork_id:
-                store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
-            path = self._settings.manifest_path(wall_id)
-            document = read_published(path)
-            if document is None:
-                continue
-            kept = [entry for entry in document["entries"] if entry["work_id"] != artwork_id]
-            pinned = (document.get("directive") or {}).get("pinned_work_id") == artwork_id
-            if len(kept) == len(document["entries"]) and not pinned:
-                continue
-            document["entries"] = kept
-            if pinned:
-                document["directive"] = {**document["directive"], "pinned_work_id": None}
-            document["generated_at"] = datetime.now(UTC).isoformat()
-            write_atomically(path, document)
-            log.info(
-                "Wall %r: took work %s off the published manifest (after %s).", self.get_wall(wall_id).name, artwork_id, cause
-            )
+            self._withdraw_v1(wall_id, artwork_id, cause=cause)
+            # After major 1's patch, so the feed is judged against the manifest
+            # as it now stands (`_write_v2`).
+            self._withdraw_v2(wall_id, {artwork_id}, cause=cause)
 
-    def _advance(self, wall_id: str, *, pinned_work_id: str | None) -> Directive:
+    def _withdraw_v1(self, wall_id: str, artwork_id: str, *, cause: str) -> None:
+        """Major 1's half of a withdrawal: the work's entry and any pin naming it leave one wall's manifest."""
+        directive = self._store.get_directive(wall_id)
+        if directive.pinned_work_id == artwork_id:
+            store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
+        path = self._settings.manifest_path(wall_id)
+        document = read_published(path)
+        if document is None:
+            return
+        kept = [entry for entry in document["entries"] if entry["work_id"] != artwork_id]
+        pinned = (document.get("directive") or {}).get("pinned_work_id") == artwork_id
+        if len(kept) == len(document["entries"]) and not pinned:
+            return
+        document["entries"] = kept
+        if pinned:
+            document["directive"] = {**document["directive"], "pinned_work_id": None}
+        document["generated_at"] = datetime.now(UTC).isoformat()
+        write_atomically(path, document)
+        log.info("Wall %r: took work %s off the published manifest (after %s).", self.get_wall(wall_id).name, artwork_id, cause)
+
+    def _advance(self, wall_id: str, *, pinned_work_id: str | None, pinned: PlayableWork | None = None) -> Directive:
         """Move one wall's directive on by one.
 
         The counter only ever increases, for the life of the wall. The display
@@ -1522,6 +1818,7 @@ class DisplayService:
             # Inside the transaction, so a directive that could not reach the
             # wall is not recorded as issued.
             self._publish_directive(wall_id, advanced)
+            self._restart_v2(wall_id, pinned=pinned)
         return advanced
 
     def _publish_directive(self, wall_id: str, directive: Directive) -> None:
@@ -1588,3 +1885,10 @@ def _media_moved(entry: dict[str, Any], answer: object) -> bool:
     published = (entry.get("media") or {}).get("sha256")
     offered = None if answer.media is None else answer.media.sha256
     return published != offered
+
+
+#: When a wall's published horizon has less than this left, its next heartbeat
+#: republishes it. Two of the horizon's three days: a server that comes back after
+#: a day away still finds a day in hand on every wall, and a live wall, which
+#: reports every few seconds, is extended about once a day.
+ROLL_WHEN_LEFT: Final[timedelta] = timedelta(days=2)

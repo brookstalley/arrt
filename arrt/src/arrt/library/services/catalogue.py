@@ -32,6 +32,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from PIL import Image, UnidentifiedImageError
+
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
@@ -1125,6 +1127,24 @@ class CatalogueService:
         hashed = replace(rendition, content_sha256=content[0], byte_size=content[1])
         store_write(self._store.update_rendition, hashed)
         return hashed
+
+    def pixel_size(self, rendition: Rendition) -> tuple[int, int] | None:
+        """The width and height of a rendition's file, read from its header, or None if it cannot be read.
+
+        Only the header is decoded, so this costs a few kilobytes of the file, not
+        the megabytes of the picture. A master's recorded target is its cap, so
+        this is the only place its real size is known.
+        """
+        if self._art_root is None:
+            return None
+        try:
+            with Image.open(self._art_root / rendition.relative_path) as image:
+                return image.size
+        except FileNotFoundError:
+            return None
+        except (OSError, UnidentifiedImageError) as exc:
+            log.warning("Could not read the size of %s: %s", rendition.relative_path, exc)
+            return None
 
     def read_media(self, content_sha256: str) -> tuple[Rendition, bytes] | None:
         """The bytes of the render with this hash, or None if none is held.

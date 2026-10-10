@@ -81,6 +81,17 @@ on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
   A rebuild keeps the slot on the wall now, and showing a work now or skipping
   starts fresh. Every work comes up once per cycle, and none twice running.
   Nothing calls it yet: chunk 02 publishes it.
+- Chunk 02: every path that publishes a wall's major 1 manifest now publishes
+  its major 2 feed beside it (`theme-manifest-{wall}.v2.json`), and
+  `/walls/{id}/manifest/v2` serves it with its ETag. The facade offers each
+  work's current presentation master, with its size read from the file, and
+  its mat colour. Re-hanging the same theme keeps the slot on the wall now.
+  Another theme, *show now* and *next* start fresh. A withdrawn or refused work
+  leaves the feed, and a new mat colour or master replaces its entry without
+  moving a slot. A heartbeat with under two days of horizon left rolls the
+  horizon forward. A work with no master stays on major 1 and is named. A
+  theme with works but no masters publishes no feed, so its Player stays on
+  major 1 (`player-contract.md` § The cutover, amended).
 
 **Tests:** `tests/unit/test_schedule.py` states the contract's slot rules, the
 household rule (a clash only where no work of the wall could avoid one, on
@@ -90,6 +101,18 @@ of the module ran 31 mutations, all caught: 30 by a failing test, and one (a
 zero-length slot let through) by the suite hanging, because the build never
 ends. The first pass let seven survive; each now has a test, or (the
 de-duplication of work ids) was replaced by a refusal that is tested.
+Chunk 02: `tests/unit/test_major_2_feed.py` drives each publish path in the
+plan's table. `tests/feed_guard.py` checks every feed any test builds against
+the schema and the root suite's `semantic_errors`, loaded from its file
+rather than copied. `test_player_surface.py`'s "major 2 answers 404" became
+major 3: wave 4e builds major 2, and the rule it protects (an unbuilt major
+answers 404) is kept with the next major up. A sweep of 30 mutations left
+five alive. One test had been passing only because a fresh slot and a kept
+one shared a second; it now ages the feed first. The other four have tests.
+All 30 are now caught. End to end, Arrt Player's own pull and compositor, run
+from its own interpreter against a booted server from this branch, asked for
+`v2`, adopted the feed, verified and cached the master, and composed it at
+1920×1200: black beyond a mat of the work's colour.
 
 ## 2026-10-09: Wave 4d — compositing moves to the Player
 

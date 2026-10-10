@@ -2953,8 +2953,8 @@ label type. Wave 4.
 
 ### Schedule entry *(Programming)*
 
-A work for one wall over a time span (from, until), computed for all walls
-together over a horizon of three days (`player-contract.md` § Settled before
+A work for one wall over a time span (from, until), computed for each wall
+against every other wall's published schedule over a horizon of three days (`player-contract.md` § Settled before
 wave 4), so rules such as "no work on two walls
 at once" are central calculations. Dark hours are gaps. The Player follows the
 clock from its cache. Wave 4, with schema major 2.
