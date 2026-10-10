@@ -47,7 +47,7 @@ class TestTheStateIsReported:
         await daemon.tick()
 
         document = heartbeat(wall_dir)
-        assert document["schema"] == {"major": 1, "minor": 3}
+        assert document["schema"] == {"major": 1, "minor": 4}
         assert display(wall_dir) == ("showing_art", "w1")
         # Kept, with their old meanings, for readers built before minor 3.
         assert document["current_work_id"] == "w1"

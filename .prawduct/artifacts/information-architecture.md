@@ -221,8 +221,10 @@ takes — and refuses one of five words or fewer that opens with "The ".
 - **"Search" means only the free search**: the top bar's box and its results
   page. The model's own web lookups while choosing works are *web lookups*.
 - **"Run" is not a curator-facing word**, nor *re-search*, *phase 1*,
-  *manifest build* or *directive*. A work comes back to a wall "the next time a
-  theme holding it is hung", and re-hanging is how to make that now.
+  *manifest build* or *directive*. A work comes back "into the rotation of every
+  wall hanging a theme that holds it", which it does by itself *(since 2026-10-10;
+  until then it came back "the next time a theme holding it is hung", and
+  re-hanging was how to make that happen sooner)*.
 - **One date formatter**, `core/dates.js`: a readable date and how long ago
   ("5 Oct 2026, 14:46 (3 days ago)"). The instant itself goes only in a
   `<time datetime>` or inside a *Details* disclosure; `tests/browser/
@@ -1021,6 +1023,9 @@ so the confirmation can state the consequence rather than predict it.
 > 2026-09-30, `tests/unit/test_reconciliation.py`). So the archive confirmations
 > say the room loses the work *now*, and no longer offer re-hanging as the way to
 > make it catch up. The rule that the confirmation names the rooms still holds.
+> *(Additions stopped waiting on 2026-10-10, the owner: a restore or an undo puts
+> the work back on every wall whose hung theme holds it as it lands, and the
+> restore confirmation says so, offering no remedy.)*
 
 **A screen states a fact once.** The Work screen carried the movement twice — as an
 eyebrow above the title and as a row in the facts list three lines below — which

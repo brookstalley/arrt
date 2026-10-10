@@ -77,28 +77,16 @@ const FACET_KIND_WORDS = {
 const DERIVATION_FOOTNOTE =
   `Every value above is inferred unless it carries ${GLYPHS.yes}, which marks the few a source recorded.`;
 
-/* What a restore does and, just as importantly, when.
+/* What a restore does at the wall.
  *
  * **The MCP surface's own sentence, deliberately.** Two surfaces stating one
  * fact in different words is how a reader learns to trust neither, and the
  * agent-facing notice for `art_catalogue(action='restore')` already says this.
- * It is here at all because restoring is as silent at the wall as archiving is:
- * nothing republishes a manifest, so a curator who restored a work and watched
- * an unchanged wall would reasonably conclude the restore had failed.
- *
- * **And it says how to cause one**, which it did not until the operator ruled
- * that a hung work may stay on the television so long as some path exists to
- * push the update. Naming *when* without naming *how* leaves the curator holding
- * a fact they cannot act on, which is this product's characteristic failure
- * wearing a longer sentence. The remedy is phrased for both surfaces because
- * both say it: a curator re-hangs from the Walls screen, an agent calls
- * `activate`, and `activate_theme` syncs unconditionally either way.
- *
- * The literal lives in `mcp/bindings.py` and is asserted into this file by
- * `tests/unit/test_client_vocabulary.py`, so the two surfaces cannot drift into
- * saying one thing in two wordings. */
-const RESTORE_CONSEQUENCE =
-  "It may go on walls again the next time a theme holding it is hung. Re-hanging a wall's current theme does that now.";
+ * It says the wall catches up by itself, for the reason `RESTORE_NOTICE` gives
+ * in `mcp/bindings.py`, where the literal lives; it is asserted into this file
+ * by `tests/unit/test_client_vocabulary.py`, so the two surfaces cannot drift
+ * into saying one thing in two wordings. */
+const RESTORE_CONSEQUENCE = "It goes back into the rotation of every wall hanging a theme that holds it.";
 
 function workPath(artworkId) {
   return `/api/works/${encodeURIComponent(artworkId)}`;
@@ -837,8 +825,8 @@ async function hangOn(control, wall, strip, work, where) {
   });
 }
 
-/* The undo for *Not this one again* from every wall. Nothing is republished, so
- * the sentence says when the work returns. */
+/* The undo for *Not this one again* from every wall. The work goes back on the
+ * walls whose theme holds it as the undo lands, and the sentence says so. */
 async function allowAgain(control, strip, work, where) {
   await attempt(control, `allow ${work.title} on walls again`, () => api(`/api/exclusions/${encodeURIComponent(work.artwork_id)}`, { method: "DELETE" }), {
     then: () => refreshStrip(strip, work, where, ALLOWED_AGAIN),
@@ -940,24 +928,18 @@ async function wallsShowing(artworkId) {
  * confirmation that says nothing about the wall because there is nothing to say
  * and one that says nothing because it never looked.
  *
- * **It says when, because nothing here republishes a manifest.** Archiving
- * changes the catalogue; the wall goes on showing the file it was last given
- * until that wall's manifest is next built. "Takes it off the wall" would be the
- * more satisfying sentence and would be a promise this product does not keep.
- *
- * **And it says how**, for the reason `RESTORE_CONSEQUENCE` records: the
- * operator's ruling that the picture may stay up rests on a path existing to
- * push the update, and a curator who is not told the path does not have one. The
- * remedy is worded to survive more than one wall — these names can be walls
- * hanging *different* themes, so it cannot say "that theme". */
+ * **It says "now"**, because the archive takes the work off every feed as it
+ * lands, and that Restore brings it back, which it does as the restore lands. It
+ * is worded to survive more than one wall — these names can be walls hanging
+ * *different* themes, so it cannot say "that theme". */
 function wallConsequence(names) {
   if (!names.length) return "";
   const walls = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
   // Now, not at the next hang: Programming takes an archived work off every
-  // published manifest that carries it as the archive lands (removals
-  // republish, additions wait; `tests/unit/test_reconciliation.py`).
+  // published feed that carries it as the archive lands
+  // (`tests/unit/test_reconciliation.py`).
   return `${walls} ${showing} this work, and ${losing} it now. It stays in the theme, and Restore brings it back.`;
 }
 

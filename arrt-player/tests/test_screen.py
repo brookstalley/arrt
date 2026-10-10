@@ -214,7 +214,7 @@ def _display(wall_dir) -> tuple[str, str | None]:
         e.message for e in Draft202012Validator(_SCHEMA, format_checker=Draft202012Validator.FORMAT_CHECKER).iter_errors(document)
     ]
     assert errors == [], errors
-    assert document["schema"] == {"major": 1, "minor": 3}
+    assert document["schema"] == {"major": 1, "minor": 4}
     return document["display_state"]["state"], document["display_state"]["work_id"]
 
 

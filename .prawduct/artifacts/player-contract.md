@@ -433,6 +433,18 @@ whose `current_work_id` the server reads as `showing_art`.
 it does not know as `unreachable`**, naming no work, and keeps the rest of the
 heartbeat: a later minor may add a state, and Players upgrade before the server.
 
+### The heartbeat, minor 4
+
+Minor 4 makes **`capabilities.screen` optional**. A Player sends `backend`,
+`label_modes` and `manifest_majors` always, and `screen` whenever its display
+knows its size; a screen that is unplugged has none. A reader records no size
+from capabilities without one, and refuses a `screen` it cannot read. *(Added
+2026-10-10, the owner, #348: until then a Player whose screen was unplugged
+sent no capabilities at all, and Walls told the curator to update a Player
+that was reading the feed.)* A minor 3 server refuses capabilities with no
+`screen`, so this minor is deployed server first, the one exception to
+Players upgrading before the server.
+
 ### The cutover
 
 **Each major is served at its own URL while a reader of it may exist, and a
@@ -474,8 +486,10 @@ upgraded on demand).
   can be sent publishes an empty feed, and a work without a master is not
   playable at all (it is named among the build's exclusions).
 - **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
-  a Player from before minor 2, which reads only major 1, or one whose display
-  cannot say its size. Reading its silence as "lists nothing" would let the
+  a Player from before minor 2, which reads only major 1. *(Until minor 4 it
+  could also be a Player whose display could not say its size, which is what
+  made an up-to-date Player with its screen unplugged read as one that cannot
+  read the feed, #348.)* Reading its silence as "lists nothing" would let the
   server retire the major that wall is running on. *(Added 2026-10-09, wave
   4c. Amended the same day, wave 4d: this named a Frame as a display that
   cannot say its size; Arrt Player now holds the Frame's geometry, composes

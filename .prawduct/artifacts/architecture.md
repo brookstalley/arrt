@@ -284,8 +284,13 @@ convenience would otherwise make that split a migration.
 > (`CatalogueStore.after_commit`). Programming subscribes through the facade.
 > Its handler and its startup reconciliation apply one rule: any work the Library
 > now refuses comes off every published manifest carrying it, and any pin naming
-> it is withdrawn. The published document is patched, never rebuilt, so
-> additions still wait for sync. `archive_artwork` writes no Programming table.
+> it is withdrawn. The published document is patched, never rebuilt. *(Since
+> 2026-10-10, the owner superseding the 2026-09-30 ruling that additions wait for
+> sync: a work of a wall's hung theme that the Library will now show joins that
+> wall's feed, by a republish that keeps the slot on the wall now; a wall with a
+> theme hung and no feed has one published at start; and the horizon rolls by
+> building the hung theme, `build-plan-feed-follows-theme.md`.)* `archive_artwork`
+> writes no Programming table.
 > `arrt/tests/unit/test_library_events.py` and
 > `arrt/tests/unit/test_reconciliation.py` hold it. *(2026-10-01: the same
 > subscriber and startup catch-up offer a newly accepted work to the default

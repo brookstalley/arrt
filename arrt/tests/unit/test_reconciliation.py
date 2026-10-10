@@ -2,11 +2,12 @@
 
 When the Library announces a change, Programming asks the facade about that work.
 A work the Library now refuses comes off every wall whose published feed carries
-it, including a work shown now from outside the theme. Nothing else arrives, so a
-work added to a theme since its last sync is not published as a side effect:
-additions wait for sync (the operator's ruling, 2026-09-30). Startup
-reconciliation applies the same rule to every wall, so an announcement lost to a
-crash delays a correction and never leaves it undone.
+it, including a work shown now from outside the theme. A work of a wall's hung
+theme that the Library will now show, and the feed lacks, joins it without a
+re-hang (the owner, 2026-10-10, superseding the 2026-09-30 ruling that additions
+wait for sync). Startup reconciliation applies the same rules to every wall, and
+publishes a hung theme's feed for a wall that has none, so an announcement lost
+to a crash delays a correction and never leaves it undone.
 
 Also here, because they rewrite the same document: `next` and `show_now` reach
 the published feed, and a hang whose feed cannot be written is not recorded.
@@ -15,11 +16,12 @@ the published feed, and a hang whose feed cannot be written is not recorded.
 import hashlib
 import json
 import logging
+from datetime import UTC, datetime
 
 import pytest
 
 from arrt.library.services.catalogue import CatalogueService
-from arrt.persistence.records import FetchStatus, RenditionKind
+from arrt.persistence.records import FetchStatus, RenditionKind, ThemeMembership
 from arrt.programming import display as display_module
 from arrt.services.errors import ServiceError
 
@@ -77,7 +79,7 @@ def _re_acquire(service, work) -> None:
     )
 
 
-# -- the handler: removals republish, additions wait --------------------------------
+# -- the handler: the feed follows what the Library will show -----------------------
 
 
 def test_archiving_a_work_takes_it_off_exactly_the_walls_that_carry_it(
@@ -133,7 +135,7 @@ def test_a_render_left_stale_by_a_new_original_comes_off_the_wall(service, ready
     assert _entry_ids(wall_settings, wall_id) == [kept.id]
 
 
-def test_accepting_a_work_republishes_nothing(service, ready_work, hung, wall_id, wall_settings):
+def test_accepting_a_work_no_hung_theme_holds_republishes_nothing(service, ready_work, hung, wall_id, wall_settings):
     hung(wall_id, ready_work())
     before = wall_settings.manifest_v2_path(wall_id).read_bytes()
 
@@ -142,28 +144,103 @@ def test_accepting_a_work_republishes_nothing(service, ready_work, hung, wall_id
     assert wall_settings.manifest_v2_path(wall_id).read_bytes() == before
 
 
-def test_a_work_added_since_the_last_sync_is_not_published_by_an_archive(
+def test_a_work_added_to_a_hung_theme_reaches_the_wall_at_once(service, display, ready_work, hung, wall_id, study, wall_settings):
+    """No re-hang: the theme on the wall is the curator's choice, and its works follow it."""
+    kept = ready_work(title="Chop Suey")
+    theme = hung(wall_id, kept)
+    hung(study, ready_work(title="Nighthawks"), name="Daylight")
+    on_the_wall = _first(wall_settings, wall_id)
+    untouched = wall_settings.manifest_v2_path(study).read_bytes()
+    joining = ready_work(title="Automat")
+
+    display.add_to_theme(theme_id=theme.id, artwork_id=joining.id)
+
+    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, joining.id])
+    assert _first(wall_settings, wall_id) == on_the_wall, "the work on the wall now finishes its slot"
+    assert wall_settings.manifest_v2_path(study).read_bytes() == untouched, "a wall hanging another theme was rewritten"
+
+
+def test_many_works_added_to_a_hung_theme_reach_the_wall(display, ready_work, hung, wall_id, wall_settings):
+    kept = ready_work(title="Chop Suey")
+    theme = hung(wall_id, kept)
+    joining = [ready_work(title="Automat"), ready_work(title="Nighthawks")]
+
+    display.add_works_to_theme(theme_id=theme.id, artwork_ids=[work.id for work in joining])
+
+    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, *(work.id for work in joining)])
+
+
+def test_a_work_added_that_cannot_be_shown_rewrites_nothing(display, ready_work, hung, wall_id, wall_settings):
+    """A theme member the Library refuses joins no feed, so the wall's feed is left byte for byte."""
+    theme = hung(wall_id, ready_work(title="Chop Suey"))
+    before = wall_settings.manifest_v2_path(wall_id).read_bytes()
+
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work(title="Automat", master=False).id)
+
+    assert wall_settings.manifest_v2_path(wall_id).read_bytes() == before
+
+
+def test_a_work_taken_out_of_a_hung_theme_leaves_the_wall_at_once(display, ready_work, hung, wall_id, wall_settings):
+    leaving, kept, also = ready_work(title="Automat"), ready_work(title="Chop Suey"), ready_work(title="Nighthawks")
+    theme = hung(wall_id, leaving, kept, also)
+
+    display.remove_from_theme(theme_id=theme.id, artwork_id=leaving.id)
+    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, also.id])
+
+    display.remove_works_from_theme(theme_id=theme.id, artwork_ids=[also.id])
+    assert _entry_ids(wall_settings, wall_id) == [kept.id]
+
+
+def test_an_archive_takes_its_work_off_and_leaves_the_rest_of_the_theme_on(
     service, display, ready_work, hung, wall_id, wall_settings
 ):
-    """Additions wait for sync, even when a removal rewrites the same document."""
     gone = ready_work(title="Nighthawks")
     kept = ready_work(title="Chop Suey")
     theme = hung(wall_id, gone, kept)
-    waiting = ready_work(title="Automat")
-    display.add_to_theme(theme_id=theme.id, artwork_id=waiting.id)
+    joined = ready_work(title="Automat")
+    display.add_to_theme(theme_id=theme.id, artwork_id=joined.id)
 
     service.archive_artwork(gone.id)
 
+    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, joined.id])
+
+
+def test_a_work_allowed_back_reaches_the_walls_whose_theme_holds_it_and_no_other(
+    display, ready_work, hung, wall_id, study, wall_settings
+):
+    work, kept = ready_work(title="Automat"), ready_work(title="Chop Suey")
+    hung(wall_id, work, kept)
+    hung(study, ready_work(title="Nighthawks"), name="Daylight")
+    display.exclude_work(work.id)
     assert _entry_ids(wall_settings, wall_id) == [kept.id]
-    display.sync(wall_id)
-    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, waiting.id])
+    untouched = wall_settings.manifest_v2_path(study).read_bytes()
+
+    display.allow_work(work.id)
+
+    assert _entry_ids(wall_settings, wall_id) == sorted([work.id, kept.id])
+    assert wall_settings.manifest_v2_path(study).read_bytes() == untouched, "a wall whose theme lacks it was rewritten"
 
 
-def test_a_new_master_does_not_republish(service, ready_work, hung, wall_id, wall_settings, decodable_jpeg):
-    """Readiness gained waits for sync, like any addition."""
+def test_a_restored_work_goes_back_on_the_wall(service, ready_work, hung, wall_id, wall_settings):
+    """Archive takes it off and Restore puts it back, each as it lands, as the Work page says."""
+    work, kept = ready_work(title="Automat"), ready_work(title="Chop Suey")
+    hung(wall_id, work, kept)
+    service.archive_artwork(work.id)
+    assert _entry_ids(wall_settings, wall_id) == [kept.id]
+
+    service.restore_artwork(work.id)
+
+    assert _entry_ids(wall_settings, wall_id) == sorted([work.id, kept.id])
+
+
+def test_a_work_that_gains_its_master_joins_the_hung_themes_feed(
+    service, ready_work, hung, wall_id, wall_settings, decodable_jpeg
+):
+    """Readiness gained reaches the wall, as any addition to the hung theme does."""
     unmastered = ready_work(title="Automat", master=False)
-    hung(wall_id, ready_work(), unmastered)
-    before = wall_settings.manifest_v2_path(wall_id).read_bytes()
+    kept = ready_work()
+    hung(wall_id, kept, unmastered)
+    assert _entry_ids(wall_settings, wall_id) == [kept.id]
 
     decodable_jpeg(wall_settings.art_root / "masters/a.jpg", width=400, height=300)
     service.record_rendition(
@@ -174,7 +251,18 @@ def test_a_new_master_does_not_republish(service, ready_work, hung, wall_id, wal
         path="masters/a.jpg",
     )
 
-    assert wall_settings.manifest_v2_path(wall_id).read_bytes() == before
+    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, unmastered.id])
+
+
+def test_a_new_work_accepted_into_the_hung_default_theme_reaches_the_wall(display, ready_work, hung, wall_id, wall_settings):
+    """The whole chain through the Library's announcements: acceptance offers the default, the master makes it showable."""
+    kept = ready_work(title="Chop Suey")
+    theme = hung(wall_id, kept, name="All works")
+    display.make_default(theme.id)
+
+    arrived = ready_work(title="Automat")
+
+    assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, arrived.id])
 
 
 # -- a work shown now --------------------------------------------------------------
@@ -252,6 +340,49 @@ def test_a_second_start_finds_nothing_to_do_and_says_so(store, services, ready_w
     assert any("nothing to change" in record.getMessage() for record in caplog.records)
 
 
+def test_startup_publishes_the_hung_themes_feed_for_a_wall_that_has_none(services, ready_work, hung, wall_id, wall_settings):
+    """A wall with a theme hung and no feed, as the wave 4g upgrade left one: it shows nothing new until it has one."""
+    works = [ready_work(title="Nighthawks"), ready_work(title="Automat")]
+    hung(wall_id, *works)
+    wall_settings.manifest_v2_path(wall_id).unlink()
+
+    result = services.display.reconcile()
+
+    assert result.republished == (wall_id,)
+    assert _entry_ids(wall_settings, wall_id) == sorted(work.id for work in works)
+
+
+def test_an_announcement_about_a_member_that_still_cannot_join_rewrites_nothing(
+    store, services, ready_work, hung, wall_id, study, wall_settings
+):
+    """Republishing reshuffles the future, so it happens only when a work joins.
+
+    Each wall's theme holds a member its feed lacks for a reason that stays
+    true: one with no master, and one kept off every wall. Both are asked
+    about by name, neither may cause a rewrite, and nor may a start.
+    """
+    unmastered = ready_work(title="Automat", master=False)
+    hung(wall_id, ready_work(title="Chop Suey"), unmastered)
+    kept_off = ready_work(title="Nighthawks")
+    hung(study, ready_work(title="Night Windows"), kept_off, name="Daylight")
+    services.display.exclude_work(kept_off.id)
+    before = {wall: wall_settings.manifest_v2_path(wall).read_bytes() for wall in (wall_id, study)}
+
+    named = services.display.reconcile([unmastered.id, kept_off.id], cause="re-rendered")
+    at_start = services.display.reconcile()
+
+    assert named.asked == 2
+    assert not named.changed
+    assert not at_start.changed
+    assert {wall: wall_settings.manifest_v2_path(wall).read_bytes() for wall in (wall_id, study)} == before
+
+
+def test_a_wall_with_nothing_hung_gains_no_feed_at_startup(display, wall_id, wall_settings):
+    display.reconcile()
+
+    assert not wall_settings.manifest_v2_path(wall_id).exists()
+
+
 def test_a_start_with_nothing_published_asks_about_nothing(display):
     assert display.reconcile().asked == 0
 
@@ -296,10 +427,14 @@ def test_show_now_reaches_the_published_feed_without_a_sync(display, ready_work,
     assert _first(wall_settings, wall_id) == work.id
 
 
-def test_a_step_publishes_no_work_added_since_the_last_sync(display, ready_work, hung, wall_id, wall_settings):
+def test_a_step_publishes_no_work_the_feed_does_not_carry(store, display, ready_work, hung, wall_id, wall_settings):
+    """A step moves the wall on through the works published; adding is the hung theme's business, not a step's."""
     theme = hung(wall_id, ready_work(title="Nighthawks"))
     before = _entry_ids(wall_settings, wall_id)
-    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work(title="Automat").id)
+    # Written around the service, as a membership whose follow-up a crash lost.
+    store.add_membership(
+        ThemeMembership(theme_id=theme.id, artwork_id=ready_work(title="Automat").id, added_at=datetime.now(UTC))
+    )
 
     display.step_display(wall_id)
 
@@ -347,6 +482,38 @@ def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_
         display.activate_theme(second.id, wall_id=wall_id)
 
     assert display.hanging_on(wall_id).id == first.id
+
+
+@pytest.mark.parametrize("act", ["add", "allow", "remove", "remove_many"])
+def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_work, hung, wall_id, monkeypatch, act):
+    """Adding to or taking from a hung theme, or allowing a work back, writes the feed in its transaction.
+
+    So a full disk refuses the edit.
+    """
+    work = ready_work(title="Automat")
+    theme = hung(wall_id, ready_work(title="Nighthawks"), *([] if act == "add" else [work]))
+    if act == "allow":
+        display.exclude_work(work.id)
+
+    def full_disk(path, document):
+        raise OSError("No space left on device")
+
+    edit = {
+        "add": lambda: display.add_to_theme(theme_id=theme.id, artwork_id=work.id),
+        "allow": lambda: display.allow_work(work.id),
+        "remove": lambda: display.remove_from_theme(theme_id=theme.id, artwork_id=work.id),
+        "remove_many": lambda: display.remove_works_from_theme(theme_id=theme.id, artwork_ids=[work.id]),
+    }[act]
+    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    with pytest.raises(OSError, match="No space left on device"):
+        edit()
+
+    if act == "add":
+        assert work.id not in display.theme_work_ids(theme.id)
+    elif act in ("remove", "remove_many"):
+        assert work.id in display.theme_work_ids(theme.id)
+    else:
+        assert [exclusion.artwork_id for exclusion in display.excluded_works()] == [work.id]
 
 
 def test_a_hang_that_is_refused_before_writing_changes_nothing(display, wall_id):
@@ -408,9 +575,14 @@ def test_each_wall_names_only_the_works_it_lost(store, display, ready_work, hung
 
 
 def test_a_new_master_points_the_published_feed_at_the_new_bytes(
-    service, display, ready_work, hung, wall_id, wall_settings, decodable_jpeg
+    store, service, display, ready_work, hung, wall_id, wall_settings, decodable_jpeg
 ):
-    """The old hash is one `/media` no longer serves, so the entry follows the master without a sync."""
+    """The old hash is one `/media` no longer serves, so the entry follows the master without a sync.
+
+    A patch, not a rebuild: a member the feed lacks, written around the service
+    so nothing announced it, is not published by an announcement about another
+    work, and no slot moves.
+    """
     work = ready_work()
     master = next(
         view.rendition for view in service.list_renditions(work.id) if view.rendition.kind is RenditionKind.PRESENTATION_MASTER
@@ -419,7 +591,7 @@ def test_a_new_master_points_the_published_feed_at_the_new_bytes(
     theme = hung(wall_id, work)
     before = _published(wall_settings, wall_id)
     waiting = ready_work(title="Automat")
-    display.add_to_theme(theme_id=theme.id, artwork_id=waiting.id)
+    store.add_membership(ThemeMembership(theme_id=theme.id, artwork_id=waiting.id, added_at=datetime.now(UTC)))
 
     decodable_jpeg(target, width=400, height=300, color=(200, 40, 40))
     service.record_rendition(

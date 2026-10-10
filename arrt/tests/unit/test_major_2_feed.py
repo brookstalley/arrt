@@ -20,7 +20,7 @@ from arrt.library.facade import UnplayableReason
 from arrt.library.services import catalogue as catalogue_module
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
-from arrt.persistence.records import MatMethod, RenditionKind
+from arrt.persistence.records import MatMethod, RenditionKind, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming.display import Unjudged
 from arrt.programming.manifest.v2 import read_published
@@ -322,6 +322,56 @@ def test_a_heartbeat_with_under_two_days_left_rolls_the_horizon_forward(
     assert rolled.slots[0] == on_the_wall
     # At the theme's own pace, not the deployment's default.
     assert {slot.until - slot.start for slot in rolled.slots[1:-1]} == {timedelta(seconds=HOUR)}
+
+
+def test_a_rolled_horizon_goes_on_through_the_theme_past_the_works_the_last_one_named(
+    display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """A feed names only what its horizon schedules, so a roll that cycled those alone narrowed the theme for good."""
+    works = [mastered(title) for title in "ABCDEF"]
+    display.activate_theme(theme_of(*works, interval=24 * HOUR).id, wall_id=wall_id)
+    first = set(feed(wall_id).works)
+    assert first < {work.id for work in works}, "the horizon names every work, so nothing here can narrow"
+    _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
+
+    display.record_heartbeat(wall_id, _heartbeat())
+
+    assert set(feed(wall_id).works) - first
+
+
+def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
+    store, caplog, display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """An announcement lost to a crash: the next roll builds the hung theme, so the work arrives within a day."""
+    theme = theme_of(mastered("A"))
+    display.activate_theme(theme.id, wall_id=wall_id)
+    lost = mastered("B")
+    store.add_membership(ThemeMembership(theme_id=theme.id, artwork_id=lost.id, added_at=_now(), position=1))
+    _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
+
+    with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
+        display.record_heartbeat(wall_id, _heartbeat())
+
+    assert lost.id in feed(wall_id).works
+    assert any("rolled its horizon forward from theme" in record.getMessage() for record in caplog.records)
+
+
+def test_a_roll_on_a_wall_with_nothing_hung_goes_on_with_what_it_carries(
+    display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """A wall whose theme was taken down keeps showing what it was showing; a roll does not empty it."""
+    works = {mastered("A").id, mastered("B").id}
+    theme = display.add_theme(name="Taken down")
+    for work_id in sorted(works):
+        display.add_to_theme(theme_id=theme.id, artwork_id=work_id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    display.clear_wall(wall_id)
+    _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
+
+    display.record_heartbeat(wall_id, _heartbeat())
+
+    assert set(feed(wall_id).works) == works
+    assert feed(wall_id).horizon_until - _now() > timedelta(days=2, hours=23)
 
 
 def test_a_heartbeat_with_more_than_two_days_left_rewrites_nothing(display, mastered, theme_of, wall_id, wall_settings):
@@ -645,7 +695,9 @@ def test_a_wall_judged_fine_says_what_it_was_judged_against(display, mastered, t
     "capabilities",
     [
         "not an object",
-        {"backend": "framebuffer"},
+        # Minor 4 made the screen optional, and one that is there is still read.
+        {"screen": "3840x2160"},
+        {"screen": {"width_px": 3840}},
         {"screen": {"width_px": 0, "height_px": 2160}},
         {"screen": {"width_px": 3840, "height_px": "2160"}},
         {"screen": {"width_px": True, "height_px": 2160}},
@@ -656,6 +708,24 @@ def test_a_heartbeat_with_a_screen_this_server_cannot_read_is_refused(display, w
         display.record_heartbeat(wall_id, {**_heartbeat(), "capabilities": capabilities})
 
     assert display.largest_screen(wall_id) is None
+
+
+def test_a_heartbeat_whose_player_cannot_see_its_screen_is_kept_and_judges_nothing(
+    display, mastered, theme_of, wall_id, shown_by_a_client
+):
+    """Minor 4: capabilities with no screen. Its majors count; no size is recorded from it."""
+    display.activate_theme(theme_of(mastered("Tiny", width=400, height=300)).id, wall_id=wall_id)
+    beat = {
+        **_heartbeat(),
+        "schema": {"major": 1, "minor": 4},
+        "capabilities": {"backend": "framebuffer", "label_modes": ["none"], "manifest_majors": [2]},
+    }
+
+    display.record_heartbeat(wall_id, beat)
+
+    assert display.get_wall_view(wall_id).reads_feed is True
+    assert display.largest_screen(wall_id) is None
+    assert display.too_small_on(wall_id) == frozenset()
 
 
 def test_the_same_size_reported_within_the_hour_writes_nothing(store, display, wall_id, shown_by_a_client):
@@ -677,13 +747,13 @@ def test_the_same_size_reported_after_the_hour_refreshes_its_time(store, display
     assert refreshed > two_hours_ago + timedelta(hours=1)
 
 
-# -- a work that gains its master after a sync joins the feed ------------------------------
+# -- a work that gains its master after a hang joins the feed ------------------------------
 
 
-def test_a_work_that_gains_its_master_after_the_sync_waits_for_the_next_sync(
+def test_a_work_that_gains_its_master_after_the_hang_joins_the_feed(
     services, display, mastered, ready_work, theme_of, wall_id, wall_settings, decodable_jpeg, feed
 ):
-    """Gaining a master is readiness gained, and readiness gained waits for sync, like any addition."""
+    """Gaining a master is readiness gained, and the hung theme's feed follows it (the owner, 2026-10-10)."""
     early, late = mastered("Early"), ready_work("Late", master=False)
     display.activate_theme(theme_of(early, late).id, wall_id=wall_id)
     assert set(feed(wall_id).works) == {early.id}
@@ -694,18 +764,15 @@ def test_a_work_that_gains_its_master_after_the_sync_waits_for_the_next_sync(
         artwork_id=late.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
     )
 
-    assert set(feed(wall_id).works) == {early.id}
-    display.sync(wall_id)
     assert set(feed(wall_id).works) == {early.id, late.id}
 
 
-def test_a_work_off_the_manifest_does_not_join_the_feed_when_it_gains_a_master(
+def test_a_work_in_no_hung_theme_does_not_join_the_feed_when_it_gains_a_master(
     services, display, mastered, ready_work, theme_of, wall_id, wall_settings, decodable_jpeg, feed
 ):
-    theme = theme_of(mastered("Early"))
-    display.activate_theme(theme.id, wall_id=wall_id)
-    outsider = ready_work("Added since the sync")
-    display.add_to_theme(theme_id=theme.id, artwork_id=outsider.id)
+    display.activate_theme(theme_of(mastered("Early")).id, wall_id=wall_id)
+    outsider = ready_work("In another theme", master=False)
+    display.add_to_theme(theme_id=display.add_theme(name="Elsewhere").id, artwork_id=outsider.id)
 
     path = f"masters/{outsider.id}.jpg"
     decodable_jpeg(wall_settings.art_root / path, width=3000, height=2000)
@@ -713,7 +780,6 @@ def test_a_work_off_the_manifest_does_not_join_the_feed_when_it_gains_a_master(
         artwork_id=outsider.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
     )
 
-    # Deciding when new work reaches the wall is what sync is for.
     assert outsider.id not in feed(wall_id).works
 
 

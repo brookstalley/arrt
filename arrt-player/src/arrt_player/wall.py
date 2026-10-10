@@ -393,14 +393,16 @@ class Wall:
                 "the heartbeat is being written again", extra={"event": "heartbeat.recovered", "wall_id": self._wall.wall_id}
             )
 
-    def _capabilities(self) -> dict[str, Any] | None:
-        """The heartbeat's `capabilities`, or None while the display does not know its screen's size."""
+    def _capabilities(self) -> dict[str, Any]:
+        """The heartbeat's `capabilities`, with `screen` only while the display knows its size.
+
+        The rest goes regardless (heartbeat minor 4): the server reads a
+        heartbeat with no capabilities as a Player that cannot read its feed.
+        """
         found = self._display.capabilities()
-        if found.screen is None:
-            return None
-        width, height = found.screen
+        screen = {} if found.screen is None else {"screen": {"width_px": found.screen[0], "height_px": found.screen[1]}}
         return {
-            "screen": {"width_px": width, "height_px": height},
+            **screen,
             "backend": found.backend,
             "label_modes": list(found.label_modes),
             "manifest_majors": list(REQUESTED_MAJORS),

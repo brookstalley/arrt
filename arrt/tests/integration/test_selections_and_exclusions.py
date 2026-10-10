@@ -246,19 +246,26 @@ class TestNotThisOneAgain:
         assert published(settings, study["wall_id"]) == {stays.id}
         assert [(row["artwork_id"], row["reason"]) for row in rebuilt["exclusions"]] == [(gone.id, "kept_off_every_wall")]
 
-    def test_undo_lets_it_back_on_at_the_next_hang(self, http, settings, the_wall, two_walls_hanging):
+    def test_undo_puts_it_back_on_the_walls_whose_theme_holds_it(self, http, settings, the_wall, two_walls_hanging):
+        """The hung theme's feed follows it (the owner, 2026-10-10), so the undo needs no re-hang.
+
+        Asserted across the two walls rather than on each: they share only these
+        two works, and the household rule then lets each wall show one of them
+        for the whole horizon, so which wall names the returning work is the
+        schedule's choice. Both feeds are republished either way.
+        """
         gone, stays, study = two_walls_hanging
         http.post(f"/api/walls/{the_wall['wall_id']}/not-again", json={"artwork_id": gone.id, "scope": "every_wall"})
+        walls = (the_wall["wall_id"], study["wall_id"])
+        assert all(published(settings, wall_id) == {stays.id} for wall_id in walls)
+        before = {wall_id: settings.manifest_v2_path(wall_id).read_bytes() for wall_id in walls}
 
         response = http.delete(f"/api/exclusions/{gone.id}")
 
         assert response.status_code == 200
         assert response.json()["exclusions"] == []
-        # Nothing is republished by the undo itself; the next hang carries it.
-        assert published(settings, study["wall_id"]) == {stays.id}
-        hopper = next(p["theme"] for p in http.get("/api/themes").json()["themes"] if p["theme"]["name"] == "Hopper")
-        hang(http, hopper, study)
-        assert published(settings, study["wall_id"]) == {gone.id, stays.id}
+        assert gone.id in set().union(*(published(settings, wall_id) for wall_id in walls))
+        assert all(settings.manifest_v2_path(wall_id).read_bytes() != before[wall_id] for wall_id in walls)
 
     def test_an_excluded_work_cannot_be_shown_now(self, http, services, the_wall, two_walls_hanging):
         gone, _, _ = two_walls_hanging

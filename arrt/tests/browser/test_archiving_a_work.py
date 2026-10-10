@@ -130,8 +130,7 @@ def test_the_confirmation_says_the_room_loses_it_now(ui, ready_work, hang):
     """When the room loses the picture: now, as the archive lands.
 
     Programming takes an archived work off every published manifest that
-    carries it as soon as the Library announces the archive (removals
-    republish, additions wait: the operator's ruling of 2026-09-30, pinned by
+    carries it as soon as the Library announces the archive (pinned by
     `tests/unit/test_reconciliation.py`). This confirmation once said the room
     would lose it "the next time its theme is hung" and offered re-hanging as
     the way to make it catch up, which promised a delay and a remedy that no
@@ -265,11 +264,7 @@ def test_confirming_archives_the_work_and_the_screen_becomes_its_own_undo(ui, re
 
 
 def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work, service):
-    """The undo asks too, and its sentence is about *when* the room changes.
-
-    Nothing here republishes a manifest, so a curator who restored a work and
-    watched an unchanged wall would reasonably conclude the restore had failed.
-    """
+    """The undo asks too, and its sentence says what the room does: take the work back by itself."""
     work = ready_work(title="Nighthawks")
     service.archive_artwork(work.id)
 
@@ -278,9 +273,7 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
     assert ui.page.inner_text(".confirm-title") == "Restore Nighthawks?"
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "the next time" in consequence
-    assert "hung" in consequence
-    assert "Re-hanging" in consequence
+    assert consequence == "It goes back into the rotation of every wall hanging a theme that holds it."
 
     ui.page.click(".confirm-actions button:has-text('Restore')")
     ui.page.wait_for_selector("#view button:has-text('Archive')")

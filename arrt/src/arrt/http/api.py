@@ -1047,8 +1047,8 @@ def archive_work(request: Request, artwork_id: str) -> WorkDetailOut:
     label follows the route, and the control this binds to reads *Archive*.
 
     The work stays in every theme that holds it — membership is curatorial and
-    readiness is technical — so what changes is what the next manifest build puts
-    on a wall. A standing pin naming this work is withdrawn in the same
+    readiness is technical — and every wall's feed loses it as the archive
+    lands. A standing pin naming this work is withdrawn in the same
     transaction, without advancing the sequence; both rules belong to the
     catalogue service and are not restated here.
 
@@ -1068,9 +1068,8 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """Return an archived work to circulation.
 
     The undo of the route above, and its existence is what makes archiving an
-    ordinary act rather than a destructive one. Nothing is republished: a theme
-    holding this work carries it again at the next manifest build, so the wall
-    goes on showing what it was showing until then.
+    ordinary act rather than a destructive one. Every wall hanging a theme that
+    holds the work takes it back as the restore lands, if it can be shown.
     """
     services = _services(request)
     services.catalogue.restore_artwork(artwork_id)
@@ -1182,7 +1181,7 @@ def remove_selection_from_theme(request: Request, theme_id: str, body: WorkSelec
 
 @router.delete("/themes/{theme_id}/works/{artwork_id}")
 def remove_from_theme(request: Request, theme_id: str, artwork_id: str) -> ThemeDetailOut:
-    """Take a work out of a theme, and return the order that results."""
+    """Take a work out of a theme, and every wall hanging it, and return the order that results."""
     services = _services(request)
     services.display.remove_from_theme(theme_id=theme_id, artwork_id=artwork_id)
     return _theme_detail(services, theme_id)
@@ -1351,8 +1350,8 @@ def list_exclusions(request: Request) -> ExcludedWorkListOut:
 def allow_again(request: Request, artwork_id: str) -> ExcludedWorkListOut:
     """Let a work kept off every wall go on walls again: the undo, from the work's page.
 
-    Nothing is republished. A theme holding the work carries it again at its
-    next build, as with a restored work. Answers with the exclusions that remain.
+    Every wall hanging a theme that holds the work takes it back now, as with a
+    restored work. Answers with the exclusions that remain.
     """
     services = _services(request)
     services.display.allow_work(artwork_id)

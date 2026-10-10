@@ -64,10 +64,11 @@ REPORTED_AT_KEY: Final[str] = "reported_at"
 INTERVAL_SECONDS: Final[float] = 60.0
 
 #: The heartbeat's version, as `heartbeat.v1`'s `schema` key carries it. Minor 3
-#: is the first to carry `display_state` (`player-contract.md` § The heartbeat,
-#: minor 3); the server reads any minor of major 1 and keeps keys it does not know.
+#: is the first to carry `display_state`, and minor 4 the first to send
+#: `capabilities` without `screen` (`player-contract.md` § The heartbeat); the
+#: server reads any minor of major 1 and keeps keys it does not know.
 SCHEMA_MAJOR: Final[int] = 1
-SCHEMA_MINOR: Final[int] = 3
+SCHEMA_MINOR: Final[int] = 4
 
 
 class ScreenState(enum.StrEnum):
@@ -163,9 +164,11 @@ class Health:
     display_state: DisplayReport | None = None
     #: What this wall's display can do (minor 2): its screen, its backend, the
     #: label modes it can draw and the manifest majors this Player asks for.
-    #: **Left out while the screen's size is unknown**, because the contract
-    #: requires one and a guessed size would mislead Programming's judgement of
-    #: whether a work is big enough for the wall.
+    #: **The wall loop always sends it; only `screen` inside it is left out
+    #: while the size is unknown** (minor 4), because a guessed size would
+    #: mislead Programming's judgement of whether a work is big enough. Leaving
+    #: the whole block out reads as a Player that cannot read the feed. None
+    #: only for a writer with no display to ask.
     capabilities: dict[str, Any] | None = None
     #: The scene the wall is showing, or None when it follows its schedule
     #: (minor 2).

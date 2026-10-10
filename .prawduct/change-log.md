@@ -66,6 +66,34 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-10: The feed follows the hung theme, and heartbeat minor 4 (#348, #349)
+
+<!-- prawduct: scope=feed-follows-theme -->
+
+**Why:** A work added to a hung theme reached the wall only on a re-hang
+(#349), and a Player with its screen unplugged sent no capabilities, so Walls
+named it as not reading the feed (#348). The owner's 2026-10-10 ruling, that
+additions reach the wall without a re-hang, supersedes the 2026-09-30 "additions
+wait for sync". `build-plan-feed-follows-theme.md` carries the plan.
+
+**What:**
+- Heartbeat minor 4: the screen block is optional, and the Player always sends
+  the manifest majors it reads.
+- Adding a work to a hung theme, or allowing one back, republishes the feeds
+  of the walls hanging that theme and no others; removing one withdraws it at
+  once. An edit whose feed cannot be written is refused whole.
+- Start-up publishes a feed for a hung wall that has none, and the daily roll
+  builds from the hung theme rather than the previous feed's works, which had
+  narrowed a theme larger than one horizon to its first horizon for good.
+- Reorders and pace changes still reach the wall at the next roll or on
+  re-hang.
+- The restore and undo sentences say the wall catches up by itself.
+
+**Deploy:** the server first, then the Player, the reverse of the contract's
+usual Player-first order: an older server refuses a heartbeat without a screen
+block, so Walls would show that wall as silent until the server catches up. To
+roll back, revert the Player first (`deploy/README.md` § Heartbeat minor 4).
+
 ## 2026-10-10: The cutover: walls on manifest major 2 alone (wave 4g)
 
 <!-- prawduct: scope=wave-4g-cutover -->

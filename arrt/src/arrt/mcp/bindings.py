@@ -73,7 +73,7 @@ Binding = Callable[[Services, Mapping[str, Any]], dict[str, Any]]
 #: model could see in the schema and never have applied.
 _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKind)
 
-#: What restoring a work does at the wall, and when, and how to make it sooner.
+#: What restoring a work does at the wall.
 #:
 #: **A module constant because the browser says the identical sentence.**
 #: `screens/work.js` holds this text verbatim, and two surfaces stating one fact
@@ -84,16 +84,13 @@ _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKin
 #: curator. Naming it here rather than inline is what gives that test something
 #: to import.
 #:
-#: **The second sentence exists because of a ruling.** The operator ruled on
-#: 2026-08-12 that a work archived while hanging may stay on the television, on
-#: condition that some path exists to push the update — so the surfaces owe the
-#: path, not merely the timing. It is worded for both audiences: a curator
-#: re-hangs from the Walls screen, an agent calls `activate`, and
-#: `DisplayService.activate_theme` writes the assignment and syncs
-#: unconditionally, so hanging what is already hanging republishes.
-RESTORE_NOTICE: Final[str] = (
-    "It may go on walls again the next time a theme holding it is hung. " "Re-hanging a wall's current theme does that now."
-)
+#: **It says the wall catches up by itself, and offers no remedy.** A hung
+#: theme's feed takes back a work that can be shown again as the restore lands
+#: (the owner, 2026-10-10). Until then this sentence named re-hanging as the way
+#: to make the wall catch up, which the 2026-08-12 ruling required while nothing
+#: republished an addition; a remedy for a delay that no longer exists would
+#: send the curator to do something pointless.
+RESTORE_NOTICE: Final[str] = "It goes back into the rotation of every wall hanging a theme that holds it."
 
 #: What `art_theme(action='allow_again')` and the Work page's *Allow on walls
 #: again* both say. Restoring an archived work and letting a kept-off work back
