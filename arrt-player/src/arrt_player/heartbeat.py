@@ -164,9 +164,11 @@ class Health:
     display_state: DisplayReport | None = None
     #: What this wall's display can do (minor 2): its screen, its backend, the
     #: label modes it can draw and the manifest majors this Player asks for.
-    #: **Left out while the screen's size is unknown**, because the contract
-    #: requires one and a guessed size would mislead Programming's judgement of
-    #: whether a work is big enough for the wall.
+    #: **The wall loop always sends it; only `screen` inside it is left out
+    #: while the size is unknown** (minor 4), because a guessed size would
+    #: mislead Programming's judgement of whether a work is big enough. Leaving
+    #: the whole block out reads as a Player that cannot read the feed. None
+    #: only for a writer with no display to ask.
     capabilities: dict[str, Any] | None = None
     #: The scene the wall is showing, or None when it follows its schedule
     #: (minor 2).

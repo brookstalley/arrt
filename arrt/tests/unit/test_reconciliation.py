@@ -484,6 +484,31 @@ def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_
     assert display.hanging_on(wall_id).id == first.id
 
 
+@pytest.mark.parametrize("act", ["add", "allow"])
+def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_work, hung, wall_id, monkeypatch, act):
+    """Adding to a hung theme, or allowing a work back, writes the feed in its transaction, so a full disk refuses the edit."""
+    work = ready_work(title="Automat")
+    theme = hung(wall_id, ready_work(title="Nighthawks"), *([work] if act == "allow" else []))
+    if act == "allow":
+        display.exclude_work(work.id)
+
+    def full_disk(path, document):
+        raise OSError("No space left on device")
+
+    edit = {
+        "add": lambda: display.add_to_theme(theme_id=theme.id, artwork_id=work.id),
+        "allow": lambda: display.allow_work(work.id),
+    }[act]
+    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    with pytest.raises(OSError, match="No space left on device"):
+        edit()
+
+    if act == "add":
+        assert work.id not in display.theme_work_ids(theme.id)
+    else:
+        assert [exclusion.artwork_id for exclusion in display.excluded_works()] == [work.id]
+
+
 def test_a_hang_that_is_refused_before_writing_changes_nothing(display, wall_id):
     with pytest.raises(ServiceError):
         display.activate_theme("no-such-theme", wall_id=wall_id)
