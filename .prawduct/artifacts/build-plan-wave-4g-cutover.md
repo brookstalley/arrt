@@ -146,6 +146,11 @@ before any production code moves.
   can override]
 
 **Decisions made mid-build** (each settled by the goal or prior choice named):
+- 01: the major 1 schema, its fixtures and `routes.json`'s `manifest` stay
+  until 05. Chunks are each verifiable on their own, and both planes' suites
+  read them until 02 and 04 remove their readers. 01 shrank to the label move
+  and lost its `final` review, since it no longer sets anything a later chunk
+  builds on beyond one `$ref`.
 
 ## Inventory
 
@@ -189,7 +194,7 @@ comes from the thing itself).
 
 ## Status
 
-- [ ] Chunk 01: The contract retires major 1
+- [x] Chunk 01: The label's definition leaves major 1
 - [ ] Chunk 02: The server stops publishing major 1, and the directive goes
 - [ ] Chunk 03: The server stops composing for a panel
 - [ ] Chunk 04: The Player reads only major 2
@@ -197,24 +202,21 @@ comes from the thing itself).
 
 Context: branched from develop at the merge of #345 (wave 4e).
 
-### Chunk 01: The contract retires major 1
+### Chunk 01: The label's definition leaves major 1
 
-- **Critic mode:** final. Both planes build to it.
-- **Surfaces:** new `contract/schemas/label-def.schema.json` (or the name the
-  schema index's conventions choose); `contract/schemas/manifest.v2.schema.json`
-  and `contract/schemas/label.v1.schema.json` (their `$ref`); `contract/schemas/manifest.v1.schema.json`
-  and `contract/fixtures/manifest.v1/` (retired; one major 1 document kept as a
-  refusal fixture under major 2's reader); `contract/fixtures/index.json`;
-  `contract/routes.json` (`manifest` retired); `tests/preferences/test_player_contract.py`;
-  `.prawduct/artifacts/player-contract.md` (§ Major 1, § Versioning, § The cutover,
-  each with a dated amendment note).
+- **Surfaces:** `contract/schemas/manifest.v2.schema.json` (gains the `label`
+  definition in its `$defs`, unchanged); `contract/schemas/label.v1.schema.json`
+  (its `$ref` points there); `tests/preferences/test_player_contract.py`.
+- **What:** the one thing every later chunk needs from the contract. Major 2 and
+  the label document both borrowed their label from major 1's schema, so that
+  schema could not leave while they did. A major 1 document is already a
+  refusal fixture for a major 2 reader (`contract/fixtures/manifest.v2/invalid/major-1.json`).
 - **Done when:**
-  1. Both borrowing schemas resolve the label definition from its new home,
-     and every existing v2 and label fixture validates exactly as before.
-  2. The root contract tests pass with no reference to the major 1 schema,
-     and a major 1 document is in the index as one every Player must refuse.
-  3. A re-break (the old `$ref` restored against the deleted file) is watched
-     failing once.
+  1. Every v2 and label fixture validates exactly as before, in all three
+     suites' contract tests.
+  2. With the major 1 schema absent from the registry, every valid v2 and
+     label fixture still validates, and the same check fails against the old
+     references.
 
 ### Chunk 02: The server stops publishing major 1, and the directive goes
 
@@ -309,7 +311,10 @@ Context: branched from develop at the merge of #345 (wave 4e).
 
 - **Type:** cumulative-final
 - **Visual change:** yes
-- **Surfaces:** merge 04; the artifacts that describe major 1, the directive,
+- **Surfaces:** merge 04; `contract/schemas/manifest.v1.schema.json`, `contract/fixtures/manifest.v1/`,
+  their rows in `contract/fixtures/index.json`, and `manifest` in `contract/routes.json`
+  (retired once 02 and 04 have removed every reader); `.prawduct/artifacts/player-contract.md`
+  (§ Major 1, § Versioning, § The cutover, each with a dated note); the artifacts that describe major 1, the directive,
   `tv_display` or the server's panel geometry as current (`architecture.md`,
   `data-model.md` (both norms to steady-state), `api-contract.md`,
   `boundary-patterns.md`, `operational-spec.md`, `information-architecture.md`,
