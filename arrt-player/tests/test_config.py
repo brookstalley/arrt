@@ -69,7 +69,13 @@ class TestWhatMustBeSet:
 
     @pytest.mark.parametrize(
         ("retired", "replaced_by"),
-        [("WALL_ID", "Settings › Clients"), ("WALL_TOKEN", "CLIENT_TOKEN"), ("MANIFEST_SOURCE", "SERVER_URL")],
+        [
+            ("WALL_ID", "Settings › Clients"),
+            ("WALL_TOKEN", "CLIENT_TOKEN"),
+            ("MANIFEST_SOURCE", "SERVER_URL"),
+            ("ROTATION_INTERVAL_SECONDS", "the server's schedule sets the pace"),
+            ("ROTATION_SHUFFLE", "the server's schedule sets the order"),
+        ],
     )
     def test_the_refusal_says_what_replaced_it(self, cache_dir: Path, retired: str, replaced_by: str):
         with pytest.raises(ConfigError, match=replaced_by):
@@ -77,7 +83,11 @@ class TestWhatMustBeSet:
 
     def test_a_retired_setting_left_empty_is_not_set(self, cache_dir: Path):
         """`WALL_ID=` is a key nobody filled in, which is the same as no key."""
-        assert load(an_environment(cache_dir, WALL_ID="", WALL_TOKEN="", MANIFEST_SOURCE="")).server_url
+        assert load(
+            an_environment(
+                cache_dir, WALL_ID="", WALL_TOKEN="", MANIFEST_SOURCE="", ROTATION_INTERVAL_SECONDS="", ROTATION_SHUFFLE=""
+            )
+        ).server_url
 
     @pytest.mark.parametrize("missing", ["LATITUDE", "LONGITUDE", "LOCATION_NAME"])
     def test_a_frame_without_the_sun_it_follows_does_not_start(self, cache_dir: Path, missing: str):
@@ -188,13 +198,6 @@ class TestWhatDefaults:
     def test_a_viewing_measurement_that_is_not_a_number_is_refused_rather_than_dropped(self, cache_dir: Path):
         with pytest.raises(ConfigError, match="EPD_VIEWING_DISTANCE_INCHES"):
             load(an_environment(cache_dir, EPD_VIEWING_DISTANCE_INCHES="seven feet"))
-
-    @pytest.mark.parametrize(
-        ("raw", "expected"),
-        [("false", False), ("FALSE", False), ("0", False), ("no", False), ("off", False), ("true", True), ("yes", True)],
-    )
-    def test_the_shuffle_fallback_reads_the_spellings_people_write(self, cache_dir: Path, raw: str, expected: bool):
-        assert load(an_environment(cache_dir, ROTATION_SHUFFLE=raw)).rotation_shuffle_fallback is expected
 
 
 class TestEachWallHasItsOwnDirectory:

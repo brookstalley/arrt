@@ -25,10 +25,10 @@ freshness one.** This file is rewritten forever on the same SD card the
 catalogue lives on, and the storage risk in `operational-spec.md` rests on this
 product having no unbounded small-write source. Borrowing the manifest poll's
 one-second cadence by symmetry would commit ~86,400 write-and-rename cycles a
-day to that medium in perpetuity. The ceiling on the other side is the rotation
-interval: this names the work *currently* displayed, so a heartbeat slower than
-the wall would report works the wall had already left. Sixty seconds sits under
-the 180 s rotation default with margin.
+day to that medium in perpetuity. The ceiling on the other side is how long a
+work is up: this names the work *currently* displayed, so a heartbeat slower
+than the wall would report works the wall had already left. Sixty seconds sits
+under the three-minute pace the reference wall has run at, with margin.
 
 **Nothing here judges anything.** No "healthy", no green, no threshold. The
 document states what is so and how long ago; the reader decides what that means.
@@ -60,7 +60,7 @@ HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "display-heartbeat-{wall_id}.json"
 REPORTED_AT_KEY: Final[str] = "reported_at"
 
 #: How often it is rewritten. See the docstring: bounded below by SD-card wear,
-#: above by the rotation interval.
+#: above by how long a work is up.
 INTERVAL_SECONDS: Final[float] = 60.0
 
 #: The heartbeat's version, as `heartbeat.v1`'s `schema` key carries it. Minor 3
@@ -167,8 +167,8 @@ class Health:
     #: requires one and a guessed size would mislead Programming's judgement of
     #: whether a work is big enough for the wall.
     capabilities: dict[str, Any] | None = None
-    #: The scene the wall is showing, or None when it follows its schedule or
-    #: rotation (minor 2).
+    #: The scene the wall is showing, or None when it follows its schedule
+    #: (minor 2).
     scene_id: str | None = None
 
     def document(self, *, reported_at: datetime) -> dict[str, Any]:
@@ -231,7 +231,7 @@ def write(root: Path, health: Health, *, wall_id: str, reported_at: datetime) ->
 
     **Blocking, and deliberately left on the caller's event loop** — the same
     question the label draw answers the other way, at a scale that decides it. That
-    one is seconds of Pango and SPI per rotation and goes to a worker thread; this
+    one is seconds of Pango and SPI per picture and goes to a worker thread; this
     is a few hundred bytes and one `fsync` once per heartbeat interval, so putting
     it on a thread would buy a millisecond and cost this function the property that
     makes it readable, that write-fsync-rename happens in that order with nothing

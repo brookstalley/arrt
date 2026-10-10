@@ -30,7 +30,7 @@ from typing import Final
 
 #: The category every image this product uploads lands in. Samsung exposes no way
 #: to create another — 2 is my-pictures, 4 favourites, 8 the store — and the
-#: upload verb takes no category argument at all. Rotation is therefore a pointer
+#: upload verb takes no category argument at all. Changing the picture is therefore a pointer
 #: into one flat list, which is why bindings and orphan removal exist.
 UPLOADED_CATEGORY: Final[str] = "MY-C0002"
 

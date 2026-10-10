@@ -89,8 +89,8 @@ async def test_recovery_is_logged_and_resets_the_backoff(daemon: Wall, tv: FakeT
 async def test_a_daemon_with_nothing_to_say_does_not_discover_the_set_is_gone(daemon: Wall, tv: FakeTv, publish, settings, clock):
     """And that is right, not a gap.
 
-    Between rotations there is no call to make: the manifest has not changed, the
-    directive has not advanced, the theme is fully uploaded, and the wall is
+    Between slots there is no call to make: the manifest has not changed, the
+    schedule has not moved on, the theme is fully uploaded, and the wall is
     holding a picture the television owns. A liveness poll would be traffic bought
     to learn something nothing is waiting on — and the outage is discovered by the
     next pass that actually needs the set, which is the pass that could not have
@@ -118,7 +118,7 @@ async def test_the_wall_is_shown_as_soon_as_the_set_comes_back(daemon: Wall, tv:
     tv.unavailable = False
     await daemon.tick()
 
-    assert tv.on_the_wall.name == "w1.jpg"
+    assert publish.work_of(tv.on_the_wall) == "w1"
 
 
 async def test_orphan_removal_owed_during_an_outage_happens_when_the_set_returns(
@@ -227,10 +227,10 @@ async def test_a_manifest_published_while_the_set_is_asleep_is_still_adopted(
     tv.unavailable = True
     await daemon.tick()
 
-    publish(["w2"], sequence=1)
+    publish(["w2"])
     await daemon.tick()
 
     tv.unavailable = False
     await daemon.tick()
 
-    assert tv.on_the_wall.name == "w2.jpg"
+    assert publish.work_of(tv.on_the_wall) == "w2"

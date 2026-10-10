@@ -62,10 +62,11 @@ class ScreenAbsent(Exception):
 def fitted(render: Path, screen: tuple[int, int]) -> Image.Image:
     """The render scaled to fit the screen whole, centred on black.
 
-    The render arrives matted for the Frame; fitting keeps all of it, mat and
-    all, so a screen of another shape shows bars rather than losing an edge of
-    the picture. The render is already black outside the mat, so the bars are
-    more of the same black rather than a second boundary.
+    The picture arrives composed for the screen's mode, so it normally fits
+    exactly; fitting keeps all of it, mat and all, so a screen whose mode
+    changed before the next composition shows bars rather than losing an edge
+    of the picture. The picture is already black outside the mat, so the bars
+    are more of the same black rather than a second boundary.
     """
     with Image.open(render) as opened:
         picture = ImageOps.exif_transpose(opened).convert("RGB")

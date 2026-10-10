@@ -104,7 +104,7 @@ class FakeTv(TvClient):
         #: returned, raised nothing and emitted no event, while what the set
         #: displayed did not change over twelve seconds and repeated attempts.
         #: Armed here because the failure is invisible from the call — a fake that
-        #: could not reproduce it let the daemon report rotations that never
+        #: could not reproduce it let the daemon report changes of picture that never
         #: happened, and every test passed.
         self.displays_nothing_selected = False
         #: What the set is displaying. It starts on a picture of the set's own
@@ -149,9 +149,9 @@ class FakeTv(TvClient):
         that goes away *after* a connection is established is discovered by the
         next real call — `select_image`, `upload` — and not by `connect`. A fake
         that re-checked reachability every pass made the outage arrive at the top
-        of the tick instead, so the whole of the directive path was unreachable
-        while the set was away: two tests asserting that a directive is not
-        consumed during an outage passed because the code under test never ran. A
+        of the tick instead, so everything a pass does after the top of the tick
+        was unreachable while the set was away: two tests asserting that a change
+        survives an outage passed because the code under test never ran. A
         mutation sweep found it by swapping two statements neither test executed.
         """
         if self._connected:

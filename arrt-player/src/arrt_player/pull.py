@@ -1,32 +1,30 @@
 """Pull each wall's manifest and media into its cache, report its heartbeat, and ask the server which walls this client drives.
 
-A major 1 manifest names composed renders and is cached with each entry pointed
-at its render, dropping an entry whose render cannot be had; a major 2 feed
-names each work's presentation master and is cached whole (`_adopt_feed` says
-why).
+A wall's feed (manifest major 2) names each work's presentation master and is
+cached whole (`_adopt_feed` says why).
 
 **The only module in this plane that speaks HTTP**, and
 `tests/preferences/test_plane_isolation.py` holds it to that. It spells five
 routes — the client document and the client heartbeat, a wall's manifest at
 each major it asks for, a wall's heartbeat, and a label's document — as
-`contract/routes.json` spells them. Renders are fetched
-from the address each manifest entry's `media.url` gives, resolved against the
+`contract/routes.json` spells them. Masters are fetched
+from the address each work's `media.url` gives, resolved against the
 manifest's own URL: today the same server's media route, after a
 Library/Programming split perhaps another host. The client's token is sent to
 the server's own origin only.
 
 **The cache is the only thing a wall renders from.** A worker's watcher reads
 `CACHE_DIR/<wall id>/manifest.json`, and this module writes that file only once
-every render it names is in the cache and has been checked against its hash. So
-a server that goes away changes nothing about what is on the wall: the last good
-manifest stays, and so do its renders. The client document is kept the same way,
+every master it names has been fetched and checked against its hash, or
+answered for (`_adopt_feed`). So a server that goes away changes nothing about
+what is on the wall: the last good manifest stays, and so do its masters. The client document is kept the same way,
 so a client restarted while the server is down still knows its walls.
 
 **Every failure keeps the cache** (`player-contract.md` § Transport). A transport
 error, a timeout or a `5xx` means the server is unreachable: back off and try
-again. `401`, `403` and a `404` on the wall are configuration errors. A render
-whose bytes do not match its hash, or that answers `404`, is left out of the
-cached manifest and the rest of the wall goes on. Each is said once in the
+again. `401`, `403` and a `404` on the wall at every major this Player reads
+are configuration errors. A master whose bytes do not match its hash, or that
+answers `404`, is not cached, and the rest of the wall goes on. Each is said once in the
 journal when it starts and once when it ends. None names the token.
 
 **The heartbeat rides along.** Each worker goes on writing its wall's heartbeat
@@ -57,7 +55,7 @@ from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, WallSet
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import path_in as heartbeat_path_in
 from arrt_player.label_rule import LabelDocument, LabelDocumentUnreadable, parse_label_document
-from arrt_player.manifest import MEDIA_DIRNAME, REQUESTED_MAJORS, SHA256, Feed, ManifestUnreadable, media_name, parse
+from arrt_player.manifest import MEDIA_DIRNAME, REQUESTED_MAJORS, Feed, ManifestUnreadable, Work, media_name, parse
 
 log = logging.getLogger(__name__)
 
@@ -83,10 +81,11 @@ BACKOFF_MAX_SECONDS: Final[float] = 60.0
 #: How often a wall served a lower major asks again for the higher ones
 #: (`player-contract.md` § The cutover: a Player "may keep the major that last
 #: answered and ask for a higher one less often than it polls"). The poll is
-#: about a second, and until the server publishes major 2 for a wall every
-#: higher request is a 404: asking each poll would double the requests and put
-#: a 404 a second in the server's log. A minute is how long a wall takes to
-#: notice a newly published major.
+#: about a second, and until the server publishes the higher major for a wall
+#: every request for it is a 404: asking each poll would double the requests and
+#: put a 404 a second in the server's log. A minute is how long a wall takes to
+#: notice a newly published major. Inert while this Player reads one major, and
+#: kept because the next one is served beside major 2 the same way.
 HIGHER_MAJOR_SECONDS: Final[float] = 60.0
 
 _UNREACHABLE: Final = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
@@ -194,9 +193,7 @@ class Pull:
 
     # -- the manifest -----------------------------------------------------------------------
 
-    async def _pull_manifest(  # noqa: C901, PLR0911, PLR0912 -- one branch per answer the server can give, each keeping the cache
-        self, session: aiohttp.ClientSession
-    ) -> _Poll:
+    async def _pull_manifest(self, session: aiohttp.ClientSession) -> _Poll:
         headers = self._auth()
         etag = self._cached_etag()
         if etag is not None:
@@ -222,11 +219,7 @@ class Pull:
 
         try:
             text = body.decode("utf-8")
-            parsed = parse(
-                text,
-                rotation_interval_fallback=self._settings.rotation_interval_fallback_seconds,
-                shuffle_fallback=self._settings.rotation_shuffle_fallback,
-            )
+            parsed = parse(text)
             document = json.loads(text)
         except (UnicodeDecodeError, ManifestUnreadable) as exc:
             # Checked with the same parser the watcher uses, before anything is
@@ -242,48 +235,7 @@ class Pull:
         if self._unreadable.end():
             log.info("the server's manifest can be read again", extra={"event": "pull.manifest_readable"})
 
-        if isinstance(parsed, Feed):
-            return await self._adopt_feed(session, parsed, document, served_etag)
-
-        offered = document.get("entries", [])
-        cached_entries = []
-        for entry in offered:
-            outcome = await self._cache_media(session, entry)
-            if isinstance(outcome, _Retry):
-                # A render did not arrive: adopt nothing, keep the manifest
-                # already cached, and ask again. The ETag is not stored, so the
-                # next poll is a full one. Said once per kind of failure, and
-                # reported as the server being unreachable so the loop backs off
-                # rather than asking every second.
-                if self._media_failing.begin():
-                    log.warning(
-                        "a render for this wall could not be fetched (%s); keeping the manifest already cached",
-                        outcome.why,
-                        extra={"event": "pull.media_failing"},
-                    )
-                return _Poll.MEDIA_FAILING
-            if outcome:
-                cached_entries.append({**entry, "render_path": outcome})
-
-        if self._media_failing.end():
-            log.info("renders for this wall arrive again", extra={"event": "pull.media_ok"})
-        document["entries"] = cached_entries
-        # The renders the manifest being replaced names are kept one generation
-        # longer: the daemon adopts the new file on its next poll, and until then
-        # it may still reach for a render only the old one names.
-        previous = self._cached_render_names()
-        _write_atomically(self._cache / CACHED_MANIFEST_FILENAME, json.dumps(document, indent=2).encode("utf-8"))
-        if served_etag:
-            _write_atomically(self._cache / ETAG_FILENAME, served_etag.encode("utf-8"))
-        kept = self._evict({Path(entry["render_path"]).name for entry in cached_entries} | previous)
-        log.info(
-            "cached the manifest for this wall with %d of %d entries; %d renders held",
-            len(cached_entries),
-            len(offered),
-            kept,
-            extra={"event": "pull.adopted", "entries": len(cached_entries)},
-        )
-        return _Poll.ANSWERED
+        return await self._adopt_feed(session, parsed, document, served_etag)
 
     async def _request_manifest(self, session: aiohttp.ClientSession, headers: dict[str, str]) -> tuple[int, bytes, str | None]:
         """Ask for each requested major, highest first, and keep the first answer that is not a 404.
@@ -328,8 +280,7 @@ class Pull:
     ) -> _Poll:
         """Cache a major 2 feed's media, then the feed itself, whole.
 
-        **Kept whole, unlike a major 1 manifest, whose entries without a render
-        are left out**: every work the schedule names must be a key of `works`
+        **Kept whole**: every work the schedule names must be a key of `works`
         (`player-contract.md` § Rules a schema cannot state), so dropping one
         would cache a document this reader refuses. A work whose media could not
         be had stays in the feed, and the programme skips it until its file is
@@ -337,9 +288,7 @@ class Pull:
         scene is a switch rather than a download.
         """
         for work in feed.works.values():
-            outcome = await self._cache_media(
-                session, {"work_id": work.work_id, "media": {"sha256": work.sha256, "url": work.url}}
-            )
+            outcome = await self._cache_media(session, work)
             if isinstance(outcome, _Retry):
                 if self._media_failing.begin():
                     log.warning(
@@ -365,24 +314,19 @@ class Pull:
         )
         return _Poll.ANSWERED
 
-    async def _cache_media(  # noqa: PLR0911 -- one return per way a render can be had, skipped or retried
-        self, session: aiohttp.ClientSession, entry: dict[str, Any]
-    ) -> "str | bool | _Retry":
-        """The cached render's path, relative to the cache; False to skip the work; `_Retry` to try again later."""
-        work_id = entry.get("work_id")
-        media = entry.get("media")
-        sha = media.get("sha256") if isinstance(media, dict) else None
-        url = media.get("url") if isinstance(media, dict) else None
-        if not isinstance(sha, str) or not SHA256.fullmatch(sha) or not isinstance(url, str):
-            self._skip_once(f"no-media:{work_id}", "work %s has no usable media, so this Player skips it", work_id)
-            return False
-        name = media_name(sha)
-        relative = f"{MEDIA_DIRNAME}/{name}"
-        if (self._media / name).is_file():
-            return relative
+    async def _cache_media(self, session: aiohttp.ClientSession, work: Work) -> "bool | _Retry":
+        """Whether the work's master is in the cache now; False to skip the work; `_Retry` to try again later.
 
-        address = urljoin(self._manifest_url, url)
-        # The token is this client's credential on this server. A render named on
+        The work's hash and address are already checked: the parser refuses a
+        feed whose work carries no media with a hash and a URL.
+        """
+        work_id, sha = work.work_id, work.sha256
+        name = media_name(sha)
+        if (self._media / name).is_file():
+            return True
+
+        address = urljoin(self._manifest_url, work.url)
+        # The token is this client's credential on this server. A master named on
         # another host is fetched without it, so a manifest can never be used to
         # send the token somewhere else.
         headers = self._auth() if _same_origin(address, self._server) else {}
@@ -393,22 +337,22 @@ class Pull:
         except _UNREACHABLE as exc:
             return _Retry(f"{type(exc).__name__} fetching it")
         if status == HTTPStatus.NOT_FOUND:
-            self._skip_once(f"missing:{sha}", "the render for work %s is not held by the server; skipping it", work_id)
+            self._skip_once(f"missing:{sha}", "the master for work %s is not held by the server; skipping it", work_id)
             return False
         if status != HTTPStatus.OK:
             return _Retry(f"the media route answered {status}")
         if hashlib.sha256(data).hexdigest() != sha:
             self._skip_once(
                 f"mismatch:{sha}",
-                "the render for work %s did not match its hash and was discarded; skipping it",
+                "the master for work %s did not match its hash and was discarded; skipping it",
                 work_id,
             )
             return False
         _write_atomically(self._media / name, data)
-        return relative
+        return True
 
     def _evict(self, referenced: set[str]) -> int:
-        """Remove every cached render the newly cached manifest does not name. Returns how many remain."""
+        """Remove every cached master the newly cached feed does not name. Returns how many remain."""
         kept = 0
         for path in self._media.iterdir():
             if path.name in referenced:
@@ -418,19 +362,21 @@ class Pull:
         return kept
 
     def _cached_render_names(self) -> set[str]:
-        """The render files the manifest now in the cache names, or none if there is none."""
+        """The media files the feed now in the cache names, or none if there is none."""
         try:
             cached = json.loads((self._cache / CACHED_MANIFEST_FILENAME).read_text(encoding="utf-8"))
         except (FileNotFoundError, ValueError):
             return set()
-        if isinstance(cached.get("works"), dict):
-            # A major 2 feed: each work's media, by the name the pull gives it.
-            return {
-                media_name(work["media"]["sha256"])
-                for work in cached["works"].values()
-                if isinstance(work, dict) and isinstance(work.get("media"), dict) and isinstance(work["media"].get("sha256"), str)
-            }
-        return {Path(entry["render_path"]).name for entry in cached.get("entries", []) if "render_path" in entry}
+        works = cached.get("works") if isinstance(cached, dict) else None
+        if not isinstance(works, dict):
+            # A document of a major this Player no longer reads: no feed names
+            # its files, so they go at the next adoption.
+            return set()
+        return {
+            media_name(work["media"]["sha256"])
+            for work in works.values()
+            if isinstance(work, dict) and isinstance(work.get("media"), dict) and isinstance(work["media"].get("sha256"), str)
+        }
 
     def _cached_etag(self) -> str | None:
         """The ETag to send, but only while the manifest it describes is still cached."""
@@ -507,7 +453,11 @@ class Pull:
             reason = {
                 401: "it does not accept this client's token (CLIENT_TOKEN)",
                 403: "this wall is not assigned to this client, or the server holds no such wall",
-                404: "it has published nothing for this wall, or no theme hangs there yet",
+                404: (
+                    "it publishes no manifest major this Player reads "
+                    f"({', '.join(str(major) for major in REQUESTED_MAJORS)}) for this wall, "
+                    "or no theme hangs there yet"
+                ),
             }.get(status, f"it answered {status}")
             log.error(
                 "the server refused this wall's manifest: %s; keeping the one already cached",

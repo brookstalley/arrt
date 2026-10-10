@@ -60,7 +60,7 @@ class PangoRasterizer(Rasterizer):
 
     Holds no surface of its own between calls: each `render` allocates the one it
     draws into and each measurement uses a scratch context. A panel changes at
-    most once per rotation interval — 180 seconds in the reference deployment —
+    most once per work on the wall — every few minutes in the reference deployment —
     so keeping a 1448×1072 buffer alive between them would trade real memory on a
     Pi for an allocation nobody can perceive.
     """

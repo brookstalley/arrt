@@ -403,7 +403,7 @@ class SamsungTv(TvClient):
 
         Its slideshow can only be scoped to a whole category — there is no
         content-id list, no album and no playlist — so it cannot be made to show
-        a theme. Rotation is driven from here instead, and the set's own timer
+        a theme. Changing the picture is driven from here instead, and the set's own timer
         would otherwise change the picture underneath it.
         """
         await self._call("set_slideshow_status", self._client().set_slideshow_status(duration=0))

@@ -234,11 +234,7 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
     mapped to a wall by the server and drawn by `run_label`.
     """
     settings.wall_dir.mkdir(parents=True, exist_ok=True)
-    watcher = Watcher(
-        settings.manifest_path,
-        rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
-        shuffle_fallback=settings.rotation_shuffle_fallback,
-    )
+    watcher = Watcher(settings.manifest_path)
     tv = frame_tv(settings)
 
     # One clock for both, because the Frame measures an upload's retry wait
@@ -276,11 +272,7 @@ async def run_frame_wall(settings: Settings, stop: asyncio.Event, *, clock: Cloc
 async def run_screen_wall(wall: WallSettings, output: str, stop: asyncio.Event, *, clock: Clock | None = None) -> None:
     """One wall on a screen this host draws on: the wall's loop on the screen and the wall's pull, until stopped."""
     wall.wall_dir.mkdir(parents=True, exist_ok=True)
-    watcher = Watcher(
-        wall.manifest_path,
-        rotation_interval_fallback=wall.rotation_interval_fallback_seconds,
-        shuffle_fallback=wall.rotation_shuffle_fallback,
-    )
+    watcher = Watcher(wall.manifest_path)
     screen = screen_wall(
         wall=wall,
         output=screen_output(wall, output),
