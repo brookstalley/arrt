@@ -205,6 +205,22 @@ def test_an_archive_takes_its_work_off_and_leaves_the_rest_of_the_theme_on(
     assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, joined.id])
 
 
+def test_a_work_allowed_back_reaches_the_walls_whose_theme_holds_it_and_no_other(
+    display, ready_work, hung, wall_id, study, wall_settings
+):
+    work, kept = ready_work(title="Automat"), ready_work(title="Chop Suey")
+    hung(wall_id, work, kept)
+    hung(study, ready_work(title="Nighthawks"), name="Daylight")
+    display.exclude_work(work.id)
+    assert _entry_ids(wall_settings, wall_id) == [kept.id]
+    untouched = wall_settings.manifest_v2_path(study).read_bytes()
+
+    display.allow_work(work.id)
+
+    assert _entry_ids(wall_settings, wall_id) == sorted([work.id, kept.id])
+    assert wall_settings.manifest_v2_path(study).read_bytes() == untouched, "a wall whose theme lacks it was rewritten"
+
+
 def test_a_restored_work_goes_back_on_the_wall(service, ready_work, hung, wall_id, wall_settings):
     """Archive takes it off and Restore puts it back, each as it lands, as the Work page says."""
     work, kept = ready_work(title="Automat"), ready_work(title="Chop Suey")
@@ -343,7 +359,7 @@ def test_an_announcement_about_a_member_that_still_cannot_join_rewrites_nothing(
 
     Each wall's theme holds a member its feed lacks for a reason that stays
     true: one with no master, and one kept off every wall. Both are asked
-    about, by name and at a start, and neither may cause a rewrite.
+    about by name, neither may cause a rewrite, and nor may a start.
     """
     unmastered = ready_work(title="Automat", master=False)
     hung(wall_id, ready_work(title="Chop Suey"), unmastered)

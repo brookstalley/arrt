@@ -340,7 +340,7 @@ def test_a_rolled_horizon_goes_on_through_the_theme_past_the_works_the_last_one_
 
 
 def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
-    store, display, mastered, theme_of, wall_id, wall_settings, feed
+    store, caplog, display, mastered, theme_of, wall_id, wall_settings, feed
 ):
     """An announcement lost to a crash: the next roll builds the hung theme, so the work arrives within a day."""
     theme = theme_of(mastered("A"))
@@ -349,9 +349,11 @@ def test_a_roll_carries_a_work_that_joined_the_hung_theme_unannounced(
     store.add_membership(ThemeMembership(theme_id=theme.id, artwork_id=lost.id, added_at=_now(), position=1))
     _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
 
-    display.record_heartbeat(wall_id, _heartbeat())
+    with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
+        display.record_heartbeat(wall_id, _heartbeat())
 
     assert lost.id in feed(wall_id).works
+    assert any("rolled its horizon forward from theme" in record.getMessage() for record in caplog.records)
 
 
 def test_a_roll_on_a_wall_with_nothing_hung_goes_on_with_what_it_carries(

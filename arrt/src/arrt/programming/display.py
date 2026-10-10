@@ -1560,8 +1560,8 @@ class DisplayService:
     #
     # Published from every path that changes what a wall shows: a sync
     # (re-hanging the same theme keeps the slot on the wall now; another theme
-    # starts fresh), a work joining the hung theme and a wall with a theme hung
-    # and no feed (a sync, `_publish_additions`), show now and next (start
+    # starts fresh), a work joining the hung theme and a wall with a theme
+    # hung and no feed (a sync, `_publish_additions`), show now and next (start
     # fresh), a withdrawal or a refusal (keep, unless the work on the wall is
     # the one leaving), a new master or colour (patch, no slot moves), and a
     # heartbeat with under two days of horizon left (a sync of the hung theme,
