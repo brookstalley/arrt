@@ -244,6 +244,53 @@ installed again to put the real one back:
 
     cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper --reinstall-package rpi-gpio
 
+## Wave 4g: the walls move to manifest major 2 alone (2026-10-10)
+
+From wave 4g the server publishes each wall's feed (manifest major 2) and
+nothing else, and Arrt Player reads only that. The server runs on the NAS
+(§ The server on the NAS) and the Player on the Pi (§ The Player as a client of
+the NAS); every file named below is in the server's art root, not on the Pi.
+
+**Copy the catalogue before deploying this server.** Opening the catalogue
+drops the `directives` table, forgets every television canvas and the wall
+previews drawn from them, and drops `renditions.mat_hex`, so an older image
+cannot run on it afterwards:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-4g-<timestamp>.sqlite"
+
+Deploy the server and the Player from the same revision; until both are up, a
+wall goes on showing the work it has. Then check, in this order:
+
+1. **The server forgot its canvases.** Its first start on a catalogue from
+   before wave 4g logs `Forgot N television canvases and previews drawn from
+   them, and dropped renditions.mat_hex; ART_ROOT/ready/ can be deleted.`, once
+   (N may be 0). A catalogue made after wave 4g never had them and says nothing.
+   `<art root>/ready/` and every `<art root>/theme-manifest-<wall>.json` without
+   `.v2` are now nothing's, and are yours to delete when you are satisfied.
+2. **The wall's Player reads the feed.** Its heartbeat lists major 2:
+
+       jq '.capabilities.manifest_majors' <art root>/display-heartbeat-"$WALL_ID".json
+
+   It should print `[2]`. Walls shows a line under the wall's name when a
+   Player cannot read the feed; there should be none.
+3. **The wall changes picture on its schedule.** The slot covering now names the
+   work up now (the feed writes every instant in UTC, so the strings compare):
+
+       now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+       jq --arg now "$now" '.schedule.slots[] | select(.from <= $now and $now < .until)' \
+           <art root>/theme-manifest-"$WALL_ID".v2.json
+
+**Settings.** The server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
+`MAT_BOTTOM_WEIGHT`; they are the Player's, under the same names, and stay in the
+Pi's `.env`. The Player no longer reads `ROTATION_INTERVAL_SECONDS` or
+`ROTATION_SHUFFLE`; they are the server's. Neither plane refuses the other's
+keys, so a shared `.env` needs no edit.
+
+**The way back** is the catalogue copy and the previous image together on the
+NAS, and the Pi's previous revision (`git rev-parse HEAD` before checking out
+the new one): a Player from before wave 4g reads major 1, which this server no
+longer writes, so the two go back as a pair.
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being
@@ -406,38 +453,6 @@ that republished nothing looks identical to one that did:
 `WALL_ID` is a wall's id — there is one feed per wall. `ls /srv/art/theme-manifest-*.v2.json`
 lists every room the catalogue publishes for. *(Wave 4g: the `.json` files
 without `.v2` are major 1's, which nothing writes or reads now.)*
-
-### Wave 4g: the walls move to manifest major 2 alone (2026-10-10)
-
-From wave 4g the server publishes each wall's feed (manifest major 2) and
-nothing else, and Arrt Player reads only that. Deploy the server and the Player
-from the same revision; until both are up, a wall goes on showing the work it
-has. Then check, in this order:
-
-1. **The server forgot its canvases.** Its first start on a catalogue from
-   before wave 4g logs `Forgot N television canvases and previews drawn from
-   them, and dropped renditions.mat_hex; ART_ROOT/ready/ can be deleted.`, once
-   (N may be 0). A catalogue made after wave 4g never had them and says nothing. `ART_ROOT/ready/` and every
-   `ART_ROOT/theme-manifest-<wall>.json` without `.v2` are now nothing's, and
-   are yours to delete when you are satisfied.
-2. **The wall's Player reads the feed.** Its heartbeat lists major 2:
-
-       sudo -u tvpi jq '.capabilities.manifest_majors' /srv/art/display-heartbeat-"$WALL_ID".json
-
-   It should print `[2]`. Walls shows a line under the wall's name when a
-   Player cannot read the feed; there should be none.
-3. **The wall changes picture on its schedule.** The slot covering now names the
-   work up now (the feed writes every instant in UTC, so the strings compare):
-
-       now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
-       sudo -u tvpi jq --arg now "$now" '.schedule.slots[] | select(.from <= $now and $now < .until)' \
-           /srv/art/theme-manifest-"$WALL_ID".v2.json
-
-**Settings.** The server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
-`MAT_BOTTOM_WEIGHT`; they are the Player's, under the same names, and stay in the
-Pi's `.env`. The Player no longer reads `ROTATION_INTERVAL_SECONDS` or
-`ROTATION_SHUFFLE`; they are the server's. Neither plane refuses the other's
-keys, so a shared `.env` needs no edit.
 
 ### Moving a running deployment onto a newer revision
 

@@ -13,7 +13,7 @@ depends_on:
 governed_by:
   - artifact: player-contract
     dispositions:
-      - "§ The cutover (each major served at its own URL while a reader of it may exist; for a home wall the server stops building major 1, the composed render and the unversioned route once every Player reports 2; a Player missed in the upgrade is visible because its heartbeat lacks 2) → conforms: the precondition is observed on the real wall before merge (05), and 02 builds the visibility the clause promises, which nothing built until now"
+      - "§ The cutover (each major served at its own URL while a reader of it may exist; for a home wall the server stops building major 1, the composed render and the unversioned route once every Player reports 2; a Player missed in the upgrade is visible because its heartbeat lacks 2) → conforms: the precondition is observed on the real wall at deploy (05; moved from before merge by the decision below, owner-confirmed 2026-10-10), and 02 builds the visibility the clause promises, which nothing built until now"
       - "§ The cutover (a heartbeat with no capabilities counts as [1]) → conforms: 02 implements it as the Walls notice's reading of silence"
       - "§ Major 1, § Versioning → amendment proposed in 01: major 1 is recorded as retired, its schema leaves the contract, and the label definition both other schemas borrow from it moves to a home of its own"
       - "§ What happens to show_now and next → conforms: 02 leaves the republish as the only effect"
@@ -93,8 +93,8 @@ channel) are written once, against major 2 alone.
 
 **Tradeoffs accepted:**
 - No server code decides "every Player reports 2". There is one household
-  and one deployment, so the precondition is observed on the real wall before
-  merge, and the Walls notice makes a missed Player visible afterwards. A
+  and one deployment, so the precondition is observed on the real wall at
+  deploy (the operator walk carries it), and the Walls notice makes a missed Player visible afterwards. A
   server that refused to retire a major on its own would be worth building
   when there is more than one household. Nothing on the roadmap has that
   before the public channel, which retires by decision anyway.
