@@ -484,11 +484,11 @@ def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_
     assert display.hanging_on(wall_id).id == first.id
 
 
-@pytest.mark.parametrize("act", ["add", "allow"])
+@pytest.mark.parametrize("act", ["add", "allow", "remove", "remove_many"])
 def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_work, hung, wall_id, monkeypatch, act):
-    """Adding to a hung theme, or allowing a work back, writes the feed in its transaction, so a full disk refuses the edit."""
+    """Adding to or taking from a hung theme, or allowing a work back, writes the feed in its transaction, so a full disk refuses the edit."""
     work = ready_work(title="Automat")
-    theme = hung(wall_id, ready_work(title="Nighthawks"), *([work] if act == "allow" else []))
+    theme = hung(wall_id, ready_work(title="Nighthawks"), *([] if act == "add" else [work]))
     if act == "allow":
         display.exclude_work(work.id)
 
@@ -498,6 +498,8 @@ def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_wo
     edit = {
         "add": lambda: display.add_to_theme(theme_id=theme.id, artwork_id=work.id),
         "allow": lambda: display.allow_work(work.id),
+        "remove": lambda: display.remove_from_theme(theme_id=theme.id, artwork_id=work.id),
+        "remove_many": lambda: display.remove_works_from_theme(theme_id=theme.id, artwork_ids=[work.id]),
     }[act]
     monkeypatch.setattr(display_module, "write_atomically", full_disk)
     with pytest.raises(OSError, match="No space left on device"):
@@ -505,6 +507,8 @@ def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_wo
 
     if act == "add":
         assert work.id not in display.theme_work_ids(theme.id)
+    elif act in ("remove", "remove_many"):
+        assert work.id in display.theme_work_ids(theme.id)
     else:
         assert [exclusion.artwork_id for exclusion in display.excluded_works()] == [work.id]
 
