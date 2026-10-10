@@ -235,6 +235,10 @@ class CatalogueService:
         #: announces, to nobody. The container passes the one Programming is
         #: subscribed to.
         self._events = events if events is not None else LibraryEvents()
+        #: Each hashed picture's pixel size, by its content hash. The hash names
+        #: the bytes, so the size under it never changes, and a picture's header
+        #: is read once per process rather than on every manifest build.
+        self._sizes: dict[str, tuple[int, int]] = {}
         #: Where a render's relative path points, so its bytes can be hashed.
         #: None for a catalogue that never serves media, which records renders
         #: without a content hash and serves none.
@@ -1137,14 +1141,23 @@ class CatalogueService:
         """
         if self._art_root is None:
             return None
+        if rendition.content_sha256 in self._sizes:
+            # A stat, not a decode: a file gone since must still read as no size,
+            # because nothing could serve those bytes any more.
+            if not (self._art_root / rendition.relative_path).is_file():
+                return None
+            return self._sizes[rendition.content_sha256]
         try:
             with Image.open(self._art_root / rendition.relative_path) as image:
-                return image.size
+                size = image.size
         except FileNotFoundError:
             return None
         except (OSError, UnidentifiedImageError) as exc:
             log.warning("Could not read the size of %s: %s", rendition.relative_path, exc)
             return None
+        if rendition.content_sha256 is not None:
+            self._sizes[rendition.content_sha256] = size
+        return size
 
     def read_media(self, content_sha256: str) -> tuple[Rendition, bytes] | None:
         """The bytes of the render with this hash, or None if none is held.

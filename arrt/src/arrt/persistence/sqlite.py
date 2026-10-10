@@ -369,6 +369,22 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
 
+-- Each screen size a display's Player reported, and when it last did, so
+-- Programming judges a work against the largest size reported recently and not
+-- the latest (`player-contract.md` § The heartbeat, minor 2: a window resized
+-- smaller must not make every work suddenly fine). Programming's own: the
+-- display is a Programming record, and no catalogue table is named. The sizes
+-- go with their display (removing a client, folding a place display into the
+-- Frame it turned out to be), so no path that deletes a display has to know
+-- they exist.
+CREATE TABLE IF NOT EXISTS reported_screens (
+    display_id        TEXT NOT NULL REFERENCES displays(id) ON DELETE CASCADE,
+    width_px          INTEGER NOT NULL,
+    height_px         INTEGER NOT NULL,
+    last_reported_at  TEXT NOT NULL,
+    PRIMARY KEY (display_id, width_px, height_px)
+);
+
 -- Every work that has been offered the theme it was accepted into (the default,
 -- or the theme its Get named), joined or not, so that a work is offered once:
 -- neither a restore, which the Library announces as an acceptance, nor startup
@@ -377,19 +393,6 @@ CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(art
 -- table is a written migration that buys nothing.
 -- `artwork_id` is deliberately not a foreign key: it is Programming's reference
 -- to a Library work, which the seam keeps opaque.
--- Each screen size a display's Player reported, and when it last did, so
--- Programming judges a work against the largest size reported recently and not
--- the latest (`player-contract.md` § The heartbeat, minor 2: a window resized
--- smaller must not make every work suddenly fine). Programming's own: the
--- display is a Programming record, and no catalogue table is named.
-CREATE TABLE IF NOT EXISTS reported_screens (
-    display_id        TEXT NOT NULL REFERENCES displays(id),
-    width_px          INTEGER NOT NULL,
-    height_px         INTEGER NOT NULL,
-    last_reported_at  TEXT NOT NULL,
-    PRIMARY KEY (display_id, width_px, height_px)
-);
-
 CREATE TABLE IF NOT EXISTS default_theme_offers (
     artwork_id  TEXT PRIMARY KEY,
     offered_at  TEXT NOT NULL

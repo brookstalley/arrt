@@ -460,3 +460,31 @@ def test_a_wall_whose_display_lost_its_client_is_unassigned_on_walls(clients, st
     store.update_display(replace(display, client_id=None))
 
     assert services.display.get_wall_view(wall_id).display_state.state is ScreenState.UNASSIGNED
+
+
+# -- reported screens go with their display -------------------------------------------
+
+
+def test_removing_a_client_whose_display_reported_a_screen_takes_the_sizes_with_it(clients, store, pi, wall_id):
+    clients.assign_wall(wall_id, client_id=pi.id, output="hdmi-a-1")
+    display_id = store.get_wall(wall_id).display_id
+    store.record_screen(display_id, 3840, 2160, datetime.now(UTC))
+
+    clients.remove_client(pi.id)
+
+    assert store.get_display(display_id) is None
+    assert store.reported_screens(display_id) == []
+
+
+def test_a_place_display_with_a_reported_screen_folds_into_the_frame(clients, store, services, pi, mac, wall_settings):
+    clients.record_heartbeat(pi.id, report(frame()))
+    write_stale(wall_settings, pi.id, report(frame()))
+    study = services.display.add_wall(name="Study")
+    clients.assign_wall(study.id, client_id=mac.id, output="frame")
+    place = store.get_wall(study.id).display_id
+    store.record_screen(place, 3840, 2160, datetime.now(UTC))
+
+    clients.record_heartbeat(mac.id, report(frame()))
+
+    assert store.get_display(place) is None
+    assert store.reported_screens(place) == []

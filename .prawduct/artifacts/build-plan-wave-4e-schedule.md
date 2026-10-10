@@ -143,6 +143,8 @@ now", before writing the function.
 
 `[DECISION: one wall's schedule is built at a time, against the slots every other wall has already published, rather than all walls in one call with the lower id keeping a shared work | a republish of one wall is the common case (a theme edit, show now, a horizon roll), and moving another wall's published schedule to make room would swap a picture on a wall nobody touched, which is the stability rule's own failure; so whichever wall is built later carries a clash, and where several walls are built together (a startup catch-up) they are built in wall-id order, which makes the outcome reproducible | the builder's, 2026-10-09, surfaced by Chunk 01's review; user can veto]`
 
+`[DECISION: while both majors are built, a wall's major 2 feed is published only when it carries at least one of the works its major 1 manifest carries (or the theme is empty on both); otherwise the feed is removed and v2 answers 404, so the Player stays on v1 (player-contract.md § The cutover, amended) | a Player asks for v2 first and keeps the last work through a schedule with nothing of the theme in it, so an empty or guest-only feed would hide every work v1 still carries, or hold up the very work just withdrawn; the rule ends with major 1 at 4g | the builder's, 2026-10-09, surfaced by Chunk 02's first full run and its review; user can veto]`
+
 **Decisions made mid-build** (each settled by the goal or prior choice named):
 - 01: when no work fits a slot without a clash, the cycle and the no-repeat
   rule bend before the household rule does. The owner ruled the household

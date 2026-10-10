@@ -89,6 +89,31 @@ class MatMode(StrEnum):
 PLAYERS_OWN_MAT: Final[str] = "players_own"
 
 
+class Unjudged(StrEnum):
+    """Why no work on a wall was judged for size: each quiet state said apart from "every work is big enough"."""
+
+    #: The wall is on no display, so no Player reports a screen for it.
+    NO_DISPLAY = "no_display"
+    #: Its display's Player has reported no screen size in `SCREEN_MEMORY`
+    #: (before minor 2, a Frame before its Player knew its panel, or silent).
+    NO_SCREEN = "no_screen_reported"
+    #: It has no major 2 feed, which is where each master's size is read.
+    NO_FEED = "no_feed"
+
+
+@dataclass(frozen=True, slots=True)
+class SizeJudgement:
+    """Which works on a wall are too small for it, and what that was judged against.
+
+    `screen` is None exactly when `unjudged` names why, so an empty `too_small`
+    means "every work is big enough" only when a screen is given.
+    """
+
+    screen: tuple[int, int] | None
+    too_small: frozenset[str]
+    unjudged: Unjudged | None
+
+
 class Unset:
     """ "The caller said nothing about this field", as distinct from "set it to null".
 
@@ -1361,7 +1386,12 @@ class DisplayService:
             return None
 
     def record_heartbeat(self, wall_id: str, document: dict[str, Any]) -> None:
-        """Keep what a Player said about itself, where the health panel already looks.
+        """Keep what a Player said about itself, where the health panel already looks; note its screen; roll its horizon.
+
+        Two things ride on the heartbeat because a live wall sends one a minute
+        and nothing else does: the screen size a minor 2 Player reports, which
+        too-small is judged against, and extending the wall's major 2 horizon when
+        less than two days of it are left.
 
         Written to the same file the file channel writes, so every existing
         reader sees a heartbeat that arrived over HTTP exactly as it sees one
@@ -1392,30 +1422,43 @@ class DisplayService:
         recent = [(w, h) for w, h, at in self._store.reported_screens(wall.display_id) if at >= since]
         return max(recent, key=lambda size: size[0] * size[1], default=None)
 
-    def too_small_on(self, wall_id: str) -> frozenset[str]:
-        """The works on the wall's feed too small for its largest recent screen (`adequacy.py`).
+    def judge_sizes(self, wall_id: str) -> SizeJudgement:
+        """Which works on the wall's feed are too small for its largest recent screen (`adequacy.py`).
 
         Read from the feed, which carries each master's size, so this asks the
-        Library nothing. A wall with no reported screen, or no feed, judges
-        nothing: silence is the honest answer to a question there is no
-        measurement for.
+        Library nothing. When there is nothing to judge against, it says which
+        of the reasons it is, rather than an empty answer that would read as
+        "every work is fine".
         """
+        if self.get_wall(wall_id).display_id is None:
+            return SizeJudgement(None, frozenset(), Unjudged.NO_DISPLAY)
         screen = self.largest_screen(wall_id)
+        if screen is None:
+            return SizeJudgement(None, frozenset(), Unjudged.NO_SCREEN)
         feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
-        if screen is None or feed is None:
-            return frozenset()
-        return frozenset(
+        if feed is None:
+            return SizeJudgement(None, frozenset(), Unjudged.NO_FEED)
+        small = frozenset(
             work_id
             for work_id, entry in feed.works.items()
             if adequacy.too_small(screen, (entry["media"]["width"], entry["media"]["height"]))
         )
+        return SizeJudgement(screen, small, None)
+
+    def too_small_on(self, wall_id: str) -> frozenset[str]:
+        """The works too small for the wall; empty both when all are fine and when none was judged (`judge_sizes`)."""
+        return self.judge_sizes(wall_id).too_small
+
+    def size_judgements(self, theme_id: str) -> Mapping[str, SizeJudgement]:
+        """Each wall hanging the theme, by name, with its judgement."""
+        return {wall.name: self.judge_sizes(wall.id) for wall in self.walls_hanging(theme_id)}
 
     def too_small_for_walls(self, theme_id: str) -> Mapping[str, Sequence[str]]:
         """For each of the theme's works too small for a wall hanging it, those walls' names, in name order."""
         found: dict[str, list[str]] = {}
-        for wall in self.walls_hanging(theme_id):
-            for work_id in self.too_small_on(wall.id):
-                found.setdefault(work_id, []).append(wall.name)
+        for name, judgement in self.size_judgements(theme_id).items():
+            for work_id in judgement.too_small:
+                found.setdefault(work_id, []).append(name)
         return {work_id: sorted(names) for work_id, names in found.items()}
 
     def _record_screen(self, wall_id: str, document: Mapping[str, Any]) -> None:
@@ -1433,9 +1476,14 @@ class DisplayService:
         if not isinstance(width, int) or not isinstance(height, int) or width < 1 or height < 1:
             return
         now = datetime.now(UTC)
+        known = self._store.reported_screens(wall.display_id)
+        if any((w, h) == (width, height) and now - at < SCREEN_REFRESH for w, h, at in known):
+            # Seen within the hour: the judgement needs day-scale freshness, and
+            # a write per heartbeat per wall would buy nothing it uses.
+            return
         with self._store.transaction():
             store_write(self._store.record_screen, wall.display_id, width, height, now)
-            for old_width, old_height, at in self._store.reported_screens(wall.display_id):
+            for old_width, old_height, at in known:
                 if at < now - SCREEN_MEMORY:
                     store_write(self._store.forget_screen, wall.display_id, old_width, old_height)
 
@@ -1533,7 +1581,17 @@ class DisplayService:
                 write_atomically(self._settings.manifest_path(wall.id), document)
                 republished[wall.id] = (removed, [entry["work_id"] for entry in refreshed])
 
-            republished_v2 = [wall.id for wall in walls if self._reconcile_v2(wall.id, feeds[wall.id], answers, cause=cause)]
+            republished_v2 = [
+                wall.id
+                for wall in walls
+                if self._reconcile_v2(
+                    wall.id,
+                    feeds[wall.id],
+                    answers,
+                    carried={entry["work_id"] for entry in (published[wall.id] or {}).get("entries", [])},
+                    cause=cause,
+                )
+            ]
 
         result = Reconciliation(
             asked=len(asked),
@@ -1574,10 +1632,13 @@ class DisplayService:
 
     # -- major 2: the schedule ---------------------------------------------------
     #
-    # Published from every path that publishes major 1 (`build-plan-wave-4e-schedule.md`
-    # keeps the table of paths and what each does to the slot on the wall now).
-    # Each reads the wall's published feed back rather than a copy of its own, for
-    # the reason `manifest/v2.py` gives.
+    # Published from every path that publishes major 1: a sync (re-hanging the
+    # same theme keeps the slot on the wall now; another theme starts fresh), show
+    # now and next (start fresh), a withdrawal or a refusal (keep, unless the work
+    # on the wall is the one leaving), a new master or colour (patch, no slot
+    # moves), and a heartbeat with under two days of horizon left (keep). Each
+    # reads the wall's published feed back rather than a copy of its own, for the
+    # reason `manifest/v2.py` gives.
 
     def _sync_v2(self, build: ManifestBuild) -> None:
         """Publish the wall's feed from the build that just published its major 1 manifest.
@@ -1787,13 +1848,22 @@ class DisplayService:
         return schedule
 
     def _reconcile_v2(
-        self, wall_id: str, feed: Published | None, answers: Mapping[str, PlayableWork | Unplayable], *, cause: str
+        self,
+        wall_id: str,
+        feed: Published | None,
+        answers: Mapping[str, PlayableWork | Unplayable],
+        *,
+        carried: set[str],
+        cause: str,
     ) -> bool:
         """Bring one wall's feed in line with the Library's answers. True if it was rewritten.
 
         A work the Library refuses, or one that lost its master, leaves; a work
         whose master, colour or label changed has its entry replaced where it
-        stands. Works the Library was not asked about are left as they are.
+        stands. **A work its major 1 manifest carries that has just gained a
+        master joins**: it was left off for want of one, and it is already on that
+        wall, so this adds nothing sync has not already decided to show. Works the
+        Library was not asked about are left as they are.
         """
         if feed is None:
             return False
@@ -1807,15 +1877,29 @@ class DisplayService:
                 gone.add(work_id)
             elif (current := work_document(answer)) != entry:
                 fresh[work_id] = current
-        if gone:
+        joining = {
+            work_id: work_document(answer)
+            for work_id in sorted(carried - set(feed.works))
+            if isinstance(answer := answers.get(work_id), PlayableWork) and answer.master is not None
+        }
+        if gone or joining:
             works = {work_id: fresh.get(work_id, entry) for work_id, entry in feed.works.items() if work_id not in gone}
-            self._rebuild_v2(wall_id, feed, works=works, start=Keep())
-            log.info(
-                "Wall %r: took works the Library no longer offers off the major 2 feed (%s, after %s).",
-                self.get_wall(wall_id).name,
-                ", ".join(sorted(gone)),
-                cause,
-            )
+            self._rebuild_v2(wall_id, feed, works={**works, **joining}, start=Keep())
+            if joining:
+                log.info(
+                    "Wall %r: %s joined the major 2 feed, now that %s a presentation master (after %s).",
+                    self.get_wall(wall_id).name,
+                    ", ".join(joining),
+                    "it has" if len(joining) == 1 else "they have",
+                    cause,
+                )
+            if gone:
+                log.info(
+                    "Wall %r: took works the Library no longer offers off the major 2 feed (%s, after %s).",
+                    self.get_wall(wall_id).name,
+                    ", ".join(sorted(gone)),
+                    cause,
+                )
             return True
         if fresh:
             self._patch_v2_works(wall_id, feed, fresh)
@@ -2017,3 +2101,8 @@ ROLL_WHEN_LEFT: Final[timedelta] = timedelta(days=2)
 #: still remembered, short enough that a screen replaced by a smaller one stops
 #: counting within days.
 SCREEN_MEMORY: Final[timedelta] = timedelta(days=7)
+
+#: How long a reported size stands before the same report writes it again. An
+#: hour against a week's memory: a screen still reporting is never near falling
+#: out of the window, and a live wall costs one write an hour, not one a minute.
+SCREEN_REFRESH: Final[timedelta] = timedelta(hours=1)

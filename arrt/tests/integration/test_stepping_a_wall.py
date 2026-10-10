@@ -156,3 +156,9 @@ def test_a_walls_mat_is_chosen_and_handed_back_over_http(http, the_wall):
     assert refused.status_code == 400
     assert "mat mode" in refused.json()["error"]
     assert _wall_named(http, the_wall["name"])["mat_mode"] is None
+
+
+def test_a_wall_says_why_it_judged_no_work_for_size_over_http(http, the_wall):
+    wall = _wall_named(http, the_wall["name"])
+
+    assert (wall["too_small"], wall["sizes_judged_against"], wall["sizes_unjudged"]) == ([], None, "no_display")

@@ -2073,6 +2073,7 @@ two services: until then these routes were HTTP-only, a recorded gap in parity.
 | `POST /api/walls/{wall_id}/labels` `{client_id, output}` *(2026-10-08)* | `art_display(action='add_label', wall_id, client_id, output)` | Caption the wall with a client's label output, by name. Answers `{wall, label_id, notice}`; `notice` says when the client has not reported a label output by that name. Refused when it captions another wall |
 | `DELETE /api/walls/{wall_id}/labels/{label_id}` *(2026-10-08)* | `art_display(action='remove_label', wall_id, label_id)` | Stop it captioning the wall; it stays recorded. Idempotent; refused for one captioning another wall |
 | `DELETE /api/walls/{wall_id}/client` | `art_display(action='unassign_wall', wall_id)` | Take the wall off its display. Idempotent |
+| `PUT /api/walls/{wall_id}/mat` `{mode}` *(2026-10-09, wave 4e)* | `art_display(action='set_mat_mode', wall_id, mode)` | How the wall's Player draws the mat: `none`, `proportional` or `full`, or `null` (the tool's `players_own`) to leave it to the Player. Republishes the wall's major 2 feed with `settings.mat.mode` and moves no slot. Answers the wall. An unknown mode is refused, `400`, naming the allowed ones |
 
 `WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
 `output` (both null while no client shows the wall). From 2026-10-08 both are read
@@ -2081,6 +2082,17 @@ shapes gain, additively, `display_id`, `display` (`{display_id, identity, kind,
 client_id, output, first_seen, wall_id, fault}`, `fault` naming every client that
 reports the display while two do) and `labels` (`[{label_id, client_id,
 client_name, output}]`).
+
+From 2026-10-09 (wave 4e) both wall shapes also carry `mat_mode` (null when
+left to the Player) and the wall's size judgement (`programming/adequacy.py`):
+`too_small` (the works on the wall's feed too small for the largest screen
+its Player reported in the last week), `sizes_judged_against` (that screen,
+`{width_px, height_px}`, or null) and `sizes_unjudged` (`no_display`,
+`no_screen_reported`, `no_feed`, or null when a judgement was made). An empty
+`too_small` means "every work is big enough" only beside a non-null
+`sizes_judged_against`. `GET /api/themes/{theme_id}` and `art_theme(action='get')`
+carry `too_small_for` (work id to the names of walls hanging the theme that it
+is too small for) and `sizes_unjudged` (wall name to why it judged nothing).
 
 **Each wall's display state — built 2026-10-08** (`build-plan-display-state.md`
 Chunk 04; `labels-and-surfaces.md` § Display state). `WallOut` and the MCP wall

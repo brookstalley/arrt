@@ -170,8 +170,7 @@ def test_a_major_the_server_does_not_build_answers_404_in_the_error_shape(server
 
     `01` and `02` are here because a lenient integer parse would serve a built
     major under a second spelling, and the contract names one URL per major.
-    Major 2 was in this list until wave 4e built it; `3` keeps the case of the
-    next major up, which is the one a newer Player asks for first.
+    `3` is the next major up, which is the one a newer Player asks for first.
     """
     response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major=major), headers=_bearer(token))
 

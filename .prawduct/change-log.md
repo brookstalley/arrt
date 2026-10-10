@@ -111,6 +111,14 @@ on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
   theme member's *Size*, and as `too_small` and `too_small_for` on the HTTP
   and MCP walls and theme reads.
 
+**Rolling back:** reverting the merge restores the code. The stored state it
+adds is inert to the older code. `walls.mat_mode` and the `reported_screens`
+table are read by nothing before this branch, and a reported size is deleted
+with its display (`ON DELETE CASCADE`), so removing a client still works. Each wall's
+`theme-manifest-{wall}.v2.json` beside its manifest is served by no route, so
+every Player falls back to `v1` on the 404. Delete the v2 files to tidy up.
+Nothing needs a migration back.
+
 **Tests:** `tests/unit/test_schedule.py` states the contract's slot rules, the
 household rule (a clash only where no work of the wall could avoid one, on
 fresh and kept rebuilds), the cycle and stability as Hypothesis properties.

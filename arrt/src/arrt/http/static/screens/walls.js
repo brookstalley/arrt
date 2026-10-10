@@ -423,7 +423,7 @@ function nowShowing(wall, now) {
       // (`programming/adequacy.py`). Said, never hidden: a postage stamp in a
       // big mat looks like a fault, and the reason is the picture's size.
       (wall.too_small || []).includes(work.artwork_id)
-        ? el("p", { class: "note wall-now-small", text: `Too small for ${wall.name}: it fills less than half of the screen. A larger scan would fix it.` })
+        ? el("p", { class: "note wall-now-small", text: `Too small for ${wall.name}: it fills less than half of the space inside the mat. A larger scan would fix it.` })
         : null,
     ]),
   ]);

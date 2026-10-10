@@ -958,6 +958,13 @@ class WallLabelOut(BaseModel):
     output: str
 
 
+class ScreenSizeOut(BaseModel):
+    """A screen's size in pixels, as a Player reported it."""
+
+    width_px: int
+    height_px: int
+
+
 class WallOut(BaseModel):
     """A place where art hangs, and what is hanging there.
 
@@ -997,8 +1004,14 @@ class WallOut(BaseModel):
     #: null while the curator has left it to the Player.
     mat_mode: str | None = None
     #: The works on this wall too small for the largest screen its Player
-    #: reported recently. Empty while there is nothing to judge against.
+    #: reported recently. Read it with the two fields below: it is empty both
+    #: when every work is big enough and when nothing was judged.
     too_small: list[str] = []
+    #: The screen the judgement was made against, or null when none was made.
+    sizes_judged_against: ScreenSizeOut | None = None
+    #: Why no judgement was made (`no_display`, `no_screen_reported`, `no_feed`),
+    #: or null when one was.
+    sizes_unjudged: str | None = None
 
 
 class ClientWallOut(BaseModel):
@@ -1155,6 +1168,10 @@ class ThemeDetailOut(BaseModel):
     #: names (Programming's judgement from each wall's reported screen). A work
     #: absent here was judged fine, or there was nothing to judge it against.
     too_small_for: dict[str, list[str]] = {}
+    #: Each wall hanging the theme that judged nothing, by name, with why
+    #: (`no_display`, `no_screen_reported`, `no_feed`). A wall absent here and
+    #: from every list above judged all of the theme's works big enough.
+    sizes_unjudged: dict[str, str] = {}
 
 
 class ManifestEntryOut(BaseModel):

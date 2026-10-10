@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, Final, Literal
+from typing import Annotated, Any, Final, Literal
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -126,6 +126,7 @@ from arrt.http.models import (
     RunOut,
     RunTallyOut,
     RunViewOut,
+    ScreenSizeOut,
     SearchUsageOut,
     SelectedImageOut,
     SelectImage,
@@ -221,7 +222,7 @@ from arrt.persistence.records import (
     WorkFacet,
 )
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import ThemeCount, ThemePlacement, WallView
+from arrt.programming.display import SizeJudgement, ThemeCount, ThemePlacement, WallView
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -1991,6 +1992,11 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
         shuffled=services.display.shuffles(theme),
         too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
+        sizes_unjudged={
+            name: judgement.unjudged.value
+            for name, judgement in services.display.size_judgements(theme_id).items()
+            if judgement.unjudged is not None
+        },
     )
 
 
@@ -2255,8 +2261,19 @@ def _wall(services: Services, view: WallView) -> WallOut:
         ],
         display_state=_display_state(view.display_state),
         mat_mode=view.wall.mat_mode,
-        too_small=sorted(services.display.too_small_on(view.wall.id)),
+        **_size_fields(services.display.judge_sizes(view.wall.id)),
     )
+
+
+def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
+    """A wall's size judgement as `WallOut` carries it: the works, and what they were judged against or why not."""
+    return {
+        "too_small": sorted(judgement.too_small),
+        "sizes_judged_against": (
+            None if judgement.screen is None else ScreenSizeOut(width_px=judgement.screen[0], height_px=judgement.screen[1])
+        ),
+        "sizes_unjudged": None if judgement.unjudged is None else judgement.unjudged.value,
+    }
 
 
 def _display(display: Display, survey: PlacementSurvey) -> DisplayOut:

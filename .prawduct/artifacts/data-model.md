@@ -878,6 +878,7 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
 | `display_id` | UUID | optional, FK → Display | *(Added 2026-10-08, `build-plan-displays-and-label-outputs.md`.)* The display the wall is shown on. Null while it has none, which is an ordinary state. At most one wall per display, held by the partial unique index `walls_one_per_display` over the non-null ids. |
+| `mat_mode` | enum? | optional: `none`, `proportional`, `full` | *(Added 2026-10-09, wave 4e.)* How the wall's Player draws the mat, sent as its feed's `settings.mat.mode` (§ Wall settings). Null leaves it to the Player. The values are checked by the service, because a `CHECK` on an added column would bind new files only. A curatorial choice about the room, not a fact about its screen. |
 
 *Removed 2026-10-08:* `client_id` and `output` (added 2026-10-02), which named the
 client showing the wall and its output. A wall names a display now, and the
@@ -891,7 +892,8 @@ token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
 drops both columns from a catalogue that has them.
 
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
-and the display it is shown on. It is not a device. The credential belongs to the
+the display it is shown on, and the presentation choices the curator made for
+the room (§ Wall settings). It is not a device. The credential belongs to the
 client (§ Client), and the display is a record of its own (§ Display), so a
 screen moved to another client takes its wall with it.
 
@@ -2938,8 +2940,10 @@ works whose verdict is `wanted`) runs on the same scheduler.
 
 From wave 4, a heartbeat carries the Player's **capabilities**: output geometry,
 backend (Frame, LCD, monitor) and label hardware present. It also carries cache
-state. Programming keeps the latest per wall for the health view and the
-per-wall adequacy verdict, which Programming computes; the Player sends no
+state. Programming keeps the latest heartbeat per wall for the health view.
+For the per-wall adequacy verdict, which Programming computes, it keeps every
+screen size each display reported in the last week and judges against the
+largest (§ Reported screen; built 2026-10-09, wave 4e). The Player sends no
 verdicts. This is device information held by Programming as an **observation**,
 never as configuration, and never in the Library.
 
@@ -2949,7 +2953,9 @@ Set centrally and sent down in the manifest, so the operator never configures a
 Player to change them: label mode (chosen from the capabilities the wall's Player
 reports), which facts the label shows, and viewing distance. Viewing distance is
 a fact about the room, and the Player uses it with its own geometry to size
-label type. Wave 4.
+label type. Wave 4. *(Built 2026-10-09, wave 4e: the mat mode, as `mat_mode`
+above. The label settings wait for a display that can draw text, the caption
+in the mat, wave 6+.)*
 
 ### Schedule entry *(Programming)*
 

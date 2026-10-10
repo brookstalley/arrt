@@ -16,10 +16,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from feed_guard import problems
 
+from arrt.library.services import catalogue as catalogue_module
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.programming.display import Unjudged
 from arrt.programming.manifest.v2 import read_published
 from arrt.services.errors import ServiceError
 
@@ -676,3 +678,158 @@ def test_a_stale_size_does_not_count_even_before_a_heartbeat_forgets_it(store, d
     store.record_screen(shown_by_a_client.display_id, 3840, 2160, datetime.now(UTC) - timedelta(days=8))
 
     assert display.largest_screen(wall_id) is None
+
+
+# -- each quiet state of the size judgement says which it is -------------------------------
+
+
+def test_a_wall_on_no_display_says_so_rather_than_judging_everything_fine(display, mastered, theme_of, wall_id):
+    display.activate_theme(theme_of(mastered("A")).id, wall_id=wall_id)
+
+    judgement = display.judge_sizes(wall_id)
+
+    assert (judgement.screen, judgement.unjudged, judgement.too_small) == (None, Unjudged.NO_DISPLAY, frozenset())
+
+
+def test_a_wall_whose_player_reported_no_screen_says_so(display, mastered, theme_of, wall_id, shown_by_a_client):
+    display.activate_theme(theme_of(mastered("A")).id, wall_id=wall_id)
+
+    assert display.judge_sizes(wall_id).unjudged is Unjudged.NO_SCREEN
+
+
+def test_a_wall_with_no_feed_says_so(display, wall_id, shown_by_a_client):
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    assert display.judge_sizes(wall_id).unjudged is Unjudged.NO_FEED
+
+
+def test_a_wall_judged_fine_says_what_it_was_judged_against(display, mastered, theme_of, wall_id, shown_by_a_client):
+    display.activate_theme(theme_of(mastered("Large", width=6000, height=4000)).id, wall_id=wall_id)
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    judgement = display.judge_sizes(wall_id)
+
+    assert (judgement.screen, judgement.unjudged, judgement.too_small) == ((3840, 2160), None, frozenset())
+
+
+@pytest.mark.parametrize(
+    "capabilities",
+    [
+        "not an object",
+        {"backend": "framebuffer"},
+        {"screen": {"width_px": 0, "height_px": 2160}},
+        {"screen": {"width_px": 3840, "height_px": "2160"}},
+        {"screen": {"width_px": True, "height_px": 2160}},
+    ],
+)
+def test_a_heartbeat_with_a_screen_this_server_cannot_read_is_refused(display, wall_id, shown_by_a_client, capabilities):
+    with pytest.raises(ServiceError, match="capabilities"):
+        display.record_heartbeat(wall_id, {**_heartbeat(), "capabilities": capabilities})
+
+    assert display.largest_screen(wall_id) is None
+
+
+def test_the_same_size_reported_within_the_hour_writes_nothing(store, display, wall_id, shown_by_a_client):
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+    [(_, _, first)] = store.reported_screens(shown_by_a_client.display_id)
+
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    assert store.reported_screens(shown_by_a_client.display_id) == [(3840, 2160, first)]
+
+
+def test_the_same_size_reported_after_the_hour_refreshes_its_time(store, display, wall_id, shown_by_a_client):
+    two_hours_ago = datetime.now(UTC) - timedelta(hours=2)
+    store.record_screen(shown_by_a_client.display_id, 3840, 2160, two_hours_ago)
+
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    [(_, _, refreshed)] = store.reported_screens(shown_by_a_client.display_id)
+    assert refreshed > two_hours_ago + timedelta(hours=1)
+
+
+# -- a work that gains its master after a sync joins the feed ------------------------------
+
+
+def test_a_work_that_gains_its_master_after_the_sync_joins_the_feed(
+    services, display, mastered, ready_work, theme_of, wall_id, wall_settings, decodable_jpeg, feed
+):
+    early, late = mastered("Early"), ready_work("Late")
+    display.activate_theme(theme_of(early, late).id, wall_id=wall_id)
+    assert set(feed(wall_id).works) == {early.id}
+    on_the_wall = feed(wall_id).on_the_wall(_now())
+
+    path = f"masters/{late.id}.jpg"
+    decodable_jpeg(wall_settings.art_root / path, width=3000, height=2000)
+    services.catalogue.record_rendition(
+        artwork_id=late.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+    )
+
+    assert set(feed(wall_id).works) == {early.id, late.id}
+    assert feed(wall_id).slots[0] == on_the_wall
+    assert late.id in {slot.work_id for slot in feed(wall_id).slots}
+
+
+def test_a_work_off_the_manifest_does_not_join_the_feed_when_it_gains_a_master(
+    services, display, mastered, ready_work, theme_of, wall_id, wall_settings, decodable_jpeg, feed
+):
+    theme = theme_of(mastered("Early"))
+    display.activate_theme(theme.id, wall_id=wall_id)
+    outsider = ready_work("Added since the sync")
+    display.add_to_theme(theme_id=theme.id, artwork_id=outsider.id)
+
+    path = f"masters/{outsider.id}.jpg"
+    decodable_jpeg(wall_settings.art_root / path, width=3000, height=2000)
+    services.catalogue.record_rendition(
+        artwork_id=outsider.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+    )
+
+    # Deciding when new work reaches the wall is what sync is for.
+    assert outsider.id not in feed(wall_id).works
+
+
+def test_a_masters_size_is_read_from_its_file_once(services, mastered, monkeypatch):
+    work = mastered("A", width=3000, height=2000)
+    master = next(
+        view.rendition
+        for view in services.catalogue.list_renditions(work.id)
+        if view.rendition.kind is RenditionKind.PRESENTATION_MASTER
+    )
+    master = services.catalogue.with_content(master)
+    opened = []
+    real_open = catalogue_module.Image.open
+    monkeypatch.setattr(catalogue_module.Image, "open", lambda *a, **k: opened.append(a) or real_open(*a, **k))
+
+    sizes = [services.catalogue.pixel_size(master) for _ in range(3)]
+
+    assert sizes == [(3000, 2000)] * 3
+    assert len(opened) == 1
+
+
+def test_a_new_size_within_the_hour_is_still_recorded(store, display, wall_id, shown_by_a_client):
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    display.record_heartbeat(wall_id, _beat_with_screen(1920, 1080))
+
+    assert sorted((w, h) for w, h, _ in store.reported_screens(shown_by_a_client.display_id)) == [(1920, 1080), (3840, 2160)]
+
+
+def test_a_member_added_since_the_sync_and_pinned_does_not_join_the_feed_when_it_gains_a_master(
+    services, display, mastered, theme_of, ready_work, wall_id, wall_settings, decodable_jpeg, feed
+):
+    theme = theme_of(mastered("A"), mastered("B"))
+    display.activate_theme(theme.id, wall_id=wall_id)
+    added = ready_work("Added since the sync")
+    display.add_to_theme(theme_id=theme.id, artwork_id=added.id)
+    display.show_work_now(wall_id, added.id)  # pinned on major 1; left off major 2 for want of a master
+
+    path = f"masters/{added.id}.jpg"
+    decodable_jpeg(wall_settings.art_root / path, width=3000, height=2000)
+    services.catalogue.record_rendition(
+        artwork_id=added.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+    )
+
+    # The Library was asked about it (its pin names it), and it is a member of
+    # the theme, but no manifest this wall carries has it: only a sync, or a
+    # show now made once it has a master, puts it on the feed.
+    assert added.id not in feed(wall_id).works

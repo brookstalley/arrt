@@ -475,9 +475,8 @@ def test_a_work_too_small_for_the_walls_screen_says_so_under_it(ui, services, th
     open_walls(ui)
 
     note = card(ui, the_wall).locator(".wall-now .wall-now-small")
-    assert (
-        note.inner_text() == f"Too small for {the_wall.name}: it fills less than half of the screen. A larger scan would fix it."
-    )
+    expected = f"Too small for {the_wall.name}: it fills less than half of the space inside the mat. A larger scan would fix it."
+    assert note.inner_text() == expected
 
 
 def test_a_work_large_enough_carries_no_note(ui, services, the_wall, two_works, small_and_large):
@@ -500,3 +499,15 @@ def test_the_theme_page_marks_a_work_too_small_for_the_wall_hanging_it(ui, servi
     large_row = rows.filter(has_text="Automat")
     assert small_row.locator(".badge", has_text=f"too small for {the_wall.name}").count() == 1
     assert large_row.locator(".badge", has_text="too small").count() == 0
+
+
+def test_the_walls_api_says_what_the_judgement_was_made_against(ui, services, the_wall, two_works, small_and_large):
+    nighthawks, _ = two_works
+    report_with_screen(services, the_wall, nighthawks.id, width=3840, height=2160)
+
+    walls = ui.page.request.get(f"{ui.base_url}/api/walls").json()["walls"]
+
+    wall = next(entry for entry in walls if entry["wall_id"] == the_wall.id)
+    assert wall["too_small"] == [nighthawks.id]
+    assert wall["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160}
+    assert wall["sizes_unjudged"] is None

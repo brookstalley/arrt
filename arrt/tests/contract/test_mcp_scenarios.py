@@ -546,4 +546,15 @@ async def test_walls_and_a_themes_page_say_which_works_are_too_small_for_a_wall(
         page = await caller.ok("art_theme", "get", theme_id=theme.id)
 
     assert walls["walls"][0]["too_small"] == [small.id]
+    assert walls["walls"][0]["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160}
+    assert walls["walls"][0]["sizes_unjudged"] is None
     assert page["too_small_for"] == {small.id: [wall.name]}
+    assert page["sizes_unjudged"] == {}
+
+
+async def test_a_wall_that_judged_nothing_says_why_on_the_tool_surface(server_url):
+    async with connect(server_url) as caller:
+        walls = await caller.ok("art_display", "walls")
+
+    wall = walls["walls"][0]
+    assert (wall["too_small"], wall["sizes_judged_against"], wall["sizes_unjudged"]) == ([], None, "no_display")
