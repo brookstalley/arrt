@@ -188,7 +188,7 @@ from `programming/display.py` and its callers in `http/api.py`,
 
 - [x] Chunk 01: The schedule
 - [x] Chunk 02: The major 2 feed, published and served
-- [ ] Chunk 03: A wall's mat mode
+- [x] Chunk 03: A wall's mat mode
 - [ ] Chunk 04: Too small for this wall
 
 Context: branched from develop after #341. Wave 4d (`feature/wave-4d-compositing`,
