@@ -1,0 +1,19 @@
+{
+  "schema": {
+    "major": 2,
+    "minor": 0
+  },
+  "generated_at": "2026-10-10T15:00:00+00:00",
+  "playlist": {
+    "id": "th-nothing-ready",
+    "name": "Nothing ready yet"
+  },
+  "works": {},
+  "schedule": {
+    "horizon": {
+      "from": "2026-10-10T15:00:00+00:00",
+      "until": "2026-10-13T15:00:00+00:00"
+    },
+    "slots": []
+  }
+}

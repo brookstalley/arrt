@@ -474,6 +474,11 @@
       "valid": true
     },
     {
+      "path": "fixtures/manifest.v2/valid/empty-feed.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/manifest.v2/valid/channel-feed.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": true

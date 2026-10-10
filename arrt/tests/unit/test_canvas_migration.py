@@ -103,3 +103,40 @@ def test_forgetting_them_is_safe_to_run_again(with_canvases, settings, store, ca
 
     assert _kinds(settings.catalogue_path) == set(_KEPT)
     assert not [record for record in caplog.records if "television canvases" in record.getMessage()]
+
+
+def test_a_wall_preview_made_after_the_migration_survives_the_next_start(with_canvases, settings, store):
+    """Previews are still made, from the master, so the pass must not run again on them."""
+    work_id = with_canvases()
+    store.close()
+    SqliteCatalogue(open_catalogue_file(settings.catalogue_path)).close()
+    connection = sqlite3.connect(settings.catalogue_path)
+    try:
+        connection.execute(
+            "INSERT INTO renditions (id, artwork_id, kind, target_width, target_height, relative_path,"
+            " source_content_hash, generated_at) VALUES ('r-new', ?, 'wall_preview', 1920, 1920, 'thumbs/w.jpg', 'hash-1', ?)",
+            (work_id, "2026-10-11T00:00:00+00:00"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    SqliteCatalogue(open_catalogue_file(settings.catalogue_path)).close()
+
+    assert "wall_preview" in _kinds(settings.catalogue_path)
+
+
+def test_a_file_that_never_had_canvases_still_says_it_forgot_none(settings, store, caplog):
+    """The operator is told to look for this line, so it is said with 0 too, once."""
+    connection = sqlite3.connect(settings.catalogue_path)
+    try:
+        connection.execute("ALTER TABLE renditions ADD COLUMN mat_hex TEXT")
+        connection.commit()
+    finally:
+        connection.close()
+    store.close()
+
+    with caplog.at_level(logging.INFO, logger="arrt.persistence.migrations"):
+        SqliteCatalogue(open_catalogue_file(settings.catalogue_path)).close()
+
+    assert any("Forgot 0 television canvases" in record.getMessage() for record in caplog.records)

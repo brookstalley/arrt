@@ -198,6 +198,22 @@ async def test_a_gap_keeps_the_last_work_on_the_wall(schedule, display, media_ro
     assert display.asked == ["may_attempt", "is_ours", "show:w1"], "the gap asked the set anything"
 
 
+async def test_an_empty_feed_keeps_the_last_work_on_the_wall(schedule, display, media_root, clock, memory):
+    """What a theme with nothing it can send publishes: no works, no slots. The wall
+    keeps its picture, as through any gap, rather than going dark or asking the set."""
+    cache(media_root, "w1")
+    schedule.adopt(_feed(feed_document(slots=[("w1", "08:00", "13:00")])))
+    await step(schedule, display)
+
+    schedule.adopt(_feed(feed_document(slots=[])))
+    clock.advance(60.3)
+    await step(schedule, display)
+
+    assert display.shown() == ["w1"]
+    assert memory.last_selected_work_id == "w1"
+    assert display.asked == ["may_attempt", "is_ours", "show:w1"], "the empty feed asked the set anything"
+
+
 async def test_a_scene_wins_while_it_lasts_and_the_wall_returns_to_its_slot(schedule, display, media_root, clock):
     cache(media_root, "w1", "w9")
     scene = {"id": "sc-1", "work_id": "w9", "from": "2026-06-21T11:30:00+00:00", "until": "2026-06-21T12:20:00+00:00"}

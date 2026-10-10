@@ -386,7 +386,7 @@ Context: branched from develop at the merge of #345 (wave 4e).
 
 - **Type:** cumulative-final
 - **Visual change:** yes
-- **Surfaces:** merge 04; `contract/schemas/manifest.v1.schema.json`, `contract/fixtures/manifest.v1/`,
+- **Surfaces:** merge 04; retired `contract/schemas/manifest.v1.schema.json`, retired `contract/fixtures/manifest.v1/`,
   their rows in `contract/fixtures/index.json`, and `manifest` in `contract/routes.json`
   (retired once 02 and 04 have removed every reader); `.prawduct/artifacts/player-contract.md`
   (§ Major 1, § Versioning, § The cutover, each with a dated note); the artifacts that describe major 1, the directive,

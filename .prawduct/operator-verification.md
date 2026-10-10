@@ -19,8 +19,11 @@ which this one changes in two places (noted there), and these:
 
 - **Each wall's heartbeat lists `[2]`**, not `[2, 1]`, and Walls shows no line
   under any wall's name about its Player.
-- **A missed Player is named.** Stop one Player's upgrade (or point a 4f-or-older
-  Player at the server): Walls says, under that wall's name, "This wall's Player
+- **A missed Player is named.** Every Player from wave 4c on reports that it
+  reads major 2, so to see this, write a heartbeat by hand that lists only
+  major 1 (or none): stop the wall's Player, then
+  `curl -X POST -H "Authorization: Bearer $CLIENT_TOKEN" -H 'Content-Type: application/json' -d "{\"reported_at\": \"$(date -u +%Y-%m-%dT%H:%M:%S+00:00)\", \"capabilities\": {\"screen\": {\"width_px\": 3840, \"height_px\": 2160}, \"backend\": \"frame\", \"label_modes\": [\"none\"], \"manifest_majors\": [1]}}" "$SERVER_URL/walls/$WALL_ID/heartbeat"`.
+  Walls then says, under that wall's name, "This wall's Player
   can't read this server's feed, so it will show nothing new. Update Arrt Player
   on the device that shows this wall." Judge whether that is the sentence you
   would want to read there, and whether the remedy is one you could act on.

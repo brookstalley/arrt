@@ -414,9 +414,10 @@ nothing else, and Arrt Player reads only that. Deploy the server and the Player
 from the same revision; until both are up, a wall goes on showing the work it
 has. Then check, in this order:
 
-1. **The server forgot its canvases.** Its first start logs `Forgot N television
-   canvases and previews drawn from them; ART_ROOT/ready/ can be deleted.` (N is
-   0 on a catalogue that never had any). `ART_ROOT/ready/` and every
+1. **The server forgot its canvases.** Its first start on a catalogue from
+   before wave 4g logs `Forgot N television canvases and previews drawn from
+   them, and dropped renditions.mat_hex; ART_ROOT/ready/ can be deleted.`, once
+   (N may be 0). A catalogue made after wave 4g never had them and says nothing. `ART_ROOT/ready/` and every
    `ART_ROOT/theme-manifest-<wall>.json` without `.v2` are now nothing's, and
    are yours to delete when you are satisfied.
 2. **The wall's Player reads the feed.** Its heartbeat lists major 2:
@@ -425,10 +426,12 @@ has. Then check, in this order:
 
    It should print `[2]`. Walls shows a line under the wall's name when a
    Player cannot read the feed; there should be none.
-3. **The wall changes picture on its schedule.** The feed's first slot is the
-   work up now:
+3. **The wall changes picture on its schedule.** The slot covering now names the
+   work up now (the feed writes every instant in UTC, so the strings compare):
 
-       sudo -u tvpi jq '.schedule.slots[0]' /srv/art/theme-manifest-"$WALL_ID".v2.json
+       now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+       sudo -u tvpi jq --arg now "$now" '.schedule.slots[] | select(.from <= $now and $now < .until)' \
+           /srv/art/theme-manifest-"$WALL_ID".v2.json
 
 **Settings.** The server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
 `MAT_BOTTOM_WEIGHT`; they are the Player's, under the same names, and stay in the

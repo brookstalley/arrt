@@ -362,35 +362,35 @@ def retire_directives(connection: sqlite3.Connection) -> None:
 
 
 def retire_television_canvases(connection: sqlite3.Connection) -> None:
-    """Forget every composed television canvas, and the previews drawn from them.
+    """Forget every composed television canvas, and the previews drawn from them, once.
 
-    The server composes nothing for a screen any more: each Player draws its own
-    mat on the presentation master (`architecture.md`, the label and the mat
-    belong to the device). So the `tv_display` rows go, and with them every
-    `wall_preview` row, because a preview drawn from a canvas passes the hash
-    test against the original and would go on showing the old matted picture;
-    without its row it is drawn again from the master on next view. Then the
-    `mat_hex` column, which only a canvas filled.
+    Each Player draws its own mat on the presentation master (`architecture.md`,
+    the label and the mat belong to the device). So the `tv_display` rows go, and
+    with them every `wall_preview` row, because a preview drawn from a canvas
+    passes the hash test against the original and would go on showing the old
+    matted picture; without its row it is drawn again from the master on next
+    view. Then the `mat_hex` column, which only a canvas filled.
+
+    **Keyed on that column, so it happens once.** Wall previews are still made,
+    from the master, after this; deleting them on every open would throw each one
+    away at each start. A file still carrying `mat_hex` is one this has not run
+    on, and the deletes and the drop are its single pass: the column goes last,
+    so an open interrupted before it repeats the pass rather than skipping it.
 
     **The files are left where they are.** `ART_ROOT/ready/` holds the canvases,
     and removing a directory of the operator's files is the operator's act;
-    `deploy/README.md` names it as safe to delete. The startup line says how
-    many rows went.
-
-    Guarded by the file: a file with no such rows and no such column is left
-    alone, so this is safe to run on every open.
+    `deploy/README.md` names it as safe to delete. The line says how many rows
+    went, 0 included, so the operator has one line to look for either way.
     """
-    if not _has_table(connection, "renditions"):
+    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
         return
     gone = connection.execute("DELETE FROM renditions WHERE kind IN ('tv_display', 'wall_preview')").rowcount
-    if gone:
-        log.info(
-            "Forgot %d television canvases and previews drawn from them; ART_ROOT/ready/ can be deleted.",
-            gone,
-        )
     connection.commit()
-    if _has_column(connection, "renditions", "mat_hex"):
-        _require_drop_column(predates="the retirement of television canvases")
-        connection.execute("ALTER TABLE renditions DROP COLUMN mat_hex")
-        log.info("Dropped renditions.mat_hex: no canvas is painted on this side any more.")
-        connection.commit()
+    _require_drop_column(predates="the retirement of television canvases")
+    connection.execute("ALTER TABLE renditions DROP COLUMN mat_hex")
+    connection.commit()
+    log.info(
+        "Forgot %d television canvases and previews drawn from them, and dropped renditions.mat_hex; "
+        "ART_ROOT/ready/ can be deleted.",
+        gone,
+    )
