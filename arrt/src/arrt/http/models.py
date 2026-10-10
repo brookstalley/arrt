@@ -66,12 +66,9 @@ class FitOut(BaseModel):
 
 
 class ImageOut(BaseModel):
-    """Whether there is an image to show, and which held image it is."""
+    """Whether there is an image to show."""
 
     available: bool
-    #: `tv_display` when the wall's own render is current, `original` when the
-    #: master stands in for it, null when there is nothing to show.
-    source_kind: str | None
     #: Present exactly when `available` is false, saying what is missing.
     note: str | None
 

@@ -403,7 +403,7 @@ function nowShowing(wall, now) {
   const artist = work.artist ? work.artist.name : null;
   const image = el("img", {
     // The large size: this box is drawn up to 48rem wide, and the tile's 480 px
-    // is soft there on a 2x screen. Still the bare work, never the wall render.
+    // is soft there on a 2x screen. The bare work: the mat is the wall's.
     src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail?size=large`,
     alt: artist ? `${work.title}, ${artist}` : work.title,
   });
@@ -836,9 +836,7 @@ const MAT_CHOICES = [
 
 /* How the wall's Player draws the mat. The colour is always the work's own and
  * the width the Player's, so this chooses only how much of the screen the mat
- * fills. It reaches a wall whose Player composes its own picture (major 2); a
- * Player still on major 1 shows the render the server matted, and the note says
- * so rather than letting the choice look ignored. */
+ * fills. */
 function matPanel(wall) {
   const pickerId = `mat-${wall.wall_id}`;
   const picker = el("select", { id: pickerId });
@@ -878,7 +876,7 @@ function matPanel(wall) {
     said,
     el("p", {
       class: "muted",
-      text: "The mat is always the work's own colour. A Player that draws its own mat follows this; one that shows the server's render keeps the mat it was sent.",
+      text: "The mat is always the work's own colour.",
     }),
   ]);
 }

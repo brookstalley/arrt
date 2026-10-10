@@ -129,7 +129,7 @@ def test_a_work_the_catalogue_no_longer_holds_is_excluded_and_named_by_its_id(
 
 
 def test_a_work_that_has_not_been_rendered_is_excluded_and_named(display, ready_work, theme_of, wall_id):
-    theme = theme_of(ready_work(rendition=False))
+    theme = theme_of(ready_work(master=False))
 
     build = display.build_manifest(wall_id, theme.id)
 
@@ -166,7 +166,7 @@ def test_a_render_made_from_an_earlier_acquisition_is_excluded_as_stale(service,
     assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.STALE_RENDITION]
 
 
-def test_regenerating_the_render_returns_the_work_to_the_wall(service, display, ready_work, theme_of, wall_id):
+def test_making_the_master_again_returns_the_work_to_the_wall(service, display, ready_work, theme_of, wall_id):
     """The exclusion is a state, not a verdict — the multi-hop step that proves it clears."""
     work = ready_work()
     theme = theme_of(work)
@@ -185,10 +185,10 @@ def test_regenerating_the_render_returns_the_work_to_the_wall(service, display, 
 
     service.record_rendition(
         artwork_id=work.id,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path=f"ready/{work.id}.jpg",
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path=f"masters/{work.id}.jpg",
     )
 
     build = display.build_manifest(wall_id, theme.id)
@@ -198,7 +198,7 @@ def test_regenerating_the_render_returns_the_work_to_the_wall(service, display, 
 
 def test_a_thumbnail_is_not_a_television_render(service, display, ready_work, theme_of, wall_id):
     """The wall needs the 4K presentation with the mat composed in, not any derived image."""
-    work = ready_work(rendition=False)
+    work = ready_work(master=False)
     theme = theme_of(work)
     service.record_rendition(
         artwork_id=work.id,
@@ -452,45 +452,47 @@ def test_showing_a_work_that_cannot_reach_the_wall_is_refused_with_its_reason(
     """
     display.activate_theme(theme_of(ready_work("Automat")).id, wall_id=wall_id)
     published = wall_settings.manifest_v2_path(wall_id).read_bytes()
-    work = ready_work(rendition=False)
+    work = ready_work(master=False)
 
-    with pytest.raises(ServiceError, match="has a master image but has not been rendered"):
+    with pytest.raises(ServiceError, match="no presentation master has been made"):
         display.show_work_now(wall_id, work.id)
 
     # And nothing was published: a refused show-now leaves the wall's feed as it was.
     assert wall_settings.manifest_v2_path(wall_id).read_bytes() == published
 
 
-def test_a_work_can_be_shown_once_it_is_displayable(display, service, ready_work, theme_of, feed, wall_id):
+def test_a_work_can_be_shown_once_it_is_displayable(
+    display, service, ready_work, theme_of, feed, wall_id, wall_settings, decodable_jpeg
+):
     """The refusal is a state, not a verdict about the work."""
     display.activate_theme(theme_of(ready_work("Automat")).id, wall_id=wall_id)
-    work = ready_work(rendition=False)
+    work = ready_work(master=False)
     with pytest.raises(ServiceError):
         display.show_work_now(wall_id, work.id)
 
+    decodable_jpeg(wall_settings.art_root / f"masters/{work.id}.jpg", width=400, height=300)
     service.record_rendition(
         artwork_id=work.id,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path=f"ready/{work.id}.jpg",
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path=f"masters/{work.id}.jpg",
     )
 
     assert display.show_work_now(wall_id, work.id) == work.id
     assert feed(wall_id).slots[0].work_id == work.id
 
 
-def test_an_unrendered_work_cannot_be_made_into_an_entry(service):
-    """The guard on the one path that would put a broken entry in the manifest.
+def test_a_work_with_no_master_cannot_be_made_into_an_entry(service):
+    """The guard on the one path that would put a broken entry in the feed.
 
     `assess` is what keeps this unreachable; the raise is what makes a caller
-    that skipped it fail loudly here rather than take the wall down to a missing
-    file later.
+    that skipped it fail loudly here rather than leave a wall a work short later.
     """
     work = service.add_artwork(title="Nighthawks")
-    inputs = readiness.WorkInputs(artwork=work, artist=None, original=None, tv_rendition=None, mat_color=None)
+    inputs = readiness.WorkInputs(artwork=work, artist=None, original=None, mat_color=None)
 
-    with pytest.raises(ValueError, match="no television render"):
+    with pytest.raises(ValueError, match="no master to send"):
         readiness.playable_from(inputs, units=Units.IMPERIAL)
 
 

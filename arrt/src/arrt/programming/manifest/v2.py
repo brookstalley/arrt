@@ -81,8 +81,6 @@ def as_document(feed: Feed) -> dict[str, Any]:
 
 def work_document(work: PlayableWork) -> dict[str, Any]:
     """One work as major 2 spells it: the master, its colour and its label."""
-    if work.master is None or work.mat_color is None:
-        raise ValueError(f"Work {work.work_id!r} has no presentation master or mat colour to publish.")
     media = {**media_document(work.master.media), "width": work.master.width, "height": work.master.height}
     return {"media": media, "mat_color": work.mat_color, "label": dict(work.label)}
 

@@ -58,9 +58,9 @@ def _new_master(service, ready_work) -> str:
 
 
 def _new_render(service, ready_work) -> str:
-    work = ready_work(rendition=False)
+    work = ready_work(master=False)
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="ready/x.jpg"
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path="masters/x.jpg"
     )
     return work.id
 

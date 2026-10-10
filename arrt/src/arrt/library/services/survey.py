@@ -38,12 +38,9 @@ FIT_BANDS: tuple[str, ...] = (*(str(fit) for fit in Fit), NO_SIZE_KNOWN)
 
 @dataclass(frozen=True, slots=True)
 class ImageAvailability:
-    """Whether this work can be shown, and which held image would be shown."""
+    """Whether this work can be shown."""
 
     available: bool
-    #: `tv_display` when the wall's own render is current, `original` when the
-    #: master is standing in for it, None when there is nothing to show.
-    source_kind: str | None
     #: Present exactly when `available` is false, saying what is missing.
     note: str | None
 
@@ -206,12 +203,12 @@ class SurveyService:
         fit = None if original is None else self._catalogue.fit(artwork_id, profile=self._profile)
         fit_note = None if original is not None else "No master image has been acquired, so its size is unknown."
         try:
-            source = self._thumbnails.source_for(artwork_id)
+            self._thumbnails.source_for(artwork_id)
         except ThumbnailUnavailable as absent:
             # The type exists for this: "there is no image yet" is an ordinary
             # state of a catalogue mid-acquisition, and its message is written to
             # be shown beside the work rather than raised at the curator.
-            image = ImageAvailability(available=False, source_kind=None, note=str(absent))
+            image = ImageAvailability(available=False, note=str(absent))
         else:
-            image = ImageAvailability(available=True, source_kind=source.kind, note=None)
+            image = ImageAvailability(available=True, note=None)
         return WorkSurvey(detail=detail, fit=fit, fit_note=fit_note, image=image)

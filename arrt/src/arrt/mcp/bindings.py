@@ -337,9 +337,9 @@ def _mat_notice(result: PreparationResult) -> str | None:
 
 def _regenerate(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     result = services.preparation.prepare(arguments["artwork_id"], force=bool(arguments.get("force")))
-    # Present only when something was actually rendered. On `unchanged` there
-    # is no fresh canvas to report on, and repeating a verdict would be
-    # answering a question this call did not ask.
+    # Present only when something was actually made. On `unchanged` there is
+    # nothing fresh to report on, and repeating a verdict would be answering a
+    # question this call did not ask.
     fit = services.survey.fit_of(result.artwork_id) if result.outcome is PreparationOutcome.PREPARED else None
     return ok(
         artwork_id=result.artwork_id,
@@ -364,9 +364,9 @@ def _regenerate_notice(result: PreparationResult, fit: Fit | None) -> str | None
 
     Not a refusal and not an error: the curator may have chosen this instance
     knowing it was small, and `nonfunctional-requirements.md` is explicit that
-    such a work is rendered rather than hidden. But a canvas reported as composed
-    with no mention of it would let a work quietly appear as a postage stamp in
-    an enormous mat, which is the gap the minimum exists to close.
+    such a work is shown rather than hidden. But a work reported as ready with
+    no mention of it would let it quietly appear as a postage stamp in an
+    enormous mat, which is the gap the minimum exists to close.
     """
     notices = []
     if result.mat_fallback_detail is not None:

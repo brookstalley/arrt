@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from feed_guard import problems
 
+from arrt.library.facade import UnplayableReason
 from arrt.library.services import catalogue as catalogue_module
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
@@ -90,15 +91,16 @@ def test_hanging_a_theme_publishes_its_feed(display, mastered, theme_of, wall_id
     assert sorted(path.name for path in wall_settings.art_root.glob("theme-manifest-*")) == [f"theme-manifest-{wall_id}.v2.json"]
 
 
-def test_a_work_without_a_master_is_left_off_the_feed_and_named(display, mastered, ready_work, theme_of, wall_id, feed, caplog):
+def test_a_work_without_a_master_is_left_off_the_feed_and_named(display, mastered, ready_work, theme_of, wall_id, feed):
     with_master, without = mastered("Nighthawks"), ready_work("Gas", master=False)
     theme = theme_of(with_master, without)
 
-    with caplog.at_level(logging.WARNING, logger="arrt.programming.display"):
-        display.activate_theme(theme.id, wall_id=wall_id)
+    build = display.activate_theme(theme.id, wall_id=wall_id)
 
     assert set(feed(wall_id).works) == {with_master.id}
-    assert any(without.id in record.getMessage() and "presentation master" in record.getMessage() for record in caplog.records)
+    assert [(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions] == [
+        (without.id, UnplayableReason.NO_RENDITION)
+    ]
 
 
 def test_a_theme_none_of_whose_works_has_a_master_publishes_an_empty_feed(display, mastered, ready_work, theme_of, wall_id, feed):
@@ -204,7 +206,7 @@ def test_showing_a_work_with_no_master_is_refused_and_leaves_the_feed_alone(
     before = feed(wall_id)
     plain = ready_work("Plain", master=False)
 
-    with pytest.raises(ServiceError, match="has no presentation master yet"):
+    with pytest.raises(ServiceError, match="no presentation master has been made"):
         display.show_work_now(wall_id, plain.id)
 
     assert feed(wall_id).slots == before.slots
@@ -381,14 +383,10 @@ def test_a_master_drawn_from_an_earlier_original_is_not_offered(services, displa
         content_hash="a-new-acquisition",
         fetch_status=None,
     )
-    # The television render is redone for the new image; the master is not yet.
-    services.catalogue.record_rendition(
-        artwork_id=b.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=f"ready/{b.id}.jpg"
-    )
 
     build = display.activate_theme(theme_of(a, b).id, wall_id=wall_id)
 
-    assert b.id in {entry.work_id for entry in build.entries}
+    assert [(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions] == [(b.id, UnplayableReason.STALE_RENDITION)]
     assert set(feed(wall_id).works) == {a.id}
 
 

@@ -16,13 +16,13 @@ must be one it refuses.
 
 import hashlib
 import json
-import logging
 import shutil
 from pathlib import Path
 
 import pytest
 from feed_guard import problems
 
+from arrt.library.facade import UnplayableReason
 from arrt.persistence.records import RenditionKind
 from arrt.programming.manifest import heartbeat
 
@@ -120,10 +120,10 @@ def test_a_published_feed_carrying_media_conforms(service, ready_work, theme_of,
     assert problems(document) == []
 
 
-def test_a_master_with_no_file_is_left_off_the_feed_and_said(service, ready_work, theme_of, published, wall_settings, caplog):
-    """A Player could not fetch it, so it is not sent; said in the journal, because a
-    wall one work short with nothing on the server naming it is the silence this
-    product refuses."""
+def test_a_master_with_no_file_is_left_off_the_feed_and_named(service, display, ready_work, theme_of, wall_settings, wall_id):
+    """A Player could not fetch it, so it is not sent; named in the build's
+    exclusions, because a wall one work short with nothing on the server naming
+    it is the silence this product refuses."""
     work = ready_work()
     kept = ready_work("Automat")
     master = next(
@@ -131,12 +131,14 @@ def test_a_master_with_no_file_is_left_off_the_feed_and_said(service, ready_work
     )
     (wall_settings.art_root / master.relative_path).unlink()
 
-    with caplog.at_level(logging.WARNING):
-        document = published(theme_of(work, kept))
+    build = display.sync(wall_id, theme_of(work, kept).id)
+    document = _read(wall_settings, wall_id)
 
     assert set(document["works"]) == {kept.id}
     assert problems(document) == []
-    assert [record.getMessage() for record in caplog.records if work.id in record.getMessage()], "nothing named the work"
+    assert [(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions] == [
+        (work.id, UnplayableReason.NO_RENDITION)
+    ], "nothing named the work"
 
 
 def _heartbeat_fixtures(validity: str) -> list[Path]:

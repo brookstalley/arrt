@@ -321,13 +321,9 @@ CREATE TABLE IF NOT EXISTS renditions (
     generated_at         TEXT NOT NULL,
     content_sha256       TEXT,
     byte_size            INTEGER,
-    -- The geometry a television canvas was drawn with. Nullable because the
-    -- widening step can only add a column that allows NULL; null reads as out of
-    -- date, so a canvas drawn before this existed is recomposed.
-    layout               TEXT,
-    -- The mat colour a television canvas was painted in; null, like a null
-    -- layout, reads as out of date.
-    mat_hex              TEXT
+    -- The rule a presentation master was made by. Nullable because the
+    -- widening step can only add a column that allows NULL.
+    layout               TEXT
 );
 
 -- Media is fetched by content hash, so the hash is how a render is found.
@@ -948,19 +944,6 @@ class SqliteCatalogue(TableAdapter):
             for row in rows
         ]
 
-    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
-        # A work with a canvas at the current layout is left alone even if it
-        # also keeps an older one at another panel size: the old row is not what
-        # it shows, and queueing it would recompose nothing on every start.
-        rows = self._store.select_rows(
-            'SELECT a."id" AS work_id FROM artworks a WHERE a."status" = ? '
-            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
-            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? AND r."layout" = ?) '
-            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
-            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY), str(RenditionKind.TV_DISPLAY), layout),
-        )
-        return [row["work_id"] for row in rows]
-
     def works_owing_a_presentation_master(self, rule: str) -> Sequence[str]:
         # Recorded from the Original held now, which is what `is_current` means
         # for every Rendition, and by the rule masters are made by now: a master
@@ -975,14 +958,14 @@ class SqliteCatalogue(TableAdapter):
         )
         return [row["work_id"] for row in rows]
 
-    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
+    def current_mats_of_works_with_a_master(self) -> Sequence[tuple[str, str | None]]:
         rows = self._store.select_rows(
             'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '
             'LEFT JOIN mat_colors m ON m."artwork_id" = a."id" AND m."is_current" = 1 '
             'WHERE a."status" = ? '
             'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
             'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
-            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY)),
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.PRESENTATION_MASTER)),
         )
         return [(row["work_id"], row["hex_rgb"]) for row in rows]
 
@@ -1329,7 +1312,6 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "content_sha256": rendition.content_sha256,
         "byte_size": rendition.byte_size,
         "layout": rendition.layout,
-        "mat_hex": rendition.mat_hex,
     }
 
 
@@ -1530,7 +1512,6 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         # `.get` for the reason `fetch_status` uses it: a row read through a
         # mapping built from an older file's columns has no such key.
         layout=row.get("layout"),
-        mat_hex=row.get("mat_hex"),
     )
 
 

@@ -53,10 +53,6 @@ export const GLYPHS = Object.freeze({
   offered: "◈",
   // Chosen by the curator from what was offered.
   chosen: "◎",
-  // The wall render, as opposed to the master image.
-  render: "▤",
-  // The master image, where no wall render exists yet.
-  master: "□",
   // A state this client has no words for, drawn as itself.
   unknown: "?",
   // Cannot be said: no size known, nothing to compare.

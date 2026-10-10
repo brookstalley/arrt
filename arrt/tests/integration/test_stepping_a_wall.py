@@ -85,6 +85,20 @@ class TestSteppingAWall:
         assert response.status_code == 400
         assert "Hang a theme there first" in response.json()["error"]
 
+    def test_a_step_at_a_wall_whose_feed_holds_nothing_is_refused_in_words(self, http, services, settings, ready_work, the_wall):
+        """A theme none of whose works can be sent hangs with an empty feed; "skipped" would claim a move that cannot happen."""
+        only = ready_work("Automat")
+        _hang(http, the_wall, only)
+        services.catalogue.archive_artwork(only.id)
+        before = settings.manifest_v2_path(the_wall["wall_id"]).read_bytes()
+        assert _feed(settings, the_wall)["works"] == {}, "the feed still holds a work, so this checks nothing"
+
+        response = http.post(f"/api/walls/{the_wall['wall_id']}/next")
+
+        assert response.status_code == 400
+        assert "nothing to move on to" in response.json()["error"]
+        assert settings.manifest_v2_path(the_wall["wall_id"]).read_bytes() == before
+
     def test_a_step_at_a_wall_that_does_not_exist_is_refused_in_words(self, http):
         """The service's own message reaches whoever asked, as every refusal does."""
         response = http.post("/api/walls/no-such-wall/next")

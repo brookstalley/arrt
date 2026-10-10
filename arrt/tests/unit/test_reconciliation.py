@@ -159,14 +159,19 @@ def test_a_work_added_since_the_last_sync_is_not_published_by_an_archive(
     assert _entry_ids(wall_settings, wall_id) == sorted([kept.id, waiting.id])
 
 
-def test_a_new_render_does_not_republish(service, ready_work, hung, wall_id, wall_settings):
+def test_a_new_master_does_not_republish(service, ready_work, hung, wall_id, wall_settings, decodable_jpeg):
     """Readiness gained waits for sync, like any addition."""
-    unrendered = ready_work(title="Automat", rendition=False)
-    hung(wall_id, ready_work(), unrendered)
+    unmastered = ready_work(title="Automat", master=False)
+    hung(wall_id, ready_work(), unmastered)
     before = wall_settings.manifest_v2_path(wall_id).read_bytes()
 
+    decodable_jpeg(wall_settings.art_root / "masters/a.jpg", width=400, height=300)
     service.record_rendition(
-        artwork_id=unrendered.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="ready/a.jpg"
+        artwork_id=unmastered.id,
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path="masters/a.jpg",
     )
 
     assert wall_settings.manifest_v2_path(wall_id).read_bytes() == before

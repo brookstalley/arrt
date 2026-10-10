@@ -20,9 +20,6 @@ from arrt.config import (
     DEFAULT_PORT,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     ConfigError,
     Settings,
     retired_settings_in,
@@ -55,9 +52,6 @@ def _clean_env(monkeypatch):
         "ROTATION_INTERVAL_SECONDS",
         "ROTATION_SHUFFLE",
         "LABEL_UNITS",
-        "TV_PANEL_WIDTH_PX",
-        "TV_PANEL_HEIGHT_PX",
-        "TV_PANEL_DIAGONAL_INCHES",
         "BACKUP_DIR",
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
@@ -220,9 +214,6 @@ def test_the_shipped_rotation_defaults_are_what_the_wall_runs_today(monkeypatch,
 
     assert settings.rotation_interval_seconds == DEFAULT_ROTATION_INTERVAL_SECONDS
     assert settings.rotation_shuffle == DEFAULT_ROTATION_SHUFFLE
-    assert settings.tv_panel_width_px == DEFAULT_TV_PANEL_WIDTH_PX
-    assert settings.tv_panel_height_px == DEFAULT_TV_PANEL_HEIGHT_PX
-    assert settings.tv_panel_diagonal_inches == DEFAULT_TV_PANEL_DIAGONAL_INCHES
 
 
 def test_a_deployment_can_override_every_wall_setting(monkeypatch, tmp_path):
@@ -230,17 +221,11 @@ def test_a_deployment_can_override_every_wall_setting(monkeypatch, tmp_path):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("ROTATION_INTERVAL_SECONDS", "931")
     monkeypatch.setenv("ROTATION_SHUFFLE", "false")
-    monkeypatch.setenv("TV_PANEL_WIDTH_PX", "1920")
-    monkeypatch.setenv("TV_PANEL_HEIGHT_PX", "1080")
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "55.5")
 
     settings = Settings.from_env()
 
     assert settings.rotation_interval_seconds == 931
     assert settings.rotation_shuffle is False
-    assert settings.tv_panel_width_px == 1920
-    assert settings.tv_panel_height_px == 1080
-    assert settings.tv_panel_diagonal_inches == 55.5
 
 
 @pytest.mark.parametrize("spelling", ["false", "False", "FALSE", "0", "no", "off", " off "])
@@ -277,8 +262,6 @@ def test_a_flag_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_
     "name",
     [
         "ROTATION_INTERVAL_SECONDS",
-        "TV_PANEL_WIDTH_PX",
-        "TV_PANEL_HEIGHT_PX",
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
         "QUALITY_MINIMUM_PX",
@@ -296,8 +279,6 @@ def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(
     "name",
     [
         "ROTATION_INTERVAL_SECONDS",
-        "TV_PANEL_WIDTH_PX",
-        "TV_PANEL_HEIGHT_PX",
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
         "QUALITY_MINIMUM_PX",
@@ -314,118 +295,23 @@ def test_a_setting_that_must_be_positive_refuses_zero_and_below(monkeypatch, tmp
         Settings.from_env()
 
 
-def test_a_non_numeric_panel_diagonal_is_refused_with_the_offending_value(monkeypatch, tmp_path):
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "big")
+@pytest.mark.parametrize(
+    "name", ["TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "TV_PANEL_DIAGONAL_INCHES", "MAT_WIDTH_INCHES", "MAT_BOTTOM_WEIGHT"]
+)
+def test_the_players_screen_settings_are_neither_read_nor_retired(monkeypatch, tmp_path, name):
+    """The screen and the mat's width are the Player's (`feeds-and-players.md` ruling 7).
 
-    with pytest.raises(ConfigError, match="must be a number, got 'big'"):
-        Settings.from_env()
-
-
-def test_a_panel_with_no_size_is_refused_rather_than_dividing_by_zero(monkeypatch, tmp_path):
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "0")
-
-    with pytest.raises(ConfigError, match="must be greater than zero"):
-        Settings.from_env()
-
-
-def test_pixels_per_inch_is_derived_from_the_panels_own_geometry(monkeypatch, tmp_path):
-    """What the mat is computed from.
-
-    A 3840x2160 panel measures 4405.8 pixels corner to corner; over 42 inches
-    that is 104.9 per inch. Derived rather than configured, so a deployment
-    cannot state a scale that disagrees with the size it also stated.
+    One `.env` serves both planes on a development checkout, so the server
+    must neither refuse them nor tell an operator to remove a key the Player
+    still reads. A value the server would refuse, if it read it, is what shows
+    that it does not.
     """
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv(name, "not a number")
 
-    assert Settings.from_env().tv_pixels_per_inch == pytest.approx(104.9, abs=0.01)
+    Settings.from_env()
 
-
-def test_a_larger_panel_of_the_same_resolution_has_fewer_pixels_per_inch(monkeypatch, tmp_path):
-    """The relationship the mat depends on: inches on the wall, not pixel counts."""
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "84")
-
-    assert Settings.from_env().tv_pixels_per_inch == pytest.approx(52.45, abs=0.01)
-
-
-def test_the_artwork_box_reproduces_the_reference_panels_worked_example(monkeypatch, tmp_path):
-    """The 42" 4K Frame, as `nonfunctional-requirements.md` works it out.
-
-    That artifact's table is the specification of this arithmetic, so the table
-    and the code are pinned to each other here — the alternative is two
-    statements of one rule, drifting. The table is worked at a 2.5" mat, so that
-    is set here rather than taken from the default, which is 1.5".
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("MAT_WIDTH_INCHES", "2.5")
-    settings = Settings.from_env()
-    box = settings.tv_artwork_box
-
-    assert (box.width, box.height) == (3316, 1597)
-    assert box.width / settings.tv_pixels_per_inch == pytest.approx(31.6, abs=0.05)
-    assert box.height / settings.tv_pixels_per_inch == pytest.approx(15.2, abs=0.05)
-
-
-def test_the_same_mat_in_inches_gives_a_bigger_box_on_a_bigger_panel(monkeypatch, tmp_path):
-    """The whole point of specifying the mat physically: it scales with the panel.
-
-    The 75" row of the same table. A pixel mat would take the same bite out of
-    both canvases and mean something different on each wall.
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "75")
-    monkeypatch.setenv("MAT_WIDTH_INCHES", "2.5")
-    settings = Settings.from_env()
-    box = settings.tv_artwork_box
-
-    assert (box.width, box.height) == (3546, 1844)
-    assert box.width / settings.tv_pixels_per_inch == pytest.approx(60.4, abs=0.05)
-
-
-def test_the_default_mat_is_an_inch_and_a_half(monkeypatch, tmp_path):
-    """The owner's number, ruled 2026-10-02 when the mat began to take the work's
-    shape with black beyond it. On the operator's 50" 4K panel it is 132 px at the
-    top and sides and 152 px at the bottom."""
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "50")
-    box = Settings.from_env().tv_artwork_box
-
-    assert (box.width, box.height) == (3840 - 2 * 132, 2160 - 132 - 152)
-
-
-def test_the_bottom_margin_is_deeper_than_the_top(monkeypatch, tmp_path):
-    """A true-centred image reads as sitting low, so the vertical mat is not symmetric.
-
-    Asserted as the *relationship* rather than as two numbers: the box is
-    shorter than a four-equal-sides mat would leave it, by exactly the extra the
-    weighting adds.
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("MAT_BOTTOM_WEIGHT", "1.5")
-    settings = Settings.from_env()
-    box = settings.tv_artwork_box
-
-    top = round(settings.mat_width_inches * settings.tv_pixels_per_inch)
-    assert box.width == 3840 - 2 * top
-    assert box.height == 2160 - top - round(top * 1.5)
-    assert box.height < 2160 - 2 * top, "the bottom margin is not deeper than the top"
-
-
-def test_a_mat_wider_than_the_panel_leaves_a_box_rather_than_a_negative_one(monkeypatch, tmp_path):
-    """A misconfiguration should not produce geometry that crashes the compositor.
-
-    `PreparationSettings` refuses a box that does not fit its panel, so an absurd
-    mat must clamp to something it can refuse *about* rather than a negative size
-    it cannot even describe.
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("MAT_WIDTH_INCHES", "40")
-    box = Settings.from_env().tv_artwork_box
-
-    assert box.width >= 1
-    assert box.height >= 1
+    assert retired_settings_in({name: "not a number"}) == []
 
 
 def test_the_quality_minimum_reaches_the_profile_that_judges_against_it(monkeypatch, tmp_path):

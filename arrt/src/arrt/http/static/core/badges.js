@@ -70,18 +70,6 @@ export function fitBadge(sized, absentWord = "no size known") {
   ]);
 }
 
-/* Which image the Work page's picture is: the wall render, or the master where
- * no wall render exists yet. Not drawn on a tile, which is always the work
- * itself (ruling 7 of 2026-10-07), so the word would say nothing there. */
-export function sourceBadge(work) {
-  if (!work.image.available) return null;
-  const rendered = work.image.source_kind === "tv_display";
-  return el("span", { class: "badge" }, [
-    el("span", { class: "glyph", text: rendered ? GLYPHS.render : GLYPHS.master, "aria-hidden": true }),
-    el("span", { text: rendered ? "wall render" : "master image" }),
-  ]);
-}
-
 /* Shown only when a work is out of circulation. An archived work is still
  * listed — the catalogue lists accepted and archived together, because that is
  * what "everything we hold" means — and with no badge it looks exactly like a

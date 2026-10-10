@@ -238,7 +238,7 @@ def test_a_presentation_master_is_served_by_its_hash(server_url, services, ready
     """A Player composes from the master, fetched by hash on the media route,
     and the bytes are checked against the name. Made here by preparation itself
     rather than by the fixture, so the master is the one a real work gets."""
-    work = ready_work(rendition=False, master=False)
+    work = ready_work(master=False)
     original = services.catalogue.get_original(work.id)
     decodable_jpeg(wall_settings.art_root / original.relative_path, width=2400, height=1800)
     services.preparation.prepare(work.id)

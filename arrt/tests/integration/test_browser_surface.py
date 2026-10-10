@@ -90,7 +90,7 @@ def hold(service, settings, decodable_jpeg):
     question about the tree as well as the catalogue.
     """
 
-    def _hold(title, *, width=6000, height=4000, rendered=False, mat=False, content_hash=None):
+    def _hold(title, *, width=6000, height=4000, mastered=False, mat=False, content_hash=None):
         artwork = service.add_artwork(title=title, date_created="1942", medium="Oil on canvas")
         source = service.add_source(
             artwork_id=artwork.id,
@@ -115,15 +115,15 @@ def hold(service, settings, decodable_jpeg):
         )
         if mat:
             service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        if rendered:
-            rendered_path = f"ready/{artwork.id}.jpg"
-            decodable_jpeg(settings.art_root / rendered_path, width=3840, height=2160)
+        if mastered:
+            master_path = f"presentation/{artwork.id}.jpg"
+            decodable_jpeg(settings.art_root / master_path, width=4000, height=3000)
             service.record_rendition(
                 artwork_id=artwork.id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=3840,
-                target_height=2160,
-                path=rendered_path,
+                kind=RenditionKind.PRESENTATION_MASTER,
+                target_width=7680,
+                target_height=7680,
+                path=master_path,
             )
         return artwork
 
@@ -248,13 +248,6 @@ class TestTheWorkGrid:
         assert card["image"]["available"] is False
         assert "No master image" in card["image"]["note"]
 
-    def test_a_card_says_whether_it_is_showing_the_wall_render_or_the_master(self, http, hold):
-        rendered = hold("Rendered", rendered=True)
-        master_only = hold("Master only")
-        listing = http.get("/api/works").json()
-        assert card_for(listing, rendered.id)["image"]["source_kind"] == "tv_display"
-        assert card_for(listing, master_only.id)["image"]["source_kind"] == "original"
-
     def test_a_page_describes_its_own_place_in_the_set(self, http, hold):
         for index in range(4):
             hold(f"Work {index}")
@@ -294,7 +287,7 @@ class TestThumbnails:
 
     def test_a_large_thumbnail_is_the_work_itself_and_bigger_than_the_tile(self, http, hold):
         """Walls' lead: the bare work, at its own aspect, sharper than a tile, never the canvas."""
-        artwork = hold("Automat", width=3000, height=4000, rendered=True, mat=True)
+        artwork = hold("Automat", width=3000, height=4000, mastered=True, mat=True)
         tile = http.get(f"/api/works/{artwork.id}/thumbnail")
         large = http.get(f"/api/works/{artwork.id}/thumbnail", params={"size": "large"})
         assert large.status_code == 200
@@ -309,15 +302,12 @@ class TestThumbnails:
         artwork = hold("Automat")
         assert http.get(f"/api/works/{artwork.id}/thumbnail", params={"size": "huge"}).status_code == 422
 
-    def test_a_thumbnail_is_the_work_itself_while_the_wall_preview_is_the_canvas(self, http, hold):
-        """A tile shows the work at its own aspect; the wall render is the Work page's.
-
-        A portrait master under a 16:9 canvas, so the two routes cannot agree by
-        accident: the tile keeps the master's shape and the preview takes the
-        canvas's, and the preview is larger, because the Work page draws it across
-        a column.
+    def test_a_thumbnail_and_the_wall_preview_are_both_the_work_itself(self, http, hold):
+        """Both keep the work's own aspect, with no mat: each wall's Player draws the
+        mat. A portrait work, so an answer in a screen's shape would show; the
+        preview is the larger, because the Work page draws it across a column.
         """
-        artwork = hold("Automat", width=3000, height=4000, rendered=True, mat=True)
+        artwork = hold("Automat", width=3000, height=4000, mastered=True, mat=True)
         tile = http.get(f"/api/works/{artwork.id}/thumbnail")
         preview = http.get(f"/api/works/{artwork.id}/wall-preview")
         assert tile.status_code == preview.status_code == 200
@@ -326,12 +316,12 @@ class TestThumbnails:
             assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
             tile_edge = max(picture.size)
         with Image.open(io.BytesIO(preview.content)) as picture:
-            assert picture.size[0] / picture.size[1] == pytest.approx(3840 / 2160, abs=0.01)
+            assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
             assert max(picture.size) > tile_edge
 
     def test_a_wall_preview_revalidates_and_answers_a_held_copy_with_a_304(self, http, hold):
-        """A recomposed canvas rewrites the preview under the same name, as a new master does a thumbnail."""
-        artwork = hold("Automat", rendered=True)
+        """A new master image rewrites the preview under the same name, as it does a thumbnail."""
+        artwork = hold("Automat", mastered=True)
         first = http.get(f"/api/works/{artwork.id}/wall-preview")
         assert "no-cache" in first.headers["cache-control"]
         again = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": first.headers["etag"]})
@@ -346,16 +336,16 @@ class TestThumbnails:
 
 class TestWorkDetail:
     def test_the_detail_view_carries_what_the_grid_does_not(self, http, hold):
-        artwork = hold("Automat", rendered=True, mat=True)
+        artwork = hold("Automat", mastered=True, mat=True)
         detail = http.get(f"/api/works/{artwork.id}").json()
         assert detail["work"]["title"] == "Automat"
         assert detail["original"]["width"] == 6000
         assert [source["provider"] for source in detail["sources"]] == ["artic"]
-        assert {rendition["kind"] for rendition in detail["renditions"]} == {"tv_display"}
+        assert {rendition["kind"] for rendition in detail["renditions"]} == {"presentation_master"}
         assert detail["mat_colors"][0]["hex_rgb"] == "#27285b"
 
     def test_a_rendition_says_whether_it_still_matches_the_master(self, http, hold, service, settings, decodable_jpeg):
-        artwork = hold("Automat", rendered=True)
+        artwork = hold("Automat", mastered=True)
         source = service.list_sources(artwork.id)[0]
         replacement = f"raw/{artwork.id}-2.jpg"
         decodable_jpeg(settings.art_root / replacement)
@@ -609,8 +599,8 @@ class TestTheWholeLoop:
         See the works, build a theme, put it on the wall, and read exactly why a
         work that is in the theme is not on the wall.
         """
-        ready = hold("Chop Suey", rendered=True, mat=True)
-        no_mat = hold("Chosen but unmatted", rendered=True)
+        ready = hold("Chop Suey", mastered=True, mat=True)
+        no_mat = hold("Chosen but unmatted", mastered=True)
         no_render = hold("Acquired but unrendered", mat=True)
 
         works = http.get("/api/works").json()["works"]
@@ -633,7 +623,7 @@ class TestTheWholeLoop:
         assert excluded[no_mat.id]["reason"] == "no_mat_color"
         assert "No mat colour has been chosen" in excluded[no_mat.id]["detail"]
         assert excluded[no_render.id]["reason"] == "no_rendition"
-        assert "not been rendered for the television" in excluded[no_render.id]["detail"]
+        assert "no presentation master has been made" in excluded[no_render.id]["detail"]
         assert published["summary"] == "1 of 3 works in this theme is on the wall; 2 are not currently displayable."
 
         # And the standing view of the wall agrees with what activation returned.
@@ -647,7 +637,7 @@ class TestTheWholeLoop:
 
     def test_activating_a_theme_publishes_the_manifest_the_display_plane_reads(self, http, hold, settings, wall):
         """Activation changes the wall, so it must write the file, not only the row."""
-        artwork = hold("Automat", rendered=True, mat=True)
+        artwork = hold("Automat", mastered=True, mat=True)
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
         http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
         http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]})
@@ -730,7 +720,7 @@ class TestStateThatIsEasyToHide:
         assert live.id not in ids
 
     def test_an_archived_work_leaves_the_wall_with_its_reason_stated(self, http, hold, service, wall):
-        artwork = hold("Withdrawn", rendered=True, mat=True)
+        artwork = hold("Withdrawn", mastered=True, mat=True)
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
         http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
         service.archive_artwork(artwork.id)
@@ -784,40 +774,16 @@ class TestThumbnailRevalidation:
         assert response.status_code == 200
         assert response.content != b""
 
-    def test_a_recomposed_canvas_reaches_the_browser_rather_than_revalidating_clean(
-        self, http, hold, service, settings, decodable_jpeg
-    ):
-        """The trigger the mat controls will rest on, end to end.
+    def test_a_new_mat_leaves_the_wall_preview_as_it_was(self, http, hold, services):
+        """The mat is drawn by each wall's Player, so the Work page's picture is the
+        work itself and a browser's held copy stays current through a mat change."""
+        artwork = hold("Automat", mastered=True, mat=True)
+        etag = http.get(f"/api/works/{artwork.id}/wall-preview").headers["etag"]
 
-        The sibling above changes the *master*, which moves the content hash and
-        so is visible to the catalogue's inherited staleness rule. Setting a mat
-        colour moves nothing that rule can see: same original, same path, same
-        geometry. So this is the case where a validator a browser is holding must
-        stop matching because of the wall preview's own rule and nothing else —
-        and `no-cache` means the browser asks every time, so a 304 here is a
-        curator looking at the colour they just replaced. The Work page is where
-        the mat is seen; a tile is the work itself, so its validator holds.
-        """
-        artwork = hold("Automat", rendered=True, mat=True)
-        rendered = f"ready/{artwork.id}.jpg"
-        stale_etag = http.get(f"/api/works/{artwork.id}/wall-preview").headers["etag"]
-        tile_etag = http.get(f"/api/works/{artwork.id}/thumbnail").headers["etag"]
+        services.preparation.set_mat(artwork.id, "#6e4848")
 
-        # What pressing a mat preset amounts to: recompose in place, re-record.
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160, color=(200, 190, 170))
-        service.record_rendition(
-            artwork_id=artwork.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
-        )
-
-        response = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": stale_etag})
-        assert response.status_code == 200, "the browser was told its picture of the old mat is still current"
-        assert response.headers["etag"] != stale_etag
-        tile = http.get(f"/api/works/{artwork.id}/thumbnail", headers={"If-None-Match": tile_etag})
-        assert tile.status_code == 304, "a mat is the wall's, and the tile of the work itself should not change with it"
+        response = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": etag})
+        assert response.status_code == 304
 
     def test_a_wildcard_validator_matches_whatever_is_held(self, http, hold):
         """`*` matches any current representation, per RFC 9110.
@@ -875,7 +841,7 @@ class TestWhatTheWallSummaryClaims:
         """ "2 of 2" is what makes "1 of 2" legible, so the clean case is stated too."""
         theme = http.post("/api/themes", json={"name": "All good"}).json()
         for title in ("Automat", "Chop Suey"):
-            artwork = hold(title, rendered=True, mat=True)
+            artwork = hold(title, mastered=True, mat=True)
             http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
 
         published = http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]}).json()

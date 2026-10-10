@@ -1901,11 +1901,7 @@ def get_thumbnail(
 
 @router.get("/works/{artwork_id}/wall-preview", response_class=FileResponse)
 def get_wall_preview(request: Request, artwork_id: str) -> Response:
-    """The wall render, mat and all, at a size the Work page's column draws sharply.
-
-    Drawn from the current television canvas, or from the master where the work
-    has none yet; the work's `image.source_kind` says which.
-    """
+    """The work at a size the Work page's column draws sharply, drawn from its master."""
     return _revalidated_file(request, _services(request).thumbnails.wall_preview(artwork_id))
 
 
@@ -2055,7 +2051,6 @@ def _work(survey: WorkSurvey) -> WorkOut:
         fit_note=survey.fit_note,
         image=ImageOut(
             available=survey.image.available,
-            source_kind=survey.image.source_kind,
             note=survey.image.note,
         ),
     )

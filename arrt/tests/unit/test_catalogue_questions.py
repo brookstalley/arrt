@@ -45,13 +45,6 @@ def _make_showable(service, work, *, art_root, decodable_jpeg):
         fetch_status=FetchStatus.OK,
     )
     service.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-    service.record_rendition(
-        artwork_id=work.id,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path="ready/figure-five.jpg",
-    )
     decodable_jpeg(art_root / "masters/figure-five.jpg", width=400, height=300)
     service.record_rendition(
         artwork_id=work.id,
@@ -440,7 +433,11 @@ def test_q8_which_renditions_exist_for_which_geometry_and_are_they_current(servi
         fetch_status=FetchStatus.OK,
     )
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/nighthawks.jpg"
+        artwork_id=work.id,
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path="presentation/nighthawks.jpg",
     )
     service.record_rendition(
         artwork_id=work.id, kind=RenditionKind.THUMBNAIL, target_width=400, target_height=225, path="thumbs/nighthawks.jpg"
@@ -451,7 +448,7 @@ def test_q8_which_renditions_exist_for_which_geometry_and_are_they_current(servi
     # Geometry is columns, so the question is answerable at all — the 2024 design
     # encoded it in the filename, where nothing could query it.
     by_geometry = {(view.rendition.kind, view.rendition.target_width, view.rendition.target_height): view for view in views}
-    assert set(by_geometry) == {(RenditionKind.TV_DISPLAY, 3840, 2160), (RenditionKind.THUMBNAIL, 400, 225)}
+    assert set(by_geometry) == {(RenditionKind.PRESENTATION_MASTER, 7680, 7680), (RenditionKind.THUMBNAIL, 400, 225)}
     assert all(view.stale is False for view in views)
 
     # Re-acquire, and both answers change without either row being touched.

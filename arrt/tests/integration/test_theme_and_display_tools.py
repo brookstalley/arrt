@@ -262,13 +262,6 @@ async def test_activating_publishes_exactly_the_readiness_filtered_theme(
         fetch_status=FetchStatus.OK,
     )
     service.record_mat_color(artwork_id=ready, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-    service.record_rendition(
-        artwork_id=ready,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path="ready/nighthawks.jpg",
-    )
     decodable_jpeg(wall_settings.art_root / "masters/nighthawks.jpg", width=400, height=300)
     service.record_rendition(
         artwork_id=ready,

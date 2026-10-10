@@ -2573,7 +2573,7 @@ section.offered + section.offered {
 
 /* -- the Work page ------------------------------------------------------------
 
-   The picture is the largest thing on the page: the wall render, mat and all,
+   The picture is the largest thing on the page: the work, drawn from its master,
    across its column beside the label (above it below 60rem), up to most of
    the screen's height, kept at its own aspect. The state strip sits under the
    title, and the secondary acts after the facts. A description keeps the

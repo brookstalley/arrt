@@ -20,18 +20,19 @@ from arrt.persistence.records import MatMethod, RenditionKind
 
 
 @pytest.fixture
-def hangable(work_with_an_image, service):
-    """A work with its image on disk, a mat and a wall render: one a wall can show."""
+def hangable(work_with_an_image, service, settings, decodable_jpeg):
+    """A work with its image on disk, a mat and a presentation master: one a wall can show."""
 
     def _hangable(title="Nighthawks"):
         work = work_with_an_image(title)
         service.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
+        decodable_jpeg(settings.art_root / f"presentation/{work.id}.jpg", width=400, height=300)
         service.record_rendition(
             artwork_id=work.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=f"ready/{work.id}.jpg",
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=7680,
+            target_height=7680,
+            path=f"presentation/{work.id}.jpg",
         )
         return work
 
@@ -208,7 +209,7 @@ def test_with_two_walls_hang_asks_which_and_hangs_only_there(ui, api, services, 
 
 
 def test_a_work_hung_that_cannot_be_shown_yet_says_why(ui, services, work_with_an_image):
-    """No wall render yet: the hang lands, and the build says the work is not on the wall."""
+    """No presentation master yet: the hang lands, and the build says the work is not on the wall."""
     work = work_with_an_image("Automat")
     wall = first_wall(services)
 

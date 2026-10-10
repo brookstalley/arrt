@@ -37,8 +37,6 @@ from arrt.config import (
     DEFAULT_HOST,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
     DEFAULT_LABEL_UNITS,
-    DEFAULT_MAT_BOTTOM_WEIGHT,
-    DEFAULT_MAT_WIDTH_INCHES,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -56,9 +54,6 @@ from arrt.config import (
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
 from arrt.library.acquisition.direct import StreamOpener
@@ -272,11 +267,6 @@ def settings(tmp_path) -> Settings:
         backup_dir=None,
         backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
         backup_keep=DEFAULT_BACKUP_KEEP,
-        tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
-        tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
-        tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-        mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
-        mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
         quality_minimum_px=DEFAULT_QUALITY_MINIMUM_PX,
         phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
         phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
@@ -375,18 +365,7 @@ def services(
         quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        # Panel and box from the same resolved settings, as the entry point does
-        # it. Letting the panel default while passing a box derived from these
-        # settings is the one way the canvas and the mat can disagree about where
-        # the mat ends, and a test wired that way would assert against geometry no
-        # deployment produces.
-        preparation=PreparationSettings(
-            art_root=settings.art_root,
-            ready_path=settings.ready_path,
-            panel_width=settings.tv_panel_width_px,
-            panel_height=settings.tv_panel_height_px,
-            box=settings.tv_artwork_box,
-        ),
+        preparation=PreparationSettings(art_root=settings.art_root),
         # Stated rather than looked up, for every test that reaches acquisition. A
         # suite whose job is to be green cannot depend on the network — pyproject
         # says so and deselects the tests that deliberately do. Without this the
@@ -488,7 +467,6 @@ def ready_work(service: CatalogueService, settings: Settings, decodable_jpeg):
         *,
         artist_id=None,
         original=True,
-        rendition=True,
         mat=True,
         master=True,
         content_hash="hash-1",
@@ -519,14 +497,6 @@ def ready_work(service: CatalogueService, settings: Settings, decodable_jpeg):
             )
         if mat:
             service.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        if rendition and original:
-            service.record_rendition(
-                artwork_id=work.id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=3840,
-                target_height=2160,
-                path=f"ready/{work.id}.jpg",
-            )
         if master and original:
             path = f"masters/{work.id}.jpg"
             decodable_jpeg(settings.art_root / path, width=400, height=300)

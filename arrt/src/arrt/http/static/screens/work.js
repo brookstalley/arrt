@@ -32,7 +32,7 @@
 import { acquisitionLine } from "../core/acquiring.js";
 import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
-import { absentImage, facts, fitBadge, pixelSize, sourceBadge, statusBadge, table } from "../core/badges.js";
+import { absentImage, facts, fitBadge, pixelSize, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
@@ -478,8 +478,9 @@ async function paintTheirWork(section, maker, qid) {
  * focus is about paints the curator did not ask for, and this one is the direct
  * answer to a button they pressed.
  *
- * **The picture is the largest thing here, and it is the wall render**, mat and
- * all: on this page the subject is the work as a wall shows it. The title under
+ * **The picture is the largest thing here**: on this page the subject is the
+ * work. It is drawn from the master; the mat is drawn by the Player at each
+ * wall, in the colour the mat panel below names. The title under
  * it is the page's one `h1`, and the state strip under that says where the work
  * is and offers *Hang…*, the act a curator most often comes here for. Archive is
  * secondary, after the facts: it takes the work out of the whole library, and
@@ -490,8 +491,8 @@ function paint(detail, generation, { where, focusAction = false }) {
   const image = work.image.available
     ? el("img", {
         class: "detail-image work-picture",
-        // The wall render at a size this column draws sharply; a tile's
-        // thumbnail is the bare work and a fraction of this width.
+        // The work at a size this column draws sharply; a tile's thumbnail is a
+        // fraction of this width.
         src: `${workPath(work.artwork_id)}/wall-preview`,
         alt: work.artist ? `${work.title}, by ${work.artist.name}` : work.title,
       })
@@ -503,7 +504,7 @@ function paint(detail, generation, { where, focusAction = false }) {
   const head = [
     el("div", { class: "panel work-hero" }, [
       image,
-      el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work), sourceBadge(work)]),
+      el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work)]),
       work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
     ]),
     el("div", { class: "panel work-label" }, [

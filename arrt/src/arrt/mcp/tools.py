@@ -148,7 +148,7 @@ _HEX_RGB = Param(
 _FORCE = Param(
     name="force",
     type="boolean",
-    description="Re-render even if the work's canvas is already current. Defaults to false.",
+    description="Make the presentation master again even if the work's is already current. Defaults to false.",
 )
 
 ART_CATALOGUE: Final = ToolRecord(
@@ -292,7 +292,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     "Nothing is overwritten: the previous colour is kept, so a worse choice can be read back and reversed "
                     "by setting the old one again."
                 ),
-                "The work is re-rendered in the new colour immediately — there is no separate regenerate to remember.",
+                "Every wall showing the work gets the new colour in its feed at once; there is nothing to regenerate.",
                 (
                     "A colour recorded as method='dominant_color_fallback' was derived mechanically, not chosen for "
                     "this work: no vision model is configured, it could not be reached, its answer could not be used, "
@@ -338,7 +338,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="regenerate",
-            description="Re-render a work's television canvas from the image it holds, in the mat colour already in force.",
+            description="Make a work's presentation master from the image it holds, and give it a mat colour if it has none.",
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _FORCE),
             tips=(
@@ -348,17 +348,17 @@ ART_CATALOGUE: Final = ToolRecord(
                     "answer reports cost_usd, so a call that spent nothing says so."
                 ),
                 (
-                    "Ordinarily it does only what is needed — a work whose canvas is already current is reported "
-                    "unchanged rather than re-rendered."
+                    "Ordinarily it does only what is needed: a work whose master is already current is reported "
+                    "unchanged rather than made again. Each wall's Player draws the mat itself."
                 ),
-                "Use force=true after changing the panel geometry or clearing the rendered tree.",
+                "Use force=true after clearing the masters directory.",
                 (
-                    "A work whose master image is missing from disk is refused rather than rendered blank; "
+                    "A work whose image is missing from disk is refused rather than made blank; "
                     "action='retry_acquisition' fetches it again."
                 ),
                 (
                     "fit is 'meets_minimum' or 'below_minimum', against the quality minimum, and null when nothing "
-                    "was rendered. Retired 2026-10-08: 'native', 'matted_small' and 'below_floor', and the "
+                    "was made. Retired 2026-10-08: 'native', 'matted_small' and 'below_floor', and the "
                     "rendered_long_edge_inches field, which judged the work against one configured television."
                 ),
             ),
@@ -1641,8 +1641,9 @@ ART_DISPLAY: Final = ToolRecord(
             tips=(
                 (
                     "Any work that could not reach the wall is refused rather than shown — archived, "
-                    "missing its master image, mat colour or television render, carrying a render "
-                    "made from an earlier acquisition, or naming no work the catalogue holds. The "
+                    "missing its acquired master image, its mat colour or its presentation master (the picture "
+                    "each wall's Player is sent), carrying a presentation master made from an earlier acquisition, "
+                    "or naming no work the catalogue holds. The "
                     "refusal names which, in the same words "
                     "art_display(action='sync') uses for an excluded work."
                 ),

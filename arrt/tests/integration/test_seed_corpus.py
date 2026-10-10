@@ -10,13 +10,14 @@ multi-megabyte museum scans; what the seeder does with a file is measure it, and
 a stand-in of the right size at the right path exercises that identically.
 """
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from arrt.library.acquisition.mat import below_the_floor
 from arrt.library.facade import UnplayableReason
-from arrt.persistence.records import MatMethod
+from arrt.persistence.records import MatMethod, RenditionKind
 from arrt.seed.ingest import SeedNote, seed_catalogue
 from arrt.seed.legacy import read_index
 
@@ -51,10 +52,9 @@ def records():
 
 @pytest.fixture
 def art_root(records, tmp_path, jpeg):
-    """A tree holding a master and a finished render for every record."""
+    """A tree holding a master image for every record."""
     for record in records:
         jpeg(tmp_path / record.raw_path, width=6000, height=4000)
-        jpeg(tmp_path / record.ready_path, width=3840, height=2160)
     return tmp_path
 
 
@@ -65,13 +65,30 @@ def _titles_below_the_floor(records):
     return {record.title for record in last.values() if below_the_floor(record.mat_hex)}
 
 
-def _as_their_first_preparation_would(service, report):
-    """Give each work the seed left without a mat a colour above the floor.
+def _with_masters(service, report, art_root, decodable_jpeg):
+    """Give each seeded work a presentation master, as its first preparation would.
+
+    Seeding records what the 2024 tree holds; the master is made by the work's
+    first preparation, which the startup queue runs. A small decodable picture
+    stands in for it, because the corpus's own files are headers around no
+    pixels and decoding forty 6000 px masters would only slow the suite.
+    """
+    for work in report.works:
+        path = f"presentation/{work.work_id}.jpg"
+        decodable_jpeg(art_root / path, width=400, height=300)
+        service.record_rendition(
+            artwork_id=work.work_id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+        )
+
+
+def _as_their_first_preparation_would(service, report, art_root, decodable_jpeg):
+    """Give each work a master, and a colour above the floor where the seed left it none.
 
     Seeding does not carry a 2024 colour below the floor, and the work's first
     preparation chooses one (the startup queue makes that happen). The tests
     about labels are not about that, so they start from where it leaves them.
     """
+    _with_masters(service, report, art_root, decodable_jpeg)
     for work in report.works:
         if service.current_mat_color(work.work_id) is None:
             service.record_mat_color(artwork_id=work.work_id, hex_rgb="#2d2d3c", method=MatMethod.VISION_MODEL)
@@ -159,16 +176,15 @@ class TestWhatTheReportSays:
 
     def test_a_complete_tree_leaves_no_work_short_of_an_image(self, report):
         assert counted(report, SeedNote.ORIGINAL_FILE_ABSENT) == []
-        assert counted(report, SeedNote.RENDITION_FILE_ABSENT) == []
 
 
 class TestPuttingThemOnTheWall:
     """Seeding is proven by a manifest, which is the only channel to the display plane."""
 
     @pytest.fixture
-    def built(self, records, service, display, art_root, wall_id):
+    def built(self, records, service, display, art_root, wall_id, decodable_jpeg):
         report = seed_catalogue(records, catalogue=service, art_root=art_root)
-        _as_their_first_preparation_would(service, report)
+        _as_their_first_preparation_would(service, report, art_root, decodable_jpeg)
         theme = display.add_theme(name="Everything")
         for work in report.works:
             display.add_to_theme(theme_id=theme.id, artwork_id=work.work_id)
@@ -182,11 +198,12 @@ class TestPuttingThemOnTheWall:
         assert built.exclusions == []
 
     def test_a_work_whose_2024_mat_is_below_the_floor_waits_for_its_first_preparation(
-        self, records, service, display, art_root, wall_id
+        self, records, service, display, art_root, wall_id, decodable_jpeg
     ):
         """Until preparation chooses it a mat, it is off the wall by name, not on it
         in a mat the owner ruled out."""
         report = seed_catalogue(records, catalogue=service, art_root=art_root)
+        _with_masters(service, report, art_root, decodable_jpeg)
         theme = display.add_theme(name="Everything")
         for work in report.works:
             display.add_to_theme(theme_id=theme.id, artwork_id=work.work_id)
@@ -197,7 +214,7 @@ class TestPuttingThemOnTheWall:
         assert len(built.entries) == WORKS - len(built.exclusions)
 
     def test_a_work_with_no_physical_dimensions_still_reaches_it(self, built):
-        """Readiness asks for an original, a mat and a current render — never a size in centimetres."""
+        """Readiness asks for an original, a mat and a current master — never a size in centimetres."""
         titles = {entry.label["title"] for entry in built.entries}
         assert "Homage to the Square, Sonorous" in titles
 
@@ -220,15 +237,16 @@ class TestPuttingThemOnTheWall:
         (brancusi,) = [entry for entry in built.entries if entry.label["artist"] == "Constantin Brancusi"]
         assert brancusi.label["artist_dates"] == "1876–1957"
 
-    def test_a_work_the_tree_had_no_render_for_is_excluded_by_name(self, records, service, display, tmp_path, jpeg, wall_id):
-        """The report and the manifest have to agree about which work is not ready."""
-        for record in records:
-            jpeg(tmp_path / record.raw_path, width=6000, height=4000)
+    def test_a_work_the_tree_had_no_master_image_for_is_excluded_by_name(
+        self, records, service, display, tmp_path, jpeg, wall_id, decodable_jpeg
+    ):
+        """The report and the feed's build have to agree about which work is not ready."""
         for record in records[1:]:
-            jpeg(tmp_path / record.ready_path, width=3840, height=2160)
+            jpeg(tmp_path / record.raw_path, width=6000, height=4000)
         report = seed_catalogue(records, catalogue=service, art_root=tmp_path)
-        assert [work.title for work in counted(report, SeedNote.RENDITION_FILE_ABSENT)] == [records[0].title]
-        _as_their_first_preparation_would(service, report)
+        assert [work.title for work in counted(report, SeedNote.ORIGINAL_FILE_ABSENT)] == [records[0].title]
+        held = [work for work in report.works if service.get_original(work.work_id) is not None]
+        _as_their_first_preparation_would(service, replace(report, works=held), tmp_path, decodable_jpeg)
 
         theme = display.add_theme(name="Everything")
         for work in report.works:
@@ -237,5 +255,5 @@ class TestPuttingThemOnTheWall:
 
         assert built.considered == WORKS
         assert [(exclusion.title, exclusion.reason) for exclusion in built.exclusions] == [
-            (records[0].title, UnplayableReason.NO_RENDITION)
+            (records[0].title, UnplayableReason.NO_ORIGINAL)
         ]

@@ -196,7 +196,7 @@ def test_a_work_in_a_hung_theme_that_the_wall_cannot_show_is_not_a_consequence(u
     membership would name a wall that was never showing the picture — teaching
     the curator that these sentences are guesses.
     """
-    work = ready_work(title="Nighthawks", rendition=False)
+    work = ready_work(title="Nighthawks", master=False)
     hang(work)
 
     open_work(ui, work)

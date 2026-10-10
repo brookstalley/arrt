@@ -73,14 +73,14 @@ def a_displayable_work(work_with_an_image, service, settings, decodable_jpeg):
     def _work(title="Nighthawks"):
         artwork = work_with_an_image(title=title)
         service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        rendered = f"ready/{artwork.id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=400, height=300)
         service.record_rendition(
             artwork_id=artwork.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=7680,
+            target_height=7680,
+            path=presented,
         )
         return artwork
 

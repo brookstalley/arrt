@@ -1482,16 +1482,9 @@ class DisplayService:
 
         The same theme as the feed already carries keeps the slot on the wall now
         (re-hanging it is how a curator republishes); another theme starts fresh.
-        A work with no presentation master yet is left off, said once per sync.
         """
         previous = read_published_v2(self._settings.manifest_v2_path(build.wall.id))
-        works: dict[str, Mapping[str, Any]] = {}
-        unmastered: list[str] = []
-        for work in build.entries:
-            if work.master is None:
-                unmastered.append(work.work_id)
-            else:
-                works[work.work_id] = work_document(work)
+        works: dict[str, Mapping[str, Any]] = {work.work_id: work_document(work) for work in build.entries}
         start: Start = StartFresh()
         guests: dict[str, Mapping[str, Any]] = {}
         if previous is not None and previous.playlist_id == build.theme.id:
@@ -1502,13 +1495,6 @@ class DisplayService:
             # master, would otherwise finish its slot on a superseded entry.
             members = {work.work_id for work in build.entries} | {exclusion.work_id for exclusion in build.exclusions}
             guests = {work_id: entry for work_id, entry in previous.works.items() if work_id not in members}
-        if unmastered:
-            log.warning(
-                "Wall %r, theme %r: the feed leaves out the works with no presentation master yet (%s).",
-                build.wall.name,
-                build.theme.name,
-                ", ".join(unmastered),
-            )
         self._write_v2(
             build.wall.id,
             playlist=(build.theme.id, build.theme.name),
@@ -1533,8 +1519,6 @@ class DisplayService:
             raise ServiceError(
                 f"Nothing has been hung on {wall.name!r} yet, so there is nothing to move on. Hang a theme there first."
             )
-        if pinned is not None and pinned.master is None:
-            raise ServiceError(f"Artwork {pinned.title!r} has no presentation master yet, so it cannot go on a wall.")
         if pinned is None and not previous.works:
             raise ServiceError(
                 f"Nothing hanging on {wall.name!r} can be shown yet, so there is nothing to move on to. "
@@ -1678,7 +1662,7 @@ class DisplayService:
     ) -> bool:
         """Bring one wall's feed in line with the Library's answers. True if it was rewritten.
 
-        A work the Library refuses, or one that lost its master, leaves; a work
+        A work the Library refuses, its master included, leaves; a work
         whose master, colour or label changed has its entry replaced where it
         stands. Works the Library was not asked about are left as they are.
         """
@@ -1690,7 +1674,7 @@ class DisplayService:
             answer = answers.get(work_id)
             if answer is None:
                 continue
-            if not isinstance(answer, PlayableWork) or answer.master is None:
+            if not isinstance(answer, PlayableWork):
                 gone.add(work_id)
             elif (current := work_document(answer)) != entry:
                 fresh[work_id] = current

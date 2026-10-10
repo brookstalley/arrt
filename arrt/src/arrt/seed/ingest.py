@@ -13,7 +13,7 @@ reason, and a caller that shows only the count is showing half the result.
 **Re-running is expected to be safe and is expected to help.** Nothing here
 creates a second work for a record already seeded; what it does instead is fill
 in whatever was absent last time. That is what makes the report actionable — it
-names a missing render, you put the file in the tree, you run it again, and the
+names a missing master image, you put the file in the tree, you run it again, and the
 work reaches the wall. A run that only refused to duplicate would report a
 problem it gave you no way to fix.
 """
@@ -28,7 +28,7 @@ from typing import Final
 from arrt.library.acquisition.color import format_hex, parse_hex
 from arrt.library.acquisition.mat import below_the_floor
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, CatalogueService
-from arrt.persistence.records import MatMethod, RenditionKind, RightsStatus
+from arrt.persistence.records import MatMethod, RightsStatus
 from arrt.seed.images import read_image_facts
 from arrt.seed.legacy import LegacyRecord, ParsedArtist
 from arrt.seed.names import display_nationality_for, parts_for
@@ -66,9 +66,6 @@ class SeedNote(StrEnum):
     DIMENSIONS_ABSENT = "dimensions_absent"
     ORIGINAL_FILE_ABSENT = "original_file_absent"
     ORIGINAL_UNREADABLE = "original_unreadable"
-    RENDITION_FILE_ABSENT = "rendition_file_absent"
-    RENDITION_UNREADABLE = "rendition_unreadable"
-    RENDITION_STALE = "rendition_stale"
     DUPLICATE_RECORD_DISCARDED = "duplicate_record_discarded"
     ARTIST_NAME_PARTS_ABSENT = "artist_name_parts_absent"
     MAT_BELOW_FLOOR = "mat_below_floor"
@@ -82,19 +79,9 @@ _DETAIL: Final[dict[SeedNote, str]] = {
     SeedNote.BIRTH_YEAR_ABSENT: "No birth year is known, so its label will carry no artist dates.",
     SeedNote.MEDIUM_ABSENT: "No medium is recorded, so its label will not say what the work is made of.",
     SeedNote.DIMENSIONS_ABSENT: "No physical dimensions are recorded; it still reaches the wall, but its label omits the size.",
-    SeedNote.ORIGINAL_FILE_ABSENT: "Its master image is not in the tree at {path}, so it has nothing to render from.",
+    SeedNote.ORIGINAL_FILE_ABSENT: "Its master image is not in the tree at {path}, so it has nothing to show.",
     SeedNote.ORIGINAL_UNREADABLE: (
         "Its master image at {path} could not be read as a JPEG; a zero-length or truncated file reads this way."
-    ),
-    SeedNote.RENDITION_FILE_ABSENT: (
-        "Its television render is not in the tree at {path}, so it will not reach the wall until one is made."
-    ),
-    SeedNote.RENDITION_UNREADABLE: (
-        "Its television render at {path} could not be read as a JPEG, so its size could not be measured."
-    ),
-    SeedNote.RENDITION_STALE: (
-        "Its television render at {path} was made from an earlier master, so it stays off the wall until the renderer "
-        "replaces it — seeding will not adopt a render it did not record, because it cannot tell which master made one."
     ),
     SeedNote.MAT_BELOW_FLOOR: (
         "Its 2024 mat {colour} is darker than the floor of L* 15, so it was not carried; preparing the work chooses a new one."
@@ -401,7 +388,7 @@ def _label_notes(record: LegacyRecord, *, artist: ParsedArtist) -> list[SeedNote
 
 
 def _attach_images(record: LegacyRecord, *, work_id: str, catalogue: CatalogueService, art_root: Path) -> list[SeedNoteEntry]:
-    """Record the master and the finished render, as far as the tree allows."""
+    """Record the master, as far as the tree allows. The 2024 render is not read: each Player draws its own mat."""
     notes: list[SeedNoteEntry] = []
     master = art_root / record.raw_path
 
@@ -429,38 +416,6 @@ def _attach_images(record: LegacyRecord, *, work_id: str, catalogue: CatalogueSe
                 fetch_status=None,
             )
 
-    render = art_root / record.ready_path
-    if not render.exists():
-        notes.append(_note(SeedNote.RENDITION_FILE_ABSENT, path=record.ready_path))
-        return notes
-    render_facts = read_image_facts(render)
-    if render_facts is None:
-        notes.append(_note(SeedNote.RENDITION_UNREADABLE, path=record.ready_path))
-        return notes
-    # Asked of the catalogue rather than of this run: a work seeded earlier may
-    # already hold a master even when this run could not find one, and a render
-    # is stamped with the hash of whatever master the work actually has.
-    if catalogue.get_original(work_id) is None:
-        return notes
-
-    # **A render already recorded is never recorded again.** Recording stamps it
-    # with the master's *current* hash, so re-recording one made from an earlier
-    # master would declare a superseded acquisition current — and the staleness
-    # rule that keeps it off the wall could then never fire for any work a seed
-    # run had touched. Leaving it alone lets it read stale, which is what it is.
-    held = [view for view in catalogue.list_renditions(work_id) if view.rendition.kind is RenditionKind.TV_DISPLAY]
-    if held:
-        if any(view.stale for view in held):
-            notes.append(_note(SeedNote.RENDITION_STALE, path=record.ready_path))
-        return notes
-
-    catalogue.record_rendition(
-        artwork_id=work_id,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=render_facts.width,
-        target_height=render_facts.height,
-        path=record.ready_path,
-    )
     return notes
 
 

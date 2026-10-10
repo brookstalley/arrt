@@ -14,8 +14,8 @@ far more than any screen can show; 7,680 px is the size the Player's compositing
 budget was measured against on a Pi 4 (`nonfunctional-requirements.md`
 § Performance).
 
-**JPEG at the compositor's own quality**, so moving composition to the Player
-costs no fidelity against the canvas a wall is shown today, and sRGB as read:
+**JPEG at the Player's compositor's own quality**, so a master loses nothing the
+compositor would keep, and sRGB as read:
 `color.py` treats every image as sRGB, with no colour management.
 
 **Content-addressed once recorded.** A Player's cached copy cannot go stale
@@ -27,12 +27,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from arrt.library.acquisition.compose import JPEG_QUALITY
 from arrt.library.services.imaging import encode_downscaled, reading
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
 
-#: How a master is made, recorded on its Rendition the way a canvas records its
-#: layout. A master is current only while it was made by this rule *and* from
+#: What a master is encoded at: JPEG at high quality, the quality a Player's
+#: compositor writes too. It is part of `MASTER_RULE`, so changing it makes
+#: every master again.
+JPEG_QUALITY: Final[int] = 95
+
+#: How a master is made, recorded on its Rendition's `layout`. A master is current only while it was made by this rule *and* from
 #: the Original held now: the hash alone cannot see a changed cap or quality,
 #: and every master made the old way would stay current for good.
 MASTER_RULE: Final[str] = f"presentation-master long-edge={PRESENTATION_MASTER_LONG_EDGE_PX} jpeg-q={JPEG_QUALITY}"

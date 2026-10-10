@@ -23,6 +23,7 @@ from arrt.persistence.migrations import (
     rename_awaiting_to_wanted,
     retire_conversations,
     retire_directives,
+    retire_television_canvases,
     retire_wall_tokens,
     walls_name_displays,
 )
@@ -56,5 +57,6 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
             walls_name_displays,
             retire_conversations,
             retire_directives,
+            retire_television_canvases,
         ),
     )

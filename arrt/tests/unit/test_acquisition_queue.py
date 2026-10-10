@@ -66,12 +66,6 @@ def _forget_masters(settings):
     connection.close()
 
 
-def stored_canvases(store, artwork_id):
-    """The work's television canvases, read from the store. A preparation also
-    makes a presentation master, a rendition of another kind."""
-    return [rendition for rendition in store.list_renditions(artwork_id) if rendition.kind is RenditionKind.TV_DISPLAY]
-
-
 _A_MOMENT = datetime(2026, 10, 2, 9, 0, tzinfo=UTC)
 
 
@@ -165,37 +159,12 @@ class TestThroughTheApplication:
 
         assert open_stream.served == []
 
-    async def test_a_canvas_drawn_at_another_layout_is_recomposed_after_the_next_start(
-        self, services, discovery, run, open_stream, store
-    ):
-        """How the existing works reach a changed mat. The startup step queues the
-        work, the queue recomposes it, and the wall keeps the old canvas until the
-        new one is recorded."""
-        app = create_app(services, acquire_queue=True)
-        async with app.router.lifespan_context(app):
-            artwork_id = _accept_a_direct_work(discovery, run)
-            until(lambda: isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork))
-            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        drawn = stored_canvases(store, artwork_id)[0]
-        store.update_rendition(replace(drawn, layout="full-screen-mat panel=3840x2160 box=3316x1597"))
-
-        services.reconcile()
-
-        assert artwork_id in services.acquisition_queue.state_of([artwork_id])
-        assert isinstance(services.library.playable([artwork_id])[artwork_id], PlayableWork)
-        app = create_app(services, acquire_queue=True)
-        async with app.router.lifespan_context(app):
-            until(lambda: stored_canvases(store, artwork_id)[0].layout == services.preparation.layout)
-            until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        assert stored_canvases(store, artwork_id)[0].generated_at > drawn.generated_at
-        assert len(open_stream.served) == 1, "a recompose must not fetch the image again"
-
     async def test_a_work_held_before_masters_existed_gets_one_after_the_next_start(
         self, services, discovery, run, open_stream, store, settings
     ):
         """How every work held today reaches a presentation master: the startup
         step queues it, and the queue's `prepare` makes the master without
-        fetching the image again or redrawing a canvas that is current."""
+        fetching the image again or choosing its mat again."""
         app = create_app(services, acquire_queue=True)
         async with app.router.lifespan_context(app):
             artwork_id = _accept_a_direct_work(discovery, run)
@@ -203,7 +172,7 @@ class TestThroughTheApplication:
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         assert store.works_owing_a_presentation_master(MASTER_RULE) == [], "an acquisition makes one"
         _forget_masters(settings)
-        drawn = stored_canvases(store, artwork_id)[0]
+        mat = services.catalogue.current_mat_color(artwork_id)
         assert store.works_owing_a_presentation_master(MASTER_RULE) == [artwork_id]
 
         services.reconcile()
@@ -213,22 +182,19 @@ class TestThroughTheApplication:
         async with app.router.lifespan_context(app):
             until(lambda: store.works_owing_a_presentation_master(MASTER_RULE) == [])
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
-        assert stored_canvases(store, artwork_id)[0].generated_at == drawn.generated_at, "the canvas was current"
+        assert services.catalogue.current_mat_color(artwork_id) == mat, "the mat it had was kept"
         assert len(open_stream.served) == 1, "a master must not fetch the image again"
 
     async def test_a_mat_below_the_floor_is_chosen_again_after_the_next_start(self, services, discovery, run, open_stream, store):
         """How the 2024 mats reach the floor: the startup step queues the work, the
-        queue's preparation chooses a new mat and redraws the canvas, and the old
-        colour stays in the history. No key is configured, so the new colour is the
+        queue's preparation chooses a new mat, and the old colour stays in the
+        history. No key is configured, so the new colour is the
         fallback's, which is lifted to the floor too."""
         app = create_app(services, acquire_queue=True)
         async with app.router.lifespan_context(app):
             artwork_id = _accept_a_direct_work(discovery, run)
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         _legacy_mat(store, artwork_id, "#1c1c1c")
-        # Painted in the 2024 colour, as the wall's canvases are.
-        drawn = replace(stored_canvases(store, artwork_id)[0], mat_hex="#1c1c1c")
-        store.update_rendition(drawn)
 
         services.reconcile()
 
@@ -238,7 +204,6 @@ class TestThroughTheApplication:
             until(lambda: services.catalogue.current_mat_color(artwork_id).hex_rgb != "#1c1c1c")
             until(lambda: services.acquisition_queue.state_of([artwork_id]) == {})
         assert rgb_to_lab(parse_hex(services.catalogue.current_mat_color(artwork_id).hex_rgb)).l >= MAT_LIGHTNESS_FLOOR
-        assert stored_canvases(store, artwork_id)[0].generated_at > drawn.generated_at
         assert len(open_stream.served) == 1, "choosing a mat again must not fetch the image again"
 
     async def test_the_queue_stops_when_the_application_does(self, services):
@@ -358,63 +323,16 @@ def _phase(queue, artwork_id):
     return queue.state_of([artwork_id])[artwork_id].phase
 
 
-class TestOwingARecomposition:
-    """The startup step that takes a changed mat to canvases already drawn."""
-
-    @pytest.fixture
-    def drawn(self, queue, work, service):
-        """A work fetched and prepared, holding a canvas drawn at `layout`."""
-
-        def _drawn(layout, title="Nighthawks"):
-            artwork_id = work(title)
-            queue.run()
-            service.record_rendition(
-                artwork_id=artwork_id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=3840,
-                target_height=2160,
-                path=f"ready/{artwork_id}.jpg",
-                layout=layout,
-            )
-            return artwork_id
-
-        return _drawn
-
-    def test_a_canvas_at_another_layout_is_prepared_again_without_a_fetch(self, queue, drawn, fetcher, preparer):
-        artwork_id = drawn("old")
-        fetches, preparations = len(fetcher.calls), len(preparer.calls)
-
-        assert queue.owe_recomposition("new") == 1
-        queue.run()
-
-        assert len(fetcher.calls) == fetches
-        assert preparer.calls[preparations:] == [artwork_id]
-        assert queue.state_of([artwork_id]) == {}
-
-    def test_a_canvas_at_the_current_layout_is_left_alone(self, queue, drawn, preparer):
-        drawn("new")
-        preparations = len(preparer.calls)
-
-        assert queue.owe_recomposition("new") == 0
-        queue.run()
-
-        assert len(preparer.calls) == preparations
-
-    def test_a_work_the_queue_already_holds_keeps_its_row(self, queue, drawn, store):
-        """Queueing a recompose must not reset a failure count the retry schedule
-        is reading."""
-        artwork_id = drawn("old")
-        store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id, failures=2, detail="the canvas would not encode"))
-
-        assert queue.owe_recomposition("new") == 0
-
-        assert store.get_queued_acquisition(artwork_id).failures == 2
-
-    def test_an_archived_work_is_not_queued(self, queue, drawn, service):
-        artwork_id = drawn("old")
-        service.archive_artwork(artwork_id)
-
-        assert queue.owe_recomposition("new") == 0
+def _record_a_master(service, artwork_id):
+    """Record a presentation master for the work, as its preparation would. The
+    queue's tests use a preparer that records nothing, so this is the one row."""
+    service.record_rendition(
+        artwork_id=artwork_id,
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path=f"presentation/{artwork_id}.jpg",
+    )
 
 
 def _legacy_mat(store, artwork_id, hex_rgb):
@@ -435,20 +353,13 @@ class TestOwingANewMat:
 
     @pytest.fixture
     def drawn(self, queue, work, service, store):
-        """A work fetched and prepared, holding a canvas in a mat of `hex_rgb`."""
+        """A work fetched and prepared, holding a presentation master and a mat of `hex_rgb`."""
 
         def _drawn(hex_rgb, title="Nighthawks"):
             artwork_id = work(title)
             queue.run()
             _legacy_mat(store, artwork_id, hex_rgb)
-            service.record_rendition(
-                artwork_id=artwork_id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=3840,
-                target_height=2160,
-                path=f"ready/{artwork_id}.jpg",
-                layout="current",
-            )
+            _record_a_master(service, artwork_id)
             return artwork_id
 
         return _drawn
@@ -466,27 +377,21 @@ class TestOwingANewMat:
         assert len(fetcher.calls) == fetches
         assert preparer.calls[preparations:] == [dark]
 
-    def test_a_work_with_no_canvas_is_not_queued(self, queue, work, store):
-        """It has nothing on a wall to correct, and its own first preparation
-        will choose the mat when it comes."""
+    def test_a_work_with_no_master_is_not_queued(self, queue, work, store):
+        """It is not on a wall yet, and its own first preparation, which the
+        master backfill queues, will choose the mat when it comes."""
         artwork_id = work()
         queue.run()
         _legacy_mat(store, artwork_id, "#1c1c1c")
 
         assert queue.owe_mats_over_the_floor() == 0
 
-    def test_a_work_with_a_canvas_and_no_mat_is_queued(self, queue, work, service, store):
-        """What a fresh seed leaves for a work whose 2024 mat is below the floor:
-        the 2024 canvas, and no mat it may keep. Preparing it chooses one."""
+    def test_a_work_with_a_master_and_no_mat_is_queued(self, queue, work, service, store):
+        """A prepared work that lost its mat, or a seeded one whose 2024 mat was
+        below the floor once its master is made. Preparing it chooses one."""
         artwork_id = work()
         queue.run()
-        service.record_rendition(
-            artwork_id=artwork_id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=f"ready/{artwork_id}.jpg",
-        )
+        _record_a_master(service, artwork_id)
         assert service.current_mat_color(artwork_id) is None
 
         assert queue.owe_mats_over_the_floor() == 1

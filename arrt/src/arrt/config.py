@@ -19,7 +19,6 @@ from typing import Final
 
 from dotenv import load_dotenv
 
-from arrt.library.acquisition.compose import ArtworkBox
 from arrt.library.dimensions import Units
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
 from arrt.library.services.quality import QualityProfile
@@ -56,14 +55,6 @@ PICTURES_DIRNAME: Final[str] = "pictures"
 #: so it is never confused with the derived directories beside it.
 ORIGINALS_DIRNAME: Final[str] = "raw"
 
-#: Where composed television canvases are written under `ART_ROOT`. Derived and
-#: **specific to the television**: a canvas here is one panel's pixel dimensions
-#: with a mat drawn to that panel's physical size, so it is regenerated on the
-#: machine that will show it rather than carried to another. The geometry is not
-#: encoded in the filename — the 2024 tree's `_w648_h480` suffix is why a
-#: recovered catalogue pointed at a panel that no longer existed; a `Rendition`
-#: row carries the target size, and that row is what makes staleness detectable.
-READY_DIRNAME: Final[str] = "ready"
 
 #: The file answers from slow foreign sources are kept in under `ART_ROOT`
 #: (`persistence/kept.py`). **Disposable**: deleting it costs the next visit to
@@ -156,27 +147,6 @@ DEFAULT_BACKUP_INTERVAL_SECONDS: Final[int] = 24 * 60 * 60
 #: Generations kept. Two weeks of dailies: a backup that quietly stopped is
 #: seen on the health panel long before the last good one ages out.
 DEFAULT_BACKUP_KEEP: Final[int] = 14
-
-#: These defaults describe a 42" Frame at 4K. That is a REFERENCE, not this
-#: deployment — the operator's set is 50", and a stale diagonal produces a running
-#: system that quietly mis-sizes every canvas rather than failing. Nothing may
-#: hardcode a panel: the mat is specified in physical units, so it is wrong on a
-#: different television. These are defaults for the reference panel,
-#: overridable per deployment.
-DEFAULT_TV_PANEL_WIDTH_PX: Final[int] = 3840
-DEFAULT_TV_PANEL_HEIGHT_PX: Final[int] = 2160
-DEFAULT_TV_PANEL_DIAGONAL_INCHES: Final[float] = 42.0
-
-#: The mat's width on the sides and top, in inches on the wall. Physical units
-#: rather than pixels or a ratio, so it means the same thing on any panel. The mat
-#: hugs the work, with black beyond it, so this is the whole of the mat a viewer
-#: sees on every side, not a minimum the screen's shape adds to.
-DEFAULT_MAT_WIDTH_INCHES: Final[float] = 1.5
-
-#: How much deeper the bottom margin is than the top. A true-centred image reads
-#: as sitting low, so conservators weight the bottom — the convention this
-#: product's mat is specified against.
-DEFAULT_MAT_BOTTOM_WEIGHT: Final[float] = 1.15
 
 #: The quality profile's minimum: the shortest long edge, in pixels, a picture
 #: may have and still be chosen without a curator asking for it. Pictures below
@@ -381,53 +351,6 @@ class ConfigError(RuntimeError):
     """A required deployment value is missing or unusable."""
 
 
-def pixels_per_inch(*, panel_width_px: int, panel_height_px: int, panel_diagonal_inches: float) -> float:
-    """Canvas pixels to an inch on the wall, from a panel's own geometry.
-
-    Derived rather than configured: a diagonal and a pixel count already fix
-    it, and a third setting that could disagree with the other two is a way
-    for a deployment to be quietly wrong about how big anything is.
-    """
-    diagonal_px = (panel_width_px**2 + panel_height_px**2) ** 0.5
-    return diagonal_px / panel_diagonal_inches
-
-
-def artwork_box(
-    *,
-    panel_width_px: int,
-    panel_height_px: int,
-    panel_diagonal_inches: float,
-    mat_width_inches: float,
-    mat_bottom_weight: float,
-) -> ArtworkBox:
-    """The region of a television canvas an artwork is rendered into.
-
-    Composed here because every input is a deployment value: the panel and the
-    mat in inches. The bottom margin is deeper than the top, so the vertical mat
-    is not twice the horizontal one — a box drawn from a four-equal-sides
-    approximation would sit the work lower than the mat it is given.
-
-    **The mat is rounded to whole pixels before anything is subtracted, and
-    the bottom margin is derived from that rounded top.** A mat is drawn in
-    pixels, so this is the arithmetic the compositor will do; carrying
-    fractions through and rounding at the end gives a box a pixel or two
-    different from the one that ends up on the panel. On the reference 42"
-    4K Frame it reproduces `nonfunctional-requirements.md`'s own worked
-    example exactly — 262 px of mat, a 3316 x 1597 box — which is the
-    strongest available evidence that the default bottom weighting matches
-    what that example was drawn from.
-    """
-    scale = pixels_per_inch(
-        panel_width_px=panel_width_px, panel_height_px=panel_height_px, panel_diagonal_inches=panel_diagonal_inches
-    )
-    top_mat_px = round(mat_width_inches * scale)
-    bottom_mat_px = round(top_mat_px * mat_bottom_weight)
-    return ArtworkBox(
-        width=max(1, panel_width_px - 2 * top_mat_px),
-        height=max(1, panel_height_px - top_mat_px - bottom_mat_px),
-    )
-
-
 @dataclass(frozen=True, slots=True)
 class Settings:
     """The resolved deployment values the curation plane runs on."""
@@ -452,15 +375,6 @@ class Settings:
     backup_dir: Path | None
     backup_interval_seconds: int
     backup_keep: int
-    #: The **television's** panel, never the e-paper one. Curation composes the
-    #: mat, so it needs the TV's physical size; it must hold no fact about the
-    #: label panel, which belongs to the plane that owns it.
-    tv_panel_width_px: int
-    tv_panel_height_px: int
-    tv_panel_diagonal_inches: float
-    #: The mat's geometry, in inches on the wall.
-    mat_width_inches: float
-    mat_bottom_weight: float
     #: The quality profile's minimum, in pixels on the long edge.
     quality_minimum_px: int
     #: What acquisition may fetch, how, and what it refuses to risk. The free
@@ -539,8 +453,8 @@ class Settings:
     def discovery_settings(self) -> DiscoverySettings:
         """The discovery allowances and prices, as the service layer wants them.
 
-        Composed here for the same reason `tv_artwork_box` is: every input is a
-        deployment value, and the service that reads them should take one object
+        Composed here because every input is a deployment value, and the
+        service that reads them should take one object
         it can be handed in a test rather than eight it has to be given.
         """
         return DiscoverySettings(
@@ -613,17 +527,6 @@ class Settings:
         return self.art_root / ORIGINALS_DIRNAME
 
     @property
-    def ready_path(self) -> Path:
-        """Where composed television canvases live.
-
-        Derived and regenerable by a re-render, but nothing re-renders a missing
-        file on its own today (#180), so a restore carries `ready/` with the
-        originals beside it; the backup itself carries neither. Specific to the television in a way `thumbs/` is
-        not: the mat is drawn to this panel's physical size.
-        """
-        return self.art_root / READY_DIRNAME
-
-    @property
     def kept_answers_path(self) -> Path:
         """Where answers from slow foreign sources are kept across restarts. Disposable."""
         return self.art_root / KEPT_ANSWERS_FILENAME
@@ -647,26 +550,6 @@ class Settings:
         than derived from anything the catalogue holds.
         """
         return self.art_root / PICTURES_DIRNAME
-
-    @property
-    def tv_pixels_per_inch(self) -> float:
-        """Canvas pixels to an inch on the wall, from the panel's own geometry."""
-        return pixels_per_inch(
-            panel_width_px=self.tv_panel_width_px,
-            panel_height_px=self.tv_panel_height_px,
-            panel_diagonal_inches=self.tv_panel_diagonal_inches,
-        )
-
-    @property
-    def tv_artwork_box(self) -> ArtworkBox:
-        """The region of this deployment's television canvas an artwork is rendered into."""
-        return artwork_box(
-            panel_width_px=self.tv_panel_width_px,
-            panel_height_px=self.tv_panel_height_px,
-            panel_diagonal_inches=self.tv_panel_diagonal_inches,
-            mat_width_inches=self.mat_width_inches,
-            mat_bottom_weight=self.mat_bottom_weight,
-        )
 
     @property
     def quality_profile(self) -> QualityProfile:
@@ -704,11 +587,6 @@ class Settings:
             backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
             backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
             backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),
-            tv_panel_width_px=_positive_int("TV_PANEL_WIDTH_PX", DEFAULT_TV_PANEL_WIDTH_PX),
-            tv_panel_height_px=_positive_int("TV_PANEL_HEIGHT_PX", DEFAULT_TV_PANEL_HEIGHT_PX),
-            tv_panel_diagonal_inches=_positive_float("TV_PANEL_DIAGONAL_INCHES", DEFAULT_TV_PANEL_DIAGONAL_INCHES),
-            mat_width_inches=_positive_float("MAT_WIDTH_INCHES", DEFAULT_MAT_WIDTH_INCHES),
-            mat_bottom_weight=_positive_float("MAT_BOTTOM_WEIGHT", DEFAULT_MAT_BOTTOM_WEIGHT),
             quality_minimum_px=_positive_int("QUALITY_MINIMUM_PX", DEFAULT_QUALITY_MINIMUM_PX),
             acquisition_user_agent=os.environ.get("ACQUISITION_USER_AGENT") or DEFAULT_ACQUISITION_USER_AGENT,
             # Resolved off `PATH` by name, and configurable because it is the one

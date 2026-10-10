@@ -180,6 +180,31 @@ before any production code moves.
   carries the test. Not settled by the goals: the plan's sentence was wrong.
 - 02: Skip on a wall whose feed holds nothing is refused by name, not answered
   with a blank work.
+- 03: the server's `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`
+  are not read and not retired, reversing the open assumption that they warn.
+  They are the Player's settings under the same names, one `.env` serves both
+  planes on a development checkout, and a warning to remove them would break
+  the Player. The mirror of 04's `ROTATION_*` decision.
+- 03: preparation makes the presentation master and keeps or chooses the
+  mat, and composes nothing. `force` now makes the master again (it redrew the
+  canvas). Choosing or setting a mat records it and makes nothing, since the
+  colour rides each wall's feed, which the Library's `mat_changed`
+  announcement patches.
+- 03: the mat backfill keys on works holding a presentation master (it keyed
+  on works holding a canvas). A work with none is queued by the master
+  backfill, and its preparation chooses the mat, so nothing extra is spent.
+- 03: the Work page's picture is the work itself, drawn from the master, and
+  its "wall render" / "master image" badge and `image.source_kind` go. Not
+  settled by the goals: it departs from the 2026-10-07 ruling that the Work
+  page shows the wall render, mat and all, which no longer exists on the
+  server. Drawing the mat around the picture in the browser is #346.
+  `information-architecture.md` carries the dated note.
+  `[DECISION: the Work page shows the master without a mat until the browser draws one | the server no longer composes, and a browser mat around an object-fit image is UI work this wave does not need | the builder's, 2026-10-10; user can veto]`
+- 03: the migration forgets `wall_preview` rows as well as `tv_display`:
+  a preview drawn from a canvas passes the hash test and would go on showing
+  the matted picture. Each is drawn again from the master on next view.
+- 03: the 2024 seed reads no render and no `resize_option`, which only named
+  the render. A record without one is no longer refused.
 - 04: `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` are the server's
   settings (the default pace a theme inherits) and stay so. The Player stops
   reading them rather than refusing them: one `.env` serves both on a
@@ -287,13 +312,12 @@ Context: branched from develop at the merge of #345 (wave 4e).
 ### Chunk 03: The server stops composing for a panel
 
 - **Surfaces:** `arrt/src/arrt/library/readiness.py`, `arrt/src/arrt/library/facade.py`,
-  `arrt/src/arrt/library/acquisition/preparation.py`, `arrt/src/arrt/library/acquisition/compose.py`
-  (retired, and `JPEG_QUALITY` moved to `master.py`), `arrt/src/arrt/library/thumbnails.py`,
-  `arrt/src/arrt/library/survey.py`, `arrt/src/arrt/library/acquisition/queue.py`,
+  `arrt/src/arrt/library/acquisition/preparation.py`, the server's compositor
+  (retired, and `JPEG_QUALITY` moved to `master.py`), `arrt/src/arrt/library/services/thumbnails.py`,
+  `arrt/src/arrt/library/services/survey.py`, `arrt/src/arrt/library/acquisition/queue.py`,
   `arrt/src/arrt/persistence/` (records, sqlite, migrations), `arrt/src/arrt/seed/ingest.py`,
   `arrt/src/arrt/mcp/` (`regenerate`, `set_mat_color`), `arrt/src/arrt/config.py`, `arrt/src/arrt/__main__.py`,
-  `arrt/src/arrt/services/container.py`, `arrt/src/arrt/http/static/` (`badges.js`, `screens/walls.js`'s reason
-  words), `.env.example`, `arrt/tools/mat_masters.py` and `arrt/tests/contract/test_mat_corpus.py`
+  `arrt/src/arrt/services/container.py`, `arrt/src/arrt/http/static/` (`badges.js`), `.env.example`, `arrt/tools/mat_masters.py` and `arrt/tests/unit/test_mat_corpus.py`
   (the corpus composes with the server compositor today); `arrt/tests/conftest.py`
   (`ready_work`) and the tests it feeds.
 - **First:** take the TV render off `ready_work` (02 already gave it a master)
@@ -304,8 +328,8 @@ Context: branched from develop at the merge of #345 (wave 4e).
   composing; a mat colour change no longer re-renders anything (the colour
   rides the feed). The two backfills that existed only for the TV render go.
   A migration deletes the `tv_display` rows and drops `mat_hex`, leaving the
-  shared `layout` column. The server's panel geometry settings retire with a
-  warning.
+  shared `layout` column. The server's panel geometry settings are no longer
+  read (decision below: they are the Player's).
 - **Done when:**
   1. A grep for `TV_DISPLAY`, `tv_display`, `TV_PANEL`, `MAT_WIDTH_INCHES`,
      `MAT_BOTTOM_WEIGHT` and `ready_path` in `arrt/src` returns only the
@@ -318,8 +342,8 @@ Context: branched from develop at the merge of #345 (wave 4e).
      needs a compositor to show a colour, it says why it no longer does, in
      the commit (learning rule: a dropped assertion is replaced in the same
      commit with a reason).
-  4. The migration test, as in 02, and a startup with the retired settings
-     present still starts and warns.
+  4. The migration test, as in 02, and a startup with the Player's screen
+     settings present starts and says nothing about them.
   5. Mutation sweep over `readiness.py`'s changed lines.
 
 ### Chunk 04: The Player reads only major 2
