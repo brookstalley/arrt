@@ -993,6 +993,9 @@ class WallOut(BaseModel):
     labels: list[WallLabelOut]
     #: What the wall's screen is doing now, as far as the server can say.
     display_state: DisplayStateOut
+    #: How the wall's Player draws the mat (`none`, `proportional`, `full`), or
+    #: null while the curator has left it to the Player.
+    mat_mode: str | None = None
 
 
 class ClientWallOut(BaseModel):
@@ -1974,6 +1977,12 @@ class AssignWall(BaseModel):
 
     client_id: str
     output: str
+
+
+class SetMatMode(BaseModel):
+    """How the wall's Player draws the mat: `none`, `proportional` or `full`, or null to leave it to the Player."""
+
+    mode: str | None
 
 
 class AssignDisplay(BaseModel):

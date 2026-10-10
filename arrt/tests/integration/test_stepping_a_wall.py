@@ -139,3 +139,20 @@ class TestActivationPublishesToTheNamedWallOnly:
         themes = http.get("/api/themes").json()["themes"]
         hanging = next(entry for entry in themes if entry["theme"]["theme_id"] == theme["theme_id"])
         assert sorted(where["name"] for where in hanging["hanging_on"]) == ["The study", the_wall["name"]]
+
+
+def test_a_walls_mat_is_chosen_and_handed_back_over_http(http, the_wall):
+    path = f"/api/walls/{the_wall['wall_id']}/mat"
+
+    chosen = http.put(path, json={"mode": "none"})
+    listed = _wall_named(http, the_wall["name"])
+    cleared = http.put(path, json={"mode": None})
+    refused = http.put(path, json={"mode": "thick"})
+
+    assert chosen.status_code == 200
+    assert chosen.json()["mat_mode"] == "none"
+    assert listed["mat_mode"] == "none"
+    assert cleared.json()["mat_mode"] is None
+    assert refused.status_code == 400
+    assert "mat mode" in refused.json()["error"]
+    assert _wall_named(http, the_wall["name"])["mat_mode"] is None

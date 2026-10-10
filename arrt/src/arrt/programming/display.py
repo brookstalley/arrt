@@ -68,6 +68,26 @@ from arrt.services.store import store_write
 log = logging.getLogger(__name__)
 
 
+class MatMode(StrEnum):
+    """How a Player draws the mat around a work (`feeds-and-players.md` § Mat modes).
+
+    The feed names a mode; the width is always the Player's (ruling 7).
+    """
+
+    #: The work fitted on black.
+    NONE = "none"
+    #: A mat of the work's own shape, black beyond.
+    PROPORTIONAL = "proportional"
+    #: Mat colour to every edge of the screen.
+    FULL = "full"
+
+
+#: What a caller with only text to send (an MCP argument) says for "no choice, the
+#: Player's own mat". A spelling apart from every mode, so it can never be taken
+#: for one.
+PLAYERS_OWN_MAT: Final[str] = "players_own"
+
+
 class Unset:
     """ "The caller said nothing about this field", as distinct from "set it to null".
 
@@ -542,6 +562,23 @@ class DisplayService:
         return wall
 
     # -- writes: themes and membership ----------------------------------------
+
+    def set_mat_mode(self, wall_id: str, mode: MatMode | str | None) -> Wall:
+        """Choose how this wall's Player draws the mat, or with None leave it to the Player.
+
+        Republishes the wall's major 2 feed with the setting and changes nothing
+        else in it: the schedule and every work stay as published. Major 1 has no
+        such setting, because its render arrives already matted.
+        """
+        wall = self.get_wall(wall_id)
+        chosen = None if mode is None else require_member(mode, enum=MatMode, field="mat mode").value
+        with self._store.transaction():
+            store_write(self._store.update_wall, replace(wall, mat_mode=chosen))
+            feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            if feed is not None:
+                self._patch_v2_works(wall_id, feed, {})
+        log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
+        return self.get_wall(wall_id)
 
     def add_theme(self, *, name: str, description: str | None = None) -> Theme:
         """Record a theme and return it.
@@ -1631,8 +1668,8 @@ class DisplayService:
         through a schedule with nothing of the theme in it, which may be the very
         work just withdrawn, while v1 still carried the theme. So the
         feed is removed instead, its Player falls back to v1, and None is
-        returned. Here, where every path that writes a feed passes, so no path can
-        skip it.
+        returned. Here, where every path that changes which works a feed carries
+        passes, so no such path can skip it.
         """
         manifest = read_published(self._settings.manifest_path(wall_id)) or {}
         carried = {entry["work_id"] for entry in manifest.get("entries", [])}
@@ -1665,7 +1702,13 @@ class DisplayService:
             seed=f"{wall_id}:{now.isoformat()}",
             also_showable=set(works) - set(cycle),
         )
-        feed = Feed(playlist_id=playlist[0], playlist_name=playlist[1], schedule=schedule, works=works)
+        feed = Feed(
+            playlist_id=playlist[0],
+            playlist_name=playlist[1],
+            schedule=schedule,
+            works=works,
+            settings=self._feed_settings(wall_id),
+        )
         write_atomically(self._settings.manifest_v2_path(wall_id), as_v2_document(feed))
         if schedule.clashes:
             # Named, because a clash is the household rule giving way, and a rule
@@ -1720,16 +1763,26 @@ class DisplayService:
             return True
         return False
 
-    def _patch_v2_works(self, wall_id: str, feed: Published, entries: Mapping[str, Mapping[str, Any]]) -> None:
-        """Replace these works' entries in the wall's published feed, and nothing else in it.
+    def _feed_settings(self, wall_id: str) -> dict[str, Any]:
+        """The wall's presentation settings as its feed carries them: only what the curator chose.
 
-        A re-render or a new mat colour changes what the Player composes, not when:
-        the schedule is republished exactly as it stands, through the same builder
-        every other feed goes through.
+        A key nobody set is absent, so the Player falls to its own default, as a
+        channel reader would (`player-contract.md` § Presentation settings).
+        """
+        wall = self.get_wall(wall_id)
+        return {} if wall.mat_mode is None else {"mat": {"mode": wall.mat_mode}}
+
+    def _patch_v2_works(self, wall_id: str, feed: Published, entries: Mapping[str, Mapping[str, Any]]) -> None:
+        """Replace these works' entries and the wall's settings in its published feed, and nothing else.
+
+        A re-render, a new mat colour or a new mat mode changes what the Player
+        composes, not when: the schedule is republished exactly as it stands,
+        through the same builder every other feed goes through.
         """
         schedule = Schedule(feed.horizon_from, feed.horizon_until, feed.slots, ())
         works = {**feed.works, **entries}
-        document = as_v2_document(Feed(feed.playlist_id, feed.playlist_name, schedule, works, feed.settings))
+        settings = self._feed_settings(wall_id)
+        document = as_v2_document(Feed(feed.playlist_id, feed.playlist_name, schedule, works, settings))
         write_atomically(self._settings.manifest_v2_path(wall_id), document)
 
     # -- internals ------------------------------------------------------------

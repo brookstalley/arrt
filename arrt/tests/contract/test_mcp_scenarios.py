@@ -12,6 +12,7 @@ complete on the day it is written and green forever afterwards — including the
 day a sixth tool or a new action arrives with nothing exercising it.
 """
 
+import json
 from dataclasses import replace
 
 import pytest
@@ -245,6 +246,23 @@ async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_ur
     # The sequence advances, which is how the display plane knows the directive
     # it is holding is stale. Equal sequences would leave the wall on the pin.
     assert stepped["sequence"] > pinned["sequence"]
+
+
+async def test_a_curator_can_choose_a_walls_mat_and_hand_it_back_to_the_player(server_url):
+    """The mode reaches the wall as `walls` reports it, and `players_own` clears it rather than naming a mode."""
+    async with connect(server_url) as caller:
+        wall_id = (await caller.ok("art_display", "walls"))["walls"][0]["wall_id"]
+
+        chosen = await caller.ok("art_display", "set_mat_mode", wall_id=wall_id, mode="full")
+        listed = await caller.ok("art_display", "walls")
+        cleared = await caller.ok("art_display", "set_mat_mode", wall_id=wall_id, mode="players_own")
+        refused = await caller.call("art_display", "set_mat_mode", wall_id=wall_id, mode="thick")
+
+    assert chosen["wall"]["mat_mode"] == "full"
+    assert listed["walls"][0]["mat_mode"] == "full"
+    assert cleared["wall"]["mat_mode"] is None
+    assert refused["success"] is False
+    assert "players_own" in json.dumps(refused)
 
 
 async def test_a_run_can_be_priced_started_and_watched_through_the_tools_alone(server_url, engine):

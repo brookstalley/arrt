@@ -385,3 +385,38 @@ def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter,
     report_state(services, the_wall, "showing_art", automat.id)
     said.filter(has_text=f"{the_wall.name} now shows Automat.").wait_for(timeout=10_000)
     assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Automat"
+
+
+def test_the_mat_is_chosen_from_the_cards_setup_and_handed_back_to_the_player(ui, services, the_wall, winter):
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    picker = setup.get_by_label(f"Mat on {the_wall.name}", exact=True)
+    assert picker.locator("option").all_inner_texts() == [
+        "Player's own choice",
+        "Mat around the work",
+        "Mat to the edges",
+        "No mat",
+    ]
+    assert picker.input_value() == ""
+    button = setup.get_by_role("button", name=f"Set the mat on {the_wall.name}")
+    said = setup.locator(".wall-said")
+
+    picker.select_option("full")
+    button.click()
+    said.filter(has_text=f"Mat on {the_wall.name}: to the edges.").wait_for()
+    assert services.display.get_wall(the_wall.id).mat_mode == "full"
+    assert setup.get_attribute("open") is not None, "the panel stays open after setting the mat"
+
+    picker.select_option("")
+    button.click()
+    said.filter(has_text=f"Mat on {the_wall.name}: left to its Player.").wait_for()
+    assert services.display.get_wall(the_wall.id).mat_mode is None
+
+
+def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter):
+    services.display.set_mat_mode(the_wall.id, "none")
+    open_walls(ui)
+    card(ui, the_wall).locator("details.wall-setup summary").click()
+
+    assert card(ui, the_wall).get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"

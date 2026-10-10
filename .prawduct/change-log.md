@@ -92,6 +92,13 @@ on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
   horizon forward. A work with no master stays on major 1 and is named. A
   theme with works but no masters publishes no feed, so its Player stays on
   major 1 (`player-contract.md` § The cutover, amended).
+- Chunk 03: a wall's mat mode. `walls.mat_mode` (nullable; an older file
+  gains the column when it is opened) holds `none`, `proportional` or `full`,
+  or nothing for the Player's own choice. Setting it republishes the wall's
+  feed with `settings.mat.mode` and moves no slot. `PUT /api/walls/{id}/mat`,
+  `art_display(action='set_mat_mode')` (`players_own` clears it) and a *Mat*
+  panel in each Walls card's *How {wall} is set up* set it. The panel confirms
+  in place and stays open. `mat_mode` is on `WallOut` and the MCP wall fields.
 
 **Tests:** `tests/unit/test_schedule.py` states the contract's slot rules, the
 household rule (a clash only where no work of the wall could avoid one, on
@@ -113,6 +120,17 @@ All 30 are now caught. End to end, Arrt Player's own pull and compositor, run
 from its own interpreter against a booted server from this branch, asked for
 `v2`, adopted the feed, verified and cached the master, and composed it at
 1920×1200: black beyond a mat of the work's colour.
+Chunk 03: the service, HTTP, MCP and browser tests, and a test that a file
+from before the column gains it. `test_a_patched_entry_keeps_the_feeds_settings`
+planted `settings` in the file by hand. A feed's settings now come from the
+wall's record, so a planted value is overwritten by design. It became
+`…keeps_the_walls_settings`, which sets the mode through the service. The
+claim it holds (a patch keeps the settings) is unchanged. Four tests that pin
+the exact columns of `walls` (`test_catalogue_store.py`, the client and
+display migration tests) gained `mat_mode`. That is the intended schema, and
+an older file gaining it on open is now asserted rather than assumed. Two
+browser tests that count the Walls set-up panels exactly
+(`test_hanging_a_theme.py`, `test_the_walls.py`) count the new *Mat* panel.
 
 ## 2026-10-09: Wave 4d — compositing moves to the Player
 

@@ -164,7 +164,7 @@ def test_the_frame_wall_stays_put_when_its_client_first_names_the_set(services):
 def test_the_old_columns_and_index_are_gone(upgraded, tmp_path):
     path = tmp_path / "catalogue.sqlite"
 
-    assert _columns(path, "walls") == {"id", "name", "created_at", "display_id"}
+    assert _columns(path, "walls") == {"id", "name", "created_at", "display_id", "mat_mode"}
     indexes = {row[1] for row in _raw(path, "PRAGMA index_list(walls)")}
     assert "walls_one_per_output" not in indexes
     assert "walls_one_per_display" in indexes
@@ -224,4 +224,4 @@ def test_an_open_interrupted_between_the_two_drops_takes_away_the_last(tmp_path)
     finally:
         connection.close()
 
-    assert _columns(path, "walls") == {"id", "name", "created_at", "display_id"}
+    assert _columns(path, "walls") == {"id", "name", "created_at", "display_id", "mat_mode"}

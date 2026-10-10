@@ -249,7 +249,11 @@ CREATE TABLE IF NOT EXISTS walls (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL UNIQUE,
     created_at       TEXT NOT NULL,
-    display_id       TEXT REFERENCES displays(id)
+    display_id       TEXT REFERENCES displays(id),
+    -- How the wall's Player draws the mat, or NULL for its own default. The
+    -- values are checked by the service: a CHECK here would bind new files
+    -- only, since an added column cannot carry one onto an older file.
+    mat_mode         TEXT
 );
 
 -- One wall per display, since one screen shows one picture. The service refuses
@@ -1391,6 +1395,7 @@ def _wall_row(wall: Wall) -> dict[str, Any]:
         "name": wall.name,
         "created_at": to_iso(wall.created_at),
         "display_id": wall.display_id,
+        "mat_mode": wall.mat_mode,
     }
 
 
@@ -1579,6 +1584,7 @@ def _wall(row: Mapping[str, Any]) -> Wall:
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),
         display_id=row["display_id"],
+        mat_mode=row["mat_mode"],
     )
 
 

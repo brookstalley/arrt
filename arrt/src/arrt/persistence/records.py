@@ -708,6 +708,11 @@ class Wall:
     #: ordinary state, like a wall with nothing hanging. At most one wall per
     #: display, which the store enforces.
     display_id: str | None = None
+    #: How the wall's Player draws the mat (`none`, `proportional`, `full`;
+    #: `feeds-and-players.md` § Mat modes), or None when the curator has not
+    #: chosen, and the Player uses its own default. A curatorial choice about
+    #: the room, not a fact about its screen: the width stays the Player's.
+    mat_mode: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

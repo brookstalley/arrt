@@ -55,7 +55,7 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.records import Artist, Artwork, Client, Directive, Display, Source, Theme, VocabularyKind, Wall
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import UNSET, ThemePlacement, WallView
+from arrt.programming.display import PLAYERS_OWN_MAT, UNSET, ThemePlacement, WallView
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
@@ -1309,6 +1309,12 @@ def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     return ok(wall=_wall_fields(services, services.display.add_wall(name=arguments["name"])))
 
 
+def _set_mat_mode(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    mode = arguments["mode"]
+    wall = services.display.set_mat_mode(arguments["wall_id"], None if mode == PLAYERS_OWN_MAT else mode)
+    return ok(wall=_wall_fields(services, wall))
+
+
 def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.clients.list_clients()
     survey = services.clients.placements.survey()
@@ -1616,6 +1622,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "unhang"): _unhang,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
+    ("art_display", "set_mat_mode"): _set_mat_mode,
     ("art_display", "status"): _wall_status,
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
@@ -1815,6 +1822,7 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         "client_id": None if placement.client is None else placement.client.id,
         "output": placement.output,
         "display_id": wall.display_id,
+        "mat_mode": wall.mat_mode,
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
             {

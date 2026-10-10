@@ -161,6 +161,13 @@ now", before writing the function.
   it, for the property tests the plan asks for.
 - 01: duplicate work ids are refused by name. A theme's memberships are keyed
   (theme, work), so a repeat is a caller's bug.
+- 03: a wall's mat mode is a nullable column on `walls` (`mat_mode`), not a
+  separate per-wall settings record. A null column per setting answers the
+  same three questions: what the feed carries, whether the curator chose, and
+  which settings a wall has set. It is typed and checked like every other
+  wall field. An older file gains it when opened. A settings table is worth
+  having when settings stop being few and fixed, and nothing in wave 4 needs
+  that.
 
 **The publish paths and what each does to the slot on the wall now** (derived
 from `programming/display.py` and its callers in `http/api.py`,
@@ -240,10 +247,10 @@ the Player) is built in a sibling worktree and touches nothing under `arrt/`.
 
 - **Visual change:** yes
 - **Surfaces:** Programming's store (a wall's settings, keyed by wall id: a
-  persisted format, so questions first; below); `programming/display.py` (set
-  it, republish); `http/api.py` and `mcp/tools.py` (one service call each);
-  `static/screens/walls.js` (a control on the wall's card: No mat, Mat around
-  the work, Mat to the edges); `information-architecture.md` (the Walls row);
+  persisted format, so questions first; below); `arrt/src/arrt/programming/display.py` (set
+  it, republish); `arrt/src/arrt/http/api.py` and `arrt/src/arrt/mcp/tools.py` (one service call each);
+  `arrt/src/arrt/http/static/screens/walls.js` (a control on the wall's card: No mat, Mat around
+  the work, Mat to the edges); `.prawduct/artifacts/information-architecture.md` (the Walls row);
   browser tests.
 - **The questions the stored setting must answer:** what mode a wall's feed
   carries now; whether a curator ever set one (unset means the Player's own
@@ -257,11 +264,11 @@ the Player) is built in a sibling worktree and touches nothing under `arrt/`.
 ### Chunk 04: Too small for this wall
 
 - **Type:** cumulative-final
-- **Surfaces:** `programming/manifest/heartbeat.py` or a sibling (reading
+- **Surfaces:** `arrt/src/arrt/programming/manifest/heartbeat.py` or a sibling (reading
   `capabilities` from minor 2 heartbeats); Programming's store (the largest
-  screen each display reported in the last 7 days); `programming/display.py`
-  (the judgement per wall and work); `http/api.py` (on the wall view and the
-  theme page's members); `static/` (a "too small for {wall}" note); browser
+  screen each display reported in the last 7 days); `arrt/src/arrt/programming/display.py`
+  (the judgement per wall and work); `arrt/src/arrt/http/api.py` (on the wall view and the
+  theme page's members); `arrt/src/arrt/http/static/` (a "too small for {wall}" note); browser
   tests; IA rows.
 - **Done when:**
   1. A wall whose display has never reported a screen judges nothing and says

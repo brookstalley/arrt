@@ -131,6 +131,7 @@ from arrt.http.models import (
     SelectImage,
     SetAffinity,
     SetIdentity,
+    SetMatMode,
     SetVerdict,
     SightingHostOut,
     SightingHostsOut,
@@ -1256,6 +1257,18 @@ def assign_display(request: Request, wall_id: str, body: AssignDisplay) -> WallA
     return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
 
 
+@router.put("/walls/{wall_id}/mat")
+def set_mat_mode(request: Request, wall_id: str, body: SetMatMode) -> WallOut:
+    """Choose how this wall's Player draws the mat, or with null leave it to the Player.
+
+    Read-back-after-mutate, for the reason `clear_wall` gives. The wall's feed is
+    republished with the setting and nothing else in it moves.
+    """
+    services = _services(request)
+    services.display.set_mat_mode(wall_id, body.mode)
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
 @router.post("/walls/{wall_id}/labels")
 def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignmentOut:
     """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
@@ -2240,6 +2253,7 @@ def _wall(services: Services, view: WallView) -> WallOut:
             for label in placement.labels
         ],
         display_state=_display_state(view.display_state),
+        mat_mode=view.wall.mat_mode,
     )
 
 

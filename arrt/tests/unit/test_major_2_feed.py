@@ -9,14 +9,19 @@ here publishes is also checked against the contract as it is built
 
 import json
 import logging
+import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from feed_guard import problems
 
 from arrt.library.services.catalogue import CatalogueService
+from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind
+from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming.manifest.v2 import read_published
+from arrt.services.errors import ServiceError
 
 #: Long enough that no test here can cross a slot boundary while it runs, so a
 #: kept slot is the same slot before and after.
@@ -461,17 +466,15 @@ def test_withdrawing_a_themes_only_work_leaves_both_majors_empty_and_agreeing(
     assert feed(wall_id).slots == ()
 
 
-def test_a_patched_entry_keeps_the_feeds_settings(services, display, mastered, theme_of, wall_id, wall_settings, feed):
+def test_a_patched_entry_keeps_the_walls_settings(services, display, mastered, theme_of, wall_id, feed):
     a, b = mastered("A"), mastered("B")
     display.activate_theme(theme_of(a, b).id, wall_id=wall_id)
-    path = wall_settings.manifest_v2_path(wall_id)
-    document = json.loads(path.read_text(encoding="utf-8"))
-    document["settings"] = {"mat": {"mode": "full"}}
-    path.write_text(json.dumps(document), encoding="utf-8")
+    display.set_mat_mode(wall_id, "full")
 
     services.catalogue.record_mat_color(artwork_id=b.id, hex_rgb="#3b2f2a", method=MatMethod.MANUAL)
 
     assert feed(wall_id).settings == {"mat": {"mode": "full"}}
+    assert feed(wall_id).works[b.id]["mat_color"] == "#3b2f2a"
 
 
 def test_a_feed_left_holding_only_a_guest_is_removed_while_major_1_has_works(
@@ -498,3 +501,72 @@ def test_a_re_hang_whose_members_all_lost_their_masters_removes_a_feed_holding_a
     display.activate_theme(theme.id, wall_id=wall_id)
 
     assert not wall_settings.manifest_v2_path(wall_id).exists()
+
+
+# -- a wall's mat mode -------------------------------------------------------------------
+
+
+def test_choosing_a_mat_mode_republishes_the_feed_with_it_and_moves_no_slot(display, mastered, theme_of, wall_id, feed):
+    display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
+    before = feed(wall_id)
+
+    wall = display.set_mat_mode(wall_id, "none")
+
+    assert wall.mat_mode == "none"
+    assert feed(wall_id).settings == {"mat": {"mode": "none"}}
+    assert feed(wall_id).slots == before.slots
+    assert feed(wall_id).works == before.works
+
+
+def test_leaving_the_mat_to_the_player_takes_the_key_out(display, mastered, theme_of, wall_id, feed):
+    display.activate_theme(theme_of(mastered("A")).id, wall_id=wall_id)
+    display.set_mat_mode(wall_id, "full")
+
+    display.set_mat_mode(wall_id, None)
+
+    assert display.get_wall(wall_id).mat_mode is None
+    assert feed(wall_id).settings == {}
+
+
+def test_a_chosen_mat_mode_rides_every_later_feed(display, mastered, theme_of, wall_id, feed):
+    display.set_mat_mode(wall_id, "proportional")
+
+    display.activate_theme(theme_of(mastered("A"), name="Later").id, wall_id=wall_id)
+
+    assert feed(wall_id).settings == {"mat": {"mode": "proportional"}}
+
+
+def test_a_mat_mode_nobody_defined_is_refused_and_nothing_changes(display, mastered, theme_of, wall_id, feed):
+    display.activate_theme(theme_of(mastered("A")).id, wall_id=wall_id)
+
+    with pytest.raises(ServiceError, match="mat mode"):
+        display.set_mat_mode(wall_id, "thick")
+
+    assert display.get_wall(wall_id).mat_mode is None
+    assert feed(wall_id).settings == {}
+
+
+def test_a_mat_mode_survives_the_store(store, display, wall_id):
+    display.set_mat_mode(wall_id, "full")
+
+    assert store.get_wall(wall_id).mat_mode == "full"
+
+
+def test_a_catalogue_file_from_before_the_mat_mode_gains_it_and_keeps_its_walls(tmp_path):
+    path = tmp_path / "catalogue.sqlite"
+    open_catalogue_file(path, wall_name="Hall").close()
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("ALTER TABLE walls DROP COLUMN mat_mode")
+        connection.commit()
+    finally:
+        connection.close()
+
+    store = SqliteCatalogue(open_catalogue_file(path))
+    try:
+        (wall,) = store.list_walls()
+        assert (wall.name, wall.mat_mode) == ("Hall", None)
+        store.update_wall(replace(wall, mat_mode="full"))
+        assert store.get_wall(wall.id).mat_mode == "full"
+    finally:
+        store.close()

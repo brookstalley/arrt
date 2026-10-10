@@ -10,6 +10,32 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walls on major 2: a schedule from Arrt, a mat drawn by the Player, a mat mode per wall — added 2026-10-09
+
+**`build-plan-wave-4e-schedule.md`.** Arrt publishes each wall's major 2 feed
+beside major 1, and a Player from 4d asks for it first. This is the walk 4d's
+entry deferred: a composed major 2 work on a real wall. Deploy the server from
+this branch and restart it. The Pi needs no change beyond 4d's. Then:
+
+- **Each wall moves to v2.** Arrt's request log shows each Player's `…/v2`
+  answering 200 and no longer falling to `v1`. Walls in Arrt: each heartbeat
+  lists `manifest_majors` `[2, 1]`. The journal on the Pi shows `compose.done`
+  for each work as it comes up.
+- **The Frame shows a work in a mat of the work's own shape**, black beyond,
+  bottom heavier than the top, in the work's colour. It should look as it did on
+  major 1. If it looks different, that difference is the finding.
+- **The HDMI screen** shows the same rule at its own size: the mat is 6% of the
+  shorter side, since it knows no density.
+- **Walls › a wall › How it is set up › Mat.** Set *Mat to the edges* and the
+  next work on that wall fills the screen with its colour. *No mat* puts it on
+  black. *Player's own choice* goes back to the work-shaped mat. The
+  confirmation reads "Mat on {wall}: …" and the panel stays open. Judge whether
+  the four choices are worded so you would know what each does without trying it.
+- **Two walls hanging one theme** never show the same work at the same moment.
+- **A work with no presentation master yet** stays off the feed and is named in
+  Arrt's journal. A theme where no work has one leaves its wall on `v1`.
+- **Skip** on Walls moves the wall to the next work on the next poll, as it did.
+
 ### The Player asks for major 2 and still runs major 1 — added 2026-10-09
 
 **`build-plan-wave-4d-compositing.md`.** The Player composes major 2 works
