@@ -66,6 +66,31 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Programming computes a wall's schedule (wave 4e)
+
+<!-- prawduct: scope=wave-4e-schedule -->
+
+**Why:** Major 2 replaces the Player's own rotation with a schedule decided
+on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
+`build-plan-wave-4e-schedule.md` carries the plan and its decisions.
+
+**What:**
+- Chunk 01: `programming/schedule.py`, a pure function that builds one
+  wall's slots over a three-day horizon. It works against every other wall's
+  published slots, so no work is on two walls at once except as a named clash.
+  A rebuild keeps the slot on the wall now, and showing a work now or skipping
+  starts fresh. Every work comes up once per cycle, and none twice running.
+  Nothing calls it yet: chunk 02 publishes it.
+
+**Tests:** `tests/unit/test_schedule.py` states the contract's slot rules, the
+household rule (a clash only where no work of the wall could avoid one, on
+fresh and kept rebuilds), the cycle and stability as Hypothesis properties.
+Examples pin each case the properties reach only by chance. A mutation sweep
+of the module ran 31 mutations, all caught: 30 by a failing test, and one (a
+zero-length slot let through) by the suite hanging, because the build never
+ends. The first pass let seven survive; each now has a test, or (the
+de-duplication of work ids) was replaced by a refusal that is tested.
+
 ## 2026-10-09: A work card's Get in Ask carries no theme picker and no tier
 
 <!-- prawduct: scope=ask-card-get-trim -->

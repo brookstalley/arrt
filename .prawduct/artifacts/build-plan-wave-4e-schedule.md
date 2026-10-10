@@ -81,9 +81,9 @@ manifest is a schedule), and the point at which a 1080p screen or a
 non-4K Frame gets a correct mat.
 
 **Architecture:**
-- The schedule is computed in one pure function over every wall at once. The
-  household rule needs all walls, and a pure function is what makes its
-  property tests cheap.
+- The schedule is computed by one pure function, one wall at a time against
+  every other wall's published slots (decision below). A pure function is what
+  makes the household rule's property tests cheap.
 - The **published document is the schedule's state**, as major 1's published
   document already is. A republish reads the last published v2 to keep the
   slot on the wall now, so editing a theme never jumps a wall mid-work.
@@ -122,9 +122,9 @@ now", before writing the function.
   `show_now`, `next`, hanging a theme or a selection, and a refused work on the
   wall now start fresh at *now*. [MED impact | user can override]
 - *Inferred:* when the household rule cannot hold, because a wall has no other
-  work to show in that slot (one work hanging on two walls), the wall with the
-  lower id keeps it, and the other wall shows it too. The build names the clash
-  rather than leaving a wall dark. [LOW impact | user can override]
+  work to show in that slot (one work hanging on two walls), the wall being
+  built shows it too, and the build names the clash rather than leaving a wall
+  dark. [LOW impact | user can override]
 - *Inferred:* the horizon rolls forward on the wall's heartbeat. When a Player
   reports and its published horizon has less than two days left, the wall is
   republished. The heartbeat already arrives every few seconds from every live
@@ -140,6 +140,42 @@ now", before writing the function.
   a 4K box is about that. [MED impact | user can override]
 
 `[DECISION: the dark hours (the v1 plan's Chunk 26 window, re-architecture.md's wave 4 row) are deferred to wave 6+ power control rather than built in 4e | a gap tells the Player to go dark, and until power control exists every Player keeps showing the last work through a gap (player-contract.md § Time), so dark hours built now would change nothing on any wall while adding a setting, its UI and its tests; the contract already carries gaps, so nothing has to change to add them later | the builder's, 2026-10-09; user can veto]`
+
+`[DECISION: one wall's schedule is built at a time, against the slots every other wall has already published, rather than all walls in one call with the lower id keeping a shared work | a republish of one wall is the common case (a theme edit, show now, a horizon roll), and moving another wall's published schedule to make room would swap a picture on a wall nobody touched, which is the stability rule's own failure; so whichever wall is built later carries a clash, and where several walls are built together (a startup catch-up) they are built in wall-id order, which makes the outcome reproducible | the builder's, 2026-10-09, surfaced by Chunk 01's review; user can veto]`
+
+**Decisions made mid-build** (each settled by the goal or prior choice named):
+- 01: when no work fits a slot without a clash, the cycle and the no-repeat
+  rule bend before the household rule does. The owner ruled the household
+  rule; the other two are inferences.
+- 01: the last slot is cut at the horizon. Contract rule 3 requires every slot
+  to lie inside it.
+- 01: instants are whole seconds. The document is compared by its bytes (the
+  ETag), so two builds of one schedule have to match.
+- 01: a kept slot whose work has left the wall starts the schedule fresh at
+  *now*. Keeping it would publish a work the rebuild no longer carries
+  (contract rule 1).
+- 01: a work shown now from outside the theme is carried through a keep
+  rebuild (`also_showable`). This follows the stability goal, and showing it at
+  all follows `show_work_now`'s existing rule.
+- 01: `hypothesis` joins the server's dev group, as the Player's already has
+  it, for the property tests the plan asks for.
+- 01: duplicate work ids are refused by name. A theme's memberships are keyed
+  (theme, work), so a repeat is a caller's bug.
+
+**The publish paths and what each does to the slot on the wall now** (derived
+from `programming/display.py` and its callers in `http/api.py`,
+`mcp/bindings.py`, `services/container.py` and `__main__.py`, for 02):
+
+| Path | Callers | v2 start |
+|---|---|---|
+| `sync` with the theme already published on v2 | MCP `sync`; `activate_theme` re-hanging the same theme (the Walls picker's republish) | Keep |
+| `sync` with a different theme | `activate_theme`, `hang_selection` (HTTP and MCP) | StartFresh |
+| `show_work_now` | HTTP and MCP | StartFresh(that work) |
+| `step_display` (Skip / next) | HTTP and MCP | StartFresh(the work after the one on the wall now) |
+| `_withdraw`, `reconcile` (a refused work) | `not_this_one_again`, `exclude_work`, `leave_theme`; the work events; startup | Keep, unless the refused work is on the wall now, then StartFresh |
+| `reconcile` (a re-rendered work or a new mat colour) | the work events; startup | patch the work's entry, no schedule change |
+| `clear_wall` | HTTP and MCP | none: it writes no manifest today and the wall keeps showing |
+| a wall heartbeat with under two days of horizon left | HTTP heartbeat | Keep |
 
 ## Status
 

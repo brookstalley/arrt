@@ -149,6 +149,11 @@ dev = [
     # when a sweep targets a broad slice, where each run pays the full-suite cost
     # the `(mutations + 1) x suite time` budget is written against.
     "pytest-xdist>=3.6",
+    # Property tests for the schedule, whose rules (no overlap, inside the
+    # horizon, one work on two walls only as a named clash) are invariants over
+    # every set of walls rather than a handful of examples. The Player's suite
+    # already runs it.
+    "hypothesis>=6",
     "ruff>=0.6",
     "black>=24",
     "httpx",
