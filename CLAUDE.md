@@ -38,7 +38,8 @@ meanwhile:
   target and the older text wins for what runs today, until its wave lands.
 - **Several norms are `in-transition`**, each with an interim rule. Read
   `architecture.md` § Direction before touching the manifest, the display
-  plane's I/O, or the theme, wall and directive tables.
+  plane's I/O, or the theme and wall tables. (The directive table went in
+  wave 4g.)
   `tests/preferences/test_plane_isolation.py` allows an HTTP client in
   `arrt-player/src/arrt_player/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is

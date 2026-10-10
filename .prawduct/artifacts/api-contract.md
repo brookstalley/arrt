@@ -171,7 +171,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 |---|---|---|
 | `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `look`, `search`, `find_topics`, `artist`, `similar_artists`, `work`, `topic`, `list_runs`, `spend`, `source_plugins`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. `search`, `find_topics`, `artist`, `similar_artists`, `work` and `topic` (added 2026-10-08, `build-plan-ask-agent.md` Chunk 02) are the registry's pages, read-only and free, in their routes' field names, because Ask's agent finds art with them; see each route's row. `source_plugins` (added 2026-10-06; not `sources`, which is `art_catalogue`'s provenance read) answers what `GET /api/sources` does, in its field names and values (`test_source_plugins_surface.py`, `test_surface_parity.py`). `look` (added 2026-10-06, `build-plan-look-before-get.md`) is `GET /api/registry/works/{qid}/look`, in its field names, and spends and records nothing; see that route's row. |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `sighting_hosts`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). `sighting_hosts` counts, by host, the open works with a page there that no installed source plugin reads, and returns no address (added 2026-10-03, `build-plan-source-plugins.md` Chunk 03). |
-| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `history`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. `history` (added 2026-10-07) is `GET /api/history`: `kinds` (array) and `wall_id` narrow it. |
+| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `history`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. `history` (added 2026-10-07) is `GET /api/history`: `kinds` (array) and `wall_id` narrow it. *(Wave 4g, 2026-10-10: `regenerate` makes the work's presentation master and chooses a mat if it has none, composing nothing, and `force=true` makes the master again; `set_mat_color` records the colour and makes nothing, because the colour rides each wall's feed.)* |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `hang_selection`, `not_again`, `kept_off`, `allow_again`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. `hang_selection`, `not_again`, `kept_off` and `allow_again` (added 2026-10-07) are § History, selections and *Not this one again*'s routes on this surface; `list` leaves selections out, and every theme carries `hidden`. |
 | `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `assign_display`, `add_label`, `remove_label`, `unassign_wall`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
@@ -223,6 +223,11 @@ computed by the service layer rather than stored (`data-model.md` → Original):
 >   what a review card shows before any wall has hung the work.
 >
 > Until then, these two fields describe the code as built.
+>
+> *(Wave 4g, 2026-10-10: the server reads no `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
+> `MAT_BOTTOM_WEIGHT` now; those are the Player's settings under the same names.
+> The fit is judged against `QUALITY_MINIMUM_PX` (wave 4b) and each wall's
+> reported screens (wave 4e).)*
 
 > **The browser stopped showing the inches, 2026-10-02** (the owner's ruling,
 > `build-plan-topics-and-destinations.md` Chunk 07). A review card states the
@@ -311,13 +316,26 @@ display plane a command; it writes desired state, and display converges on it.**
 > A directive issued while a Player is unreachable is still just state, waiting
 > to be read. After the internal split, these actions belong to **Programming**.
 > The tool names are frozen and stay as they are.
+>
+> **Wave 4g, 2026-10-10: the directive is retired.** Manifest major 1, the only
+> document that carried it, is no longer published, and the `directives` table
+> is dropped. `sync` writes the wall's major 2 feed only
+> (`theme-manifest-{wall_id}.v2.json`, served at `/walls/{wall_id}/manifest/v2`).
+> `show_now` and `next` republish the wall's schedule starting now, with the
+> named work or with the one after the work on the wall, and answer
+> `{wall_id, work_id, notice}`: the work the feed now starts with, and a sentence
+> saying this is what was published, not a confirmation the screen changed. Both
+> are refused by name on a wall with no published feed (nothing hung yet) and, for
+> `next`, on one whose feed holds no work. The principle is unchanged: desired
+> state, never a command. The table below is current; the paragraphs after it
+> that speak of a directive, its sequence or its pin are its history.
 
 | Action | What curation does | What display does |
 |---|---|---|
 | `status` | Reads the display plane's heartbeat file | Nothing — it wrote the heartbeat already |
-| `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` — and, since wave 4e, its major 2 feed beside it (`player-contract.md` § The cutover) | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
-| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest. Since wave 4e it also republishes the wall's major 2 feed starting now with that work | Jumps to that work, then continues rotating from there |
-| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest. Since wave 4e it also republishes the wall's major 2 feed starting now with the work that was next | Steps to the next work in the list |
+| `sync` | Rebuilds and rewrites **that wall's** feed from the theme hanging on it: its major 2 document, `theme-manifest-{wall_id}.v2.json`. *(Until wave 4g it also wrote major 1, `theme-manifest-{wall_id}.json`.)* | Picks up the new feed on its next poll and reconciles. Each Player pulls only the walls `GET /client` names, so syncing one wall cannot disturb another |
+| `show_now(wall_id, artwork_id)` | Republishes **that wall's** feed starting now with that work, and answers `{wall_id, work_id, notice}`. Refused by name if the work could not reach the wall, is kept off every wall, or the wall has no feed. *(Until wave 4g it also advanced the wall's directive `sequence` and set its `pinned_work_id`.)* | Shows that work, then follows the schedule from there |
+| `next(wall_id)` | Republishes **that wall's** feed starting now with the work after the one on it, and answers `{wall_id, work_id, notice}`. Refused by name on a wall with no feed or an empty one. *(Until wave 4g it also advanced the wall's directive `sequence` with no pin.)* | Shows that work, then follows the schedule from there |
 
 > **Built 2026-09-30 (wave 2b Chunk 02): the directive reaches the manifest.**
 > Until then `show_now` and `next` advanced the stored directive and nothing
@@ -329,7 +347,8 @@ display plane a command; it writes desired state, and display converges on it.**
 > is never recorded as issued when it never reached the wall.
 
 **Every action but `status` takes a required `wall_id`**, built 2026-08-12. The
-directive is a row per wall rather than a singleton, so a `next` in the living
+directive is a row per wall rather than a singleton *(since wave 4g, each wall's
+feed is its own document)*, so a `next` in the living
 room does not step the study — which is the whole point of naming a wall, and
 which the earlier form of this table could not express. `status` is the exception
 and takes none, but for the opposite reason to the one it used to give: the
@@ -394,11 +413,13 @@ the implementation, because a caller can observe both:
 Two consequences worth stating because they surprise:
 
 - **These actions are not synchronous confirmations.** They return "the directive
-  is written", not "the wall changed". Actual latency is bounded by display's poll
+  is written", not "the wall changed". *(Since wave 4g they return the work the
+  republished feed starts with, and a `notice` saying so.)* Actual latency is bounded by display's poll
   interval (~1 s). A result claiming the TV has changed would be asserting
   something curation cannot observe — the same false-success pattern this contract
   already refuses elsewhere.
-- **If the display plane is down, the directives queue harmlessly.** The manifest
+- **If the display plane is down, the directives queue harmlessly.** *(Since
+  wave 4g, the republished feed waits the same way.)* The manifest
   holds the latest desired state; display converges whenever it comes back. There
   is no command to be lost, because there is no command — only state.
 
@@ -1363,8 +1384,8 @@ the client with them.
 | `GET /static/…` | The client: a stylesheet and a tree of ES modules under `app.js`, no build step. Every file, and the shell on every UI path, carries `Cache-Control: no-cache` (`pages.CLIENT_CACHE_CONTROL`, which says why): the modules import names from one another, so a browser holding any of them across a deploy can stop the client from starting. A `/static` file answers a conditional request with 304. **Added 2026-10-05.** |
 | `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. **Two clean-up facets, added 2026-10-08** (`build-plan-lists-settings-and-scale.md` Chunk 06, #288): `fit`, repeatable, narrows to the works whose size is in a band named (`meets_minimum`, `below_minimum`, or `unknown` for a work with no master; anything else, a band retired on 2026-10-08 included, is a 400 naming it), and `not_on_wall=true` to the works no wall plays now, through the theme or selection hanging on it, less any kept off every wall. Every page carries `fits`, one `{value, count, selected, disabled}` per band in that order, and `not_on_wall`, one such option; each counted over every other filter but its own, as a facet is, and every other count (facets, themes, total) narrows by them. The binding composes them across the seam: the Library's `fit_bands` and Programming's `work_ids_on_walls` meet as id sets and the Library lists `within` the result (`architecture.md` seam rule 1). Which works a wall has *shown* is not recorded, so neither is "never hung". Additive. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
-| `GET /api/works/{id}/thumbnail` | The work itself, downscaled from its master to fit 480 px, for a library tile: its own aspect, never the wall render's mat and bars. Generated on first ask and revalidated thereafter. **Drawn from the master since 2026-10-07** (ruling 7, `ia-proposal.md`); until then it was the wall render when one existed. **`?size=large`, added 2026-10-08** (#303): the same bare work fitted to 1,536 px, for Walls' lead picture, which is drawn up to 48rem wide and is soft from a tile on a 2x screen; its own cached file and rendition row. `size` is `tile` (the default) or `large`; anything else is a 422. Additive. |
-| `GET /api/works/{id}/wall-preview` | The wall render, mat and all, downscaled to fit 1920 px, for the Work page, where it is the subject; the master where no canvas exists yet (`image.source_kind` on the work says which). Generated on first ask and revalidated thereafter. **Added 2026-10-07.** |
+| `GET /api/works/{id}/thumbnail` | The work itself, downscaled from its master to fit 480 px, for a library tile: its own aspect, never with a mat or bars. Generated on first ask and revalidated thereafter. **Drawn from the master since 2026-10-07** (ruling 7, `ia-proposal.md`); until then it was the wall render when one existed. **`?size=large`, added 2026-10-08** (#303): the same bare work fitted to 1,536 px, for Walls' lead picture, which is drawn up to 48rem wide and is soft from a tile on a 2x screen; its own cached file and rendition row. `size` is `tile` (the default) or `large`; anything else is a 422. Additive. |
+| `GET /api/works/{id}/wall-preview` | The work itself, drawn from its original with no mat, downscaled to fit 1920 px, for the Work page, where it is the subject. Generated on first ask and revalidated thereafter. **Added 2026-10-07**, as the wall render, mat and all, with `image.source_kind` on the work saying whether it was the render or the master. *(Wave 4g, 2026-10-10: the server composes no render now, so the preview is the bare work and `image.source_kind` is gone; drawing the mat around it in the browser is #346.)* |
 | `GET /api/themes`, `GET /api/themes/{id}` | Themes, and one theme's works in curated order. **Each listed theme also carries `work_count` and `picture_ids`** (added 2026-10-08, `build-plan-lists-settings-and-scale.md` Chunk 03): how many works it holds, and up to four of its works that have a picture, in curated order, for the Themes index's cards; the delete and make-default answers list the themes in the same shape. **One theme carries `shuffled`**, as every membership answer does: whether a wall hanging it shows its works shuffled, `theme.shuffle` resolved against the deployment default as the manifest resolves it (`DisplayService.shuffles`), so the theme page can say whether position decides what the wall shows first. Both additive. |
 | `POST /api/themes` | Record a theme. |
 | `POST`/`DELETE /api/themes/{id}/works[/{work_id}]`, `POST .../position` | Membership and order. Each returns the resulting order, so the surface repaints from the response. |
@@ -1509,7 +1530,7 @@ spellings for "change this" costs more than the orthodoxy is worth here.
 | `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `BUDGET_SPENT` for OpenRouter's 403 naming the key's limit, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. | none written; spend is the provider's | none |
 | `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every reaction on a card Ask offers or an Artist page. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and writes only `stated` (§ `art_taste`). | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
 | `POST /api/works/{id}/mat` | Re-derive a work's mat. **Owned by issue #91, not by this set** — see below. | `MatColor`, built | `art_catalogue(action='set_mat_color')`, built |
-| `POST /api/directives` | The Walls screen's `next`. **Shape settled and built 2026-08-12** — see below. | `Directive`, built | `art_display(action='next')`, built |
+| `POST /api/walls/{wall_id}/next` | The Walls screen's Skip. Answers `{wall_id, work_id}`: the work the wall's republished feed now starts with, which is what was published, not what the screen shows. Refused by name (400) on a wall with no feed or an empty one. **Built in wave 4g, 2026-10-10**, replacing `POST /api/directives` (shape settled and built 2026-08-12, see below), which is gone with the directive. | the wall's feed | `art_display(action='next')`, built |
 | `GET /api/spend` | The Health screen's spend history, across runs. | `SpendRecord`, built | `art_discovery(action='spend')` already answers the cross-run question by calendar month — see below |
 
 **Facet counts ride on the works response rather than getting a route.** They are
@@ -1601,7 +1622,7 @@ makes three of the routes above singular where the product is not:
 |---|---|---|
 | `POST /api/themes/{id}/activate` | Changes *the* wall | Names which wall it hangs on. The wall is a required part of the request, **even while there is one and the answer is obvious** — the IA's rule that every act naming a wall keeps a confirmation from silently becoming wrong. |
 | `GET /api/manifest` | What a theme would put on *the* wall | Takes the wall as well as the theme: exclusions are per-wall once two walls can hang different themes, and this route's whole job is to state a consequence before it happens. |
-| `POST /api/directives` (built above) | An advance | Names the wall. `Directive` stops being a singleton and becomes one row per wall, so a `next` in the living room does not step the study. |
+| `POST /api/directives` (built above) | An advance | Names the wall. `Directive` stops being a singleton and becomes one row per wall, so a `next` in the living room does not step the study. *(Since wave 4g, `POST /api/walls/{wall_id}/next`; the wall is in the path.)* |
 
 **`art_theme(action='activate')` and `art_display` take the same parameter**, by
 the parity requirement in `product-brief.md` item 8 — a model that can hang a
@@ -1725,7 +1746,7 @@ had designed:
 
 | Route | Tool | What it is for |
 |---|---|---|
-| `POST /api/walls` | `art_display(action='add_wall')` | Nothing else creates a wall. The migration makes the first one; a second room needs an operation. **Create only** — no delete and no rename, because deleting a wall raises consequences for its assignment, its directive row and any display configured to serve it that nothing has ruled on. |
+| `POST /api/walls` | `art_display(action='add_wall')` | Nothing else creates a wall. The migration makes the first one; a second room needs an operation. **Create only** — no delete and no rename, because deleting a wall raises consequences for its assignment, its directive row (until wave 4g) and any display configured to serve it that nothing has ruled on. |
 | `GET /api/walls` | `art_display(action='walls')` | What rooms exist, what hangs in each, and what each wall's screen is doing (`display_state`, from 2026-10-08; § Clients). |
 | `DELETE /api/walls/{wall_id}/theme` | `art_theme(action='unhang')` | Takes the picture down. See § Deleting a theme for why this had to exist before the delete refusal could be made absolute. |
 | — | — | `GET /api/themes` reshaped to `{theme, hanging_on[]}` per entry, because `ThemeOut.is_active` had nothing to become: "is it active" is now "which walls is it on". The MCP listing stays flat with a `hanging_on` key added, since a model reads a list better than a nesting. |
@@ -1991,6 +2012,11 @@ than to bound a surface.
 > Work screen's builder finds it rather than inventing a route outside this set;
 > its shape is #91's.
 
+> **Retired in wave 4g, 2026-10-10.** `POST /api/directives` and `DirectiveOut`
+> are gone with the directive. Skip is `POST /api/walls/{wall_id}/next`, which
+> republishes the wall's feed and answers the work it now starts with (the row
+> above). What follows is the 2026-08-12 reasoning, kept as history.
+>
 > **`next` was the one screen action with an MCP action and no HTTP route, and
 > the shape it was waiting on arrived. Settled and built 2026-08-12.**
 >
@@ -2112,6 +2138,16 @@ for `silent`: `{state, work_id, since}` from the last readable report, null when
 there never was one. A heartbeat before minor 3 reads as `showing_art` with its
 `current_work_id`, and as `unreachable` when it names no work. Derived in one
 function (`programming/display_state.py`) for both surfaces.
+
+**Whether a wall's Player reads this server's feed — built 2026-10-10**
+(wave 4g, `build-plan-wave-4g-cutover.md` Chunk 02). `WallOut` and the MCP wall
+shape gain `reads_feed` and `feed_notice`, additive. `reads_feed` is whether the
+wall's last readable heartbeat lists major 2 in `capabilities.manifest_majors`;
+a heartbeat with no capabilities counts as `[1]` (`player-contract.md` § The
+cutover), so it reads `false`. It is null when there is no readable heartbeat,
+because the display state already says the wall is silent. `feed_notice` is one
+sentence (`programming/display.py` `feed_notice`, shared by both surfaces) when
+`reads_feed` is `false`, and null otherwise.
 On `POST /walls/{wall_id}/heartbeat`, a `display_state` that is malformed (not exactly `state`, `work_id` and `since`, a work beside a known state other than `showing_art`, a `since` without an offset) is refused with a 400 and nothing written. **A state name the server does not know is accepted** and read as `unreachable` with no work, because minors only add and Players upgrade first (`player-contract.md`); refusing it would make an upgraded Player's wall silent. A heartbeat file that fails the same test reads as unreadable on every screen alike (`heartbeat.read` applies it).
 
 **Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
@@ -2135,9 +2171,9 @@ recorded in `architecture.md` § Direction.
 
 | Route | Direction | Shape | Obligation |
 |---|---|---|---|
-| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
-| `GET /walls/{wall_id}/manifest/v{major}` | Player → server, polled like the above | The manifest at one major, so a Player asks for the highest it reads and steps down on `404` (`feeds-and-players.md` ruling 4). Only major 1 is built until wave 4e; `player-contract.md` § The cutover holds the rules. | **Bounded**, like the manifest. |
-| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
+| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | *(Retired in wave 4g, 2026-10-10: answers 404, as does `/manifest/v1`; the feed is the next row.)* Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
+| `GET /walls/{wall_id}/manifest/v{major}` | Player → server, polled like the above | The manifest at one major, so a Player asks for the highest it reads and steps down on `404` (`feeds-and-players.md` ruling 4). Only major 1 is built until wave 4e; `player-contract.md` § The cutover holds the rules. *(Since wave 4g, 2026-10-10, only `v2` is served; any other major is 404.)* | **Bounded**, like the manifest. |
+| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition *(served to major 1 until wave 4g, 2026-10-10; only masters now)*. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
 | `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`). From wave 4 it also carries the Player's **capabilities** (geometry, backend, label hardware) **as observations**. | **Bounded**, like the manifest. Programming reads the capabilities and judges per-wall adequacy from them; the Library never sees them. |
 
 **Every route carries the wall's token** (decided 2026-09-30,
@@ -2160,7 +2196,9 @@ has.
   colour, and the playlist and directive become the schedule and scenes. A
   major-1 Player cannot draw a wall from either. The refusal rule is
   what makes the cutover safe: an un-upgraded Player keeps showing yesterday's
-  wall instead of misreading today's.
+  wall instead of misreading today's. *(Wave 4g, 2026-10-10: the cutover is
+  done. Major 2 is the only major served, and a wall whose Player does not list
+  2 in its heartbeat carries `feed_notice`, above.)*
 
 **The error model follows the manifest's existing posture, not the MCP
 envelope.** The consumer is a daemon, not a model, so errors do not need to
@@ -2179,10 +2217,14 @@ this whole surface is judged by.
 - **Authentication** is settled: a bearer token per wall, on every route
   (`player-contract.md` § Transport).
 - **ETag polling or server-sent events** for directive latency. Polling matches
-  today's roughly 1 s behaviour and is the default.
+  today's roughly 1 s behaviour and is the default. *(Since wave 4g the question
+  is the latency of a republished feed after *show now* or Skip; the directive is
+  gone.)*
 - ~~**The presentation master's encoding and cap.**~~ Settled 2026-10-08: 7,680 px
   on the long edge, JPEG at quality 95 (`re-architecture.md` § Open questions).
   Served by `GET /media/{hash}` like any rendition; no manifest names one yet (4e).
+  *(Major 2 names one per work since wave 4e, and since wave 4g it is the only
+  picture a Player is sent.)*
 
 ### History, selections and *Not this one again* — BUILT 2026-10-07 (`build-plan-walls-work-and-trust.md` Chunks 03, 04)
 

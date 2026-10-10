@@ -787,7 +787,7 @@ technical_decisions:
         auto-selected silently. A pixel profile names no device, and its cutoff
         is what the wave 6+ upgrade job needs anyway (Radarr's quality profile).
         Advisor's recommendation, 2026-09-30; vetoable.
-      amended: "2026-10-02, the owner (upgrades.md ruling 1): no cutoff; the minimum stays and searches back off by size instead. 2026-10-06, the owner: the minimum is 1,000 px on the long edge. Built 2026-10-08 in wave 4b (build-plan-wave-4b-master-quality.md) as QUALITY_MINIMUM_PX, with two verdicts, meets_minimum and below_minimum."
+      amended: "2026-10-02, the owner (upgrades.md ruling 1): no cutoff; the minimum stays and searches back off by size instead. 2026-10-06, the owner: the minimum is 1,000 px on the long edge. Built 2026-10-08 in wave 4b (build-plan-wave-4b-master-quality.md) as QUALITY_MINIMUM_PX, with two verdicts, meets_minimum and below_minimum. 2026-10-10, wave 4g: TV_PANEL_*, MAT_WIDTH_INCHES and MAT_BOTTOM_WEIGHT left the server; the Player reads them under the same names."
     - decision: "Split into a curation plane and a display plane, communicating over a defined contract."
       rationale: >
         AMENDED 2026-07-19, same day, after auditing the constraint that originally
@@ -956,6 +956,7 @@ technical_decisions:
         - "A separate command file or socket — the obvious shape, and exactly the second channel the norm exists to prevent."
         - "Drop show_now and next from the tool surface — honest, but it removes real capability to preserve a norm that turned out not to require the removal."
       date: 2026-07-20
+      amended: "2026-10-10, wave 4g (build-plan-wave-4g-cutover.md): retired with manifest major 1, the only document that carried the directive. The directives table is dropped. show_now and next republish the wall's major 2 schedule starting with the work they name, and answer {wall_id, work_id, notice}; Skip is POST /api/walls/{wall_id}/next. The principle stands: desired state, never a command, and the answer says what was published, not that the wall changed."
     - decision: "The theme manifest carries a schema version; the curation-to-display stability exemption is narrowed."
       rationale: >
         Decided 2026-07-20, resolving a contradiction the Critic raised on
@@ -2600,7 +2601,7 @@ open_questions:
   # notes carried were added. Three more closed the same day by the operator:
   # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr; since 2026-10-08 Arrt and Arrt Player),
   # Player auth (a token per wall), and the v1 open chunks (abandoned; their requirements are rebuilt in later waves).
-  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events; since wave 4g, the latency of a republished feed, the directive being gone); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
     blocking: "Waves 1–4 of re-architecture.md."
     waiting_on: operator
     priority: high
