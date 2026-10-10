@@ -26,8 +26,8 @@ from arrt.library.services.quality import QualityProfile
 from arrt.library.services.runner import DiscoverySettings
 from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
-from arrt.programming.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
+from arrt.programming.manifest.v2 import MANIFEST_V2_FILENAME_TEMPLATE, manifest_v2_path_in
 
 #: The catalogue's filename under `ART_ROOT`. Not configurable: both planes
 #: and the backup path need to agree on where the catalogue is, and a setting
@@ -554,8 +554,8 @@ class Settings:
             phase1_output_tokens=self.phase1_output_tokens,
         )
 
-    def manifest_path(self, wall_id: str) -> Path:
-        """Where one wall's manifest is published.
+    def manifest_v2_path(self, wall_id: str) -> Path:
+        """Where one wall's feed is published, the name `DisplaySettings` gives it too.
 
         **A method taking a wall rather than a field**, because there is no such
         thing as "the manifest path" any more: the file set is indexed by wall,
@@ -567,28 +567,28 @@ class Settings:
         and they were briefly deleted — wrongly. The concern a callerless read
         usually names is a second answer that can drift from the first, and there
         is no second answer: this and `DisplaySettings` both delegate to
-        `manifest_path_in`, which is the one derivation. What is left is a
+        `manifest_v2_path_in`, which is the one derivation. What is left is a
         convenience on the object that owns `art_root`, which is where a reader
-        asking "where would this wall's manifest be" looks first.
+        asking "where would this wall's feed be" looks first.
         """
-        return manifest_path_in(self.art_root, wall_id)
+        return manifest_v2_path_in(self.art_root, wall_id)
 
     def heartbeat_path(self, wall_id: str) -> Path:
         """Where the display serving one wall reports. Read here, never written.
 
-        Kept for the reason recorded on `manifest_path` above.
+        Kept for the reason recorded on `manifest_v2_path` above.
         """
         return heartbeat_path_in(self.art_root, wall_id)
 
     @property
     def manifest_pattern(self) -> str:
-        """What the manifests are called, with the wall id left standing.
+        """What the walls' feeds are called, with the wall id left standing.
 
         For the startup line, which is read before any wall id is in anyone's
         hand. The resolved root with the placeholder still standing puts a wrong
         `ART_ROOT` one `journalctl` away without inventing a wall to name.
         """
-        return str(self.art_root / MANIFEST_FILENAME_TEMPLATE)
+        return str(self.art_root / MANIFEST_V2_FILENAME_TEMPLATE)
 
     @property
     def thumbnails_path(self) -> Path:

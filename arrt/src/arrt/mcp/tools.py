@@ -1533,7 +1533,7 @@ ART_DISPLAY: Final = ToolRecord(
     actions=(
         Action(
             name="walls",
-            description="Return every wall, with the theme hanging on each and that wall's directive.",
+            description="Return every wall, with the theme hanging on each and whether its Player reads the feed.",
             example="art_display(action='walls')",
             tips=(
                 (
@@ -1541,6 +1541,10 @@ ART_DISPLAY: Final = ToolRecord(
                     "and this is where they come from."
                 ),
                 "A wall with no theme hanging on it is an ordinary state, not a fault.",
+                (
+                    "feed_notice is set when the wall's Player said it cannot read this server's feed: that "
+                    "wall shows nothing new until its Player is updated."
+                ),
             ),
         ),
         Action(
@@ -1582,10 +1586,6 @@ ART_DISPLAY: Final = ToolRecord(
                 (
                     "The colour is always the work's own; only how much of the screen it fills is chosen here. "
                     "How wide the mat is stays the Player's, because only it knows its screen."
-                ),
-                (
-                    "Reaches walls on major 2 (Players that draw their own mat). A wall still on major 1 shows the "
-                    "render the server matted, and this changes nothing there."
                 ),
             ),
         ),
@@ -1640,13 +1640,16 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID, Param(name="artwork_id", type="string", description="The work to jump to.", required=True)),
             tips=(
                 (
-                    "Any work that could not reach the wall is refused rather than pinned — archived, "
+                    "Any work that could not reach the wall is refused rather than shown — archived, "
                     "missing its master image, mat colour or television render, carrying a render "
                     "made from an earlier acquisition, or naming no work the catalogue holds. The "
                     "refusal names which, in the same words "
                     "art_display(action='sync') uses for an excluded work."
                 ),
-                "This writes the directive; it does not confirm the television changed.",
+                (
+                    "It republishes the wall's schedule starting with this work; it does not confirm the "
+                    "screen changed. A work outside the theme hanging there is shown for one slot."
+                ),
             ),
         ),
         Action(
@@ -1656,10 +1659,10 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID,),
             tips=(
                 (
-                    "It steps that wall and no other: each wall carries its own counter, so a step in the living "
+                    "It steps that wall and no other: each wall has its own schedule, so a step in the living "
                     "room leaves the study where it was."
                 ),
-                "Repeated calls inside one poll interval coalesce into a single step — latest wins.",
+                "It republishes the wall's schedule starting with the work after the one on the wall now.",
             ),
         ),
         Action(

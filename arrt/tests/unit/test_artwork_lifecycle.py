@@ -1,13 +1,12 @@
-"""The Artwork state machine, and the display directive that rides alongside it.
+"""The Artwork state machine, and what it means for a work shown on a wall now.
 
 An artwork has exactly two states and four edges, two of which are refusals. It
 never carries a pending or rejected state: everything before acceptance is a
 candidate, which is a separate entity with its own verdict, so there is no second
 lifecycle here to drift out of step with that one.
 
-The directive is tested with the lifecycle because the two meet: a pin naming a
-work that has been taken out of circulation is an instruction the display plane
-can never carry out.
+Showing a work now is tested with the lifecycle because the two meet: a work
+taken out of circulation cannot be put on a wall.
 """
 
 import logging
@@ -21,52 +20,14 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import (
-    AcquisitionMethod,
     ArtworkStatus,
-    FetchStatus,
     MatMethod,
-    RenditionKind,
-    RightsStatus,
-    SourceClass,
     Theme,
 )
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.errors import ServiceError
-
-
-def _a_showable_work(catalogue):
-    """A work the directive will accept a pin on — one that could reach the wall."""
-    work = catalogue.add_artwork(title="Nighthawks")
-    source = catalogue.add_source(
-        artwork_id=work.id,
-        url="https://museum.example/nighthawks",
-        provider="artic",
-        source_class=SourceClass.INSTITUTIONAL,
-        acquisition_method=AcquisitionMethod.DEZOOMIFY,
-        rights_status=RightsStatus.PUBLIC_DOMAIN,
-        is_primary=True,
-    )
-    catalogue.record_original(
-        artwork_id=work.id,
-        source_id=source.id,
-        path="raw/nighthawks.tif",
-        width=6000,
-        height=4000,
-        byte_size=90_000_000,
-        content_hash="hash-1",
-        fetch_status=FetchStatus.OK,
-    )
-    catalogue.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-    catalogue.record_rendition(
-        artwork_id=work.id,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path="ready/nighthawks.jpg",
-    )
-    return work
 
 
 def _display(store, tmp_path, *, catalogue=None):
@@ -139,79 +100,24 @@ def test_an_archived_work_moves_between_the_status_listings(service):
     assert service.list_artworks().total == 1
 
 
-# -- the display directive -----------------------------------------------------
+# -- a work shown now -------------------------------------------------------------
 
 
-def test_a_fresh_catalogue_has_a_directive_at_the_start(display, wall_id):
-    directive = display.read_directive(wall_id)
-
-    assert (directive.sequence, directive.pinned_work_id) == (0, None)
-
-
-def test_stepping_on_advances_the_sequence_and_carries_no_pin(display, wall_id):
-    first = display.step_display(wall_id)
-    second = display.step_display(wall_id)
-
-    assert (first.sequence, second.sequence) == (1, 2)
-    assert second.pinned_work_id is None
-
-
-def test_showing_a_work_now_advances_the_sequence_and_pins_it(ready_work, display, wall_id):
-    work = ready_work()
-
-    directive = display.show_work_now(wall_id, work.id)
-
-    assert directive.sequence == 1
-    assert directive.pinned_work_id == work.id
-
-
-def test_stepping_on_clears_a_standing_pin(ready_work, display, wall_id):
-    """A step that left the pin in place would read as "jump there again"."""
-    work = ready_work()
-    display.show_work_now(wall_id, work.id)
-
-    directive = display.step_display(wall_id)
-
-    assert directive.sequence == 2
-    assert directive.pinned_work_id is None
-
-
-def test_archiving_the_pinned_work_withdraws_the_pin(service, ready_work, display, wall_id):
-    work = ready_work()
-    display.show_work_now(wall_id, work.id)
-
-    service.archive_artwork(work.id)
-
-    assert display.read_directive(wall_id).pinned_work_id is None
-
-
-def test_withdrawing_a_pin_does_not_advance_the_sequence(service, ready_work, display, wall_id):
-    """The display plane acts every time the number goes up.
-
-    Archiving a work is not an instruction to it, so an advance here would fire a
-    directive nobody issued — and the work it would step to is unrelated to the
-    one that was archived.
-    """
-    work = ready_work()
-    display.show_work_now(wall_id, work.id)
-    before = display.read_directive(wall_id).sequence
-
-    service.archive_artwork(work.id)
-
-    assert display.read_directive(wall_id).sequence == before
-
-
-def test_archiving_some_other_work_leaves_the_pin_alone(service, ready_work, display, wall_id):
-    pinned = ready_work()
+def test_archiving_some_other_work_leaves_the_work_shown_now_alone(service, ready_work, display, wall_id, wall_settings):
+    theme = display.add_theme(name="Late night")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work(title="Automat").id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    shown = ready_work()
     other = service.add_artwork(title="Chop Suey")
-    display.show_work_now(wall_id, pinned.id)
+    display.show_work_now(wall_id, shown.id)
+    before = wall_settings.manifest_v2_path(wall_id).read_bytes()
 
     service.archive_artwork(other.id)
 
-    assert display.read_directive(wall_id).pinned_work_id == pinned.id
+    assert wall_settings.manifest_v2_path(wall_id).read_bytes() == before
 
 
-def test_an_archived_work_cannot_be_pinned(service, ready_work, display, wall_id):
+def test_an_archived_work_cannot_be_shown_now(service, ready_work, display, wall_id):
     work = ready_work()
     service.archive_artwork(work.id)
 
@@ -219,7 +125,7 @@ def test_an_archived_work_cannot_be_pinned(service, ready_work, display, wall_id
         display.show_work_now(wall_id, work.id)
 
 
-def test_pinning_an_unknown_work_is_refused(display, wall_id):
+def test_showing_an_unknown_work_now_is_refused(display, wall_id):
     """In the catalogue's words alone, not as a work that "cannot be shown on the wall".
 
     An id that names nothing is a different mistake from a work that is not ready,
@@ -244,55 +150,6 @@ def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(di
 
     assert str(refused.value) == "No artwork with id 'nope' is in the catalogue."
     assert display.theme_work_ids(theme.id) == []
-
-
-def test_theme_activity_never_touches_the_sequence(service, display, wall_id):
-    """Only `next` and `show_now` advance it; a theme switch rewrites the list.
-
-    A switch that advanced the counter would look to the display plane exactly
-    like a curator pressing "next" at the same moment.
-    """
-    display.step_display(wall_id)
-    before = display.read_directive(wall_id)
-
-    first = display.add_theme(name="American Modernists")
-    second = display.add_theme(name="Surrealists")
-    display.activate_theme(second.id, wall_id=wall_id)
-    work = service.add_artwork(title="Nighthawks")
-    display.add_to_theme(theme_id=first.id, artwork_id=work.id)
-
-    assert display.read_directive(wall_id) == before
-
-
-def test_the_sequence_survives_the_process_that_advanced_it(tmp_path):
-    """Monotonic for the life of the wall, not for the life of the process.
-
-    The counter is stored catalogue-side precisely so that a restart — which
-    `Restart=always` makes routine — cannot reset it. A reset reads to the
-    display plane as an advance, which fires a directive nobody issued.
-    """
-    path = tmp_path / "second-catalogue.sqlite"
-    first_store = SqliteCatalogue(open_catalogue_file(path))
-    first_catalogue = CatalogueService(first_store)
-    first = _display(first_store, tmp_path, catalogue=first_catalogue)
-    # Read from the file this test opened rather than taken from the shared
-    # fixture: the wall's id is a UUID minted when the file was established, so
-    # another file's wall is a different wall.
-    wall_id = first_store.list_walls()[0].id
-    work = _a_showable_work(first_catalogue)
-    first.step_display(wall_id)
-    first.show_work_now(wall_id, work.id)
-    first_store.close()
-
-    reopened_store = SqliteCatalogue(open_catalogue_file(path))
-    try:
-        reopened = _display(reopened_store, tmp_path)
-        assert [wall.id for wall in reopened_store.list_walls()] == [wall_id]
-        assert reopened.read_directive(wall_id).sequence == 2
-        assert reopened.read_directive(wall_id).pinned_work_id == work.id
-        assert reopened.step_display(wall_id).sequence == 3
-    finally:
-        reopened_store.close()
 
 
 # -- nothing is ever hung by anything but a curator -----------------------------

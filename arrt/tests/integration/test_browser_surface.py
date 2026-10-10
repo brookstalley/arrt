@@ -651,7 +651,7 @@ class TestTheWholeLoop:
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
         http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
         http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]})
-        assert settings.manifest_path(wall["wall_id"]).is_file()
+        assert settings.manifest_v2_path(wall["wall_id"]).is_file()
 
 
 class TestThemeOrder:

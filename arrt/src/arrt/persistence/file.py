@@ -22,6 +22,7 @@ from arrt.persistence.migrations import (
     mark_the_default_theme,
     rename_awaiting_to_wanted,
     retire_conversations,
+    retire_directives,
     retire_wall_tokens,
     walls_name_displays,
 )
@@ -54,5 +55,6 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
             # one carries rows onto `displays` before it does.
             walls_name_displays,
             retire_conversations,
+            retire_directives,
         ),
     )

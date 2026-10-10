@@ -33,7 +33,7 @@ import pytest
 from arrt.counting import agree, agree_partitive, counted, noun
 from arrt.library.facade import UnplayableReason
 from arrt.persistence.records import Theme, Wall
-from arrt.programming.manifest.builder import Exclusion, ManifestBuild, ManifestEntry
+from arrt.programming.manifest.builder import Exclusion, ManifestBuild
 
 
 @pytest.fixture
@@ -51,7 +51,8 @@ def one_work_build():
         return ManifestBuild(
             wall=Wall(id="wall-1", name="The living room", created_at=stamp),
             theme=Theme(id="theme-1", name="Winter", created_at=stamp),
-            entries=[ManifestEntry(work_id=f"work-{index}", render_path=f"r/{index}.jpg", label={}) for index in range(entries)],
+            # `summarise` counts entries and never reads them, so a stand-in per entry is enough.
+            entries=[object() for _ in range(entries)],  # type: ignore[list-item]
             exclusions=[
                 Exclusion(
                     work_id=f"out-{index}",
@@ -63,8 +64,6 @@ def one_work_build():
             ],
             rotation_interval_seconds=180,
             shuffle=True,
-            directive_sequence=1,
-            pinned_work_id=None,
         )
 
     return _build

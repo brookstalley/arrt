@@ -104,7 +104,6 @@ def test_a_wall_token_file_opens_with_its_walls_kept_and_unassigned(tmp_path):
         assert walls["w-living"].name == "Living room"
         assert walls["w-living"].display_id is None
         assert catalogue.get_assignment("w-living").theme_id == "t1"
-        assert catalogue.get_directive("w-living").sequence == 7
         assert catalogue.list_clients() == []
     finally:
         catalogue.close()

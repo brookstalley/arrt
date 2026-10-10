@@ -18,7 +18,7 @@ import pytest
 from arrt.library.facade import PlayableWork, Unplayable, UnplayableReason
 from arrt.library.services.discovery import ChosenWork
 from arrt.persistence.discovery_records import InitiatedBy, Verdict
-from arrt.persistence.records import FetchStatus
+from arrt.persistence.records import FetchStatus, RenditionKind
 
 
 def _archived(service, ready_work) -> str:
@@ -86,7 +86,7 @@ def test_an_id_the_catalogue_does_not_hold_has_no_title(library):
 
 def test_a_ready_work_is_answered_with_what_the_wall_is_told(library, service, ready_work):
     work = ready_work(title="Nighthawks")
-    render = next(view.rendition for view in service.list_renditions(work.id))
+    render = _render_of(service, work.id)
 
     answer = library.playable([work.id])[work.id]
 
@@ -136,26 +136,37 @@ def test_the_answers_are_plain_frozen_data(library, ready_work):
     """
     ready = ready_work()
     refused = ready_work(original=False)
+    answers = library.playable([ready.id, refused.id, "no-such-work"])
+    assert answers[ready.id].master is not None, "the ready work has no master, so the nested shape goes unchecked"
 
-    for answer in library.playable([ready.id, refused.id, "no-such-work"]).values():
-        assert dataclasses.is_dataclass(answer)
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            answer.work_id = "changed"
-        for field in dataclasses.fields(answer):
-            value = getattr(answer, field.name)
-            if field.name == "label":
-                assert all(isinstance(key, str) and (text is None or isinstance(text, str)) for key, text in value.items())
-                with pytest.raises(TypeError):
-                    value["title"] = "changed"
-            else:
-                assert value is None or isinstance(value, str), f"{type(answer).__name__}.{field.name} is {type(value)}"
+    for answer in answers.values():
+        _assert_plain(answer, type(answer).__name__)
+
+
+def _assert_plain(value, where: str) -> None:
+    """A frozen dataclass of strings, whole numbers, None, read-only text mappings and more of the same."""
+    assert dataclasses.is_dataclass(value), where
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        setattr(value, dataclasses.fields(value)[0].name, "changed")
+    for field in dataclasses.fields(value):
+        inner = getattr(value, field.name)
+        here = f"{where}.{field.name}"
+        if field.name == "label":
+            assert all(isinstance(key, str) and (text is None or isinstance(text, str)) for key, text in inner.items())
+            with pytest.raises(TypeError):
+                inner["title"] = "changed"
+        elif dataclasses.is_dataclass(inner):
+            _assert_plain(inner, here)
+        else:
+            assert inner is None or (isinstance(inner, str | int) and not isinstance(inner, bool)), f"{here} is {type(inner)}"
 
 
 # -- the render's content hash, as stored -----------------------------------------------
 
 
 def _render_of(service, work_id):
-    return next(view.rendition for view in service.list_renditions(work_id))
+    """The work's television render, not its presentation master, which `ready_work` also records."""
+    return next(view.rendition for view in service.list_renditions(work_id) if view.rendition.kind is RenditionKind.TV_DISPLAY)
 
 
 def test_recording_a_render_whose_file_exists_stores_its_hash_and_a_re_render_stores_the_new_one(

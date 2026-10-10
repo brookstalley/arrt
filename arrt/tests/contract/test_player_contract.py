@@ -1,13 +1,14 @@
 """Arrt's side of the Player contract: what it writes, and what it reads.
 
-The schemas under `contract/` describe the manifest this plane writes and the
+The schemas under `contract/` describe the feed this plane writes and the
 heartbeat it reads. They were derived from this code, which is exactly why they
 need testing against it: a schema read off a builder is one mis-read away from
 describing a document the builder never writes, and nothing else would notice
 until a Player in another repository refused a real manifest.
 
-So the manifest is built here by the real service from real records and written
-by the real `sync`, and the document on disk is what is validated. The heartbeat
+So the feed is built here by the real service from real records and written by
+the real `sync`, and the document on disk is what is validated, against the
+schema and the contract's semantic rules (`feed_guard.problems`). The heartbeat
 runs the other way: each fixture the contract calls valid must be one this
 plane's reader accepts, and the one the contract names for a misspelled instant
 must be one it refuses.
@@ -20,20 +21,12 @@ import shutil
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
+from feed_guard import problems
 
+from arrt.persistence.records import RenditionKind
 from arrt.programming.manifest import heartbeat
 
 CONTRACT = Path(__file__).resolve().parents[3] / "contract"
-
-
-def _validator(name: str) -> Draft202012Validator:
-    schema = json.loads((CONTRACT / "schemas" / name).read_text(encoding="utf-8"))
-    return Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
-
-
-def _errors(document: dict) -> list[str]:
-    return [error.message for error in _validator("manifest.v1.schema.json").iter_errors(document)]
 
 
 @pytest.fixture
@@ -55,12 +48,16 @@ def published(display, wall_settings, wall_id):
 
     def _publish(theme) -> dict:
         display.sync(wall_id, theme.id)
-        return json.loads(wall_settings.manifest_path(wall_id).read_text(encoding="utf-8"))
+        return json.loads(wall_settings.manifest_v2_path(wall_id).read_text(encoding="utf-8"))
 
     return _publish
 
 
-def test_a_published_manifest_with_an_attributed_and_an_unattributed_work_conforms(service, ready_work, theme_of, published):
+def _read(wall_settings, wall_id) -> dict:
+    return json.loads(wall_settings.manifest_v2_path(wall_id).read_text(encoding="utf-8"))
+
+
+def test_a_published_feed_with_an_attributed_and_an_unattributed_work_conforms(service, ready_work, theme_of, published):
     """Both label shapes: an artist with recorded name parts, and none at all."""
     dali = service.add_artist(
         name="Salvador Dalí", nationality="Spanish", born=1904, died=1989, family_name="Dalí", given_name="Salvador"
@@ -70,73 +67,75 @@ def test_a_published_manifest_with_an_attributed_and_an_unattributed_work_confor
 
     document = published(theme_of(attributed, unattributed))
 
-    assert len(document["entries"]) == 2
-    assert _errors(document) == []
+    assert set(document["works"]) == {attributed.id, unattributed.id}
+    assert document["works"][attributed.id]["label"]["artist_family_name"] == "Dalí"
+    assert document["works"][unattributed.id]["label"]["artist"] is None
+    assert problems(document) == []
 
 
-def test_a_published_manifest_whose_every_work_is_excluded_conforms(service, ready_work, theme_of, published):
-    """An empty entries list is a real document: the theme hangs and nothing in it is ready."""
+def test_a_published_feed_whose_every_work_is_excluded_conforms(service, ready_work, theme_of, published):
+    """An empty feed is a real document: the theme hangs and nothing in it is ready."""
     work = ready_work()
     theme = theme_of(work)
     service.archive_artwork(work.id)
 
     document = published(theme)
 
-    assert document["entries"] == []
-    assert _errors(document) == []
+    assert document["works"] == {}
+    assert document["schedule"]["slots"] == []
+    assert problems(document) == []
 
 
-def test_a_published_manifest_carrying_a_pin_conforms(display, ready_work, theme_of, published, wall_id):
+def test_a_published_feed_carrying_a_work_shown_now_conforms(display, ready_work, theme_of, published, wall_id, wall_settings):
+    """A guest: a work from outside the theme, carried for the one slot it is shown in."""
+    published(theme_of(ready_work("Automat")))
+    guest = ready_work()
+
+    display.show_work_now(wall_id, guest.id)
+
+    document = _read(wall_settings, wall_id)
+    assert document["schedule"]["slots"][0]["work_id"] == guest.id
+    assert problems(document) == []
+
+
+def test_a_published_feed_carrying_media_conforms(service, ready_work, theme_of, published, wall_settings):
+    """Media is the hash of the master's real bytes, with its size, as the contract spells it."""
     work = ready_work()
-    theme = theme_of(work)
-    display.show_work_now(wall_id, work.id)
-
-    document = published(theme)
-
-    assert document["directive"]["pinned_work_id"] == work.id
-    assert _errors(document) == []
-
-
-def test_a_published_manifest_carrying_media_conforms(service, ready_work, theme_of, published, wall_settings):
-    """Minor 2, as the builder writes it, beside the contract's own minor 2 fixture and never instead of it.
-
-    The render's file is written here, because media is the hash of real bytes:
-    a render with no file has no media, and a document without the key would
-    pass this schema without testing the key at all.
-    """
-    work = ready_work()
-    render = next(view.rendition for view in service.list_renditions(work.id))
-    data = b"\xff\xd8\xff\xe0 a render's bytes"
-    (wall_settings.art_root / render.relative_path).parent.mkdir(parents=True, exist_ok=True)
-    (wall_settings.art_root / render.relative_path).write_bytes(data)
+    master = next(
+        view.rendition for view in service.list_renditions(work.id) if view.rendition.kind is RenditionKind.PRESENTATION_MASTER
+    )
+    data = (wall_settings.art_root / master.relative_path).read_bytes()
 
     document = published(theme_of(work))
 
-    assert document["schema"] == {"major": 1, "minor": 2}
-    media = document["entries"][0]["media"]
-    assert media == {
+    assert document["schema"] == {"major": 2, "minor": 0}
+    assert document["works"][work.id]["media"] == {
         "url": f"/media/sha256-{hashlib.sha256(data).hexdigest()}",
         "sha256": hashlib.sha256(data).hexdigest(),
         "bytes": len(data),
         "content_type": "image/jpeg",
+        "width": 400,
+        "height": 300,
     }
-    assert _errors(document) == []
+    assert problems(document) == []
 
 
-def test_a_render_with_no_file_is_published_without_media_and_says_so(ready_work, theme_of, published, caplog):
-    """It still plays on the file channel, which reads `render_path`; there is no hash to offer.
-
-    Said in the journal, because a Player on HTTP skips the work, and a wall one
-    work short with nothing on the server naming it is the silence this product
-    refuses.
-    """
+def test_a_master_with_no_file_is_left_off_the_feed_and_said(service, ready_work, theme_of, published, wall_settings, caplog):
+    """A Player could not fetch it, so it is not sent; said in the journal, because a
+    wall one work short with nothing on the server naming it is the silence this
+    product refuses."""
     work = ready_work()
+    kept = ready_work("Automat")
+    master = next(
+        view.rendition for view in service.list_renditions(work.id) if view.rendition.kind is RenditionKind.PRESENTATION_MASTER
+    )
+    (wall_settings.art_root / master.relative_path).unlink()
 
-    with caplog.at_level(logging.WARNING, logger="arrt.library.facade"):
-        document = published(theme_of(work))
+    with caplog.at_level(logging.WARNING):
+        document = published(theme_of(work, kept))
 
-    assert "media" not in document["entries"][0]
-    assert _errors(document) == []
+    assert set(document["works"]) == {kept.id}
+    assert problems(document) == []
     assert [record.getMessage() for record in caplog.records if work.id in record.getMessage()], "nothing named the work"
 
 

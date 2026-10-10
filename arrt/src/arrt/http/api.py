@@ -62,7 +62,6 @@ from arrt.http.models import (
     CostTiersOut,
     CreateTheme,
     CreateWall,
-    DirectiveOut,
     DisplayFaultOut,
     DisplayOut,
     DisplayStateOut,
@@ -98,6 +97,7 @@ from arrt.http.models import (
     MatColorOut,
     MoveWork,
     NameClient,
+    NextOut,
     NotAgainOut,
     NotAgainRequest,
     OfferedTopicOut,
@@ -148,7 +148,6 @@ from arrt.http.models import (
     StartGet,
     StartResolve,
     StartRun,
-    StepDisplay,
     ThemeAdditionOut,
     ThemeDetailOut,
     ThemeListOut,
@@ -211,7 +210,6 @@ from arrt.persistence.discovery_records import (
 from arrt.persistence.records import (
     Artist,
     BackupReading,
-    Directive,
     Display,
     HistoryEvent,
     IdentitySetBy,
@@ -222,7 +220,7 @@ from arrt.persistence.records import (
     WorkFacet,
 )
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import SizeJudgement, ThemeCount, ThemePlacement, WallView
+from arrt.programming.display import SizeJudgement, ThemeCount, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -1474,25 +1472,15 @@ def issue_client_token(request: Request, client_id: str) -> ClientTokenOut:
     return ClientTokenOut(client_id=issued.client_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
 
 
-@router.post("/directives")
-def step_display(request: Request, body: StepDisplay) -> DirectiveOut:
-    """Tell the display serving one wall to move on to the next work.
+@router.post("/walls/{wall_id}/next")
+def step_wall(request: Request, wall_id: str) -> NextOut:
+    """Move one wall on to the next work: the Walls screen's Skip.
 
-    **The Walls screen's `next`, and until now the one screen action with an MCP
-    action and no HTTP route at all.** `art_display(action='next')` has stepped a
-    wall since the tool surface was built; the browser could only ever *read*
-    `directive_sequence` off a manifest, so a curator standing in front of the
-    television had no way to do the one thing they were most likely to want.
-
-    The shape was left open while a directive was still a singleton, on the
-    grounds that writing an installation-wide route would be writing the shape
-    that had to change. It is per wall now, so the wall is named here as it is
-    named in every other act that changes one.
-
-    It returns the directive rather than the wall: what a step changes is what
-    the wall was told to do, and nothing about what hangs there.
+    A republish of the wall's feed starting now, so its Player shows the work
+    when it next reads the feed. The answer names that work; it is what was
+    published, not a report from the screen.
     """
-    return _directive(_services(request).display.step_display(body.wall_id))
+    return NextOut(wall_id=wall_id, work_id=_services(request).display.step_display(wall_id))
 
 
 # -- the wall -----------------------------------------------------------------
@@ -2244,8 +2232,8 @@ def _wall(services: Services, view: WallView) -> WallOut:
         name=view.wall.name,
         created_at=view.wall.created_at.isoformat(),
         theme=None if view.hanging is None else _theme(view.hanging),
-        directive_sequence=view.directive.sequence,
-        pinned_work_id=view.directive.pinned_work_id,
+        reads_feed=view.reads_feed,
+        feed_notice=feed_notice(reads_feed=view.reads_feed),
         client_id=None if placement.client is None else placement.client.id,
         output=placement.output,
         display_id=view.wall.display_id,
@@ -2365,14 +2353,6 @@ def _client(view: ClientView, survey: PlacementSurvey) -> ClientOut:
     )
 
 
-def _directive(directive: Directive) -> DirectiveOut:
-    return DirectiveOut(
-        wall_id=directive.wall_id,
-        sequence=directive.sequence,
-        pinned_work_id=directive.pinned_work_id,
-    )
-
-
 def _placement(placement: ThemePlacement) -> ThemePlacementOut:
     return ThemePlacementOut(
         theme=_theme(placement.theme),
@@ -2390,7 +2370,6 @@ def _manifest(build: ManifestBuild) -> ManifestOut:
                 artwork_id=entry.work_id,
                 title=entry.label.get("title") or "",
                 artist=entry.label.get("artist"),
-                render_path=entry.render_path,
             )
             for entry in build.entries
         ],
@@ -2406,8 +2385,6 @@ def _manifest(build: ManifestBuild) -> ManifestOut:
         considered=build.considered,
         rotation_interval_seconds=build.rotation_interval_seconds,
         shuffle=build.shuffle,
-        directive_sequence=build.directive_sequence,
-        pinned_work_id=build.pinned_work_id,
         # The build's own sentence, not a second one written here: the tool
         # surface states the same fact, and two hand-written versions drift.
         summary=build.summarise(),

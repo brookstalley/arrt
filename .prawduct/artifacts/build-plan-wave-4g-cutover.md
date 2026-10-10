@@ -151,6 +151,41 @@ before any production code moves.
   read them until 02 and 04 remove their readers. 01 shrank to the label move
   and lost its `final` review, since it no longer sets anything a later chunk
   builds on beyond one `$ref`.
+- 02: `ready_work` gains a presentation master now rather than in 03. With
+  major 2 the only feed, a work without one reaches no wall, so every test that
+  hangs a work needs it. 03 still removes the TV render from it.
+- 02: Skip is `POST /api/walls/{wall_id}/next`, answering the wall and the work
+  its feed now starts with. `next` and `show_now` on a wall with no feed are
+  refused by name; with major 1 they wrote a counter nothing acted on and
+  answered "done", the silence the product exists to avoid.
+- 02: the 4e rule that a late master joins the feed goes with major 1. It
+  existed because major 1 already carried the work. Masters are made in the
+  same preparation step that made the TV render, so once readiness rests on
+  the master (03), gaining one is readiness gained, which waits for sync like
+  any addition (the operator's ruling, 2026-09-30).
+- 02: a theme none of whose works can be sent publishes an empty feed, as an
+  empty major 1 manifest was published before. The 4e rule that removed the
+  feed instead existed only so the Player fell back to major 1.
+- 02: the app's `Settings.manifest_path` becomes `manifest_v2_path`, the name
+  `DisplaySettings` already gives the same file.
+- 02: old major 1 files (`theme-manifest-{wall_id}.json`) are left on disk;
+  nothing reads them. `deploy/README.md` names them as safe to delete (05).
+- 02: the facade's plain-data test now recurses into nested dataclasses. Its
+  fixture never had a master, so the check never reached one.
+- 02: the curator's preview (`GET /api/manifest`) is not read from the feed,
+  as this chunk's What said. It previews a theme before it is hung, which no
+  published feed can answer, so it stays a build. Until 03, that build counts a
+  work with no master as on the wall while the feed leaves it off; 03 makes the
+  master readiness, after which the two agree by construction. 03's Done-when
+  carries the test. Not settled by the goals: the plan's sentence was wrong.
+- 02: Skip on a wall whose feed holds nothing is refused by name, not answered
+  with a blank work.
+- 04: `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` are the server's
+  settings (the default pace a theme inherits) and stay so. The Player stops
+  reading them rather than refusing them: one `.env` serves both on a
+  development checkout, and the Player already ignores the server's other keys.
+  This reverses the open assumption above, which missed that the server reads
+  the same two keys.
 
 ## Inventory
 
@@ -224,7 +259,8 @@ Context: branched from develop at the merge of #345 (wave 4e).
   `arrt/src/arrt/programming/store.py`, `arrt/src/arrt/persistence/` (records, sqlite, migrations,
   file), `arrt/src/arrt/http/player.py`, `arrt/src/arrt/http/api.py`, `arrt/src/arrt/http/models.py`,
   `arrt/src/arrt/mcp/` (tools, bindings, server), `arrt/src/arrt/config.py`, `arrt/src/arrt/__main__.py`,
-  `arrt/src/arrt/http/static/` (`screens/walls.js`, `screens/hanging.js`, `screens/work.js`),
+  `arrt/src/arrt/http/static/screens/walls.js`, `arrt/src/arrt/http/static/core/hanging.js`,
+  `arrt/src/arrt/http/static/screens/work.js`,
   `arrt/src/arrt/programming/manifest/heartbeat.py`; their tests.
 - **What:** one feed per wall, built from the schedule. Every publish path
   writes major 2 only. The 4e gate that withheld v2 goes, along with v1's
@@ -273,7 +309,9 @@ Context: branched from develop at the merge of #345 (wave 4e).
      `MAT_BOTTOM_WEIGHT` and `ready_path` in `arrt/src` returns only the
      migration and `RETIRED_SETTINGS`.
   2. A work with a master and no TV render is playable; a work with neither
-     is refused by name; a stale master is refused by name.
+     is refused by name; a stale master is refused by name. The curator's
+     preview names a work with no master as not on the wall, the same verdict
+     the feed acts on.
   3. The mat corpus test still checks every colour it checked before. If it
      needs a compositor to show a colour, it says why it no longer does, in
      the commit (learning rule: a dropped assertion is replaced in the same

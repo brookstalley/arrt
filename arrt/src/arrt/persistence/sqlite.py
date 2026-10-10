@@ -43,7 +43,6 @@ from arrt.persistence.records import (
     ArtworkPage,
     ArtworkStatus,
     Client,
-    Directive,
     Display,
     EventKind,
     EventPage,
@@ -428,19 +427,6 @@ CREATE TABLE IF NOT EXISTS history_events (
 CREATE INDEX IF NOT EXISTS history_events_by_time ON history_events(occurred_at);
 CREATE INDEX IF NOT EXISTS history_events_by_wall ON history_events(wall_id, occurred_at) WHERE wall_id IS NOT NULL;
 
--- One row per wall, seeded when the wall is created so no caller ever has to
--- make one. The standing directive is a property of the *wall* rather than of
--- any theme, because the sequence has to survive every manifest rebuild and
--- every theme switch to stay monotonic — and a singleton, which is what this
--- was until 2026-08-12, cannot say which display an advance was meant for.
-CREATE TABLE IF NOT EXISTS directives (
-    wall_id         TEXT PRIMARY KEY REFERENCES walls(id),
-    sequence        INTEGER NOT NULL,
-    pinned_work_id  TEXT REFERENCES artworks(id)
-);
-
-CREATE INDEX IF NOT EXISTS directives_by_pin ON directives(pinned_work_id);
-
 -- The acquisition queue's memory of each work it has started on and not
 -- finished: how many attempts failed in a row, when the next may be made, why the
 -- last one failed, and a source someone named for the next. Deleted once the work
@@ -464,8 +450,8 @@ _BY_ARTWORK: Final[tuple[str, ...]] = ("artwork_id",)
 #: The join's own key. A work appears at most once in a theme.
 _MEMBERSHIP_KEY: Final[tuple[str, ...]] = ("theme_id", "artwork_id")
 
-#: Both tables that hang off a wall are keyed by it alone, which is what makes
-#: "one theme per wall" and "one directive per wall" keys rather than claims.
+#: Tables that hang off a wall are keyed by it alone, which is what makes "one
+#: theme per wall" a key rather than a claim.
 _BY_WALL: Final[tuple[str, ...]] = ("wall_id",)
 
 #: What a curator scans by, then a tie-break that makes paging repeatable.
@@ -1194,30 +1180,6 @@ class SqliteCatalogue(TableAdapter):
     def list_assignments(self) -> Sequence[ThemeAssignment]:
         return self._list("theme_assignments", None, _BY_WALL_ID, _assignment)
 
-    # -- the display directives -----------------------------------------------
-
-    def add_directive(self, directive: Directive) -> None:
-        self._add("directives", _directive_row(directive), subject=f"directive for wall {directive.wall_id!r}", key=_BY_WALL)
-
-    def get_directive(self, wall_id: str) -> Directive:
-        row = self._store.fetch_one("directives", {"wall_id": wall_id})
-        if row is None:
-            # Seeded when the wall is created, so its absence means either an
-            # unknown wall or a file edited by something other than this code.
-            raise StorageError(f"Wall {wall_id!r} has no display directive row.")
-        return _directive(row)
-
-    def set_directive(self, directive: Directive) -> None:
-        self._update(
-            "directives",
-            _BY_WALL,
-            _directive_row(directive),
-            subject=f"the display directive for wall {directive.wall_id!r}",
-        )
-
-    def list_directives(self) -> Sequence[Directive]:
-        return self._list("directives", None, _BY_WALL_ID, _directive)
-
     # -- works kept off every wall --------------------------------------------
 
     def add_exclusion(self, exclusion: WorkExclusion) -> None:
@@ -1456,17 +1418,6 @@ def _assignment_row(assignment: ThemeAssignment) -> dict[str, Any]:
     }
 
 
-def _directive_row(directive: Directive) -> dict[str, Any]:
-    return {
-        "wall_id": directive.wall_id,
-        "sequence": directive.sequence,
-        "pinned_work_id": directive.pinned_work_id,
-    }
-
-
-# -- row to record ------------------------------------------------------------
-
-
 def _artist(row: Mapping[str, Any]) -> Artist:
     return Artist(
         id=row["id"],
@@ -1653,10 +1604,6 @@ def _assignment(row: Mapping[str, Any]) -> ThemeAssignment:
         theme_id=row["theme_id"],
         assigned_at=require_datetime(row["assigned_at"], "assigned_at"),
     )
-
-
-def _directive(row: Mapping[str, Any]) -> Directive:
-    return Directive(wall_id=row["wall_id"], sequence=row["sequence"], pinned_work_id=row["pinned_work_id"])
 
 
 def _exclusion(row: Mapping[str, Any]) -> WorkExclusion:

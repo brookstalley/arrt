@@ -156,12 +156,12 @@ def test_the_wall_keeps_the_name_it_has_when_configuration_changes(tmp_path):
         catalogue.close()
 
 
-def test_the_singleton_directive_becomes_the_walls_own_counter(tmp_path):
-    """Carried rather than restarted.
+def test_the_singleton_directive_is_dropped_and_nothing_is_carried(tmp_path):
+    """The old file's counter and pin go, and the wall and its theme do not.
 
-    The display plane acts once each time it sees the number go up. A counter
-    that dropped to zero here would make the next ordinary advance look like a
-    step already taken, and the wall would sit still while the curator pressed.
+    A Player read the directive from manifest major 1, which is no longer
+    published, so neither its counter nor its pin has a reader. The work the
+    old pin named stays in the catalogue: only the instruction goes.
     """
     path = _single_wall_catalogue(
         tmp_path / "catalogue.sqlite",
@@ -174,25 +174,11 @@ def test_the_singleton_directive_becomes_the_walls_own_counter(tmp_path):
     catalogue = SqliteCatalogue(open_catalogue_file(path))
     try:
         wall = catalogue.list_walls()[0]
-        directive = catalogue.get_directive(wall.id)
-        assert (directive.sequence, directive.pinned_work_id) == (41, "w1")
+        assert catalogue.get_assignment(wall.id).theme_id == "t1"
+        assert catalogue.get_artwork("w1").title == "Nighthawks"
     finally:
         catalogue.close()
-
-
-def test_the_migration_itself_does_not_advance_the_sequence(tmp_path):
-    """An upgrade is not an instruction to the display plane.
-
-    An advance here would fire a directive nobody issued, stepping the wall to an
-    unrelated work the first time the plane restarted.
-    """
-    path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)], sequence=7)
-
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
-    try:
-        assert catalogue.get_directive(catalogue.list_walls()[0].id).sequence == 7
-    finally:
-        catalogue.close()
+    assert {"directive", "directives"} & _names(path, "table") == set()
 
 
 def test_a_catalogue_with_no_active_theme_hangs_nothing_rather_than_promoting_one(tmp_path):
@@ -247,7 +233,6 @@ def test_reopening_a_migrated_file_changes_nothing(tmp_path):
     reopened = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
     try:
         assert [wall.id for wall in reopened.list_walls()] == [wall_id]
-        assert reopened.get_directive(wall_id).sequence == 3
         assert reopened.get_assignment(wall_id).theme_id == "t1"
     finally:
         reopened.close()
@@ -282,9 +267,6 @@ def test_an_interrupted_migration_is_finished_by_the_next_open(tmp_path):
     try:
         wall_ids = [wall.id for wall in catalogue.list_walls()]
         assert len(wall_ids) == 1, "a half-migrated file must not acquire a second wall"
-        # The carried counter stands: the zero in the resurrected singleton is
-        # not read, because a file with a wall has already been carried.
-        assert catalogue.get_directive(wall_ids[0]).sequence == 9
     finally:
         catalogue.close()
 
@@ -295,17 +277,10 @@ def test_an_interrupted_migration_is_finished_by_the_next_open(tmp_path):
 def test_a_fresh_file_needs_no_carrying_and_still_gets_its_wall(tmp_path):
     """The seed and the migration are one step, because a catalogue with no wall
     is unusable either way — nothing can be hung on it and no request can name one.
-
-    Unparametrised, deliberately. This was a `parametrize` over a pin that the
-    body then discarded — there is no directive on a fresh file for a pin to be
-    carried *from*, so the two cases ran the identical assertions and the report
-    claimed a coverage that did not exist. Carrying a pin is tested where a pin
-    can exist, on a file that already holds one.
     """
     catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite"))
     try:
         wall = catalogue.list_walls()[0]
-        assert catalogue.get_directive(wall.id).sequence == 0
         assert catalogue.get_assignment(wall.id) is None
     finally:
         catalogue.close()
@@ -363,3 +338,54 @@ def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_
 
     assert "3.35.0" in str(refused.value)
     assert "3.34.1" in str(refused.value)
+
+
+# -- each wall's directive, retired ------------------------------------------------
+
+
+def _with_per_wall_directives(path):
+    """A current file put back to the shape it had while walls carried directives, with a pin."""
+    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    wall_id = catalogue.list_walls()[0].id
+    catalogue.close()
+    connection = sqlite3.connect(path)
+    try:
+        connection.executescript(
+            "CREATE TABLE directives (wall_id TEXT PRIMARY KEY REFERENCES walls(id), sequence INTEGER NOT NULL,"
+            " pinned_work_id TEXT REFERENCES artworks(id));"
+            "CREATE INDEX directives_by_pin ON directives(pinned_work_id);"
+        )
+        connection.execute("INSERT INTO directives (wall_id, sequence, pinned_work_id) VALUES (?, 12, NULL)", (wall_id,))
+        connection.commit()
+    finally:
+        connection.close()
+    return wall_id
+
+
+def test_each_walls_directive_is_dropped_with_its_index(tmp_path):
+    """The table and the index over its pin go; the wall they hung off stays."""
+    path = tmp_path / "catalogue.sqlite"
+    wall_id = _with_per_wall_directives(path)
+    assert "directives" in _names(path, "table"), "the fixture did not put the table back, so this checks nothing"
+
+    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    try:
+        assert [wall.id for wall in catalogue.list_walls()] == [wall_id]
+    finally:
+        catalogue.close()
+    assert "directives" not in _names(path, "table")
+    assert "directives_by_pin" not in _names(path, "index")
+
+
+def test_dropping_the_directives_is_safe_to_run_again(tmp_path):
+    """It runs on every open, so a file it already tidied opens unchanged."""
+    path = tmp_path / "catalogue.sqlite"
+    wall_id = _with_per_wall_directives(path)
+    open_catalogue_file(path).close()
+
+    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    try:
+        assert [wall.id for wall in catalogue.list_walls()] == [wall_id]
+    finally:
+        catalogue.close()
+    assert "directives" not in _names(path, "table")

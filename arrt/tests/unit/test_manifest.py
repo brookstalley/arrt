@@ -1,6 +1,6 @@
-"""The manifest build — what reaches the wall, what does not, and why.
+"""The build behind a wall's feed — what reaches the wall, what does not, and why.
 
-Membership in the manifest *is* catalogue readiness, so this file is where that
+Membership in the feed *is* catalogue readiness, so this file is where that
 rule is pinned. The exclusion assertions carry the weight: a builder that only
 returned a list would pass every entry-count check here and still be an
 incomplete implementation of the design it comes from, because a work can sit in
@@ -22,11 +22,19 @@ from arrt.persistence.records import (
 )
 from arrt.programming.display import DisplayService
 from arrt.programming.manifest import builder
-from arrt.programming.manifest.builder import (
-    SCHEMA_MAJOR,
-    write_atomically,
-)
+from arrt.programming.manifest.builder import write_atomically
+from arrt.programming.manifest.v2 import SCHEMA_MAJOR, read_published
 from arrt.services.errors import ServiceError
+
+
+@pytest.fixture
+def feed(wall_settings):
+    """A wall's feed as last published, read back."""
+
+    def _feed(wall_id):
+        return read_published(wall_settings.manifest_v2_path(wall_id))
+
+    return _feed
 
 
 @pytest.fixture
@@ -302,27 +310,29 @@ def test_a_work_with_no_artist_still_produces_a_legible_label(display, ready_wor
     assert label["artist_dates"] is None
 
 
-def test_the_written_manifest_is_json_the_display_plane_can_parse(display, ready_work, theme_of, wall_settings, wall_id):
-    theme = theme_of(ready_work())
+def test_the_written_feed_is_json_a_player_can_parse(display, ready_work, theme_of, wall_settings, wall_id):
+    work = ready_work()
+    theme = theme_of(work)
 
     display.sync(wall_id, theme.id)
 
-    document = json.loads(wall_settings.manifest_path(wall_id).read_text())
+    document = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())
     assert document["schema"]["major"] == SCHEMA_MAJOR
-    assert document["theme"]["name"] == theme.name
-    assert [entry["render_path"] for entry in document["entries"]] == [f"ready/{document['entries'][0]['work_id']}.jpg"]
+    assert document["playlist"]["name"] == theme.name
+    assert list(document["works"]) == [work.id]
 
 
-def test_the_manifest_does_not_carry_the_exclusions(display, ready_work, theme_of, wall_settings, wall_id):
-    """They are curation's report about its own catalogue, not something display can use."""
-    theme = theme_of(ready_work("Nighthawks"), ready_work("Chop Suey", original=False))
+def test_the_feed_does_not_carry_the_exclusions(display, ready_work, theme_of, wall_settings, wall_id):
+    """They are curation's report about its own catalogue, not something a Player can use."""
+    shown = ready_work("Nighthawks")
+    theme = theme_of(shown, ready_work("Chop Suey", original=False))
 
     build = display.sync(wall_id, theme.id)
 
     assert len(build.exclusions) == 1
-    document = json.loads(wall_settings.manifest_path(wall_id).read_text())
+    document = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())
     assert "exclusions" not in document
-    assert len(document["entries"]) == 1
+    assert list(document["works"]) == [shown.id]
 
 
 def test_entries_follow_the_curated_order(display, ready_work, theme_of, wall_id):
@@ -357,59 +367,6 @@ def test_a_themes_own_pace_wins_over_the_default(store, display, ready_work, the
 
     assert build.rotation_interval_seconds == 931
     assert build.shuffle is (not wall_settings.shuffle)
-
-
-# -- the directive rides along unchanged ----------------------------------------
-
-
-def test_a_rebuild_carries_the_sequence_forward_rather_than_resetting_it(display, ready_work, theme_of, wall_id):
-    """A reset would read to the display plane as an advance, firing a jump nobody issued."""
-    theme = theme_of(ready_work())
-    display.step_display(wall_id)
-    display.step_display(wall_id)
-
-    first = display.build_manifest(wall_id, theme.id)
-    second = display.build_manifest(wall_id, theme.id)
-
-    assert first.directive_sequence == 2
-    assert second.directive_sequence == 2
-
-
-def test_switching_themes_carries_the_sequence_forward(display, ready_work, theme_of, wall_id):
-    """The counter is the catalogue's, not the theme's — a per-theme one would reset on every switch."""
-    first = theme_of(ready_work("Nighthawks"), name="Late night")
-    second = theme_of(ready_work("Chop Suey"), name="Daylight")
-    display.step_display(wall_id)
-
-    display.activate_theme(second.id, wall_id=wall_id)
-    build = display.build_manifest(wall_id, second.id)
-
-    assert build.theme.id == second.id
-    assert build.directive_sequence == 1
-    assert display.build_manifest(wall_id, first.id).directive_sequence == 1
-
-
-def test_only_a_directive_advances_the_sequence(display, ready_work, theme_of, wall_settings, wall_id):
-    theme = theme_of(ready_work())
-    display.sync(wall_id, theme.id)
-    before = json.loads(wall_settings.manifest_path(wall_id).read_text())["directive"]["sequence"]
-
-    display.sync(wall_id, theme.id)
-    assert json.loads(wall_settings.manifest_path(wall_id).read_text())["directive"]["sequence"] == before
-
-    display.step_display(wall_id)
-    display.sync(wall_id, theme.id)
-    assert json.loads(wall_settings.manifest_path(wall_id).read_text())["directive"]["sequence"] == before + 1
-
-
-def test_the_manifest_carries_a_standing_pin(display, ready_work, theme_of, wall_settings, wall_id):
-    work = ready_work()
-    theme = theme_of(work)
-    display.show_work_now(wall_id, work.id)
-
-    display.sync(wall_id, theme.id)
-
-    assert json.loads(wall_settings.manifest_path(wall_id).read_text())["directive"]["pinned_work_id"] == work.id
 
 
 # -- writing ---------------------------------------------------------------------
@@ -483,26 +440,30 @@ def test_the_manifest_directory_is_created_if_it_does_not_exist(tmp_path):
 # -- refusals ---------------------------------------------------------------------
 
 
-def test_pinning_a_work_that_cannot_reach_the_wall_is_refused_with_its_reason(display, ready_work, wall_id):
-    """The one path that could write a directive nothing can carry out.
+def test_showing_a_work_that_cannot_reach_the_wall_is_refused_with_its_reason(
+    display, ready_work, theme_of, wall_settings, wall_id
+):
+    """The one path that could publish a work nothing can show.
 
-    Answering "the directive is written" and then never moving the wall is the
-    silence the exclusion report exists to break — arriving through the action
-    that did not consult readiness. The refusal carries the same sentence the
-    manifest build would have given, so the curator learns what to fix.
+    Answering "done" and then never moving the wall is the silence the
+    exclusion report exists to break, arriving through the action that did not
+    consult readiness. The refusal carries the same sentence the build would
+    have given, so the curator learns what to fix.
     """
+    display.activate_theme(theme_of(ready_work("Automat")).id, wall_id=wall_id)
+    published = wall_settings.manifest_v2_path(wall_id).read_bytes()
     work = ready_work(rendition=False)
 
     with pytest.raises(ServiceError, match="has a master image but has not been rendered"):
         display.show_work_now(wall_id, work.id)
 
-    # And nothing was written: a refused directive must not move the counter.
-    assert display.read_directive(wall_id).sequence == 0
-    assert display.read_directive(wall_id).pinned_work_id is None
+    # And nothing was published: a refused show-now leaves the wall's feed as it was.
+    assert wall_settings.manifest_v2_path(wall_id).read_bytes() == published
 
 
-def test_a_work_becomes_pinnable_once_it_is_displayable(display, service, ready_work, wall_id):
+def test_a_work_can_be_shown_once_it_is_displayable(display, service, ready_work, theme_of, feed, wall_id):
     """The refusal is a state, not a verdict about the work."""
+    display.activate_theme(theme_of(ready_work("Automat")).id, wall_id=wall_id)
     work = ready_work(rendition=False)
     with pytest.raises(ServiceError):
         display.show_work_now(wall_id, work.id)
@@ -515,7 +476,8 @@ def test_a_work_becomes_pinnable_once_it_is_displayable(display, service, ready_
         path=f"ready/{work.id}.jpg",
     )
 
-    assert display.show_work_now(wall_id, work.id).pinned_work_id == work.id
+    assert display.show_work_now(wall_id, work.id) == work.id
+    assert feed(wall_id).slots[0].work_id == work.id
 
 
 def test_an_unrendered_work_cannot_be_made_into_an_entry(service):
@@ -532,8 +494,8 @@ def test_an_unrendered_work_cannot_be_made_into_an_entry(service):
         readiness.playable_from(inputs, units=Units.IMPERIAL)
 
 
-def test_building_for_a_wall_with_nothing_hanging_is_refused_rather_than_writing_an_empty_manifest(display, wall_id):
-    """An empty manifest would read as "show nothing", which is not what "nothing hung yet" means.
+def test_building_for_a_wall_with_nothing_hanging_is_refused_rather_than_writing_an_empty_feed(display, wall_id):
+    """An empty feed would read as "show nothing", which is not what "nothing hung yet" means.
 
     The refusal names the wall, because with two of them "nothing is hanging" is
     not an answer a curator can act on without knowing where.
@@ -552,23 +514,17 @@ def test_building_an_unknown_theme_names_the_id_it_could_not_find(display, wall_
         display.build_manifest(wall_id, "nope")
 
 
-# -- one manifest per wall -------------------------------------------------------
+# -- one feed per wall -----------------------------------------------------------
 
 
-class TestOneManifestPerWall:
+class TestOneFeedPerWall:
     """Each wall gets its own document, and one room's rewrite leaves the rest alone.
 
-    **This is the property the per-file decision was made for.** Change detection
-    on the display side is an mtime poll at about a second, so a shared file
-    would wake every wall's display on every other wall's change — and would make
-    "the manifest's sequence" ambiguous exactly where the coalescing and
-    sequence-regression rules need it to be a single number. Per file also leaves
-    a display plane unable to read a wall it does not serve: it stats one path.
-
-    Until 2026-08-12 there was one file for the installation, so hanging a theme
-    on a second wall overwrote the first's manifest and handed the running
-    television the wrong room's pictures — silently, since a display had no way to
-    notice the document had stopped being about it.
+    **This is the property the per-file decision was made for.** A Player polls
+    its wall's feed by ETag about once a second, so a shared file would change
+    every wall's ETag on every other wall's change, and wake each Player for a
+    change that was never about it. Per file also leaves a Player unable to read
+    a wall it does not serve.
     """
 
     @pytest.fixture
@@ -584,83 +540,56 @@ class TestOneManifestPerWall:
         display.activate_theme(theirs.id, wall_id=living_room)
         display.activate_theme(ours.id, wall_id=study)
 
-        assert json.loads(wall_settings.manifest_path(living_room).read_text())["theme"]["name"] == "Late night"
-        assert json.loads(wall_settings.manifest_path(study).read_text())["theme"]["name"] == "Surrealists"
+        assert json.loads(wall_settings.manifest_v2_path(living_room).read_text())["playlist"]["name"] == "Late night"
+        assert json.loads(wall_settings.manifest_v2_path(study).read_text())["playlist"]["name"] == "Surrealists"
 
     def test_one_walls_rewrite_does_not_touch_another_walls_file(self, display, ready_work, theme_of, wall_settings, two_walls):
-        """**The mtime, not just the contents.** A display polls the file's mtime
-        at about a second, so touching another wall's file at all is a wall woken
-        — and re-deriving — for a change that was never about it."""
+        """**The bytes and the mtime, not just the parse.** A step or a sync in the
+        living room is a republish of the living room alone; touching the study's
+        file at all would change its ETag and wake its Player for nothing."""
         living_room, study = two_walls
-        theme = theme_of(ready_work("Nighthawks"))
+        theme = theme_of(ready_work("Nighthawks"), ready_work("Automat"))
         display.activate_theme(theme.id, wall_id=living_room)
         display.activate_theme(theme.id, wall_id=study)
-        untouched = wall_settings.manifest_path(study)
-        before = untouched.stat()
+        untouched = wall_settings.manifest_v2_path(study)
+        before = (untouched.stat().st_mtime_ns, untouched.read_bytes())
 
         for _ in range(3):
             display.step_display(living_room)
             display.sync(living_room)
 
-        after = untouched.stat()
-        assert (after.st_mtime_ns, after.st_size) == (before.st_mtime_ns, before.st_size)
+        assert (untouched.stat().st_mtime_ns, untouched.read_bytes()) == before
 
-    def test_two_walls_run_independent_directive_sequences(self, display, ready_work, theme_of, wall_settings, two_walls):
-        """A `next` in the living room does not step the study.
-
-        The counters were already per wall in the catalogue; this is the half
-        that reaches the display plane, and without it both rooms read one
-        number — so an advance meant for one would fire a jump in the other.
-        """
+    def test_showing_a_work_now_reaches_one_wall_and_not_the_other(self, display, ready_work, theme_of, feed, two_walls):
+        """Multi-hop: the work is published first on one wall, and the neighbour's schedule is as it was."""
         living_room, study = two_walls
-        theme = theme_of(ready_work("Nighthawks"))
+        first, second = ready_work("Nighthawks"), ready_work("Automat")
+        theme = theme_of(first, second)
         display.activate_theme(theme.id, wall_id=living_room)
         display.activate_theme(theme.id, wall_id=study)
+        study_before = feed(study).slots
 
-        display.step_display(living_room)
-        display.step_display(living_room)
-        display.sync(living_room)
-        display.step_display(study)
-        display.sync(study)
+        display.show_work_now(living_room, second.id)
 
-        assert json.loads(wall_settings.manifest_path(living_room).read_text())["directive"]["sequence"] == 2
-        assert json.loads(wall_settings.manifest_path(study).read_text())["directive"]["sequence"] == 1
+        assert feed(living_room).slots[0].work_id == second.id
+        assert feed(study).slots == study_before
 
-    def test_a_pin_reaches_one_wall_and_not_the_other(self, display, ready_work, theme_of, wall_settings, two_walls):
-        """Multi-hop: the pin is written, published, and *absent* from the neighbour."""
-        living_room, study = two_walls
-        work = ready_work("Nighthawks")
-        theme = theme_of(work)
-        display.activate_theme(theme.id, wall_id=living_room)
-        display.activate_theme(theme.id, wall_id=study)
-
-        display.show_work_now(living_room, work.id)
-        display.sync(living_room)
-
-        assert json.loads(wall_settings.manifest_path(living_room).read_text())["directive"]["pinned_work_id"] == work.id
-        assert json.loads(wall_settings.manifest_path(study).read_text())["directive"]["pinned_work_id"] is None
-
-    def test_the_one_wall_case_is_what_it_was_apart_from_the_filename(
-        self, display, ready_work, theme_of, wall_settings, wall_id
-    ):
-        """The acceptance criterion, asserted rather than assumed.
-
-        A one-wall installation is the degenerate case of this design, and the
-        only thing that changed for it is where the file is written. The document
-        itself carries no wall — the *filename* is what names it, which is what
-        keeps a display unable to open a room it does not serve rather than
-        merely unwilling to act on it. Two answers to "which wall is this" could
+    def test_the_one_wall_case_is_named_by_its_file(self, display, ready_work, theme_of, wall_settings, wall_id):
+        """The document itself carries no wall: the *filename* names it, which keeps
+        a Player unable to open a room it does not serve rather than merely
+        unwilling to act on it. Two answers to "which wall is this" could
         disagree; one cannot.
         """
         theme = theme_of(ready_work("Nighthawks"))
 
         display.activate_theme(theme.id, wall_id=wall_id)
 
-        published = wall_settings.manifest_path(wall_id)
-        assert published.name == f"theme-manifest-{wall_id}.json"
+        published = wall_settings.manifest_v2_path(wall_id)
+        assert published.name == f"theme-manifest-{wall_id}.v2.json"
         document = json.loads(published.read_text())
-        assert set(document) == {"schema", "generated_at", "theme", "rotation", "directive", "entries"}
-        assert [entry["work_id"] for entry in document["entries"]] == [theme_works(display, theme.id)[0]]
+        assert "wall" not in document
+        assert wall_id not in json.dumps(document)
+        assert list(document["works"]) == [theme_works(display, theme.id)[0]]
 
     def test_the_heartbeat_is_read_per_wall_too(self, display, wall_settings, two_walls):
         """Health has to be able to name which wall is silent.
@@ -674,11 +603,6 @@ class TestOneManifestPerWall:
             json.dumps({"reported_at": "2026-08-12T00:00:00+00:00"}), encoding="utf-8"
         )
 
-        # Read through the survey, which is what both surfaces call. There was a
-        # single-wall `wall_status` beside it whose only callers were these two
-        # lines; a second service-level answer to "has this wall reported" is one
-        # more thing that can disagree with the first, and it was removed rather
-        # than given a test of its own.
         reported = {reading.wall.id: reading.heartbeat.absent for reading in display.survey_wall_status()}
 
         assert reported == {living_room: False, study: True}

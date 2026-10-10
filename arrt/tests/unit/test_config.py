@@ -206,10 +206,10 @@ def test_the_manifest_and_heartbeat_are_anchored_under_art_root_and_named_per_wa
 
     settings = Settings.from_env()
 
-    assert settings.manifest_path("living-room") == tmp_path / "theme-manifest-living-room.json"
+    assert settings.manifest_v2_path("living-room") == tmp_path / "theme-manifest-living-room.v2.json"
     assert settings.heartbeat_path("living-room") == tmp_path / "display-heartbeat-living-room.json"
     # Two walls, two files. The assertion the singular fields could not make.
-    assert settings.manifest_path("study") != settings.manifest_path("living-room")
+    assert settings.manifest_v2_path("study") != settings.manifest_v2_path("living-room")
 
 
 def test_the_shipped_rotation_defaults_are_what_the_wall_runs_today(monkeypatch, tmp_path):

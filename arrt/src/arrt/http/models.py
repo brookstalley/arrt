@@ -981,11 +981,13 @@ class WallOut(BaseModel):
     name: str
     created_at: str
     theme: ThemeOut | None
-    #: What this wall was last told to do. Carried because the Walls screen shows
-    #: "what is next" beside "what is hanging", and because a per-wall counter is
-    #: the thing a reader has to be able to see is per-wall.
-    directive_sequence: int
-    pinned_work_id: str | None
+    #: Whether the wall's Player said it reads this server's feed, from its last
+    #: readable heartbeat; null when there is none to read. A heartbeat that says
+    #: nothing about it counts as a Player that does not (`player-contract.md`
+    #: § The cutover).
+    reads_feed: bool | None = None
+    #: The sentence to show when `reads_feed` is false, and null otherwise.
+    feed_notice: str | None = None
     #: The client of the wall's display, or null while it has none — an
     #: ordinary state, like a wall with nothing hanging. Read from `display`;
     #: whether that client shows the wall now is `display.fault` being null.
@@ -1133,27 +1135,6 @@ class WallListOut(BaseModel):
     walls: list[WallOut]
 
 
-class DirectiveOut(BaseModel):
-    """What one wall was last told to do.
-
-    **The wall is in the answer, not only in the request.** A directive is a row
-    per wall rather than a singleton, and an answer that reported only a counter
-    would leave a caller holding a number with nothing attached to it — which is
-    exactly the state the singleton was in before the split.
-
-    `WallOut` carries the same two facts beside the theme, and this is
-    deliberately not that: stepping a wall changes what it was told to do and
-    nothing about what hangs there, so an answer shaped like a wall would invite
-    a reader to look for a change in the rest of it.
-    """
-
-    wall_id: str
-    sequence: int
-    #: Null after a step, always: moving on and standing on a pinned work are
-    #: contradictory instructions, so the step clears any pin.
-    pinned_work_id: str | None
-
-
 class ThemeDetailOut(BaseModel):
     """A theme and the works it holds, in curated order."""
 
@@ -1175,12 +1156,11 @@ class ThemeDetailOut(BaseModel):
 
 
 class ManifestEntryOut(BaseModel):
-    """One work as the display plane would receive it."""
+    """One work the theme would put on the wall."""
 
     artwork_id: str
     title: str
     artist: str | None
-    render_path: str
 
 
 class ExclusionOut(BaseModel):
@@ -1216,8 +1196,6 @@ class ManifestOut(BaseModel):
     considered: int
     rotation_interval_seconds: int
     shuffle: bool
-    directive_sequence: int
-    pinned_work_id: str | None
     #: One sentence saying how much of the theme reached the wall, stated even
     #: when nothing was excluded — a message that appeared only on trouble would
     #: train a reader to skim past its absence.
@@ -2118,18 +2096,6 @@ class HistoryPageOut(BaseModel):
     offset: int
 
 
-class StepDisplay(BaseModel):
-    """Which wall is being told to move on to the next work.
-
-    **Required, for the reason `HangTheme` states.** A `next` aimed at the living
-    room that stepped the study is one counter being asked a question it cannot
-    answer, and a request that guessed would be indistinguishable from one that
-    meant it.
-    """
-
-    wall_id: str
-
-
 class RetryCause(BaseModel):
     """A cause's Retry: the cause, exactly as `/api/acquisitions/causes` words it."""
 
@@ -2294,3 +2260,14 @@ class ArchivedWorksOut(BaseModel):
     archived: list[str]
     #: How many were archived already, and so were passed over.
     already: int
+
+
+class NextOut(BaseModel):
+    """What a step put on one wall: the work its feed now starts with.
+
+    The wall's Player shows it when it next reads the feed, so this says what was
+    published, not what the screen shows.
+    """
+
+    wall_id: str
+    work_id: str

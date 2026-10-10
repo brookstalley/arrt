@@ -73,8 +73,6 @@ class TestWhatMustBeSet:
             ("WALL_ID", "Settings › Clients"),
             ("WALL_TOKEN", "CLIENT_TOKEN"),
             ("MANIFEST_SOURCE", "SERVER_URL"),
-            ("ROTATION_INTERVAL_SECONDS", "the server's schedule sets the pace"),
-            ("ROTATION_SHUFFLE", "the server's schedule sets the order"),
         ],
     )
     def test_the_refusal_says_what_replaced_it(self, cache_dir: Path, retired: str, replaced_by: str):
@@ -83,11 +81,20 @@ class TestWhatMustBeSet:
 
     def test_a_retired_setting_left_empty_is_not_set(self, cache_dir: Path):
         """`WALL_ID=` is a key nobody filled in, which is the same as no key."""
-        assert load(
-            an_environment(
-                cache_dir, WALL_ID="", WALL_TOKEN="", MANIFEST_SOURCE="", ROTATION_INTERVAL_SECONDS="", ROTATION_SHUFFLE=""
-            )
-        ).server_url
+        assert load(an_environment(cache_dir, WALL_ID="", WALL_TOKEN="", MANIFEST_SOURCE="")).server_url
+
+    def test_the_servers_pace_settings_in_a_shared_env_are_left_to_the_server(self, cache_dir: Path):
+        """`ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` are Arrt's: the default pace a theme inherits.
+
+        One `.env` serves both on a development checkout, so a Player that
+        refused them would not start beside its server. It reads neither: the
+        schedule it is sent sets the pace.
+        """
+        settings = load(an_environment(cache_dir, ROTATION_INTERVAL_SECONDS="931", ROTATION_SHUFFLE="false"))
+
+        assert settings.server_url
+        assert "ROTATION_INTERVAL_SECONDS" not in RETIRED_SETTINGS
+        assert "ROTATION_SHUFFLE" not in RETIRED_SETTINGS
 
     @pytest.mark.parametrize("missing", ["LATITUDE", "LONGITUDE", "LOCATION_NAME"])
     def test_a_frame_without_the_sun_it_follows_does_not_start(self, cache_dir: Path, missing: str):

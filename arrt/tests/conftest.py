@@ -473,17 +473,26 @@ def runner(services: Services, engine: FakeEngine, settings: Settings) -> Discov
 
 
 @pytest.fixture
-def ready_work(service: CatalogueService):
-    """A work with everything catalogue readiness asks for, and nothing more.
+def ready_work(service: CatalogueService, settings: Settings, decodable_jpeg):
+    """A work with everything catalogue readiness asks for, and a master the feed can send.
 
     A factory rather than a fixture row: the readiness tests each remove exactly
-    one of the four requirements, and the missing one is the point. It lives here
+    one of the requirements, and the missing one is the point. It lives here
     rather than beside them because anything that puts a work on the wall — a
-    manifest entry, a directive pin — needs a work that can actually be shown.
+    feed entry, a show-now — needs a work that can actually be shown. The master
+    is a small decodable JPEG on disk, because the Library reads its size.
     """
 
     def _ready(
-        title="Nighthawks", *, artist_id=None, original=True, rendition=True, mat=True, content_hash="hash-1", commentary=None
+        title="Nighthawks",
+        *,
+        artist_id=None,
+        original=True,
+        rendition=True,
+        mat=True,
+        master=True,
+        content_hash="hash-1",
+        commentary=None,
     ):
         work = service.add_artwork(
             title=title, artist_id=artist_id, date_created="1942", medium="Oil on canvas", commentary=commentary
@@ -517,6 +526,16 @@ def ready_work(service: CatalogueService):
                 target_width=3840,
                 target_height=2160,
                 path=f"ready/{work.id}.jpg",
+            )
+        if master and original:
+            path = f"masters/{work.id}.jpg"
+            decodable_jpeg(settings.art_root / path, width=400, height=300)
+            service.record_rendition(
+                artwork_id=work.id,
+                kind=RenditionKind.PRESENTATION_MASTER,
+                target_width=7680,
+                target_height=7680,
+                path=path,
             )
         return work
 

@@ -53,9 +53,9 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Directive, Display, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import Artist, Artwork, Client, Display, Source, Theme, VocabularyKind, Wall
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import PLAYERS_OWN_MAT, UNSET, SizeJudgement, ThemePlacement, WallView
+from arrt.programming.display import PLAYERS_OWN_MAT, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
@@ -1560,12 +1560,12 @@ def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
 
 
 def _show_now(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    directive = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
-    return ok(**_directive_fields(directive))
+    work_id = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
+    return ok(**_republished_fields(arguments["wall_id"], work_id))
 
 
 def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(**_directive_fields(services.display.step_display(arguments["wall_id"])))
+    return ok(**_republished_fields(arguments["wall_id"], services.display.step_display(arguments["wall_id"])))
 
 
 #: Every built action, keyed by tool and action name. A tool absent from here
@@ -1884,15 +1884,16 @@ def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
 
 
 def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
-    """One wall, what hangs on it, and what it was last told to do."""
+    """One wall, what hangs on it, and whether its Player reads the feed."""
     return {
         **_wall_fields(services, view.wall),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
         # would be read as "there is always something", and an empty wall is an
         # ordinary state this surface has to be able to state.
         "hanging": None if view.hanging is None else _theme_fields(view.hanging),
-        "directive": _directive_fields(view.directive),
         "display_state": _display_state_fields(view.display_state),
+        "reads_feed": view.reads_feed,
+        "feed_notice": feed_notice(reads_feed=view.reads_feed),
     }
 
 
@@ -1914,15 +1915,14 @@ def _placement_fields(services: Services, placement: ThemePlacement) -> dict[str
     return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(services, wall) for wall in placement.walls]}
 
 
-def _directive_fields(directive: Directive) -> dict[str, Any]:
+def _republished_fields(wall_id: str, work_id: str) -> dict[str, Any]:
     return {
-        "wall_id": directive.wall_id,
-        "sequence": directive.sequence,
-        "pinned_work_id": directive.pinned_work_id,
-        # The contract's own words. This action cannot observe the television, so
-        # a result implying it had changed would be asserting something curation
-        # has no way to know.
-        "notice": "The directive is written. The wall converges within about a second; this is not a confirmation it has.",
+        "wall_id": wall_id,
+        "work_id": work_id,
+        # This action cannot observe the screen, so a result implying it had
+        # changed would assert something the server has no way to know.
+        "notice": "The wall's schedule is republished, starting with this work. "
+        "Its Player shows it when it next reads the feed, within seconds; this is not a confirmation it has.",
     }
 
 

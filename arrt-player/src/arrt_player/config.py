@@ -101,14 +101,6 @@ RETIRED_SETTINGS: Final[dict[str, str]] = {
         "a client always pulls from SERVER_URL into CACHE_DIR; the file channel is retired, "
         "so remove MANIFEST_SOURCE from .env"
     ),
-    "ROTATION_INTERVAL_SECONDS": (
-        "the server's schedule sets the pace: how long each work is up is the wall's schedule in Arrt, "
-        "so remove ROTATION_INTERVAL_SECONDS from .env"
-    ),
-    "ROTATION_SHUFFLE": (
-        "the server's schedule sets the order: shuffling is the playlist's setting in Arrt, "
-        "so remove ROTATION_SHUFFLE from .env"
-    ),
 }
 
 #: The name this process pairs to the television under. **Changing it costs a

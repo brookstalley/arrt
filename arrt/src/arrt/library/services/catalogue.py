@@ -15,7 +15,7 @@ transaction as a clear-then-set pair, because a pair that can be interrupted
 between its halves leaves the catalogue in the state the rule forbids.
 
 Works, artists, sources, originals, renditions and mat colours live here. Themes,
-the standing directive and the manifest built from them live in `display.py`,
+walls and the feed built from them live in `display.py`,
 which holds this service; nothing here holds that one.
 
 Methods are synchronous. The store is a local file answering point lookups in
@@ -712,8 +712,8 @@ class CatalogueService:
         with self._store.transaction():
             store_write(self._store.update_artwork, archived)
             self.record_event(EventKind.ARCHIVED, work_id=artwork_id, detail={"title": artwork.title})
-        # A pin naming a work out of circulation is withdrawn by Programming,
-        # which hears this and owns the directive. The Library writes no
+        # A work out of circulation is taken off every feed by Programming,
+        # which hears this and owns the feeds. The Library writes no
         # Programming table, and so needs to know nothing about walls.
         self._announce(WorkChange.ARCHIVED, artwork_id)
         return archived

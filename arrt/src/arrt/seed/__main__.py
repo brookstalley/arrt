@@ -47,8 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
     try:
         # The catalogue service and nothing else: seeding writes works, artists,
-        # sources, images and mats, and touches neither discovery state nor the
-        # standing directive — so it needs neither of the services that own them,
+        # sources, images and mats, and touches neither discovery state nor any
+        # wall's feed — so it needs neither of the services that own them,
         # nor the startup reconciliation that repairs them.
         report = seed_catalogue(
             records,

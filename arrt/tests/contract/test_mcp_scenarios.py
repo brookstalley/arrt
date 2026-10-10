@@ -25,6 +25,7 @@ from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import RunStatus
 from arrt.persistence.records import RenditionKind
+from arrt.programming.display import feed_notice
 from arrt.services.container import Services
 
 #: Every tool, by name, as the registry holds them. Parametrising from this is
@@ -223,31 +224,32 @@ async def test_every_advertised_action_is_really_there(server_url, tool, action)
 
 
 async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_url, ready_work):
-    """`show_now` pins a work out of turn; `next` releases it back to rotation.
+    """`show_now` starts the wall with one work; `next` moves on to the one after it.
 
     Driven through the same threading rule as the flow above — the work reaches
     `show_now` as the id `add` echoed back, not as a fixture attribute.
     """
+    first = ready_work(title="Olympia")
     work = ready_work(title="A Bar at the Folies-Bergère")
 
     async with connect(server_url) as caller:
-        created = await caller.ok("art_theme", "create", name="One work, pinned")
+        created = await caller.ok("art_theme", "create", name="Two works, in order")
         theme_id = created["theme"]["theme_id"]
+        await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=first.id)
         added = await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=work.id)
+        await caller.ok("art_theme", "update", theme_id=theme_id, shuffle=False)
         walls = await caller.ok("art_display", "walls")
         wall_id = walls["walls"][0]["wall_id"]
         await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
 
-        pinned = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])
-        assert pinned["pinned_work_id"] == work.id
-        assert pinned["wall_id"] == wall_id
+        shown = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])
+        assert shown["work_id"] == work.id
+        assert shown["wall_id"] == wall_id
 
         stepped = await caller.ok("art_display", "next", wall_id=wall_id)
 
-    assert stepped["pinned_work_id"] is None, "stepping on should release the pin"
-    # The sequence advances, which is how the display plane knows the directive
-    # it is holding is stale. Equal sequences would leave the wall on the pin.
-    assert stepped["sequence"] > pinned["sequence"]
+    # In the theme's order, the work after the one shown now is the first again.
+    assert stepped["work_id"] == first.id
 
 
 async def test_a_curator_can_choose_a_walls_mat_and_hand_it_back_to_the_player(server_url):
@@ -558,3 +560,22 @@ async def test_a_wall_that_judged_nothing_says_why_on_the_tool_surface(server_ur
 
     wall = walls["walls"][0]
     assert (wall["too_small"], wall["sizes_judged_against"], wall["sizes_unjudged"]) == ([], None, "no_display")
+
+
+async def test_walls_says_when_a_walls_player_cannot_read_the_feed(server_url, wall_settings, wall_id):
+    """`art_display(action='walls')` carries the reading and the notice Walls shows, word for word."""
+    capabilities = {
+        "screen": {"width_px": 3840, "height_px": 2160},
+        "backend": "frame",
+        "label_modes": ["none"],
+        "manifest_majors": [1],
+    }
+    wall_settings.heartbeat_path(wall_id).write_text(
+        json.dumps({"reported_at": "2026-10-10T12:00:00+00:00", "capabilities": capabilities}), encoding="utf-8"
+    )
+
+    async with connect(server_url) as caller:
+        walls = await caller.ok("art_display", "walls")
+
+    assert walls["walls"][0]["reads_feed"] is False
+    assert walls["walls"][0]["feed_notice"] == feed_notice(reads_feed=False)

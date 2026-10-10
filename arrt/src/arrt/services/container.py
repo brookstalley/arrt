@@ -2,8 +2,8 @@
 
 Operation logic is split by concern rather than gathered into one class: the
 catalogue owns works already accepted, discovery owns everything before
-acceptance, and display owns what reaches the wall — themes, the standing
-directive, and the manifest built from them. A surface takes this container
+acceptance, and display owns what reaches the wall — themes, walls, and the
+feed built from them. A surface takes this container
 rather than any single service, so adding a concern changes the wiring here and
 nothing in `create_app` or in an MCP binding — which is what keeps a surface from
 quietly binding to one service and becoming the reason a second one is awkward to

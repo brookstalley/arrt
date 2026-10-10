@@ -310,6 +310,9 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     sourceLine(wall),
     assignmentLine(wall, shownBy),
     labelsLine(wall),
+    // The server's sentence, so Walls and the tool surface say the same thing
+    // about a Player that cannot read this server's feed.
+    wall.feed_notice ? el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })]) : null,
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact
@@ -561,9 +564,9 @@ function cannotReach(wall, build, beats) {
  * screen that actually changes the wall. */
 function controls(card, themes, reason, manifest) {
   const { wall } = card;
-  // Only where something is actually up. Skipping a wall that is showing
-  // nothing writes a directive nobody can act on, and offering it would say
-  // this screen thinks there is something to move on from.
+  // Only where something is actually up. A wall showing nothing has no
+  // schedule to move on through (the server refuses the step), and offering it
+  // would say this screen thinks there is something to move on from.
   //
   // **Both halves are load-bearing.** The reason answers whether a display has
   // spoken for this wall; the manifest answers whether there is anything for a
@@ -592,7 +595,7 @@ function controls(card, themes, reason, manifest) {
  * was going to advance by itself anyway. A dialog in front of it would teach the
  * curator to dismiss dialogs.
  *
- * The wall changes when its Player next reads the directive, and the card can
+ * The wall changes when its Player next reads its feed, and the card can
  * only know which work came up when the heartbeat reports it, so it says so and
  * watches for that (`awaitNext`). */
 function skipButton(card) {
@@ -606,7 +609,7 @@ function skipButton(card) {
       attempt(
         event.currentTarget,
         `skip the work on ${wall.name}`,
-        () => api("/api/directives", { method: "POST", body: JSON.stringify({ wall_id: wall.wall_id }) }),
+        () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/next`, { method: "POST" }),
         { then: () => awaitNext(card, `Skipped. ${wall.name} shows its next work when its display next reports, usually within a minute.`) },
       ),
   });

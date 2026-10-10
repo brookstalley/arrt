@@ -1,4 +1,4 @@
-"""What the wall shows — themes, the standing directive, and the manifest.
+"""What the wall shows — themes, what hangs where, and each wall's feed.
 
 The catalogue answers "what do we hold"; this answers "what is on the wall, in
 what order, and what should it do next". They are separated because they change
@@ -11,10 +11,8 @@ requires asking about them; nothing about a work requires knowing which themes
 hold it. Works are held here as ids, and the facade says whether each can go on a
 wall. **The Library tells this service when a work changes**, and this service
 decides what that means for a wall: `on_work_changed` takes a work the Library
-now refuses off every published manifest and withdraws any pin naming it. Every
-rule about what an advance *means* — that the counter is monotonic, that
-rebuilds carry it forward, that a step supersedes a pin, that a withdrawal is
-not a step — lives here.
+now refuses off every published feed. Every rule about what a republish keeps —
+the slot on the wall now, or a fresh start — lives here.
 
 Methods are synchronous, for the reason `catalogue.py` gives.
 """
@@ -40,22 +38,14 @@ from arrt.library.facade import (
     WorkChange,
     WorkChanged,
 )
-from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
+from arrt.persistence.records import Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
 from arrt.programming import adequacy
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest import heartbeat
-from arrt.programming.manifest.builder import (
-    Exclusion,
-    ManifestBuild,
-    ManifestEntry,
-    as_document,
-    manifest_path_in,
-    media_document,
-    read_published,
-    write_atomically,
-)
+from arrt.programming.manifest.builder import Exclusion, ManifestBuild, write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
+from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
@@ -97,7 +87,7 @@ class Unjudged(StrEnum):
     #: Its display's Player has reported no screen size in `SCREEN_MEMORY`
     #: (before minor 2, a Frame before its Player knew its panel, or silent).
     NO_SCREEN = "no_screen_reported"
-    #: It has no major 2 feed, which is where each master's size is read.
+    #: It has no feed, which is where each master's size is read.
     NO_FEED = "no_feed"
 
 
@@ -160,7 +150,7 @@ class DisplaySettings:
     and would make every caller share one.
     """
 
-    #: The directory both planes share. The manifest and the heartbeat are named
+    #: The directory both planes share. The feed and the heartbeat are named
     #: from it **per wall**, so this holds the root and not a file: the catalogue
     #: names as many walls as the curator has rooms, and each one has its own
     #: pair of files.
@@ -169,12 +159,8 @@ class DisplaySettings:
     rotation_interval_seconds: int
     shuffle: bool
 
-    def manifest_path(self, wall_id: str) -> Path:
-        """Where this plane publishes one wall's desired state."""
-        return manifest_path_in(self.art_root, wall_id)
-
     def manifest_v2_path(self, wall_id: str) -> Path:
-        """Where this plane publishes one wall's major 2 feed, beside its major 1 manifest."""
+        """Where this plane publishes one wall's feed."""
         return manifest_v2_path_in(self.art_root, wall_id)
 
     def heartbeat_path(self, wall_id: str) -> Path:
@@ -196,9 +182,27 @@ class WallView:
     wall: Wall
     #: Null when nothing is hanging, which is an ordinary state.
     hanging: Theme | None
-    directive: Directive
     #: What the wall's screen is doing, from its last heartbeat and its assignment.
     display_state: DisplayState
+    #: Whether the wall's Player said it reads this server's feed (manifest major
+    #: 2), from its last readable heartbeat. None when there is no such
+    #: heartbeat to read. `heartbeat.reads_major` says how silence is read.
+    reads_feed: bool | None = None
+
+
+def feed_notice(*, reads_feed: bool | None) -> str | None:
+    """What a curator is told about a wall whose Player cannot read this server's feed, or None.
+
+    One sentence for every surface, so Walls and the tool surface cannot tell a
+    curator two different things about the same wall. Nothing is said when no
+    heartbeat has been read: Walls already says the wall's display is silent.
+    """
+    if reads_feed is not False:
+        return None
+    return (
+        "This wall's Player can't read this server's feed, so it will show nothing new. "
+        "Update Arrt Player on the device that shows this wall."
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,20 +315,16 @@ class Reconciliation:
     asked: int
     #: The ids the Library refused, whether or not any wall was carrying them.
     refused: Sequence[str]
-    #: Walls whose published manifest was rewritten.
+    #: Walls whose published feed was rewritten.
     republished: Sequence[str]
-    #: Walls whose standing pin was withdrawn.
-    pins_withdrawn: Sequence[str]
-    #: Walls whose major 2 feed was rewritten.
-    republished_v2: Sequence[str] = ()
 
     @property
     def changed(self) -> bool:
-        return bool(self.republished or self.pins_withdrawn or self.republished_v2)
+        return bool(self.republished)
 
 
 class DisplayService:
-    """Read and write the themes, memberships, and directives the walls run on."""
+    """Read and write the themes, memberships, and feeds the walls run on."""
 
     def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings) -> None:
         self._store = store
@@ -410,41 +410,34 @@ class DisplayService:
         return [wall for wall in self._store.list_walls() if wall.id in hung]
 
     def survey_walls(self) -> Sequence[WallView]:
-        """Every wall with what hangs on it and what it was last told to do."""
+        """Every wall with what hangs on it and what its screen is doing."""
         themes = {theme.id: theme for theme in self._store.list_themes()}
         hanging = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
-        # Keyed by wall rather than indexed positionally: `list_directives`
-        # promises an order but nothing promises it matches the wall listing's,
-        # and a read that lined the two up by position would be wrong the first
-        # time a wall was renamed.
-        directives = {directive.wall_id: directive for directive in self._store.list_directives()}
-        return [self._view(wall, themes, hanging, directives, self._display_state(wall)) for wall in self._store.list_walls()]
+        return [self._view(wall, themes, hanging) for wall in self._store.list_walls()]
 
     def get_wall_view(self, wall_id: str) -> WallView:
-        """One wall with what hangs on it and what it was last told to do.
+        """One wall with what hangs on it and what its screen is doing.
 
-        **Composed from the two single-fact reads rather than repeating them.**
-        Written out, this method held a second implementation of "what hangs
-        here" and a second of "what was this wall told to do" — two answers to
-        each question, from the same class, which is the shape that diverges the
-        first time either rule gains a condition. `survey_walls` is the third
-        answer and the justified one: it is the bulk path, and it reads the whole
-        catalogue once for N walls rather than three times for each.
-
-        It costs two extra `get_wall` lookups against the same open file, which
-        is the price of the single definition and is not worth inlining back.
+        **Composed from the single-fact reads rather than repeating them**, so
+        "what hangs here" has one answer in this class. `survey_walls` is the
+        bulk path, and reads the whole catalogue once for N walls.
         """
         wall = self.get_wall(wall_id)
         return WallView(
             wall=wall,
             hanging=self.hanging_on(wall_id),
-            directive=self.read_directive(wall_id),
             display_state=self._display_state(wall),
+            reads_feed=self._reads_feed(wall.id),
         )
 
     def _display_state(self, wall: Wall) -> DisplayState:
         """What the wall's screen is doing, read from its heartbeat file now, as every label reads it too."""
         return self._placements.wall_state(wall).state
+
+    def _reads_feed(self, wall_id: str) -> bool | None:
+        """Whether the wall's last readable heartbeat lists major 2, or None if there is no such heartbeat."""
+        reading = heartbeat.read(self._settings.heartbeat_path(wall_id))
+        return None if reading.contents is None else heartbeat.reads_major(reading.contents, MANIFEST_MAJOR)
 
     def survey_themes(self) -> Sequence[ThemePlacement]:
         """Every theme with every wall showing it.
@@ -470,26 +463,13 @@ class DisplayService:
             if not theme.hidden
         ]
 
-    @staticmethod
-    def _view(
-        wall: Wall,
-        themes: Mapping[str, Theme],
-        hanging: Mapping[str, str],
-        directives: Mapping[str, Directive],
-        display_state: DisplayState,
-    ) -> WallView:
-        directive = directives.get(wall.id)
-        if directive is None:
-            # Unreachable through this service — a wall is created with its
-            # directive in one transaction — so it means the file was written by
-            # something else, and saying so beats a KeyError from a dict lookup.
-            raise ServiceError(f"Wall {wall.name!r} has no display directive, which this plane never writes.")
+    def _view(self, wall: Wall, themes: Mapping[str, Theme], hanging: Mapping[str, str]) -> WallView:
         theme_id = hanging.get(wall.id)
         return WallView(
             wall=wall,
             hanging=None if theme_id is None else themes[theme_id],
-            directive=directive,
-            display_state=display_state,
+            display_state=self._display_state(wall),
+            reads_feed=self._reads_feed(wall.id),
         )
 
     def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
@@ -549,23 +529,10 @@ class DisplayService:
         self.get_theme(theme_id)
         return [membership.artwork_id for membership in self._store.list_memberships(theme_id)]
 
-    # -- reads: the display directive -----------------------------------------
-
-    def read_directive(self, wall_id: str) -> Directive:
-        """One wall's standing instruction to the display plane."""
-        self.get_wall(wall_id)
-        return self._store.get_directive(wall_id)
-
     # -- writes: walls --------------------------------------------------------
 
     def add_wall(self, *, name: str) -> Wall:
-        """Record a wall, with the directive every wall has from creation.
-
-        The pair is written together so that no caller ever has to make a
-        directive, and so that no wall can be observed without one: every advance
-        reads the counter it is about, and a wall lacking the row would refuse a
-        `next` for a reason that is this product's mistake rather than the
-        curator's.
+        """Record a wall.
 
         A wall arrives with nothing hanging on it. Nothing is promoted onto it —
         with more than one wall there is no defensible answer to which theme
@@ -574,17 +541,16 @@ class DisplayService:
 
         **A wall recorded here shows nothing until a client is assigned to show
         it** (`clients.ClientService.assign_wall`), and that is a curatorial step
-        rather than a gap. Each wall gets its own manifest, named by the wall's
+        rather than a gap. Each wall gets its own feed, named by the wall's
         id, from the moment a theme is hung on it, and a client is admitted only
         to the walls assigned to it. Nothing is overwritten and no client can
         open a wall it does not show; until 2026-08-12 both were false, and a
         second wall was a thing an operator could record and be told would not
         light up.
         """
+        wall = Wall(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
         with self._store.transaction():
-            wall = Wall(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
             store_write(self._store.add_wall, wall)
-            store_write(self._store.add_directive, Directive(wall_id=wall.id, sequence=0, pinned_work_id=None))
         return wall
 
     # -- writes: themes and membership ----------------------------------------
@@ -592,9 +558,8 @@ class DisplayService:
     def set_mat_mode(self, wall_id: str, mode: MatMode | str | None) -> Wall:
         """Choose how this wall's Player draws the mat, or with None leave it to the Player.
 
-        Republishes the wall's major 2 feed with the setting and changes nothing
-        else in it: the schedule and every work stay as published. Major 1 has no
-        such setting, because its render arrives already matted.
+        Republishes the wall's feed with the setting and changes nothing else in
+        it: the schedule and every work stay as published.
         """
         wall = self.get_wall(wall_id)
         chosen = None if mode is None else require_member(mode, enum=MatMode, field="mat mode").value
@@ -760,8 +725,8 @@ class DisplayService:
         """Hang these works on this wall, until something else is hung there.
 
         **A selection is stored as a theme with the hidden flag**, made here and
-        holding these works in the order given, so the manifest, readiness and
-        the directive work on it exactly as on any theme. It is left off the
+        holding these works in the order given, so the feed and readiness work
+        on it exactly as on any theme. It is left off the
         Themes index and the theme pickers, because the curator chose works, not
         a theme, and would not recognise it in a list of theirs.
 
@@ -823,12 +788,11 @@ class DisplayService:
         """*Not this one again*, from this theme: take the work out of what hangs on this wall.
 
         The work leaves the theme, so it leaves every wall hanging that theme,
-        and the published manifests of those walls lose it now rather than at
-        the next sync: a curator who said "not this one" and saw it again a
-        minute later would conclude the act did nothing. A standing pin naming
-        it on those walls is withdrawn without advancing, as reconciliation
-        withdraws one. Nothing else changes, on any wall: no entry arrives with
-        the patch, and the work stays held and in every other theme.
+        and the published feeds of those walls lose it now rather than at the
+        next sync: a curator who said "not this one" and saw it again a minute
+        later would conclude the act did nothing. A wall showing it now starts
+        fresh. Nothing else changes, on any wall: no work arrives with the
+        patch, and the work stays held and in every other theme.
 
         Returns the theme it left, so the answer can say which.
         """
@@ -857,9 +821,8 @@ class DisplayService:
         """*Not this one again*, from every wall: keep the work off every wall until it is allowed again.
 
         **Not Archive.** The work stays in the Library and in every theme that
-        holds it; what changes is that no manifest carries it. Every published
-        manifest loses it now, and every pin naming it is withdrawn without
-        advancing, for the reason `leave_theme` gives.
+        holds it; what changes is that no feed carries it. Every published feed
+        loses it now, for the reason `leave_theme` gives.
 
         `wall_id` is the wall the curator was looking at, recorded in the
         history so that wall's history shows the act. It changes nothing else.
@@ -922,15 +885,10 @@ class DisplayService:
         somewhere, so without a way to take one down a curator could never empty
         the catalogue.
 
-        **It does not advance the directive sequence and does not clear the pin.**
-        Taking a theme down is not an instruction to the display plane, and an
-        advance here would fire a directive nobody issued — the same reasoning
-        that keeps archiving a pinned work from advancing it.
-
-        **It deliberately does not rewrite the manifest.** The wall keeps showing
+        **It deliberately does not rewrite the feed.** The wall keeps showing
         what it was showing, which is the same posture as curation being stopped
         entirely and the same one deleting the last theme already had. Publishing
-        an empty manifest would blank the wall as a side effect of tidying up.
+        an empty feed would blank the wall as a side effect of tidying up.
         """
         wall = self.get_wall(wall_id)
         assignment = self._store.get_assignment(wall_id)
@@ -1220,51 +1178,39 @@ class DisplayService:
             for wall in self._store.list_walls()
         ]
 
-    # -- writes: the display directive ----------------------------------------
+    # -- writes: what the wall shows now ---------------------------------------
 
-    def step_display(self, wall_id: str) -> Directive:
-        """Tell the display serving this wall to move to the next work.
+    def step_display(self, wall_id: str) -> str:
+        """Move one wall on to the work after the one on it now, and return that work's id.
 
-        **One wall's advance leaves every other wall's counter alone**, which is
-        what the directive stopped being a singleton for: a `next` aimed at the
-        living room stepping the study is one counter being asked a question it
-        cannot answer.
-
-        The step clears any standing pin. A sequence that advanced while a pin
-        was still set would read as "jump to that work again" rather than as
-        "move on", so the two directives cannot both be in force.
+        A republish of the wall's feed starting now (`player-contract.md` § What
+        happens to `show_now` and `next`). One wall's step leaves every other
+        wall's schedule alone, so a `next` aimed at the living room never moves
+        the study.
         """
-        return self._advance(wall_id, pinned_work_id=None)
+        self.get_wall(wall_id)
+        with self._store.transaction():
+            return self._restart(wall_id, pinned=None)
 
-    def show_work_now(self, wall_id: str, artwork_id: str) -> Directive:
-        """Tell the display serving this wall to jump to this work and carry on from there.
+    def show_work_now(self, wall_id: str, artwork_id: str) -> str:
+        """Put this work on the wall now and carry on from there; return its id.
 
         **Refused if the work is not displayable**, with the same reason the
-        manifest build would have given. `data-model.md` specifies the refusal
-        for an archived work; this applies the whole readiness rule, because the
-        neighbouring cases fail identically from the curator's side. Pinning a
-        work with no render writes a directive naming something the manifest does
-        not carry, answers "the directive is written", and the wall never moves —
-        which is the silence the exclusion report exists to break, arriving
-        through the one path that did not consult readiness.
+        feed's build would have given, and refused if the curator kept it off
+        every wall: a feed naming it would be a work no wall carries.
 
-        **It checks readiness, not theme membership**, so it does not remove the
-        display plane's own obligation. A perfectly displayable work that is
-        simply not in the active theme can still be pinned, and the manifest will
-        not carry it — that is available on every call rather than a timing
-        window. The membership check belongs to the plane that has to resolve the
-        pin rather than the one writing it: display logs one WARNING and carries
-        on rotating, by the same posture as a missing render file. What this
-        closes is the case a curator can be told about now.
+        **It checks readiness, not theme membership.** A displayable work that
+        is not in the theme hanging there is shown for one slot, as a guest,
+        and the schedule then carries on through the theme.
         """
+        self.get_wall(wall_id)
         answer = self._require_held(artwork_id)
         if not isinstance(answer, PlayableWork):
             raise ServiceError(f"Artwork {artwork_id!r} cannot be shown on the wall: {answer.detail}")
         if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
-            # The manifest leaves it out, so a pin would name a work no wall
-            # carries: the silence this method's readiness check exists to stop.
             raise ServiceError(f"Artwork {answer.title!r} is kept off every wall. Allow it again from its page first.")
-        return self._advance(wall_id, pinned_work_id=artwork_id, pinned=answer)
+        with self._store.transaction():
+            return self._restart(wall_id, pinned=answer)
 
     # -- the manifest ---------------------------------------------------------
 
@@ -1283,11 +1229,9 @@ class DisplayService:
         """
         wall = self.get_wall(wall_id)
         theme = self.get_theme(theme_id) if theme_id is not None else self._require_hanging(wall)
-        directive = self._store.get_directive(wall_id)
 
-        entries = []
-        playable = []
-        exclusions = []
+        entries: list[PlayableWork] = []
+        exclusions: list[Exclusion] = []
         kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
         # One question for the whole theme rather than one per work: the facade
         # is written as if it were remote, and so is this call.
@@ -1299,8 +1243,7 @@ class DisplayService:
             if answer.work_id in kept_off:
                 exclusions.append(Exclusion.kept_off(answer))
             elif isinstance(answer, PlayableWork):
-                entries.append(ManifestEntry.of(answer))
-                playable.append(answer)
+                entries.append(answer)
             else:
                 exclusions.append(Exclusion.of(answer))
 
@@ -1317,16 +1260,10 @@ class DisplayService:
                 else self._settings.rotation_interval_seconds
             ),
             shuffle=self.shuffles(theme),
-            # Carried forward unchanged. A rebuild is not a directive, and a
-            # counter that reset here would read to the display plane as an
-            # advance — firing a jump nobody asked for on every sync.
-            directive_sequence=directive.sequence,
-            pinned_work_id=directive.pinned_work_id,
-            playable=playable,
         )
 
     def sync(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
-        """Rebuild the manifest and publish it to the display plane.
+        """Rebuild the wall's feed and publish it.
 
         Returns what it wrote **and what it left out**. A caller that only
         reports the entry count is describing a theme that may be silently
@@ -1336,20 +1273,17 @@ class DisplayService:
         converges within the display plane's poll interval, and saying anything
         stronger would assert something this plane cannot observe.
 
-        **It takes a wall and writes that wall's file, and no other's.** The
-        manifest is one document per wall, named by the wall's id, so hanging a
-        theme in the study leaves the living room's file untouched — its mtime
-        included, which is what the other display polls. Two rooms therefore run
-        independent themes and independent directive sequences without either
-        plane coordinating anything.
+        **It takes a wall and writes that wall's feed, and no other's**, so
+        hanging a theme in the study leaves the living room's file untouched. The
+        household rule reads every other wall's published schedule, and moves
+        none of them (`_write_v2`).
         """
         # Built and written inside one transaction, which is also what serialises
-        # every rewrite of a published manifest: a step or a reconciliation
-        # patching this file between the build and the write would otherwise be
+        # every rewrite of a published feed: a step or a reconciliation
+        # rewriting it between the build and the write would otherwise be
         # overwritten by a document built before it.
         with self._store.transaction():
             build = self.build_manifest(wall_id, theme_id)
-            write_atomically(self._settings.manifest_path(wall_id), as_document(build))
             self._sync_v2(build)
         if build.exclusions:
             # Named at WARNING with the count, because a theme quietly showing
@@ -1364,7 +1298,7 @@ class DisplayService:
                 ", ".join(sorted({exclusion.reason.value for exclusion in build.exclusions})),
             )
         log.info(
-            "Wrote the manifest for wall %r showing theme %r, with %d entries.",
+            "Published the feed for wall %r showing theme %r, with %d works.",
             build.wall.name,
             build.theme.name,
             len(build.entries),
@@ -1373,24 +1307,12 @@ class DisplayService:
 
     # -- what a Player reads and writes --------------------------------------------
 
-    def published_manifest(self, wall_id: str) -> bytes | None:
-        """The bytes of this wall's manifest as last published, or None if nothing has been.
-
-        The bytes, not a parse of them, so the ETag a Player compares is a hash
-        of exactly what it was sent.
-        """
-        self.get_wall(wall_id)
-        try:
-            return self._settings.manifest_path(wall_id).read_bytes()
-        except FileNotFoundError:
-            return None
-
     def record_heartbeat(self, wall_id: str, document: dict[str, Any]) -> None:
         """Keep what a Player said about itself, where the health panel already looks; note its screen; roll its horizon.
 
         Two things ride on the heartbeat because a live wall sends one a minute
         and nothing else does: the screen size a minor 2 Player reports, which
-        too-small is judged against, and extending the wall's major 2 horizon when
+        too-small is judged against, and extending the wall's horizon when
         less than two days of it are left.
 
         Written to the same file the file channel writes, so every existing
@@ -1488,7 +1410,11 @@ class DisplayService:
                     store_write(self._store.forget_screen, wall.display_id, old_width, old_height)
 
     def published_manifest_v2(self, wall_id: str) -> bytes | None:
-        """The bytes of this wall's major 2 feed as last published, or None if nothing has been."""
+        """The bytes of this wall's feed as last published, or None if nothing has been.
+
+        The bytes, not a parse of them, so the ETag a Player compares is a hash
+        of exactly what it was sent.
+        """
         self.get_wall(wall_id)
         try:
             return self._settings.manifest_v2_path(wall_id).read_bytes()
@@ -1509,26 +1435,19 @@ class DisplayService:
         if event.change is WorkChange.ACCEPTED:
             self.offer_destinations([event.work_id])
 
-    def reconcile(  # noqa: C901, PLR0912 -- one pass over walls and pins, kept whole so its order is visible
-        self, work_ids: Iterable[str] | None = None, *, cause: str = "startup"
-    ) -> Reconciliation:
-        """Make every published manifest and pin agree with what the Library will still show.
+    def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
+        """Make every published feed agree with what the Library will still show.
 
         Asks the facade about the works in question: the ones named, or, with
-        none named, every work any published manifest or standing pin mentions.
-        For each wall whose published manifest carries a work the Library now
-        refuses, those entries are removed, and no other entry leaves or
-        arrives. A pin naming a refused work is withdrawn without advancing the
-        sequence, because withdrawing is not an instruction to move on.
+        none named, every work any published feed carries. A work the Library
+        now refuses leaves every feed carrying it; a work whose master, colour
+        or label changed has its entry replaced where it stands.
 
         **No work is ever added.** A work that became showable is not published.
         Deciding when new work reaches the wall is what sync is for (the
         operator's ruling, 2026-09-30), and a reconciliation that also added
         would publish a theme's unsynced changes as a side effect of archiving
-        something. The one change to a kept entry is its `media`, replaced when
-        the Library's hash for it moved (a re-render), because the old hash is
-        one `/media` no longer serves and a Player on HTTP would otherwise lose
-        the work until the next sync.
+        something.
 
         **Run at every start**, because an announcement lost to a crash between
         the Library's commit and this handler would otherwise leave a wall
@@ -1536,122 +1455,39 @@ class DisplayService:
         """
         with self._store.transaction():
             walls = self._store.list_walls()
-            published = {wall.id: read_published(self._settings.manifest_path(wall.id)) for wall in walls}
             feeds = {wall.id: read_published_v2(self._settings.manifest_v2_path(wall.id)) for wall in walls}
-            directives = {directive.wall_id: directive for directive in self._store.list_directives()}
-            mentioned = {entry["work_id"] for document in published.values() if document for entry in document["entries"]}
-            mentioned |= {work_id for feed in feeds.values() if feed for work_id in feed.works}
-            mentioned |= {directive.pinned_work_id for directive in directives.values() if directive.pinned_work_id}
+            mentioned = {work_id for feed in feeds.values() if feed for work_id in feed.works}
             asked = mentioned if work_ids is None else mentioned & set(work_ids)
             answers = self._library.playable(sorted(asked))
             refused = {work_id for work_id, answer in answers.items() if not isinstance(answer, PlayableWork)}
+            republished = [wall.id for wall in walls if self._reconcile_v2(wall.id, feeds[wall.id], answers, cause=cause)]
 
-            withdrawn: list[str] = []
-            for wall_id, directive in directives.items():
-                if directive.pinned_work_id in refused:
-                    store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
-                    withdrawn.append(wall_id)
-
-            republished: dict[str, tuple[list[str], list[str]]] = {}
-            for wall in walls:
-                document = published[wall.id]
-                if document is None:
-                    continue
-                kept = [entry for entry in document["entries"] if entry["work_id"] not in refused]
-                removed = [entry["work_id"] for entry in document["entries"] if entry["work_id"] in refused]
-                # A kept work whose render was redone since the sync: its old
-                # hash is one `/media` no longer serves, so a Player on HTTP
-                # would skip it until the next sync while the file channel went
-                # on showing it. The entry keeps its place and changes only its
-                # `media`; this adds no work to the wall.
-                refreshed = [entry for entry in kept if _media_moved(entry, answers.get(entry["work_id"]))]
-                for entry in refreshed:
-                    fresh = answers[entry["work_id"]].media  # type: ignore[union-attr]
-                    if fresh is None:
-                        entry.pop("media", None)
-                    else:
-                        entry["media"] = media_document(fresh)
-                pin = (document.get("directive") or {}).get("pinned_work_id")
-                if len(kept) == len(document["entries"]) and pin not in refused and not refreshed:
-                    continue
-                document["entries"] = kept
-                if pin in refused:
-                    document["directive"] = {**document["directive"], "pinned_work_id": None}
-                document["generated_at"] = datetime.now(UTC).isoformat()
-                write_atomically(self._settings.manifest_path(wall.id), document)
-                republished[wall.id] = (removed, [entry["work_id"] for entry in refreshed])
-
-            republished_v2 = [
-                wall.id
-                for wall in walls
-                if self._reconcile_v2(
-                    wall.id,
-                    feeds[wall.id],
-                    answers,
-                    carried={entry["work_id"] for entry in (published[wall.id] or {}).get("entries", [])},
-                    cause=cause,
-                )
-            ]
-
-        result = Reconciliation(
-            asked=len(asked),
-            refused=tuple(sorted(refused)),
-            republished=tuple(republished),
-            pins_withdrawn=tuple(withdrawn),
-            republished_v2=tuple(republished_v2),
-        )
-        names = {wall.id: wall.name for wall in walls}
-        for wall_id, (removed, refreshed_ids) in republished.items():
-            # Only the works this wall carried: naming every refused work on
-            # every wall's line would send an operator looking for works that
-            # were never there.
-            if removed:
-                log.info(
-                    "Wall %r: took works the Library no longer offers off the published manifest (%s, after %s).",
-                    names[wall_id],
-                    ", ".join(removed),
-                    cause,
-                )
-            if refreshed_ids:
-                log.info(
-                    "Wall %r: pointed the published manifest at the current render of %s (after %s).",
-                    names[wall_id],
-                    ", ".join(refreshed_ids),
-                    cause,
-                )
-        for wall_id in withdrawn:
-            # Said out loud: a standing instruction disappearing is the kind of
-            # silent change that becomes "the wall stopped doing what I told it"
-            # with nothing to read back.
-            log.info(
-                "Wall %r: withdrew the standing pin, whose work the Library no longer offers (after %s).", names[wall_id], cause
-            )
+        result = Reconciliation(asked=len(asked), refused=tuple(sorted(refused)), republished=tuple(republished))
         if work_ids is None and not result.changed:
             log.info("Reconciled %d walls against the Library at startup: nothing to change.", len(walls))
         return result
 
-    # -- major 2: the schedule ---------------------------------------------------
+    # -- the feed: the wall's schedule ------------------------------------------
     #
-    # Published from every path that publishes major 1: a sync (re-hanging the
-    # same theme keeps the slot on the wall now; another theme starts fresh), show
-    # now and next (start fresh), a withdrawal or a refusal (keep, unless the work
-    # on the wall is the one leaving), a new master or colour (patch, no slot
-    # moves), and a heartbeat with under two days of horizon left (keep). Each
-    # reads the wall's published feed back rather than a copy of its own, for the
-    # reason `manifest/v2.py` gives.
+    # Published from every path that changes what a wall shows: a sync
+    # (re-hanging the same theme keeps the slot on the wall now; another theme
+    # starts fresh), show now and next (start fresh), a withdrawal or a refusal
+    # (keep, unless the work on the wall is the one leaving), a new master or
+    # colour (patch, no slot moves), and a heartbeat with under two days of
+    # horizon left (keep). Each reads the wall's published feed back rather than
+    # a copy of its own, for the reason `manifest/v2.py` gives.
 
     def _sync_v2(self, build: ManifestBuild) -> None:
-        """Publish the wall's feed from the build that just published its major 1 manifest.
+        """Publish the wall's feed from a build.
 
         The same theme as the feed already carries keeps the slot on the wall now
         (re-hanging it is how a curator republishes); another theme starts fresh.
-        A work with no presentation master yet stays on major 1 and is left off
-        this feed, said once per sync.
+        A work with no presentation master yet is left off, said once per sync.
         """
         previous = read_published_v2(self._settings.manifest_v2_path(build.wall.id))
         works: dict[str, Mapping[str, Any]] = {}
         unmastered: list[str] = []
-        for work in build.playable:
+        for work in build.entries:
             if work.master is None:
                 unmastered.append(work.work_id)
             else:
@@ -1664,11 +1500,11 @@ class DisplayService:
             # outside it, or just taken out of it) finishes its slot. A member is
             # never a guest: one the Library now refuses, or one that lost its
             # master, would otherwise finish its slot on a superseded entry.
-            members = {entry.work_id for entry in build.entries} | {exclusion.work_id for exclusion in build.exclusions}
+            members = {work.work_id for work in build.entries} | {exclusion.work_id for exclusion in build.exclusions}
             guests = {work_id: entry for work_id, entry in previous.works.items() if work_id not in members}
         if unmastered:
             log.warning(
-                "Wall %r, theme %r: major 2 leaves out the works with no presentation master yet (%s).",
+                "Wall %r, theme %r: the feed leaves out the works with no presentation master yet (%s).",
                 build.wall.name,
                 build.theme.name,
                 ", ".join(unmastered),
@@ -1683,26 +1519,33 @@ class DisplayService:
             start=start,
         )
 
-    def _restart_v2(self, wall_id: str, *, pinned: PlayableWork | None) -> None:
-        """Republish the wall's feed starting now: with the pinned work, or with the one after the work on the wall.
+    def _restart(self, wall_id: str, *, pinned: PlayableWork | None) -> str:
+        """Republish the wall's feed starting now, and return the work it starts with.
 
-        `show_now` and `next` become republishes of the schedule
-        (`player-contract.md` § What happens to `show_now` and `next`). A wall
-        with no feed yet has nothing to restart, and its first sync starts fresh.
+        With the pinned work, or with the one after the work on the wall now.
+        Refused by name when there is nothing to restart, or the work has nothing
+        the feed could send: answering "done" while the wall goes on as it was is
+        the silence this product exists to avoid.
         """
+        wall = self.get_wall(wall_id)
         previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
         if previous is None:
-            return
+            raise ServiceError(
+                f"Nothing has been hung on {wall.name!r} yet, so there is nothing to move on. Hang a theme there first."
+            )
+        if pinned is not None and pinned.master is None:
+            raise ServiceError(f"Artwork {pinned.title!r} has no presentation master yet, so it cannot go on a wall.")
+        if pinned is None and not previous.works:
+            raise ServiceError(
+                f"Nothing hanging on {wall.name!r} can be shown yet, so there is nothing to move on to. "
+                "Walls lists each of its works that is not on the wall, with why."
+            )
         works = dict(previous.works)
-        if pinned is None:
-            first = previous.after(datetime.now(UTC))
-        elif pinned.master is None:
-            log.warning("Work %s has no presentation master yet, so walls on major 2 go on with their schedule.", pinned.work_id)
-            return
-        else:
+        if pinned is not None:
             works[pinned.work_id] = work_document(pinned)
-            first = pinned.work_id
-        self._rebuild_v2(wall_id, previous, works=works, start=StartFresh(first))
+        first = pinned.work_id if pinned is not None else previous.after(datetime.now(UTC))
+        schedule = self._rebuild_v2(wall_id, previous, works=works, start=StartFresh(first))
+        return schedule.slots[0].work_id
 
     def _withdraw_v2(self, wall_id: str, refused: set[str], *, cause: str) -> bool:
         """Take these works off the wall's feed, adding none. True if the feed carried any of them.
@@ -1716,7 +1559,7 @@ class DisplayService:
         works = {work_id: entry for work_id, entry in previous.works.items() if work_id not in refused}
         self._rebuild_v2(wall_id, previous, works=works, start=Keep())
         log.info(
-            "Wall %r: took %s off the major 2 feed (after %s).",
+            "Wall %r: took %s off the feed (after %s).",
             self.get_wall(wall_id).name,
             ", ".join(sorted(refused & set(previous.works))),
             cause,
@@ -1736,7 +1579,7 @@ class DisplayService:
                 return
             self._rebuild_v2(wall_id, previous, works=dict(previous.works), start=Keep())
 
-    def _rebuild_v2(self, wall_id: str, previous: Published, *, works: Mapping[str, Mapping[str, Any]], start: Start) -> None:
+    def _rebuild_v2(self, wall_id: str, previous: Published, *, works: Mapping[str, Mapping[str, Any]], start: Start) -> Schedule:
         """Rebuild a wall's feed from what it carries now: no work arrives that is not already in it.
 
         Deciding when new work reaches the wall is what sync is for (the
@@ -1745,7 +1588,7 @@ class DisplayService:
         order and at its pace.
         """
         order, slot_seconds, shuffle = self._v2_pace(previous.playlist_id, works)
-        self._write_v2(
+        return self._write_v2(
             wall_id,
             playlist=(previous.playlist_id, previous.playlist_name),
             order=order,
@@ -1782,34 +1625,12 @@ class DisplayService:
         slot_seconds: int,
         shuffle: bool,
         start: Start,
-    ) -> Schedule | None:
+    ) -> Schedule:
         """Schedule the wall against every other wall's published feed, and publish it.
 
         `order` is the cycle; any other work in `works` may only finish the slot
         it is in now, or be the one a `StartFresh` names.
-
-        **Until 4g retires major 1, a feed carries at least one of the works its
-        wall's manifest carries, or there is no feed** (`player-contract.md`
-        § The cutover). A Player asks for v2 first, and would keep the last work
-        through a schedule with nothing of the theme in it, which may be the very
-        work just withdrawn, while v1 still carried the theme. So the
-        feed is removed instead, its Player falls back to v1, and None is
-        returned. Here, where every path that changes which works a feed carries
-        passes, so no such path can skip it.
         """
-        manifest = read_published(self._settings.manifest_path(wall_id)) or {}
-        carried = {entry["work_id"] for entry in manifest.get("entries", [])}
-        # Measured against major 1's works, not against emptiness: a guest is
-        # never one of them, so a feed holding only a guest shadows v1 as surely
-        # as an empty one does.
-        if carried and not carried & set(works):
-            self._settings.manifest_v2_path(wall_id).unlink(missing_ok=True)
-            log.warning(
-                "Wall %r: none of the works on its manifest has a presentation master, so it has no major 2 feed "
-                "and its Player stays on major 1.",
-                self.get_wall(wall_id).name,
-            )
-            return None
         now = datetime.now(UTC)
         published = {
             wall.id: feed.slots
@@ -1853,17 +1674,13 @@ class DisplayService:
         feed: Published | None,
         answers: Mapping[str, PlayableWork | Unplayable],
         *,
-        carried: set[str],
         cause: str,
     ) -> bool:
         """Bring one wall's feed in line with the Library's answers. True if it was rewritten.
 
         A work the Library refuses, or one that lost its master, leaves; a work
         whose master, colour or label changed has its entry replaced where it
-        stands. **A work its major 1 manifest carries that has just gained a
-        master joins**: it was left off for want of one, and it is already on that
-        wall, so this adds nothing sync has not already decided to show. Works the
-        Library was not asked about are left as they are.
+        stands. Works the Library was not asked about are left as they are.
         """
         if feed is None:
             return False
@@ -1877,34 +1694,20 @@ class DisplayService:
                 gone.add(work_id)
             elif (current := work_document(answer)) != entry:
                 fresh[work_id] = current
-        joining = {
-            work_id: work_document(answer)
-            for work_id in sorted(carried - set(feed.works))
-            if isinstance(answer := answers.get(work_id), PlayableWork) and answer.master is not None
-        }
-        if gone or joining:
+        if gone:
             works = {work_id: fresh.get(work_id, entry) for work_id, entry in feed.works.items() if work_id not in gone}
-            self._rebuild_v2(wall_id, feed, works={**works, **joining}, start=Keep())
-            if joining:
-                log.info(
-                    "Wall %r: %s joined the major 2 feed, now that %s a presentation master (after %s).",
-                    self.get_wall(wall_id).name,
-                    ", ".join(joining),
-                    "it has" if len(joining) == 1 else "they have",
-                    cause,
-                )
-            if gone:
-                log.info(
-                    "Wall %r: took works the Library no longer offers off the major 2 feed (%s, after %s).",
-                    self.get_wall(wall_id).name,
-                    ", ".join(sorted(gone)),
-                    cause,
-                )
+            self._rebuild_v2(wall_id, feed, works=works, start=Keep())
+            log.info(
+                "Wall %r: took works the Library no longer offers off the feed (%s, after %s).",
+                self.get_wall(wall_id).name,
+                ", ".join(sorted(gone)),
+                cause,
+            )
             return True
         if fresh:
             self._patch_v2_works(wall_id, feed, fresh)
             log.info(
-                "Wall %r: pointed the major 2 feed at the current master or colour of %s (after %s).",
+                "Wall %r: pointed the feed at the current master or colour of %s (after %s).",
                 self.get_wall(wall_id).name,
                 ", ".join(sorted(fresh)),
                 cause,
@@ -1972,75 +1775,13 @@ class DisplayService:
         )
 
     def _withdraw(self, artwork_id: str, wall_ids: Iterable[str], *, cause: str) -> None:
-        """Take one work off these walls' published manifests and pins, adding nothing.
+        """Take one work off these walls' published feeds, adding nothing.
 
         The patch reconciliation applies, narrowed to one work and to the walls
-        named: entries for the work leave, a pin naming it is withdrawn without
-        advancing the sequence, and nothing arrives.
+        named.
         """
         for wall_id in wall_ids:
-            self._withdraw_v1(wall_id, artwork_id, cause=cause)
-            # After major 1's patch, so the feed is judged against the manifest
-            # as it now stands (`_write_v2`).
             self._withdraw_v2(wall_id, {artwork_id}, cause=cause)
-
-    def _withdraw_v1(self, wall_id: str, artwork_id: str, *, cause: str) -> None:
-        """Major 1's half of a withdrawal: the work's entry and any pin naming it leave one wall's manifest."""
-        directive = self._store.get_directive(wall_id)
-        if directive.pinned_work_id == artwork_id:
-            store_write(self._store.set_directive, replace(directive, pinned_work_id=None))
-        path = self._settings.manifest_path(wall_id)
-        document = read_published(path)
-        if document is None:
-            return
-        kept = [entry for entry in document["entries"] if entry["work_id"] != artwork_id]
-        pinned = (document.get("directive") or {}).get("pinned_work_id") == artwork_id
-        if len(kept) == len(document["entries"]) and not pinned:
-            return
-        document["entries"] = kept
-        if pinned:
-            document["directive"] = {**document["directive"], "pinned_work_id": None}
-        document["generated_at"] = datetime.now(UTC).isoformat()
-        write_atomically(path, document)
-        log.info("Wall %r: took work %s off the published manifest (after %s).", self.get_wall(wall_id).name, artwork_id, cause)
-
-    def _advance(self, wall_id: str, *, pinned_work_id: str | None, pinned: PlayableWork | None = None) -> Directive:
-        """Move one wall's directive on by one.
-
-        The counter only ever increases, for the life of the wall. The display
-        plane acts each time it sees the number go up, so a counter that reset —
-        on a manifest rebuild, on a theme switch — would fire a directive nobody
-        issued.
-        """
-        self.get_wall(wall_id)
-        with self._store.transaction():
-            current = self._store.get_directive(wall_id)
-            advanced = replace(current, sequence=current.sequence + 1, pinned_work_id=pinned_work_id)
-            store_write(self._store.set_directive, advanced)
-            # Inside the transaction, so a directive that could not reach the
-            # wall is not recorded as issued.
-            self._publish_directive(wall_id, advanced)
-            self._restart_v2(wall_id, pinned=pinned)
-        return advanced
-
-    def _publish_directive(self, wall_id: str, directive: Directive) -> None:
-        """Put this directive in the wall's published manifest, and change nothing else in it.
-
-        The Player reads its directive only from the manifest, so a directive
-        that stays in the catalogue never reaches the wall. **A patch, not a
-        sync**: rebuilding from the theme would also publish every work added
-        since the last sync, and deciding when new work reaches the wall is what
-        sync is for. A wall with nothing published yet has nothing to patch, and
-        its first sync carries the directive out, since a build reads the current
-        one.
-        """
-        path = self._settings.manifest_path(wall_id)
-        document = read_published(path)
-        if document is None:
-            return
-        document["directive"] = {"sequence": directive.sequence, "pinned_work_id": directive.pinned_work_id}
-        document["generated_at"] = datetime.now(UTC).isoformat()
-        write_atomically(path, document)
 
     def _require_hanging(self, wall: Wall) -> Theme:
         assignment = self._store.get_assignment(wall.id)
@@ -2078,15 +1819,6 @@ class DisplayService:
         if seconds is not None and seconds <= 0:
             raise ServiceError(f"A rotation interval must be greater than zero seconds, got {seconds}.")
         return seconds
-
-
-def _media_moved(entry: dict[str, Any], answer: object) -> bool:
-    """Whether a published entry names different media from what the Library now offers for it."""
-    if not isinstance(answer, PlayableWork):
-        return False
-    published = (entry.get("media") or {}).get("sha256")
-    offered = None if answer.media is None else answer.media.sha256
-    return published != offered
 
 
 #: When a wall's published horizon has less than this left, its next heartbeat

@@ -193,9 +193,6 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
             wall = observer.list_walls()[0]
             hanging = display.hanging_on(wall.id)
             served.append("nothing" if hanging is None else hanging.name)
-            # The counter came across too, so the first advance after the upgrade
-            # is a step rather than a repeat of one already taken.
-            served.append(str(display.read_directive(wall.id).sequence))
         finally:
             observer.close()
 
@@ -203,7 +200,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
 
     entry_point.main()
 
-    assert served == ["Late night", "4"], "the catalogue had not been moved onto walls when the server started"
+    assert served == ["Late night"], "the catalogue had not been moved onto walls when the server started"
 
 
 def _a_moment():

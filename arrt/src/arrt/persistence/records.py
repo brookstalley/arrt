@@ -583,7 +583,7 @@ class Theme:
     #: cannot move or clear it.
     is_default: bool = False
     #: A selection: the works a curator hung on one wall by choosing them, stored
-    #: as a theme so the manifest, readiness and directives work unchanged. Left
+    #: as a theme so the feed and readiness work unchanged. Left
     #: off the Themes index and every theme picker, because the curator never
     #: made it as a theme and would not recognise it in a list of theirs. Set
     #: when the theme is made and never changed.
@@ -734,33 +734,6 @@ class ThemeAssignment:
     wall_id: str
     theme_id: str
     assigned_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class Directive:
-    """One wall's standing instruction to the display plane, held catalogue-side.
-
-    The display plane is reached only through the theme manifest, so an
-    interactive command — "show this work now", "step to the next one" — travels
-    as state rather than as a message: a monotonically increasing sequence, plus
-    an optional work the sequence's advance points at. Display acts once each
-    time it observes the sequence advance.
-
-    **One row per wall, seeded when the wall is created so no caller ever has to
-    make it.** This was a singleton until 2026-08-12, and a `next` aimed at the
-    living room would otherwise have stepped every wall in the house: one counter
-    cannot say which display an advance was meant for.
-
-    The counter lives here, in the catalogue, because a manifest rebuild must
-    carry it forward unchanged. A counter derived from the manifest would reset
-    whenever the manifest was rewritten, and a reset reads to the display plane
-    as an advance — firing a directive nobody issued. It stays *per wall* rather
-    than per theme for the same reason: it has to survive theme switching.
-    """
-
-    wall_id: str
-    sequence: int
-    pinned_work_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

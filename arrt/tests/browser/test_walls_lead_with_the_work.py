@@ -169,16 +169,16 @@ def test_change_offers_themes_and_never_a_selection(ui, services, the_wall, wint
     assert options == ["Winter"]
 
 
-def test_skip_writes_the_directive_and_the_card_shows_the_next_work_once_reported(ui, services, the_wall, winter, two_works):
+def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reported(ui, services, the_wall, winter, two_works):
     nighthawks, automat = two_works
     report(services, the_wall, nighthawks.id)
-    before = services.display.read_directive(the_wall.id).sequence
+    before = services.display.published_manifest_v2(the_wall.id)
     open_walls(ui)
 
     ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
     said = card(ui, the_wall).locator(".wall-said")
     said.filter(has_text="Skipped.").wait_for()
-    assert services.display.read_directive(the_wall.id).sequence == before + 1
+    assert services.display.published_manifest_v2(the_wall.id) != before
     # Until the Player reports, the card still leads with what it last said.
     assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Nighthawks"
 
