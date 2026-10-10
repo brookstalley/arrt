@@ -109,7 +109,13 @@ on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
   Library nothing. It informs and takes nothing off the schedule. It is shown
   under the work on the wall on Walls, as a "too small for {walls}" badge in a
   theme member's *Size*, and as `too_small` and `too_small_for` on the HTTP
-  and MCP walls and theme reads.
+  and MCP walls and theme reads, beside what the judgement was made against
+  (`sizes_judged_against`) or why none was made (`sizes_unjudged`).
+  **A heartbeat whose `capabilities` lacks a readable `screen` is now refused**
+  (`400`), where it was stored. The contract requires `screen` in
+  `capabilities` and Arrt Player always sends it, so a conforming Player is
+  unaffected. A Player that sent capabilities without one would see its
+  heartbeats refused, and its wall shown as silent, until it does.
 
 **Rolling back:** reverting the merge restores the code. The stored state it
 adds is inert to the older code. `walls.mat_mode` and the `reported_screens`
