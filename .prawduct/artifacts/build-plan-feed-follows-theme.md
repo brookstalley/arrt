@@ -63,14 +63,14 @@ owed for 4g, which is done at the set.
   "removals republish, additions wait for sync". The owner's 2026-10-10 ruling
   reverses its second half. Every place that cites it is rewritten to say what
   happens now; the archived plan stays as history.
-- **[INFERENCE, flagged for the boundary: the feed follows membership in both
-  directions.]** The owner spoke of adding. Taking a work out of a hung theme
+- **[CONFIRMED by the owner, 2026-10-10, at PR #351: the feed follows membership in both
+  directions.]** (Recorded first as an inference.) The owner spoke of adding. Taking a work out of a hung theme
   from the Theme screen now also takes it off the wall at once, as
   *Not this one again* from the theme already did. Following only additions
   would leave a start-up check that removes what the act itself did not, so a
   restart would change the wall.
-- **[INFERENCE, flagged for the boundary: order and pace reach the wall at the
-  next roll, within a day.]** The plan first said they wait for a re-hang. The
+- **[CONFIRMED by the owner, 2026-10-10, at PR #351: order and pace reach the wall at the
+  next roll, within a day.]** (Recorded first as an inference.) The plan first said they wait for a re-hang. The
   roll has to build the hung theme (below), and a build carries the theme's
   order and pace, so they arrive at the next roll; re-hanging still makes them
   immediate. Holding them back would mean the roll building from the old
