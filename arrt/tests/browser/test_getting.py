@@ -12,7 +12,8 @@ and `tests/integration/test_get_destination.py`'s. Themes are the real server's,
 so a theme the control creates is one the catalogue holds.
 
 Every Get names its destination (`build-plan-topics-and-destinations.md` Chunk
-02): *Add to*, the default theme first and selected, which sends no `theme_id`;
+02), and every Get but a work card's in Ask offers the choice (the owner,
+2026-10-09; that card is `test_asking.py`'s): *Add to*, the default theme first and selected, which sends no `theme_id`;
 any other theme, which sends its id; or *New theme…*, created by `POST
 /api/themes` before the Get starts. A name that is already a theme joins it.
 """

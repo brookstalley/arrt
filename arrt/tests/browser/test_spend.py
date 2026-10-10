@@ -2,7 +2,8 @@
 
 The sidebar says what is left of this month's budget, honestly for each state
 the server can be in. Every spending control shows its tier — free, `$`, `$$`
-or `$$$`, the server's — before it is pressed, Ask's button included. No run
+or `$$$`, the server's — before it is pressed, but for a work card's Get in Ask
+(`information-architecture.md`, the owner's ruling of 2026-10-09). No run
 stops for approval any more, so Approve and Decline are offered only on a run
 stored awaiting approval before then; a run halted at the cap says the month's
 budget is spent, in the server's words.
@@ -98,75 +99,6 @@ def test_a_budget_that_cannot_be_read_says_so_and_is_asked_again(ui):
 
 
 # -- tiers -----------------------------------------------------------------------
-
-
-#: Under Get, a caption tied to it for a screen reader: what is said, read back.
-CAPTION = """(button) => {
-  const id = button.getAttribute('aria-describedby');
-  const caption = id && document.getElementById(id);
-  if (!caption) return null;
-  const c = caption.getBoundingClientRect(), b = button.getBoundingClientRect();
-  const below = c.top >= b.bottom - 0.5;
-  // Starts where its act starts: centred under a narrower button, the caption
-  // ran into its neighbour's and the two read as one sentence.
-  const aligned = Math.abs(c.left - b.left) < 1;
-  const s = getComputedStyle(caption);
-  return {
-    text: caption.textContent.trim(),
-    below,
-    aligned,
-    act: caption.matches('button, a, [role=button]') || !!caption.querySelector('button, a'),
-    border: s.borderTopStyle,
-    wrap: s.whiteSpace,
-  };
-}"""
-
-
-@pytest.mark.parametrize(
-    ("bound", "said"),
-    [
-        ("0.004", "About $0.01"),
-        ("0.012", "About $0.01"),
-        ("0.12", "About $0.10"),
-        ("0.04", "About $0.10"),
-        ("0.90", "About $1"),
-        ("4.00", "About $10"),
-        ("0.00", "Free"),
-    ],
-)
-def test_ask_says_about_what_a_get_costs_under_it(ui, bound, said):
-    """The owner's ruling (2026-10-08): the order of magnitude, not the bound."""
-    ui.serve("**/api/estimate", an_estimate(phase="phase_1", estimated_cost_usd=bound, run_id=None))
-    ui.open("#discover")
-
-    caption = ui.page.locator("#view button:text-is('Get')").evaluate(CAPTION)
-    assert caption is not None, "Get has no caption tied to it"
-    assert caption["text"] == said
-    assert caption["below"]
-    assert caption["aligned"]
-    assert not caption["act"]
-    assert caption["border"] == "none"
-    assert caption["wrap"] == "nowrap"
-    # The bound sentence and the tier mark are gone, not shown beside it.
-    assert "costs at most" not in ui.text()
-    assert ui.page.locator("#view .badge-tier").count() == 0
-
-
-def test_an_estimate_that_is_not_a_figure_reads_as_unknown_not_as_a_price(ui):
-    """Served by hand: the server's model cannot build one, and the client says so anyway."""
-    ui.serve("**/api/estimate", {"phase": "phase_1", "estimated_cost_usd": None, "basis": "", "run_id": None, "tier": "$"})
-    ui.open("#discover")
-
-    caption = ui.page.locator("#view button:text-is('Get')").evaluate(CAPTION)
-    assert caption["text"] == "Cost unknown just now"
-
-
-def test_ask_still_opens_when_the_estimate_cannot_be_read(ui):
-    ui.page.route("**/api/estimate", lambda route: route.fulfill(status=500, body="no"))
-    ui.open("#discover")
-
-    caption = ui.page.locator("#view button:text-is('Get')").evaluate(CAPTION)
-    assert caption["text"] == "Cost unknown just now"
 
 
 def test_a_tier_mark_is_words_on_one_line_not_a_box(ui):

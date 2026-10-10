@@ -1305,7 +1305,6 @@ class DiscoveryService:
         cost_usd: Decimal,
         discovery_run_id: str | None = None,
         artwork_id: str | None = None,
-        conversation_turn_id: str | None = None,
         model_id: str | None = None,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
@@ -1319,13 +1318,8 @@ class DiscoveryService:
         once exhausted, and a run reaching `halted_by_budget` does so because the
         provider said so, not because a local sum crossed a number.
 
-        The three references are alternatives rather than a hierarchy: a run's
-        spend carries `discovery_run_id`, a work's mat carries `artwork_id`, and
-        intent-forming carries `conversation_turn_id`. **Conversation spend is
-        not attributed to the run the conversation eventually seeds**, even
-        though the seam between them exists — the two answer different questions,
-        and folding one into the other would make a run's estimate unfalsifiable
-        against its actuals.
+        The two references are alternatives rather than a hierarchy: a run's
+        spend carries `discovery_run_id`, and a work's mat carries `artwork_id`.
         """
         if cost_usd < 0:
             raise ServiceError(f"A cost cannot be negative, got {cost_usd}.")
@@ -1336,8 +1330,6 @@ class DiscoveryService:
             self.get_run(discovery_run_id)
         if artwork_id is not None:
             self._catalogue.get_artwork(artwork_id)
-        if conversation_turn_id is not None and self._store.get_conversation_turn(conversation_turn_id) is None:
-            raise ServiceError(f"No conversation turn with id {conversation_turn_id!r}.")
         record = SpendRecord(
             id=str(uuid.uuid4()),
             category=require_member(category, enum=SpendCategory, field="category"),
@@ -1345,7 +1337,6 @@ class DiscoveryService:
             occurred_at=at if at is not None else datetime.now(UTC),
             discovery_run_id=discovery_run_id,
             artwork_id=artwork_id,
-            conversation_turn_id=conversation_turn_id,
             model_id=model_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,

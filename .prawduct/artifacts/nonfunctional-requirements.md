@@ -845,6 +845,14 @@ than a silent truncation of results.
 
 ### Cost visibility
 
+> **Direction changed 2026-10-08 (the owner): Ask spends without asking.** A
+> reply from Ask's agent is several model calls whose number is not known in
+> advance, and the owner ruled it may spend without an estimate first. It
+> reports what it actually cost when it ends. A cap on one reply is budgeting,
+> which § Direction's scope note allows in application code; the owner ruled it
+> belongs in 3tears, so each consuming app does not re-implement it. The ceiling
+> stays on the provider's key. `build-plan-ask-agent.md`.
+
 Every operation that spends money should report its estimated cost before it runs
 and its actual cost when it finishes, on every surface equally — the web UI and
 the MCP tool surface.

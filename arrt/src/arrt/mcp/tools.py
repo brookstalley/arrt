@@ -440,6 +440,22 @@ _RUN_ID_DESCRIPTION = (
     "A discovery run's id (a Get, in the curator's browser), as returned by action='start' or action='list_runs'."
 )
 
+#: One description for every art_discovery action taking an item, because the
+#: wire schema publishes only the first declaration of a name.
+_ITEM = Param(
+    name="qid",
+    type="string",
+    description="A Wikidata item id such as Q45585: the work, artist or topic the action names.",
+    required=True,
+)
+
+_REGISTRY_QUERY = Param(
+    name="q",
+    type="string",
+    description="A few words: a name, a title, or both.",
+    required=True,
+)
+
 _RUN_ID = Param(name="run_id", type="string", description=_RUN_ID_DESCRIPTION, required=True)
 
 #: The same parameter where it is optional, and its absence asks a wider question.
@@ -650,16 +666,9 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="look",
-            description=("Show what every image source holds of a work you do not hold, by its Wikidata item, before any Get."),
+            description="Show what every image source holds of a work, by its Wikidata item, before any Get.",
             example="art_discovery(action='look', qid='Q20267229')",
-            params=(
-                Param(
-                    name="qid",
-                    type="string",
-                    description="The work's Wikidata item, such as Q20267229.",
-                    required=True,
-                ),
-            ),
+            params=(_ITEM,),
             tips=(
                 (
                     "This spends nothing and records nothing: no run starts. Each source is asked what a Get would "
@@ -684,6 +693,95 @@ ART_DISCOVERY: Final = ToolRecord(
                     "A picture's facts carry the browser's names: width and height are art_review list_images' "
                     "estimated_width and estimated_height, fit.verdict its display_fit, and below_minimum is "
                     "fit.verdict == 'below_minimum'."
+                ),
+            ),
+        ),
+        Action(
+            name="search",
+            description="Find artists and works on Wikidata by a few words, marked where held.",
+            example="art_discovery(action='search', q='Hunters in the Snow')",
+            params=(_REGISTRY_QUERY,),
+            tips=(
+                (
+                    "Up to 10 artists, by Wikidata's name search, and 20 works of visual art, the most renowned first. "
+                    "Each artist and work carries its qid, which action='artist', action='work' and action='get' take."
+                ),
+                (
+                    "A row the library holds names it: an artist's artist_id, a work's held_artwork_ids. wanted and "
+                    "in_review say a work is already wanted, or waiting for the curator's verdict."
+                ),
+                "Words only reach Wikidata: search syntax is dropped, and under three letters nothing is asked.",
+                "Spends nothing. Every answer is kept a week, so asking again is free and fast.",
+            ),
+        ),
+        Action(
+            name="find_topics",
+            description="Find periods, movements, subjects and media on Wikidata by name.",
+            example="art_discovery(action='find_topics', q='surrealism')",
+            params=(_REGISTRY_QUERY,),
+            tips=(
+                "Each topic's qid is what action='topic' takes. A period carries its start and end years.",
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="artist",
+            description="Return an artist as Wikidata knows them, with their best-known works.",
+            example="art_discovery(action='artist', qid='Q5577')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "works are up to 50 by renown plus every work the library holds of theirs, works_total how many "
+                    "Wikidata lists; holdings the collections holding most of them. A work's qid is what "
+                    "action='get' takes."
+                ),
+                (
+                    "artist_id names the library's artist when it holds them, and their held works carry "
+                    "held_artwork_ids. Find an artist's qid with action='search'."
+                ),
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="similar_artists",
+            description="List artists who share a movement with this one.",
+            example="art_discovery(action='similar_artists', qid='Q5577')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "Up to 12, each with images, how many of their works have a free picture, so an artist nobody "
+                    "can supply shows as such; artist_id where the library holds them."
+                ),
+                "Spends nothing. Wikidata can take several seconds the first time; the answer is kept a week.",
+            ),
+        ),
+        Action(
+            name="work",
+            description="Return a work as Wikidata knows it: maker, date, holder and size.",
+            example="art_discovery(action='work', qid='Q45585')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "held_artwork_ids names the library's works that are this one. fit says how Wikidata's own "
+                    "picture would fill the wall; action='look' asks the image sources what they hold."
+                ),
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="topic",
+            description="Return a topic as Wikidata knows it, with its best-known works and artists.",
+            example="art_discovery(action='topic', qid='Q39427')",
+            params=(_ITEM,),
+            tips=(
+                ("This is Wikidata's half. art_catalogue(action='topic') is the library's: the held works in it."),
+                (
+                    "works and artists each carry their own state, since Wikidata can answer one and not the other. "
+                    "A work's state is held, image_found or no_image."
+                ),
+                (
+                    "Spends nothing, but a period's works can take Wikidata up to a minute the first time; the "
+                    "answer is kept a week."
                 ),
             ),
         ),
@@ -749,12 +847,10 @@ ART_DISCOVERY: Final = ToolRecord(
             # provenance, and one action name meaning two things across tools
             # would be read as one.
             name="source_plugins",
-            description=(
-                "List every installed image source plugin, most preferred first: the package and version it "
-                "came from, whether it loaded, and what it provides."
-            ),
+            description="List every installed image source plugin, most preferred first, and whether it loaded.",
             example="art_discovery(action='source_plugins')",
             tips=(
+                "Each plugin names the package and version it came from, and what it provides.",
                 (
                     "A plugin that declined is installed and not configured here; its reason names the setting "
                     "that would load it. One that failed could not be loaded, and its reason says why."
@@ -1712,9 +1808,9 @@ _DERIVATION = Param(
     name="derivation",
     type="string",
     description=(
-        "Where a judgment came from: 'stated' is the curator saying it, 'inferred' is a model reading it out "
-        "of what they said and needs the turn it read, 'observed' is the product reading it out of what was "
-        "accepted and rejected in review. action='set' writes the first two and refuses the third."
+        "Where a judgment came from: 'stated' is the curator saying it, 'inferred' is a model's reading of a "
+        "conversation the product no longer keeps, 'observed' is the product reading it out of what was "
+        "accepted and rejected in review. action='set' writes only 'stated'."
     ),
     choices=tuple(str(member) for member in AffinityDerivation),
 )
@@ -1751,8 +1847,8 @@ ART_TASTE: Final = ToolRecord(
                 ),
                 (
                     "A `stated` judgment carries no rationale and that is normal — the curator's own words are "
-                    "the account. An `inferred` one whose `source_turn_id` is null had its conversation deleted; "
-                    "its rationale is the evidence that survived."
+                    "the account. An `inferred` one came from a conversation the product no longer keeps; its "
+                    "rationale is the evidence it has."
                 ),
             ),
         ),
@@ -1783,14 +1879,9 @@ ART_TASTE: Final = ToolRecord(
                     name="rationale",
                     type="string",
                     description=(
-                        "The account of the judgment in the curator's terms. Required for 'inferred'; normally "
-                        "absent for 'stated', where their own words are the account."
+                        "The account of the judgment in the curator's terms. Normally absent for 'stated', where "
+                        "their own words are the account."
                     ),
-                ),
-                Param(
-                    name="source_turn_id",
-                    type="string",
-                    description="The conversation turn an 'inferred' judgment was read out of. Required for it.",
                 ),
             ),
             tips=(
@@ -1799,16 +1890,9 @@ ART_TASTE: Final = ToolRecord(
                     "corrected in place. There is nothing to fetch first."
                 ),
                 (
-                    "It refuses derivation='observed'. That value is a claim only the review path can make, and a "
-                    "row asserting behaviour that never happened cannot be audited afterwards."
-                ),
-                (
-                    "It refuses to overwrite a stronger provenance with a weaker one: a reading of what the "
-                    "curator said cannot overwrite what they said or did. Ask them, then write it as 'stated'."
-                ),
-                (
-                    "Writing replaces the provenance as well as the judgment, so a correction cites the turn it "
-                    "came from or none — never the turn the previous judgment cited."
+                    "It refuses derivation='observed', a claim only the review path can make, and "
+                    "derivation='inferred', which would have to cite a stored conversation and there are none. "
+                    "If you read a judgment out of what the curator said, ask them, then write it as 'stated'."
                 ),
             ),
         ),

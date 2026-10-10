@@ -159,8 +159,7 @@ a uv-managed standalone build: `uv python install 3.14`.**
 > opt-in `eval` group on 2026-08-02. **What holds the floor is stated once, in
 > `project-preferences.md` § Language & Runtime — this amendment deliberately does
 > not restate it**, because restating it here is what let a retired claim survive
-> two revisions in this file. The short of it is that no default dependency
-> requires 3.14 today. **Everything in this section that reasons about `3tears` core
+> two revisions in this file. **Everything in this section that reasons about `3tears` core
 > should be read through this amendment**, including the build-versus-relax
 > analysis below, which is retained because it is why the floor is affordable, not
 > as a live dependency claim.

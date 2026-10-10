@@ -315,9 +315,21 @@ class TestTheArtistPage:
         ui.page.click("button:has-text('More like this')")
         ui.page.wait_for_selector("text=Recorded: more like this for Mark Rothko.")
 
-        affinities = {(view.affinity.kind, view.affinity.value): view.affinity for view in services.taste.list_affinities()}
+        affinities = {(affinity.kind, affinity.value): affinity for affinity in services.taste.list_affinities()}
         recorded = affinities[("artist", "Mark Rothko")]
         assert (str(recorded.sentiment), recorded.open_to_more) == ("loves", True)
+
+    def test_tell_me_more_writes_cool_and_still_open(self, ui, services, rothko):
+        """The one place an artist with no judgment yet can be given it, since Ask's cards carry two."""
+        artist, _work = rothko
+        _page(ui, artist)
+
+        ui.page.click("button:has-text('Tell me more')")
+        ui.page.wait_for_selector("text=Recorded: tell me more for Mark Rothko.")
+
+        affinities = {(affinity.kind, affinity.value): affinity for affinity in services.taste.list_affinities()}
+        recorded = affinities[("artist", "Mark Rothko")]
+        assert (str(recorded.sentiment), recorded.open_to_more) == ("cool", True)
 
     def test_a_selection_is_added_to_a_theme(self, ui, services, rothko):
         artist, work = rothko
@@ -486,10 +498,10 @@ class TestWhenWikidataListsNoWorks:
         ui.page.wait_for_selector("#view a:text-is('Ask for their work')")
 
         ui.page.click("#view a:text-is('Ask for their work')")
-        ui.page.wait_for_selector("#view textarea#intent")
+        ui.page.wait_for_selector("#view textarea#ask-words")
 
         assert ui.page.evaluate("() => window.location.hash") == "#discover?term=Paintings%20by%20Lucy%20Bull"
-        assert ui.page.input_value("#intent") == "Paintings by Lucy Bull"
+        assert ui.page.input_value("#ask-words") == "Paintings by Lucy Bull"
 
     def test_a_held_artist_wikidata_lists_nothing_for_offers_it_too(self, ui, services, service, lucy_bull):
         painter = service.add_artist(name="Lucy Bull", born=1990)

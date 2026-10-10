@@ -94,7 +94,6 @@ _EXPECTED_SCHEMA = {
         "id",
         "discovery_run_id",
         "artwork_id",
-        "conversation_turn_id",
         "category",
         "model_id",
         "input_tokens",
@@ -106,17 +105,6 @@ _EXPECTED_SCHEMA = {
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
     "sightings": {"wikidata_qid", "url"},
     "run_citations": {"discovery_run_id", "url", "position"},
-    "conversations": {"id", "started_at", "last_turn_at", "summary"},
-    "conversation_turns": {
-        "id",
-        "conversation_id",
-        "ordinal",
-        "role",
-        "text",
-        "suggested",
-        "committed_run_id",
-        "created_at",
-    },
 }
 
 _STARTED = datetime(2026, 7, 27, 9, 30, tzinfo=UTC)

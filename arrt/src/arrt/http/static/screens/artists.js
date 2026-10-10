@@ -333,9 +333,10 @@ async function paintSimilar(section, qid) {
   );
 }
 
-/* *More like this* and *Not this*, the same two of the three reactions a
- * conversation sample offers and in the same words (`core/taste.js`): one
- * judgment about one artist, wherever it is made. */
+/* The three reactions, in sentence case: *More like this*, *Not this* and
+ * *Tell me more*, the same judgments as Ask's cards and Taste's rows record
+ * (`core/taste.js`). The one place *Tell me more* is offered for an artist with
+ * no judgment yet, since Ask's cards carry two (the owner, 2026-10-09). */
 function tasteControls(artist) {
   const said = el("p", { class: "muted", "aria-live": "polite" });
   const react = (reaction) => (event) =>
@@ -347,6 +348,7 @@ function tasteControls(artist) {
   return el("div", { class: "row" }, [
     el("button", { class: "action quiet", type: "button", text: "More like this", onclick: react("more like this") }),
     el("button", { class: "action quiet", type: "button", text: "Not this", onclick: react("not this") }),
+    el("button", { class: "action quiet", type: "button", text: "Tell me more", onclick: react("tell me more") }),
     said,
   ]);
 }

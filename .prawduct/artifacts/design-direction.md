@@ -271,12 +271,14 @@ classes the client never had.*
   for a menu's items. Under `@media (pointer: coarse)` both are 2.75rem.
 - **Cost** — a priced act's cost is never a boxed badge, because a box
   beside a button reads as another button. It must plainly belong to its act
-  and plainly not be an act. Get, on Ask and on a conversation's commit card,
-  says its order of magnitude in a caption under it: "About $0.01", "About
-  $0.10", "About $1" *(owner, 2026-10-08: the curator is deciding between
-  cents, dimes and dollars, not reading an exact bound)*. Every other priced
-  act still carries "Cost: <tier>" as words beside it; moving those to the
-  same form is not yet asked for.
+  and plainly not be an act. A priced act carries "Cost: <tier>" as words
+  beside it. Ask's *Ask* spends without asking and says what each reply cost
+  after it ends, so it carries a caption saying that instead *(owner,
+  2026-10-08)*. The order-of-magnitude caption the owner asked for under a Get
+  from words ("About $0.01", "About $0.10", "About $1": the curator is
+  deciding between cents, dimes and dollars, not reading an exact bound) went
+  with that Get on 2026-10-09; it is the form to reach for if another act
+  wants one.
 - **Badges** — glyph + word + colour, never fewer than all three. **A glyph
   has one meaning on every screen**, named in `core/glyphs.js`, where the word
   carries the specifics and the glyph only the kind of state; a new meaning
@@ -317,7 +319,7 @@ covers the skeleton pulse, which is the only ambient animation in the product.
 **The one motion rule that is about correctness rather than taste: a poll must
 never move focus.** The built surface shipped a two-second poll that stole focus on
 the single screen with a decision on it. Every live region added by the IA work —
-the run progress card, the status indicator, the conversation thread — updates
+the run progress card, the status indicator, Ask's thread — updates
 without touching focus.
 
 ## Platform Conventions

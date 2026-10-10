@@ -424,7 +424,12 @@ is no network between planes.
   discovery runs. Plus the whole image tree and the theme manifest.
 - **Serves three surfaces from one ASGI app:** the web UI, its HTTP API, and the
   MCP streamable-HTTP endpoint. All three are thin bindings over one service layer
-  (`project-preferences.md`, Critic-enforced).
+  (`project-preferences.md`, Critic-enforced). **Ask's agent is a fourth binding
+  (2026-10-08, `arrt/ask/`)**: a LangChain loop in the server process, offered
+  the MCP tool definitions and calling the MCP `dispatch` on a worker thread, so
+  it reaches the services exactly as an MCP client does and owns no operation
+  logic. Its threads live in memory, the server's only in-memory conversational
+  state; a restart forgets them.
 
   *(Built 2026-08-01, and the first two turned out to be **one** surface rather
   than two. The UI is a static shell plus a script that reads `/api/*`; there is

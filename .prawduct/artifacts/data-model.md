@@ -11,8 +11,7 @@ last_validated: null
 > **Direction changed 2026-09-30. Read `re-architecture.md`.** The entities below
 > are as built. The target assigns each to one of three roles:
 > - **Library:** Artwork, Artist, Source, Original, MatColor, WorkFacet, Affinity,
->   Conversation and ConversationTurn, DiscoveryRun, CandidateWork,
->   CandidateImage, SpendRecord and ResolveRunWork.
+>   DiscoveryRun, CandidateWork, CandidateImage, SpendRecord and ResolveRunWork.
 > - **Programming:** Theme (now a playlist), ThemeMembership, Wall,
 >   ThemeAssignment and Directive.
 > - **Player:** TvBinding (already display-only).
@@ -1234,8 +1233,8 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 
 ### Affinity
 
-What the curator has reacted to, and how. Answers Q13; retained across
-conversations, and the thing a new conversation opens knowing.
+What the curator has reacted to, and how. Answers Q13; retained, and what
+discovery consults.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
@@ -1245,14 +1244,21 @@ conversations, and the thing a new conversation opens knowing.
 | `sentiment` | enum | required | `loves` \| `likes` \| `cool` \| `declines`. |
 | `open_to_more` | boolean | required | Whether to keep offering this. **Independent of `sentiment`** — Q13's two-facts rule. |
 | `derivation` | enum | required | `stated` (the curator said it) \| `inferred` (the model read it from what they said) \| `observed` (read from accept/reject behaviour in review). Answers Q14. |
-| `rationale` | text | **required when `derivation` is `inferred` or `observed`**, nullable otherwise | The model's own account of the judgment, in the curator's terms. Null is normal for `stated`, where the curator's own words are the account. Required for the other two since 2026-08-12: deleting a conversation nulls `source_turn_id`, so this is the only evidence an inferred judgment can be left with. |
-| `source_turn_id` | UUID | FK → ConversationTurn, nullable | The turn this was derived from. Null for `observed` — **and null for an `inferred` row whose conversation was deleted**, which is a legal state and not a corruption. See the Conversation entity. |
+| `rationale` | text | **required when `derivation` is `inferred` or `observed`**, nullable otherwise | The model's own account of the judgment, in the curator's terms. Null is normal for `stated`, where the curator's own words are the account. Required for the other two since 2026-08-12, and since 2026-10-09 the only evidence either has: the turn an inferred judgment cited is no longer stored. |
 | `artist_id` | UUID | FK → Artist, nullable | Set only where `kind='artist'` **and** the name resolves to a catalogue artist. Derived and re-derivable; never the identity. |
 | `created_at`, `updated_at` | datetime | auto | |
 
 **Unique on (`kind`, `value`).** One live judgment per thing, corrected in place
 rather than accumulating a history of contradictions the product would then have
-to arbitrate between. The history that matters is the turns, which are retained.
+to arbitrate between.
+
+> **An `inferred` judgment cannot be written since 2026-10-09**, and the ones
+> stored keep their derivation and rationale. One cited the conversation turn it
+> was read out of, and conversations are no longer stored (§ Conversations,
+> retired). The wave that saves Ask's threads decides how a judgment cites one.
+> Until then only `stated` is writable by a caller, so the rule that a weaker
+> provenance may not overwrite a stronger one has nothing to refuse, and its
+> code went with the citation.
 
 > **`value` is a string and not a foreign key, and this is the entity's central
 > decision.** The product exists to surface artists the curator could not have
@@ -1294,6 +1300,10 @@ to arbitrate between. The history that matters is the turns, which are retained.
 > an earlier inference and a second statement can correct a first. *This is the
 > builder's ruling rather than an artifact's, named by them as the thing most worth
 > challenging — and they were right to. It is a norm born mid-build.*
+> *Removed 2026-10-09 with the ability to write `inferred`: with only `stated`
+> writable, the strongest rank, the ranking had nothing to refuse (§ Affinity).
+> The wave that lets a weaker derivation be written again restores it, ranks and
+> all.*
 >
 > **`observed` is refused at runtime by `art_taste`, while all three values are
 > published on `set`.** The registry permits one declaration of a parameter across
@@ -1308,72 +1318,25 @@ to arbitrate between. The history that matters is the turns, which are retained.
 > to be discovered: **if per-picture judgments are wanted, this entity changes, not
 > the screen.**
 
-### Conversation
+### Conversations, retired 2026-10-09
 
-One intent-forming session. **Not a run, and never confused with one:** it
-acquires nothing, writes no `Artwork`, and reaches no museum API. It ends by
-seeding a `DiscoveryRun` or by ending.
+`Conversation` and `ConversationTurn` held Ask's threads from 2026-08-10: each
+turn verbatim, what it offered, and `committed_run_id`, the seam to the run a
+direction started. Ask became one thread with an agent on 2026-10-09
+(`build-plan-ask-agent.md`), held in memory and not saved, by the owner's ruling
+of 2026-10-08 that old threads "are just gone" until saving earns its place. The
+catalogue migration `retire_conversations` dropped both tables and the two
+columns that cited a turn, `Affinity.source_turn_id` and
+`SpendRecord.conversation_turn_id`. Deleting a conversation had always nulled
+those two and kept the rows (the operator's ruling of 2026-08-12, issue #118),
+so the migration did to every row what a delete did to some: every judgment and
+every cent stands.
 
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | UUID | PK | |
-| `started_at` | datetime | auto | |
-| `last_turn_at` | datetime | auto, indexed | Orders the conversation list, which is the only place a curator finds an old thread. |
-| `summary` | text | nullable | A short model-written account of where the conversation got to. Written at rest, for the list — **never read back as taste**; `Affinity` is the only thing the product consults. |
-
-### ConversationTurn
-
-One exchange. Retained in full so affinities can be rebuilt when their derivation
-changes — the second half of Q14.
-
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | UUID | PK | |
-| `conversation_id` | UUID | FK → Conversation, required | |
-| `ordinal` | integer | required, unique per conversation | Order within the thread. Not a timestamp: two turns can share a second. |
-| `role` | enum | required | `curator` \| `system`. |
-| `text` | text | required | Verbatim. |
-| `suggested` | JSON | nullable | What this turn offered, as `[{kind, value, samples}]` — the artists, movements or subjects named, each with the sample pictures shown beside it. Denormalised on purpose: it is a record of *what was said*, not a live index, and normalising it would let a later edit rewrite history. **`samples` was added 2026-08-12, on building the thread**: the flow requires samples inline in the turn and no other structure gives them anywhere to live, and freezing them here is the same argument the rest of this row already makes — a sample re-fetched later is not the picture the curator reacted to. |
-| `committed_run_id` | UUID | FK → DiscoveryRun, nullable | Set on the turn where the curator committed a direction. **This is the seam** — it is what lets a run say which conversation produced it, and a conversation show what came of it. |
-| `created_at` | datetime | auto | |
-
-> **Transcripts are retained by the operator's decision (2026-08-10), reversing
-> this artifact's own "agent conversation history is deliberately not modelled".**
-> The reason is Q14: affinities are *derived*, the derivation will improve, and
-> without the turns an improvement can only apply going forward while every
-> existing judgment stays frozen at the quality of the prompt that produced it.
->
-> **This is the product's first retained free-text record of the operator's own
-> words.** The retention and deletion rule for one is now written, in
-> `security-model.md` § Deleting a conversation; the summary is below and that
-> section is the authority.
-
-> **Deleting a conversation deletes its turns and nothing else** *(ruled by the
-> operator 2026-08-12, closing issue #118)*. Every row that cites a turn keeps its
-> own record and loses only the citation: `Affinity.source_turn_id` and
-> `SpendRecord.conversation_turn_id` are set null, and
-> `ConversationTurn.committed_run_id` goes with the turn.
->
-> Three things follow, and each is a real consequence rather than a restatement:
->
-> - **An `inferred` affinity may legally have no source turn.** `api-contract.md`
->   § `art_taste` states that `inferred` requires a `source_turn_id`; that is an
->   invariant on the **write**, not on the row. Built as a stored constraint it
->   would make the delete impossible, which is the opposite of the ruling.
-> - **`rationale` therefore becomes required for `inferred` and `observed`** — see
->   the Affinity table, where the constraint now says so. It is the only evidence
->   that survives a deleted thread, and an inferred judgment with neither turn nor
->   rationale is one the product can neither explain nor revisit.
-> - **A run committed by a deleted turn becomes indistinguishable from one started
->   directly**, because the seam is `committed_run_id` and the turn carried it.
->   Nothing is orphaned — the Relationships section already makes a run with no
->   committing turn ordinary — but the provenance is gone rather than degraded, and
->   the confirmation says so.
->
-> **What the curator loses is Q14's second half**: affinities can no longer be
-> rebuilt from this thread when the derivation improves. That is the cost of the
-> delete, it is not recoverable, and the confirmation names it in those terms
-> rather than reporting a row count.
+**What went with them is Q14's second half.** Transcripts were retained
+(the operator, 2026-08-10) so affinities could be rebuilt when their derivation
+improved. With no stored turns, no judgment can be rebuilt from its words, and
+no `inferred` one can be written (§ Affinity). Saving threads is the later wave
+that returns it.
 
 ### DiscoveryRun
 
@@ -1425,7 +1388,7 @@ candidates provenance.
 > not. It also matches the "short curation sessions" constraint — the curator is
 > not held at the keyboard while discovery works.
 >
-> **Conversational intent-forming arrived on 2026-08-10 and this decision holds
+> **Conversational intent-forming arrived on 2026-08-10 and this decision held
 > unchanged, which is why it was built the way it was.** `Conversation` sits
 > *upstream* of the run: it answers from model knowledge, shows sample pictures,
 > acquires nothing, and starts nothing. So the thing being estimated is still a
@@ -1433,6 +1396,13 @@ candidates provenance.
 > the fast turns are fast precisely because they do no discovery. Had the
 > conversation been allowed to acquire per turn, this paragraph would have had to
 > be reversed rather than reaffirmed; that it did not is the reason for the split.
+>
+> **Direction changed 2026-10-08 (the owner), built 2026-10-09.** Ask now
+> searches as it talks, so the half of this split that kept turns fast no longer
+> holds: a reply can take as long as its searches. The other half does: a reply
+> still acquires nothing, a Get remains a batch with a knowable scope, and it still
+> proceeds behind a handle. Ask's replies are no longer estimated before they
+> run (`nonfunctional-requirements.md` § Cost visibility).
 >
 > **`target_candidate_count` is resolved, and it is not a column.** This artifact
 > previously deferred it, listing three options: the curator sets it per run, it is
@@ -2024,8 +1994,7 @@ path consults it before spending.
 | `id` | UUID | PK | |
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
-| `conversation_turn_id` | UUID | FK → ConversationTurn, nullable | Set for intent-forming spend. Added 2026-08-10 — see below. **Nulled, never cascaded, when the conversation is deleted** (2026-08-12): the money was spent whatever became of the thread, and a ledger whose totals fall when someone tidies a transcript is the failure the `conversation_tokens` rule below exists to prevent. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below.** |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below. Nothing writes `conversation_tokens` since 2026-10-09**, and its rows still read and count. |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -2033,6 +2002,11 @@ path consults it before spending.
 | `occurred_at` | datetime | auto, indexed | Indexed for reporting windows. **Not** the basis of any ceiling — see below. |
 
 > **`conversation_tokens` ships with its producer or not at all (2026-08-10).**
+> *Its producer, the stored conversation, was retired on 2026-10-09; the rows it
+> wrote stay in every month total, and `SpendRecord.conversation_turn_id`, which
+> cited the turn, was dropped with the turns. Ask's replies write no row, because
+> the provider's own month figure already includes them and a per-reply record
+> belongs with the 3tears spending cap (`build-plan-ask-agent.md`, chunk 03).*
 > The category and its FK exist because intent-forming spends real money — a model
 > call per turn, plus whatever the sample lookups cost — and Q4 asks what was spent
 > and on what. The rule is written here because this table already carries one
@@ -2073,7 +2047,7 @@ path consults it before spending.
 >
 > **The coupling the earlier deferral named is contained, not removed.**
 > `record_spend` still lives on `DiscoveryService`, and preparation reaches it
-> through a one-method protocol (`SpendLedger`), as the conversation service does.
+> through a one-method protocol (`SpendLedger`), so it holds nothing it does not use.
 > Moving the ledger out of discovery, which the backlog tracks, changes the wiring
 > in the container and nothing in preparation.
 
@@ -2334,14 +2308,6 @@ the catalogue.
 - A work's **Sightings** are matched to it by Wikidata item, not by a foreign key:
   to every **CandidateWork** and **Artwork** carrying that `wikidata_qid`.
 - A **DiscoveryRun** accrues many **SpendRecords** (one-to-many).
-- A **Conversation** has many **ConversationTurns** (one-to-many, ordered by
-  `ordinal`). A turn accrues **SpendRecords** exactly as a run does, and on its own
-  account rather than the run's.
-- A **ConversationTurn** may **commit** at most one **DiscoveryRun**, and a run is
-  committed by at most one turn (one-to-one, optional both ways). A run started
-  from the Discovery screen has no committing turn, and a conversation that ends
-  without committing has no run — both are ordinary, which is why this is optional
-  in both directions rather than a required provenance field on the run.
 - An **Artwork** has many **WorkFacets** (one-to-many), unique per (`kind`,
   `value`). A work with none is ordinary rather than broken — it means nothing was
   published and nothing has been inferred yet.
@@ -2351,11 +2317,10 @@ the catalogue.
   normal state for taste that runs ahead of the collection — and an FK would make
   that judgment unwritable, the same reason `Affinity.value` is not an FK to
   `Artist`.
-- An **Affinity** may cite one **ConversationTurn** as its source (many-to-one,
-  optional) and may resolve to one **Artist** (many-to-one, optional). **Neither
-  optionality is an edge case:** an `observed` affinity has no turn, and an
-  affinity naming an artist the catalogue has never heard of has no Artist — which
-  is the normal state for the artists this product exists to surface.
+- An **Affinity** may resolve to one **Artist** (many-to-one, optional). **The
+  optionality is not an edge case:** an affinity naming an artist the catalogue
+  has never heard of has no Artist, which is the normal state for the artists
+  this product exists to surface.
 - A **Wall** hangs at most one **Theme** (one-to-one, optional, via
   **ThemeAssignment**), and a **Theme** may be hung on many **Walls**. **The
   many side is the point:** two rooms showing the same theme is one theme and two
@@ -3033,7 +2998,9 @@ Configuration, not a stored entity, while it is one number (the owner,
   anyone who remembers the rule.
   **Still true within the amendment:** agents remain stateless *across* sessions —
   what persists is the record, which a new session reads, not a session that stays
-  alive.
+  alive. **Amended again 2026-10-09:** `Conversation` and `ConversationTurn` are
+  retired (§ Conversations, retired). Ask's thread lives in the server's memory
+  and is not modelled; `Affinity` remains.
 - **TV favourites (`MY-C0004`).** A tagging primitive exists (`change_favorite`),
   but the library author notes that on 2022+ sets favourites can only be applied
   to Art Store artwork, not user uploads. Unconfirmed against real hardware, and

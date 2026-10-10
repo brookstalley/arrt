@@ -598,8 +598,8 @@ function pageToolbar(density, selection) {
  * they lead to three different next moves. Conflating the first two tells a
  * curator with 3,000 works that they own nothing; conflating the third with the
  * second reports the expected result of following a suggestion as a failed query,
- * and the conversation makes that one common — the artists it surfaces are by
- * definition ones the curator could not have named. */
+ * and Ask makes that one common — the artists it surfaces are often ones the
+ * curator could not have named. */
 function nothingShown(query, chosen, shownTheme) {
   const artists = chosen.artist;
   const onlyAnArtist =

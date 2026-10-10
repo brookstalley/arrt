@@ -13,6 +13,10 @@ except where a line says otherwise.
 > and the engine's model are unrelated roles. The Pi-install weight no longer
 > applies to it.
 
+> **Tool calling, measured 2026-10-08:** how the cheap models do as an agent
+> on the product's tools, with steps and cost per reply, is
+> `ask-agent-findings.md`.
+
 **Two probe rounds, on different keys, and which one produced a finding matters
 when reading it.** The first used a **borrowed key** from another product on this
 machine (`limit` 10, not this product's ceiling): adequate for response shapes and
@@ -345,6 +349,14 @@ one of should look like. See `nonfunctional-requirements.md` § Cost Constraints
 
 ## The client is first-party, behind a seam (decided 2026-08-02)
 
+> **Direction changed 2026-10-08 (the owner).** Ask's agent runs on
+> `3tears-models` and LangChain's tool loop, not on this client: tool calling,
+> streaming and a 3tears-owned spending cap are what it needs, and the
+> install-weight argument below went with the move to the NAS. This client
+> still serves discovery's phase 1 and the mat's vision call until
+> `build-plan-ask-agent.md` decides otherwise. `project-state.yaml` →
+> `technical_decisions.technology`, 2026-10-08.
+
 **A direct HTTP client, written against the shapes above, behind a narrow
 interface** — not `threetears.models.create_chat_model`, which
 `arrt/pyproject.toml` had anticipated ("it arrives with the discovery work
@@ -365,6 +377,8 @@ argument. Three things decided it anyway:
   `langchain-openai`, `langchain-openrouter` and `jsonschema` into the curation
   plane's **default** install — the plane that runs co-located with display under
   a `MemoryMax`. Today that weight is opt-in, confined to the `eval` group.
+  *(2026-10-08: no longer. The server moved to the NAS, and Ask's agent put
+  this weight in the default install, `build-plan-ask-agent.md`.)*
 - **The two model uses are not the same axis.** The eval harness's model plays the
   *curator*, driving the MCP surface from outside; the engine's model is the
   *discovery worker* behind it. "One model-construction path" reads like reuse and
@@ -476,6 +490,12 @@ recorded value rather than the mat engine retrying until the model complies. An
 unparseable answer is a normal outcome of an unenforced schema, not an incident.
 
 ## The conversation call: a longer `messages` array, and two defects it exposes (measured 2026-08-12)
+
+> **Its consumer was retired on 2026-10-09** (`build-plan-ask-agent.md` Chunk 04).
+> Ask now runs on 3tears-models, not on this client. The measurements stand as
+> the provider's behaviour, `complete_thread` is still the client's multi-message
+> path, and `tests/unit/test_conversation_client.py` still holds it to these
+> captures.
 
 Probed against the live API, nine days after the vision call above, because the
 curation-UX build plan needed its least confident assumption tested before code
