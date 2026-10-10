@@ -20,6 +20,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
+from arrt_player.compose import Geometry
 from arrt_player.config import WallSettings
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import ScreenState
@@ -75,6 +76,11 @@ def screen_wall(
 ) -> Wall:
     """A wall on a screen this host draws: the shared loop, this driver, and a programme per major, remembering in memory."""
     memory = InMemory()
+
+    def geometry() -> Geometry | None:
+        """The connector's current mode, which can change under a running wall; None with no screen on it."""
+        return None if output.screen is None else wall.geometry_for(output.screen)
+
     return Wall(
         wall=wall,
         display=ScreenDisplay(wall=wall, output=output, clock=clock),
@@ -82,7 +88,14 @@ def screen_wall(
             1: Rotation(
                 wall_id=wall.wall_id, render_root=wall.render_root, memory=memory, clock=clock, rng=rng, say_missing_once=True
             ),
-            2: Schedule(wall_id=wall.wall_id, render_root=wall.render_root, memory=memory, clock=clock),
+            2: Schedule(
+                wall_id=wall.wall_id,
+                render_root=wall.render_root,
+                composed_root=wall.composed_root,
+                geometry=geometry,
+                memory=memory,
+                clock=clock,
+            ),
         },
         watcher=watcher,
         clock=clock,
@@ -174,7 +187,7 @@ class ScreenDisplay:
         return {}
 
     def capabilities(self) -> Capabilities:
-        """The connector's current mode as its screen; no text of its own until this Player composes."""
+        """The connector's current mode as its screen; no text of its own until a caption is drawn in the mat (wave 6+)."""
         return Capabilities(screen=self._output.screen, backend="framebuffer", label_modes=("none",))
 
     async def close(self) -> None:

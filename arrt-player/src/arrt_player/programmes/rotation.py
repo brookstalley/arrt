@@ -97,6 +97,18 @@ class Rotation:
         """Major 1 has no scenes."""
         return None
 
+    def entered(self) -> None:
+        """The wall has just switched to major 1 from another major.
+
+        **Treated as a restart**: the wall holds the other major's picture of
+        whatever work is up, so the rotation points at that work and shows its
+        own render of it at once, as a restarted process re-selects what is
+        already on the wall rather than stepping past it. It takes effect in
+        the adoption the wall makes straight after this, which is where the
+        rotation reads it.
+        """
+        self._has_shown = False
+
     def adopt(self, manifest: Manifest) -> None:
         """Take a new manifest's entry list as the rotation, keeping our place.
 

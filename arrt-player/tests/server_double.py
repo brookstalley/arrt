@@ -16,11 +16,13 @@ another repository will not have:
 
 import copy
 import hashlib
+import io
 import json
 from pathlib import Path
 
 from aiohttp import web
 from jsonschema import Draft202012Validator
+from PIL import Image
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
@@ -268,7 +270,7 @@ class ServerDouble:
         """
         works: dict[str, dict] = {}
         for work_id in dict.fromkeys([work for work, _, _ in slots] + list(staging)):
-            data = (media or {}).get(work_id, f"the master of {work_id}".encode())
+            data = (media or {}).get(work_id, _a_master(work_id))
             sha = hashlib.sha256(data or work_id.encode()).hexdigest()
             if data:
                 self.media[sha] = data
@@ -291,3 +293,11 @@ class ServerDouble:
         }
         self.manifests[wall_id or self._default_wall] = document
         return document
+
+
+def _a_master(work_id: str) -> bytes:
+    """A small real JPEG, its colour drawn from the work's id, so each work's hash differs and a wall can compose it."""
+    shade = hashlib.sha256(work_id.encode()).digest()
+    buffer = io.BytesIO()
+    Image.new("RGB", (120, 80), (shade[0], shade[1], shade[2])).save(buffer, format="JPEG", quality=90)
+    return buffer.getvalue()

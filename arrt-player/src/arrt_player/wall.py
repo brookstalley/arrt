@@ -89,7 +89,7 @@ class Shown(enum.Enum):
 
 @dataclass(frozen=True)
 class Picture:
-    """One work as a display is handed it: a verified file in the wall's cache."""
+    """One work as a display is handed it: major 1's render as pulled, or major 2's composition for this display."""
 
     work_id: str
     path: Path
@@ -221,6 +221,9 @@ class Programme(Protocol):
     def adopt(self, manifest: Any) -> None:  # noqa: ANN401 -- each programme takes its own major's document
         """Take a new manifest of this programme's major."""
 
+    def entered(self) -> None:
+        """The wall switched to this programme from another major, whose picture is up now."""
+
     async def step(self, display: Display) -> None:
         """Change the wall if the programme says to."""
 
@@ -242,8 +245,10 @@ class Wall:
         #: One programme per manifest major, and the one whose major was adopted
         #: last. **Each keeps its own state across a switch** — a wall moved from
         #: major 2 back to major 1 resumes its rotation — and they share the
-        #: display's memory of what is on the wall, so a switch never re-shows the
-        #: work already there. The lowest major answers before any manifest.
+        #: display's memory of which work is on the wall. **Not the picture**: each
+        #: major draws a work its own way, so a programme switched to is told it
+        #: was (`entered`) and puts its own picture up. The lowest major answers
+        #: before any manifest.
         self._programmes = programmes
         self._programme = programmes[min(programmes)]
         self._watcher = watcher
@@ -312,7 +317,11 @@ class Wall:
         # must not stop the wall from *knowing* what it will show when it wakes.
         adopted = self._watcher.poll()
         if adopted is not None:
-            self._programme = self._programmes[adopted.schema_major]
+            programme = self._programmes[adopted.schema_major]
+            if programme is not self._programme:
+                # Before the adoption, which a programme may read it in.
+                programme.entered()
+                self._programme = programme
             self._programme.adopt(adopted)
             self._display.adopted(self._programme.pictures)
 

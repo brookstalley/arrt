@@ -247,12 +247,13 @@ async def test_what_a_wall_on_a_screen_writes_conforms_and_says_what_it_can_do(c
         "screen": {"width_px": 3840, "height_px": 2160},
         "backend": "framebuffer",
         "label_modes": ["none"],
-        "manifest_majors": [1],
+        "manifest_majors": [2, 1],
     }
     assert document["scene_id"] is None
 
 
-async def test_what_a_wall_on_the_frame_writes_conforms_and_claims_no_screen_size(settings, tv, state, publish, clock):
+async def test_what_a_wall_on_the_frame_writes_conforms_and_says_what_it_can_do(settings, tv, state, publish, clock):
+    """The Frame's configured panel, now that this Player composes for it, and both majors it reads."""
     watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
     loop = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
     publish(["w1"])
@@ -261,7 +262,12 @@ async def test_what_a_wall_on_the_frame_writes_conforms_and_claims_no_screen_siz
 
     document = json.loads(path_in(settings.heartbeat_root, settings.wall_id).read_text())
     assert _heartbeat_errors(document) == []
-    assert "capabilities" not in document, "a Frame's size was claimed before this Player can know it"
+    assert document["capabilities"] == {
+        "screen": {"width_px": settings.tv_panel_width_px, "height_px": settings.tv_panel_height_px},
+        "backend": "frame",
+        "label_modes": ["none"],
+        "manifest_majors": [2, 1],
+    }
 
 
 def test_a_display_state_naming_a_work_beside_anything_but_art_is_refused_before_it_is_written():

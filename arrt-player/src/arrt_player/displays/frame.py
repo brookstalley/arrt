@@ -71,7 +71,14 @@ def frame_wall(
         display=FrameDisplay(settings=settings, tv=tv, state=state, clock=clock),
         programmes={
             1: Rotation(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock, rng=rng),
-            2: Schedule(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock),
+            2: Schedule(
+                wall_id=settings.wall_id,
+                render_root=settings.render_root,
+                composed_root=settings.composed_root,
+                geometry=lambda: settings.geometry,
+                memory=state,
+                clock=clock,
+            ),
         },
         watcher=watcher,
         clock=clock,
@@ -261,13 +268,13 @@ class FrameDisplay:
         }
 
     def capabilities(self) -> Capabilities:
-        """The Frame's size is not this Player's to know until its geometry moves here from the server.
+        """The Frame's configured panel, which this Player composes every picture for.
 
-        So its screen is None and the heartbeat leaves capabilities out. It
-        draws no text of its own until this Player composes a caption into the
-        picture it uploads, so `none` is the only label mode it can claim.
+        It draws no text of its own until this Player burns a caption into the
+        picture it uploads (wave 6+), so `none` is the only label mode it can
+        claim.
         """
-        return Capabilities(screen=None, backend="frame", label_modes=("none",))
+        return Capabilities(screen=self._settings.geometry.screen, backend="frame", label_modes=("none",))
 
     async def close(self) -> None:
         await self._tv.close()
@@ -611,8 +618,9 @@ class FrameDisplay:
                 continue
             if not picture.path.is_file():
                 # Not a failure to record: nothing was attempted, and writing a
-                # `failed` row for a file curation has not produced yet would make
-                # the store report an upload problem for a preparation one.
+                # `failed` row for a file not there yet (a major 1 render the pull
+                # has not cached, or a major 2 work this Player has not composed)
+                # would make the store report an upload problem for a preparation one.
                 continue
             with work_context(picture.work_id):
                 await self._upload(picture)
