@@ -66,6 +66,103 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Programming computes a wall's schedule (wave 4e)
+
+<!-- prawduct: scope=wave-4e-schedule -->
+
+**Why:** Major 2 replaces the Player's own rotation with a schedule decided
+on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
+`build-plan-wave-4e-schedule.md` carries the plan and its decisions.
+
+**What:**
+- Chunk 01: `programming/schedule.py`, a pure function that builds one
+  wall's slots over a three-day horizon. It works against every other wall's
+  published slots, so no work is on two walls at once except as a named clash.
+  A rebuild keeps the slot on the wall now, and showing a work now or skipping
+  starts fresh. Every work comes up once per cycle, and none twice running.
+  Nothing calls it yet: chunk 02 publishes it.
+- Chunk 02: every path that publishes a wall's major 1 manifest now publishes
+  its major 2 feed beside it (`theme-manifest-{wall}.v2.json`), and
+  `/walls/{id}/manifest/v2` serves it with its ETag. The facade offers each
+  work's current presentation master, with its size read from the file, and
+  its mat colour. Re-hanging the same theme keeps the slot on the wall now.
+  Another theme, *show now* and *next* start fresh. A withdrawn or refused work
+  leaves the feed, and a new mat colour or master replaces its entry without
+  moving a slot. A heartbeat with under two days of horizon left rolls the
+  horizon forward. A work with no master stays on major 1 and is named. A
+  theme with works but no masters publishes no feed, so its Player stays on
+  major 1 (`player-contract.md` § The cutover, amended).
+- Chunk 03: a wall's mat mode. `walls.mat_mode` (nullable; an older file
+  gains the column when it is opened) holds `none`, `proportional` or `full`,
+  or nothing for the Player's own choice. Setting it republishes the wall's
+  feed with `settings.mat.mode` and moves no slot. `PUT /api/walls/{id}/mat`,
+  `art_display(action='set_mat_mode')` (`players_own` clears it) and a *Mat*
+  panel in each Walls card's *How {wall} is set up* set it. The panel confirms
+  in place and stays open. `mat_mode` is on `WallOut` and the MCP wall fields.
+- Chunk 04: too small for this wall. Each screen size a wall's Player reports
+  in a minor 2 heartbeat is kept per display (`reported_screens`), and sizes
+  older than a week are forgotten. A wall is judged against the largest size
+  reported in that week, not the latest. A work is too small when its master,
+  never enlarged, fills less than half of the box inside the contract's
+  default mat (`programming/adequacy.py`, held to the no-density mat vectors).
+  The judgement reads each master's size from the wall's feed, so it asks the
+  Library nothing. It informs and takes nothing off the schedule. It is shown
+  under the work on the wall on Walls, as a "too small for {walls}" badge in a
+  theme member's *Size*, and as `too_small` and `too_small_for` on the HTTP
+  and MCP walls and theme reads, beside what the judgement was made against
+  (`sizes_judged_against`) or why none was made (`sizes_unjudged`).
+  **A heartbeat whose `capabilities` lacks a readable `screen` is now refused**
+  (`400`), where it was stored. The contract requires `screen` in
+  `capabilities` and Arrt Player always sends it, so a conforming Player is
+  unaffected. A Player that sent capabilities without one would see its
+  heartbeats refused, and its wall shown as silent, until it does.
+
+**Rolling back:** reverting the merge restores the code. The stored state it
+adds is inert to the older code. `walls.mat_mode` and the `reported_screens`
+table are read by nothing before this branch, and a reported size is deleted
+with its display (`ON DELETE CASCADE`), so removing a client still works. Each wall's
+`theme-manifest-{wall}.v2.json` beside its manifest is served by no route, so
+every Player falls back to `v1` on the 404. Delete the v2 files to tidy up.
+Nothing needs a migration back.
+
+**Tests:** `tests/unit/test_schedule.py` states the contract's slot rules, the
+household rule (a clash only where no work of the wall could avoid one, on
+fresh and kept rebuilds), the cycle and stability as Hypothesis properties.
+Examples pin each case the properties reach only by chance. A mutation sweep
+of the module ran 31 mutations, all caught: 30 by a failing test, and one (a
+zero-length slot let through) by the suite hanging, because the build never
+ends. The first pass let seven survive; each now has a test, or (the
+de-duplication of work ids) was replaced by a refusal that is tested.
+Chunk 02: `tests/unit/test_major_2_feed.py` drives each publish path in the
+plan's table. `tests/feed_guard.py` checks every feed any test builds against
+the schema and the root suite's `semantic_errors`, loaded from its file
+rather than copied. `test_player_surface.py`'s "major 2 answers 404" became
+major 3: wave 4e builds major 2, and the rule it protects (an unbuilt major
+answers 404) is kept with the next major up. A sweep of 30 mutations left
+five alive. One test had been passing only because a fresh slot and a kept
+one shared a second; it now ages the feed first. The other four have tests.
+All 30 are now caught. End to end, Arrt Player's own pull and compositor, run
+from its own interpreter against a booted server from this branch, asked for
+`v2`, adopted the feed, verified and cached the master, and composed it at
+1920×1200: black beyond a mat of the work's colour.
+Chunk 03: the service, HTTP, MCP and browser tests, and a test that a file
+from before the column gains it. `test_a_patched_entry_keeps_the_feeds_settings`
+planted `settings` in the file by hand. A feed's settings now come from the
+wall's record, so a planted value is overwritten by design. It became
+`…keeps_the_walls_settings`, which sets the mode through the service. The
+claim it holds (a patch keeps the settings) is unchanged. Four tests that pin
+the exact columns of `walls` (`test_catalogue_store.py`, the client and
+display migration tests) gained `mat_mode`. That is the intended schema, and
+an older file gaining it on open is now asserted rather than assumed. Two
+browser tests that count the Walls set-up panels exactly
+(`test_hanging_a_theme.py`, `test_the_walls.py`) count the new *Mat* panel.
+Chunk 04: `test_adequacy.py` checks the box against every no-density mat
+vector and the line at its edges, on landscape and portrait screens. The
+service, browser and MCP tests cover no reported screen, a small work and a
+large one, a later smaller report that leaves the judgement standing, a size
+past the week that is forgotten, a wall with no display, and that nothing
+leaves the schedule.
+
 ## 2026-10-09: Wave 4d — compositing moves to the Player
 
 <!-- prawduct: scope=wave-4d-compositing -->

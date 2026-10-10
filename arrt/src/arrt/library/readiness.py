@@ -32,6 +32,7 @@ from arrt.persistence.records import (
     MatColor,
     Original,
     Rendition,
+    RenditionKind,
     is_current,
     tv_renditions_newest_first,
 )
@@ -88,6 +89,20 @@ class Media:
     content_type: str
 
 
+@dataclass(frozen=True, slots=True)
+class Master:
+    """The work's presentation master as a Player composes it: where to fetch it, and its size.
+
+    The size is the file's, read from it, not the rendition's target: a master's
+    target is the cap, and a Player and Programming's size judgement both need the
+    pixels it actually has.
+    """
+
+    media: Media
+    width: int
+    height: int
+
+
 def media_of(rendition: Rendition) -> Media | None:
     """The render as media, or None if it has no recorded hash or an unservable type."""
     content_type = CONTENT_TYPES.get(PurePosixPath(rendition.relative_path).suffix.lower())
@@ -114,6 +129,12 @@ class PlayableWork:
     #: None when the render's file could not be hashed. The work still plays on
     #: the file channel, which reads `render_path`; a Player on HTTP skips it.
     media: Media | None = None
+    #: What major 2 names: the unmatted master. None while the work has no current
+    #: master, or its file cannot be read, and then major 2 leaves the work out.
+    master: Master | None = None
+    #: The current mat colour as `#rrggbb`, which major 2 sends beside the master
+    #: so the Player can draw the mat. Every playable work has one (`assess`).
+    mat_color: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +162,10 @@ class WorkInputs:
     original: Original | None
     tv_rendition: Rendition | None
     mat_color: MatColor | None
+    #: The current presentation master, hashed, and its pixel size read from its
+    #: file. Either is None when the work has no current master to offer.
+    master: Rendition | None = None
+    master_size: tuple[int, int] | None = None
 
 
 def not_in_catalogue(work_id: str) -> Unplayable:
@@ -229,7 +254,33 @@ def playable_from(inputs: WorkInputs, *, units: Units) -> PlayableWork:
         render_path=inputs.tv_rendition.relative_path,
         media=media_of(inputs.tv_rendition),
         label=label_of(inputs.artwork, inputs.artist, units=units),
+        master=_master_of(inputs),
+        mat_color=inputs.mat_color.hex_rgb if inputs.mat_color is not None else None,
     )
+
+
+def _master_of(inputs: WorkInputs) -> Master | None:
+    if inputs.master is None or inputs.master_size is None:
+        return None
+    media = media_of(inputs.master)
+    if media is None:
+        return None
+    width, height = inputs.master_size
+    return Master(media=media, width=width, height=height)
+
+
+def master_rendition_of(renditions: Sequence[Rendition], original: Original | None) -> Rendition | None:
+    """The work's presentation master, if one is current for the image the work holds.
+
+    A stale master (drawn from an earlier acquisition) is not offered: unlike a
+    stale television render, which `assess` must hold to say "needs
+    regenerating", a missing master only leaves the work off major 2, and
+    preparation makes the current one.
+    """
+    for rendition in renditions:
+        if rendition.kind is RenditionKind.PRESENTATION_MASTER and is_current(rendition, original):
+            return rendition
+    return None
 
 
 def label_of(artwork: Artwork, artist: Artist | None, *, units: Units) -> Mapping[str, str | None]:

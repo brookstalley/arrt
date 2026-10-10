@@ -32,6 +32,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from PIL import Image, UnidentifiedImageError
+
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
@@ -233,6 +235,10 @@ class CatalogueService:
         #: announces, to nobody. The container passes the one Programming is
         #: subscribed to.
         self._events = events if events is not None else LibraryEvents()
+        #: Each hashed picture's pixel size, by its content hash. The hash names
+        #: the bytes, so the size under it never changes, and a picture's header
+        #: is read once per process rather than on every manifest build.
+        self._sizes: dict[str, tuple[int, int]] = {}
         #: Where a render's relative path points, so its bytes can be hashed.
         #: None for a catalogue that never serves media, which records renders
         #: without a content hash and serves none.
@@ -1125,6 +1131,33 @@ class CatalogueService:
         hashed = replace(rendition, content_sha256=content[0], byte_size=content[1])
         store_write(self._store.update_rendition, hashed)
         return hashed
+
+    def pixel_size(self, rendition: Rendition) -> tuple[int, int] | None:
+        """The width and height of a rendition's file, read from its header, or None if it cannot be read.
+
+        Only the header is decoded, so this costs a few kilobytes of the file, not
+        the megabytes of the picture. A master's recorded target is its cap, so
+        this is the only place its real size is known.
+        """
+        if self._art_root is None:
+            return None
+        if rendition.content_sha256 in self._sizes:
+            # A stat, not a decode: a file gone since must still read as no size,
+            # because nothing could serve those bytes any more.
+            if not (self._art_root / rendition.relative_path).is_file():
+                return None
+            return self._sizes[rendition.content_sha256]
+        try:
+            with Image.open(self._art_root / rendition.relative_path) as image:
+                size = image.size
+        except FileNotFoundError:
+            return None
+        except (OSError, UnidentifiedImageError) as exc:
+            log.warning("Could not read the size of %s: %s", rendition.relative_path, exc)
+            return None
+        if rendition.content_sha256 is not None:
+            self._sizes[rendition.content_sha256] = size
+        return size
 
     def read_media(self, content_sha256: str) -> tuple[Rendition, bytes] | None:
         """The bytes of the render with this hash, or None if none is held.

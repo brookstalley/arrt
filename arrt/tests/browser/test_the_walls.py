@@ -231,6 +231,7 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     assert ui.page.locator("section.wall details.wall-setup .panel h3").all_text_contents() == [
         "Not showing (0)",
         "How it rotates",
+        "Mat",
     ]
 
 

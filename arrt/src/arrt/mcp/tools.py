@@ -34,6 +34,7 @@ from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
+from arrt.programming.display import PLAYERS_OWN_MAT, MatMode
 
 _STATUS = Param(
     name="status",
@@ -1557,6 +1558,34 @@ ART_DISPLAY: Final = ToolRecord(
                     "A new wall shows nothing until it is assigned to a client — an installed Player — on one of "
                     "that client's outputs. Each wall has its own manifest, and a client is admitted only to the "
                     "walls assigned to it. Hanging a theme on a new wall disturbs no other wall."
+                ),
+            ),
+        ),
+        Action(
+            name="set_mat_mode",
+            description="Choose how a named wall's Player draws the mat around each work, or leave it to the Player.",
+            example="art_display(action='set_mat_mode', wall_id='<a wall_id>', mode='full')",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="mode",
+                    type="string",
+                    description=(
+                        "none (the work on black), proportional (a mat of the work's own shape, black beyond), full "
+                        f"(mat colour to every edge), or {PLAYERS_OWN_MAT} (no choice: the Player's own)."
+                    ),
+                    required=True,
+                    choices=(*(mode.value for mode in MatMode), PLAYERS_OWN_MAT),
+                ),
+            ),
+            tips=(
+                (
+                    "The colour is always the work's own; only how much of the screen it fills is chosen here. "
+                    "How wide the mat is stays the Player's, because only it knows its screen."
+                ),
+                (
+                    "Reaches walls on major 2 (Players that draw their own mat). A wall still on major 1 shows the "
+                    "render the server matted, and this changes nothing there."
                 ),
             ),
         ),

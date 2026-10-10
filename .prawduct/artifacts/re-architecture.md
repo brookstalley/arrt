@@ -297,9 +297,11 @@ Today each Player shuffles its own list. Three walls therefore cannot avoid
 showing the same work at once, and cannot change together. From major 2,
 Programming publishes a **time-anchored schedule** for each wall: this work from
 14:00 until 14:30, then that one, covering a horizon of three days (the owner, 2026-10-08). Programming
-computes all walls together, so "no work on two walls at once", "change the
-whole house together" and "spread this playlist across rooms" become central
-calculations. The Player follows the clock from its cache, so an unreachable
+computes each wall against every other wall's published schedule, so "no work
+on two walls at once", "change the whole house together" and "spread this
+playlist across rooms" become central calculations. *(Wave 4e builds one wall
+at a time against the others' published slots, so a republish never moves a
+wall nobody touched: `build-plan-wave-4e-schedule.md`.)* The Player follows the clock from its cache, so an unreachable
 server still never blanks a wall. It just runs to the end of the horizon.
 
 - **The dark hours are gaps in the schedule.** That settles who owns the
@@ -660,7 +662,7 @@ whoever is using it) keeps its interim rule until power control is built: no
 code that runs unattended sends a power key until the transitions are measured.
 
 **Agents.** Through wave 5, run one Claude session per plane in this repo, so
-prawduct's hooks and gates apply (amended below; it said one session). Parallel agents in worktrees are fine inside a wave. After
+prawduct's hooks and gates apply. Parallel agents in worktrees are fine inside a wave. After
 the split, run one session per repo, with the contract as their only shared
 ground: a player agent that needs a field files it against the server repo, not
 the other way round.

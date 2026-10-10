@@ -135,8 +135,32 @@ def problem_with(document: object) -> str | None:
     schema = document.get("schema")
     if schema is not None and (not isinstance(schema, dict) or schema.get("major") != 1):
         return "this plane reads heartbeat schema major 1."
+    if "capabilities" in document:
+        problem = _problem_with_screen(document["capabilities"])
+        if problem is not None:
+            return problem
     if "display_state" in document:
         return _problem_with_display_state(document["display_state"])
+    return None
+
+
+def _problem_with_screen(capabilities: object) -> str | None:
+    """Minor 2's `capabilities.screen`, the one part of the capabilities this server reads.
+
+    Refused rather than dropped: Programming judges which works are too small
+    for the wall from it, and a size it quietly ignored would leave that
+    judgement unmade with nothing saying why. The rest of the capabilities is
+    not checked here, because nothing here reads it yet.
+    """
+    if not isinstance(capabilities, dict):
+        return "'capabilities' is an object."
+    screen = capabilities.get("screen")
+    if not isinstance(screen, dict):
+        return "'capabilities.screen' is an object of 'width_px' and 'height_px'."
+    for key in ("width_px", "height_px"):
+        value = screen.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            return f"'capabilities.screen.{key}' is a whole number of pixels, at least 1."
     return None
 
 

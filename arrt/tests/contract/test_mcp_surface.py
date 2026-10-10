@@ -433,6 +433,7 @@ _ACTS_ON_ONE_WALL = {
     ("art_display", "sync"),
     ("art_display", "show_now"),
     ("art_display", "next"),
+    ("art_display", "set_mat_mode"),
     ("art_display", "assign_wall"),
     ("art_display", "unassign_wall"),
 }

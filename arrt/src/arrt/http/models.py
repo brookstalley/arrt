@@ -958,6 +958,13 @@ class WallLabelOut(BaseModel):
     output: str
 
 
+class ScreenSizeOut(BaseModel):
+    """A screen's size in pixels, as a Player reported it."""
+
+    width_px: int
+    height_px: int
+
+
 class WallOut(BaseModel):
     """A place where art hangs, and what is hanging there.
 
@@ -993,6 +1000,18 @@ class WallOut(BaseModel):
     labels: list[WallLabelOut]
     #: What the wall's screen is doing now, as far as the server can say.
     display_state: DisplayStateOut
+    #: How the wall's Player draws the mat (`none`, `proportional`, `full`), or
+    #: null while the curator has left it to the Player.
+    mat_mode: str | None = None
+    #: The works on this wall too small for the largest screen its Player
+    #: reported recently. Read it with the two fields below: it is empty both
+    #: when every work is big enough and when nothing was judged.
+    too_small: list[str] = []
+    #: The screen the judgement was made against, or null when none was made.
+    sizes_judged_against: ScreenSizeOut | None = None
+    #: Why no judgement was made (`no_display`, `no_screen_reported`, `no_feed`),
+    #: or null when one was.
+    sizes_unjudged: str | None = None
 
 
 class ClientWallOut(BaseModel):
@@ -1145,6 +1164,14 @@ class ThemeDetailOut(BaseModel):
     #: `theme.shuffle` alone is null when it inherits, which says nothing about
     #: whether the order on this page decides what the wall shows first.
     shuffled: bool
+    #: For each work too small for a wall hanging this theme, those walls'
+    #: names (Programming's judgement from each wall's reported screen). A work
+    #: absent here was judged fine, or there was nothing to judge it against.
+    too_small_for: dict[str, list[str]] = {}
+    #: Each wall hanging the theme that judged nothing, by name, with why
+    #: (`no_display`, `no_screen_reported`, `no_feed`). A wall absent here and
+    #: from every list above judged all of the theme's works big enough.
+    sizes_unjudged: dict[str, str] = {}
 
 
 class ManifestEntryOut(BaseModel):
@@ -1974,6 +2001,12 @@ class AssignWall(BaseModel):
 
     client_id: str
     output: str
+
+
+class SetMatMode(BaseModel):
+    """How the wall's Player draws the mat: `none`, `proportional` or `full`, or null to leave it to the Player."""
+
+    mode: str | None
 
 
 class AssignDisplay(BaseModel):

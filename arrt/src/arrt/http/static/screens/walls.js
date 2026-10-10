@@ -419,6 +419,12 @@ function nowShowing(wall, now) {
       work.date_created || work.medium
         ? el("p", { class: "muted wall-now-facts", text: [work.date_created, work.medium].filter(Boolean).join(" · ") })
         : null,
+      // Programming's judgement against the screen this wall's Player reports
+      // (`programming/adequacy.py`). Said, never hidden: a postage stamp in a
+      // big mat looks like a fault, and the reason is the picture's size.
+      (wall.too_small || []).includes(work.artwork_id)
+        ? el("p", { class: "note wall-now-small", text: `Too small for ${wall.name}: it fills less than half of the space inside the mat. A larger scan would fix it.` })
+        : null,
     ]),
   ]);
 }
@@ -782,8 +788,8 @@ const EXCLUSION_WORDS = {
   kept_off_every_wall: "Kept off every wall",
 };
 
-/* How the wall is set up: what of its theme is not reaching it, and how it
- * rotates. Behind a disclosure, because the card is about the work on the wall;
+/* How the wall is set up: what of its theme is not reaching it, how it
+ * rotates, and how its mat is drawn. Behind a disclosure, because the card is about the work on the wall;
  * this is what to open when the wall is not doing what was expected. */
 function setup(wall, manifest) {
   return el("details", { class: "wall-setup" }, [
@@ -810,5 +816,66 @@ function setup(wall, manifest) {
         ["Order", manifest.shuffle ? "shuffled" : "as curated"],
       ]),
     ]),
+    matPanel(wall),
+  ]);
+}
+
+/* The mat's modes in the curator's words (`feeds-and-players.md` § Mat modes),
+ * in the order the picker offers them: the value, the picker's words, and the
+ * words the confirmation says. The empty value is no choice at all: the
+ * Player draws its own default, as it would for a public channel. */
+const MAT_CHOICES = [
+  ["", "Player's own choice", "left to its Player"],
+  ["proportional", "Mat around the work", "around the work"],
+  ["full", "Mat to the edges", "to the edges"],
+  ["none", "No mat", "none"],
+];
+
+/* How the wall's Player draws the mat. The colour is always the work's own and
+ * the width the Player's, so this chooses only how much of the screen the mat
+ * fills. It reaches a wall whose Player composes its own picture (major 2); a
+ * Player still on major 1 shows the render the server matted, and the note says
+ * so rather than letting the choice look ignored. */
+function matPanel(wall) {
+  const pickerId = `mat-${wall.wall_id}`;
+  const picker = el("select", { id: pickerId });
+  // Said here and the panel left as it is: nothing else on the card changes, and
+  // a repaint would close the disclosure the curator just worked in.
+  const said = el("p", { class: "wall-said", role: "status" });
+  for (const [value, words] of MAT_CHOICES) {
+    picker.append(el("option", { value, text: words, selected: (wall.mat_mode || "") === value }));
+  }
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Mat" }),
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: pickerId, text: `Mat on ${wall.name}` }), picker]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Set the mat",
+        "aria-label": `Set the mat on ${wall.name}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `set the mat on ${wall.name}`,
+            () =>
+              api(`/api/walls/${encodeURIComponent(wall.wall_id)}/mat`, {
+                method: "PUT",
+                body: JSON.stringify({ mode: picker.value || null }),
+              }),
+            {
+              then: (answer) => {
+                const [, , words] = MAT_CHOICES.find(([value]) => value === (answer.mat_mode || ""));
+                said.textContent = `Mat on ${wall.name}: ${words}.`;
+              },
+            },
+          ),
+      }),
+    ]),
+    said,
+    el("p", {
+      class: "muted",
+      text: "The mat is always the work's own colour. A Player that draws its own mat follows this; one that shows the server's render keeps the mat it was sent.",
+    }),
   ]);
 }

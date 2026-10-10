@@ -180,9 +180,10 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     assert sorted(ui.page.locator("h2").all_text_contents()) == ["Study", "The wall"]
     assert ui.page.locator("h2.wall-title").count() == 2
     assert ui.page.locator(".panel h2").count() == 0
-    # Two per wall: the setup's two panels.
-    assert ui.page.locator(".panel h3").count() == 4
-    assert ui.page.locator("section.wall").nth(0).locator(".panel h3").count() == 2
+    # Three per wall: the setup's panels for what is not showing, how it
+    # rotates, and its mat.
+    assert ui.page.locator(".panel h3").count() == 6
+    assert ui.page.locator("section.wall").nth(0).locator(".panel h3").count() == 3
     # And with nothing empty there is no take-down note: a caption with nothing
     # to caption. This is the other half of the guard the sibling test above
     # exercises, and without it the guard could be deleted with the suite green.

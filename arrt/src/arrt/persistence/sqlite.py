@@ -249,7 +249,11 @@ CREATE TABLE IF NOT EXISTS walls (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL UNIQUE,
     created_at       TEXT NOT NULL,
-    display_id       TEXT REFERENCES displays(id)
+    display_id       TEXT REFERENCES displays(id),
+    -- How the wall's Player draws the mat, or NULL for its own default. The
+    -- values are checked by the service: a CHECK here would bind new files
+    -- only, since an added column cannot carry one onto an older file.
+    mat_mode         TEXT
 );
 
 -- One wall per display, since one screen shows one picture. The service refuses
@@ -364,6 +368,22 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 );
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
+
+-- Each screen size a display's Player reported, and when it last did, so
+-- Programming judges a work against the largest size reported recently and not
+-- the latest (`player-contract.md` § The heartbeat, minor 2: a window resized
+-- smaller must not make every work suddenly fine). Programming's own: the
+-- display is a Programming record, and no catalogue table is named. The sizes
+-- go with their display (removing a client, folding a place display into the
+-- Frame it turned out to be), so no path that deletes a display has to know
+-- they exist.
+CREATE TABLE IF NOT EXISTS reported_screens (
+    display_id        TEXT NOT NULL REFERENCES displays(id) ON DELETE CASCADE,
+    width_px          INTEGER NOT NULL,
+    height_px         INTEGER NOT NULL,
+    last_reported_at  TEXT NOT NULL,
+    PRIMARY KEY (display_id, width_px, height_px)
+);
 
 -- Every work that has been offered the theme it was accepted into (the default,
 -- or the theme its Get named), joined or not, so that a work is offered once:
@@ -1067,6 +1087,24 @@ class SqliteCatalogue(TableAdapter):
     def offered_work_ids(self) -> set[str]:
         return {row["artwork_id"] for row in self._store.scan("default_theme_offers")}
 
+    # -- reported screens -----------------------------------------------------
+
+    def record_screen(self, display_id: str, width_px: int, height_px: int, reported_at: datetime) -> None:
+        self._store.upsert(
+            "reported_screens",
+            {"display_id": display_id, "width_px": width_px, "height_px": height_px, "last_reported_at": to_iso(reported_at)},
+            pk=("display_id", "width_px", "height_px"),
+        )
+
+    def reported_screens(self, display_id: str) -> Sequence[tuple[int, int, datetime]]:
+        return [
+            (row["width_px"], row["height_px"], require_datetime(row["last_reported_at"], "last_reported_at"))
+            for row in self._store.scan("reported_screens", {"display_id": display_id})
+        ]
+
+    def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
+        self._store.delete("reported_screens", {"display_id": display_id, "width_px": width_px, "height_px": height_px})
+
     # -- walls ----------------------------------------------------------------
 
     def add_wall(self, wall: Wall) -> None:
@@ -1391,6 +1429,7 @@ def _wall_row(wall: Wall) -> dict[str, Any]:
         "name": wall.name,
         "created_at": to_iso(wall.created_at),
         "display_id": wall.display_id,
+        "mat_mode": wall.mat_mode,
     }
 
 
@@ -1579,6 +1618,7 @@ def _wall(row: Mapping[str, Any]) -> Wall:
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),
         display_id=row["display_id"],
+        mat_mode=row["mat_mode"],
     )
 
 
