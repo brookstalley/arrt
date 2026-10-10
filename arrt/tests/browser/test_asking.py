@@ -9,6 +9,7 @@ import threading
 
 import pytest
 from fakes import FakeRegistry
+from payloads import a_run
 from scripted_model import HeldModel, ScriptedModel, calls, says, unpriced
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
@@ -25,6 +26,7 @@ from arrt.library.registry import (
     RegistryWorkMatch,
     TopicKind,
 )
+from arrt.persistence.discovery_records import RunStatus
 
 pytestmark = pytest.mark.browser
 
@@ -131,6 +133,56 @@ def test_a_reply_shows_what_it_looked_at_its_answer_its_cards_and_its_cost(ui, a
     assert "Pieter Brueghel the Elder" in cards.nth(1).inner_text()
     assert cards.nth(1).get_by_role("button", name="more like this: Pieter Brueghel the Elder").count() == 1
     assert turn.locator(".ask-ending").inner_text() == "This reply cost under $0.01."
+
+
+def test_a_work_card_gets_into_the_default_theme_with_nothing_beside_its_get(ui, services, ask_model):
+    """No *Add to* and no tier on a poster (the owner, 2026-10-09): the Get sends
+    no `theme_id`, and the sentence it leaves names where the work went. The
+    default is not called *All works* here, so the name is read, not assumed."""
+    services.display.make_default(services.display.add_theme(name="Everyday").id)
+    bodies = []
+
+    def answer(route):
+        bodies.append(json.loads(route.request.post_data))
+        run = a_run(run_id="get-from-ask", kind="get", intent=None, status=RunStatus.RESOLVING_IMAGES.value)
+        body = {"run": run.model_dump(mode="json"), "skipped": []}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    ui.page.route("**/api/gets", answer)
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Something wintry")
+    card = ui.page.locator(".ask-card[data-ask-card='work']")
+    card.get_by_role("button", name="Get this work").wait_for()
+
+    assert card.locator("select").count() == 0
+    assert "Add to" not in card.inner_text()
+    assert card.locator(".badge-tier").count() == 0
+    assert "Cost" not in card.inner_text()
+
+    card.get_by_role("button", name="Get this work").click()
+    card.locator(".get-status a:text-is('Open the Get')").wait_for()
+    assert bodies == [{"qids": [HUNTERS]}], "the default is the absence of a theme_id"
+    assert " ".join(card.locator(".get-status").inner_text().split()) == "Getting 1 work into Everyday. Open the Get"
+
+
+def test_a_work_card_whose_themes_cannot_be_read_starts_nothing_and_says_why(ui, ask_model):
+    """With no choice on the card, a Get must still not go to a default it could not find."""
+    bodies = []
+    ui.page.route("**/api/gets", lambda route: bodies.append(route.request.post_data))
+    ui.serve("**/api/themes", (500, {"error": "The theme listing failed."}))
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+
+    ask(ui, "Something wintry")
+    card = ui.page.locator(".ask-card[data-ask-card='work']")
+    card.get_by_role("button", name="Get this work").click()
+
+    ui.page.wait_for_selector("text=The theme listing failed.")
+    assert bodies == []
 
 
 def test_a_reply_with_a_step_that_reported_no_cost_says_so(ui, ask_model):
@@ -429,8 +481,9 @@ def _affinities(ui) -> dict:
 def test_a_card_offers_two_reactions_and_not_this_closes_the_door(ui, ask_model):
     """Two reactions, not three: a reply can name fifteen artists, and three
     buttons a card made the grid buttons rather than pictures (the owner,
-    2026-10-09). *Tell me more*, cool and still open, is offered on Taste's rows,
-    where `test_taste_and_reactions.py` holds it apart from *not this*."""
+    2026-10-09). *Tell me more*, cool and still open, is offered on the Artist
+    page and Taste's rows, where `test_taste_and_reactions.py` holds it apart
+    from *not this*."""
     ask_model.replies += [calls(SEARCH), says(ANSWER)]
     ui.open("#discover")
     ui.page.wait_for_selector("#ask-words")

@@ -117,6 +117,11 @@ function paint(taste, generation) {
   render(generation, ...panels);
 }
 
+/* "a or b", "a, b or c": the controls a line names, in its order. */
+function either(parts) {
+  return parts.flatMap((part, index) => (index === 0 ? [part] : [index === parts.length - 1 ? " or " : ", ", part]));
+}
+
 /* Every way a judgment gets here, each named by the words on its control.
  *
  * Said on the empty page and the full one alike, because a curator wondering
@@ -126,11 +131,6 @@ function paint(taste, generation) {
  * *Not this* and *Tell me more*. The corrections on this page are listed too, since a correction
  * records a judgment of its own (`core/taste.js`). An assistant writes through
  * `art_taste`, which records what it read out of something the curator said. */
-/* "a or b", "a, b or c": the controls a line names, in its order. */
-function either(parts) {
-  return parts.flatMap((part, index) => (index === 0 ? [part] : [index === parts.length - 1 ? " or " : ", ", part]));
-}
-
 function howTasteIsRecorded() {
   const control = (words) => el("em", { text: words });
   return el("div", { class: "taste-help" }, [
