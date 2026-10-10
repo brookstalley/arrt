@@ -230,9 +230,9 @@ comes from the thing itself).
 ## Status
 
 - [x] Chunk 01: The label's definition leaves major 1
-- [ ] Chunk 02: The server stops publishing major 1, and the directive goes
+- [x] Chunk 02: The server stops publishing major 1, and the directive goes
 - [ ] Chunk 03: The server stops composing for a panel
-- [ ] Chunk 04: The Player reads only major 2
+- [x] Chunk 04: The Player reads only major 2
 - [ ] Chunk 05: Cutover on the wall, and the records
 
 Context: branched from develop at the merge of #345 (wave 4e).
@@ -296,8 +296,10 @@ Context: branched from develop at the merge of #345 (wave 4e).
   words), `.env.example`, `arrt/tools/mat_masters.py` and `arrt/tests/contract/test_mat_corpus.py`
   (the corpus composes with the server compositor today); `arrt/tests/conftest.py`
   (`ready_work`) and the tests it feeds.
-- **First:** switch `ready_work` to a master-backed work and run the suite, to
-  count the breakage before any production code moves.
+- **First:** take the TV render off `ready_work` (02 already gave it a master)
+  and run the suite, to count the breakage before any production code moves.
+- **Carried from 02's review:** one HTTP test that Skip on a wall whose feed
+  holds nothing answers 400 with the refusal (rev-20261010T141800Z-bce77007).
 - **What:** readiness and `PlayableWork` rest on the master. Preparation stops
   composing; a mat colour change no longer re-renders anything (the colour
   rides the feed). The two backfills that existed only for the TV render go.
