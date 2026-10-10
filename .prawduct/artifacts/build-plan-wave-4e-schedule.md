@@ -179,7 +179,7 @@ from `programming/display.py` and its callers in `http/api.py`,
 
 ## Status
 
-- [ ] Chunk 01: The schedule
+- [x] Chunk 01: The schedule
 - [ ] Chunk 02: The major 2 feed, published and served
 - [ ] Chunk 03: A wall's mat mode
 - [ ] Chunk 04: Too small for this wall
