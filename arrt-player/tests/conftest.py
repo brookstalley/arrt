@@ -6,15 +6,17 @@ machine and tells you nothing when it does. Time is a parameter here, so a
 three-minute rotation interval is asserted in microseconds.
 """
 
+import asyncio
 import json
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from fakes import FakeTv
 from hypothesis import settings as hypothesis_settings
+from PIL import Image
 
 from arrt_player.config import CACHED_MANIFEST_FILENAME, ClientSettings, FrameSettings, PanelSettings, Settings
 from arrt_player.displays.frame import frame_wall
@@ -143,6 +145,9 @@ def frame_settings(cache_dir: Path) -> FrameSettings:
         tv_connect_timeout_seconds=30.0,
         tv_retry_min_seconds=5.0,
         tv_retry_max_seconds=300.0,
+        tv_panel_width_px=3840,
+        tv_panel_height_px=2160,
+        tv_panel_diagonal_inches=50.0,
     )
 
 
@@ -296,3 +301,25 @@ def write_manifest(wall_dir: Path, document: object, *, wall_id: str = WALL_ID) 
     temporary = target.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(document), encoding="utf-8")
     temporary.replace(target)
+
+
+def a_master(path: Path, colour: tuple[int, int, int] = (200, 30, 30), size: tuple[int, int] = (300, 200)) -> Path:
+    """A presentation master the compositor can decode: a real JPEG, small enough to compose in milliseconds."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", size, colour).save(path, format="JPEG", quality=95)
+    return path
+
+
+async def tick_until(tick: Callable[[], Awaitable[object]], done: Callable[[], bool], *, passes: int = 200) -> None:
+    """Run passes until `done`, letting a composition's thread finish between them.
+
+    The wall composes in the background and never waits for it, so a test of
+    what reaches the display runs the loop as the wall does: pass after pass,
+    with time for the thread in between. Fails rather than passing on a budget.
+    """
+    for _ in range(passes):
+        await tick()
+        if done():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"not done after {passes} passes")

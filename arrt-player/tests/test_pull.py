@@ -22,19 +22,22 @@ from pathlib import Path
 import aiohttp
 import pytest
 from aiohttp.test_utils import TestServer
-from conftest import WALL_ID
+from conftest import WALL_ID, tick_until
+from fakes import RecordingOutput
+from PIL import Image
 from server_double import CONTRACT, ROUTES, TOKEN
 from server_double import MANIFEST_FIXTURE as FIXTURE
 from server_double import ServerDouble as Stub
 
-from arrt_player import pull as pull_module
 from arrt_player.displays.frame import frame_wall
+from arrt_player.displays.screen import screen_wall
 from arrt_player.manifest import REQUESTED_MAJORS, Feed, Watcher
 from arrt_player.pull import (
     CLIENT_HEARTBEAT_ROUTE,
     CLIENT_ROUTE,
     ETAG_FILENAME,
     HEARTBEAT_ROUTE,
+    HIGHER_MAJOR_SECONDS,
     LABEL_ROUTE,
     MANIFEST_MAJOR_ROUTE,
     MEDIA_DIRNAME,
@@ -566,9 +569,8 @@ async def test_the_daemon_writes_its_heartbeat_into_the_walls_directory_where_th
 
 
 @pytest.fixture
-def two_major_pull(http_settings, monkeypatch):
-    """A Pull that asks for majors 2 and 1, as one will once this Player composes."""
-    monkeypatch.setattr(pull_module, "REQUESTED_MAJORS", (1, 2))
+def two_major_pull(http_settings):
+    """A Pull as this Player builds one, asking for majors 2 and 1 since it composes; nothing patched."""
     (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
     return Pull(http_settings)
 
@@ -579,6 +581,11 @@ async def test_this_player_asks_for_the_majors_it_reports_and_no_other(pull, stu
     await pull.cycle(session)
 
     assert stub.majors_requested == list(REQUESTED_MAJORS)
+
+
+def test_this_player_asks_for_major_2_first_now_that_it_composes():
+    """Asking for major 2 before the compositor existed would have put a bare master on the wall."""
+    assert REQUESTED_MAJORS == (2, 1)
 
 
 async def test_a_major_the_server_does_not_publish_falls_back_to_the_next_one_down(two_major_pull, stub, session, http_settings):
@@ -617,3 +624,94 @@ async def test_a_refused_token_stops_at_the_first_major(two_major_pull, stub, se
 
     assert stub.majors_requested == [2]
     assert _cached(http_settings) is None
+
+
+class _Ticking:
+    """Elapsed time that moves only when the test moves it."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+async def test_a_wall_served_a_lower_major_asks_for_the_higher_one_once_a_minute(http_settings, stub, session):
+    """Until the server publishes major 2, asking for it every poll doubles the requests and logs a 404 a second."""
+    clock = _Ticking()
+    pull = Pull(http_settings, monotonic=clock)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    stub.publish("w1")
+
+    await pull.cycle(session)
+    clock.now += 1.3
+    await pull.cycle(session)
+    clock.now += HIGHER_MAJOR_SECONDS - 1.3 - 0.7
+    await pull.cycle(session)
+    assert stub.majors_requested == [2, 1, 1, 1], "the higher major was asked for again before a minute had passed"
+
+    clock.now += 1.4
+    await pull.cycle(session)
+    assert stub.majors_requested[4:] == [2, 1]
+
+
+async def test_a_major_that_stops_answering_sends_the_wall_back_to_the_highest(http_settings, stub, session):
+    """Served major 1, and the server now publishes only major 2: found on the next poll, not a minute later."""
+    clock = _Ticking()
+    pull = Pull(http_settings, monotonic=clock)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    stub.publish("w1")
+    await pull.cycle(session)
+
+    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    clock.now += 1.3
+    await pull.cycle(session)
+
+    assert stub.majors_requested == [2, 1, 1, 2]
+    assert "works" in _cached(http_settings)
+
+
+async def test_a_wall_served_the_highest_major_asks_only_for_it(http_settings, stub, session):
+    clock = _Ticking()
+    pull = Pull(http_settings, monotonic=clock)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+
+    for _ in range(3):
+        await pull.cycle(session)
+        clock.now += 1.3
+
+    assert stub.majors_requested == [2, 2, 2]
+
+
+async def test_a_wall_the_server_stops_publishing_for_forgets_which_major_answered(http_settings, stub, session):
+    """Nothing answering is nothing to start from: the next poll asks from the top once, not the old major first."""
+    clock = _Ticking()
+    pull = Pull(http_settings, monotonic=clock)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    stub.publish("w1")
+    await pull.cycle(session)
+
+    stub.manifest = None
+    clock.now += 1.3
+    await pull.cycle(session)
+    clock.now += 1.3
+    await pull.cycle(session)
+
+    assert stub.majors_requested == [2, 1, 1, 2, 1, 2, 1]
+
+
+async def test_a_feed_pulled_from_the_server_reaches_a_screen_composed(two_major_pull, stub, session, http_settings, clock):
+    """End to end: v2 asked for and served, its masters cached, each composed for the screen, and the slot's work drawn."""
+    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    assert await two_major_pull.cycle(session) is True
+    output = RecordingOutput(screen=(1280, 720))
+    wall = screen_wall(wall=http_settings, output=output, watcher=_watcher(http_settings), clock=clock.as_clock())
+
+    await tick_until(wall.tick, lambda: len(output.shown) == 1)
+
+    (shown,) = output.shown
+    assert shown.parent == http_settings.composed_root, "the master itself was drawn, not its composition"
+    with Image.open(shown) as picture:
+        assert picture.size == (1280, 720)
+    assert stub.majors_requested == [2]

@@ -41,6 +41,8 @@ import hashlib
 import json
 import logging
 import os
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from http import HTTPStatus
@@ -78,6 +80,15 @@ CLIENT_ETAG_FILENAME: Final[str] = ".client.etag"
 BACKOFF_START_SECONDS: Final[float] = 2.0
 BACKOFF_MAX_SECONDS: Final[float] = 60.0
 
+#: How often a wall served a lower major asks again for the higher ones
+#: (`player-contract.md` § The cutover: a Player "may keep the major that last
+#: answered and ask for a higher one less often than it polls"). The poll is
+#: about a second, and until the server publishes major 2 for a wall every
+#: higher request is a 404: asking each poll would double the requests and put
+#: a 404 a second in the server's log. A minute is how long a wall takes to
+#: notice a newly published major.
+HIGHER_MAJOR_SECONDS: Final[float] = 60.0
+
 _UNREACHABLE: Final = (aiohttp.ClientError, asyncio.TimeoutError, OSError)
 
 
@@ -95,8 +106,19 @@ class _Poll(Enum):
 class Pull:
     """Keeps one wall's directory holding the newest manifest this Player can fully render."""
 
-    def __init__(self, settings: WallSettings, *, interval_seconds: float | None = None) -> None:
+    def __init__(
+        self,
+        settings: WallSettings,
+        *,
+        interval_seconds: float | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
         self._settings = settings
+        self._monotonic = monotonic
+        #: Which of `_manifest_urls` last answered with something other than a
+        #: 404, and when the higher ones were last asked.
+        self._answering: int | None = None
+        self._higher_asked_at: float | None = None
         self._server = settings.server_url
         self._token = settings.client_token
         self._cache = settings.wall_dir
@@ -272,12 +294,32 @@ class Pull:
         this wall and stops the walk: a refused token is refused at every major,
         and asking the next would only say so again.
         """
-        for url in self._manifest_urls:
-            async with session.get(url, headers=headers) as response:
+        start = self._first_to_ask()
+        status, body, served_etag = await self._walk(session, headers, start)
+        if status == HTTPStatus.NOT_FOUND and start > 0:
+            # The major that was answering has stopped; a higher one may have
+            # taken its place, so every major is asked now rather than in a minute.
+            status, body, served_etag = await self._walk(session, headers, 0)
+        return status, body, served_etag
+
+    def _first_to_ask(self) -> int:
+        """Where this poll starts: at the major last answering, unless the higher ones are due to be asked again."""
+        now = self._monotonic()
+        if self._answering and self._higher_asked_at is not None and now - self._higher_asked_at < HIGHER_MAJOR_SECONDS:
+            return self._answering
+        self._higher_asked_at = now
+        return 0
+
+    async def _walk(self, session: aiohttp.ClientSession, headers: dict[str, str], start: int) -> tuple[int, bytes, str | None]:
+        """Ask each major from `start` down, stopping at the first answer that is not a 404."""
+        self._answering = None
+        for index in range(start, len(self._manifest_urls)):
+            async with session.get(self._manifest_urls[index], headers=headers) as response:
                 status = response.status
                 body = await response.read() if status == HTTPStatus.OK else b""
                 served_etag = response.headers.get("ETag")
             if status != HTTPStatus.NOT_FOUND:
+                self._answering = index
                 break
         return status, body, served_etag
 

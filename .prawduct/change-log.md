@@ -66,6 +66,55 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-09: Wave 4d — compositing moves to the Player
+
+<!-- prawduct: scope=wave-4d-compositing -->
+
+**Why:** The fourth of wave 4's seven plans (`build-plan-wave-4d-compositing.md`).
+A major 2 work arrives as an unmatted presentation master, and until now
+nothing on the Player could draw its mat, so the Player read major 2 but never
+asked for it. This plan gives it a compositor and the Frame's geometry, then
+asks for major 2 first. The owner ruled the same day that until the repository
+split two sessions may run, one per plane (`re-architecture.md` § Agents).
+
+**What:**
+- **The compositor** (`arrt-player/src/arrt_player/compose.py`): the
+  contract's layout, held exactly to every `contract/vectors/mat-geometry.json`
+  vector, then the work drawn at that rectangle in a work-shaped mat (or
+  `full`, or `none`) on black, never enlarged. A work whose mat colour cannot be
+  read is drawn as `none`. A composed file is named by a key over everything
+  that moves a pixel.
+- **The Player's geometry** (`config.py`): the Player reads `TV_PANEL_*` for
+  the Frame and `MAT_*` for every wall, under the server's names, and names
+  them in its startup line. **`test_config.py`'s guard "the plane holds no fact
+  about the television's size" is replaced by its opposite**, because
+  `feeds-and-players.md` ruling 7 moved that fact here.
+- **The wall composes** (`programmes/schedule.py`): each work the feed names
+  is composed in a thread, one at a time, the slot's work first, and a work
+  not composed yet is passed over for the pass. A master that will not decode
+  costs its work; a failed write is retried after five minutes. A tidy removes
+  compositions no work needs, and keeps the picture on the wall until another
+  replaces it. A switch of major calls `Programme.entered()`, so the programme
+  switched to puts its own picture up. **The rotation now takes the wall on
+  the switching pass**, not at its next interval (an inference, put to the
+  owner).
+- **Asking for major 2:** `REQUESTED_MAJORS` is `(2, 1)`, and the Frame writes
+  `capabilities` with its configured panel. A wall served a lower major asks
+  for the higher one about once a minute, not every poll, and at once if the
+  major it was served stops answering. **Tests whose assertions changed by
+  design:** the major 2 tests now assert that the composition reaches the
+  display; the Frame's heartbeat test now asserts its screen and `[2, 1]`; the
+  pull's `two_major_pull` fixture no longer patches the constant.
+- **The contract:** `player-contract.md` § The cutover no longer names a
+  Frame as a display that cannot say its size, and says how often this Player
+  asks for a higher major.
+
+**Deploying it:** set the Frame's real `TV_PANEL_*` (and `MAT_*`, if they
+differ from the defaults) in the Pi's `.env` before restarting.
+`.env.example` says which plane reads which key. No server change is needed:
+Arrt answers `v2` with 404 until 4e, and the walls run major 1 as before.
+Rolling back is checkout and restart; the `composed/` directory under each
+wall can be deleted at any time.
 ## 2026-10-09: A work card's Get in Ask carries no theme picker and no tier
 
 <!-- prawduct: scope=ask-card-get-trim -->

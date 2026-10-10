@@ -1,8 +1,11 @@
 """What a wall's programmes remember about what is on it, wherever the display keeps that.
 
-Shared by every programme, so a wall switched between majors never re-shows the
-work already up for want of knowing it, and kept apart from any one programme so
-that deleting major 1's rotation (wave 4g) takes nothing the schedule needs.
+Shared by every programme, so a wall switched between majors knows which work is
+up, and kept apart from any one programme so that deleting major 1's rotation
+(wave 4g) takes nothing the schedule needs. **It names the work, not the
+picture**: each major draws a work its own way (major 1 the server's composed
+render, major 2 this Player's composition), so a programme switched to puts its
+own picture of that work up (`Programme.entered`).
 """
 
 from typing import Protocol

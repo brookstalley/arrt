@@ -276,12 +276,16 @@ class TestTheStartupLine:
         assert "not stated" in line
         assert "draws none" in line, f"the line does not say what the absence costs: {line}"
 
-    def test_it_holds_no_fact_about_the_television_s_physical_size(self, cache_dir: Path):
-        """Curation composes the mat into the render, so this plane never needs the TV's size."""
-        settings = load(an_environment(cache_dir, TV_PANEL_DIAGONAL_INCHES="50", TV_PANEL_WIDTH_PX="3840"))
+    def test_it_names_the_frames_geometry_and_the_mat_it_draws_from(self, cache_dir: Path):
+        """The Player composes for the Frame, so a wrong diagonal must be one journal line away."""
+        lines = repr(
+            load(
+                an_environment(cache_dir, TV_PANEL_DIAGONAL_INCHES="55", TV_PANEL_WIDTH_PX="1920", TV_PANEL_HEIGHT_PX="1080")
+            ).startup_lines()
+        )
 
-        assert not hasattr(settings.frame, "tv_panel_diagonal_inches")
-        assert "3840" not in repr(settings.startup_lines())
+        assert "1920x1080 at 55.0 in" in lines
+        assert "1.5 in, bottom x1.15" in lines
 
     def test_the_pairing_token_is_reported_as_a_path_and_never_as_its_contents(self, cache_dir: Path, tmp_path: Path):
         token = tmp_path / "token_file"
@@ -301,3 +305,54 @@ class TestTheStartupLine:
             assert "the-clients-token" not in said
         assert "the-clients-token" not in repr(on_the_frame.startup_lines())
         assert "the-clients-token" not in repr(wall.wall_lines())
+
+
+class TestTheGeometryThePlayerComposesFor:
+    """The Frame's size and the mat's proportions, which moved here from the server (`feeds-and-players.md` ruling 7)."""
+
+    def test_unstated_they_are_the_servers_defaults(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir))
+
+        assert (settings.frame.tv_panel_width_px, settings.frame.tv_panel_height_px) == (3840, 2160)
+        assert settings.frame.tv_panel_diagonal_inches == 42.0
+        assert (settings.mat_width_inches, settings.mat_bottom_weight) == (1.5, 1.15)
+
+    def test_the_frame_wall_composes_for_the_configured_panel_at_its_density(self, cache_dir: Path):
+        settings = load(
+            an_environment(
+                cache_dir,
+                TV_PANEL_WIDTH_PX="1920",
+                TV_PANEL_HEIGHT_PX="1080",
+                TV_PANEL_DIAGONAL_INCHES="43",
+                MAT_WIDTH_INCHES="2",
+                MAT_BOTTOM_WEIGHT="1.3",
+            )
+        )
+
+        geometry = settings.frame_wall("living-room").geometry
+
+        assert geometry.screen == (1920, 1080)
+        assert geometry.pixels_per_inch == pytest.approx((1920**2 + 1080**2) ** 0.5 / 43)
+        assert (geometry.mat_width_inches, geometry.bottom_weight) == (2.0, 1.3)
+
+    def test_a_screen_wall_takes_the_mat_proportions_and_no_density(self, cache_dir: Path):
+        settings = load(an_environment(cache_dir, frame=False, MAT_BOTTOM_WEIGHT="1.25"))
+
+        geometry = settings.wall("hall").geometry_for((1920, 1200))
+
+        assert geometry.screen == (1920, 1200)
+        assert geometry.pixels_per_inch is None
+        assert geometry.bottom_weight == 1.25
+
+    @pytest.mark.parametrize(
+        "name", ["TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "TV_PANEL_DIAGONAL_INCHES", "MAT_WIDTH_INCHES", "MAT_BOTTOM_WEIGHT"]
+    )
+    @pytest.mark.parametrize("value", ["0", "-1"])
+    def test_a_size_of_zero_or_below_is_refused_by_name(self, cache_dir: Path, name: str, value: str):
+        with pytest.raises(ConfigError, match=name):
+            load(an_environment(cache_dir, **{name: value}))
+
+    def test_a_mat_setting_on_a_client_with_no_frame_is_still_read(self, cache_dir: Path):
+        """A screen draws a mat too, so the mat is the client's and not the Frame's."""
+        with pytest.raises(ConfigError, match="MAT_BOTTOM_WEIGHT"):
+            load(an_environment(cache_dir, frame=False, MAT_BOTTOM_WEIGHT="0"))
