@@ -205,6 +205,17 @@ before any production code moves.
   the matted picture. Each is drawn again from the master on next view.
 - 03: the 2024 seed reads no render and no `resize_option`, which only named
   the render. A record without one is no longer refused.
+- 05: `player-contract.md` § The cutover said the server retires a major
+  "once no heartbeat lists it", which a Player reading both majors never
+  satisfies; the same sentence's "once every Player reports 2" is the intent,
+  and the clause now says so (amended with a dated note). An amendment, not
+  a conformance: the owner should confirm it.
+  `[DECISION: a home major retires once every heartbeat lists a higher major the server publishes | the old wording could never be met by a Player reading both majors, and contradicted its own example | the builder's, 2026-10-10; user can veto]`
+- 05: the precondition "every Player reports 2" is observed on the real wall
+  at deploy, not before merge as Done-when 1 first said. There is one
+  household, the owner deploys server and Player from one revision, and
+  `develop` is not the release surface; the operator walk carries the check,
+  and Walls names a missed Player if one is.
 - 04: `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` are the server's
   settings (the default pace a theme inherits) and stay so. The Player stops
   reading them rather than refusing them: one `.env` serves both on a
@@ -385,9 +396,9 @@ Context: branched from develop at the merge of #345 (wave 4e).
   `project-state.yaml`, `re-architecture.md`'s wave row), `README.md`, `CLAUDE.md`,
   `deploy/README.md`, `.prawduct/operator-verification.md`, the change log.
 - **Done when:**
-  1. Before merge, the real wall runs `develop` (wave 4e), adopts v2 and its
-     heartbeat lists 2. That is the contract's precondition, observed and
-     recorded with what was seen.
+  1. The real wall's heartbeat lists 2 once deployed. That is the contract's
+     precondition, observed at deploy (decision below) and queued in
+     `.prawduct/operator-verification.md`.
   2. End to end on this machine: a Player from this branch against a server
      from this branch adopts v2, composes, reports `[2]`, and the Walls screen
      shows no notice. A heartbeat listing only `[1]`, as a Player from before
