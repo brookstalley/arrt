@@ -11,8 +11,10 @@ Two things live here:
 
 * **`tv_binding`** — the work-to-content-id map, modelled in `data-model.md`
   because it is the entity that carries the norm across the plane boundary.
-* **`daemon_state`** — where the rotation got to, and which directive has already
-  been acted on. Display-internal, never read by anything else.
+* **`daemon_state`** — which work the wall last showed, and whether the set's
+  own slideshow has been switched off. Display-internal, never read by anything
+  else. A key is read only by name, so a key no code reads any more (a store
+  written by an older Player) is left in place and costs nothing.
 
 **`upload_status` is explicit, and the table refuses the 2024 defect
 structurally.** That version's `upload_file` caught every exception, logged, and
@@ -121,9 +123,8 @@ _BINDING_COLUMNS: Final[str] = (
 )
 
 #: Keys in `daemon_state`. Named rather than spelled at each call site, because a
-#: typo in a key string is a silent read of nothing — which for the sequence key
-#: means re-executing the last directive on every restart.
-_LAST_ACTED_SEQUENCE: Final[str] = "last_acted_sequence"
+#: typo in a key string is a silent read of nothing — which for the work key
+#: means a restart that cannot tell which picture is already up.
 _LAST_SELECTED_WORK_ID: Final[str] = "last_selected_work_id"
 _SLIDESHOW_DISABLED: Final[str] = "native_slideshow_disabled"
 
@@ -286,21 +287,6 @@ class DisplayState:
         )
 
     # -- where the wall got to --------------------------------------------
-
-    @property
-    def last_acted_sequence(self) -> int | None:
-        """The directive sequence already executed, or None if none ever has been.
-
-        None is what makes a first start different from a restart, and the
-        difference is load-bearing: a fresh store adopts whatever sequence it
-        first sees as its baseline **without acting**, because acting would
-        execute a directive issued before this process existed.
-        """
-        raw = self._get(_LAST_ACTED_SEQUENCE)
-        return int(raw) if raw is not None else None
-
-    def set_last_acted_sequence(self, sequence: int) -> None:
-        self._set(_LAST_ACTED_SEQUENCE, str(sequence))
 
     @property
     def last_selected_work_id(self) -> str | None:

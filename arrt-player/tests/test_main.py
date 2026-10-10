@@ -305,7 +305,7 @@ async def test_a_crash_still_closes_the_art_channel_on_the_way_out(settings, tv,
     from arrt_player.displays.frame import frame_wall
     from arrt_player.manifest import Watcher
 
-    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    watcher = Watcher(settings.manifest_path)
     daemon = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
 
     async def explode() -> float:
@@ -331,7 +331,7 @@ async def test_a_crash_is_distinguishable_from_a_clean_stop_in_the_log(settings,
     from arrt_player.displays.frame import frame_wall
     from arrt_player.manifest import Watcher
 
-    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    watcher = Watcher(settings.manifest_path)
     daemon = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
 
     async def explode() -> float:

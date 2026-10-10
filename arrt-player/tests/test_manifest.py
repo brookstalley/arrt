@@ -18,16 +18,24 @@ from arrt_player.manifest import (
     parse,
 )
 
-FALLBACKS = {"rotation_interval_fallback": 180, "shuffle_fallback": True}
+CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+
+#: A media hash for the builder's one work: well-formed, and nothing to fetch.
+_SHA = "a" * 64
 
 
 def a_document(**overrides: object) -> dict:
+    """A major 2 feed of one work in one slot, valid as it stands, to change one thing of."""
     document: dict = {
-        "schema": {"major": 1, "minor": 0},
-        "theme": {"id": "t1", "name": "A theme"},
-        "rotation": {"interval_seconds": 90, "shuffle": False},
-        "directive": {"sequence": 7, "pinned_work_id": None},
-        "entries": [{"work_id": "w1", "render_path": "ready/w1.jpg", "label": {"title": "One"}}],
+        "schema": {"major": 2, "minor": 0},
+        "playlist": {"id": "t1", "name": "A theme"},
+        "works": {
+            "w1": {"media": {"url": f"/media/sha256-{_SHA}", "sha256": _SHA}, "mat_color": "#222222", "label": {"title": "One"}}
+        },
+        "schedule": {
+            "horizon": {"from": "2026-06-21T00:00:00+00:00", "until": "2026-06-22T00:00:00+00:00"},
+            "slots": [{"work_id": "w1", "from": "2026-06-21T08:00:00+00:00", "until": "2026-06-21T18:00:00+00:00"}],
+        },
     }
     document.update(overrides)
     return document
@@ -35,81 +43,72 @@ def a_document(**overrides: object) -> dict:
 
 def a_watcher(wall_dir: Path, wall_id: str = WALL_ID) -> Watcher:
     """A watcher over one wall's cached manifest — the only file it will ever open."""
-    return Watcher(wall_dir.parent / wall_id / CACHED_MANIFEST_FILENAME, **FALLBACKS)
+    return Watcher(wall_dir.parent / wall_id / CACHED_MANIFEST_FILENAME)
+
+
+def _named(name: str) -> dict:
+    """The builder's document under another playlist name, which is how these tests tell two documents apart."""
+    return a_document(playlist={"id": "t1", "name": name})
 
 
 class TestParsing:
-    def test_it_reads_what_curation_writes(self):
-        manifest = parse(json.dumps(a_document()), **FALLBACKS)
+    def test_it_reads_what_the_server_writes(self):
+        feed = parse(json.dumps(a_document()))
 
-        assert manifest.schema_major == 1
-        assert manifest.theme_name == "A theme"
-        assert manifest.rotation_interval_seconds == 90
-        assert manifest.shuffle is False
-        assert manifest.directive_sequence == 7
-        assert [entry.work_id for entry in manifest.entries] == ["w1"]
-        assert manifest.entries[0].label == {"title": "One"}
+        assert feed.schema_major == 2
+        assert feed.playlist_name == "A theme"
+        assert list(feed.works) == ["w1"]
+        assert feed.works["w1"].label == {"title": "One"}
+        assert [slot.work_id for slot in feed.slots] == ["w1"]
 
     def test_an_unknown_major_is_refused_by_version_and_not_by_shape(self):
         """A future major is *expected* to be shaped differently.
 
-        Reporting "entries is missing" for a document whose own version says this
+        Reporting "works is missing" for a document whose own version says this
         reader should not be reading it sends whoever finds the line looking for a
         bug in the writer.
         """
         future = {"schema": {"major": max(SUPPORTED_SCHEMA_MAJORS) + 1, "minor": 0}, "everything": "else"}
 
         with pytest.raises(ManifestVersionUnsupported) as refusal:
-            parse(json.dumps(future), **FALLBACKS)
+            parse(json.dumps(future))
 
         assert refusal.value.major == max(SUPPORTED_SCHEMA_MAJORS) + 1
 
+    def test_a_major_1_document_is_refused_by_version(self):
+        """This Player reads major 2 only (`player-contract.md` § The cutover), so the
+        major it used to read is a version it refuses, like any other it does not read."""
+        document = json.loads((CONTRACT / "fixtures" / "manifest.v2" / "invalid" / "major-1.json").read_text())
+
+        with pytest.raises(ManifestVersionUnsupported) as refusal:
+            parse(json.dumps(document))
+
+        assert refusal.value.major == 1
+        assert SUPPORTED_SCHEMA_MAJORS == (2,)
+
     def test_an_unknown_minor_is_accepted_because_additive_changes_are_free(self):
-        document = a_document(schema={"major": 1, "minor": 99})
-        document["entries"][0]["something_new"] = "ignored"
+        document = a_document(schema={"major": 2, "minor": 99})
+        document["works"]["w1"]["something_new"] = "ignored"
 
-        manifest = parse(json.dumps(document), **FALLBACKS)
+        feed = parse(json.dumps(document))
 
-        assert manifest.schema_minor == 99
-        assert manifest.entries[0].work_id == "w1"
+        assert feed.schema_minor == 99
+        assert list(feed.works) == ["w1"]
 
     @pytest.mark.parametrize(
         "document",
         [
             pytest.param("not json at all", id="not-json"),
             pytest.param(json.dumps([1, 2, 3]), id="not-an-object"),
-            pytest.param(json.dumps({"entries": []}), id="no-schema"),
-            pytest.param(json.dumps(a_document(entries="lots")), id="entries-not-a-list"),
-            pytest.param(json.dumps(a_document(entries=[{"render_path": "ready/x.jpg"}])), id="entry-without-work-id"),
-            pytest.param(json.dumps(a_document(entries=[{"work_id": "w1"}])), id="entry-without-render-path"),
-            pytest.param(json.dumps(a_document(directive={"pinned_work_id": None})), id="no-sequence"),
-            pytest.param(json.dumps(a_document(directive={"sequence": "3"})), id="sequence-not-an-integer"),
-            pytest.param(json.dumps(a_document(directive={"sequence": 1, "pinned_work_id": 5})), id="pin-not-a-string"),
+            pytest.param(json.dumps({"works": {}}), id="no-schema"),
+            pytest.param(json.dumps(a_document(works="lots")), id="works-not-an-object"),
+            pytest.param(json.dumps(a_document(works={"w1": {"label": {"title": "One"}}})), id="work-without-media"),
+            pytest.param(json.dumps(a_document(schedule={"slots": []})), id="schedule-without-horizon"),
         ],
     )
     def test_a_malformed_manifest_is_refused_rather_than_guessed_at(self, document):
         with pytest.raises(ManifestUnreadable):
-            parse(document, **FALLBACKS)
-
-    def test_a_missing_sequence_is_refused_where_a_missing_pace_falls_back(self):
-        """The asymmetry is the point, so it is asserted rather than left to reading.
-
-        A pace this deployment does not know has a right answer it does know. A
-        sequence has none: inventing one re-baselines the directive mechanism
-        against a number the writer never published, which silently disarms
-        `next` and `show_now` instead of reporting a broken file.
-        """
-        no_pace = parse(json.dumps(a_document(rotation={})), **FALLBACKS)
-        assert no_pace.rotation_interval_seconds == 180
-        assert no_pace.shuffle is True
-
-        with pytest.raises(ManifestUnreadable):
-            parse(json.dumps(a_document(directive={})), **FALLBACKS)
-
-    def test_a_nonsense_interval_falls_back_rather_than_stopping_the_wall(self):
-        manifest = parse(json.dumps(a_document(rotation={"interval_seconds": 0, "shuffle": True})), **FALLBACKS)
-
-        assert manifest.rotation_interval_seconds == 180
+            parse(document)
 
 
 class TestWatching:
@@ -126,11 +125,11 @@ class TestWatching:
         watcher = a_watcher(wall_dir)
         watcher.poll()
 
-        write_manifest(wall_dir, a_document(directive={"sequence": 8, "pinned_work_id": None}))
+        write_manifest(wall_dir, _named("Another theme"))
 
         adopted = watcher.poll()
         assert adopted is not None
-        assert adopted.directive_sequence == 8
+        assert adopted.playlist_name == "Another theme"
 
     def test_a_refused_manifest_leaves_the_last_good_one_in_place(self, wall_dir: Path, caplog):
         write_manifest(wall_dir, a_document())
@@ -169,7 +168,7 @@ class TestWatching:
         watcher = a_watcher(wall_dir)
         good = watcher.poll()
 
-        (wall_dir / CACHED_MANIFEST_FILENAME).write_bytes(b'{"schema": {"major": 1}, "entries": [], "\xff\xfe": 1}')
+        (wall_dir / CACHED_MANIFEST_FILENAME).write_bytes(b'{"schema": {"major": 2}, "works": {}, "\xff\xfe": 1}')
 
         with caplog.at_level(logging.ERROR):
             assert watcher.poll() is None
@@ -200,8 +199,8 @@ class TestWatching:
         watcher.poll()
         before = target.stat()
 
-        second = a_document(directive={"sequence": 9, "pinned_work_id": None})
-        second["entries"].append({"work_id": "w2", "render_path": "ready/w2.jpg", "label": {}})
+        second = _named("A second theme")
+        second["works"]["w2"] = {**second["works"]["w1"], "label": {"title": "Two"}}
         write_manifest(wall_dir, second)
         # Put the mtime back where it was, which is what a filesystem with
         # one-second resolution does to two writes inside one tick.
@@ -209,7 +208,7 @@ class TestWatching:
 
         adopted = watcher.poll()
         assert adopted is not None
-        assert adopted.directive_sequence == 9
+        assert adopted.playlist_name == "A second theme"
 
 
 class TestAnUnreadableManifestIsSaidOnce:
@@ -224,7 +223,7 @@ class TestAnUnreadableManifestIsSaidOnce:
     def test_a_persistent_stat_failure_is_reported_once(self, tmp_path, caplog, monkeypatch):
         path = tmp_path / "theme-manifest.json"
         path.write_text("{}")
-        watcher = Watcher(path, rotation_interval_fallback=180, shuffle_fallback=False)
+        watcher = Watcher(path)
 
         def unreadable(*_args, **_kwargs):
             raise OSError(5, "Input/output error")
@@ -241,7 +240,7 @@ class TestAnUnreadableManifestIsSaidOnce:
         """Otherwise the WARNING stands unresolved in the journal for ever."""
         path = tmp_path / "theme-manifest.json"
         path.write_text("{}")
-        watcher = Watcher(path, rotation_interval_fallback=180, shuffle_fallback=False)
+        watcher = Watcher(path)
 
         real_stat = Path.stat
         broken = True
@@ -281,7 +280,7 @@ class TestOneManifestPerWall:
         adopted = a_watcher(wall_dir, WALL_ID).poll()
 
         assert adopted is not None
-        assert adopted.directive_sequence == 7
+        assert adopted.playlist_name == "A theme"
 
     def test_a_manifest_for_a_wall_it_does_not_serve_is_not_acted_on(self, wall_dir: Path, caplog):
         """Published for the study; this device serves the living room.
@@ -302,41 +301,37 @@ class TestOneManifestPerWall:
         """The reason the decision names the mtime poll.
 
         A shared file would make every wall's display re-read and re-derive on
-        every other wall's change, at a poll a second — and would make "the
-        manifest's sequence" ambiguous exactly where the coalescing and
-        sequence-regression rules need it to be a single number.
+        every other wall's change, at a poll a second.
         """
         write_manifest(wall_dir, a_document(), wall_id=WALL_ID)
         watcher = a_watcher(wall_dir, WALL_ID)
         watcher.poll()
 
-        for sequence in range(8, 12):
-            write_manifest(wall_dir, a_document(directive={"sequence": sequence, "pinned_work_id": None}), wall_id="study")
+        for number in range(8, 12):
+            write_manifest(wall_dir, _named(f"The study's theme {number}"), wall_id="study")
 
         assert watcher.poll() is None
         assert watcher.current is not None
-        assert watcher.current.directive_sequence == 7
+        assert watcher.current.playlist_name == "A theme"
 
 
-async def test_the_daemon_shows_its_own_walls_theme_and_ignores_another_walls(daemon, tv, wall_dir: Path):
+async def test_the_daemon_shows_its_own_walls_theme_and_ignores_another_walls(daemon, tv, publish):
     """End to end over the double: two walls' manifests on one client, one directory each.
 
     The living room's display is driven by the living room's document and by
     nothing else — the study's is present, newer, and names entirely different
     works, and none of them reach the television.
     """
-    write_manifest(wall_dir, a_document(entries=[_entry("mine")]), wall_id=WALL_ID)
-    write_manifest(wall_dir, a_document(entries=[_entry("not-mine")]), wall_id="study")
-    for work_id in ("mine", "not-mine"):
-        (wall_dir / "ready" / f"{work_id}.jpg").write_bytes(b"not really a jpeg")
+    publish(["mine"], wall_id=WALL_ID)
+    publish(["not-mine"], wall_id="study")
 
     await daemon.tick()
 
-    assert tv.on_the_wall.name == "mine.jpg"
-    assert [path.name for path in (tv.holding[content] for content in tv.selected)] == ["mine.jpg"]
+    assert publish.work_of(tv.on_the_wall) == "mine"
+    assert [publish.work_of(tv.holding[content]) for content in tv.selected] == ["mine"]
 
 
-async def test_a_daemon_whose_wall_has_no_manifest_shows_nothing_rather_than_someone_elses(daemon, tv, wall_dir: Path):
+async def test_a_daemon_whose_wall_has_no_manifest_shows_nothing_rather_than_someone_elses(daemon, tv, publish):
     """A manifest for an unknown wall is not acted on — it is not a fallback.
 
     A device pointed at a wall nothing has published for waits, exactly as it
@@ -344,16 +339,11 @@ async def test_a_daemon_whose_wall_has_no_manifest_shows_nothing_rather_than_som
     turn a wall the server has not yet published for into a wall showing
     another room's pictures, which is the failure that has no symptom.
     """
-    write_manifest(wall_dir, a_document(entries=[_entry("not-mine")]), wall_id="study")
-    (wall_dir / "ready" / "not-mine.jpg").write_bytes(b"not really a jpeg")
+    publish(["not-mine"], wall_id="study")
 
     await daemon.tick()
 
     assert tv.selected == []
-
-
-def _entry(work_id: str) -> dict:
-    return {"work_id": work_id, "render_path": f"ready/{work_id}.jpg", "label": {"title": work_id}}
 
 
 # -- major 2: the rules a Player acts on that no contract fixture breaks ----------------
@@ -361,12 +351,11 @@ def _entry(work_id: str) -> dict:
 
 def _a_feed() -> dict:
     """The contract's scene-preview feed: a valid major 2 document to break one rule of."""
-    contract = Path(__file__).resolve().parents[2] / "contract"
-    return json.loads((contract / "fixtures" / "manifest.v2" / "valid" / "scene-preview.json").read_text(encoding="utf-8"))
+    return json.loads((CONTRACT / "fixtures" / "manifest.v2" / "valid" / "scene-preview.json").read_text(encoding="utf-8"))
 
 
 def _parse_feed(document: dict):
-    return parse(json.dumps(document), rotation_interval_fallback=180, shuffle_fallback=False)
+    return parse(json.dumps(document))
 
 
 def test_a_feed_with_an_instant_of_no_offset_is_refused():

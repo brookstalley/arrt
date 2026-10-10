@@ -150,7 +150,7 @@ class TestTheStateIsReported:
         await daemon.tick()
 
         tv.unavailable = True
-        # Learned at the next call the loop makes anyway — here the rotation —
+        # Learned at the next call the loop makes anyway — here the next slot —
         # since nothing polls the set to find out.
         clock.advance(61.3)
         await daemon.tick()

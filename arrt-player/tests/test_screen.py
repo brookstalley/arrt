@@ -1,14 +1,13 @@
-"""A wall on a screen this client draws itself: the rotation, the directive, and what it reports.
+"""A wall on a screen this client draws itself: the schedule, and what it reports.
 
 Driven one `tick()` at a time against a clock that only moves when a test moves
 it, as the Frame's loop is, over a recording output in place of an HDMI
-connector. The steps are not multiples of the interval under test, so a timer
-consumed early cannot pass for one correctly withheld.
+connector. The steps are not multiples of the slot under test, so a slot
+ended early cannot pass for one correctly held.
 """
 
 import json
 import logging
-import random
 from pathlib import Path
 
 import pytest
@@ -32,24 +31,28 @@ def output() -> RecordingOutput:
 
 
 @pytest.fixture
-def screen(wall, output, clock) -> Wall:
-    watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    return screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock(), rng=random.Random(7))
+def screen(wall, output, clock, publish) -> Wall:
+    # The fixture's pictures are composed for this screen, as the wall composes them.
+    publish.geometry = wall.geometry_for(output.screen)
+    watcher = Watcher(wall.manifest_path)
+    return screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock())
 
 
-def shown(output: RecordingOutput) -> list[str]:
-    return [path.stem for path in output.shown]
+@pytest.fixture
+def shown(output, publish):
+    """The works the screen was asked to draw, in order."""
+    return lambda: [publish.work_of(path) for path in output.shown]
 
 
-async def test_it_shows_the_first_work_at_once_and_steps_on_when_the_interval_is_up(screen, output, publish, clock):
+async def test_it_shows_the_first_work_at_once_and_steps_on_when_its_slot_ends(screen, shown, publish, clock):
     publish(["w1", "w2", "w3"], interval_seconds=60)
 
     await screen.tick()
-    assert shown(output) == ["w1"]
+    assert shown() == ["w1"]
 
     clock.advance(59.5)
     await screen.tick()
-    assert shown(output) == ["w1"], "the wall stepped on before its interval was up"
+    assert shown() == ["w1"], "the wall stepped on before its slot was over"
 
     clock.advance(0.7)
     await screen.tick()
@@ -57,63 +60,58 @@ async def test_it_shows_the_first_work_at_once_and_steps_on_when_the_interval_is
     await screen.tick()
     clock.advance(60.1)
     await screen.tick()
-    assert shown(output) == ["w1", "w2", "w3", "w1"]
+    assert shown() == ["w1", "w2", "w3", "w1"]
 
 
-async def test_a_missing_render_is_skipped_and_said_once(screen, output, publish, clock, wall_dir, caplog):
+async def test_a_missing_master_is_passed_over_and_said_once(screen, shown, publish, clock, caplog):
+    """The screen keeps the work it has through the missing one's slot, rather than going black."""
     publish(["w1", "w2", "w3"], interval_seconds=60)
-    (wall_dir / "ready" / "w2.jpg").unlink()
+    publish.withdraw("w2")
 
     with caplog.at_level(logging.WARNING):
         for _ in range(4):
             await screen.tick()
             clock.advance(60.3)
 
-    assert shown(output) == ["w1", "w3", "w1", "w3"]
-    assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 1
+    assert shown() == ["w1", "w3", "w1"]
+    assert [record.__dict__.get("event") for record in caplog.records].count("schedule.media_missing") == 1
 
 
-async def test_a_missing_render_is_said_again_for_a_new_manifest(screen, output, publish, clock, wall_dir, caplog):
-    """Once per manifest, not once per process: a republished theme is news, and so is its gap."""
+async def test_a_missing_master_is_said_again_for_a_new_feed(screen, shown, publish, clock, caplog):
+    """Once per feed, not once per process: a republished feed is news, and so is its gap."""
     publish(["w1", "w2"], interval_seconds=60)
-    (wall_dir / "ready" / "w2.jpg").unlink()
+    publish.withdraw("w2")
 
     with caplog.at_level(logging.WARNING):
         for _ in range(3):
             await screen.tick()
             clock.advance(60.3)
-        publish(["w1", "w2"], interval_seconds=61, renders=False)
+        publish(["w1", "w2"], interval_seconds=61, media=False)
         for _ in range(3):
             await screen.tick()
             clock.advance(61.3)
 
-    assert shown(output) == ["w1", "w1", "w1", "w1", "w1"], "w2 came back, so the gap was never said again"
-    assert [record.__dict__.get("event") for record in caplog.records].count("rotation.render_missing") == 2
+    assert shown() == ["w1"], "w2 came back, so the gap was never said again"
+    assert [record.__dict__.get("event") for record in caplog.records].count("schedule.media_missing") == 2
 
 
-async def test_an_empty_screen_tries_a_new_manifest_at_once(screen, output, publish, clock, wall_dir):
-    """A screen showing nothing does not sit out the interval when renders arrive.
-
-    The Frame's rule, which the screen now shares: the timer is stamped by an
-    attempt, and an attempt that showed nothing must not hold the wall black for
-    a whole interval once there is something to show.
-    """
-    publish(["w1"], interval_seconds=180, renders=False)
+async def test_an_empty_screen_shows_media_that_arrives_at_once(screen, output, shown, publish, clock):
+    """A screen showing nothing does not sit out the slot when the master arrives."""
+    publish(["w1"], interval_seconds=180, media=False)
     await screen.tick()
     assert output.shown == []
 
     clock.advance(1.3)
-    (wall_dir / "ready" / "w1.jpg").write_bytes(b"a render, at last")
     publish(["w1"], interval_seconds=180)
     await screen.tick()
 
-    assert shown(output) == ["w1"]
+    assert shown() == ["w1"]
 
 
-async def test_a_theme_with_no_render_at_all_shows_nothing_and_does_not_spin(screen, output, publish, wall_dir):
+async def test_a_feed_with_no_media_at_all_shows_nothing_and_does_not_spin(screen, output, publish):
     publish(["w1", "w2"])
     for name in ("w1", "w2"):
-        (wall_dir / "ready" / f"{name}.jpg").unlink()
+        publish.withdraw(name)
 
     for _ in range(3):
         await screen.tick()
@@ -121,75 +119,21 @@ async def test_a_theme_with_no_render_at_all_shows_nothing_and_does_not_spin(scr
     assert output.shown == []
 
 
-async def test_the_first_directive_is_a_baseline_and_the_next_one_is_acted_on(screen, output, publish, clock):
-    """A worker starting on a manifest that pins a work does not jump to it: the
-    pin was somebody's `show_now` from before this worker existed."""
-    publish(["w1", "w2", "w3"], sequence=5, pinned_work_id="w3")
-    await screen.tick()
-    assert shown(output) == ["w1"], "the baseline was acted on"
-
-    publish(["w1", "w2", "w3"], sequence=6)
-    clock.advance(1.3)
+async def test_a_republished_schedule_reaches_the_screen_at_once_and_its_slots_carry_on(screen, shown, publish, clock):
+    """How a `show_now` arrives: a new feed whose slot now names the work."""
+    publish(["w1", "w2", "w3", "w4"])
     await screen.tick()
 
-    assert shown(output) == ["w1", "w2"]
-
-
-async def test_show_now_jumps_to_the_pinned_work_and_rotation_carries_on_from_it(screen, output, publish, clock):
-    publish(["w1", "w2", "w3", "w4"], sequence=1)
-    await screen.tick()
-
-    publish(["w1", "w2", "w3", "w4"], sequence=2, pinned_work_id="w3")
+    publish(["w3", "w4", "w1", "w2"])
     clock.advance(1.3)
     await screen.tick()
     clock.advance(180.7)
     await screen.tick()
 
-    assert shown(output) == ["w1", "w3", "w4"]
+    assert shown() == ["w1", "w3", "w4"]
 
 
-async def test_a_sequence_that_goes_backwards_rebaselines_without_acting(screen, output, publish, clock, caplog):
-    publish(["w1", "w2", "w3"], sequence=9)
-    await screen.tick()
-
-    with caplog.at_level(logging.WARNING):
-        publish(["w1", "w2", "w3"], sequence=3, pinned_work_id="w3")
-        clock.advance(1.3)
-        await screen.tick()
-
-    assert shown(output) == ["w1"]
-    (regressed,) = [record for record in caplog.records if record.__dict__.get("event") == "directive.regressed"]
-    assert regressed.__dict__.get("wall_id") == "living-room", "the line does not say which wall"
-
-
-async def test_a_sync_mid_interval_keeps_the_place(screen, output, publish, clock):
-    """A rewritten manifest resumes after the work on the screen, not at the first one."""
-    publish(["w1", "w2", "w3"])
-    await screen.tick()
-    clock.advance(180.4)
-    await screen.tick()
-    assert shown(output) == ["w1", "w2"]
-
-    publish(["w0", "w1", "w2", "w3"])
-    clock.advance(180.4)
-    await screen.tick()
-
-    assert shown(output) == ["w1", "w2", "w3"]
-
-
-async def test_shuffle_shows_every_work_once_per_pass(screen, output, publish, clock):
-    works = [f"w{n}" for n in range(6)]
-    publish(works, shuffle=True, interval_seconds=10)
-
-    for _ in range(6):
-        await screen.tick()
-        clock.advance(10.3)
-
-    assert sorted(shown(output)) == works
-    assert shown(output) != works, "a shuffled theme came out in order, so this shows nothing about shuffling"
-
-
-async def test_an_output_that_fails_costs_the_picture_and_not_the_wall(screen, output, publish, clock, caplog):
+async def test_an_output_that_fails_costs_the_picture_and_not_the_wall(screen, output, shown, publish, clock, caplog):
     publish(["w1", "w2", "w3"])
     output.fails = OSError("the connector went away")
     with caplog.at_level(logging.INFO):
@@ -201,7 +145,7 @@ async def test_an_output_that_fails_costs_the_picture_and_not_the_wall(screen, o
         clock.advance(180.4)
         await screen.tick()
 
-    assert shown(output) == ["w1"]
+    assert shown() == ["w3"]
     events = [record.__dict__.get("event") for record in caplog.records]
     assert events.count("screen.draw_failed") == 1, "a refusing screen was reported per work, not per episode"
     assert events.count("screen.draw_recovered") == 1
@@ -226,7 +170,7 @@ async def test_with_no_manifest_yet_it_shows_nothing_and_still_beats(screen, out
     assert json.loads(path_in(wall_dir, "living-room").read_text())["manifest_schema"] is None
 
 
-async def test_every_poll_asks_the_output_to_draw_again_for_a_screen_that_came_back(screen, output, publish, clock):
+async def test_every_poll_asks_the_output_to_draw_again_for_a_screen_that_came_back(screen, output, shown, publish, clock):
     publish(["w1", "w2"], interval_seconds=60)
 
     for _ in range(3):
@@ -234,11 +178,11 @@ async def test_every_poll_asks_the_output_to_draw_again_for_a_screen_that_came_b
         clock.advance(7.3)
 
     assert output.refreshed == 3
-    assert shown(output) == ["w1"], "a refresh is not a rotation"
+    assert shown() == ["w1"], "a refresh is not a change of picture"
 
 
-async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_rotation_goes_on(
-    screen, output, publish, clock, wall_dir, caplog
+async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_the_schedule_goes_on(
+    screen, output, shown, publish, clock, wall_dir, caplog
 ):
     publish(["w1", "w2"], interval_seconds=60)
     output.refresh_fails = OSError(13, "Permission denied")
@@ -253,7 +197,7 @@ async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_rotation_goe
     events = [record.__dict__.get("event") for record in caplog.records]
     assert events.count("screen.refresh_failed") == 1
     assert events.count("screen.refresh_recovered") == 1
-    assert shown(output) == ["w1", "w2", "w1", "w2"]
+    assert shown() == ["w1", "w2", "w1", "w2"]
     assert "Permission denied" in json.loads(path_in(wall_dir, "living-room").read_text())["last_error"]
 
 

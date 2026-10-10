@@ -19,8 +19,7 @@ from conftest import WALL_ID, a_master
 
 from arrt_player.compose import Geometry, Uncomposable, compose, composition_key
 from arrt_player.manifest import Feed, parse
-from arrt_player.programmes.memory import InMemory
-from arrt_player.programmes.schedule import COMPOSE_RETRY_SECONDS, RETRY_SECONDS, Schedule, what_to_show
+from arrt_player.programmes.schedule import COMPOSE_RETRY_SECONDS, RETRY_SECONDS, InMemory, Schedule, what_to_show
 from arrt_player.wall import DisplayRecord, Picture, Shown
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
@@ -28,7 +27,7 @@ VECTORS = json.loads((CONTRACT / "vectors" / "schedule.json").read_text(encoding
 
 
 def _feed(document: dict) -> Feed:
-    feed = parse(json.dumps(document), rotation_interval_fallback=180, shuffle_fallback=False)
+    feed = parse(json.dumps(document))
     assert isinstance(feed, Feed)
     return feed
 
