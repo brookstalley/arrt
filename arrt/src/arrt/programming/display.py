@@ -41,6 +41,7 @@ from arrt.library.facade import (
     WorkChanged,
 )
 from arrt.persistence.records import Directive, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
+from arrt.programming import adequacy
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest import heartbeat
@@ -1372,7 +1373,71 @@ class DisplayService:
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this plane can read: {problem}")
         write_atomically(self._settings.heartbeat_path(wall_id), document)
+        self._record_screen(wall_id, document)
         self._roll_v2(wall_id)
+
+    # -- too small for this wall ----------------------------------------------
+
+    def largest_screen(self, wall_id: str) -> tuple[int, int] | None:
+        """The largest screen the wall's display reported within `SCREEN_MEMORY`, or None if it reported none.
+
+        Largest by area, and recent rather than latest (`player-contract.md`
+        § The heartbeat, minor 2): a window made smaller for a minute must not
+        make every work on the wall look fine.
+        """
+        wall = self.get_wall(wall_id)
+        if wall.display_id is None:
+            return None
+        since = datetime.now(UTC) - SCREEN_MEMORY
+        recent = [(w, h) for w, h, at in self._store.reported_screens(wall.display_id) if at >= since]
+        return max(recent, key=lambda size: size[0] * size[1], default=None)
+
+    def too_small_on(self, wall_id: str) -> frozenset[str]:
+        """The works on the wall's feed too small for its largest recent screen (`adequacy.py`).
+
+        Read from the feed, which carries each master's size, so this asks the
+        Library nothing. A wall with no reported screen, or no feed, judges
+        nothing: silence is the honest answer to a question there is no
+        measurement for.
+        """
+        screen = self.largest_screen(wall_id)
+        feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if screen is None or feed is None:
+            return frozenset()
+        return frozenset(
+            work_id
+            for work_id, entry in feed.works.items()
+            if adequacy.too_small(screen, (entry["media"]["width"], entry["media"]["height"]))
+        )
+
+    def too_small_for_walls(self, theme_id: str) -> Mapping[str, Sequence[str]]:
+        """For each of the theme's works too small for a wall hanging it, those walls' names, in name order."""
+        found: dict[str, list[str]] = {}
+        for wall in self.walls_hanging(theme_id):
+            for work_id in self.too_small_on(wall.id):
+                found.setdefault(work_id, []).append(wall.name)
+        return {work_id: sorted(names) for work_id, names in found.items()}
+
+    def _record_screen(self, wall_id: str, document: Mapping[str, Any]) -> None:
+        """Keep the screen size a minor 2 heartbeat reports, and forget sizes too old to count.
+
+        A heartbeat with no capabilities (before minor 2, or a Frame before its
+        Player knew its panel) says nothing about the screen, and nothing is kept.
+        """
+        wall = self.get_wall(wall_id)
+        capabilities = document.get("capabilities")
+        screen = capabilities.get("screen") if isinstance(capabilities, Mapping) else None
+        if wall.display_id is None or not isinstance(screen, Mapping):
+            return
+        width, height = screen.get("width_px"), screen.get("height_px")
+        if not isinstance(width, int) or not isinstance(height, int) or width < 1 or height < 1:
+            return
+        now = datetime.now(UTC)
+        with self._store.transaction():
+            store_write(self._store.record_screen, wall.display_id, width, height, now)
+            for old_width, old_height, at in self._store.reported_screens(wall.display_id):
+                if at < now - SCREEN_MEMORY:
+                    store_write(self._store.forget_screen, wall.display_id, old_width, old_height)
 
     def published_manifest_v2(self, wall_id: str) -> bytes | None:
         """The bytes of this wall's major 2 feed as last published, or None if nothing has been."""
@@ -1945,3 +2010,10 @@ def _media_moved(entry: dict[str, Any], answer: object) -> bool:
 #: a day away still finds a day in hand on every wall, and a live wall, which
 #: reports every few seconds, is extended about once a day.
 ROLL_WHEN_LEFT: Final[timedelta] = timedelta(days=2)
+
+#: How far back a reported screen size counts toward a wall's largest
+#: (`player-contract.md` § The heartbeat, minor 2: "the largest size reported
+#: recently"). A week: long enough that a screen switched off for a weekend is
+#: still remembered, short enough that a screen replaced by a smaller one stops
+#: counting within days.
+SCREEN_MEMORY: Final[timedelta] = timedelta(days=7)

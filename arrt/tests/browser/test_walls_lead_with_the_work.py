@@ -420,3 +420,83 @@ def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter
     card(ui, the_wall).locator("details.wall-setup summary").click()
 
     assert card(ui, the_wall).get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"
+
+
+@pytest.fixture
+def with_master(service, settings, decodable_jpeg):
+    """Give a work a presentation master of a size of its own, so the wall's feed carries it."""
+
+    def _give(work, *, width, height):
+        path = f"masters/{work.id}.jpg"
+        decodable_jpeg(settings.art_root / path, width=width, height=height)
+        service.record_rendition(
+            artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+        )
+        return work
+
+    return _give
+
+
+def report_with_screen(services, wall, work_id, *, width=3840, height=2160):
+    """A minor 3 report that also says how big the wall's screen is (minor 2's capabilities)."""
+    services.display.record_heartbeat(
+        wall.id,
+        {
+            "reported_at": (datetime.now(UTC) - timedelta(seconds=5)).isoformat(timespec="seconds"),
+            "current_work_id": work_id,
+            "schema": {"major": 1, "minor": 3},
+            "display_state": {"state": "showing_art", "work_id": work_id, "since": "2026-10-09T19:30:00+00:00"},
+            "capabilities": {
+                "screen": {"width_px": width, "height_px": height},
+                "backend": "framebuffer",
+                "label_modes": ["none"],
+                "manifest_majors": [2, 1],
+            },
+        },
+    )
+
+
+@pytest.fixture
+def small_and_large(services, the_wall, two_works, with_master):
+    """Nighthawks with a small master and Automat with a large one, hung on the wall."""
+    nighthawks, automat = two_works
+    with_master(nighthawks, width=1000, height=700)
+    with_master(automat, width=6000, height=4000)
+    theme = services.display.add_theme(name="Sizes")
+    for work in two_works:
+        services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    services.display.activate_theme(theme.id, wall_id=the_wall.id)
+    return theme
+
+
+def test_a_work_too_small_for_the_walls_screen_says_so_under_it(ui, services, the_wall, two_works, small_and_large):
+    nighthawks, _ = two_works
+    report_with_screen(services, the_wall, nighthawks.id)
+    open_walls(ui)
+
+    note = card(ui, the_wall).locator(".wall-now .wall-now-small")
+    assert (
+        note.inner_text() == f"Too small for {the_wall.name}: it fills less than half of the screen. A larger scan would fix it."
+    )
+
+
+def test_a_work_large_enough_carries_no_note(ui, services, the_wall, two_works, small_and_large):
+    _, automat = two_works
+    report_with_screen(services, the_wall, automat.id)
+    open_walls(ui)
+
+    assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Automat"
+    assert card(ui, the_wall).locator(".wall-now-small").count() == 0
+
+
+def test_the_theme_page_marks_a_work_too_small_for_the_wall_hanging_it(ui, services, the_wall, two_works, small_and_large):
+    _, automat = two_works
+    report_with_screen(services, the_wall, automat.id)
+    ui.open(f"#theme/{small_and_large.id}")
+    ui.page.wait_for_selector("table tbody tr")
+
+    rows = ui.page.locator("table tbody tr")
+    small_row = rows.filter(has_text="Nighthawks")
+    large_row = rows.filter(has_text="Automat")
+    assert small_row.locator(".badge", has_text=f"too small for {the_wall.name}").count() == 1
+    assert large_row.locator(".badge", has_text="too small").count() == 0

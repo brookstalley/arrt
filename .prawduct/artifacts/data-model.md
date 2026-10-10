@@ -2959,6 +2959,16 @@ wave 4), so rules such as "no work on two walls
 at once" are central calculations. Dark hours are gaps. The Player follows the
 clock from its cache. Wave 4, with schema major 2.
 
+### Reported screen *(Programming)*
+
+A screen size a display's Player reported in a minor 2 heartbeat
+(`capabilities.screen`), keyed (display, width, height), with when it was last
+reported. Sizes older than a week are forgotten. Programming judges whether a
+work is too small for a wall against the largest size its display reported in
+that week, not the latest (`player-contract.md` § The heartbeat, minor 2). Built
+2026-10-09, wave 4e (`reported_screens`). Answers one question: what is the
+largest screen this display has been in the last week?
+
 ### Scene *(Programming)*
 
 A live override spanning walls: a pin per wall, and a lifetime of *preview*

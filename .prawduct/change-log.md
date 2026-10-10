@@ -99,6 +99,17 @@ on the server for every wall (`re-architecture.md` § Order of work, wave 4e).
   `art_display(action='set_mat_mode')` (`players_own` clears it) and a *Mat*
   panel in each Walls card's *How {wall} is set up* set it. The panel confirms
   in place and stays open. `mat_mode` is on `WallOut` and the MCP wall fields.
+- Chunk 04: too small for this wall. Each screen size a wall's Player reports
+  in a minor 2 heartbeat is kept per display (`reported_screens`), and sizes
+  older than a week are forgotten. A wall is judged against the largest size
+  reported in that week, not the latest. A work is too small when its master,
+  never enlarged, fills less than half of the box inside the contract's
+  default mat (`programming/adequacy.py`, held to the no-density mat vectors).
+  The judgement reads each master's size from the wall's feed, so it asks the
+  Library nothing. It informs and takes nothing off the schedule. It is shown
+  under the work on the wall on Walls, as a "too small for {walls}" badge in a
+  theme member's *Size*, and as `too_small` and `too_small_for` on the HTTP
+  and MCP walls and theme reads.
 
 **Tests:** `tests/unit/test_schedule.py` states the contract's slot rules, the
 household rule (a clash only where no work of the wall could avoid one, on
@@ -131,6 +142,12 @@ display migration tests) gained `mat_mode`. That is the intended schema, and
 an older file gaining it on open is now asserted rather than assumed. Two
 browser tests that count the Walls set-up panels exactly
 (`test_hanging_a_theme.py`, `test_the_walls.py`) count the new *Mat* panel.
+Chunk 04: `test_adequacy.py` checks the box against every no-density mat
+vector and the line at its edges, on landscape and portrait screens. The
+service, browser and MCP tests cover no reported screen, a small work and a
+large one, a later smaller report that leaves the judgement standing, a size
+past the week that is forgotten, a wall with no display, and that nothing
+leaves the schedule.
 
 ## 2026-10-09: Wave 4d — compositing moves to the Player
 

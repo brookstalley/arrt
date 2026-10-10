@@ -996,6 +996,9 @@ class WallOut(BaseModel):
     #: How the wall's Player draws the mat (`none`, `proportional`, `full`), or
     #: null while the curator has left it to the Player.
     mat_mode: str | None = None
+    #: The works on this wall too small for the largest screen its Player
+    #: reported recently. Empty while there is nothing to judge against.
+    too_small: list[str] = []
 
 
 class ClientWallOut(BaseModel):
@@ -1148,6 +1151,10 @@ class ThemeDetailOut(BaseModel):
     #: `theme.shuffle` alone is null when it inherits, which says nothing about
     #: whether the order on this page decides what the wall shows first.
     shuffled: bool
+    #: For each work too small for a wall hanging this theme, those walls'
+    #: names (Programming's judgement from each wall's reported screen). A work
+    #: absent here was judged fine, or there was nothing to judge it against.
+    too_small_for: dict[str, list[str]] = {}
 
 
 class ManifestEntryOut(BaseModel):

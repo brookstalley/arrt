@@ -464,6 +464,26 @@ async function remove(control, themeId, themeName) {
   });
 }
 
+/* The Size column: the Library's verdict against its quality minimum, then
+ * Programming's for each wall hanging the theme whose screen the work is too
+ * small for (`programming/adequacy.py`). Two different questions, so two marks:
+ * a scan can meet the minimum and still be a postage stamp on a 4K wall. */
+function sizeCell(work, walls) {
+  const fit = fitBadge(work);
+  // `problem`, the glyph for falling short, beside the words: the meaning has
+  // three signals, as every badge here does, so neither colour nor the glyph
+  // carries it alone.
+  const small =
+    walls && walls.length
+      ? el("span", { class: "badge badge-below_minimum" }, [
+          el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
+          el("span", { text: `too small for ${walls.join(", ")}` }),
+        ])
+      : null;
+  if (!fit && !small) return "";
+  return el("span", { class: "size-marks" }, [fit, small]);
+}
+
 /* The order copy, which depends on whether the wall follows the order.
  *
  * With shuffle off, position is what decides what the wall shows first, and
@@ -476,7 +496,7 @@ function orderCaption(shuffled) {
     : "In curated order. Position decides what the wall shows first.";
 }
 
-function memberList(themeId, themeName, { works, shuffled }, paint) {
+function memberList(themeId, themeName, { works, shuffled, too_small_for: tooSmallFor = {} }, paint) {
   if (!works.length) {
     return el("p", { class: "muted", text: "This theme holds no works yet." });
   }
@@ -559,7 +579,7 @@ function memberList(themeId, themeName, { works, shuffled }, paint) {
           ),
       }),
     ]);
-    return [String(index + 1), work.title, work.artist ? work.artist.name : "—", fitBadge(work) || "", controls];
+    return [String(index + 1), work.title, work.artist ? work.artist.name : "—", sizeCell(work, tooSmallFor[work.artwork_id]), controls];
   });
   return table(
     orderCaption(shuffled),

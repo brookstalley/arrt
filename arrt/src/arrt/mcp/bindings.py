@@ -419,6 +419,9 @@ def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         # Two calls composed: Programming says which works and in what order, and
         # the Library says what each work is.
         works=[_summary(entry) for entry in services.catalogue.resolve_details(services.display.theme_work_ids(theme_id))],
+        # Which works are too small for a wall hanging the theme, by wall name, as
+        # `ThemeDetailOut.too_small_for` carries it.
+        too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
     )
 
 
@@ -1823,6 +1826,7 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         "output": placement.output,
         "display_id": wall.display_id,
         "mat_mode": wall.mat_mode,
+        "too_small": sorted(services.display.too_small_on(wall.id)),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
             {

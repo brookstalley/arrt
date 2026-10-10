@@ -570,3 +570,109 @@ def test_a_catalogue_file_from_before_the_mat_mode_gains_it_and_keeps_its_walls(
         assert store.get_wall(wall.id).mat_mode == "full"
     finally:
         store.close()
+
+
+# -- too small for this wall ---------------------------------------------------------------
+
+
+@pytest.fixture
+def shown_by_a_client(services, wall_id):
+    """The wall on a client's HDMI output, so it has a display to remember screens against."""
+    client = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(wall_id, client_id=client.id, output="hdmi-a-1")
+    return services.display.get_wall(wall_id)
+
+
+def _beat_with_screen(width, height):
+    return {
+        **_heartbeat(),
+        "schema": {"major": 1, "minor": 2},
+        "capabilities": {
+            "screen": {"width_px": width, "height_px": height},
+            "backend": "framebuffer",
+            "label_modes": ["none"],
+            "manifest_majors": [2, 1],
+        },
+    }
+
+
+def test_a_wall_whose_player_reported_no_screen_judges_nothing(display, mastered, theme_of, wall_id, shown_by_a_client):
+    display.activate_theme(theme_of(mastered("Tiny", width=400, height=300)).id, wall_id=wall_id)
+    display.record_heartbeat(wall_id, _heartbeat())
+
+    assert display.largest_screen(wall_id) is None
+    assert display.too_small_on(wall_id) == frozenset()
+
+
+def test_a_reported_screen_makes_a_small_work_too_small_and_a_large_one_not(
+    display, mastered, theme_of, wall_id, shown_by_a_client
+):
+    tiny, large = mastered("Tiny", width=1000, height=700), mastered("Large", width=6000, height=4000)
+    theme = theme_of(tiny, large)
+    display.activate_theme(theme.id, wall_id=wall_id)
+
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    assert display.largest_screen(wall_id) == (3840, 2160)
+    assert display.too_small_on(wall_id) == {tiny.id}
+    assert display.too_small_for_walls(theme.id) == {tiny.id: [shown_by_a_client.name]}
+
+
+def test_a_later_smaller_report_does_not_clear_the_judgement_within_the_window(
+    display, mastered, theme_of, wall_id, shown_by_a_client
+):
+    tiny = mastered("Tiny", width=1000, height=700)
+    display.activate_theme(theme_of(tiny, mastered("Large", width=6000, height=4000)).id, wall_id=wall_id)
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    display.record_heartbeat(wall_id, _beat_with_screen(1280, 720))
+
+    assert display.largest_screen(wall_id) == (3840, 2160)
+    assert tiny.id in display.too_small_on(wall_id)
+
+
+def test_a_screen_last_reported_beyond_the_window_no_longer_counts_and_is_forgotten(
+    store, display, mastered, theme_of, wall_id, shown_by_a_client
+):
+    store.record_screen(shown_by_a_client.display_id, 3840, 2160, datetime.now(UTC) - timedelta(days=8))
+
+    display.record_heartbeat(wall_id, _beat_with_screen(1920, 1080))
+
+    assert display.largest_screen(wall_id) == (1920, 1080)
+    assert [(w, h) for w, h, _ in store.reported_screens(shown_by_a_client.display_id)] == [(1920, 1080)]
+
+
+def test_judging_a_work_too_small_takes_nothing_off_the_schedule(display, mastered, theme_of, wall_id, shown_by_a_client, feed):
+    tiny = mastered("Tiny", width=1000, height=700)
+    display.activate_theme(theme_of(tiny, mastered("Large", width=6000, height=4000)).id, wall_id=wall_id)
+    before = feed(wall_id)
+
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    assert tiny.id in display.too_small_on(wall_id)
+    assert feed(wall_id).slots == before.slots
+    assert tiny.id in feed(wall_id).works
+
+
+def test_a_wall_with_no_display_remembers_no_screen(display, mastered, theme_of, wall_id, store):
+    display.activate_theme(theme_of(mastered("Tiny", width=400, height=300)).id, wall_id=wall_id)
+
+    display.record_heartbeat(wall_id, _beat_with_screen(3840, 2160))
+
+    assert display.largest_screen(wall_id) is None
+
+
+def test_the_largest_screen_is_by_area_whatever_order_the_store_returns(display, wall_id, shown_by_a_client):
+    # A portrait 4K panel, then a smaller landscape window whose width sorts
+    # after it: keyed (display, width, height), the store would hand back the
+    # small one last.
+    display.record_heartbeat(wall_id, _beat_with_screen(2160, 3840))
+    display.record_heartbeat(wall_id, _beat_with_screen(2560, 1440))
+
+    assert display.largest_screen(wall_id) == (2160, 3840)
+
+
+def test_a_stale_size_does_not_count_even_before_a_heartbeat_forgets_it(store, display, wall_id, shown_by_a_client):
+    store.record_screen(shown_by_a_client.display_id, 3840, 2160, datetime.now(UTC) - timedelta(days=8))
+
+    assert display.largest_screen(wall_id) is None

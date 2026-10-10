@@ -1990,6 +1990,7 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
         shuffled=services.display.shuffles(theme),
+        too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
     )
 
 
@@ -2254,6 +2255,7 @@ def _wall(services: Services, view: WallView) -> WallOut:
         ],
         display_state=_display_state(view.display_state),
         mat_mode=view.wall.mat_mode,
+        too_small=sorted(services.display.too_small_on(view.wall.id)),
     )
 
 

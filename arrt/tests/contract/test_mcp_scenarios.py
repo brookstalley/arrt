@@ -14,6 +14,7 @@ day a sixth tool or a new action arrives with nothing exercising it.
 
 import json
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import pytest
 from fakes import a_museum_holding, a_roster, a_work, a_work_list, stored_awaiting_approval, take_the_picture_away
@@ -23,6 +24,7 @@ from arrt.library.discovery.engine import WorkList
 from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import RunStatus
+from arrt.persistence.records import RenditionKind
 from arrt.services.container import Services
 
 #: Every tool, by name, as the registry holds them. Parametrising from this is
@@ -504,3 +506,44 @@ class TestReviewingWhatDiscoveryFound:
             f"  polls folded:    {' -> '.join(caller.transcript.route)}"
         )
         assert not caller.transcript.failures, f"a step failed: {caller.transcript}"
+
+
+async def test_walls_and_a_themes_page_say_which_works_are_too_small_for_a_wall(
+    server_url, services, ready_work, wall_settings, decodable_jpeg
+):
+    """The same judgement the Walls card and the theme page show, on the tool surface."""
+    small, large = ready_work(title="Small"), ready_work(title="Large")
+    for work, size in ((small, (1000, 700)), (large, (6000, 4000))):
+        path = f"masters/{work.id}.jpg"
+        decodable_jpeg(wall_settings.art_root / path, width=size[0], height=size[1])
+        services.catalogue.record_rendition(
+            artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+        )
+    wall = services.display.survey_walls()[0].wall
+    client = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(wall.id, client_id=client.id, output="hdmi-a-1")
+    theme = services.display.add_theme(name="Sizes")
+    for work in (small, large):
+        services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    services.display.activate_theme(theme.id, wall_id=wall.id)
+    services.display.record_heartbeat(
+        wall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "current_work_id": None,
+            "schema": {"major": 1, "minor": 2},
+            "capabilities": {
+                "screen": {"width_px": 3840, "height_px": 2160},
+                "backend": "framebuffer",
+                "label_modes": ["none"],
+                "manifest_majors": [2, 1],
+            },
+        },
+    )
+
+    async with connect(server_url) as caller:
+        walls = await caller.ok("art_display", "walls")
+        page = await caller.ok("art_theme", "get", theme_id=theme.id)
+
+    assert walls["walls"][0]["too_small"] == [small.id]
+    assert page["too_small_for"] == {small.id: [wall.name]}

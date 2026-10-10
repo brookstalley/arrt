@@ -118,6 +118,18 @@ class ProgrammingStore(Protocol):
 
     # -- walls ----------------------------------------------------------------
 
+    def record_screen(self, display_id: str, width_px: int, height_px: int, reported_at: datetime) -> None:
+        """Note that this display's Player reported a screen of this size, now."""
+        ...
+
+    def reported_screens(self, display_id: str) -> Sequence[tuple[int, int, datetime]]:
+        """Each size this display reported, with when it last did. Unordered."""
+        ...
+
+    def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
+        """Drop one reported size, once it is too old to count."""
+        ...
+
     def add_wall(self, wall: Wall) -> None:
         """Persist a wall. Raises if the id or the name is already present."""
         ...

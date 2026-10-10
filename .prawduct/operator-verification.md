@@ -35,6 +35,10 @@ this branch and restart it. The Pi needs no change beyond 4d's. Then:
 - **A work with no presentation master yet** stays off the feed and is named in
   Arrt's journal. A theme where no work has one leaves its wall on `v1`.
 - **Skip** on Walls moves the wall to the next work on the next poll, as it did.
+- **Too small for {wall}.** Once each Player has reported (a minute after its
+  restart), a small scan on the wall now carries the note under it on Walls,
+  and the theme's page marks it in *Size*. Judge whether "less than half of the
+  screen" matches what you see: it is the line, and it is an inference.
 
 ### The Player asks for major 2 and still runs major 1 — added 2026-10-09
 

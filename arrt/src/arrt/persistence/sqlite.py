@@ -377,6 +377,19 @@ CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(art
 -- table is a written migration that buys nothing.
 -- `artwork_id` is deliberately not a foreign key: it is Programming's reference
 -- to a Library work, which the seam keeps opaque.
+-- Each screen size a display's Player reported, and when it last did, so
+-- Programming judges a work against the largest size reported recently and not
+-- the latest (`player-contract.md` § The heartbeat, minor 2: a window resized
+-- smaller must not make every work suddenly fine). Programming's own: the
+-- display is a Programming record, and no catalogue table is named.
+CREATE TABLE IF NOT EXISTS reported_screens (
+    display_id        TEXT NOT NULL REFERENCES displays(id),
+    width_px          INTEGER NOT NULL,
+    height_px         INTEGER NOT NULL,
+    last_reported_at  TEXT NOT NULL,
+    PRIMARY KEY (display_id, width_px, height_px)
+);
+
 CREATE TABLE IF NOT EXISTS default_theme_offers (
     artwork_id  TEXT PRIMARY KEY,
     offered_at  TEXT NOT NULL
@@ -1070,6 +1083,24 @@ class SqliteCatalogue(TableAdapter):
 
     def offered_work_ids(self) -> set[str]:
         return {row["artwork_id"] for row in self._store.scan("default_theme_offers")}
+
+    # -- reported screens -----------------------------------------------------
+
+    def record_screen(self, display_id: str, width_px: int, height_px: int, reported_at: datetime) -> None:
+        self._store.upsert(
+            "reported_screens",
+            {"display_id": display_id, "width_px": width_px, "height_px": height_px, "last_reported_at": to_iso(reported_at)},
+            pk=("display_id", "width_px", "height_px"),
+        )
+
+    def reported_screens(self, display_id: str) -> Sequence[tuple[int, int, datetime]]:
+        return [
+            (row["width_px"], row["height_px"], require_datetime(row["last_reported_at"], "last_reported_at"))
+            for row in self._store.scan("reported_screens", {"display_id": display_id})
+        ]
+
+    def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
+        self._store.delete("reported_screens", {"display_id": display_id, "width_px": width_px, "height_px": height_px})
 
     # -- walls ----------------------------------------------------------------
 

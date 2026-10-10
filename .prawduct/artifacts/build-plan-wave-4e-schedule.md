@@ -168,6 +168,17 @@ now", before writing the function.
   wall field. An older file gains it when opened. A settings table is worth
   having when settings stop being few and fixed, and nothing in wave 4 needs
   that.
+- 04: reported screens are kept per display, not per wall, because the
+  screen is the display's. A wall moved to another display is judged by the
+  new one's report.
+- 04: the judgement reads master sizes from the wall's published feed, not
+  from the Library: the feed already carries them, and asking the facade
+  would open every master's header on each Walls load.
+- 04: the box uses the contract's no-density mat (6% of the shorter side,
+  bottom ×1.15) whatever the Player's own settings. The server does not know
+  them, and the question is "big enough", not exact pixels.
+- 04: the judgement is on the MCP walls and theme reads as well as HTTP,
+  because `_wall_fields` is documented to match `WallOut`.
 
 **The publish paths and what each does to the slot on the wall now** (derived
 from `programming/display.py` and its callers in `http/api.py`,
