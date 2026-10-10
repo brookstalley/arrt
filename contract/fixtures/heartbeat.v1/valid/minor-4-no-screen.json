@@ -1,0 +1,26 @@
+{
+  "reported_at": "2026-10-10T14:00:05+00:00",
+  "manifest_schema": "2.0",
+  "theme_id": "th-surrealism",
+  "current_work_id": null,
+  "announced_content_id": null,
+  "television_reachable": null,
+  "television_showing_art": null,
+  "has_label_surface": false,
+  "label_surface_working": null,
+  "last_error": null,
+  "schema": {
+    "major": 1,
+    "minor": 4
+  },
+  "capabilities": {
+    "backend": "framebuffer",
+    "label_modes": [
+      "none"
+    ],
+    "manifest_majors": [
+      2
+    ]
+  },
+  "scene_id": null
+}

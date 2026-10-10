@@ -645,7 +645,9 @@ def test_a_wall_judged_fine_says_what_it_was_judged_against(display, mastered, t
     "capabilities",
     [
         "not an object",
-        {"backend": "framebuffer"},
+        # Minor 4 made the screen optional, and one that is there is still read.
+        {"screen": "3840x2160"},
+        {"screen": {"width_px": 3840}},
         {"screen": {"width_px": 0, "height_px": 2160}},
         {"screen": {"width_px": 3840, "height_px": "2160"}},
         {"screen": {"width_px": True, "height_px": 2160}},
@@ -656,6 +658,24 @@ def test_a_heartbeat_with_a_screen_this_server_cannot_read_is_refused(display, w
         display.record_heartbeat(wall_id, {**_heartbeat(), "capabilities": capabilities})
 
     assert display.largest_screen(wall_id) is None
+
+
+def test_a_heartbeat_whose_player_cannot_see_its_screen_is_kept_and_judges_nothing(
+    display, mastered, theme_of, wall_id, shown_by_a_client
+):
+    """Minor 4: capabilities with no screen. Its majors count; no size is recorded from it."""
+    display.activate_theme(theme_of(mastered("Tiny", width=400, height=300)).id, wall_id=wall_id)
+    beat = {
+        **_heartbeat(),
+        "schema": {"major": 1, "minor": 4},
+        "capabilities": {"backend": "framebuffer", "label_modes": ["none"], "manifest_majors": [2]},
+    }
+
+    display.record_heartbeat(wall_id, beat)
+
+    assert display.get_wall_view(wall_id).reads_feed is True
+    assert display.largest_screen(wall_id) is None
+    assert display.too_small_on(wall_id) == frozenset()
 
 
 def test_the_same_size_reported_within_the_hour_writes_nothing(store, display, wall_id, shown_by_a_client):

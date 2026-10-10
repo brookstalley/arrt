@@ -158,16 +158,21 @@ def reads_major(document: dict[str, Any], major: int) -> bool:
 
 
 def _problem_with_screen(capabilities: object) -> str | None:
-    """Minor 2's `capabilities.screen`, the one part of the capabilities this server reads.
+    """Minor 2's `capabilities.screen`, the part of the capabilities this server checks.
 
-    Refused rather than dropped: Programming judges which works are too small
-    for the wall from it, and a size it quietly ignored would leave that
-    judgement unmade with nothing saying why. The rest of the capabilities is
-    not checked here, because nothing here reads it yet.
+    Absent is fine since minor 4: a Player whose screen is unplugged cannot say
+    its size and still says which majors it reads. One that is there is refused
+    rather than dropped when it cannot be read: Programming judges which works
+    are too small for the wall from it, and a size it quietly ignored would
+    leave that judgement unmade with nothing saying why. The rest of the
+    capabilities is not checked here; `reads_major` reads `manifest_majors`
+    and treats anything but a list as silence.
     """
     if not isinstance(capabilities, dict):
         return "'capabilities' is an object."
-    screen = capabilities.get("screen")
+    if "screen" not in capabilities:
+        return None
+    screen = capabilities["screen"]
     if not isinstance(screen, dict):
         return "'capabilities.screen' is an object of 'width_px' and 'height_px'."
     for key in ("width_px", "height_px"):

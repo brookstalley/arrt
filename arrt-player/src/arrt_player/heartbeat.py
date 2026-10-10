@@ -64,10 +64,11 @@ REPORTED_AT_KEY: Final[str] = "reported_at"
 INTERVAL_SECONDS: Final[float] = 60.0
 
 #: The heartbeat's version, as `heartbeat.v1`'s `schema` key carries it. Minor 3
-#: is the first to carry `display_state` (`player-contract.md` § The heartbeat,
-#: minor 3); the server reads any minor of major 1 and keeps keys it does not know.
+#: is the first to carry `display_state`, and minor 4 the first to send
+#: `capabilities` without `screen` (`player-contract.md` § The heartbeat); the
+#: server reads any minor of major 1 and keeps keys it does not know.
 SCHEMA_MAJOR: Final[int] = 1
-SCHEMA_MINOR: Final[int] = 3
+SCHEMA_MINOR: Final[int] = 4
 
 
 class ScreenState(enum.StrEnum):

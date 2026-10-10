@@ -1386,8 +1386,9 @@ class DisplayService:
     def _record_screen(self, wall_id: str, document: Mapping[str, Any]) -> None:
         """Keep the screen size a minor 2 heartbeat reports, and forget sizes too old to count.
 
-        A heartbeat with no capabilities (before minor 2, or a Frame before its
-        Player knew its panel) says nothing about the screen, and nothing is kept.
+        A heartbeat with no capabilities (before minor 2), or with capabilities
+        and no screen (minor 4, a screen unplugged), says nothing about the
+        screen, and nothing is kept.
         """
         wall = self.get_wall(wall_id)
         capabilities = document.get("capabilities")

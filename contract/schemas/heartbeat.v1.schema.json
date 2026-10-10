@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/brookstalley/arrt/contract/schemas/heartbeat.v1.schema.json",
   "title": "Player heartbeat, major 1",
-  "description": "What Arrt Player reports about one wall, as facts rather than a verdict. The document Arrt Player writes today has no schema key, and a heartbeat without one is 1.0. Wave 2 adds the schema key (1.1) when the heartbeat moves to an HTTP POST. The server reads reported_at and keeps the rest as it came; additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md. Minor 2 (wave 4) adds the optional capabilities block and scene_id, which Programming needs once it chooses label modes, judges adequacy per wall and shows whether a scene reached each wall.",
+  "description": "What Arrt Player reports about one wall, as facts rather than a verdict. The document Arrt Player writes today has no schema key, and a heartbeat without one is 1.0. Wave 2 adds the schema key (1.1) when the heartbeat moves to an HTTP POST. The server reads reported_at and keeps the rest as it came; additive keys are allowed. Semantics are in .prawduct/artifacts/player-contract.md. Minor 2 (wave 4) adds the optional capabilities block and scene_id, which Programming needs once it chooses label modes, judges adequacy per wall and shows whether a scene reached each wall. Minor 4 makes capabilities.screen optional: a Player whose screen is unplugged cannot say its size, and still says which majors it reads.",
   "type": "object",
   "required": [
     "reported_at",
@@ -97,10 +97,9 @@
       ]
     },
     "capabilities": {
-      "description": "Minor 2 (wave 4). What this Player can do, observed rather than configured. Programming chooses the wall's label mode from label_modes and judges a work's adequacy against screen.",
+      "description": "Minor 2 (wave 4). What this Player can do, observed rather than configured. Programming chooses the wall's label mode from label_modes and judges a work's adequacy against screen. screen is optional since minor 4, sent whenever the display knows its size.",
       "type": "object",
       "required": [
-        "screen",
         "backend",
         "label_modes",
         "manifest_majors"

@@ -245,6 +245,11 @@
       "valid": true
     },
     {
+      "path": "fixtures/heartbeat.v1/valid/minor-4-no-screen.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
       "path": "fixtures/heartbeat.v1/valid/minor-3-dark.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": true

@@ -213,14 +213,23 @@ async def test_the_heartbeat_says_what_the_display_can_do_and_which_majors_this_
     assert written["scene_id"] is None
 
 
-async def test_capabilities_are_left_out_while_the_screen_is_unknown_and_sent_at_once_when_it_is(
+async def test_the_screen_is_left_out_while_unknown_and_sent_at_once_when_it_is(
     wall, display, publish, wall_settings, clock
 ):
-    """A guessed size would mislead Programming; a screen plugged in is news, not something for the interval."""
+    """A guessed size would mislead Programming; a screen plugged in is news, not something for the interval.
+
+    The rest of the capabilities goes regardless (heartbeat minor 4): a Player
+    that sent nothing while its screen was unplugged read as one that cannot
+    read the feed, and Walls told the curator to update it.
+    """
     publish(["w1"])
     display.screen = None
     await wall.tick()
-    assert "capabilities" not in heartbeat(wall_settings)
+    assert heartbeat(wall_settings)["capabilities"] == {
+        "backend": "framebuffer",
+        "label_modes": ["none", "overlay"],
+        "manifest_majors": list(REQUESTED_MAJORS),
+    }
 
     display.screen = (3840, 2160)
     clock.advance(1.3)

@@ -196,7 +196,7 @@ def test_a_heartbeat_carrying_each_display_state_conforms(state):
     document = health.document(reported_at=datetime(2026, 10, 8, 14, 0, 5, tzinfo=UTC))
 
     assert _heartbeat_errors(document) == []
-    assert document["schema"] == {"major": 1, "minor": 3}
+    assert document["schema"] == {"major": 1, "minor": 4}
 
 
 async def test_what_a_wall_on_a_screen_writes_conforms_and_says_what_it_can_do(client_settings, wall_dir, publish, clock):
@@ -217,6 +217,22 @@ async def test_what_a_wall_on_a_screen_writes_conforms_and_says_what_it_can_do(c
         "manifest_majors": [2],
     }
     assert document["scene_id"] is None
+
+
+async def test_what_a_wall_with_its_screen_unplugged_writes_conforms_and_says_what_it_reads(
+    client_settings, wall_dir, publish, clock
+):
+    wall = client_settings.wall("living-room")
+    watcher = Watcher(wall.manifest_path)
+    loop = screen_wall(wall=wall, output=RecordingOutput(screen=None), watcher=watcher, clock=clock.as_clock())
+    publish(["w1"])
+
+    await loop.tick()
+
+    document = json.loads(path_in(wall.heartbeat_root, "living-room").read_text())
+    assert _heartbeat_errors(document) == []
+    assert document["schema"] == {"major": 1, "minor": 4}
+    assert document["capabilities"] == {"backend": "framebuffer", "label_modes": ["none"], "manifest_majors": [2]}
 
 
 async def test_what_a_wall_on_the_frame_writes_conforms_and_says_what_it_can_do(settings, tv, state, publish, clock):
