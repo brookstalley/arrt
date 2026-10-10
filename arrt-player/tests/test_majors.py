@@ -1,18 +1,21 @@
-"""A wall reads both majors, and a new document of the other major switches it without a restart.
+"""A wall on major 2, through both real drivers: what the schedule says reaches the display composed.
 
-Driven through both real drivers (the Frame over its television double, a
-screen over a recording output), because the switch lives in the shared loop
-and each display remembers what is on the wall in its own way.
+Driven through the Frame over its television double and a screen over a
+recording output, because the programme lives in the shared loop and each
+display remembers what is on the wall in its own way. A major 1 document is
+refused as an unsupported version and the wall keeps what it shows
+(`player-contract.md` § The cutover).
 """
 
 import json
-import random
+import logging
 from pathlib import Path
 
 import pytest
 from conftest import a_master, tick_until, write_manifest
 from fakes import FakeTv, RecordingOutput
 from PIL import Image
+from server_double import CONTRACT
 
 from arrt_player.compose import Geometry, composition_key
 from arrt_player.displays.frame import FrameDisplay, frame_wall
@@ -62,8 +65,8 @@ def publish_feed(wall_dir, slots: list[tuple[str, str, str]]) -> dict:
 def screen(client_settings, wall_dir, clock):
     wall = client_settings.wall("living-room")
     output = RecordingOutput()
-    watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    return screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock(), rng=random.Random(7)), output
+    watcher = Watcher(wall.manifest_path)
+    return screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock()), output
 
 
 @pytest.fixture
@@ -72,46 +75,8 @@ def screen_geometry(client_settings) -> Geometry:
     return client_settings.wall("living-room").geometry_for(RecordingOutput().screen)
 
 
-async def test_a_screen_switches_from_major_1_to_a_feed_and_back(screen, publish, wall_dir, clock, screen_geometry):
-    wall, output = screen
-    publish(["w1", "w2"], interval_seconds=60)
-    await wall.tick()
-    assert output.shown == [wall_dir / "ready" / "w1.jpg"], "major 1's render is handed over as it arrived, never matted again"
-
-    clock.advance(1.3)
-    publish_feed(wall_dir, [("f1", "08:00", "18:00")])
-    await tick_until(wall.tick, lambda: len(output.shown) == 2)
-    assert output.shown[-1] == composed(wall_dir, _sha("f1"), screen_geometry), "the feed's slot was not shown composed"
-
-    clock.advance(1.3)
-    publish(["w1", "w2"], interval_seconds=60)
-    await wall.tick()
-    # Switched back, the rotation takes the wall at once, as a restarted one
-    # does: the feed's picture is up and the theme does not carry its work, so
-    # it starts from the top.
-    assert [path.name for path in output.shown[2:]] == ["w1.jpg"], "major 1's rotation did not take the wall back"
-
-
-async def test_a_wall_switched_away_and_back_puts_its_own_picture_up_again(screen, publish, wall_dir, clock, screen_geometry):
-    """Major 1's render of a work is not major 2's picture of it, though the wall's memory names the same work."""
-    wall, output = screen
-    publish_feed(wall_dir, [("w1", "08:00", "18:00")])
-    await tick_until(wall.tick, lambda: len(output.shown) == 1)
-
-    clock.advance(1.3)
-    publish(["w1"], interval_seconds=60)
-    await wall.tick()
-    assert output.shown[-1].name == "w1.jpg", "major 1 put its own render of the work up"
-
-    clock.advance(1.3)
-    publish_feed(wall_dir, [("w1", "08:00", "18:00")])
-    await tick_until(wall.tick, lambda: len(output.shown) == 3)
-
-    assert output.shown[-1] == composed(wall_dir, _sha("w1"), screen_geometry), "the composed render stayed up"
-
-
 async def test_the_frame_shows_a_feeds_slot_and_then_the_next(settings, tv: FakeTv, state, wall_dir, clock):
-    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    watcher = Watcher(settings.manifest_path)
     wall = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
     publish_feed(wall_dir, [("f1", "08:00", "13:00"), ("f2", "13:00", "18:00")])
 
@@ -125,7 +90,7 @@ async def test_the_frame_shows_a_feeds_slot_and_then_the_next(settings, tv: Fake
 
 async def test_the_frame_composes_for_its_configured_panel(settings, tv: FakeTv, state, wall_dir, clock):
     """A 4K panel at the fixture's 50 inches, not the screen double's 1080p."""
-    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    watcher = Watcher(settings.manifest_path)
     wall = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
     publish_feed(wall_dir, [("f1", "08:00", "18:00")])
 
@@ -138,8 +103,8 @@ async def test_the_frame_composes_for_its_configured_panel(settings, tv: FakeTv,
 async def test_the_frame_leaves_a_feeds_slot_alone_while_somebody_watches_television(
     settings, tv: FakeTv, state, wall_dir, clock
 ):
-    """The schedule asks the set the same question the rotation does before it touches the wall."""
-    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    """The schedule asks the set whether it is showing art before it touches the wall."""
+    watcher = Watcher(settings.manifest_path)
     wall = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
     tv.art_mode = "off"
     publish_feed(wall_dir, [("f1", "08:00", "13:00")])
@@ -176,21 +141,6 @@ def test_the_frame_reports_the_panel_it_composes_for(settings, tv, state, clock)
     assert found.screen == (settings.tv_panel_width_px, settings.tv_panel_height_px)
 
 
-async def test_a_wall_moved_to_a_feed_naming_the_work_already_up_shows_its_composition(
-    screen, publish, wall_dir, clock, screen_geometry
-):
-    """The work's id is the same; the picture is not — major 1 put up the server's composed render."""
-    loop, output = screen
-    publish(["w1"], interval_seconds=60)
-    await loop.tick()
-
-    clock.advance(1.3)
-    publish_feed(wall_dir, [("w1", "08:00", "18:00")])
-    await tick_until(loop.tick, lambda: len(output.shown) == 2)
-
-    assert output.shown == [wall_dir / "ready" / "w1.jpg", composed(wall_dir, _sha("w1"), screen_geometry)]
-
-
 async def test_a_work_given_new_media_under_the_same_id_is_shown_again(screen, wall_dir, clock, screen_geometry):
     loop, output = screen
     document = publish_feed(wall_dir, [("f1", "08:00", "18:00")])
@@ -221,7 +171,7 @@ async def test_a_screen_whose_mode_changes_is_composed_for_again(screen, wall_di
 
 
 async def test_a_feed_republished_with_the_same_work_up_leaves_the_wall_alone(screen, wall_dir, clock):
-    """Only a switch of major tells a programme the wall holds another's picture; a new feed of its own major does not."""
+    """A new feed is not a reason to put the same picture up again."""
     loop, output = screen
     document = publish_feed(wall_dir, [("f1", "08:00", "18:00")])
     await tick_until(loop.tick, lambda: len(output.shown) == 1)
@@ -249,7 +199,7 @@ async def test_a_mode_change_in_a_gap_keeps_the_picture_the_screen_is_showing(cl
     """In a gap nothing replaces the work on the wall, so its file must outlive the tidy a new mode owes."""
     wall = client_settings.wall("living-room")
     output = ReadingOutput()
-    watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    watcher = Watcher(wall.manifest_path)
     loop = screen_wall(wall=wall, output=output, watcher=watcher, clock=clock.as_clock())
     publish_feed(wall_dir, [("f1", "11:00", "12:01")])
     await tick_until(loop.tick, lambda: len(output.shown) == 1)
@@ -263,3 +213,20 @@ async def test_a_mode_change_in_a_gap_keeps_the_picture_the_screen_is_showing(cl
     assert "drawn again" not in (heartbeat.get("last_error") or ""), "the screen could not redraw its own picture"
     assert output.shown[-1].is_file(), "the picture on the wall was removed while the screen still shows it"
     assert len(output.shown) == 1, "a gap put something new up"
+
+
+async def test_a_major_1_document_is_refused_and_the_wall_keeps_what_it_shows(screen, wall_dir, clock, caplog):
+    """The contract's own major 1 document, cached over a feed: refused as a version, and nothing changes on the wall."""
+    loop, output = screen
+    publish_feed(wall_dir, [("f1", "08:00", "18:00")])
+    await tick_until(loop.tick, lambda: len(output.shown) == 1)
+
+    clock.advance(1.3)
+    write_manifest(wall_dir, json.loads((CONTRACT / "fixtures" / "manifest.v2" / "invalid" / "major-1.json").read_text()))
+    with caplog.at_level(logging.ERROR):
+        for _ in range(3):
+            await loop.tick()
+
+    assert len(output.shown) == 1, "a major 1 document changed the wall"
+    (refused,) = [record for record in caplog.records if getattr(record, "event", None) == "manifest.version_refused"]
+    assert refused.observed_major == 1

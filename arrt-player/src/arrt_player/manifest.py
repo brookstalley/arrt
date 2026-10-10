@@ -1,8 +1,8 @@
 """Reading the one channel from curation, and refusing to guess at a bad one.
 
-The manifest is **desired display state**, not a list: it carries the ordered
-entries, the pace to show them at, and a directive block through which a curator's
-`next` and `show_now` reach this plane. The pull caches each wall's copy
+The manifest is **desired display state**, not a list: a feed of works and the
+schedule that says which is up when, so a curator's `next` and `show_now` reach
+this plane as a republished schedule. The pull caches each wall's copy
 atomically — a temp file in the same directory, then `os.replace` — so a reader
 never observes a partial document and no lock is needed on either side.
 
@@ -27,10 +27,12 @@ something impossible, keep what you have and say so, rather than guess.**
 An unrecognised **minor** is not a refusal — additive changes are free, and a
 reader that rejected them would make every new field a breaking one.
 
-**Two majors are read.** Major 1 is a list of composed renders with a rotation
-and a directive (`Manifest`); major 2 is a feed: the works, a schedule of
-absolute slots, and a scene and staging when the wall has a control layer
-(`Feed`, `player-contract.md` § Major 2). A major 2 document is refused for the
+**One major is read: 2**, a feed of the works, a schedule of absolute slots,
+and a scene and staging when the wall has a control layer (`Feed`,
+`player-contract.md` § Major 2). A major 1 document — a list of the server's
+composed renders and the pace to show them at — is refused as an unsupported
+version like any other, so a stale one keeps the wall on what it shows (§ The
+cutover). A major 2 document is refused for the
 rules a Player acts on — its shape where this reader reads it, the instants,
 and the five rules a schema cannot state — and **never for a presentation
 setting**: a Player applies the settings its display can honour and ignores the
@@ -50,20 +52,19 @@ from typing import Any, Final
 log = logging.getLogger(__name__)
 
 #: The manifest majors this reader understands. Anything else is kept off the wall.
-SUPPORTED_SCHEMA_MAJORS: Final[tuple[int, ...]] = (1, 2)
+SUPPORTED_SCHEMA_MAJORS: Final[tuple[int, ...]] = (2,)
 
 #: The majors this Player asks the server for, highest first, and reports in its
-#: heartbeat's `manifest_majors` (`player-contract.md` § The cutover). Major 2
-#: is asked for because this Player composes its works itself (`compose.py`):
-#: a major 2 work arrives as an unmatted master, and asking for one before
-#: the Player could draw its mat would have put the bare master on the wall.
-#: A server that publishes no major 2 for the wall answers 404, and the pull
-#: falls back to major 1. One constant for both, so the Player never reports a
-#: major it does not ask for.
-REQUESTED_MAJORS: Final[tuple[int, ...]] = (2, 1)
+#: heartbeat's `manifest_majors` (`player-contract.md` § The cutover). Only
+#: major 2: this Player composes each work itself (`compose.py`), so nothing
+#: upstream of it holds its screen's geometry. A server that publishes no major
+#: 2 for the wall answers 404, and with no lower major to ask, that is the wall
+#: misconfigured. One constant for both, so the Player never reports a major it
+#: does not ask for.
+REQUESTED_MAJORS: Final[tuple[int, ...]] = (2,)
 
 #: Where the pull keeps media, relative to the wall's directory, each file named
-#: by the SHA-256 of its bytes: a major 1 render and a major 2 work's master alike.
+#: by the SHA-256 of its bytes: each work's presentation master.
 MEDIA_DIRNAME: Final[str] = "media"
 
 #: `player-contract.md` § Time: RFC 3339 with an offset, as the schema's
@@ -101,49 +102,6 @@ class ManifestVersionUnsupported(ManifestUnreadable):
             f"{', '.join(str(known) for known in SUPPORTED_SCHEMA_MAJORS)}); keeping the manifest already loaded"
         )
         self.major = major
-
-
-@dataclass(frozen=True)
-class Entry:
-    """One work on the wall: what to show, and what a label would say about it."""
-
-    work_id: str
-    #: Relative to the render root, never absolute: the wall's own directory in
-    #: this Player's cache, where the pull names each render by its hash. The
-    #: path crossing as a relative one is what keeps where the cache is from
-    #: being load-bearing.
-    render_path: str
-    #: Label *text* crosses the channel; label *rendering* does not. Nothing in
-    #: this chunk reads it, and it is carried rather than dropped because the
-    #: plane that renders the label reads the same manifest object.
-    label: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class Manifest:
-    """One published desired-state document, already checked."""
-
-    schema_major: int
-    schema_minor: int
-    theme_id: str | None
-    theme_name: str | None
-    rotation_interval_seconds: int
-    shuffle: bool
-    directive_sequence: int
-    pinned_work_id: str | None
-    entries: tuple[Entry, ...]
-
-    def index_of(self, work_id: str) -> int | None:
-        """Where a work sits in the published order, or None if it is not carried.
-
-        None is the ordinary answer rather than an error: `show_now` checks that a
-        work *could* reach the wall, not that it is in the active theme, so a pin
-        naming a work this manifest does not list is a supported outcome.
-        """
-        for position, entry in enumerate(self.entries):
-            if entry.work_id == work_id:
-                return position
-        return None
 
 
 @dataclass(frozen=True)
@@ -217,11 +175,11 @@ class Feed:
         return tuple(dict.fromkeys(order))
 
 
-def parse(text: str, *, rotation_interval_fallback: int, shuffle_fallback: bool) -> "Manifest | Feed":
-    """Turn the file's bytes into a `Manifest` (major 1) or a `Feed` (major 2), or refuse it.
+def parse(text: str) -> Feed:
+    """Turn the file's bytes into a `Feed`, or refuse it.
 
     Version is checked **before** structure, because a future major is expected to
-    be shaped differently: reporting "entries is missing" for a document whose
+    be shaped differently: reporting "works is missing" for a document whose
     major says plainly that this reader should not be reading it would send
     whoever finds it looking for a bug in the writer.
     """
@@ -239,51 +197,7 @@ def parse(text: str, *, rotation_interval_fallback: int, shuffle_fallback: bool)
     major = schema["major"]
     if major not in SUPPORTED_SCHEMA_MAJORS:
         raise ManifestVersionUnsupported(major)
-    if major == 2:  # noqa: PLR2004 -- the major is the name of a shape, not a magnitude
-        return _feed(document)
-
-    entries_raw = document.get("entries")
-    if not isinstance(entries_raw, list):
-        raise ManifestUnreadable("the manifest carries no entries list")
-
-    entries = tuple(_entry(item, position) for position, item in enumerate(entries_raw))
-
-    rotation = document.get("rotation") if isinstance(document.get("rotation"), dict) else {}
-    directive = document.get("directive") if isinstance(document.get("directive"), dict) else {}
-    theme = document.get("theme") if isinstance(document.get("theme"), dict) else {}
-
-    sequence = directive.get("sequence")
-    if not isinstance(sequence, int) or isinstance(sequence, bool):
-        # Not defaulted to zero: the sequence is the whole directive mechanism,
-        # and a reader that invented a value for it would re-baseline against a
-        # number the writer never published — silently disarming `next` and
-        # `show_now` rather than reporting that the file is wrong.
-        raise ManifestUnreadable("the manifest's directive carries no integer sequence")
-
-    pinned = directive.get("pinned_work_id")
-    if pinned is not None and not isinstance(pinned, str):
-        raise ManifestUnreadable(f"the manifest's pinned_work_id is a {type(pinned).__name__}, not a string or null")
-
-    interval = rotation.get("interval_seconds")
-    shuffle = rotation.get("shuffle")
-    return Manifest(
-        schema_major=major,
-        schema_minor=schema.get("minor") if isinstance(schema.get("minor"), int) else 0,
-        theme_id=theme.get("id") if isinstance(theme.get("id"), str) else None,
-        theme_name=theme.get("name") if isinstance(theme.get("name"), str) else None,
-        # Falling back rather than refusing, and the asymmetry with `sequence`
-        # above is deliberate: a missing pace has a right answer this deployment
-        # already knows, while a missing sequence has none that is safe to invent.
-        rotation_interval_seconds=(
-            interval
-            if isinstance(interval, int) and not isinstance(interval, bool) and interval > 0
-            else rotation_interval_fallback
-        ),
-        shuffle=shuffle if isinstance(shuffle, bool) else shuffle_fallback,
-        directive_sequence=sequence,
-        pinned_work_id=pinned,
-        entries=entries,
-    )
+    return _feed(document)
 
 
 def _feed(document: dict[str, Any]) -> Feed:  # noqa: C901 -- one refusal per rule, each said where it is checked
@@ -405,19 +319,6 @@ def _instant(value: object, what: str) -> datetime:
         raise ManifestUnreadable(f"{what} is not a real instant ({exc})") from exc
 
 
-def _entry(item: object, position: int) -> Entry:
-    if not isinstance(item, dict):
-        raise ManifestUnreadable(f"entry {position} is a {type(item).__name__}, not an object")
-    work_id = item.get("work_id")
-    render_path = item.get("render_path")
-    if not isinstance(work_id, str) or not work_id:
-        raise ManifestUnreadable(f"entry {position} carries no work_id")
-    if not isinstance(render_path, str) or not render_path:
-        raise ManifestUnreadable(f"entry {position} ({work_id}) carries no render_path")
-    label = item.get("label")
-    return Entry(work_id=work_id, render_path=render_path, label=label if isinstance(label, dict) else {})
-
-
 class Watcher:
     """Polls one path and hands back a manifest only when a *new, good* one lands.
 
@@ -431,23 +332,21 @@ class Watcher:
     written when the file changes and not again until it changes once more.
     """
 
-    def __init__(self, path: Path, *, rotation_interval_fallback: int, shuffle_fallback: bool) -> None:
+    def __init__(self, path: Path) -> None:
         self._path = path
-        self._rotation_interval_fallback = rotation_interval_fallback
-        self._shuffle_fallback = shuffle_fallback
         self._seen_stamp: tuple[int, int] | None = None
-        self._current: Manifest | Feed | None = None
+        self._current: Feed | None = None
         self._reported_absent = False
         self._reported_unstatable = False
 
     @property
-    def current(self) -> "Manifest | Feed | None":
+    def current(self) -> Feed | None:
         """The last manifest that was good, or None if none ever has been."""
         return self._current
 
     def poll(  # noqa: C901, PLR0911 -- each way a manifest file can be refused keeps the loaded one, said where it happens
         self,
-    ) -> "Manifest | Feed | None":
+    ) -> Feed | None:
         """Read the file if it changed; return the new manifest, or None.
 
         None means "nothing to do" in every case that is not a fresh, valid
@@ -528,11 +427,7 @@ class Watcher:
             return None
 
         try:
-            manifest = parse(
-                text,
-                rotation_interval_fallback=self._rotation_interval_fallback,
-                shuffle_fallback=self._shuffle_fallback,
-            )
+            manifest = parse(text)
         except ManifestVersionUnsupported as exc:
             # `log.error` rather than `log.exception` here and below, deliberately.
             # A traceback for these two is noise that buries the finding: the
@@ -561,31 +456,17 @@ class Watcher:
             return None
 
         self._current = manifest
-        if isinstance(manifest, Feed):
-            log.info(
-                "adopted the feed for playlist %s with %d slots over %d works",
-                manifest.playlist_name or manifest.playlist_id or "(unnamed)",
-                len(manifest.slots),
-                len(manifest.works),
-                extra={
-                    "event": "manifest.adopted",
-                    "theme_id": manifest.playlist_id,
-                    "slots": len(manifest.slots),
-                    "works": len(manifest.works),
-                    "scene_id": manifest.scene.scene_id if manifest.scene is not None else None,
-                    "schema": f"{manifest.schema_major}.{manifest.schema_minor}",
-                },
-            )
-            return manifest
         log.info(
-            "adopted manifest for theme %s with %d entries",
-            manifest.theme_name or manifest.theme_id or "(unnamed)",
-            len(manifest.entries),
+            "adopted the feed for playlist %s with %d slots over %d works",
+            manifest.playlist_name or manifest.playlist_id or "(unnamed)",
+            len(manifest.slots),
+            len(manifest.works),
             extra={
                 "event": "manifest.adopted",
-                "theme_id": manifest.theme_id,
-                "entries": len(manifest.entries),
-                "sequence": manifest.directive_sequence,
+                "theme_id": manifest.playlist_id,
+                "slots": len(manifest.slots),
+                "works": len(manifest.works),
+                "scene_id": manifest.scene.scene_id if manifest.scene is not None else None,
                 "schema": f"{manifest.schema_major}.{manifest.schema_minor}",
             },
         )

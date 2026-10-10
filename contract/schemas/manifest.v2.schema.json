@@ -221,6 +221,81 @@
     }
   },
   "$defs": {
+    "label": {
+      "description": "Label text only. How it is set is the Player's decision. The artist's name crosses whole and in parts, because a work whose artist has no recorded parts has only the whole.",
+      "type": "object",
+      "required": [
+        "title",
+        "artist",
+        "artist_family_name",
+        "artist_given_name",
+        "artist_nationality",
+        "artist_dates",
+        "date_created",
+        "medium",
+        "dimensions",
+        "commentary"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "artist": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artist_family_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artist_given_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artist_nationality": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "artist_dates": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date_created": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "medium": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dimensions": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commentary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "instant": {
       "description": "RFC 3339 with an offset. The pattern enforces it, because not every validator checks 'format'.",
       "type": "string",
@@ -302,8 +377,7 @@
           "pattern": "^#[0-9a-f]{6}$"
         },
         "label": {
-          "description": "The same label text as major 1.",
-          "$ref": "manifest.v1.schema.json#/$defs/label"
+          "$ref": "#/$defs/label"
         }
       }
     }

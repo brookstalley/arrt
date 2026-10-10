@@ -20,10 +20,11 @@ from arrt.persistence.records import (
     RightsStatus,
     SourceClass,
 )
+from arrt.programming.manifest.v2 import read_published
 
 
-def _make_showable(service, work):
-    """Give a work everything readiness asks for, so the wall will accept a pin on it."""
+def _make_showable(service, work, *, art_root, decodable_jpeg):
+    """Give a work everything readiness asks for, and a master the feed can send."""
     source = service.add_source(
         artwork_id=work.id,
         url="https://museum.example/figure-five",
@@ -44,12 +45,13 @@ def _make_showable(service, work):
         fetch_status=FetchStatus.OK,
     )
     service.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
+    decodable_jpeg(art_root / "masters/figure-five.jpg", width=400, height=300)
     service.record_rendition(
         artwork_id=work.id,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path="ready/figure-five.jpg",
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path="masters/figure-five.jpg",
     )
 
 
@@ -304,13 +306,12 @@ def test_q1_a_move_made_beside_an_unplaced_work_counts_it(service, display, stor
     assert [membership.position for membership in store.list_memberships(theme.id)] == [0, 1, 2]
 
 
-def test_q2_which_work_the_wall_is_on_so_the_label_can_match_it(service, display, wall_id):
-    """The catalogue's half of the answer: what hangs on the wall, its order, and the pin.
+def test_q2_which_work_the_wall_is_on_so_the_label_can_match_it(service, display, wall_id, wall_settings, decodable_jpeg):
+    """The catalogue's half of the answer: what hangs on the wall, and when each work shows.
 
-    The display plane owns which entry it has reached; what it needs from here is
-    the theme that wall is showing, the order to rotate through, and the label
-    text for whichever work that lands on. The pin is the one case where the
-    catalogue names a specific work.
+    The wall's feed names a work for every slot, and carries the label text for
+    each work it names. Showing a work now is the case where the curator names
+    a specific one, and it heads the schedule.
     """
     demuth = service.add_artist(name="Charles Demuth", nationality="American", born=1883, died=1935)
     figure_five = service.add_artwork(
@@ -320,19 +321,20 @@ def test_q2_which_work_the_wall_is_on_so_the_label_can_match_it(service, display
         medium="Oil, graphite, ink and gold leaf on paperboard",
         dimensions="90.2 x 76.2 cm",
     )
-    _make_showable(service, figure_five)
+    _make_showable(service, figure_five, art_root=wall_settings.art_root, decodable_jpeg=decodable_jpeg)
     theme = display.add_theme(name="American Modernists")
     display.add_to_theme(theme_id=theme.id, artwork_id=figure_five.id, position=1)
 
     display.activate_theme(theme.id, wall_id=wall_id)
-    display.show_work_now(wall_id, figure_five.id)
+    shown = display.show_work_now(wall_id, figure_five.id)
 
     assert display.hanging_on(wall_id).id == theme.id
-    directive = display.read_directive(wall_id)
-    assert directive.pinned_work_id == figure_five.id
+    feed = read_published(wall_settings.manifest_v2_path(wall_id))
+    assert feed.slots[0].work_id == shown == figure_five.id
+    assert feed.works[shown]["label"]["title"] == "I Saw the Figure 5 in Gold"
 
     # Every field the physical label renders is reachable from that id.
-    detail = service.get_artwork(directive.pinned_work_id)
+    detail = service.get_artwork(shown)
     assert detail.artwork.title == "I Saw the Figure 5 in Gold"
     assert detail.artwork.date_created == "1928"
     assert detail.artwork.medium.startswith("Oil, graphite")
@@ -431,7 +433,11 @@ def test_q8_which_renditions_exist_for_which_geometry_and_are_they_current(servi
         fetch_status=FetchStatus.OK,
     )
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/nighthawks.jpg"
+        artwork_id=work.id,
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path="presentation/nighthawks.jpg",
     )
     service.record_rendition(
         artwork_id=work.id, kind=RenditionKind.THUMBNAIL, target_width=400, target_height=225, path="thumbs/nighthawks.jpg"
@@ -442,7 +448,7 @@ def test_q8_which_renditions_exist_for_which_geometry_and_are_they_current(servi
     # Geometry is columns, so the question is answerable at all — the 2024 design
     # encoded it in the filename, where nothing could query it.
     by_geometry = {(view.rendition.kind, view.rendition.target_width, view.rendition.target_height): view for view in views}
-    assert set(by_geometry) == {(RenditionKind.TV_DISPLAY, 3840, 2160), (RenditionKind.THUMBNAIL, 400, 225)}
+    assert set(by_geometry) == {(RenditionKind.PRESENTATION_MASTER, 7680, 7680), (RenditionKind.THUMBNAIL, 400, 225)}
     assert all(view.stale is False for view in views)
 
     # Re-acquire, and both answers change without either row being touched.

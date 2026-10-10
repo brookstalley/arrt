@@ -74,7 +74,7 @@ def a_catalogue_work(**overrides) -> WorkOut:
         "status": ArtworkStatus.ACCEPTED.value,
         "fit": None,
         "fit_note": None,
-        "image": ImageOut(available=False, source_kind=None, note="No image held."),
+        "image": ImageOut(available=False, note="No image held."),
     }
     return WorkOut(**(fields | overrides))
 

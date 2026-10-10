@@ -1,12 +1,11 @@
-"""Library tiles show the work itself; the Work page shows the wall render.
+"""Library tiles show the work itself, and so does the Work page, larger.
 
 The owner's ruling on tiles (`ia-proposal.md` § Rulings 2026-10-07, ruling 7):
-a tile is the work at its own aspect, never the wall render's mat and bars, and
-the wall render is the Work page's, where it is the subject. Every work here is
-a **portrait master under a landscape canvas**, so a tile showing the canvas and
-a tile showing the work cannot be mistaken for each other by their shape — the
-picture the browser actually decoded is what is measured, not the address it
-asked for.
+a tile is the work at its own aspect, with no mat. The Work page's picture is
+the same work, drawn from the master too, since each wall's Player draws its
+own mat. Every work here is a **portrait master**, so a picture in a screen's
+16:9 shape cannot be mistaken for the work — the picture the browser actually
+decoded is what is measured, not the address it asked for.
 """
 
 import pytest
@@ -16,26 +15,14 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from arrt.persistence.records import RenditionKind
-
 
 @pytest.fixture
-def composed(work_with_an_image, service, settings, decodable_jpeg):
-    """A held work whose master is portrait and whose wall render is 16:9."""
+def composed(work_with_an_image):
+    """A held work whose master is portrait."""
 
     def _composed(title="Nighthawks"):
         # Well over the quality minimum, so its fit draws no badge.
-        work = work_with_an_image(title, width=3000, height=4000)
-        rendered = f"ready/{work.id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
-        service.record_rendition(
-            artwork_id=work.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
-        )
-        return work
+        return work_with_an_image(title, width=3000, height=4000)
 
     return _composed
 
@@ -52,7 +39,7 @@ def test_an_artworks_tile_is_the_work_at_its_own_aspect(ui, composed):
     work = composed()
     ui.open("#collection?density=catalogue")
     width, height = _decoded_shape(ui.page.locator(f"li.card[data-artwork='{work.id}'] .card-image img"))
-    assert height > width, "the tile shows the 16:9 wall render, not the portrait work"
+    assert height > width, "the tile is not the portrait work"
 
 
 def test_a_posters_tile_is_the_work_at_its_own_aspect(ui, composed):
@@ -62,11 +49,11 @@ def test_a_posters_tile_is_the_work_at_its_own_aspect(ui, composed):
     assert height > width
 
 
-def test_the_work_page_shows_the_wall_render_larger_than_a_tile(ui, composed):
+def test_the_work_page_shows_the_work_at_its_own_aspect_larger_than_a_tile(ui, composed):
     work = composed()
     ui.open(f"#work/{work.id}")
     width, height = _decoded_shape(ui.page.locator(".work-hero img.work-picture"))
-    assert width / height == pytest.approx(3840 / 2160, abs=0.02), "the Work page lost the wall render"
+    assert height / width == pytest.approx(4000 / 3000, abs=0.02), "the Work page is not the portrait work"
     assert width > 480, "the Work page draws a tile-sized picture across its column"
 
 

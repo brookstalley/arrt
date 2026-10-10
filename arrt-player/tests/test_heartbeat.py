@@ -194,16 +194,16 @@ class TestWritingItSafely:
 
 
 class TestTheInterval:
-    def test_it_is_slower_than_the_wall_would_be_and_faster_than_a_rotation(self):
+    def test_it_is_slower_than_the_wall_would_be_and_faster_than_a_work_is_up(self):
         """Both bounds, because each has a different failure and both are silent.
 
         Faster and this becomes an unbounded small-write source on the SD card the
-        catalogue shares. Slower than the rotation default and it names works the
-        wall has already left.
+        catalogue shares. Slower than the three-minute pace the reference wall
+        runs at and it names works the wall has already left.
         """
         assert INTERVAL_SECONDS == 60.0
         assert INTERVAL_SECONDS > 1.0, "at the poll interval this would be ~86,400 writes a day, forever"
-        assert INTERVAL_SECONDS < 180.0, "slower than the default rotation would report works already gone"
+        assert INTERVAL_SECONDS < 180.0, "slower than a three-minute slot would report works already gone"
 
 
 def test_the_path_is_derived_from_the_art_root_and_the_wall(tmp_path: Path):

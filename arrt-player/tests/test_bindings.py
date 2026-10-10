@@ -13,6 +13,8 @@ from pathlib import Path
 import pytest
 from fakes import FakeTv
 
+from arrt_player.displays.frame import frame_wall
+from arrt_player.manifest import Watcher
 from arrt_player.state import DisplayState, UploadStatus
 from arrt_player.wall import Wall
 
@@ -92,7 +94,7 @@ class TestUploading:
 
         binding = state.binding_for("w1")
         assert binding.is_on_the_television
-        assert tv.holding[binding.tv_content_id].name == "w1.jpg"
+        assert publish.work_of(tv.holding[binding.tv_content_id]) == "w1"
 
     async def test_an_upload_that_fails_is_recorded_and_the_work_skipped(
         self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, caplog
@@ -167,20 +169,20 @@ class TestUploading:
     async def test_a_re_rendered_work_is_sent_again(
         self, daemon: Wall, tv: FakeTv, publish, wall_dir, state: DisplayState, clock
     ):
-        """**The wall showing a composition the catalogue no longer holds.**
+        """**The wall showing a picture that is no longer the file it was given.**
 
-        `render_path` is `ready/{artwork_id}.jpg` and stable across re-renders, so
-        a curator changing a mat colour rewrites the bytes under an unchanged name.
-        Without a fingerprint the binding still reads `uploaded` and the television
-        goes on showing the old picture indefinitely — and nothing in the product
-        would ever say so, because every record agrees. `set_mat_color` and
-        `regenerate` are live actions, so this is ordinary use.
+        A binding names a work, so a picture rewritten under a name the binding
+        already holds would leave it reading `uploaded` while the television went
+        on showing the old picture indefinitely — and nothing in the product would
+        ever say so, because every record agrees. A composed picture's name is its
+        composition key, so this is a file rewritten in place: the fingerprint is
+        what catches it.
         """
         publish(["w1"], interval_seconds=10)
         await daemon.tick()
         first = state.binding_for("w1").tv_content_id
 
-        (wall_dir / "ready" / "w1.jpg").write_bytes(b"a different composition entirely")
+        publish.picture("w1").write_bytes(b"a different composition entirely")
         clock.advance(10)
         await daemon.tick()
 
@@ -244,7 +246,7 @@ class TestOrphans:
             clock.advance(10)
         held_before = set(tv.holding)
 
-        publish(["w1", "w2"], sequence=1, interval_seconds=10)  # a `sync` rewrite
+        publish(["w1", "w2"], interval_seconds=10)  # a `sync` rewrite
         await daemon.tick()
 
         assert set(tv.holding) == held_before
@@ -260,7 +262,7 @@ class TestOrphans:
         vanished = state.binding_for("w1").tv_content_id
         del tv.holding[vanished]
 
-        publish(["w1"], sequence=1)
+        publish(["w1"])
         with caplog.at_level(logging.WARNING):
             await daemon.tick()
             await daemon.tick()
@@ -271,7 +273,7 @@ class TestOrphans:
         assert rebound.tv_content_id != vanished
         assert rebound.tv_content_id in tv.holding
 
-    async def test_a_binding_the_set_refuses_mid_rotation_is_rebound_rather_than_retried_forever(
+    async def test_a_binding_the_set_refuses_mid_schedule_is_rebound_rather_than_retried_forever(
         self, daemon: Wall, tv: FakeTv, publish, state: DisplayState, clock, caplog
     ):
         """The wall-freezing case, and the reason a refusal is not read as an outage.
@@ -291,7 +293,7 @@ class TestOrphans:
         with caplog.at_level(logging.WARNING):
             await daemon.tick()
 
-        assert tv.on_the_wall.name == "w2.jpg", "the wall froze on a binding the set had forgotten"
+        assert publish.work_of(tv.on_the_wall) == "w2", "the wall froze on a binding the set had forgotten"
         assert state.binding_for("w2").tv_content_id != stale
         assert "binding.orphaned" in {r.__dict__.get("event") for r in caplog.records}
 
@@ -303,16 +305,17 @@ class TestOrphans:
         If the set still lists the id it just refused, the binding is not the
         problem and inventing a re-upload would paper over whatever is.
         """
-        publish(["w1"], interval_seconds=10)
+        publish(["w1", "w2"], interval_seconds=10)
         await daemon.tick()
-        content_id = state.binding_for("w1").tv_content_id
+        await daemon.tick()  # the pass that uploads w2, one upload per pass
+        content_id = state.binding_for("w2").tv_content_id
 
         clock.advance(10)
         tv.refuse_selection_of.add(content_id)  # still listed, still refused
         wait = await daemon.tick()
 
         assert wait == settings.tv_retry_min_seconds, "a refusal the set could not explain was not treated as an outage"
-        assert state.binding_for("w1").tv_content_id == content_id, "a live binding was thrown away"
+        assert state.binding_for("w2").tv_content_id == content_id, "a live binding was thrown away"
 
     async def test_an_unconfirmable_removal_is_reported_as_unknown_and_retried(self, daemon: Wall, tv: FakeTv, publish, caplog):
         """The library discards the reply to a removal, so claiming either outcome
@@ -328,7 +331,7 @@ class TestOrphans:
         assert "tv.orphan_removal_unconfirmed" in {r.__dict__.get("event") for r in caplog.records}
 
         tv.removal_unconfirmable = False
-        publish(["w1"], sequence=1)
+        publish(["w1"])
         await daemon.tick()
         assert "MY-LEGACY-1" not in tv.holding, "the next adoption did not try again"
 
@@ -354,3 +357,28 @@ async def test_a_store_from_a_newer_plane_is_refused_rather_than_opened(tmp_path
         DisplayState(path).__enter__()
 
     assert str(SCHEMA_VERSION) in str(refusal.value), "the refusal does not say which schema this plane understands"
+
+
+async def test_a_store_written_by_a_player_that_read_major_1_still_opens_and_the_wall_carries_on(settings, tv, clock, publish):
+    """Its record of the last directive acted on is a key nothing reads now, left where it is.
+
+    A Pi upgraded from a Player that read major 1 holds this store, and its
+    bindings and the work on the wall are what spare it re-uploading the theme
+    and moving the picture on the first pass.
+    """
+    with DisplayState(settings.state_path) as store:
+        store.set_last_selected_work_id("w1")
+    with sqlite3.connect(settings.state_path) as connection:
+        connection.execute("INSERT INTO daemon_state (key, value) VALUES ('last_acted_sequence', '41')")
+    publish(["w1", "w2"], interval_seconds=10)
+
+    with DisplayState(settings.state_path, now=lambda: clock.as_clock().now()) as store:
+        assert store.last_selected_work_id == "w1"
+        wall = frame_wall(settings=settings, tv=tv, state=store, watcher=Watcher(settings.manifest_path), clock=clock.as_clock())
+        await wall.tick()
+        clock.advance(10)
+        await wall.tick()
+
+    assert publish.work_of(tv.on_the_wall) == "w2"
+    with sqlite3.connect(settings.state_path) as connection:
+        assert connection.execute("SELECT value FROM daemon_state WHERE key = 'last_acted_sequence'").fetchone() == ("41",)

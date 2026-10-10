@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import pytest
@@ -18,8 +19,7 @@ from conftest import WALL_ID
 
 from arrt_player.heartbeat import ScreenState, path_in
 from arrt_player.manifest import REQUESTED_MAJORS, Watcher
-from arrt_player.programmes.memory import InMemory
-from arrt_player.programmes.rotation import Rotation
+from arrt_player.programmes.schedule import InMemory, Schedule
 from arrt_player.wall import Capabilities, DisplayRecord, Picture, Shown, Wall
 
 
@@ -109,17 +109,25 @@ def display(clock) -> ThirdDisplay:
 
 
 @pytest.fixture
-def wall(wall_settings, display, clock) -> Wall:
-    watcher = Watcher(wall_settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
-    programme = Rotation(wall_id=WALL_ID, render_root=wall_settings.render_root, memory=InMemory(), clock=clock.as_clock())
-    return Wall(wall=wall_settings, display=display, programmes={1: programme}, watcher=watcher, clock=clock.as_clock())
+def wall(wall_settings, display, clock, publish) -> Wall:
+    watcher = Watcher(wall_settings.manifest_path)
+    publish.geometry = wall_settings.geometry_for(display.screen)
+    programme = Schedule(
+        wall_id=WALL_ID,
+        render_root=wall_settings.render_root,
+        composed_root=wall_settings.composed_root,
+        geometry=lambda: None if display.screen is None else wall_settings.geometry_for(display.screen),
+        memory=InMemory(),
+        clock=clock.as_clock(),
+    )
+    return Wall(wall=wall_settings, display=display, programmes={2: programme}, watcher=watcher, clock=clock.as_clock())
 
 
 def heartbeat(wall_settings) -> dict:
     return json.loads(path_in(wall_settings.heartbeat_root, WALL_ID).read_text())
 
 
-async def test_a_third_display_rotates_through_the_shared_loop(wall, display, publish, clock, wall_settings):
+async def test_a_third_display_follows_the_schedule_through_the_shared_loop(wall, display, publish, clock, wall_settings):
     publish(["w1", "w2"], interval_seconds=60)
 
     for _ in range(3):
@@ -219,3 +227,61 @@ async def test_capabilities_are_left_out_while_the_screen_is_unknown_and_sent_at
     await wall.tick()
 
     assert heartbeat(wall_settings)["capabilities"]["screen"] == {"width_px": 3840, "height_px": 2160}
+
+
+class RecordingProgramme:
+    """A programme that only records what the loop tells it."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.pictures: tuple[Picture, ...] = ()
+        self.current_work_id: str | None = None
+        self.scene_id: str | None = None
+
+    def adopt(self, manifest: Any) -> None:
+        self.calls.append(f"adopt:{manifest.schema_major}")
+
+    def entered(self) -> None:
+        self.calls.append("entered")
+
+    async def step(self, display: ThirdDisplay) -> None:
+        return
+
+
+class QueuedWatcher:
+    """A watcher handing the loop whichever documents a test queues, one a poll."""
+
+    def __init__(self) -> None:
+        self.queued: list[_Document] = []
+        self.current: _Document | None = None
+
+    def poll(self) -> "_Document | None":
+        if not self.queued:
+            return None
+        self.current = self.queued.pop(0)
+        return self.current
+
+
+@dataclass(frozen=True)
+class _Document:
+    schema_major: int
+    schema_minor: int = 0
+    theme_id: str | None = None
+
+
+async def test_a_document_of_another_major_switches_the_programme_and_tells_it_so(wall_settings, display, clock):
+    """How the next major is served beside major 2: one programme per major, told when the wall moves to it.
+
+    This Player reads one major, so nothing it parses reaches the switch today;
+    a watcher handing over a major 3 document stands in for the day one does.
+    """
+    second, third = RecordingProgramme(), RecordingProgramme()
+    watcher = QueuedWatcher()
+    wall = Wall(wall=wall_settings, display=display, programmes={2: second, 3: third}, watcher=watcher, clock=clock.as_clock())
+
+    for major in (2, 3, 3, 2):
+        watcher.queued.append(_Document(schema_major=major))
+        await wall.tick()
+
+    assert second.calls == ["adopt:2", "entered", "adopt:2"], "the programme answering first was told it was switched to"
+    assert third.calls == ["entered", "adopt:3", "adopt:3"], "a document of the programme's own major was read as a switch"

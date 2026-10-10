@@ -31,7 +31,6 @@ from arrt.library.readiness import (
     master_rendition_of,
     not_in_catalogue,
     playable_from,
-    tv_rendition_of,
 )
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
@@ -172,29 +171,15 @@ class LibraryFacade:
         inputs = self._gather(work_id)
         if inputs is None:
             return not_in_catalogue(work_id)
+        if inputs.master is not None:
+            # Hashed and measured before the verdict, because a master whose file
+            # cannot be read is a refusal like any other, named rather than sent.
+            master = self._catalogue.with_content(inputs.master)
+            inputs = replace(inputs, master=master, master_size=self._catalogue.pixel_size(master))
         refused = assess(inputs)
         if refused is not None:
             return refused
-        # Hashed on first need for a render recorded before hashes were, so the
-        # answer can say where its bytes are and how to check them.
-        rendition = self._catalogue.with_content(inputs.tv_rendition) if inputs.tv_rendition else None
-        master = self._catalogue.with_content(inputs.master) if inputs.master else None
-        size = self._catalogue.pixel_size(master) if master is not None else None
-        playable = playable_from(
-            replace(inputs, tv_rendition=rendition, master=master, master_size=size), units=self._label_units
-        )
-        if playable.media is None:
-            # Said here, where the gap is decided: the work still reaches a wall
-            # on the file channel, which reads `render_path`, and a Player on HTTP
-            # skips it. Without this line that Player's wall would be one work
-            # short with nothing on the server saying which or why.
-            log.warning(
-                "Work %s is offered without media: its render at %s could not be read or is not a JPEG or PNG. "
-                "A Player on HTTP skips it until the render is readable.",
-                work_id,
-                playable.render_path,
-            )
-        return playable
+        return playable_from(inputs, units=self._label_units)
 
     def _gather(self, work_id: str) -> WorkInputs | None:
         """Collect everything the readiness rule judges one work on, or None if it is not held.
@@ -215,7 +200,6 @@ class LibraryFacade:
             artwork=detail.artwork,
             artist=detail.artist,
             original=original,
-            tv_rendition=tv_rendition_of(renditions),
             mat_color=self._catalogue.current_mat_color(work_id),
             master=master_rendition_of(renditions, original),
         )

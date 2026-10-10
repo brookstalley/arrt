@@ -1,16 +1,16 @@
 """One wall: a programme says what should be on it, a display puts it there.
 
 **One loop for every kind of display.** A wall used to have a loop per kind —
-the Frame's and an HDMI screen's — each adopting the manifest, acting on its
-directive, rotating, showing and beating, and each drifting from the other in
+the Frame's and an HDMI screen's — each adopting the manifest, deciding what
+to show, showing it and beating, and each drifting from the other in
 small ways. What is shared now lives here and in the programme; what is a
 display's own lives in its driver (`arrt_player.displays`):
 
 * **The programme** (`arrt_player.programmes`) holds what the wall should show:
-  for a major 1 manifest the rotation and the directive, for a major 2 feed the
-  schedule and its scene. The wall holds one per major and uses the one whose
-  major it adopted last. A programme asks the display whether it may change the
-  wall, and then to show a picture.
+  for a major 2 feed the schedule and its scene. The wall holds one per major it
+  reads and uses the one whose major it adopted last, so a major served beside
+  2 later is one more programme. A programme asks the display whether it may
+  change the wall, and then to show a picture.
 * **The display** owns everything about its screen: for the Frame, the set's
   art mode, its uploads and bindings, reconciliation, brightness and what the
   set announces; for a screen this host draws on, drawing and redrawing. It
@@ -19,8 +19,8 @@ display's own lives in its driver (`arrt_player.displays`):
 * **The loop** runs one pass at a time and writes the wall's heartbeat.
 
 **Nothing here is a command handler.** Curation writes desired state and the
-wall converges on it. If curation dies, the wall keeps rotating the last
-manifest for ever, which is the availability norm working, not degradation.
+wall converges on it. If curation dies, the wall keeps following the last
+schedule for ever, which is the availability norm working, not degradation.
 
 **The display going away is an expected operating condition.** A display names
 the exceptions that mean it cannot be reached (`Display.unavailable`); such a
@@ -43,7 +43,7 @@ from arrt_player import heartbeat as heartbeat_module
 from arrt_player.config import WallSettings
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import DisplayReport, ScreenState
-from arrt_player.manifest import REQUESTED_MAJORS, Feed, Manifest, Watcher
+from arrt_player.manifest import REQUESTED_MAJORS, Feed, Watcher
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class Clock:
     Two readings rather than one, because they answer different questions and one
     of them lies. `now()` is for the sun, which genuinely cares what time it is.
     `monotonic()` is for every interval, so an NTP correction — routine on a Pi
-    with no RTC, which comes up believing it is 1970 — cannot stall the rotation
+    with no RTC, which comes up believing it is 1970 — cannot stall a wait
     for the length of the jump or fire every timer at once.
     """
 
@@ -75,8 +75,8 @@ class Shown(enum.Enum):
     the next one, which is what makes a theme with a pruned image tree degrade to
     the works that survive. A wall that is not accepting selections at all means
     try *nothing* else: every remaining work would fail identically, and a pass
-    that walked forty of them would cost eighty round trips and consume the whole
-    rotation order against a television that displayed none of it.
+    that walked forty of them would cost eighty round trips against a television
+    that displayed none of it.
     """
 
     YES = "yes"
@@ -89,7 +89,7 @@ class Shown(enum.Enum):
 
 @dataclass(frozen=True)
 class Picture:
-    """One work as a display is handed it: major 1's render as pulled, or major 2's composition for this display."""
+    """One work as a display is handed it: its composition for this display."""
 
     work_id: str
     path: Path
@@ -243,8 +243,7 @@ class Wall:
         self._wall = wall
         self._display = display
         #: One programme per manifest major, and the one whose major was adopted
-        #: last. **Each keeps its own state across a switch** — a wall moved from
-        #: major 2 back to major 1 resumes its rotation — and they share the
+        #: last. **Each keeps its own state across a switch**, and they share the
         #: display's memory of which work is on the wall. **Not the picture**: each
         #: major draws a work its own way, so a programme switched to is told it
         #: was (`entered`) and puts its own picture up. The lowest major answers
@@ -348,7 +347,7 @@ class Wall:
         self._beat(manifest=manifest, reachable=True)
         return self._wall.poll_interval_seconds
 
-    def _beat(self, *, manifest: Manifest | Feed | None, reachable: bool | None) -> None:
+    def _beat(self, *, manifest: Feed | None, reachable: bool | None) -> None:
         """Write the heartbeat once per interval, and at once when the display state changed.
 
         **Rate-limited here rather than by the caller**, so every path through

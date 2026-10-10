@@ -19,8 +19,7 @@ from conftest import WALL_ID, a_master
 
 from arrt_player.compose import Geometry, Uncomposable, compose, composition_key
 from arrt_player.manifest import Feed, parse
-from arrt_player.programmes.memory import InMemory
-from arrt_player.programmes.schedule import COMPOSE_RETRY_SECONDS, RETRY_SECONDS, Schedule, what_to_show
+from arrt_player.programmes.schedule import COMPOSE_RETRY_SECONDS, RETRY_SECONDS, InMemory, Schedule, what_to_show
 from arrt_player.wall import DisplayRecord, Picture, Shown
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
@@ -28,7 +27,7 @@ VECTORS = json.loads((CONTRACT / "vectors" / "schedule.json").read_text(encoding
 
 
 def _feed(document: dict) -> Feed:
-    feed = parse(json.dumps(document), rotation_interval_fallback=180, shuffle_fallback=False)
+    feed = parse(json.dumps(document))
     assert isinstance(feed, Feed)
     return feed
 
@@ -197,6 +196,22 @@ async def test_a_gap_keeps_the_last_work_on_the_wall(schedule, display, media_ro
     assert display.shown() == ["w1"]
     assert memory.last_selected_work_id == "w1"
     assert display.asked == ["may_attempt", "is_ours", "show:w1"], "the gap asked the set anything"
+
+
+async def test_an_empty_feed_keeps_the_last_work_on_the_wall(schedule, display, media_root, clock, memory):
+    """What a theme with nothing it can send publishes: no works, no slots. The wall
+    keeps its picture, as through any gap, rather than going dark or asking the set."""
+    cache(media_root, "w1")
+    schedule.adopt(_feed(feed_document(slots=[("w1", "08:00", "13:00")])))
+    await step(schedule, display)
+
+    schedule.adopt(_feed(feed_document(slots=[])))
+    clock.advance(60.3)
+    await step(schedule, display)
+
+    assert display.shown() == ["w1"]
+    assert memory.last_selected_work_id == "w1"
+    assert display.asked == ["may_attempt", "is_ours", "show:w1"], "the empty feed asked the set anything"
 
 
 async def test_a_scene_wins_while_it_lasts_and_the_wall_returns_to_its_slot(schedule, display, media_root, clock):

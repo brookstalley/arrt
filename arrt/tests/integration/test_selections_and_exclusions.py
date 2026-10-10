@@ -28,10 +28,13 @@ def the_wall(http):
     return walls[0]
 
 
-def published(settings, wall_id: str) -> list[str]:
-    """The work ids a wall's published manifest carries, read off the file a Player reads."""
-    document = json.loads(settings.manifest_path(wall_id).read_text())
-    return [entry["work_id"] for entry in document["entries"]]
+def published(settings, wall_id: str) -> set[str]:
+    """The work ids a wall's published feed carries, read off the file a Player reads.
+
+    A set: the feed keys its works by id, and the order a wall shows them in is
+    its schedule's, which a shuffled theme does not keep.
+    """
+    return set(json.loads(settings.manifest_v2_path(wall_id).read_text())["works"])
 
 
 def a_theme_holding(http, name: str, *works) -> dict:
@@ -52,7 +55,7 @@ def events(http, kind: str) -> list[dict]:
 
 
 class TestHangingASelection:
-    def test_a_one_work_selection_is_what_the_walls_manifest_carries(self, http, settings, ready_work, the_wall):
+    def test_a_one_work_selection_is_what_the_walls_feed_carries(self, http, settings, ready_work, the_wall):
         hung = ready_work("Automat")
         ready_work("Nighthawks at the Diner")
 
@@ -60,7 +63,7 @@ class TestHangingASelection:
 
         assert response.status_code == 200, response.text
         assert [entry["artwork_id"] for entry in response.json()["entries"]] == [hung.id]
-        assert published(settings, the_wall["wall_id"]) == [hung.id]
+        assert published(settings, the_wall["wall_id"]) == {hung.id}
 
     def test_the_selection_hangs_until_changed_and_reads_as_hidden_on_the_wall(self, http, ready_work, the_wall):
         work = ready_work("Automat")
@@ -83,11 +86,13 @@ class TestHangingASelection:
         assert [option["name"] for option in options] == ["Late night"]
 
     def test_several_works_hang_in_the_order_chosen(self, http, settings, ready_work, the_wall):
+        """The order chosen is the selection's order, which the answer reports and an unshuffled schedule follows."""
         first, second = ready_work("Automat"), ready_work("Chop Suey")
 
-        http.post(f"/api/walls/{the_wall['wall_id']}/selection", json={"artwork_ids": [second.id, first.id]})
+        response = http.post(f"/api/walls/{the_wall['wall_id']}/selection", json={"artwork_ids": [second.id, first.id]})
 
-        assert published(settings, the_wall["wall_id"]) == [second.id, first.id]
+        assert [entry["artwork_id"] for entry in response.json()["entries"]] == [second.id, first.id]
+        assert published(settings, the_wall["wall_id"]) == {second.id, first.id}
 
     def test_hanging_a_selection_writes_one_hang_event_saying_so(self, http, ready_work, the_wall):
         work = ready_work("Automat")
@@ -212,9 +217,9 @@ class TestNotThisOneAgain:
 
         assert response.status_code == 200, response.text
         assert response.json()["left_theme"]["name"] == "Late night"
-        assert published(settings, the_wall["wall_id"]) == [stays.id]
+        assert published(settings, the_wall["wall_id"]) == {stays.id}
         # The other wall hangs another theme, which still holds it.
-        assert published(settings, study["wall_id"]) == [gone.id, stays.id]
+        assert published(settings, study["wall_id"]) == {gone.id, stays.id}
         assert http.get(f"/api/works/{gone.id}").json()["work"]["status"] == "accepted"
 
     def test_from_every_wall_keeps_it_off_every_wall_and_in_the_library(self, http, settings, the_wall, two_walls_hanging):
@@ -223,8 +228,8 @@ class TestNotThisOneAgain:
         response = http.post(f"/api/walls/{the_wall['wall_id']}/not-again", json={"artwork_id": gone.id, "scope": "every_wall"})
 
         assert response.status_code == 200, response.text
-        assert published(settings, the_wall["wall_id"]) == [stays.id]
-        assert published(settings, study["wall_id"]) == [stays.id]
+        assert published(settings, the_wall["wall_id"]) == {stays.id}
+        assert published(settings, study["wall_id"]) == {stays.id}
         # Still held, still in both themes: only the walls changed.
         assert http.get(f"/api/works/{gone.id}").json()["work"]["status"] == "accepted"
         for theme in http.get("/api/themes").json()["themes"]:
@@ -238,7 +243,7 @@ class TestNotThisOneAgain:
 
         rebuilt = hang(http, http.get("/api/themes").json()["themes"][0]["theme"], study)
 
-        assert published(settings, study["wall_id"]) == [stays.id]
+        assert published(settings, study["wall_id"]) == {stays.id}
         assert [(row["artwork_id"], row["reason"]) for row in rebuilt["exclusions"]] == [(gone.id, "kept_off_every_wall")]
 
     def test_undo_lets_it_back_on_at_the_next_hang(self, http, settings, the_wall, two_walls_hanging):
@@ -250,29 +255,28 @@ class TestNotThisOneAgain:
         assert response.status_code == 200
         assert response.json()["exclusions"] == []
         # Nothing is republished by the undo itself; the next hang carries it.
-        assert published(settings, study["wall_id"]) == [stays.id]
+        assert published(settings, study["wall_id"]) == {stays.id}
         hopper = next(p["theme"] for p in http.get("/api/themes").json()["themes"] if p["theme"]["name"] == "Hopper")
         hang(http, hopper, study)
-        assert published(settings, study["wall_id"]) == [gone.id, stays.id]
+        assert published(settings, study["wall_id"]) == {gone.id, stays.id}
 
-    def test_an_excluded_work_cannot_be_pinned(self, http, services, the_wall, two_walls_hanging):
+    def test_an_excluded_work_cannot_be_shown_now(self, http, services, the_wall, two_walls_hanging):
         gone, _, _ = two_walls_hanging
         http.post(f"/api/walls/{the_wall['wall_id']}/not-again", json={"artwork_id": gone.id, "scope": "every_wall"})
 
         with pytest.raises(Exception, match="kept off every wall"):
             services.display.show_work_now(the_wall["wall_id"], gone.id)
 
-    def test_a_pin_on_the_work_is_withdrawn_without_advancing(self, http, services, settings, the_wall, two_walls_hanging):
-        gone, _, _ = two_walls_hanging
-        pinned = services.display.show_work_now(the_wall["wall_id"], gone.id)
+    def test_the_work_shown_now_leaves_the_wall_at_once(self, http, services, settings, the_wall, two_walls_hanging):
+        """*Not this one again* while it is on the screen: the wall starts fresh without it."""
+        gone, stays, _ = two_walls_hanging
+        services.display.show_work_now(the_wall["wall_id"], gone.id)
 
         http.post(f"/api/walls/{the_wall['wall_id']}/not-again", json={"artwork_id": gone.id, "scope": "theme"})
 
-        directive = json.loads(settings.manifest_path(the_wall["wall_id"]).read_text())["directive"]
-        assert directive == {"sequence": pinned.sequence, "pinned_work_id": None}
-        # And the standing directive itself, which the next build publishes.
-        wall = next(wall for wall in http.get("/api/walls").json()["walls"] if wall["wall_id"] == the_wall["wall_id"])
-        assert (wall["directive_sequence"], wall["pinned_work_id"]) == (pinned.sequence, None)
+        feed = json.loads(settings.manifest_v2_path(the_wall["wall_id"]).read_text())
+        assert gone.id not in feed["works"]
+        assert feed["schedule"]["slots"][0]["work_id"] == stays.id
 
     def test_each_answer_and_its_undo_write_one_event(self, http, the_wall, two_walls_hanging):
         gone, stays, study = two_walls_hanging
@@ -321,7 +325,7 @@ class TestTheToolSurface:
         hung, error = await call(server_url, "art_theme", action="hang_selection", wall_id=wall_id, artwork_ids=[work.id])
         assert not error, hung
         assert hung["theme"]["hidden"] is True
-        assert published(settings, wall_id) == [work.id]
+        assert published(settings, wall_id) == {work.id}
         listed, _ = await call(server_url, "art_theme", action="list")
         assert listed["themes"] == []
 
@@ -330,7 +334,7 @@ class TestTheToolSurface:
         )
         assert not error, kept
         assert kept["excluded_at"] is not None
-        assert published(settings, wall_id) == []
+        assert published(settings, wall_id) == set()
         off, _ = await call(server_url, "art_theme", action="kept_off")
         assert [row["artwork_id"] for row in off["exclusions"]] == [work.id]
 

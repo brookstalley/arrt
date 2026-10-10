@@ -689,14 +689,14 @@ def hold_master(service, settings, decodable_jpeg, services):
             content_hash=f"hash-{artwork_id}",
             fetch_status=FetchStatus.OK,
         )
-        rendered = f"ready/{artwork_id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{artwork_id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=4000, height=3000)
         service.record_rendition(
             artwork_id=artwork_id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=7680,
+            target_height=7680,
+            path=presented,
         )
         service.record_mat_color(artwork_id=artwork_id, hex_rgb="#2b2b2b", method=MatMethod.VISION_MODEL)
 

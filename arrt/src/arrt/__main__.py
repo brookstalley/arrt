@@ -191,31 +191,17 @@ def main(argv: Sequence[str] = ()) -> None:
     settings = Settings.from_env()
     log = logging.getLogger(__name__)
     log.info("catalogue=%s bind=%s:%s", settings.catalogue_path, settings.host, settings.port)
-    # The resolved root and this plane's own panel, on one line, so a
-    # misconfiguration is a journal read rather than a mystery. The television's
-    # panel — never the e-paper one, which belongs to the display plane.
-    box = settings.tv_artwork_box
+    # The resolved root and where each wall's feed is written, on one line, so
+    # a misconfiguration is a journal read rather than a mystery. No screen's
+    # geometry: each Player knows its own and draws its own mat. The quality
+    # minimum beside it, because a wrong one is otherwise only visible as scans
+    # labelled oddly in the grid.
     log.info(
-        'art_root=%s manifests=%s tv_panel=%dx%dpx/%.1f" (%.1f px per inch) rotation=%ds shuffle=%s',
+        "art_root=%s feeds=%s rotation=%ds shuffle=%s quality_minimum=%dpx",
         settings.art_root,
         settings.manifest_pattern,
-        settings.tv_panel_width_px,
-        settings.tv_panel_height_px,
-        settings.tv_panel_diagonal_inches,
-        settings.tv_pixels_per_inch,
         settings.rotation_interval_seconds,
         settings.rotation_shuffle,
-    )
-    # The derived geometry as well as its inputs: where the mat ends depends on
-    # this box, and a wrong mat is otherwise only visible on the wall. The
-    # quality minimum beside it, because a wrong one is otherwise only visible
-    # as scans labelled oddly in the grid.
-    log.info(
-        'artwork_box=%dx%dpx mat=%.2f" (bottom x%.2f) quality_minimum=%dpx',
-        box.width,
-        box.height,
-        settings.mat_width_inches,
-        settings.mat_bottom_weight,
         settings.quality_minimum_px,
     )
     # A setting this server no longer reads is named, once each, rather than
@@ -294,11 +280,10 @@ def main(argv: Sequence[str] = ()) -> None:
     # machine says dominant_color_fallback" is a question best answered at
     # startup rather than by reading forty rows.
     log.info(
-        "mat model=%s max_output_tokens=%d image_max_edge=%d ready=%s",
+        "mat model=%s max_output_tokens=%d image_max_edge=%d",
         settings.mat_model if settings.openrouter_api_key else "none (no key; every mat comes from the dominant colour)",
         settings.mat_max_output_tokens,
         settings.mat_image_max_edge,
-        settings.ready_path,
     )
 
     # Ask's agent: which model, how many steps a reply may take, and whether it
@@ -358,17 +343,7 @@ def main(argv: Sequence[str] = ()) -> None:
             # takes it as an argument, so this line is what separates a process
             # that can fetch from a suite that cannot.
             open_stream=http_stream(settings.acquisition_user_agent),
-            preparation=PreparationSettings(
-                art_root=settings.art_root,
-                ready_path=settings.ready_path,
-                panel_width=settings.tv_panel_width_px,
-                panel_height=settings.tv_panel_height_px,
-                # The same object logged above, derived once: it is *computed
-                # from* the panel dimensions on the lines above it, so a second
-                # derivation here is the only way the canvas and the box could
-                # disagree about where the mat ends.
-                box=box,
-            ),
+            preparation=PreparationSettings(art_root=settings.art_root),
             mat_engine=_mat_engine(settings),
             registry=registry,
             kept=kept,

@@ -1064,6 +1064,10 @@ display without a panel must not read as a broken one.
 > makes that necessary for accessibility too, because the mat has to be sized
 > for the caption's type, and only the device that knows the reading distance
 > and the screen can size it.
+>
+> *(Wave 4g, 2026-10-10: done. The `tv_display` rendition is gone, the server
+> reads no `TV_PANEL_*`, and each Player composes its own mat. A caption in the
+> mat is still #217.)*
 
 ### The panel has no brightness control, and that is why the rest of this matters
 

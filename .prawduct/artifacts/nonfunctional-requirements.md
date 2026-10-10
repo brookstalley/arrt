@@ -314,6 +314,8 @@ own living room.
 picture up when the set is *already* showing art. If somebody is watching
 something, or the set is off, the wall waits — it does not select, it does not
 advance its place in the theme, and it does not consume a pending directive.
+*(Since wave 4g, 2026-10-10, there is no directive: a *show now* or Skip is a
+republished schedule, which waits in the Player's cache like any other.)*
 
 **And it never sends a power key to a set in the television state** — added
 2026-08-17 with the amendment below, which gave the plane a key to send. This is
@@ -513,7 +515,7 @@ curator every judgement they have already made. So:
 - **The SQLite catalogue is backed up.** It is small (megabytes), it is the entire
   product's memory, and it is the only artefact whose loss cannot be repaired by
   spending time instead of money.
-- **The image tree is disposable.** `raw/`, `ready/`, `tv-thumbs/` and
+- **The image tree is disposable.** `raw/`, `ready/` (until wave 4g), `tv-thumbs/` and
   `tile-cache/` are all reconstructible, and so is `sources/`, a source plugin's
   copy of a holder's published data (since 2026-10-06). They are excluded from
   backup deliberately, not by oversight — this is the upstream/derived split
@@ -528,8 +530,8 @@ curator every judgement they have already made. So:
 > - **How many files it is.** Wave 3 splits the store, before it moves, into a Library file and a
 >   Programming file, with no foreign keys between them. Both hold curatorial
 >   judgement: the Library holds verdicts, suppression, mat colours, facets and
->   taste; Programming holds playlists, hanging, directive counters and
->   programming tags. Both must be backed up, and a restore must restore them as
+>   taste; Programming holds playlists, hanging, directive counters (until wave
+>   4g) and programming tags. Both must be backed up, and a restore must restore them as
 >   a pair or say what it does about a Programming reference to a work the
 >   restored Library does not hold.
 > - **The Player's cache and its TV bindings.** These are device state, and a
@@ -537,6 +539,8 @@ curator every judgement they have already made. So:
 > - **The server's composed renders.** They disappear in wave 4 when compositing
 >   moves to the Player. The presentation master is derived from the Original and
 >   is reproducible, so it stays out of backup like `ready/` today.
+>   *(Wave 4g, 2026-10-10: the composed renders are gone, and the masters under
+>   `presentation/` stay out of backup on the same reasoning.)*
 
 ## Cost Constraints
 
@@ -1212,6 +1216,10 @@ the numbers reproduce. Panel dimensions therefore join
 > "Configuration both planes must agree on" goes away: there is one owner.
 > The worked examples remain the specification the Player's compositor must
 > reproduce.
+>
+> *(Wave 4g, 2026-10-10: done. The server reads no `TV_PANEL_*`,
+> `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player reads all of them under
+> the same names, and its compositor is the only one.)*
 >
 > **The floor was the open problem this move created, and it is settled.** Today
 > the below-floor exclusion in automatic instance selection (`library/services/selection.py`)

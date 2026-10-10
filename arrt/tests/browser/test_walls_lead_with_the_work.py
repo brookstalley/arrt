@@ -39,15 +39,15 @@ def the_wall(services):
 
 @pytest.fixture
 def a_displayable_work(work_with_an_image, service, settings, decodable_jpeg):
-    """A work that reaches a wall: master on disk, matted, rendered."""
+    """A work that reaches a wall: image on disk, a mat, and a presentation master."""
 
     def _work(title):
         artwork = work_with_an_image(title=title)
         service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        rendered = f"ready/{artwork.id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=400, height=300)
         service.record_rendition(
-            artwork_id=artwork.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=rendered
+            artwork_id=artwork.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=presented
         )
         return artwork
 
@@ -169,16 +169,16 @@ def test_change_offers_themes_and_never_a_selection(ui, services, the_wall, wint
     assert options == ["Winter"]
 
 
-def test_skip_writes_the_directive_and_the_card_shows_the_next_work_once_reported(ui, services, the_wall, winter, two_works):
+def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reported(ui, services, the_wall, winter, two_works):
     nighthawks, automat = two_works
     report(services, the_wall, nighthawks.id)
-    before = services.display.read_directive(the_wall.id).sequence
+    before = services.display.published_manifest_v2(the_wall.id)
     open_walls(ui)
 
     ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
     said = card(ui, the_wall).locator(".wall-said")
     said.filter(has_text="Skipped.").wait_for()
-    assert services.display.read_directive(the_wall.id).sequence == before + 1
+    assert services.display.published_manifest_v2(the_wall.id) != before
     # Until the Player reports, the card still leads with what it last said.
     assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Nighthawks"
 

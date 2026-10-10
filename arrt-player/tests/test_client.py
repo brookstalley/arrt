@@ -13,6 +13,7 @@ import logging
 import os
 import signal
 from dataclasses import replace
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 
@@ -33,6 +34,8 @@ from arrt_player.client import (
     client_outputs,
     hdmi_outputs,
 )
+from arrt_player.compose import Geometry, composed_path, mat_mode
+from arrt_player.config import COMPOSED_DIRNAME, ClientSettings
 from arrt_player.pull import ClientPull
 from arrt_player.wall import Clock
 
@@ -63,6 +66,8 @@ async def eventually(
 @pytest.fixture
 async def server():
     double = ServerDouble(wall_id="living-room", output="frame")
+    # These tests run the process on the system clock, so its schedules start now.
+    double.schedule_starts = datetime.now(UTC).replace(microsecond=0)
     test_server = TestServer(double.app())
     await test_server.start_server()
     double.server = test_server
@@ -130,10 +135,26 @@ class Running:
         await asyncio.wait_for(self.task, timeout=5)
 
 
-def _shown_ids(output: RecordingOutput, server: ServerDouble, wall_id: str) -> list[str]:
-    """The work ids a recording output drew, read back through the renders' hashes."""
-    by_hash = {entry["media"]["sha256"]: entry["work_id"] for entry in server.manifests[wall_id]["entries"] if "media" in entry}
-    return [by_hash.get(path.name.removeprefix("sha256-"), path.name) for path in output.shown]
+def _pictures(server: ServerDouble, wall_dir: Path, geometry: Geometry) -> dict[Path, str]:
+    """Each work of a wall's feed by the file it composes to for `geometry`."""
+    feed = server.manifests[wall_dir.name]
+    mode = mat_mode((feed.get("settings") or {}).get("mat", {}).get("mode"))
+    return {
+        composed_path(
+            wall_dir / COMPOSED_DIRNAME,
+            master_sha256=work["media"]["sha256"],
+            mat_color=work["mat_color"],
+            mode=mode,
+            geometry=geometry,
+        ): work_id
+        for work_id, work in feed["works"].items()
+    }
+
+
+def _shown_ids(output: RecordingOutput, server: ServerDouble, client: ClientSettings, wall_id: str) -> list[str]:
+    """The work ids a recording output drew, read back through the files their masters compose to."""
+    by_picture = _pictures(server, client.cache_dir / wall_id, client.wall(wall_id).geometry_for(output.screen))
+    return [by_picture.get(path, path.name) for path in output.shown]
 
 
 # -- walls come and go -------------------------------------------------------------------
@@ -146,7 +167,7 @@ async def test_a_wall_assigned_to_this_client_starts_a_worker_that_shows_it(clie
         await eventually(lambda: television.on_the_wall is not None, what="the Frame to show the wall")
 
         assert supervisor.running == {"living-room": "frame"}
-        assert television.on_the_wall.parent == client.cache_dir / "living-room" / "media"
+        assert television.on_the_wall.parent == client.cache_dir / "living-room" / COMPOSED_DIRNAME
 
 
 async def test_a_wall_assigned_later_is_started_on_the_next_poll(client, server, drm, screens):
@@ -210,7 +231,7 @@ async def test_a_wall_moved_to_another_output_is_restarted_there_once_the_old_wo
     assert closed_at_first_draw == [1], "the screen drew the wall while the Frame's worker was still closing"
 
 
-async def test_two_walls_on_two_outputs_each_rotate_their_own_wall(client, server, drm, television, screens):
+async def test_two_walls_on_two_outputs_each_follow_their_own_schedule(client, server, drm, television, screens):
     """The Frame and a screen at once, from one process, each with only its own works."""
     server.assign("hall", "hdmi-a-1")
     server.publish("lr-1", "lr-2", wall_id="living-room", interval_seconds=1)
@@ -223,11 +244,11 @@ async def test_two_walls_on_two_outputs_each_rotate_their_own_wall(client, serve
         )
 
         assert supervisor.running == {"living-room": "frame", "hall": "hdmi-a-1"}
-    on_the_frame = {television.holding[content].name for content in television.selected}
-    living_room = {entry["media"]["sha256"] for entry in server.manifests["living-room"]["entries"]}
-    assert {name.removeprefix("sha256-") for name in on_the_frame} <= living_room, "the Frame showed another wall's work"
-    assert set(_shown_ids(screens["hall"], server, "hall")) == {"hall-1", "hall-2"}
-    assert all(path.parent == client.cache_dir / "hall" / "media" for path in screens["hall"].shown)
+    on_the_frame = {television.holding[content] for content in television.selected}
+    living_room = _pictures(server, client.cache_dir / "living-room", client.frame_wall("living-room").geometry)
+    assert on_the_frame <= set(living_room), "the Frame showed another wall's work"
+    assert set(_shown_ids(screens["hall"], server, client, "hall")) == {"hall-1", "hall-2"}
+    assert all(path.parent == client.cache_dir / "hall" / COMPOSED_DIRNAME for path in screens["hall"].shown)
 
 
 async def test_a_wall_on_an_output_this_client_lacks_is_reported_once_and_not_started(client, server, drm, screens, caplog):
@@ -279,7 +300,7 @@ async def test_the_server_unreachable_keeps_every_worker_on_its_cache(client, se
 
         await eventually(lambda: len(screens["hall"].shown) > drawn, timeout=4, what="the wall to rotate from its cache")
         assert supervisor.running == {"hall": "hdmi-a-1"}, "losing the server stopped a wall"
-    assert set(_shown_ids(screens["hall"], server, "hall")) == {"h1", "h2"}
+    assert set(_shown_ids(screens["hall"], server, client, "hall")) == {"h1", "h2"}
 
 
 async def test_a_client_restarted_while_the_server_is_down_starts_the_walls_it_last_knew(client, server, drm, screens):

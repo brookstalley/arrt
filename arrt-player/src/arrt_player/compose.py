@@ -13,8 +13,8 @@ that paints the mat colour to the screen's edges, and `none` puts the work on
 black. **No work is ever enlarged**: a small master is drawn at its own size,
 inside a mat of the usual width, with more black around it.
 
-The server's compositor draws the same rule for major 1 until the cutover
-(wave 4g), and both are held to the same vectors.
+Held to the contract's own vectors (`contract/vectors/mat-geometry.json`), so
+any Player composing a major 2 work draws the same mat.
 """
 
 import hashlib

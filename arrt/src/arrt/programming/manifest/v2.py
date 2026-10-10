@@ -1,12 +1,9 @@
 """A wall's major 2 manifest: its private feed, built from the wall's schedule.
 
 `player-contract.md` § Major 2 is the definition and `contract/schemas/manifest.v2.schema.json`
-the shape. Major 1 (`builder.py`) is published beside it until every Player reads
-major 2 (§ The cutover), from the same publish step in `programming/display.py`,
-so the two cannot disagree about which walls have something to show.
+the shape. It is the only major this server publishes (§ The cutover).
 
-**The published document is the schedule's state**, as major 1's is for its
-directive. Programming reads it back (`read_published`) to keep the slot on the
+**The published document is the schedule's state.** Programming reads it back (`read_published`) to keep the slot on the
 wall now and to check the household rule against every other wall, and never
 keeps a second copy that could drift from what the Players were sent.
 """
@@ -25,7 +22,10 @@ from arrt.programming.schedule import Schedule, Slot
 
 log = logging.getLogger(__name__)
 
-#: Beside major 1's file, one per wall, for the reason `MANIFEST_FILENAME_TEMPLATE` gives.
+#: One file per wall under `ART_ROOT`, named by the wall's id. Not configurable:
+#: the server and its tools have to agree where it is. One file per wall rather
+#: than one carrying every wall, so a rewrite for one room changes no other
+#: room's bytes, and so no other room's ETag.
 MANIFEST_V2_FILENAME_TEMPLATE: Final[str] = "theme-manifest-{wall_id}.v2.json"
 
 SCHEMA_MAJOR: Final[int] = 2
@@ -81,8 +81,6 @@ def as_document(feed: Feed) -> dict[str, Any]:
 
 def work_document(work: PlayableWork) -> dict[str, Any]:
     """One work as major 2 spells it: the master, its colour and its label."""
-    if work.master is None or work.mat_color is None:
-        raise ValueError(f"Work {work.work_id!r} has no presentation master or mat colour to publish.")
     media = {**media_document(work.master.media), "width": work.master.width, "height": work.master.height}
     return {"media": media, "mat_color": work.mat_color, "label": dict(work.label)}
 
@@ -116,8 +114,8 @@ class Published:
 def read_published(path: Path) -> Published | None:
     """The wall's major 2 document as last published, or None if there is none to build on.
 
-    An unreadable document is logged and treated as absent, as major 1's is: the
-    next publish replaces it whole, starting the wall fresh.
+    An unreadable document is logged and treated as absent: the next publish
+    replaces it whole, starting the wall fresh.
     """
     try:
         document = json.loads(path.read_text(encoding="utf-8"))

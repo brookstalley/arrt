@@ -166,7 +166,9 @@ distance, and **which facts about the work an overlay shows**.
 2026-10-08: "metadata about the work could also be optionally rendered by the
 client according to user preferences"). The feed carries the label's facts as
 plain text keys, as major 1's `label` already does (`player-contract.md` § The
-manifest). Which of them appear, whether any do, and when, is a setting in all
+manifest). *(Major 2 carries the same label definition, which moved into
+`manifest.v2.schema.json`'s `$defs` when major 1 retired in wave 4g,
+2026-10-10.)* Which of them appear, whether any do, and when, is a setting in all
 three layers: a channel's default, a wall's choice, a viewer's preference. So a
 public viewer can turn the title and credit off, or show only the artist, with
 no change to what is published. A field the feed lacks is simply not shown.
@@ -242,6 +244,14 @@ and a Player requests the highest major it reads. For a home wall that means the
 server serves a wall's feed at each major it still builds, and retires a major
 once no client's heartbeat lists it in `manifest_majors`. For a channel, a major
 is retired by decision, not by evidence, because nothing reports.
+
+*(Wave 4g, 2026-10-10: major 1 is retired for the home walls this way. The
+server serves only `v2`; `v1` and the unversioned route answer 404. Nothing on
+the server decides that every Player reports 2, since there is one household:
+the precondition is observed on the wall before the cutover, and afterwards a
+wall whose Player's heartbeat does not list 2 carries a sentence on Walls and on
+the MCP `walls` read (`reads_feed`, `feed_notice`). A heartbeat with no
+capabilities counts as `[1]`.)*
 
 ## Reuse across platforms
 
@@ -327,7 +337,9 @@ size.
   than before it, so the code about to be deleted is not refactored first.
   *(Done 2026-10-09, wave 4c: `wall.py` is the one loop, `displays/` holds a
   driver per kind, and major 1's rotation and directive moved into
-  `programmes/rotation.py`, which 4g deletes. Where the two loops differed, the
+  `programmes/rotation.py`, which 4g deletes. *(Deleted in wave 4g, 2026-10-10,
+  with `programmes/memory.py`; the Player reads only major 2, through
+  `programmes/schedule.py`.)* Where the two loops differed, the
   screen took the Frame's rules unless its own tests pinned its version
   (`build-plan-wave-4c-wall-loop.md`). The label renderer had already
   been split out.)*

@@ -37,6 +37,7 @@ from starlette.concurrency import run_in_threadpool
 from arrt.library.readiness import CONTENT_TYPES, MEDIA_PATH_TEMPLATE
 from arrt.persistence.records import Client
 from arrt.programming.access import Admission
+from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.services.container import Services
 
 router = APIRouter()
@@ -46,7 +47,6 @@ router = APIRouter()
 #: it are one string.
 CLIENT_ROUTE: Final[str] = "/client"
 CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
-MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
 MANIFEST_MAJOR_ROUTE: Final[str] = "/walls/{wall_id}/manifest/v{major}"
 MEDIA_ROUTE: Final[str] = MEDIA_PATH_TEMPLATE
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
@@ -148,30 +148,17 @@ async def client_heartbeat(request: Request, presenting: Annotated[Client, Depen
     return Response(status_code=204)
 
 
-@router.get(MANIFEST_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
-def wall_manifest(request: Request, wall_id: str) -> Response:
-    """The wall's manifest as last published, with its hash as the ETag."""
-    body = _services(request).display.published_manifest(wall_id)
-    if body is None:
-        # The contract classes a 404 on the wall as a configuration error: a
-        # wall with nothing hanging has no manifest to serve.
-        return JSONResponse(status_code=404, content={"error": "Nothing has been published for this wall yet."})
-    return _etagged(request, body)
-
-
 @router.get(MANIFEST_MAJOR_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
 def wall_manifest_at_major(request: Request, wall_id: str, major: str) -> Response:
-    """The wall's manifest at one major, so a Player can ask for the highest it reads.
+    """The wall's feed at one manifest major, with its hash as the ETag.
 
-    Major 1 is the document the unversioned route serves, and major 2 the wall's
-    feed. Any other spelling answers 404, which is how a Player learns to step
-    down a major (`player-contract.md` § The cutover); so does a major 2 not yet
-    published for this wall, so its Player stays on major 1 until a sync. The
-    match is on the exact string, so `01` is not a second URL for major 1.
+    Major 2 is the only major published. Any other spelling answers 404, which is
+    how a Player learns to step down a major (`player-contract.md` § The cutover),
+    and so does a wall with nothing hung on it yet, which the contract classes as
+    a configuration error. The match is on the exact string, so `02` is not a
+    second URL for major 2.
     """
-    if major == "1":
-        return wall_manifest(request, wall_id)
-    if major == "2":
+    if major == str(MANIFEST_MAJOR):
         body = _services(request).display.published_manifest_v2(wall_id)
         if body is not None:
             return _etagged(request, body)

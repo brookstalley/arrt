@@ -2,8 +2,8 @@
 
 Operation logic is split by concern rather than gathered into one class: the
 catalogue owns works already accepted, discovery owns everything before
-acceptance, and display owns what reaches the wall — themes, the standing
-directive, and the manifest built from them. A surface takes this container
+acceptance, and display owns what reaches the wall — themes, walls, and the
+feed built from them. A surface takes this container
 rather than any single service, so adding a concern changes the wiring here and
 nothing in `create_app` or in an MCP binding — which is what keeps a surface from
 quietly binding to one service and becoming the reason a second one is awkward to
@@ -36,23 +36,16 @@ from typing import Protocol
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_LABEL_UNITS,
-    DEFAULT_MAT_BOTTOM_WEIGHT,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
-    DEFAULT_MAT_WIDTH_INCHES,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     ORIGINALS_DIRNAME,
     PICTURES_DIRNAME,
     PREVIEWS_DIRNAME,
-    READY_DIRNAME,
     TILE_CACHE_DIRNAME,
-    artwork_box,
 )
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.mat import MatEngine
@@ -161,8 +154,8 @@ class Services:
     #: outside the machine to do its job — a subprocess and an HTTP transport —
     #: and the record layer is deliberately free of both.
     acquisition: AcquisitionService
-    #: Turning a held original into a mat and a television canvas. Its own service
-    #: rather than the tail of acquisition: a work is prepared repeatedly over its
+    #: Turning a held original into a presentation master and a mat. Its own
+    #: service rather than the tail of acquisition: a work is prepared again over its
     #: life — whenever the panel changes, the mat is re-chosen, or a rendition
     #: goes stale — while it is acquired once. Folding the two together would make
     #: every re-render look like a re-fetch to whatever reads the journal.
@@ -440,14 +433,12 @@ class Services:
         # store from the first request.
         self.pictures.clean()
         import_previews(self.pictures, self.discovery, legacy=self.pictures.art_root / PREVIEWS_DIRNAME)
-        # Canvases drawn with another mat, panel or drawing rule are queued to be
-        # recomposed. Nothing is drawn here; the queue does it once serving.
-        self.acquisition_queue.owe_recomposition(self.preparation.layout)
         # Mats darker than the floor, all of them older than it, are chosen
-        # again the same way: a queue row each, the queue's `prepare` choosing.
+        # again: a queue row each, the queue's `prepare` choosing. Nothing is
+        # done here; the queue does it once serving.
         self.acquisition_queue.owe_mats_over_the_floor()
         # And every work with no presentation master made from its Original,
-        # the same way: the queue's `prepare` makes it, before the canvas.
+        # the same way: the queue's `prepare` makes it.
         self.acquisition_queue.owe_presentation_masters()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
@@ -497,22 +488,5 @@ def _default_mat_engine() -> MatEngine:
 
 
 def _default_preparation(art_root: Path) -> PreparationSettings:
-    """Preparation settings for a caller that expressed no preference.
-
-    The panel and the mat come from the reference defaults, as every other value
-    in this file's defaults does, and the box is derived from that same panel, so
-    the canvas and the box cannot disagree about where the mat ends.
-    """
-    return PreparationSettings(
-        art_root=art_root,
-        ready_path=art_root / READY_DIRNAME,
-        panel_width=DEFAULT_TV_PANEL_WIDTH_PX,
-        panel_height=DEFAULT_TV_PANEL_HEIGHT_PX,
-        box=artwork_box(
-            panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
-            panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
-            panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-            mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
-            mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
-        ),
-    )
+    """Preparation settings for a caller that expressed no preference: the root, which is all there is."""
+    return PreparationSettings(art_root=art_root)

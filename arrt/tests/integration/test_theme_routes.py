@@ -319,17 +319,17 @@ class TestTheIndexCard:
     def test_a_work_whose_master_is_gone_is_not_pictured_though_its_wall_render_is_there(
         self, http, services, service, settings, decodable_jpeg, pictured
     ):
-        """A card's picture is a tile, and a tile is drawn from the master alone.
+        """A card's picture is a tile, and a tile is drawn from the master image alone.
 
-        So a work with a current wall render and no master file would give the
-        card a slot that fails to load. It is counted and not pictured.
+        So a work with a current presentation master and no master image file
+        would give the card a slot that fails to load. It is counted and not pictured.
         """
         theme = services.display.add_theme(name="Winter")
         gone = pictured("Gone")
-        rendered = f"ready/{gone.id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{gone.id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=4000, height=3000)
         service.record_rendition(
-            artwork_id=gone.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=rendered
+            artwork_id=gone.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=presented
         )
         (settings.art_root / f"raw/{gone.id}.jpg").unlink()
         kept = pictured("Kept")

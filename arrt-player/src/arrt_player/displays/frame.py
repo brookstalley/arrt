@@ -28,7 +28,6 @@ through the server (`labels-and-surfaces.md`; `label_renderer.py`).
 """
 
 import logging
-import random
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -39,7 +38,6 @@ from arrt_player.episodes import Backoff, ReportOnce
 from arrt_player.heartbeat import DisplayReport, ScreenState
 from arrt_player.logs import work_context
 from arrt_player.manifest import Watcher
-from arrt_player.programmes.rotation import Rotation
 from arrt_player.programmes.schedule import Schedule
 from arrt_player.state import Binding, DisplayState, UploadStatus
 from arrt_player.tv import (
@@ -63,14 +61,12 @@ def frame_wall(
     state: DisplayState,
     watcher: Watcher,
     clock: Clock,
-    rng: random.Random | None = None,
 ) -> Wall:
     """A wall on the Frame: the shared loop, this driver, and a programme per major, remembering in the store."""
     return Wall(
         wall=settings,
         display=FrameDisplay(settings=settings, tv=tv, state=state, clock=clock),
         programmes={
-            1: Rotation(wall_id=settings.wall_id, render_root=settings.render_root, memory=state, clock=clock, rng=rng),
             2: Schedule(
                 wall_id=settings.wall_id,
                 render_root=settings.render_root,
@@ -148,11 +144,12 @@ class FrameDisplay:
         self._not_our_wall = ReportOnce()
 
         #: When the wall may next be asked to change, once it has been found not
-        #: changing. **Rotation has a timer and the directive path does not**, so
-        #: without this a `show_now` left unconsumed — which is the right thing to
-        #: do with a jump that never happened — would be re-asked on every poll: a
-        #: selection a second, each waiting out the confirmation window, all night
-        #: at a set that will ignore every one. It backs off on the same ladder as an unreachable
+        #: changing. **The schedule has no timer of its own**: a slot whose work
+        #: never reached the wall is still owed on the next poll, which is the
+        #: right thing to do with a picture that never went up, so without this it
+        #: would be re-asked on every poll: a selection a second, each waiting out
+        #: the confirmation window, all night at a set that will ignore every one.
+        #: It backs off on the same ladder as an unreachable
         #: television, because "the set is not doing what it is told" is that same
         #: situation arriving by a route that raises nothing.
         self._wall_retry = Backoff(
@@ -306,15 +303,15 @@ class FrameDisplay:
         (`nonfunctional-requirements.md`). Selecting an image on a set showing a
         programme does not fail politely: it switches the set into art mode and
         takes the screen off the person watching. So nothing reaches the wall
-        without asking first, and a no freezes everything — no selection, no
-        advance through the theme, no directive consumed — exactly as a wall that
-        would not change does.
+        without asking first, and a no freezes everything — no selection, and the
+        wall's memory of what is up left as it was — exactly as a wall that would
+        not change does.
 
         **Asked only when something is about to happen**, which is what keeps a
-        one-second poll from becoming a request per second: rotation consults this
-        when its interval is up, and the directive path only when a sequence has
-        actually moved. A no then backs off on the shared ladder, so a whole
-        evening of television costs a handful of reads rather than thousands.
+        one-second poll from becoming a request per second: the schedule consults
+        this only when the work it says to show is not the one on the wall. A no
+        then backs off on the shared ladder, so a whole evening of television costs
+        a handful of reads rather than thousands.
         """
         showing = await self._read_art_mode()
         if showing:
@@ -403,7 +400,7 @@ class FrameDisplay:
         mode = await self._tv.reported_art_mode()
         log.warning(
             "the television accepted %s and is not displaying it; "
-            "it reports art mode %s. Rotation is deferred until the wall changes",
+            "it reports art mode %s. The next picture waits until the wall changes",
             content_id,
             mode if mode is not None else "nothing at all",
             extra={
@@ -607,8 +604,8 @@ class FrameDisplay:
         """Carry one not-yet-uploaded work per pass, so the theme fills in behind us.
 
         Deliberately one, not all: see this module's opening note. A pass that
-        uploaded the whole theme would hold the loop — and every directive — for
-        as long as the theme is long.
+        uploaded the whole theme would hold the loop — and every slot change and
+        republished schedule — for as long as the theme is long.
         """
         for picture in pictures:
             binding = self._state.binding_for(picture.work_id)
@@ -756,8 +753,8 @@ class FrameDisplay:
 def _fingerprint(render: Path) -> str | None:
     """What this render file looks like right now, cheaply.
 
-    **Modification time and size rather than a hash.** The rotation reads this on
-    every pass over every entry; hashing forty 2 MB composites a second would be
+    **Modification time and size rather than a hash.** The wall reads this on
+    every pass over every picture; hashing forty 2 MB composites a second would be
     real I/O on an SD card, to answer a question a `stat` answers. The pipeline
     that writes these files always rewrites them wholesale, so a change that keeps
     both the size and the nanosecond timestamp is not a case this deployment can
@@ -790,14 +787,12 @@ def _is_current(binding: Binding | None, render: Path) -> bool:
 def _render_changed(binding: Binding, render: Path) -> bool:
     """Whether the file on disk is no longer the one the television was given.
 
-    **The defect this closes is invisible from the wall.** `render_path` is
-    `ready/{artwork_id}.jpg` and stable across re-renders, so a curator changing a
-    mat colour rewrites the bytes under an unchanged name; the binding still reads
-    `uploaded`, and the television goes on showing the old composition for ever.
-    Both `set_mat_color` and `regenerate` are live actions, so this is reachable
-    by ordinary use rather than by mishap. A pulled render is named by its
-    hash, so a re-render arrives under a new name instead; the fingerprint is
-    what notices a change either way.
+    **The defect this closes is invisible from the wall.** A binding names a
+    work, not a file, so a picture rewritten under a name the binding already
+    holds would leave it reading `uploaded` while the television went on showing
+    the old one for ever. A composed picture is named by its composition key, so
+    a new mat or new media arrives under a new name instead; the fingerprint is
+    what notices a change either way, including a file rewritten in place.
 
     A binding with no recorded fingerprint — every row written before the column
     existed — counts as changed. That costs one re-upload per work on the first

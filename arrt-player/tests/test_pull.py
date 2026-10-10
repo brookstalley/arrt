@@ -12,12 +12,10 @@ away must change nothing about what is on the wall.
 """
 
 import asyncio
-import copy
 import hashlib
 import json
 import logging
 from dataclasses import replace
-from pathlib import Path
 
 import aiohttp
 import pytest
@@ -26,12 +24,12 @@ from conftest import WALL_ID, tick_until
 from fakes import RecordingOutput
 from PIL import Image
 from server_double import CONTRACT, ROUTES, TOKEN
-from server_double import MANIFEST_FIXTURE as FIXTURE
 from server_double import ServerDouble as Stub
 
+from arrt_player import pull as pull_module
 from arrt_player.displays.frame import frame_wall
 from arrt_player.displays.screen import screen_wall
-from arrt_player.manifest import REQUESTED_MAJORS, Feed, Watcher
+from arrt_player.manifest import REQUESTED_MAJORS, Feed, Watcher, media_name
 from arrt_player.pull import (
     CLIENT_HEARTBEAT_ROUTE,
     CLIENT_ROUTE,
@@ -75,11 +73,17 @@ async def session():
 
 
 def _watcher(settings) -> Watcher:
-    return Watcher(
-        settings.manifest_path,
-        rotation_interval_fallback=settings.rotation_interval_fallback_seconds,
-        shuffle_fallback=settings.rotation_shuffle_fallback,
-    )
+    return Watcher(settings.manifest_path)
+
+
+def _works(settings) -> list[str]:
+    """The works of the feed in the cache, in the order it names them."""
+    return list(_cached(settings)["works"])
+
+
+def _media(document: dict, work_id: str) -> str:
+    """The name a work's master is cached under."""
+    return media_name(document["works"][work_id]["media"]["sha256"])
 
 
 def _cached(settings) -> dict | None:
@@ -115,30 +119,24 @@ def test_a_wall_reads_and_renders_from_its_own_directory_in_the_cache(http_setti
 # -- adopting ------------------------------------------------------------------------------
 
 
-async def test_a_new_manifest_is_cached_only_with_its_renders_verified(pull, stub, session, http_settings):
+async def test_a_new_feed_is_cached_as_sent_with_its_masters_verified(pull, stub, session, http_settings):
     published = stub.publish("w1", "w2")
 
     assert await pull.cycle(session) is True
 
-    cached = _cached(http_settings)
-    assert [entry["work_id"] for entry in cached["entries"]] == ["w1", "w2"]
-    for entry in cached["entries"]:
-        path = http_settings.render_root / entry["render_path"]
-        assert hashlib.sha256(path.read_bytes()).hexdigest() == entry["media"]["sha256"]
-    # Nothing but the render path is rewritten: the directive, rotation and label
-    # are the server's, and the daemon reads them as it would the shared file.
-    for key in ("schema", "theme", "rotation", "directive"):
-        assert cached[key] == published[key]
-    assert [entry["label"] for entry in cached["entries"]] == [entry["label"] for entry in published["entries"]]
+    assert _cached(http_settings) == published, "the feed is the server's, and the wall reads it as sent"
+    for work in published["works"].values():
+        held = http_settings.wall_dir / MEDIA_DIRNAME / media_name(work["media"]["sha256"])
+        assert hashlib.sha256(held.read_bytes()).hexdigest() == work["media"]["sha256"]
     adopted = _watcher(http_settings).poll()
-    assert [entry.work_id for entry in adopted.entries] == ["w1", "w2"]
+    assert list(adopted.works) == ["w1", "w2"]
 
 
-async def test_a_feed_is_cached_whole_with_every_works_media_verified(two_major_pull, stub, session, http_settings):
+async def test_a_feed_is_cached_whole_with_every_works_media_verified(pull, stub, session, http_settings):
     """Staged works included, so applying a scene is a switch rather than a download."""
     published = stub.publish_feed([("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")], staging=("w7",))
 
-    assert await two_major_pull.cycle(session) is True
+    assert await pull.cycle(session) is True
 
     assert _cached(http_settings) == published, "a feed is cached as the server sent it"
     for work in published["works"].values():
@@ -149,7 +147,7 @@ async def test_a_feed_is_cached_whole_with_every_works_media_verified(two_major_
     assert sorted(adopted.works) == ["w1", "w7"]
 
 
-async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(two_major_pull, stub, session, http_settings):
+async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(pull, stub, session, http_settings):
     """Every work the schedule names stays in the feed; the one with no good media is the programme's to skip.
 
     The server holds bytes for w2 that do not match its hash, the failure the
@@ -163,51 +161,47 @@ async def test_a_feed_whose_one_master_is_bad_is_cached_whole_without_it(two_maj
     )
     stub.media[published["works"]["w2"]["media"]["sha256"]] = b"not the master that was hashed"
 
-    assert await two_major_pull.cycle(session) is True
+    assert await pull.cycle(session) is True
 
     assert _cached(http_settings) == published
     assert _held(http_settings) == {f"sha256-{published['works']['w1']['media']['sha256']}"}
 
 
-async def test_a_feeds_media_that_cannot_be_fetched_keeps_the_manifest_already_cached(
-    two_major_pull, stub, session, http_settings
-):
+async def test_a_feeds_media_that_cannot_be_fetched_keeps_the_manifest_already_cached(pull, stub, session, http_settings):
     stub.publish("w1")
-    assert await two_major_pull.cycle(session) is True
+    assert await pull.cycle(session) is True
     stub.publish_feed([("w2", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
     stub.media_status = 503
 
-    assert await two_major_pull.cycle(session) is False
+    assert await pull.cycle(session) is False
 
-    assert "entries" in _cached(http_settings), "a feed was cached without its media"
+    assert _works(http_settings) == ["w1"], "a feed was cached without its media"
 
 
-async def test_a_feeds_media_is_evicted_once_two_documents_in_a_row_have_not_named_it(
-    two_major_pull, stub, session, http_settings
-):
+async def test_a_feeds_media_is_evicted_once_two_documents_in_a_row_have_not_named_it(pull, stub, session, http_settings):
     first = stub.publish_feed([("w1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    await two_major_pull.cycle(session)
+    await pull.cycle(session)
     stub.publish_feed([("w2", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    await two_major_pull.cycle(session)
+    await pull.cycle(session)
     w1 = f"sha256-{first['works']['w1']['media']['sha256']}"
     assert w1 in _held(http_settings), "the media the feed being replaced names went at once"
 
     stub.publish_feed([("w3", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    await two_major_pull.cycle(session)
+    await pull.cycle(session)
 
     assert w1 not in _held(http_settings)
 
 
-async def test_nothing_is_cached_while_a_render_cannot_be_fetched(pull, stub, session, http_settings):
+async def test_nothing_is_cached_while_a_master_cannot_be_fetched(pull, stub, session, http_settings):
     stub.publish("w1")
     stub.media_status = 503
 
     await pull.cycle(session)
-    assert _cached(http_settings) is None, "a manifest was cached before its render"
+    assert _cached(http_settings) is None, "a feed was cached before its master"
 
     stub.media_status = None
     await pull.cycle(session)
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
+    assert _works(http_settings) == ["w1"]
 
 
 async def test_an_unchanged_manifest_is_not_downloaded_again(pull, stub, session, http_settings):
@@ -222,65 +216,70 @@ async def test_an_unchanged_manifest_is_not_downloaded_again(pull, stub, session
     assert http_settings.manifest_path.stat().st_mtime_ns == before
 
 
-async def test_a_render_that_does_not_match_its_hash_is_discarded_and_reported_once(pull, stub, session, http_settings, caplog):
+async def test_a_master_that_does_not_match_its_hash_is_discarded_and_reported_once(pull, stub, session, http_settings, caplog):
+    """The feed is cached whole: the work stays in it, for the programme to pass over until good bytes arrive."""
     stub.publish("w1", "w2")
-    bad = stub.manifest["entries"][1]["media"]["sha256"]
-    stub.media[bad] = b"bytes that are not the render"
+    bad = stub.manifest["works"]["w2"]["media"]["sha256"]
+    stub.media[bad] = b"bytes that are not the master"
 
     with caplog.at_level(logging.WARNING, logger="arrt_player.pull"):
         await pull.cycle(session)
-        stub.publish("w1", "w2", sequence=5)
-        stub.media[bad] = b"bytes that are not the render"
+        stub.publish("w1", "w2")
+        stub.media[bad] = b"bytes that are not the master"
         await pull.cycle(session)
 
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
+    assert _works(http_settings) == ["w1", "w2"]
     assert f"sha256-{bad}" not in _held(http_settings)
     mismatches = [record for record in caplog.records if "did not match its hash" in record.getMessage()]
     assert len(mismatches) == 1
 
 
 async def test_the_contract_fixtures_placeholder_hash_is_refused_by_the_bytes(pull, stub, session, http_settings):
-    """The fixture's own `media` names a hash no real bytes have, so its render never reaches the cache."""
-    stub.manifest = copy.deepcopy(FIXTURE)
-    for entry in stub.manifest["entries"]:
-        stub.media[entry["media"]["sha256"]] = b"anything"
+    """The fixture's own `media` names hashes no real bytes have, so none of its masters reaches the cache."""
+    fixture = json.loads((CONTRACT / "fixtures" / "manifest.v2" / "valid" / "a-day-with-dark-hours.json").read_text())
+    stub.manifest = fixture
+    for work in fixture["works"].values():
+        stub.media[work["media"]["sha256"]] = b"anything"
 
     await pull.cycle(session)
 
-    assert _cached(http_settings)["entries"] == []
+    assert _cached(http_settings) == fixture
+    assert _held(http_settings) == set()
 
 
-async def test_a_manifest_this_reader_refuses_is_never_cached(two_major_pull, stub, session, http_settings, caplog):
+async def test_a_major_1_document_served_as_major_2_is_refused_and_never_cached(pull, stub, session, http_settings, caplog):
+    """This Player reads major 2 only: a major 1 document is a version it refuses, and the cache keeps the last feed."""
     stub.publish("w1")
-    await two_major_pull.cycle(session)
-    stub.manifest = json.loads((CONTRACT / "fixtures" / "manifest.v1" / "invalid" / "major-2.json").read_text())
+    await pull.cycle(session)
+    stub.manifest = json.loads((CONTRACT / "fixtures" / "manifest.v2" / "invalid" / "major-1.json").read_text())
+    stub.served_at[WALL_ID] = 2
 
     with caplog.at_level(logging.ERROR, logger="arrt_player.pull"):
-        await two_major_pull.cycle(session)
-        await two_major_pull.cycle(session)
+        await pull.cycle(session)
+        await pull.cycle(session)
 
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
-    assert len([record for record in caplog.records if "refusing the manifest" in record.getMessage()]) == 1
+    assert _works(http_settings) == ["w1"]
+    (refused,) = [record for record in caplog.records if "refusing the manifest" in record.getMessage()]
+    assert "major 1 is not supported" in refused.getMessage()
 
 
-async def test_eviction_removes_a_render_once_two_manifests_in_a_row_have_not_named_it(pull, stub, session, http_settings):
+async def test_eviction_removes_a_master_once_two_feeds_in_a_row_have_not_named_it(pull, stub, session, http_settings):
     """One generation of grace.
 
-    The daemon adopts a new manifest on its next poll, and may reach for a render
+    The wall adopts a new feed on its next poll, and may reach for a master
     only the old one names until then.
     """
-    stub.publish("w1", "w2")
+    first = stub.publish("w1", "w2")
     await pull.cycle(session)
-    names = {entry["work_id"]: Path(entry["render_path"]).name for entry in _cached(http_settings)["entries"]}
 
-    stub.publish("w2", "w3")
+    second = stub.publish("w2", "w3")
     await pull.cycle(session)
-    names.update({entry["work_id"]: Path(entry["render_path"]).name for entry in _cached(http_settings)["entries"]})
-    assert _held(http_settings) == {names["w1"], names["w2"], names["w3"]}, "the outgoing manifest's render went early"
+    names = {work: _media(document, work) for document in (first, second) for work in document["works"]}
+    assert _held(http_settings) == {names["w1"], names["w2"], names["w3"]}, "the outgoing feed's master went early"
 
-    stub.publish("w3", "w4")
+    third = stub.publish("w3", "w4")
     await pull.cycle(session)
-    names.update({entry["work_id"]: Path(entry["render_path"]).name for entry in _cached(http_settings)["entries"]})
+    names["w4"] = _media(third, "w4")
     assert _held(http_settings) == {names["w2"], names["w3"], names["w4"]}
     assert names["w1"] not in _held(http_settings)
 
@@ -293,6 +292,32 @@ async def test_a_stray_file_in_the_media_cache_is_evicted(pull, stub, session, h
     await pull.cycle(session)
 
     assert not stray.exists()
+
+
+async def test_a_cache_left_by_a_player_that_read_major_1_gives_way_to_the_first_feed(pull, stub, session, http_settings):
+    """A Pi upgraded in place: its cached document is a major 1 manifest, which names renders and no works.
+
+    The pull reads that cache to keep the outgoing document's media one
+    generation longer, so it must read a shape it no longer parses without
+    failing, and the old renders go once the feed is cached.
+    """
+    render = "c" * 64
+    http_settings.manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": {"major": 1, "minor": 2},
+                "entries": [{"work_id": "w0", "render_path": f"media/sha256-{render}", "media": {"sha256": render}}],
+            }
+        )
+    )
+    old = http_settings.wall_dir / MEDIA_DIRNAME / f"sha256-{render}"
+    old.write_bytes(b"a render composed by the server")
+    published = stub.publish("w1")
+
+    assert await pull.cycle(session) is True
+
+    assert _cached(http_settings) == published
+    assert _held(http_settings) == {_media(published, "w1")}, "the major 1 render outlived the first feed"
 
 
 # -- refusals and outages keep the cache ------------------------------------------------------
@@ -315,29 +340,28 @@ async def test_a_refused_token_is_reported_once_and_the_cache_is_kept(
         for _ in range(3):
             assert await pull.cycle(session) is True
 
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
+    assert _works(http_settings) == ["w1"]
     refused = [record for record in caplog.records if record.getMessage().startswith("the server refused")]
     assert len(refused) == 1
     assert refused[0].status == status
 
 
-async def test_the_server_stopped_while_the_wall_runs_and_rotation_continues_from_the_cache(
+async def test_the_server_stopped_while_the_wall_runs_and_the_schedule_continues_from_the_cache(
     pull, stub, session, http_settings, tv, state, clock
 ):
     """The test this chunk exists for."""
     stub.publish("w1", "w2")
     await pull.cycle(session)
     daemon = frame_wall(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
-    await daemon.tick()
+    await tick_until(daemon.tick, lambda: tv.on_the_wall is not None)
     first = tv.on_the_wall
 
     await stub.server.close()
     assert await pull.cycle(session) is False, "a stopped server was reported as reachable"
     clock.advance(181)
-    await daemon.tick()
+    await tick_until(daemon.tick, lambda: tv.on_the_wall != first)
 
-    assert tv.on_the_wall != first, "the rotation stopped with the server"
-    assert tv.on_the_wall.parent == http_settings.wall_dir / MEDIA_DIRNAME
+    assert tv.on_the_wall.parent == http_settings.composed_root
     assert _cached(http_settings) is not None
 
 
@@ -350,9 +374,9 @@ async def test_a_player_restarted_with_the_server_down_starts_from_its_cache(stu
     assert await restarted.cycle(session) is False
     adopted = _watcher(http_settings).poll()
 
-    assert [entry.work_id for entry in adopted.entries] == ["w1", "w2"]
-    for entry in adopted.entries:
-        assert (http_settings.render_root / entry.render_path).is_file()
+    assert list(adopted.works) == ["w1", "w2"]
+    for work in adopted.works.values():
+        assert (http_settings.render_root / work.media_path).is_file()
 
 
 async def test_an_unreachable_server_is_reported_once_and_its_return_once(stub, session, http_settings, caplog):
@@ -383,7 +407,7 @@ async def test_a_manifest_404_is_reported_once_as_nothing_published(pull, stub, 
     refused = [record for record in caplog.records if record.getMessage().startswith("the server refused")]
     assert len(refused) == 1
     assert refused[0].status == 404
-    assert "published nothing" in refused[0].getMessage()
+    assert "publishes no manifest major this Player reads (2)" in refused[0].getMessage()
 
 
 async def test_a_refusal_ends_on_a_304(pull, stub, session, caplog):
@@ -405,30 +429,18 @@ async def test_a_refusal_ends_on_a_304(pull, stub, session, caplog):
     assert len([message for message in messages if "serves this wall's manifest again" in message]) == 1
 
 
-async def test_a_render_the_server_does_not_hold_is_skipped_and_the_rest_cached(pull, stub, session, http_settings):
-    stub.publish("w1", "w2")
-    del stub.media[stub.manifest["entries"][0]["media"]["sha256"]]
+async def test_a_master_the_server_does_not_hold_is_skipped_and_the_rest_cached(pull, stub, session, http_settings):
+    """The feed is cached whole; the work whose master is missing is the programme's to pass over."""
+    published = stub.publish("w1", "w2")
+    del stub.media[published["works"]["w1"]["media"]["sha256"]]
 
     assert await pull.cycle(session) is True
 
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w2"]
+    assert _works(http_settings) == ["w1", "w2"]
+    assert _held(http_settings) == {_media(published, "w2")}
 
 
-async def test_a_work_with_no_usable_media_is_skipped_and_said_once(pull, stub, session, http_settings, caplog):
-    stub.publish("w1", "w2")
-    del stub.manifest["entries"][0]["media"]
-
-    with caplog.at_level(logging.WARNING, logger="arrt_player.pull"):
-        await pull.cycle(session)
-        stub.publish("w1", "w2", sequence=9)
-        del stub.manifest["entries"][0]["media"]
-        await pull.cycle(session)
-
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w2"]
-    assert len([record for record in caplog.records if "no usable media" in record.getMessage()]) == 1
-
-
-async def test_a_render_that_keeps_failing_is_said_once_and_backed_off(pull, stub, session, http_settings, caplog):
+async def test_a_master_that_keeps_failing_is_said_once_and_backed_off(pull, stub, session, http_settings, caplog):
     stub.publish("w1")
     await pull.cycle(session)
     stub.publish("w2")
@@ -438,8 +450,8 @@ async def test_a_render_that_keeps_failing_is_said_once_and_backed_off(pull, stu
 
     with caplog.at_level(logging.INFO, logger="arrt_player.pull"):
         for _ in range(3):
-            assert await pull.cycle(session) is False, "a failing render was not backed off"
-        # Checked while the render is still failing: the manifest route answered,
+            assert await pull.cycle(session) is False, "a failing master was not backed off"
+        # Checked while the master is still failing: the manifest route answered,
         # so the Player must still be heard.
         assert [json.loads(body)["reported_at"] for body in stub.heartbeats] == ["2026-09-30T12:00:00+00:00"]
         stub.media_status = None
@@ -448,7 +460,7 @@ async def test_a_render_that_keeps_failing_is_said_once_and_backed_off(pull, stu
     messages = [record.getMessage() for record in caplog.records]
     assert len([message for message in messages if "could not be fetched" in message]) == 1
     assert len([message for message in messages if "arrive again" in message]) == 1
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w2"]
+    assert _works(http_settings) == ["w2"]
 
 
 # -- the token -------------------------------------------------------------------------------
@@ -457,7 +469,7 @@ async def test_a_render_that_keeps_failing_is_said_once_and_backed_off(pull, stu
 async def test_the_token_never_reaches_the_journal(pull, stub, session, http_settings, caplog):
     with caplog.at_level(logging.DEBUG):
         stub.publish("w1", "w2")
-        bad = stub.manifest["entries"][1]["media"]["sha256"]
+        bad = stub.manifest["works"]["w2"]["media"]["sha256"]
         stub.media[bad] = b"wrong"
         await pull.cycle(session)
         stub.tokens = {}
@@ -484,17 +496,17 @@ async def test_the_token_is_not_sent_to_another_host(pull, stub, session, http_s
     await other.start_server()
     try:
         stub.publish("w1")
-        sha = stub.manifest["entries"][0]["media"]["sha256"]
+        sha = stub.manifest["works"]["w1"]["media"]["sha256"]
         elsewhere.media[sha] = stub.media[sha]
         elsewhere.tokens = {"": WALL_ID}
-        stub.manifest["entries"][0]["media"]["url"] = str(other.make_url(f"/media/sha256-{sha}"))
+        stub.manifest["works"]["w1"]["media"]["url"] = str(other.make_url(f"/media/sha256-{sha}"))
 
         await pull.cycle(session)
     finally:
         await other.close()
 
     assert elsewhere.authorizations == [None]
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
+    assert _held(http_settings) == {f"sha256-{sha}"}
 
 
 # -- the heartbeat ---------------------------------------------------------------------------
@@ -558,7 +570,7 @@ async def test_the_daemon_writes_its_heartbeat_into_the_walls_directory_where_th
     await pull.cycle(session)
     daemon = frame_wall(settings=http_settings, tv=tv, state=state, watcher=_watcher(http_settings), clock=clock.as_clock())
 
-    await daemon.tick()
+    await tick_until(daemon.tick, lambda: tv.on_the_wall is not None)
     await pull.cycle(session)
 
     assert (http_settings.wall_dir / f"display-heartbeat-{WALL_ID}.json").is_file()
@@ -569,10 +581,14 @@ async def test_the_daemon_writes_its_heartbeat_into_the_walls_directory_where_th
 
 
 @pytest.fixture
-def two_major_pull(http_settings):
-    """A Pull as this Player builds one, asking for majors 2 and 1 since it composes; nothing patched."""
-    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
-    return Pull(http_settings)
+def next_major(monkeypatch):
+    """This Player as one reading a major 3 beside major 2, which is how the next major is served.
+
+    The walk down the majors is in the pull for that day, and nothing in a Player
+    reading one major reaches it, so these tests give it a second major to ask
+    for. The server double serves major 3 by serving its feed at `v3`.
+    """
+    monkeypatch.setattr(pull_module, "REQUESTED_MAJORS", (3, 2))
 
 
 async def test_this_player_asks_for_the_majors_it_reports_and_no_other(pull, stub, session):
@@ -583,46 +599,63 @@ async def test_this_player_asks_for_the_majors_it_reports_and_no_other(pull, stu
     assert stub.majors_requested == list(REQUESTED_MAJORS)
 
 
-def test_this_player_asks_for_major_2_first_now_that_it_composes():
-    """Asking for major 2 before the compositor existed would have put a bare master on the wall."""
-    assert REQUESTED_MAJORS == (2, 1)
+def test_this_player_asks_only_for_major_2():
+    """It composes every work itself, so it reads no major carrying a server's composed render."""
+    assert REQUESTED_MAJORS == (2,)
 
 
-async def test_a_major_the_server_does_not_publish_falls_back_to_the_next_one_down(two_major_pull, stub, session, http_settings):
+async def test_a_major_the_server_does_not_publish_falls_back_to_the_next_one_down(next_major, http_settings, stub, session):
+    pull = Pull(http_settings)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
     stub.publish("w1")
 
-    assert await two_major_pull.cycle(session) is True
+    assert await pull.cycle(session) is True
 
-    assert stub.majors_requested == [2, 1], "the highest major was not asked for first"
-    assert [entry["work_id"] for entry in _cached(http_settings)["entries"]] == ["w1"]
+    assert stub.majors_requested == [3, 2], "the highest major was not asked for first"
+    assert _works(http_settings) == ["w1"]
 
 
-async def test_the_highest_major_published_is_the_one_taken(two_major_pull, stub, session, http_settings):
-    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+async def test_the_highest_major_published_is_the_one_taken(next_major, http_settings, stub, session):
+    pull = Pull(http_settings)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+    stub.publish("f1")
+    stub.served_at[WALL_ID] = 3
 
-    await two_major_pull.cycle(session)
+    await pull.cycle(session)
+
+    assert stub.majors_requested == [3]
+    assert _works(http_settings) == ["f1"]
+
+
+async def test_every_major_answering_404_is_nothing_published(pull, stub, session, caplog):
+    """The wall misconfigured, said once: no major this Player reads is published for it."""
+    with caplog.at_level(logging.ERROR, logger="arrt_player.pull"):
+        assert await pull.cycle(session) is True
 
     assert stub.majors_requested == [2]
-    assert "works" in _cached(http_settings)
-
-
-async def test_every_major_answering_404_is_nothing_published(two_major_pull, stub, session, caplog):
-    with caplog.at_level(logging.ERROR, logger="arrt_player.pull"):
-        assert await two_major_pull.cycle(session) is True
-
-    assert stub.majors_requested == [2, 1]
     (refused,) = [record for record in caplog.records if record.getMessage().startswith("the server refused")]
     assert refused.status == 404
 
 
-async def test_a_refused_token_stops_at_the_first_major(two_major_pull, stub, session, http_settings):
+async def test_every_major_is_asked_before_a_404_is_nothing_published(next_major, http_settings, stub, session):
+    pull = Pull(http_settings)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
+
+    assert await pull.cycle(session) is True
+
+    assert stub.majors_requested == [3, 2]
+
+
+async def test_a_refused_token_stops_at_the_first_major(next_major, http_settings, stub, session):
     """A token refused at one major is refused at every one; asking the next would only say so again."""
+    pull = Pull(http_settings)
+    (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
     stub.publish("w1")
     stub.tokens.clear()
 
-    await two_major_pull.cycle(session)
+    await pull.cycle(session)
 
-    assert stub.majors_requested == [2]
+    assert stub.majors_requested == [3]
     assert _cached(http_settings) is None
 
 
@@ -636,8 +669,8 @@ class _Ticking:
         return self.now
 
 
-async def test_a_wall_served_a_lower_major_asks_for_the_higher_one_once_a_minute(http_settings, stub, session):
-    """Until the server publishes major 2, asking for it every poll doubles the requests and logs a 404 a second."""
+async def test_a_wall_served_a_lower_major_asks_for_the_higher_one_once_a_minute(next_major, http_settings, stub, session):
+    """Until the server publishes the higher major, asking for it every poll doubles the requests and logs a 404 a second."""
     clock = _Ticking()
     pull = Pull(http_settings, monotonic=clock)
     (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
@@ -648,43 +681,45 @@ async def test_a_wall_served_a_lower_major_asks_for_the_higher_one_once_a_minute
     await pull.cycle(session)
     clock.now += HIGHER_MAJOR_SECONDS - 1.3 - 0.7
     await pull.cycle(session)
-    assert stub.majors_requested == [2, 1, 1, 1], "the higher major was asked for again before a minute had passed"
+    assert stub.majors_requested == [3, 2, 2, 2], "the higher major was asked for again before a minute had passed"
 
     clock.now += 1.4
     await pull.cycle(session)
-    assert stub.majors_requested[4:] == [2, 1]
+    assert stub.majors_requested[4:] == [3, 2]
 
 
-async def test_a_major_that_stops_answering_sends_the_wall_back_to_the_highest(http_settings, stub, session):
-    """Served major 1, and the server now publishes only major 2: found on the next poll, not a minute later."""
+async def test_a_major_that_stops_answering_sends_the_wall_back_to_the_highest(next_major, http_settings, stub, session):
+    """Served major 2, and the server now publishes only major 3: found on the next poll, not a minute later."""
     clock = _Ticking()
     pull = Pull(http_settings, monotonic=clock)
     (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
     stub.publish("w1")
     await pull.cycle(session)
 
-    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    stub.publish("f1")
+    stub.served_at[WALL_ID] = 3
     clock.now += 1.3
     await pull.cycle(session)
 
-    assert stub.majors_requested == [2, 1, 1, 2]
-    assert "works" in _cached(http_settings)
+    assert stub.majors_requested == [3, 2, 2, 3]
+    assert _works(http_settings) == ["f1"]
 
 
-async def test_a_wall_served_the_highest_major_asks_only_for_it(http_settings, stub, session):
+async def test_a_wall_served_the_highest_major_asks_only_for_it(next_major, http_settings, stub, session):
     clock = _Ticking()
     pull = Pull(http_settings, monotonic=clock)
     (http_settings.wall_dir / MEDIA_DIRNAME).mkdir(parents=True)
-    stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
+    stub.publish("f1")
+    stub.served_at[WALL_ID] = 3
 
     for _ in range(3):
         await pull.cycle(session)
         clock.now += 1.3
 
-    assert stub.majors_requested == [2, 2, 2]
+    assert stub.majors_requested == [3, 3, 3]
 
 
-async def test_a_wall_the_server_stops_publishing_for_forgets_which_major_answered(http_settings, stub, session):
+async def test_a_wall_the_server_stops_publishing_for_forgets_which_major_answered(next_major, http_settings, stub, session):
     """Nothing answering is nothing to start from: the next poll asks from the top once, not the old major first."""
     clock = _Ticking()
     pull = Pull(http_settings, monotonic=clock)
@@ -698,13 +733,13 @@ async def test_a_wall_the_server_stops_publishing_for_forgets_which_major_answer
     clock.now += 1.3
     await pull.cycle(session)
 
-    assert stub.majors_requested == [2, 1, 1, 2, 1, 2, 1]
+    assert stub.majors_requested == [3, 2, 2, 3, 2, 3, 2]
 
 
-async def test_a_feed_pulled_from_the_server_reaches_a_screen_composed(two_major_pull, stub, session, http_settings, clock):
+async def test_a_feed_pulled_from_the_server_reaches_a_screen_composed(pull, stub, session, http_settings, clock):
     """End to end: v2 asked for and served, its masters cached, each composed for the screen, and the slot's work drawn."""
     stub.publish_feed([("f1", "2026-06-21T08:00:00+00:00", "2026-06-21T13:00:00+00:00")])
-    assert await two_major_pull.cycle(session) is True
+    assert await pull.cycle(session) is True
     output = RecordingOutput(screen=(1280, 720))
     wall = screen_wall(wall=http_settings, output=output, watcher=_watcher(http_settings), clock=clock.as_clock())
 

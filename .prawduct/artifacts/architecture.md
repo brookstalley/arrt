@@ -166,6 +166,11 @@ both live on the display device.
 > label must be one plane. This is conformance, not amendment: the statement is
 > unchanged, and this ruling applies it to a case (the mat) the built code had
 > exempted.
+>
+> *(Wave 4g, 2026-10-10: the exemption is closed. The `tv_display` rendition
+> and the server's compositor (`library/acquisition/compose.py`) are gone, and
+> the server reads no panel geometry; each Player composes its own mat from the
+> presentation master and the colour its feed carries.)*
 
 <!-- Ratified by the owner 2026-07-20. Enforcement row in project-preferences.md.
      Given a Direction home on 2026-07-20 after Critic review found it cited as
@@ -241,7 +246,8 @@ convenience would otherwise make that split a migration.
    their own SQLite file and hold work ids as opaque references that may fail to
    resolve. *Why:* one file makes the cross-seam join too easy to resist, and a
    split then needs a data migration. Today `theme_memberships.artwork_id` and
-   `directives.pinned_work_id` cross it.
+   `directives.pinned_work_id` cross it. *(Wave 4g, 2026-10-10: the directives
+   table is dropped, so `theme_memberships.artwork_id` is the one left.)*
 4. **Library changes reach Programming as events.** Programming never reads
    Library tables to detect change, and media URLs in manifests are
    Library-served and content-addressed. *Why:* events become webhooks and URLs
@@ -250,7 +256,7 @@ convenience would otherwise make that split a migration.
 > **Status:** `in-transition`, tracked by `re-architecture.md` § Order of work,
 > and for rule 3 by #216 (filed 2026-10-05, after wave 3 shipped without the store
 > split). **Interim rule:** new code that touches themes,
-> walls, directives or manifests is written against the rules above wherever it
+> walls, directives (until wave 4g) or manifests is written against the rules above wherever it
 > can be without the package split: no new cross-seam foreign keys, no new direct
 > reads of catalogue tables from `programming/display.py`'s domain.
 >
@@ -309,6 +315,16 @@ convenience would otherwise make that split a migration.
 > can lose an event. Programming reconciles every manifest against the facade at
 > startup, so a lost event delays an update and never leaves a manifest wrong.
 >
+> **Status 2026-10-10 (wave 4g): still `in-transition`, for rule 3 only.** The
+> `retire_directives` migration (`persistence/migrations.py`) drops the
+> `directives` table, which removes `directives.pinned_work_id` from the
+> inventory above, and with it the pin withdrawal named in rule 4's handler. The
+> one cross-seam foreign key left is `theme_memberships.artwork_id`, and the
+> store split that removes it is #216. The `mark_the_default_theme` migration's
+> read of `artworks` is unchanged. Rules 1, 2 and 4 are as migrated above;
+> readiness now rests on the presentation master, still answered only through
+> the facade.
+>
 > **Enforcement:** Critic until each rule migrates. Wave 2 adds a static import
 > guard in the style of `tests/preferences/test_plane_isolation.py` for rule 1.
 > Rule 3's schema test arrives with its store split (#216). Rows are in `project-preferences.md`
@@ -357,7 +373,12 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
   (C) = written by curation only    (D) = written by display only
 ```
 
-**Target topology (2026-09-30, `re-architecture.md`).** None of this is built yet.
+*(Wave 4g, 2026-10-10: `ready/` in this drawing held the server's composed
+television canvases. Nothing writes it now; a deployment that has one may
+delete it. The display box's "rotation" is the schedule programme reading
+manifest major 2.)*
+
+**Target topology (2026-09-30, `re-architecture.md`).** None of this is built yet. *(Wave 4g, 2026-10-10: much of it is now: the HTTP feed and media routes, the heartbeat, the Library/Programming packages, and each Player composing its own wall. The drawing was updated to drop the directive and name the major 2 route; `re-architecture.md` § Order of work says what is built.)*
 
 ```
             ┌──────────── operator's NAS (container) ─────────────┐
@@ -366,8 +387,8 @@ recorded plan (curation on a desktop, NAS, or second Pi) — see Decision Log.
             │   │               discovery · Watches · scheduler    │             museum APIs
             │   │               presentation masters (by hash)     │
             │   └─ Programming  playlists · walls · hanging ·      │
-            │                   directives · tags · heartbeats     │
-            │   GET /walls/{id}/manifest   GET /media/{hash}       │
+            │                   tags · heartbeats                  │
+            │   GET /walls/{id}/manifest/v2   GET /media/{hash}    │
             │   POST /walls/{id}/heartbeat                         │
             └───────────────────────┬──────────────────────────────┘
                                     │ LAN HTTP, pulled
@@ -445,7 +466,7 @@ is no network between planes.
   what a work that arrived from discovery does. What it *does* own is how to read
   one particular outside file, and what to say about a record that would not seed
   cleanly. It takes the catalogue service alone rather than the container: it
-  writes no discovery state and no directive, so it needs neither the services
+  writes no discovery state and no wall state, so it needs neither the services
   that own them nor the startup reconciliation that repairs them.
 - **Inside the browser client, one structural rule: no module under `screens/`
   imports another** (established 2026-08-12, when `app.js` was split). The client
@@ -718,6 +739,12 @@ is no network between planes.
   tile; a `WALL_PREVIEW` is the wall render at a size the Work page draws sharply,
   drawn from the canvas when there is one. What the paragraphs below say of "the
   thumbnail" drawn from a canvas is now true of the wall preview.
+  *(Wave 4g, 2026-10-10: there is no canvas now. Both kinds are drawn from the
+  original, with no mat, so the shared `is_current` is the whole answer for
+  every kind; `_drawn_from` and `tv_renditions_newest_first` are gone, and the
+  readiness rule picks the presentation master with `master_rendition_of`
+  (`library/readiness.py`). The decision below, that only a kind whose parent is
+  another rendition earns a supplement, stands and has no case today.)*
 
   **That "inherits" became true on 2026-08-05 and was not before.** The rule was
   written twice — once in `CatalogueService.list_renditions`, once inline in the
@@ -772,13 +799,17 @@ is no network between planes.
   sources), and a theme is a grouping *of* catalogue works. Display reads the
   catalogue through `CatalogueService` and the theme/membership/directive tables
   through `CatalogueStore`, which is the same file: the manifest has to be built
-  and the directive advanced in one consistent read.
+  and the directive advanced in one consistent read. *(Wave 4g, 2026-10-10:
+  the directive is gone; display owns themes, walls and the feeds built from
+  them.)*
 
   **One write crosses the concern line, deliberately.** Archiving a work nulls a
   directive pin naming it, from `CatalogueService`. The line it respects is
   *integrity* versus *semantics*: clearing an unsatisfiable reference in the
   transaction that creates it, never advancing the sequence. Every rule about what
-  an advance means lives in `DisplayService`, unduplicated.
+  an advance means lives in `DisplayService`, unduplicated. *(Retired in wave
+  4g, 2026-10-10, with the directive: archiving writes no Programming table, and
+  the `work.archived` event takes the work off every feed.)*
 
   **Both adapters share one connection**, which is what lets the promotion commit
   once or not at all; a surface takes the container rather than a service, so a
@@ -841,7 +872,8 @@ is no network between planes.
 - **Owned state (sole writer):** `display-state.sqlite` — TV content-id bindings,
   per-work upload status, last selected work, whether this device has already
   switched the set's own slideshow off, and the last-acted-on directive sequence
-  (see § The theme manifest).
+  (see § The theme manifest). *(Wave 4g, 2026-10-10: the directive sequence is
+  gone with manifest major 1; the Player reads only major 2.)*
 
   *(**Two corrections from building it, 2026-08-06.** "Brightness state" was
   listed here and is deliberately **not** persisted: it is recomputed from the sun
@@ -862,7 +894,10 @@ is no network between planes.
   (~1 s) → adopt a new one, refusing an unrecognised major and keeping the last
   good document → reconcile the binding table against the set, removing what it
   holds that nothing accounts for → apply sun-position brightness → act on at most
-  one directive → rotate when the interval is up. **Uploads are carried one per
+  one directive → rotate when the interval is up. *(Wave 4g, 2026-10-10: the
+  Player now pulls its feed over HTTP and reads only major 2: no directive, and
+  the schedule programme (`programmes/schedule.py`) decides what is on the wall
+  from the schedule's times rather than an interval timer.)* **Uploads are carried one per
   pass rather than batched on adoption**, so a fresh install shows something in
   seconds instead of blanking the wall for the five minutes forty uploads take.
   **A selection is confirmed by the set's own `image_selected` announcement**
@@ -891,7 +926,10 @@ is no network between planes.
   render the mat") is true of the built code and is reversed in wave 4
   (`re-architecture.md` § Compositing moves to the Player). The Player will
   compose for its own geometry and gain a framebuffer backend beside the
-  Samsung one.
+  Samsung one. *(Reversed in the code by wave 4g, 2026-10-10: the server no
+  longer makes a `tv_display` rendition, and each Player composes its own mat
+  from the presentation master, reading `TV_PANEL_*`, `MAT_WIDTH_INCHES` and
+  `MAT_BOTTOM_WEIGHT` itself.)*
 - **Must never:** write the catalogue, write the manifest, call the curation
   process, or import curation code.
 
@@ -928,6 +966,17 @@ filesystem. They are *coordination* boundaries.
 > takes up. Channel 5 moves with the Player, and a framebuffer output joins it.
 
 ### The theme manifest
+
+> **Retired in wave 4g, 2026-10-10.** This section describes manifest major 1:
+> the file channel, the 4K render path in each entry, the rotation settings and
+> the directive block. The server no longer builds or publishes major 1 (its
+> builder and the unversioned route `/walls/{id}/manifest` are gone and answer
+> 404, as does `v1`), the directive is gone, and the Player reads only major 2,
+> a schedule with presentation masters that it composes itself, pulled from
+> `/walls/{wall_id}/manifest/v2`. The current contract is `player-contract.md`
+> and `contract/`. *Show now* and *next* republish the wall's schedule
+> (`player-contract.md` § What happens to `show_now` and `next`). What follows
+> is kept as the record of why the directive was shaped as it was.
 
 The single inter-plane contract. A JSON document written to ART_ROOT by curation,
 read by display.
@@ -1011,9 +1060,11 @@ everything above was written in the singular: *the* active theme's identity, *th
 sequence, *the* file. With more than one wall each of those is a per-wall fact.
 
 **The manifest is one file per wall**, `theme-manifest-{wall_id}.json` under
-`ART_ROOT`, and each display instance reads only the manifest for the wall it is
+`ART_ROOT` *(since wave 4g, 2026-10-10, `theme-manifest-{wall_id}.v2.json`, the
+major 2 feed; old major 1 files are left on disk and read by nothing)*, and each display instance reads only the manifest for the wall it is
 configured to serve. The directive semantics above are unchanged — they simply
 became per wall, which is what the ruling already did to the counter itself.
+*(The directive went with major 1 in wave 4g, 2026-10-10.)*
 
 **The wall is carried by the filename and by nothing inside the document.** That
 is deliberate and it is what makes the guarantee structural: a display resolves
@@ -1074,9 +1125,8 @@ heartbeat's.
 | `kept-answers.sqlite` — answers from slow foreign sources, disposable (`persistence/kept.py`), since 2026-10-02 | curation | curation |
 | `pictures/` — every picture fetched from outside, kept for good (`library/services/pictures.py`), since 2026-10-06 | curation | curation |
 | `sources/<plugin>/` — each source plugin's own copy of what it can fetch again (`SourceContext.data_dir`, interface 1.2); `sources/nga/` holds the NGA's open data, since 2026-10-06 | curation (that plugin) | curation (that plugin) |
-| `theme-manifest-{wall_id}.json` — **one file per wall**, since 2026-08-12 | curation | display |
-| `theme-manifest-{wall_id}.v2.json` — the wall's major 2 feed, beside it, since 2026-10-09 (wave 4e); served at `/walls/{wall_id}/manifest/v2` | curation | display (over HTTP) |
-| image tree (`raw/`, `ready/`, …) | curation | display |
+| `theme-manifest-{wall_id}.v2.json` — the wall's feed (major 2), **one file per wall**, since 2026-10-09 (wave 4e); served at `/walls/{wall_id}/manifest/v2`. *(The major 1 file, `theme-manifest-{wall_id}.json`, was written beside it from 2026-08-12 until wave 4g, 2026-10-10.)* | curation | display (over HTTP) |
+| image tree (`raw/`, …); presentation masters served by hash at `/media/sha256-{sha256}`. *(`ready/`, the composed canvases, until wave 4g.)* | curation | display (masters, over HTTP) |
 | `display-state.sqlite` | display | display |
 | `display-heartbeat-{wall_id}.json` (heartbeat) — **likewise one per wall** | display | curation |
 
@@ -1192,7 +1242,9 @@ See `re-architecture.md`.)* What remains:
 | Manifest references a missing image file | one work unshowable | Display **skips it, logs at WARNING, continues the rotation.** Never crashes, never blanks the wall. Fatal-for-one-item, per the recorded error taxonomy |
 | Manifest has an unknown major schema version | new theme not adopted | Display **keeps the previous manifest** and logs at ERROR. Refusing to guess beats rendering a misparse |
 | TV unreachable / websocket drop | rotation stalls | Retry with backoff; the TV holds its last image. Expected operating condition, not an incident |
-| **TV reachable, panel dark: it takes selections and displays none of them** | rotation stalls, and every call reports success | **The one failure a return value cannot carry**, and it is the everyday condition of a set someone switched off — measured on the deployment's own television (`samsung-tv-state-findings.md`): uploads, deletions, listings and brightness all work, while `select_image` is accepted, raises nothing, emits no event, and changes nothing. So **a selection is confirmed by the set's own `image_selected` announcement**, which carries the id and an `is_shown` flag and does not fire at all in this state. It is the *only* sound signal: the set answers a "what are you displaying" question with the art-store slot, unchanged by anything this product selects, so the obvious confirming *read* reports every real rotation as a failure and parks the wall on one picture (measured 2026-08-07, both directions). Because the announcement is pushed rather than polled, **asking and confirming are one operation** at the television seam — a listener registered after the request races an answer measured arriving in half a second. A selection that did not land is its own outcome rather than a failure to show one work: the pass ends instead of walking the theme, the place in the rotation is given back rather than consumed, a `show_now` is left unconsumed by the same rule an outage leaves it unconsumed, and nothing is recorded as having been on the wall. Said **once**, with the set's own art-mode flag in the line, and said again when it recovers. **Backed off from on the same ladder as an unreachable set** (5 s doubling to 300 s, reset on recovery), because the rotation timer governs rotation and nothing governed the directive path: an unconsumed `show_now` — which is the correct thing to leave behind — would otherwise be re-asked once per poll all night. The cost is that the wall resumes within the current wait of someone switching the set on rather than instantly, which is the same trade this plane already makes for a television that has gone away |
+| **TV reachable, panel dark: it takes selections and displays none of them** | rotation stalls, and every call reports success | **The one failure a return value cannot carry**, and it is the everyday condition of a set someone switched off — measured on the deployment's own television (`samsung-tv-state-findings.md`): uploads, deletions, listings and brightness all work, while `select_image` is accepted, raises nothing, emits no event, and changes nothing. So **a selection is confirmed by the set's own `image_selected` announcement**, which carries the id and an `is_shown` flag and does not fire at all in this state. It is the *only* sound signal: the set answers a "what are you displaying" question with the art-store slot, unchanged by anything this product selects, so the obvious confirming *read* reports every real rotation as a failure and parks the wall on one picture (measured 2026-08-07, both directions). Because the announcement is pushed rather than polled, **asking and confirming are one operation** at the television seam — a listener registered after the request races an answer measured arriving in half a second. A selection that did not land is its own outcome rather than a failure to show one work: the pass ends instead of walking the theme, the place in the rotation is given back rather than consumed, a `show_now` is left unconsumed by the same rule an outage leaves it unconsumed, and nothing is recorded as having been on the wall. Said **once**, with the set's own art-mode flag in the line, and said again when it recovers. **Backed off from on the same ladder as an unreachable set** (5 s doubling to 300 s, reset on recovery), because the rotation timer governs rotation and nothing governed the directive path: an unconsumed `show_now` — which is the correct thing to leave behind — would otherwise be re-asked once per poll all night. *(Since wave 4g,
+2026-10-10, there is no directive path: a `show_now` is a republished schedule,
+which the Player shows when the set is back in art mode.)* The cost is that the wall resumes within the current wait of someone switching the set on rather than instantly, which is the same trade this plane already makes for a television that has gone away |
 | E-paper write fails | label stale | Log and continue; never let a panel failure stop the TV rotation |
 | Budget exhausted mid-run (the provider refuses — a 403; see `openrouter-api-findings.md`) | discovery halts partially | `halted_by_budget`, a modelled outcome. Already-acquired works stay acquired |
 | The picture store grows | **curation only** | There is no ceiling (owner, 2026-10-06), so the store is watched rather than bounded: the health panel and `art_display(action='status')` state its files and bytes, from a walk at most ten minutes old. Nothing deletes a kept picture; the disk-headroom guard ahead of acquisition is unchanged. *(Replaced 2026-10-06 the row for the preview sweep stopping, which retired with the norm.)* |
@@ -1346,7 +1398,11 @@ them is what dissolves the shared-value problem** (2026-07-20):
   floor is a minimum size on the wall, so curation needs it to judge a source, to
   show the curator what a work would look like, and to compose the mat into the
   `tv_display` rendition. Display receives that rendition already composed and
-  never needs the TV's size.
+  never needs the TV's size. *(Reversed by wave 4g, 2026-10-10: the TV panel's
+  geometry is now the **Player's alone**. The server judges a source against
+  `QUALITY_MINIMUM_PX` (wave 4b) and a wall's reported screens (wave 4e), and
+  reads no `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player
+  reads them under the same names and composes the mat.)*
 - **The e-paper panel's geometry** (1448×1072) is **display's alone**, for label
   typesetting. Curation never needs it.
 

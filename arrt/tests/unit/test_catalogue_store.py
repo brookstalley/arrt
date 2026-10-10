@@ -25,7 +25,6 @@ from arrt.persistence.records import (
     Artist,
     Artwork,
     ArtworkStatus,
-    Directive,
     FetchStatus,
     MatColor,
     MatMethod,
@@ -110,7 +109,6 @@ _EXPECTED_SCHEMA = {
     # A surface that captions a wall, on the client that holds it.
     "label_outputs": {"id", "client_id", "output", "wall_id"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
-    "directives": {"wall_id", "sequence", "pinned_work_id"},
     "sources": {
         "id",
         "artwork_id",
@@ -151,7 +149,6 @@ _EXPECTED_SCHEMA = {
         "content_sha256",
         "byte_size",
         "layout",
-        "mat_hex",
     },
     "mat_colors": {
         "id",
@@ -435,20 +432,17 @@ def test_no_table_stores_the_resolution_verdict(tmp_path):
         connection.close()
 
 
-def test_a_fresh_catalogue_carries_one_wall_and_one_directive_for_it(tmp_path):
-    """Both are established when the file is opened, so no caller ever makes either.
+def test_a_fresh_catalogue_carries_one_wall(tmp_path):
+    """Established when the file is opened, so no caller ever makes one.
 
-    A directive that had to be created on first use would have a window in which
-    reading it fails, and the read happens on every manifest build. A wall that
-    had to be created on first use would leave a fresh deployment with nowhere to
-    hang anything and no operation able to name a wall.
+    A wall that had to be created on first use would leave a fresh deployment
+    with nowhere to hang anything and no operation able to name a wall.
     """
     path = tmp_path / "catalogue.sqlite"
     catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
     try:
         walls = catalogue.list_walls()
         assert [wall.name for wall in walls] == ["Living room"]
-        assert catalogue.get_directive(walls[0].id) == Directive(wall_id=walls[0].id, sequence=0, pinned_work_id=None)
         # Nothing is hanging on it: a theme is created globally and hung
         # deliberately, and there are no themes here to hang.
         assert catalogue.get_assignment(walls[0].id) is None
@@ -457,10 +451,10 @@ def test_a_fresh_catalogue_carries_one_wall_and_one_directive_for_it(tmp_path):
 
     connection = sqlite3.connect(path)
     try:
-        assert connection.execute("SELECT COUNT(*) FROM directives").fetchone()[0] == 1
-        # The singleton it replaced is gone rather than left beside it, so
-        # nothing can read a counter no code writes.
-        assert connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE name = 'directive'").fetchone()[0] == 0
+        # Neither the per-wall directives nor the singleton before them is
+        # created on a fresh file: nothing reads a counter or a pin.
+        found = connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('directive', 'directives')").fetchone()
+        assert found[0] == 0
     finally:
         connection.close()
 
@@ -527,7 +521,6 @@ def test_two_walls_may_hang_the_same_theme_with_nothing_duplicated(tmp_path):
         moment = datetime(2026, 8, 12, 9, 30, tzinfo=UTC)
         first = catalogue.list_walls()[0]
         catalogue.add_wall(Wall(id="w-study", name="Study", created_at=moment))
-        catalogue.add_directive(Directive(wall_id="w-study", sequence=0))
         catalogue.add_theme(Theme(id="t1", name="Late night", created_at=moment))
 
         catalogue.set_assignment(ThemeAssignment(wall_id=first.id, theme_id="t1", assigned_at=moment))
@@ -556,7 +549,7 @@ def test_an_earlier_catalogue_gains_the_tables_it_did_not_have(tmp_path):
         assert catalogue.get_artwork("w1").title == "Nighthawks"
         assert catalogue.get_theme("t1").name == "Late night"
         # And the entities it never knew about are addressable.
-        assert catalogue.get_directive(catalogue.list_walls()[0].id).sequence == 0
+        assert len(catalogue.list_walls()) == 1
         assert catalogue.list_sources("w1") == []
         assert catalogue.get_original("w1") is None
         assert catalogue.list_renditions("w1") == []

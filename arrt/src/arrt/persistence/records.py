@@ -120,15 +120,11 @@ class RenditionKind(StrEnum):
     There is no `label` kind. A label is rendered on the display plane from the
     text fields the theme manifest carries, because its geometry is the e-paper
     panel's — a device this plane does not own and must not hold facts about.
-    Every kind here is device-independent: `TV_DISPLAY` is a 4K presentation of
-    the artwork with its mat composed in, which any 4K display shows; a
-    `THUMBNAIL` is the work itself, small, for a library tile; and a
-    `WALL_PREVIEW` is the wall render brought down to a size a browser column
-    shows sharply, for the Work page, where the wall render is the subject.
-
-    The two browser kinds differ in their parent, and the kind is what records
-    it: a thumbnail is always drawn from the master, a wall preview from the
-    current canvas when there is one.
+    Every kind here is device-independent: a `THUMBNAIL` is the work itself,
+    small, for a library tile; and a `WALL_PREVIEW` is the work at a size a
+    browser column shows sharply, for the Work page. Both are drawn from the
+    original. No kind is composed for a screen: the Player that owns a screen
+    draws its mat.
 
     A `PRESENTATION_MASTER` is the Original, upright and unmatted, capped at
     7,680 px on its long edge: the device-independent image a Player composes
@@ -136,7 +132,6 @@ class RenditionKind(StrEnum):
     not the size it came out at.
     """
 
-    TV_DISPLAY = "tv_display"
     THUMBNAIL = "thumbnail"
     WALL_PREVIEW = "wall_preview"
     PRESENTATION_MASTER = "presentation_master"
@@ -440,19 +435,9 @@ class Rendition:
     content_sha256: str | None = None
     #: The file's size, recorded with the hash so a manifest can state it.
     byte_size: int | None = None
-    #: The geometry and drawing rule a television canvas was composed with
-    #: (`compose.layout`). A canvas whose layout is not the one this deployment
-    #: composes with now is recomposed, which is how a changed mat or panel
-    #: reaches canvases already drawn. None for a thumbnail, and for a canvas
-    #: recorded before this was, which counts as out of date.
+    #: The rule a presentation master was made by (`master.MASTER_RULE`). A
+    #: master made by another rule is made again. None for a thumbnail.
     layout: str | None = None
-    #: The mat colour a television canvas was painted in. A canvas painted in a
-    #: colour that is no longer the work's current mat is recomposed, so a mat
-    #: recorded before its canvas was redrawn (a crash between the two, or a
-    #: redraw that failed) cannot leave the old colour on the wall. None for a
-    #: thumbnail, and for a canvas recorded before this was, which counts as out
-    #: of date.
-    mat_hex: str | None = None
 
 
 def is_current(rendition: Rendition, original: Original | None) -> bool:
@@ -468,17 +453,6 @@ def is_current(rendition: Rendition, original: Original | None) -> bool:
     dropped it, which is exactly the shortfall the exclusion report exists to
     make visible, arriving by the one path that did not consult the shared rule.
 
-    **What it deliberately does not answer: whether a rendition drawn from
-    another rendition is current.** This compares against the *original*, which
-    is the right parent for every kind but one — a wall preview of a work that has a
-    television canvas is a copy of the canvas, and composing or recomposing that
-    canvas leaves the original untouched. So this rule says "current" about a
-    cached wall preview of an image that has since been redrawn, and it is right to:
-    the question it is asked is about the master. `ThumbnailService._drawn_from`
-    asks the other one. Do not fold it in here — three surfaces share this rule
-    precisely so they cannot disagree, and a term only one of them can evaluate
-    would break that.
-
     A work holding no original at all has nothing that could vouch for any
     rendition, so none of them may be served on the strength of having once been
     generated. That is not the same as a mismatch and it is deliberately not
@@ -491,31 +465,6 @@ def is_current(rendition: Rendition, original: Original | None) -> bool:
     if original is None:
         return False
     return rendition.source_content_hash == original.content_hash
-
-
-def tv_renditions_newest_first(renditions: Sequence[Rendition]) -> list[Rendition]:
-    """Every television render for a work, in the order any consumer prefers them.
-
-    **The one place that preference is expressed**, for the same reason
-    `is_current` is: the manifest builder took the most recently generated row
-    while the thumbnail service took the first current one the store happened to
-    return, and the unique index is on `(artwork_id, kind, target_width,
-    target_height)` — so two television renders at different geometries are
-    reachable, and on that work the wall and the card would have shown different
-    pictures with nothing saying which was right.
-
-    Newest first, tie broken by id so the order is total and a rebuild cannot
-    reshuffle two renders generated in the same instant. Currency is *not*
-    filtered here: the manifest has to be able to tell a work rendered from an
-    older acquisition (`STALE_RENDITION`, "needs regenerating") from one never
-    rendered at all (`NO_RENDITION`), and a filter would collapse the two into
-    the second and tell a curator the opposite of what happened.
-    """
-    return sorted(
-        (rendition for rendition in renditions if rendition.kind is RenditionKind.TV_DISPLAY),
-        key=lambda rendition: (rendition.generated_at, rendition.id),
-        reverse=True,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -583,7 +532,7 @@ class Theme:
     #: cannot move or clear it.
     is_default: bool = False
     #: A selection: the works a curator hung on one wall by choosing them, stored
-    #: as a theme so the manifest, readiness and directives work unchanged. Left
+    #: as a theme so the feed and readiness work unchanged. Left
     #: off the Themes index and every theme picker, because the curator never
     #: made it as a theme and would not recognise it in a list of theirs. Set
     #: when the theme is made and never changed.
@@ -734,33 +683,6 @@ class ThemeAssignment:
     wall_id: str
     theme_id: str
     assigned_at: datetime
-
-
-@dataclass(frozen=True, slots=True)
-class Directive:
-    """One wall's standing instruction to the display plane, held catalogue-side.
-
-    The display plane is reached only through the theme manifest, so an
-    interactive command — "show this work now", "step to the next one" — travels
-    as state rather than as a message: a monotonically increasing sequence, plus
-    an optional work the sequence's advance points at. Display acts once each
-    time it observes the sequence advance.
-
-    **One row per wall, seeded when the wall is created so no caller ever has to
-    make it.** This was a singleton until 2026-08-12, and a `next` aimed at the
-    living room would otherwise have stepped every wall in the house: one counter
-    cannot say which display an advance was meant for.
-
-    The counter lives here, in the catalogue, because a manifest rebuild must
-    carry it forward unchanged. A counter derived from the manifest would reset
-    whenever the manifest was rewritten, and a reset reads to the display plane
-    as an advance — firing a directive nobody issued. It stays *per wall* rather
-    than per theme for the same reason: it has to survive theme switching.
-    """
-
-    wall_id: str
-    sequence: int
-    pinned_work_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

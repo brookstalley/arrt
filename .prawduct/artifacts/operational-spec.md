@@ -337,6 +337,10 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   wall, so curation needs it to judge whether a source is adequate, to show the
   curator what a work would look like, and to compose the mat. Display receives the
   `tv_display` rendition with the mat already in it and never needs the TV's size.
+  *(Reversed by wave 4g, 2026-10-10: the TV panel's geometry and the mat's
+  proportions are now **the Player's only**, below. The server judges a source
+  against `QUALITY_MINIMUM_PX` and each wall's reported screens, and composes
+  nothing.)*
 
   *(**Three values joined it on 2026-08-01** and are curation-only for the same
   reason: `MAT_WIDTH_INCHES`, `MAT_BOTTOM_WEIGHT` and `RESOLUTION_FLOOR_INCHES`.
@@ -352,7 +356,11 @@ Panel geometry was briefly listed as a second shared value; it is not, because
   became the Library's quality profile, `QUALITY_MINIMUM_PX`, a minimum in pixels
   on the long edge that names no screen, default 1,000. The TV panel and the mat
   are now needed only to compose the canvas, and leave the server with
-  compositing in wave 4. A deployment whose `.env` still sets the old key starts
+  compositing in wave 4. *(They did, in wave 4g, 2026-10-10. The server no
+  longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`, and does
+  not warn about them either: they are the Player's settings under the same
+  names, and one `.env` serves both planes on a development checkout, so a
+  warning to remove them would break the Player.)* A deployment whose `.env` still sets the old key starts
   normally and logs a WARNING naming it and its replacement
   (`config.retired_setting`).)*
 
@@ -431,6 +439,11 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 > too, chosen from what the Player reports. Caption mode arrives in wave 6+. A
 > Player running it is exactly the "device drawing its label into the mat area"
 > the `EPD_MARGIN_PX` note above anticipated.
+>
+> *(Wave 4g, 2026-10-10: built. The server holds no screen geometry. The Player
+> reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`.
+> `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` are the server's alone (the
+> pace a theme inherits), and the Player no longer reads them.)*
 >
 > *(2026-10-08, pointer only: `feeds-and-players.md` ruling 7 made the mat's
 > width the client's, so `MAT_*` moves to the Player's configuration with
@@ -529,7 +542,8 @@ The design makes this unusually cheap to verify, and the reason is worth
 understanding. **Restore is partial by design.** Drop the catalogue back with an
 empty image tree, and:
 
-- the manifest build finds no current render for any work,
+- the manifest build finds no current render for any work *(a presentation
+  master, since wave 4g)*,
 - it excludes them all *and reports why*, per work,
 - the health panel shows a theme with everything excluded and the reason,
 - re-acquisition refills the tree, and works reappear as they complete.
@@ -585,11 +599,15 @@ that will actually get run rather than skipped.
 > whose row survives its file. So a restore is **the catalogue plus the image
 > tree**: the newest generation from `BACKUP_DIR` as `catalogue.sqlite`, and
 > `raw/`, `ready/` and `thumbs/` from the art root's own snapshot. Making the
-> partial restore self-heal is backlog. The exercise:
+> partial restore self-heal is backlog. *(Wave 4g, 2026-10-10: readiness rests on
+> the presentation master now and reads its file, so a master whose file is
+> missing is refused by name (`no_rendition`) rather than published. The tree to
+> restore is `raw/`, `presentation/` and `thumbs/`; nothing writes `ready/` any
+> more.)* The exercise:
 >
 >     # into a scratch art root, never the live one
 >     mkdir -p /tmp/restore && cp "$(ls -1 "$BACKUP_DIR"/catalogue-*Z.sqlite | tail -1)" /tmp/restore/catalogue.sqlite
->     cp -R "$ART_ROOT"/raw "$ART_ROOT"/ready "$ART_ROOT"/thumbs /tmp/restore/
+>     cp -R "$ART_ROOT"/raw "$ART_ROOT"/presentation "$ART_ROOT"/thumbs /tmp/restore/
 >     # BACKUP_DIR emptied: the scratch server's start-up backup would otherwise
 >     # land in the live set and prune its oldest real generation
 >     ART_ROOT=/tmp/restore BACKUP_DIR= CURATION_PORT=18790 uv run python -m arrt   # in arrt/
@@ -627,6 +645,15 @@ that will actually get run rather than skipped.
 > never migrated. The HTTP contract adds a new skew case: a Player older than the
 > server's manifest major. It is handled the way the file channel handles it
 > today: refuse the unknown major and keep the last manifest.
+>
+> *(Wave 4g, 2026-10-10: that case is now visible. The server publishes major 2
+> only, and a wall whose Player's heartbeat does not list 2 (or lists no
+> capabilities, which counts as major 1) carries a sentence on Walls and on the
+> MCP `walls` read saying its Player cannot read the feed. The upgrade leaves two
+> kinds of file behind in `ART_ROOT`, both read by nothing and safe to delete:
+> each wall's major 1 manifest, `theme-manifest-{wall_id}.json`, and the
+> composed canvases under `ready/`. The startup log names `ready/` when the
+> migration forgets their rows.)*
 
 ## Failure Recovery
 

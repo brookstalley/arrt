@@ -7,7 +7,7 @@ depends_on:
   - artifact: data-model
   - artifact: security-model
 last_validated: null
-status: major 1 describes the running system plus wave 2's additive changes; major 2 is a draft
+status: major 2 is the only manifest major published (wave 4g, 2026-10-10); major 1 is retired and kept as the record of what walls ran on until then
 ---
 
 # The Player Contract
@@ -61,10 +61,9 @@ it. The heartbeat gains it in wave 2, and a heartbeat without one is 1.0.
   is a valid fixture.
 - **A reader may be more tolerant than a schema.** The schema says what a writer
   must produce. A Player refuses only what the index marks `player_must_refuse`,
-  which is what it cannot act on safely, and it tolerates the rest. The manifest
-  fixtures `absolute-render-path`, `media-sha256-not-hex` and
-  `generated-at-without-offset` break writer obligations that today's reader
-  does not police.
+  which is what it cannot act on safely, and it tolerates the rest. A major 2
+  fixture whose index row says `player_must_refuse: false` breaks a writer
+  obligation the reader does not police.
 
 **Every instant is RFC 3339 with an offset.** Each schema backs its `date-time`
 with an explicit pattern, because a JSON Schema validator does not have to check
@@ -72,16 +71,22 @@ with an explicit pattern, because a JSON Schema validator does not have to check
 installed. A timestamp without an offset would then pass silently.
 
 **Integers are written without a fractional part.** JSON Schema's `integer`
-admits `1.0`, and the Player's reader refuses it where a count matters (the
-directive sequence) or falls back to its default (the rotation interval). The
-schema is the looser of the two, so the writer's obligation is stated here:
-Arrt writes `1`, never `1.0`, as Python's `json` does.
+admits `1.0`, and a reader may refuse it where a count matters. The schema is
+the looser of the two, so the writer's obligation is stated here: Arrt writes
+`1`, never `1.0`, as Python's `json` does.
 
 ## Major 1
 
+> **Retired in wave 4g (2026-10-10).** Nothing publishes or reads major 1: the
+> server serves major 2 alone and Arrt Player reads only major 2 (§ The
+> cutover). Its schema and fixtures left `contract/`, and a major 1 document is
+> kept as a refusal fixture for a major 2 reader
+> (`contract/fixtures/manifest.v2/invalid/major-1.json`). What follows is the
+> record of what the walls ran on until then.
+
 ### The manifest
 
-`contract/schemas/manifest.v1.schema.json`. Minor 1 is what the curation plane's
+`manifest.v1.schema.json`, while it was in `contract/schemas/`. Minor 1 is what the curation plane's
 `programming/manifest/builder.py` wrote until 2026-09-30. Minor 2 adds `media` to each entry, and the builder has
 written it since wave 2b Chunk 03, omitting `media` for a render whose file it could not hash.
 
@@ -134,8 +139,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
 | `GET /client` | none | `200` with the client document (`contract/schemas/client.v1.schema.json`): `{client_id, name, walls: [{wall_id, name, output, display}], labels: [{label_id, output, wall_id}]}`, only the walls assigned to this client and only its label outputs that caption a wall, and an `ETag`; `304` when `If-None-Match` matches. Polled about every 30 seconds |
 | `POST /client/heartbeat` | the client heartbeat (`contract/schemas/client-heartbeat.v1.schema.json`): `{reported_at, outputs: [{name, kind, connected, screen, identity?}], label_outputs?: [{name, kind, connected, size}]}` | `204`; `400` naming the problem for a body that is not JSON or not a client heartbeat |
 | `GET /labels/{label_id}` | none | `200` with the label document (`contract/schemas/label.v1.schema.json`): `{schema, wall_id, wall_name, display_state: {state, work_id, since}, label}`, and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second by the label's renderer. `403` for a label output this client does not hold, or one the server does not; `404` for its own label output that captions no wall. Named in `contract/routes.json` (`label`) |
-| `GET /walls/{wall_id}/manifest` | none | `200` with the manifest and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. Major 1's original spelling, served until major 1 retires; Arrt Player asks for `v{major}` instead since wave 4c |
-| `GET /walls/{wall_id}/manifest/v{major}` | none | The manifest at that major (decimal, no leading zero), answered as above; `404` for a major the server does not publish for this wall (§ The cutover). Named in `contract/routes.json` (`manifest_major`) |
+| `GET /walls/{wall_id}/manifest/v{major}` | none | `200` with the wall's manifest at that major (decimal, no leading zero) and an `ETag`; `304` when `If-None-Match` matches. Polled about once a second. `404` for a major the server does not publish for this wall, which since wave 4g is every major but 2, and for a wall with nothing hung (§ The cutover). Named in `contract/routes.json` (`manifest_major`). *(Wave 4g: the unversioned `GET /walls/{wall_id}/manifest`, major 1's original spelling, is retired and answers `404`.)* |
 | `GET /media/sha256-{hex}` | none | `200` with the image, `Cache-Control: public, max-age=31536000, immutable`. A hash never serves different bytes |
 | `POST /walls/{wall_id}/heartbeat` | the heartbeat | `204` |
 
@@ -219,13 +223,14 @@ of walls, each on one of its outputs. It learns its walls from the server.
   major the Player reads answers it (§ The cutover). A `404` on a media hash skips that work and keeps
   rotating. An unknown major is refused and the last good manifest is kept. The
   wall going black is always worse than the wall being incomplete.
-- **In waves 2 and 3, `/media/...` serves the composed render** that
-  `render_path` names. From wave 4 it serves the presentation master.
+- **`/media/...` serves presentation masters**, by the hash a feed names. In
+  waves 2 and 3 it served the composed render major 1's `render_path` named;
+  since wave 4g the server composes nothing.
 - **Neither the client document nor the client heartbeat carries a `schema` key.** Both allow unknown keys,
   so additions are free; a breaking change to either is a new schema major and a
   new route.
 
-## Major 2 (draft)
+## Major 2
 
 > **Reshaped 2026-10-08 (`feeds-and-players.md`), in the schema since wave 4a.**
 > The manifest is a **feed** (schedule, works, default presentation settings)
@@ -233,11 +238,10 @@ of walls, each on one of its outputs. It learns its walls from the server.
 > `staging` are the **control** layer, and a document with neither is a complete
 > channel feed. `settings` is the first of three layers (§ Presentation settings).
 
-**A draft until wave 4 builds it.** Nothing reads major 2 before then, so every
-field here can still change, and should, if building wave 2 or 3 teaches
-something. It is written now so the wave 2 channel does not paint wave 4 into a
-corner. It gives concrete fields to `re-architecture.md` § What is showing, and
-how it is shown.
+*(Built in waves 4a–4e, and since wave 4g the only major published. It was
+written as a draft before wave 2 so the wave 2 channel would not paint wave 4
+into a corner, and gives concrete fields to `re-architecture.md` § What is
+showing, and how it is shown.)*
 
 `contract/schemas/manifest.v2.schema.json`. Major 2 carries every breaking change
 at once, so walls cut over once:
@@ -336,10 +340,10 @@ holds them to a reference statement of these rules
 
 What a Player draws for one work on one screen, as numbers. The vectors are
 `contract/vectors/mat-geometry.json`; the reference statement is in
-`tests/preferences/test_contract_vectors.py`, and Arrt's compositor is held to
-the `proportional` vectors that have a density
-(`arrt/tests/contract/test_mat_vectors.py`), because that is what it has drawn
-on the Frame since wave 2.
+`tests/preferences/test_contract_vectors.py`, and Arrt Player's compositor is
+held to them in `arrt-player/tests/test_compose.py`. *(Wave 4g: Arrt's own
+compositor, which drew the `proportional` vectors with a density on the Frame
+from wave 2, retired with major 1, and its check with it.)*
 
 - **The mat width.** A Player that knows its pixel density (a configured Frame)
   takes its configured width in inches times the density. One that does not
@@ -443,8 +447,9 @@ upgraded on demand).
   and ask for a higher one less often than it polls. Arrt Player asks again
   about once a minute, and at once if the major it was served stops answering.
 - **A Player refuses a major it does not read** as an unsupported version and
-  keeps its wall, as a major 1 Player refuses a major 2 document. Since wave 4c
-  Arrt Player reads majors 1 and 2: its suite adopts every valid fixture of
+  keeps its wall, as a major 1 Player refuses a major 2 document. *(Wave 4g:
+  Arrt Player reads major 2 alone and refuses a major 1 document.)* From wave 4c
+  until then Arrt Player read majors 1 and 2: its suite adopts every valid fixture of
   both whole, refuses every invalid one the index marks `player_must_refuse`
   (for major 2, never one that breaks only a presentation setting), and pins
   the version refusal with a major 3 document. *(Amended 2026-10-09, wave 4c:
@@ -452,17 +457,22 @@ upgraded on demand).
   rule for a major 1 reader; `build-plan-wave-4c-wall-loop.md` records the
   decision.)*
 - **For a home wall, the server serves each major it still builds and retires
-  one once no heartbeat lists it in `manifest_majors`.** So wave 4 upgrades the
-  Players first, and the server stops building major 1, and with it the
-  composed render and the unversioned route, once every Player reports 2. A
-  Player missed in the upgrade is visible before that, because its heartbeat
-  lacks 2. *(Wave 4e, 2026-10-09:)* While both majors are built, Arrt
-  publishes a wall's major 2 only when it
-  carries at least one of the works major 1 does, or when the theme is empty on
-  both. A theme whose works have no presentation master yet answers `v2` with
-  404, so its Player stays on major 1, rather than being sent a feed with
-  nothing in it while `v1` has the theme. A work without a master is left off
-  major 2 and named in the server's log.
+  one once every heartbeat lists a higher major it publishes.** So wave 4
+  upgrades the Players first, and the server stops building major 1, and with it
+  the composed render and the unversioned route, once every Player reports 2. A
+  Player missed in the upgrade is visible, because its heartbeat lacks 2: Walls
+  and `art_display(action='walls')` say so for that wall (`reads_feed`,
+  `feed_notice`). *(Amended 2026-10-10, wave 4g. This said "once no heartbeat
+  lists it", which a Player reading both majors never satisfies, since it
+  lists 1 for as long as it can read it; the sentence's own "once every Player
+  reports 2" was the intent; the owner confirmed the amendment 2026-10-10. The home wall cut over in wave 4g: the server
+  publishes major 2 alone, and Arrt Player reads only major 2.)* *(Wave 4e,
+  2026-10-09, until wave 4g:)* while both majors were built, Arrt published a
+  wall's major 2 only when it carried at least one of the works major 1 did, or
+  when the theme was empty on both, so a Player stayed on major 1 rather than be
+  sent a feed with nothing in it. With major 1 gone, a theme none of whose works
+  can be sent publishes an empty feed, and a work without a master is not
+  playable at all (it is named among the build's exclusions).
 - **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**: it is
   a Player from before minor 2, which reads only major 1, or one whose display
   cannot say its size. Reading its silence as "lists nothing" would let the

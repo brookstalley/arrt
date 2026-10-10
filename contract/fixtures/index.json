@@ -326,106 +326,6 @@
       "valid": true
     },
     {
-      "path": "fixtures/manifest.v1/invalid/absolute-render-path.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": false,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/boolean-directive-sequence.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/entries-not-a-list.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/entry-empty-work-id.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/entry-missing-render-path.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/generated-at-without-offset.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": false,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/major-2.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/media-sha256-not-hex.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": false,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/missing-directive-sequence.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/invalid/pinned-work-id-not-a-string.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": false,
-      "player_must_refuse": true,
-      "breaks": "schema"
-    },
-    {
-      "path": "fixtures/manifest.v1/valid/as-built.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": true
-    },
-    {
-      "path": "fixtures/manifest.v1/valid/empty-theme.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": true
-    },
-    {
-      "path": "fixtures/manifest.v1/valid/minor-2-media-on-another-host.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": true
-    },
-    {
-      "path": "fixtures/manifest.v1/valid/minor-2-with-media.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": true
-    },
-    {
-      "path": "fixtures/manifest.v1/valid/pinned.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": true
-    },
-    {
-      "path": "fixtures/manifest.v1/valid/unknown-minor-and-key.json",
-      "schema": "schemas/manifest.v1.schema.json",
-      "valid": true
-    },
-    {
       "path": "fixtures/manifest.v2/invalid/fact-not-a-label-key.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": false,
@@ -570,6 +470,11 @@
     },
     {
       "path": "fixtures/manifest.v2/valid/caption-wall-week-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/empty-feed.json",
       "schema": "schemas/manifest.v2.schema.json",
       "valid": true
     },

@@ -66,6 +66,59 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-10: The cutover: walls on manifest major 2 alone (wave 4g)
+
+<!-- prawduct: scope=wave-4g-cutover -->
+
+**Why:** Wave 4e left every wall with two feeds, major 1 (a canvas the server
+matted for one panel, plus the directive) and major 2 (a schedule and masters
+the Player mats). 4g retires major 1 on both planes and everything only it
+needed (`re-architecture.md` § Order of work, wave 4g).
+`build-plan-wave-4g-cutover.md` carries the plan and its decisions.
+
+**What:**
+- Chunk 01: the label's schema definition moves from major 1's schema into
+  major 2's, so major 1's schema could leave the contract.
+- Chunk 02: the server publishes each wall's feed and nothing else. The
+  major 1 builder, `v1` and the unversioned manifest route go (404), and so
+  does 4e's rule that withheld a feed so a Player fell back to major 1. A
+  migration drops each wall's directive. Skip is `POST
+  /api/walls/{wall_id}/next`; it and MCP `show_now`/`next` republish the
+  schedule and answer with the work it starts with, and refuse by name on a
+  wall with no feed or an empty one. A Player whose heartbeat does not list
+  major 2 (or carries no capabilities) is named on Walls and in
+  `art_display(action='walls')` (`reads_feed`, `feed_notice`).
+- Chunk 03: the server stops composing. Readiness rests on the presentation
+  master (`no_rendition`, `stale_rendition` keep their words). Preparation makes
+  the master and keeps or chooses the mat; a new mat makes nothing, since the
+  colour rides the feed. The `tv_display` rendition, the compositor, `ready/`,
+  `renditions.mat_hex` and the server's `TV_PANEL_*`, `MAT_WIDTH_INCHES`,
+  `MAT_BOTTOM_WEIGHT` go; those three are the Player's, which the server
+  neither reads nor warns about. A migration forgets the canvases and the wall
+  previews drawn from them. The Work page shows the work without a mat (#346).
+  The 2024 seed reads no render.
+- Chunk 04: Arrt Player reads only major 2 and refuses a major 1 document; the
+  rotation programme and its memory go. It no longer reads `ROTATION_*`, the
+  server's, and does not refuse them.
+- Chunk 05: major 1's schema and fixtures leave `contract/`;
+  `player-contract.md`, the strategy artifacts, `deploy/README.md` and the
+  operator queue describe the cutover.
+
+**End to end, on this Mac (2026-10-10).** A server booted from this branch, with
+one work prepared and hung, and Arrt Player's own pull and compositor run from
+its own interpreter against it: the Player asked for `v2` only, adopted the
+feed, verified and cached the master, and composed the work at 1920×1200,
+black beyond a mat of the work's colour (`#7e4a0d`); its heartbeat reached the
+server listing `[2]`, Walls showed no feed notice, and `v1` and the unversioned
+route answered 404. A heartbeat listing only `[1]` is shown the notice in the
+browser suite (`test_the_walls.py`).
+
+**Tests moved, not dropped.** Tests that held behaviour still true moved to the
+feed; tests only about the directive's counter and pin, the server's canvas and
+the panel geometry retired, each named in the chunk's commit. The Player's
+Frame-driver tests moved from the major 1 programme to the schedule's
+(`arrt-player/tests/test_frame_wall.py`).
+
 ## 2026-10-09: Programming computes a wall's schedule (wave 4e)
 
 <!-- prawduct: scope=wave-4e-schedule -->

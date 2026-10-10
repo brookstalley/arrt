@@ -11,7 +11,7 @@ from typing import ClassVar
 
 import pytest
 
-from arrt.persistence.records import AcquisitionMethod, ArtworkStatus, MatMethod, RenditionKind, SourceClass
+from arrt.persistence.records import AcquisitionMethod, ArtworkStatus, MatMethod, SourceClass
 from arrt.seed.ingest import _DETAIL, MAT_REASON, SeedNote, seed_catalogue
 from arrt.seed.legacy import LegacyRecord, ParsedArtist
 
@@ -32,7 +32,6 @@ def record():
             # about the fixture rather than about the behaviour under test.
             artist=artist or ParsedArtist(name="Georgia O'Keeffe", nationality="American", born=1887, died=1986),
             raw_path=f"raw/{stem}.jpg",
-            ready_path=f"ready/{stem}_rscaled.jpg",
             mat_hex=mat,
             provider="artic",
             source_class=SourceClass.INSTITUTIONAL,
@@ -45,14 +44,12 @@ def record():
 
 @pytest.fixture
 def tree(tmp_path, jpeg):
-    """An art tree holding whichever of a record's two files a test asks for."""
+    """An art tree holding a record's master image, unless a test asks for none."""
 
-    def _tree(*records, master=True, render=True):
+    def _tree(*records, master=True):
         for entry in records:
             if master:
                 jpeg(tmp_path / entry.raw_path, width=6000, height=4000)
-            if render:
-                jpeg(tmp_path / entry.ready_path, width=3840, height=2160)
         return tmp_path
 
     return _tree
@@ -143,14 +140,15 @@ class TestSeedingOnce:
 
         assert service.get_original(report.works[0].work_id).fetch_status is None
 
-    def test_the_render_is_recorded_at_the_size_the_file_actually_is(self, service, record, tree):
+    def test_no_render_is_recorded_even_where_the_2024_tree_holds_one(self, service, record, tree, jpeg):
+        """Each Player draws its own mat, so the 2024 pipeline's finished render is not read."""
         entry = record()
-        report = seed([entry], service, tree(entry))
+        root = tree(entry)
+        jpeg(root / "ready" / "Nighthawks_rscaled.jpg", width=3840, height=2160)
 
-        (view,) = service.list_renditions(report.works[0].work_id)
-        assert view.rendition.kind is RenditionKind.TV_DISPLAY
-        assert (view.rendition.target_width, view.rendition.target_height) == (3840, 2160)
-        assert not view.stale
+        report = seed([entry], service, root)
+
+        assert service.list_renditions(report.works[0].work_id) == []
 
     def test_the_mat_is_carried_rather_than_derived(self, service, record, tree):
         entry = record(mat="#433735")
@@ -201,7 +199,7 @@ class TestSeedingTwice:
 
         work_id = first.works[0].work_id
         assert len(service.list_sources(work_id)) == 1
-        assert len(service.list_renditions(work_id)) == 1
+        assert service.list_renditions(work_id) == []
 
     def test_a_changed_mat_supersedes_and_the_previous_choice_is_kept(self, service, record, tree):
         """Mat quality is the product's subjective bar: a worse choice has to be reversible."""
@@ -247,45 +245,6 @@ class TestSeedingTwice:
         (work,) = report.works
         assert service.current_mat_color(work.work_id).hex_rgb == "#262626"
         assert SeedNote.MAT_BELOW_FLOOR not in {item.note for item in work.notes}
-
-    def test_a_replaced_master_leaves_its_old_render_reading_stale(self, service, record, tree, jpeg):
-        """Re-stamping here would declare a superseded acquisition current, and the
-        rule that keeps it off the wall could then never fire for a seeded work."""
-        entry = record()
-        root = tree(entry)
-        first = seed([entry], service, root)
-        work_id = first.works[0].work_id
-
-        jpeg(root / entry.raw_path, width=7000, height=5000)
-        second = seed([entry], service, root)
-
-        assert [view.stale for view in service.list_renditions(work_id)] == [True]
-        assert SeedNote.RENDITION_STALE in {item.note for item in second.works[0].notes}
-
-    def test_a_stale_render_keeps_the_moment_it_was_actually_made(self, service, record, tree, jpeg):
-        """Re-recording would move `generated_at` to now and claim a regeneration that did not happen."""
-        entry = record()
-        root = tree(entry)
-        first = seed([entry], service, root)
-        made_at = service.list_renditions(first.works[0].work_id)[0].rendition.generated_at
-
-        jpeg(root / entry.raw_path, width=7000, height=5000)
-        seed([entry], service, root)
-
-        assert service.list_renditions(first.works[0].work_id)[0].rendition.generated_at == made_at
-
-    def test_a_render_that_arrives_later_is_picked_up(self, service, record, tree, jpeg):
-        """The report names a missing render; putting the file there and re-running has to fix it."""
-        entry = record()
-        root = tree(entry, render=False)
-        first = seed([entry], service, root)
-        assert [note.note for note in first.works[0].notes] == [SeedNote.RENDITION_FILE_ABSENT]
-
-        jpeg(root / entry.ready_path, width=3840, height=2160)
-        second = seed([entry], service, root)
-
-        assert second.works[0].notes == []
-        assert len(service.list_renditions(first.works[0].work_id)) == 1
 
 
 class TestRecordsDescribingOneWork:
@@ -334,14 +293,6 @@ class TestWhatTheTreeDoesNotHold:
         report = seed([entry], service, tree(entry, master=False))
 
         assert service.list_renditions(report.works[0].work_id) == []
-
-    def test_a_missing_render_is_named_and_the_work_still_seeds(self, service, record, tree):
-        entry = record()
-        report = seed([entry], service, tree(entry, render=False))
-
-        (note,) = [item for item in report.works[0].notes if item.note is SeedNote.RENDITION_FILE_ABSENT]
-        assert entry.ready_path in note.detail
-        assert service.get_original(report.works[0].work_id) is not None
 
     def test_a_zero_length_master_is_reported_rather_than_recorded(self, service, record, tmp_path):
         """A file that exists, holds nothing, and looks fine by name is the known download failure."""

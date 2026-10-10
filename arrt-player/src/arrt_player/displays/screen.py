@@ -3,19 +3,19 @@
 Unlike the Frame, a screen holds nothing between restarts — the picture is
 whatever this process last put there — so there are no uploads, no bindings and
 no art mode to ask about: the wall is always this host's to change, and the
-rotation's memory lasts as long as the process (`programmes.rotation.InMemory`),
-so a worker restarted after a `show_now` it never saw does not replay it.
+wall's memory of which work is up lasts as long as the process
+(`programmes.schedule.InMemory`), so a restarted worker draws the slot's work
+again on its first pass.
 
 **The output is an interface** (`ScreenOutput`); an HDMI connector's is
 `kms.KmsOutput`. The wall asks it on every pass to draw again if its screen came
 back, which is what turns a monitor plugged in after the wall started — or a
 television switched back to this input — into the wall's picture rather than a
-black screen until the next rotation.
+black screen until the next slot.
 """
 
 import asyncio
 import logging
-import random
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol
@@ -25,9 +25,7 @@ from arrt_player.config import WallSettings
 from arrt_player.episodes import ReportOnce
 from arrt_player.heartbeat import ScreenState
 from arrt_player.manifest import Watcher
-from arrt_player.programmes.memory import InMemory
-from arrt_player.programmes.rotation import Rotation
-from arrt_player.programmes.schedule import Schedule
+from arrt_player.programmes.schedule import InMemory, Schedule
 from arrt_player.wall import Capabilities, Clock, DisplayRecord, Picture, Shown, Wall
 
 log = logging.getLogger(__name__)
@@ -72,7 +70,6 @@ def screen_wall(
     output: ScreenOutput,
     watcher: Watcher,
     clock: Clock,
-    rng: random.Random | None = None,
 ) -> Wall:
     """A wall on a screen this host draws: the shared loop, this driver, and a programme per major, remembering in memory."""
     memory = InMemory()
@@ -85,9 +82,6 @@ def screen_wall(
         wall=wall,
         display=ScreenDisplay(wall=wall, output=output, clock=clock),
         programmes={
-            1: Rotation(
-                wall_id=wall.wall_id, render_root=wall.render_root, memory=memory, clock=clock, rng=rng, say_missing_once=True
-            ),
             2: Schedule(
                 wall_id=wall.wall_id,
                 render_root=wall.render_root,
@@ -148,10 +142,10 @@ class ScreenDisplay:
         except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- costs this picture, never the wall
             self._last_error = f"the screen refused {picture.work_id} ({exc})"
             # Once per episode: a screen that refuses one work refuses the
-            # next, and the rotation tries every work in the theme each time.
+            # next, and the schedule tries again at every slot.
             if self._draw_failed.begin():
                 log.warning(
-                    "could not draw %s on the screen (%s); the wall keeps rotating",
+                    "could not draw %s on the screen (%s); the wall goes on",
                     picture.work_id,
                     exc,
                     extra={"event": "screen.draw_failed"},
@@ -163,7 +157,7 @@ class ScreenDisplay:
         log.info(
             "showing %s",
             picture.title,
-            extra={"event": "rotation.selected", "render_path": str(picture.path)},
+            extra={"event": "rotation.selected", "picture_path": str(picture.path)},
         )
         return Shown.YES
 

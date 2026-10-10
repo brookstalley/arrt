@@ -1,4 +1,4 @@
-"""The Player's surface over real HTTP: the manifest, media by hash, the heartbeat, and client tokens.
+"""The Player's surface over real HTTP: the feed, media by hash, the heartbeat, and client tokens.
 
 Against a real booted server, as every surface test here is, because the thing a
 Player depends on is the wire: the status, the headers and the bytes.
@@ -20,7 +20,6 @@ from pathlib import Path
 import httpx
 import pytest
 from feed_guard import problems
-from jsonschema import Draft202012Validator
 from scenarios import connect
 
 from arrt.http import player
@@ -41,23 +40,33 @@ def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture
-def render_bytes() -> bytes:
-    return b"\xff\xd8\xff\xe0" + b"a composed render" * 64
+def _feed(wall_id: str) -> str:
+    """The wall's feed: manifest major 2, the only major this server publishes."""
+    return _path("manifest_major", wall_id=wall_id, major="2")
+
+
+def _master_of(services, work):
+    return next(
+        view.rendition
+        for view in services.catalogue.list_renditions(work.id)
+        if view.rendition.kind is RenditionKind.PRESENTATION_MASTER
+    )
 
 
 @pytest.fixture
-def playing(services, ready_work, wall_id, wall_settings, render_bytes):
-    """A wall with a published manifest whose one work has a real render file."""
+def playing(services, ready_work, wall_id):
+    """A wall with a published feed whose one work has a real master file."""
     work = ready_work()
-    render = next(view.rendition for view in services.catalogue.list_renditions(work.id))
-    target = wall_settings.art_root / render.relative_path
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(render_bytes)
     theme = services.display.add_theme(name="Late night")
     services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
     services.display.activate_theme(theme.id, wall_id=wall_id)
     return work
+
+
+@pytest.fixture
+def master_bytes(services, playing, wall_settings) -> bytes:
+    """The bytes of the master the feed names for the one work playing."""
+    return (wall_settings.art_root / _master_of(services, playing).relative_path).read_bytes()
 
 
 @pytest.fixture
@@ -100,7 +109,7 @@ def test_the_player_router_holds_exactly_the_routes_the_contract_names():
 def test_each_contract_route_is_mounted_and_guarded(server_url, name):
     """Asked over the wire, so a route declared and never mounted fails here as a 404."""
     route = ROUTES[name]
-    path = route["path"].format(wall_id="some-wall", sha256="0" * 64, label_id="some-label", major="1")
+    path = route["path"].format(wall_id="some-wall", sha256="0" * 64, label_id="some-label", major="2")
 
     response = httpx.request(route["method"], server_url + path, json={} if route["method"] == "POST" else None)
 
@@ -111,21 +120,21 @@ def test_the_media_url_a_manifest_names_is_the_route_that_serves_it():
     assert ROUTES["media"]["path"] == MEDIA_PATH_TEMPLATE
 
 
-# -- the manifest -------------------------------------------------------------------
+# -- the feed -----------------------------------------------------------------------
 
 
-def test_a_served_manifest_conforms_to_the_contract(server_url, playing, token, wall_id):
-    response = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token))
+def test_a_served_feed_conforms_to_the_contract(server_url, playing, token, wall_id, wall_settings):
+    response = httpx.get(server_url + _feed(wall_id), headers=_bearer(token))
 
     assert response.status_code == 200
-    schema = json.loads((CONTRACT / "schemas" / "manifest.v1.schema.json").read_text(encoding="utf-8"))
-    errors = [error.message for error in Draft202012Validator(schema).iter_errors(response.json())]
-    assert errors == []
-    assert response.json()["entries"][0]["media"]["sha256"]
+    assert response.content == wall_settings.manifest_v2_path(wall_id).read_bytes()
+    assert response.json()["schema"]["major"] == 2
+    assert problems(response.json()) == []
+    assert response.json()["works"][playing.id]["media"]["sha256"]
 
 
-def test_an_unchanged_manifest_answers_304_and_a_changed_one_does_not(server_url, services, playing, token, wall_id):
-    url = server_url + _path("manifest", wall_id=wall_id)
+def test_an_unchanged_feed_answers_304_and_a_changed_one_does_not(server_url, services, playing, token, wall_id):
+    url = server_url + _feed(wall_id)
     first = httpx.get(url, headers=_bearer(token))
     etag = first.headers["etag"]
     assert etag == f'"{hashlib.sha256(first.content).hexdigest()}"'
@@ -141,34 +150,21 @@ def test_an_unchanged_manifest_answers_304_and_a_changed_one_does_not(server_url
 
 
 def test_a_wall_with_nothing_published_answers_404(server_url, token, wall_id):
-    response = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token))
+    response = httpx.get(server_url + _feed(wall_id), headers=_bearer(token))
 
     assert response.status_code == 404
 
 
-# -- the manifest at each major --------------------------------------------------------
+# -- the feed at each major -------------------------------------------------------------
 
 
-def test_major_1_at_its_own_url_is_the_same_document_as_the_unversioned_route(server_url, playing, token, wall_id):
-    """A Player asking for the highest major it reads gets, at `v1`, exactly what the original route serves."""
-    unversioned = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token))
-    versioned = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="1"), headers=_bearer(token))
-
-    assert versioned.status_code == 200
-    assert versioned.content == unversioned.content
-    assert versioned.headers["etag"] == unversioned.headers["etag"]
-    unchanged = httpx.get(
-        server_url + _path("manifest_major", wall_id=wall_id, major="1"),
-        headers={**_bearer(token), "If-None-Match": versioned.headers["etag"]},
-    )
-    assert unchanged.status_code == 304
-
-
-@pytest.mark.parametrize("major", ["3", "0", "01", "02", "one"])
+@pytest.mark.parametrize("major", ["1", "3", "0", "01", "02", "one"])
 def test_a_major_the_server_does_not_build_answers_404_in_the_error_shape(server_url, playing, token, wall_id, major):
-    """A wall that has a manifest still answers 404 for a major nobody builds, so a Player steps down a major.
+    """A wall that has a feed still answers 404 for a major nobody builds, so a Player steps down a major.
 
-    `01` and `02` are here because a lenient integer parse would serve a built
+    `1` is here because major 1 is no longer published: a Player that reads only
+    major 1 is told so, and its wall's heartbeat says it cannot read the feed.
+    `01` and `02` are here because a lenient integer parse would serve the built
     major under a second spelling, and the contract names one URL per major.
     `3` is the next major up, which is the one a newer Player asks for first.
     """
@@ -178,41 +174,16 @@ def test_a_major_the_server_does_not_build_answers_404_in_the_error_shape(server
     assert set(response.json()) == {"error"}
 
 
-@pytest.fixture
-def playing_v2(services, ready_work, wall_id, wall_settings, render_bytes, decodable_jpeg):
-    """A wall whose one work has a render and a presentation master, so both majors are published."""
-    work = ready_work()
-    render = next(view.rendition for view in services.catalogue.list_renditions(work.id))
-    (wall_settings.art_root / render.relative_path).parent.mkdir(parents=True, exist_ok=True)
-    (wall_settings.art_root / render.relative_path).write_bytes(render_bytes)
-    master = f"masters/{work.id}.jpg"
-    decodable_jpeg(wall_settings.art_root / master, width=3000, height=2000)
-    services.catalogue.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=master
-    )
-    theme = services.display.add_theme(name="Late night")
-    services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
-    services.display.activate_theme(theme.id, wall_id=wall_id)
-    return work
+def test_the_unversioned_manifest_route_is_gone(server_url, playing, token, wall_id):
+    """Major 1's original spelling retired with major 1, and no route answers it."""
+    response = httpx.get(server_url + f"/walls/{wall_id}/manifest", headers=_bearer(token))
+
+    assert response.status_code == 404
 
 
-def test_major_2_is_the_walls_feed_with_its_etag(server_url, playing_v2, token, wall_id, wall_settings):
-    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(token))
-
-    assert response.status_code == 200
-    assert response.content == wall_settings.manifest_v2_path(wall_id).read_bytes()
-    assert response.json()["schema"]["major"] == 2
-    assert problems(response.json()) == []
-    unchanged = httpx.get(
-        server_url + _path("manifest_major", wall_id=wall_id, major="2"),
-        headers={**_bearer(token), "If-None-Match": response.headers["etag"]},
-    )
-    assert unchanged.status_code == 304
-
-
-def test_the_master_a_feed_names_is_served_by_its_hash(server_url, playing_v2, token, wall_id):
-    feed = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(token)).json()
-    media = feed["works"][playing_v2.id]["media"]
+def test_the_master_a_feed_names_is_served_by_its_hash(server_url, playing, token, wall_id):
+    feed = httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).json()
+    media = feed["works"][playing.id]["media"]
 
     response = httpx.get(server_url + media["url"], headers=_bearer(token))
 
@@ -221,49 +192,33 @@ def test_the_master_a_feed_names_is_served_by_its_hash(server_url, playing_v2, t
     assert len(response.content) == media["bytes"]
 
 
-def test_major_2_of_a_wall_whose_works_have_no_master_answers_404_so_its_player_stays_on_1(server_url, playing, token, wall_id):
-    two = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(token))
-    one = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="1"), headers=_bearer(token))
-
-    assert two.status_code == 404
-    assert set(two.json()) == {"error"}
-    assert one.status_code == 200
-
-
-def test_major_2_answers_only_the_walls_own_client(server_url, playing_v2, study_token, wall_id):
-    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="2"), headers=_bearer(study_token))
+def test_the_feed_answers_only_the_walls_own_client(server_url, playing, study_token, wall_id):
+    response = httpx.get(server_url + _feed(wall_id), headers=_bearer(study_token))
 
     assert response.status_code == 403
-
-
-def test_major_1_of_a_wall_with_nothing_published_answers_404(server_url, token, wall_id):
-    response = httpx.get(server_url + _path("manifest_major", wall_id=wall_id, major="1"), headers=_bearer(token))
-
-    assert response.status_code == 404
 
 
 # -- media ------------------------------------------------------------------------------
 
 
-def test_media_bytes_hash_to_their_name(server_url, services, playing, token, wall_id, render_bytes):
-    entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
+def test_media_bytes_hash_to_their_name(server_url, services, playing, token, wall_id, master_bytes):
+    entry = httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).json()["works"][playing.id]
 
     response = httpx.get(server_url + entry["media"]["url"], headers=_bearer(token))
 
     assert response.status_code == 200
     assert hashlib.sha256(response.content).hexdigest() == entry["media"]["sha256"]
-    assert response.content == render_bytes
+    assert response.content == master_bytes
     assert response.headers["content-type"] == "image/jpeg"
     assert response.headers["cache-control"] == "public, max-age=31536000, immutable"
 
 
 def test_media_whose_file_changed_under_its_hash_is_not_served(
-    server_url, services, playing, token, wall_id, wall_settings, render_bytes
+    server_url, services, playing, token, wall_id, wall_settings, master_bytes
 ):
-    """A hash never serves different bytes, including while a re-render is being recorded."""
-    entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
-    render = next(view.rendition for view in services.catalogue.list_renditions(playing.id))
-    (wall_settings.art_root / render.relative_path).write_bytes(render_bytes + b"rewritten")
+    """A hash never serves different bytes, including while a new master is being recorded."""
+    entry = httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).json()["works"][playing.id]
+    (wall_settings.art_root / _master_of(services, playing).relative_path).write_bytes(master_bytes + b"rewritten")
 
     response = httpx.get(server_url + entry["media"]["url"], headers=_bearer(token))
 
@@ -271,19 +226,19 @@ def test_media_whose_file_changed_under_its_hash_is_not_served(
 
 
 def test_media_answers_to_any_clients_token_even_one_with_no_walls(server_url, services, playing, token, wall_id):
-    """A render is shared by every wall that shows it, so media asks only that the client is one."""
+    """A master is shared by every wall that shows it, so media asks only that the client is one."""
     idle = services.clients.add_client(name="A Pi with nothing assigned")
     idle_token = services.access.issue(idle.id).token
-    entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
+    entry = httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).json()["works"][playing.id]
 
     assert httpx.get(server_url + entry["media"]["url"], headers=_bearer(idle_token)).status_code == 200
 
 
 def test_a_presentation_master_is_served_by_its_hash(server_url, services, ready_work, wall_settings, decodable_jpeg, token):
-    """From wave 4 a Player composes from the master, fetched by hash on the
-    route that already serves renders: no new route, and the bytes are checked
-    against the name as a render's are."""
-    work = ready_work(rendition=False)
+    """A Player composes from the master, fetched by hash on the media route,
+    and the bytes are checked against the name. Made here by preparation itself
+    rather than by the fixture, so the master is the one a real work gets."""
+    work = ready_work(master=False)
     original = services.catalogue.get_original(work.id)
     decodable_jpeg(wall_settings.art_root / original.relative_path, width=2400, height=1800)
     services.preparation.prepare(work.id)
@@ -390,10 +345,10 @@ def test_a_display_state_a_later_minor_added_is_read_as_unreachable(server_url, 
 # -- admission --------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("route", ["manifest", "manifest_major", "heartbeat"])
+@pytest.mark.parametrize("route", ["manifest_major", "heartbeat"])
 def test_every_wall_route_admits_only_the_client_the_wall_is_assigned_to(server_url, playing, token, study_token, wall_id, route):
     """Own wall admitted; another client's token is 403; no valid client token is 401."""
-    url = server_url + _path(route, wall_id=wall_id, major="1")
+    url = server_url + _path(route, wall_id=wall_id, major="2")
     send = (
         (lambda headers: httpx.get(url, headers=headers))
         if route.startswith("manifest")
@@ -417,7 +372,7 @@ def test_a_refusal_says_why_in_the_error_shape_and_never_echoes_the_token(server
     """
     presented = "not-a-token-0123456789"
     method = ROUTES[route]["method"]
-    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64, label_id="some-label", major="1")
+    url = server_url + _path(route, wall_id=wall_id, sha256="0" * 64, label_id="some-label", major="2")
 
     response = httpx.request(method, url, json={} if method == "POST" else None, headers=_bearer(presented))
 
@@ -428,7 +383,7 @@ def test_a_refusal_says_why_in_the_error_shape_and_never_echoes_the_token(server
 
 
 def test_a_wall_refused_to_a_known_client_is_a_403_in_the_same_shape(server_url, playing, study_token, wall_id):
-    response = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(study_token))
+    response = httpx.get(server_url + _feed(wall_id), headers=_bearer(study_token))
 
     assert response.status_code == 403
     assert set(response.json()) == {"error"}
@@ -446,7 +401,7 @@ def test_the_study_clients_own_wall_admits_it(server_url, services, wall_id, tok
 
 
 def test_reassigning_a_wall_moves_its_admission_with_it(server_url, services, playing, token, wall_id, hall_pi):
-    url = server_url + _path("manifest", wall_id=wall_id)
+    url = server_url + _feed(wall_id)
     other = services.clients.add_client(name="The Pi in the kitchen")
     other_token = services.access.issue(other.id).token
     assert httpx.get(url, headers=_bearer(other_token)).status_code == 403
@@ -462,18 +417,18 @@ def test_reassigning_a_wall_moves_its_admission_with_it(server_url, services, pl
 def test_a_wall_assigned_to_no_client_admits_no_client(server_url, services, playing, wall_id, token):
     services.clients.unassign_wall(wall_id)
 
-    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).status_code == 403
+    assert httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).status_code == 403
 
 
 def test_media_refuses_without_a_valid_client_token(server_url, playing, token, wall_id):
-    entry = httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).json()["entries"][0]
+    entry = httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).json()["works"][playing.id]
 
     assert httpx.get(server_url + entry["media"]["url"]).status_code == 401
     assert httpx.get(server_url + entry["media"]["url"], headers=_bearer("not-a-token")).status_code == 401
 
 
 def test_a_rotated_out_client_token_is_refused(server_url, services, playing, token, wall_id, hall_pi):
-    url = server_url + _path("manifest", wall_id=wall_id)
+    url = server_url + _feed(wall_id)
     rotated = services.access.issue(hall_pi.id).token
 
     assert httpx.get(url, headers=_bearer(token)).status_code == 401
@@ -481,13 +436,13 @@ def test_a_rotated_out_client_token_is_refused(server_url, services, playing, to
 
 
 def test_a_client_with_no_token_yet_admits_nobody(server_url, playing, wall_id, hall_pi):
-    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer("anything")).status_code == 401
+    assert httpx.get(server_url + _feed(wall_id), headers=_bearer("anything")).status_code == 401
 
 
 def test_a_removed_clients_token_opens_nothing(server_url, services, playing, token, wall_id, hall_pi):
     services.clients.remove_client(hall_pi.id)
 
-    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).status_code == 401
+    assert httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).status_code == 401
     assert httpx.get(server_url + _path("client"), headers=_bearer(token)).status_code == 401
 
 
@@ -505,7 +460,7 @@ def test_the_token_is_stored_only_as_a_verifier(services, hall_pi, store):
 
 def test_a_refused_token_never_reaches_the_journal_and_is_logged_once(server_url, services, playing, token, wall_id, caplog):
     stale = "a-stale-token-that-must-not-be-logged"
-    url = server_url + _path("manifest", wall_id=wall_id)
+    url = server_url + _feed(wall_id)
 
     with caplog.at_level(logging.DEBUG):
         for _ in range(3):
@@ -523,7 +478,7 @@ def test_a_refused_token_never_reaches_the_journal_and_is_logged_once(server_url
 def test_a_client_asking_for_another_wall_is_logged_once_by_name_and_never_by_token(
     server_url, services, playing, wall_id, study_token, caplog
 ):
-    url = server_url + _path("manifest", wall_id=wall_id)
+    url = server_url + _feed(wall_id)
 
     with caplog.at_level(logging.DEBUG):
         for _ in range(3):
@@ -543,8 +498,8 @@ def test_invented_wall_ids_share_one_refusal_line_and_never_reach_the_journal(se
 
     with caplog.at_level(logging.DEBUG):
         for wall_id in invented:
-            assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer("x")).status_code == 401
-            assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(study_token)).status_code == 403
+            assert httpx.get(server_url + _feed(wall_id), headers=_bearer("x")).status_code == 401
+            assert httpx.get(server_url + _feed(wall_id), headers=_bearer(study_token)).status_code == 403
 
     # The server's journal, not the test client's own request log beside it.
     journal = "\n".join(record.getMessage() for record in caplog.records if record.name.startswith("arrt"))
@@ -564,7 +519,7 @@ def test_a_client_token_issued_over_http_opens_its_wall_and_is_never_read_back(s
     assert issued.status_code == 200
     token = issued.json()["token"]
 
-    assert httpx.get(server_url + _path("manifest", wall_id=wall_id), headers=_bearer(token)).status_code == 200
+    assert httpx.get(server_url + _feed(wall_id), headers=_bearer(token)).status_code == 200
     clients = httpx.get(server_url + "/api/clients")
     client = next(entry for entry in clients.json()["clients"] if entry["client_id"] == hall_pi.id)
     assert client["token_issued_at"] == issued.json()["token_issued_at"]

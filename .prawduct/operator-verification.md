@@ -10,6 +10,30 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The cutover: walls on major 2 alone, and a missed Player named — added 2026-10-10
+
+**`build-plan-wave-4g-cutover.md`.** The server publishes each wall's feed
+(major 2) and nothing else; Arrt Player reads only major 2. Deploy both from the
+same revision (`deploy/README.md` § Wave 4g), then walk the 4e entry below,
+which this one changes in two places (noted there), and these:
+
+- **Each wall's heartbeat lists `[2]`**, not `[2, 1]`, and Walls shows no line
+  under any wall's name about its Player.
+- **A missed Player is named.** Every Player from wave 4c on reports that it
+  reads major 2, so to see this, write a heartbeat by hand that lists only
+  major 1 (or none): stop the wall's Player, then
+  `curl -X POST -H "Authorization: Bearer $CLIENT_TOKEN" -H 'Content-Type: application/json' -d "{\"reported_at\": \"$(date -u +%Y-%m-%dT%H:%M:%S+00:00)\", \"capabilities\": {\"screen\": {\"width_px\": 3840, \"height_px\": 2160}, \"backend\": \"frame\", \"label_modes\": [\"none\"], \"manifest_majors\": [1]}}" "$SERVER_URL/walls/$WALL_ID/heartbeat"`.
+  Walls then says, under that wall's name, "This wall's Player
+  can't read this server's feed, so it will show nothing new. Update Arrt Player
+  on the device that shows this wall." Judge whether that is the sentence you
+  would want to read there, and whether the remedy is one you could act on.
+- **Skip** on Walls answers with the wall's next work on the next poll, and on a
+  wall with nothing hung it says why rather than "Skipped".
+- **The Work page** shows the work itself with no mat (#346 draws one); judge
+  whether that reads as wrong or as fine for now.
+- **The server's first start** logs how many canvases it forgot; `ART_ROOT/ready/`
+  and the `theme-manifest-<wall>.json` files without `.v2` can then be deleted.
+
 ### Walls on major 2: a schedule from Arrt, a mat drawn by the Player, a mat mode per wall — added 2026-10-09
 
 **`build-plan-wave-4e-schedule.md`.** Arrt publishes each wall's major 2 feed
@@ -20,7 +44,8 @@ this branch and restart it. The Pi needs no change beyond 4d's. Then:
 - **Each wall moves to v2.** Arrt's request log shows each Player's `…/v2`
   answering 200 and no longer falling to `v1`. Walls in Arrt: each heartbeat
   lists `manifest_majors` `[2, 1]`. The journal on the Pi shows `compose.done`
-  for each work as it comes up.
+  for each work as it comes up. *(Wave 4g: `v1` answers 404 and each heartbeat
+  lists `[2]`.)*
 - **The Frame shows a work in a mat of the work's own shape**, black beyond,
   bottom heavier than the top, in the work's colour. It should look as it did on
   major 1. If it looks different, that difference is the finding.
@@ -34,6 +59,8 @@ this branch and restart it. The Pi needs no change beyond 4d's. Then:
 - **Two walls hanging one theme** never show the same work at the same moment.
 - **A work with no presentation master yet** stays off the feed and is named in
   Arrt's journal. A theme where no work has one leaves its wall on `v1`.
+  *(Wave 4g: there is no `v1` now. Such a work is not playable, and Walls names
+  it under "Not showing"; a theme with none to send publishes an empty feed.)*
 - **Skip** on Walls moves the wall to the next work on the next poll, as it did.
 - **Too small for {wall}.** Once each Player has reported (a minute after its
   restart), a small scan on the wall now carries the note under it on Walls,

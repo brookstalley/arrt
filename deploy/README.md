@@ -59,13 +59,14 @@ beside the house's other apps.
 
 **Two facts a deployment needs, found while building the image:**
 
-- **The art root must carry `ready/` and `thumbs/`, not only `raw/` and the
-  catalogue.** The catalogue records each render; until readiness checks that a
-  render's *file* exists (backlog #180), a catalogue without its
-  renders publishes works whose files are missing, and a Player on HTTP skips
-  every one of them (no file, no hash, no media).
-- **Renders recorded before the media route existed carry no content hash.**
-  They are hashed the first time a manifest names them, which needs the file.
+- **The art root must carry `presentation/` and `thumbs/`, not only `raw/` and
+  the catalogue.** A work is ready for a wall when its presentation master's
+  file can be read, so a catalogue without its masters keeps every work off
+  every wall, each named with why; the startup backfill makes them again from
+  `raw/`. *(Until wave 4g this named `ready/`, the server's composed canvases,
+  which nothing reads now.)*
+- **Masters recorded before the media route existed carry no content hash.**
+  They are hashed the first time a feed names them, which needs the file.
 
 ### A private source plugin
 
@@ -243,6 +244,53 @@ installed again to put the real one back:
 
     cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper --reinstall-package rpi-gpio
 
+## Wave 4g: the walls move to manifest major 2 alone (2026-10-10)
+
+From wave 4g the server publishes each wall's feed (manifest major 2) and
+nothing else, and Arrt Player reads only that. The server runs on the NAS
+(§ The server on the NAS) and the Player on the Pi (§ The Player as a client of
+the NAS); every file named below is in the server's art root, not on the Pi.
+
+**Copy the catalogue before deploying this server.** Opening the catalogue
+drops the `directives` table, forgets every television canvas and the wall
+previews drawn from them, and drops `renditions.mat_hex`, so an older image
+cannot run on it afterwards:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-4g-<timestamp>.sqlite"
+
+Deploy the server and the Player from the same revision; until both are up, a
+wall goes on showing the work it has. Then check, in this order:
+
+1. **The server forgot its canvases.** Its first start on a catalogue from
+   before wave 4g logs `Forgot N television canvases and previews drawn from
+   them, and dropped renditions.mat_hex; ART_ROOT/ready/ can be deleted.`, once
+   (N may be 0). A catalogue made after wave 4g never had them and says nothing.
+   `<art root>/ready/` and every `<art root>/theme-manifest-<wall>.json` without
+   `.v2` are now nothing's, and are yours to delete when you are satisfied.
+2. **The wall's Player reads the feed.** Its heartbeat lists major 2:
+
+       jq '.capabilities.manifest_majors' <art root>/display-heartbeat-"$WALL_ID".json
+
+   It should print `[2]`. Walls shows a line under the wall's name when a
+   Player cannot read the feed; there should be none.
+3. **The wall changes picture on its schedule.** The slot covering now names the
+   work up now (the feed writes every instant in UTC, so the strings compare):
+
+       now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+       jq --arg now "$now" '.schedule.slots[] | select(.from <= $now and $now < .until)' \
+           <art root>/theme-manifest-"$WALL_ID".v2.json
+
+**Settings.** The server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
+`MAT_BOTTOM_WEIGHT`; they are the Player's, under the same names, and stay in the
+Pi's `.env`. The Player no longer reads `ROTATION_INTERVAL_SECONDS` or
+`ROTATION_SHUFFLE`; they are the server's. Neither plane refuses the other's
+keys, so a shared `.env` needs no edit.
+
+**The way back** is the catalogue copy and the previous image together on the
+NAS, and the Pi's previous revision (`git rev-parse HEAD` before checking out
+the new one): a Player from before wave 4g reads major 1, which this server no
+longer writes, so the two go back as a pair.
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being
@@ -400,11 +448,11 @@ authority. Names the table does not carry are never touched.
 Then **check the manifest actually carries the new fields**, because a restart
 that republished nothing looks identical to one that did:
 
-    sudo -u tvpi jq '.schema, .entries[0].label' /srv/art/theme-manifest-"$WALL_ID".json
+    sudo -u tvpi jq '.schema, (.works | to_entries[0].value.label)' /srv/art/theme-manifest-"$WALL_ID".v2.json
 
-`WALL_ID` is the wall this device serves, out of `.env` — there is one manifest
-per wall, and the display stats only its own. `ls /srv/art/theme-manifest-*.json`
-lists every room the catalogue publishes for.
+`WALL_ID` is a wall's id — there is one feed per wall. `ls /srv/art/theme-manifest-*.v2.json`
+lists every room the catalogue publishes for. *(Wave 4g: the `.json` files
+without `.v2` are major 1's, which nothing writes or reads now.)*
 
 ### Moving a running deployment onto a newer revision
 
@@ -816,7 +864,7 @@ measured from what was inferred.)*
 Findings in `.prawduct/artifacts/platform-and-dependency-findings.md` § The
 television. Run it yourself after any change to the pins or the set's firmware:
 
-    python tv_api_check.py --image "$ART_ROOT/ready/<a 4K composite>.jpg"
+    python tv_api_check.py --image "<any 3840x2160 JPEG>"
 
 That exercises upload, callback registration, and a confirmed delete against the
 live set, touching only the image it uploads itself, and exits non-zero if any

@@ -144,6 +144,19 @@ def problem_with(document: object) -> str | None:
     return None
 
 
+def reads_major(document: dict[str, Any], major: int) -> bool:
+    """Whether a heartbeat says its Player reads this manifest major.
+
+    **A heartbeat with no `capabilities` counts as `manifest_majors: [1]`**
+    (`player-contract.md` § The cutover): a Player from before minor 2, which
+    reads only major 1. Reading its silence as "reads everything" would hide
+    exactly the wall that cannot read the feed.
+    """
+    capabilities = document.get("capabilities")
+    majors = capabilities.get("manifest_majors") if isinstance(capabilities, dict) else None
+    return major in (majors if isinstance(majors, list) else [1])
+
+
 def _problem_with_screen(capabilities: object) -> str | None:
     """Minor 2's `capabilities.screen`, the one part of the capabilities this server reads.
 

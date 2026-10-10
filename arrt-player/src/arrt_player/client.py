@@ -329,7 +329,8 @@ def client_outputs(
     size. It is a television on the network rather than a cable this host can
     sense, and whether it answers is a fact about the wall shown on it, which
     that wall's own heartbeat reports (`television_reachable`). Its size is the
-    server's to know: the render arrives composed for it. Its identity is what
+    wall's to report: this Player composes for the panel it is configured with,
+    and the wall's heartbeat carries it (`capabilities`). Its identity is what
     `FrameIdentity` has read, if anything yet.
     """
     outputs = (

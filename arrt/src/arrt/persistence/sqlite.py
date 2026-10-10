@@ -43,7 +43,6 @@ from arrt.persistence.records import (
     ArtworkPage,
     ArtworkStatus,
     Client,
-    Directive,
     Display,
     EventKind,
     EventPage,
@@ -322,13 +321,9 @@ CREATE TABLE IF NOT EXISTS renditions (
     generated_at         TEXT NOT NULL,
     content_sha256       TEXT,
     byte_size            INTEGER,
-    -- The geometry a television canvas was drawn with. Nullable because the
-    -- widening step can only add a column that allows NULL; null reads as out of
-    -- date, so a canvas drawn before this existed is recomposed.
-    layout               TEXT,
-    -- The mat colour a television canvas was painted in; null, like a null
-    -- layout, reads as out of date.
-    mat_hex              TEXT
+    -- The rule a presentation master was made by. Nullable because the
+    -- widening step can only add a column that allows NULL.
+    layout               TEXT
 );
 
 -- Media is fetched by content hash, so the hash is how a render is found.
@@ -428,19 +423,6 @@ CREATE TABLE IF NOT EXISTS history_events (
 CREATE INDEX IF NOT EXISTS history_events_by_time ON history_events(occurred_at);
 CREATE INDEX IF NOT EXISTS history_events_by_wall ON history_events(wall_id, occurred_at) WHERE wall_id IS NOT NULL;
 
--- One row per wall, seeded when the wall is created so no caller ever has to
--- make one. The standing directive is a property of the *wall* rather than of
--- any theme, because the sequence has to survive every manifest rebuild and
--- every theme switch to stay monotonic — and a singleton, which is what this
--- was until 2026-08-12, cannot say which display an advance was meant for.
-CREATE TABLE IF NOT EXISTS directives (
-    wall_id         TEXT PRIMARY KEY REFERENCES walls(id),
-    sequence        INTEGER NOT NULL,
-    pinned_work_id  TEXT REFERENCES artworks(id)
-);
-
-CREATE INDEX IF NOT EXISTS directives_by_pin ON directives(pinned_work_id);
-
 -- The acquisition queue's memory of each work it has started on and not
 -- finished: how many attempts failed in a row, when the next may be made, why the
 -- last one failed, and a source someone named for the next. Deleted once the work
@@ -464,8 +446,8 @@ _BY_ARTWORK: Final[tuple[str, ...]] = ("artwork_id",)
 #: The join's own key. A work appears at most once in a theme.
 _MEMBERSHIP_KEY: Final[tuple[str, ...]] = ("theme_id", "artwork_id")
 
-#: Both tables that hang off a wall are keyed by it alone, which is what makes
-#: "one theme per wall" and "one directive per wall" keys rather than claims.
+#: Tables that hang off a wall are keyed by it alone, which is what makes "one
+#: theme per wall" a key rather than a claim.
 _BY_WALL: Final[tuple[str, ...]] = ("wall_id",)
 
 #: What a curator scans by, then a tie-break that makes paging repeatable.
@@ -962,19 +944,6 @@ class SqliteCatalogue(TableAdapter):
             for row in rows
         ]
 
-    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
-        # A work with a canvas at the current layout is left alone even if it
-        # also keeps an older one at another panel size: the old row is not what
-        # it shows, and queueing it would recompose nothing on every start.
-        rows = self._store.select_rows(
-            'SELECT a."id" AS work_id FROM artworks a WHERE a."status" = ? '
-            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
-            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? AND r."layout" = ?) '
-            'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
-            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY), str(RenditionKind.TV_DISPLAY), layout),
-        )
-        return [row["work_id"] for row in rows]
-
     def works_owing_a_presentation_master(self, rule: str) -> Sequence[str]:
         # Recorded from the Original held now, which is what `is_current` means
         # for every Rendition, and by the rule masters are made by now: a master
@@ -989,14 +958,14 @@ class SqliteCatalogue(TableAdapter):
         )
         return [row["work_id"] for row in rows]
 
-    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
+    def current_mats_of_works_with_a_master(self) -> Sequence[tuple[str, str | None]]:
         rows = self._store.select_rows(
             'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '
             'LEFT JOIN mat_colors m ON m."artwork_id" = a."id" AND m."is_current" = 1 '
             'WHERE a."status" = ? '
             'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
             'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
-            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY)),
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.PRESENTATION_MASTER)),
         )
         return [(row["work_id"], row["hex_rgb"]) for row in rows]
 
@@ -1194,30 +1163,6 @@ class SqliteCatalogue(TableAdapter):
     def list_assignments(self) -> Sequence[ThemeAssignment]:
         return self._list("theme_assignments", None, _BY_WALL_ID, _assignment)
 
-    # -- the display directives -----------------------------------------------
-
-    def add_directive(self, directive: Directive) -> None:
-        self._add("directives", _directive_row(directive), subject=f"directive for wall {directive.wall_id!r}", key=_BY_WALL)
-
-    def get_directive(self, wall_id: str) -> Directive:
-        row = self._store.fetch_one("directives", {"wall_id": wall_id})
-        if row is None:
-            # Seeded when the wall is created, so its absence means either an
-            # unknown wall or a file edited by something other than this code.
-            raise StorageError(f"Wall {wall_id!r} has no display directive row.")
-        return _directive(row)
-
-    def set_directive(self, directive: Directive) -> None:
-        self._update(
-            "directives",
-            _BY_WALL,
-            _directive_row(directive),
-            subject=f"the display directive for wall {directive.wall_id!r}",
-        )
-
-    def list_directives(self) -> Sequence[Directive]:
-        return self._list("directives", None, _BY_WALL_ID, _directive)
-
     # -- works kept off every wall --------------------------------------------
 
     def add_exclusion(self, exclusion: WorkExclusion) -> None:
@@ -1367,7 +1312,6 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "content_sha256": rendition.content_sha256,
         "byte_size": rendition.byte_size,
         "layout": rendition.layout,
-        "mat_hex": rendition.mat_hex,
     }
 
 
@@ -1454,17 +1398,6 @@ def _assignment_row(assignment: ThemeAssignment) -> dict[str, Any]:
         "theme_id": assignment.theme_id,
         "assigned_at": to_iso(assignment.assigned_at),
     }
-
-
-def _directive_row(directive: Directive) -> dict[str, Any]:
-    return {
-        "wall_id": directive.wall_id,
-        "sequence": directive.sequence,
-        "pinned_work_id": directive.pinned_work_id,
-    }
-
-
-# -- row to record ------------------------------------------------------------
 
 
 def _artist(row: Mapping[str, Any]) -> Artist:
@@ -1579,7 +1512,6 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         # `.get` for the reason `fetch_status` uses it: a row read through a
         # mapping built from an older file's columns has no such key.
         layout=row.get("layout"),
-        mat_hex=row.get("mat_hex"),
     )
 
 
@@ -1653,10 +1585,6 @@ def _assignment(row: Mapping[str, Any]) -> ThemeAssignment:
         theme_id=row["theme_id"],
         assigned_at=require_datetime(row["assigned_at"], "assigned_at"),
     )
-
-
-def _directive(row: Mapping[str, Any]) -> Directive:
-    return Directive(wall_id=row["wall_id"], sequence=row["sequence"], pinned_work_id=row["pinned_work_id"])
 
 
 def _exclusion(row: Mapping[str, Any]) -> WorkExclusion:

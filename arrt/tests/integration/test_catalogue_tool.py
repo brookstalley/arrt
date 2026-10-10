@@ -547,7 +547,9 @@ def _a_work_with_an_original(services, settings, *, width=2400, height=1800):
     return work
 
 
-async def test_set_mat_color_records_a_curators_colour_and_re_renders(server_url, services, settings):
+async def test_set_mat_color_records_a_curators_colour_and_makes_nothing(server_url, services, settings):
+    """The colour rides each wall's feed, so there is nothing to draw: no master
+    is made for it, and a work never prepared still has none."""
     work = _a_work_with_an_original(services, settings)
 
     payload, errored = await call(server_url, "art_catalogue", action="set_mat_color", artwork_id=work.id, hex_rgb="#27285b")
@@ -556,7 +558,8 @@ async def test_set_mat_color_records_a_curators_colour_and_re_renders(server_url
     assert payload["success"] is True
     assert payload["hex_rgb"] == "#27285b"
     assert payload["method"] == "manual"
-    assert (settings.art_root / payload["relative_path"]).is_file()
+    assert payload["relative_path"] is None
+    assert services.catalogue.list_renditions(work.id) == []
 
 
 async def test_omitting_the_colour_asks_the_producer_and_says_which_one_answered(server_url, services, settings):
@@ -682,17 +685,17 @@ async def test_regenerating_a_work_with_no_original_is_an_error_result_naming_th
 
 
 async def test_a_prepared_work_enters_the_manifest(server_url, services, settings, wall_id):
-    # The acceptance criterion, end to end: an acquired work renders to 4K and
-    # enters the manifest. The manifest excludes a work with no rendition, so
-    # this is the one check that the two halves actually meet.
+    # The acceptance criterion, end to end: an acquired work gets its
+    # presentation master and enters the feed. The feed excludes a work with
+    # none, so this is the one check that the two halves actually meet.
     work = _a_work_with_an_original(services, settings)
     theme = services.display.add_theme(name="Everything")
     services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
     services.display.activate_theme(theme.id, wall_id=wall_id)
 
-    # Excluded before it is rendered, which is what makes the assertion after it
+    # Excluded before it is prepared, which is what makes the assertion after it
     # mean something: the work is in the theme throughout, so the only thing that
-    # changes between these two builds is the canvas.
+    # changes between these two builds is the master.
     before = services.display.build_manifest(wall_id)
     assert work.id in {excluded.work_id for excluded in before.exclusions}
 
@@ -702,7 +705,7 @@ async def test_a_prepared_work_enters_the_manifest(server_url, services, setting
     assert errored is False
     assert work.id in {entry.work_id for entry in build.entries}
     assert work.id not in {excluded.work_id for excluded in build.exclusions}
-    assert payload["relative_path"] in {entry.render_path for entry in build.entries}
+    assert payload["relative_path"] == f"presentation/{work.id}.jpg"
 
 
 async def test_regenerate_reports_what_it_spent_even_when_that_is_nothing(server_url, services, settings):

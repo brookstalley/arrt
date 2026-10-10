@@ -1,8 +1,8 @@
-"""Each path that publishes a wall's major 1 manifest publishes its major 2 feed as well.
+"""Each path that changes what a wall shows publishes its feed, manifest major 2.
 
-The paths are the table in `build-plan-wave-4e-schedule.md` (derived from
-`programming/display.py` and its callers), and each test below names the path it
-drives and what that path must do to the slot on the wall now. Every feed any test
+The paths are the comment over `programming/display.py`'s feed methods (derived
+from that module and its callers), and each test below names the path it drives
+and what that path must do to the slot on the wall now. Every feed any test
 here publishes is also checked against the contract as it is built
 (`feed_guard.py`, wrapped round every test by `conftest.py`).
 """
@@ -16,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from feed_guard import problems
 
+from arrt.library.facade import UnplayableReason
 from arrt.library.services import catalogue as catalogue_module
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
@@ -35,7 +36,7 @@ def mastered(services, ready_work, wall_settings, decodable_jpeg):
     """A work ready for the wall, with a presentation master on disk at a size of its own."""
 
     def _work(title="Nighthawks", *, width=4000, height=3000):
-        work = ready_work(title)
+        work = ready_work(title, master=False)
         path = f"masters/{work.id}.jpg"
         decodable_jpeg(wall_settings.art_root / path, width=width, height=height)
         services.catalogue.record_rendition(
@@ -73,7 +74,7 @@ def _now():
 # -- sync: hanging a theme, re-hanging it, hanging a selection --------------------------
 
 
-def test_hanging_a_theme_publishes_its_feed_beside_its_manifest(display, mastered, theme_of, wall_id, wall_settings):
+def test_hanging_a_theme_publishes_its_feed(display, mastered, theme_of, wall_id, wall_settings):
     first, second = mastered("Nighthawks", width=4000, height=3000), mastered("Gas", width=2000, height=3000)
     theme = theme_of(first, second)
 
@@ -87,31 +88,30 @@ def test_hanging_a_theme_publishes_its_feed_beside_its_manifest(display, mastere
     assert media["url"] == f"/media/sha256-{media['sha256']}"
     assert document["works"][first.id]["mat_color"] == "#27285b"
     assert document["works"][first.id]["label"]["title"] == "Nighthawks"
-    assert wall_settings.manifest_path(wall_id).exists()
+    assert sorted(path.name for path in wall_settings.art_root.glob("theme-manifest-*")) == [f"theme-manifest-{wall_id}.v2.json"]
 
 
-def test_a_work_without_a_master_stays_on_major_1_and_is_named(display, mastered, ready_work, theme_of, wall_id, feed, caplog):
-    with_master, without = mastered("Nighthawks"), ready_work("Gas")
+def test_a_work_without_a_master_is_left_off_the_feed_and_named(display, mastered, ready_work, theme_of, wall_id, feed):
+    with_master, without = mastered("Nighthawks"), ready_work("Gas", master=False)
     theme = theme_of(with_master, without)
 
-    with caplog.at_level(logging.WARNING, logger="arrt.programming.display"):
-        build = display.activate_theme(theme.id, wall_id=wall_id)
+    build = display.activate_theme(theme.id, wall_id=wall_id)
 
-    assert {entry.work_id for entry in build.entries} == {with_master.id, without.id}
     assert set(feed(wall_id).works) == {with_master.id}
-    assert any(without.id in record.getMessage() and "presentation master" in record.getMessage() for record in caplog.records)
+    assert [(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions] == [
+        (without.id, UnplayableReason.NO_RENDITION)
+    ]
 
 
-def test_a_theme_whose_works_have_no_master_publishes_no_feed_and_removes_an_old_one(
-    display, mastered, ready_work, theme_of, wall_id, wall_settings
-):
+def test_a_theme_none_of_whose_works_has_a_master_publishes_an_empty_feed(display, mastered, ready_work, theme_of, wall_id, feed):
+    """The feed is the only one a wall has, so it says the theme has nothing to show rather than vanishing."""
     display.activate_theme(theme_of(mastered("Nighthawks"), name="Before").id, wall_id=wall_id)
-    assert wall_settings.manifest_v2_path(wall_id).exists()
 
-    display.activate_theme(theme_of(ready_work("Gas"), name="After").id, wall_id=wall_id)
+    display.activate_theme(theme_of(ready_work("Gas", master=False), name="After").id, wall_id=wall_id)
 
-    # Its Player asks for v2, is told 404, and stays on the manifest that has the work.
-    assert not wall_settings.manifest_v2_path(wall_id).exists()
+    assert feed(wall_id).playlist_name == "After"
+    assert feed(wall_id).works == {}
+    assert feed(wall_id).slots == ()
 
 
 def test_an_empty_theme_publishes_a_feed_with_nothing_scheduled(display, theme_of, wall_id, feed):
@@ -199,12 +199,15 @@ def test_a_guest_survives_a_re_hang_of_the_same_theme(display, mastered, theme_o
     assert feed(wall_id).on_the_wall(_now()).work_id == guest.id
 
 
-def test_showing_a_work_with_no_master_leaves_the_feed_alone(display, mastered, ready_work, theme_of, wall_id, feed):
+def test_showing_a_work_with_no_master_is_refused_and_leaves_the_feed_alone(
+    display, mastered, ready_work, theme_of, wall_id, feed
+):
     display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
     before = feed(wall_id)
-    plain = ready_work("Plain")
+    plain = ready_work("Plain", master=False)
 
-    display.show_work_now(wall_id, plain.id)
+    with pytest.raises(ServiceError, match="no presentation master has been made"):
+        display.show_work_now(wall_id, plain.id)
 
     assert feed(wall_id).slots == before.slots
 
@@ -283,7 +286,7 @@ def test_startup_reconciliation_takes_a_refused_work_off_the_feed(store, display
 
     result = display.reconcile()
 
-    assert wall_id in result.republished_v2
+    assert wall_id in result.republished
     assert b.id not in feed(wall_id).works
 
 
@@ -357,30 +360,14 @@ def test_a_clash_the_rule_cannot_avoid_is_said(display, mastered, theme_of, wall
     assert any("Study" in r.getMessage() and "another wall shows at the same time" in r.getMessage() for r in caplog.records)
 
 
-def test_reconciliation_reads_the_feed_even_when_the_manifest_beside_it_is_unreadable(
-    store, display, mastered, theme_of, wall_id, wall_settings, feed
-):
-    a, b = mastered("A"), mastered("B")
-    display.activate_theme(theme_of(a, b).id, wall_id=wall_id)
-    wall_settings.manifest_path(wall_id).write_text("not json", encoding="utf-8")
-    CatalogueService(store).archive_artwork(b.id)
-
-    display.reconcile()
-
-    assert b.id not in feed(wall_id).works
-
-
-def test_a_work_whose_master_file_is_gone_leaves_the_feed_and_stays_on_major_1(
-    display, mastered, theme_of, wall_id, wall_settings, feed
-):
+def test_a_work_whose_master_file_is_gone_leaves_the_feed(display, mastered, theme_of, wall_id, wall_settings, feed):
     a, b = mastered("A"), mastered("B")
     display.activate_theme(theme_of(a, b).id, wall_id=wall_id)
     (wall_settings.art_root / f"masters/{b.id}.jpg").unlink()
 
     display.reconcile([b.id])
 
-    assert b.id not in feed(wall_id).works
-    assert b.id in [entry["work_id"] for entry in json.loads(wall_settings.manifest_path(wall_id).read_text())["entries"]]
+    assert set(feed(wall_id).works) == {a.id}
 
 
 def test_a_master_drawn_from_an_earlier_original_is_not_offered(services, display, mastered, theme_of, wall_id, feed):
@@ -396,39 +383,11 @@ def test_a_master_drawn_from_an_earlier_original_is_not_offered(services, displa
         content_hash="a-new-acquisition",
         fetch_status=None,
     )
-    # The television render is redone for the new image; the master is not yet.
-    services.catalogue.record_rendition(
-        artwork_id=b.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path=f"ready/{b.id}.jpg"
-    )
 
     build = display.activate_theme(theme_of(a, b).id, wall_id=wall_id)
 
-    assert b.id in {entry.work_id for entry in build.entries}
+    assert [(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions] == [(b.id, UnplayableReason.STALE_RENDITION)]
     assert set(feed(wall_id).works) == {a.id}
-
-
-def test_withdrawing_the_only_mastered_work_removes_the_feed_while_major_1_has_works(
-    display, mastered, ready_work, theme_of, wall_id, wall_settings
-):
-    only, plain = mastered("A"), ready_work("B")
-    display.activate_theme(theme_of(only, plain).id, wall_id=wall_id)
-
-    display.exclude_work(only.id, wall_id=wall_id)
-
-    # An empty feed would leave the excluded work up (a Player keeps the last
-    # work through a gap); with none, the Player falls back to major 1.
-    assert not wall_settings.manifest_v2_path(wall_id).exists()
-
-
-def test_reconciling_away_the_only_mastered_work_removes_the_feed_while_major_1_has_works(
-    services, display, mastered, ready_work, theme_of, wall_id, wall_settings
-):
-    only, plain = mastered("A"), ready_work("B")
-    display.activate_theme(theme_of(only, plain).id, wall_id=wall_id)
-
-    services.catalogue.archive_artwork(only.id)
-
-    assert not wall_settings.manifest_v2_path(wall_id).exists()
 
 
 def test_a_member_that_lost_its_master_is_not_carried_through_a_re_hang(
@@ -454,16 +413,12 @@ def test_a_patched_entry_is_still_a_feed_the_contract_accepts(services, display,
     assert problems(json.loads(wall_settings.manifest_v2_path(wall_id).read_text(encoding="utf-8"))) == []
 
 
-def test_withdrawing_a_themes_only_work_leaves_both_majors_empty_and_agreeing(
-    display, mastered, theme_of, wall_id, wall_settings, feed
-):
+def test_withdrawing_a_themes_only_work_leaves_the_feed_empty(display, mastered, theme_of, wall_id, feed):
     only = mastered("A")
     display.activate_theme(theme_of(only).id, wall_id=wall_id)
 
     display.exclude_work(only.id, wall_id=wall_id)
 
-    manifest = json.loads(wall_settings.manifest_path(wall_id).read_text(encoding="utf-8"))
-    assert manifest["entries"] == []
     assert feed(wall_id).works == {}
     assert feed(wall_id).slots == ()
 
@@ -477,32 +432,6 @@ def test_a_patched_entry_keeps_the_walls_settings(services, display, mastered, t
 
     assert feed(wall_id).settings == {"mat": {"mode": "full"}}
     assert feed(wall_id).works[b.id]["mat_color"] == "#3b2f2a"
-
-
-def test_a_feed_left_holding_only_a_guest_is_removed_while_major_1_has_works(
-    display, mastered, ready_work, theme_of, wall_id, wall_settings
-):
-    only, plain = mastered("A"), ready_work("B")
-    display.activate_theme(theme_of(only, plain).id, wall_id=wall_id)
-    display.show_work_now(wall_id, mastered("Guest").id)
-
-    display.exclude_work(only.id, wall_id=wall_id)
-
-    assert not wall_settings.manifest_v2_path(wall_id).exists()
-
-
-def test_a_re_hang_whose_members_all_lost_their_masters_removes_a_feed_holding_a_guest(
-    display, mastered, theme_of, wall_id, wall_settings
-):
-    a = mastered("A")
-    theme = theme_of(a)
-    display.activate_theme(theme.id, wall_id=wall_id)
-    display.show_work_now(wall_id, mastered("Guest").id)
-    (wall_settings.art_root / f"masters/{a.id}.jpg").unlink()
-
-    display.activate_theme(theme.id, wall_id=wall_id)
-
-    assert not wall_settings.manifest_v2_path(wall_id).exists()
 
 
 # -- a wall's mat mode -------------------------------------------------------------------
@@ -751,13 +680,13 @@ def test_the_same_size_reported_after_the_hour_refreshes_its_time(store, display
 # -- a work that gains its master after a sync joins the feed ------------------------------
 
 
-def test_a_work_that_gains_its_master_after_the_sync_joins_the_feed(
+def test_a_work_that_gains_its_master_after_the_sync_waits_for_the_next_sync(
     services, display, mastered, ready_work, theme_of, wall_id, wall_settings, decodable_jpeg, feed
 ):
-    early, late = mastered("Early"), ready_work("Late")
+    """Gaining a master is readiness gained, and readiness gained waits for sync, like any addition."""
+    early, late = mastered("Early"), ready_work("Late", master=False)
     display.activate_theme(theme_of(early, late).id, wall_id=wall_id)
     assert set(feed(wall_id).works) == {early.id}
-    on_the_wall = feed(wall_id).on_the_wall(_now())
 
     path = f"masters/{late.id}.jpg"
     decodable_jpeg(wall_settings.art_root / path, width=3000, height=2000)
@@ -765,9 +694,9 @@ def test_a_work_that_gains_its_master_after_the_sync_joins_the_feed(
         artwork_id=late.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
     )
 
+    assert set(feed(wall_id).works) == {early.id}
+    display.sync(wall_id)
     assert set(feed(wall_id).works) == {early.id, late.id}
-    assert feed(wall_id).slots[0] == on_the_wall
-    assert late.id in {slot.work_id for slot in feed(wall_id).slots}
 
 
 def test_a_work_off_the_manifest_does_not_join_the_feed_when_it_gains_a_master(
@@ -812,24 +741,3 @@ def test_a_new_size_within_the_hour_is_still_recorded(store, display, wall_id, s
     display.record_heartbeat(wall_id, _beat_with_screen(1920, 1080))
 
     assert sorted((w, h) for w, h, _ in store.reported_screens(shown_by_a_client.display_id)) == [(1920, 1080), (3840, 2160)]
-
-
-def test_a_member_added_since_the_sync_and_pinned_does_not_join_the_feed_when_it_gains_a_master(
-    services, display, mastered, theme_of, ready_work, wall_id, wall_settings, decodable_jpeg, feed
-):
-    theme = theme_of(mastered("A"), mastered("B"))
-    display.activate_theme(theme.id, wall_id=wall_id)
-    added = ready_work("Added since the sync")
-    display.add_to_theme(theme_id=theme.id, artwork_id=added.id)
-    display.show_work_now(wall_id, added.id)  # pinned on major 1; left off major 2 for want of a master
-
-    path = f"masters/{added.id}.jpg"
-    decodable_jpeg(wall_settings.art_root / path, width=3000, height=2000)
-    services.catalogue.record_rendition(
-        artwork_id=added.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
-    )
-
-    # The Library was asked about it (its pin names it), and it is a member of
-    # the theme, but no manifest this wall carries has it: only a sync, or a
-    # show now made once it has a master, puts it on the feed.
-    assert added.id not in feed(wall_id).works

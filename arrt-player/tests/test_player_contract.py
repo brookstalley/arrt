@@ -7,14 +7,15 @@ Those are the rules the reader enforces rather than trusts. The other invalid
 fixtures break writer obligations the reader deliberately tolerates, and they
 are not asserted here in either direction.
 
-**This reader reads majors 1 and 2**, so every valid fixture of either is
-adopted whole and every one either index row marks `player_must_refuse` is
-refused. **A major it does not read must be refused as an *unsupported
-version***, not as a malformed document, because that is the cutover rule each
-new major relies on: a Player that has not been upgraded keeps its wall rather
-than misreading the new shape, and says "upgrade this Player" rather than
-"debug the server". Major 3 stands in for that future major, built from a
-valid major 2 fixture.
+**This reader reads major 2 only**, so every valid major 2 fixture is adopted
+whole and every one the index marks `player_must_refuse` is refused. **A major
+it does not read must be refused as an *unsupported version***, not as a
+malformed document, because that is the cutover rule each major relies on: a
+Player keeps its wall rather than misreading another shape, and says "this
+Player does not read that major" rather than "debug the server". It holds both
+ways: major 3 stands in for a future major, built from a valid major 2
+fixture, and the contract's major 1 document for the major this Player no
+longer reads (`player-contract.md` § The cutover).
 
 The heartbeat runs the other way: what `Health.document()` writes must validate
 against the contract's heartbeat schema, for a Player mid-flight and for one
@@ -56,51 +57,17 @@ from arrt_player.manifest import Watcher
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contract"
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
-MANIFESTS = [row for row in INDEX if row["schema"] == "schemas/manifest.v1.schema.json"]
 FEEDS = [row for row in INDEX if row["schema"] == "schemas/manifest.v2.schema.json"]
 
 
-def _parse(row: dict) -> "manifest.Manifest | manifest.Feed":
+def _parse(row: dict) -> manifest.Feed:
     text = (CONTRACT / row["path"]).read_text(encoding="utf-8")
-    return manifest.parse(text, rotation_interval_fallback=180, shuffle_fallback=False)
-
-
-#: A rotation interval no fixture carries, so a reader that fell back to it
-#: instead of reading the document's value cannot pass.
-_UNUSED_INTERVAL = 7919
-
-
-@pytest.mark.parametrize("row", [row for row in MANIFESTS if row["valid"]], ids=lambda row: row["path"])
-def test_every_valid_major_1_manifest_in_the_contract_is_adopted_whole(row):
-    """Every field the Player acts on, read from the document rather than defaulted.
-
-    The fallbacks are ones no fixture carries, the shuffle one set against each
-    fixture's own value, so a reader that ignored a field and used its fallback
-    fails here instead of passing on a coincidence.
-    """
-    document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
-    assert document["rotation"]["interval_seconds"] != _UNUSED_INTERVAL
-
-    adopted = manifest.parse(
-        (CONTRACT / row["path"]).read_text(encoding="utf-8"),
-        rotation_interval_fallback=_UNUSED_INTERVAL,
-        shuffle_fallback=not document["rotation"]["shuffle"],
-    )
-
-    assert (adopted.schema_major, adopted.schema_minor) == (document["schema"]["major"], document["schema"]["minor"])
-    assert (adopted.theme_id, adopted.theme_name) == (document["theme"]["id"], document["theme"]["name"])
-    assert adopted.rotation_interval_seconds == document["rotation"]["interval_seconds"]
-    assert adopted.shuffle == document["rotation"]["shuffle"]
-    assert adopted.directive_sequence == document["directive"]["sequence"]
-    assert adopted.pinned_work_id == document["directive"]["pinned_work_id"]
-    assert [(entry.work_id, entry.render_path, entry.label) for entry in adopted.entries] == [
-        (entry["work_id"], entry["render_path"], entry["label"]) for entry in document["entries"]
-    ]
+    return manifest.parse(text)
 
 
 @pytest.mark.parametrize(
     "row",
-    [row for row in MANIFESTS + FEEDS if not row["valid"] and row["player_must_refuse"]],
+    [row for row in FEEDS if not row["valid"] and row["player_must_refuse"]],
     ids=lambda row: row["path"],
 )
 def test_every_manifest_the_contract_says_to_refuse_is_refused_for_the_rule_its_name_gives(row):
@@ -115,20 +82,10 @@ def test_every_manifest_the_contract_says_to_refuse_is_refused_for_the_rule_its_
 #: Why each fixture the index marks `player_must_refuse` is refused, as the
 #: reader says it. Keyed by filename, which names the one rule the fixture breaks.
 _REFUSED_BECAUSE = {
-    # major 1
-    "boolean-directive-sequence.json": "directive carries no integer sequence",
-    "entries-not-a-list.json": "carries no entries list",
-    "entry-empty-work-id.json": "entry 0 carries no work_id",
-    "entry-missing-render-path.json": "carries no render_path",
-    # A major 2 document shaped like major 1: read as a feed, and refused as one.
-    "major-2.json": "carries no works object",
-    "missing-directive-sequence.json": "directive carries no integer sequence",
-    "pinned-work-id-not-a-string.json": "pinned_work_id is a int",
-    # major 2
     "horizon-not-whole-days.json": "not a whole number of days",
     "horizon-of-no-length.json": "not a whole number of days",
-    # A major 1 document under a major 2 schema: read as major 1, and refused as one.
-    "major-1.json": "carries no entries list",
+    # A major 1 document under a major 2 schema: a major this Player does not read.
+    "major-1.json": "schema major 1 is not supported",
     "scene-ends-before-it-starts.json": "the scene ends before it starts",
     "scene-names-a-work-not-in-works.json": "names a work that is not in its works",
     "slot-ends-before-it-starts.json": "a slot ends before it starts",
@@ -183,13 +140,23 @@ def test_a_feed_that_breaks_only_a_writer_obligation_is_still_adopted(row):
     assert isinstance(_parse(row), manifest.Feed)
 
 
+def test_the_major_this_player_no_longer_reads_is_refused_as_a_version():
+    """Not as a malformed document: the wall keeps what it shows and the journal says which major arrived."""
+    (row,) = [row for row in FEEDS if row["path"].endswith("/invalid/major-1.json")]
+
+    with pytest.raises(manifest.ManifestVersionUnsupported) as refused:
+        _parse(row)
+
+    assert refused.value.major == 1
+
+
 def test_a_future_major_is_refused_as_a_version_not_as_a_malformed_document():
     (row,) = [row for row in FEEDS if row["path"].endswith("/channel-feed.json")]
     document = json.loads((CONTRACT / row["path"]).read_text(encoding="utf-8"))
     document["schema"]["major"] = 3
 
     with pytest.raises(manifest.ManifestVersionUnsupported) as refused:
-        manifest.parse(json.dumps(document), rotation_interval_fallback=180, shuffle_fallback=False)
+        manifest.parse(json.dumps(document))
 
     assert refused.value.major == 3
 
@@ -206,7 +173,7 @@ def _heartbeat_errors(document: dict) -> list[str]:
 
 def test_a_heartbeat_from_a_running_player_conforms():
     health = Health(
-        manifest_schema="1.1",
+        manifest_schema="2.0",
         theme_id="th-surrealism",
         current_work_id="w-dali-1",
         announced_content_id="MY_F0042",
@@ -235,7 +202,7 @@ def test_a_heartbeat_carrying_each_display_state_conforms(state):
 async def test_what_a_wall_on_a_screen_writes_conforms_and_says_what_it_can_do(client_settings, wall_dir, publish, clock):
     """Written by the real loop and driver, so a key the schema does not know, or one it requires and lacks, fails here."""
     wall = client_settings.wall("living-room")
-    watcher = Watcher(wall.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    watcher = Watcher(wall.manifest_path)
     loop = screen_wall(wall=wall, output=RecordingOutput(screen=(3840, 2160)), watcher=watcher, clock=clock.as_clock())
     publish(["w1"])
 
@@ -247,14 +214,14 @@ async def test_what_a_wall_on_a_screen_writes_conforms_and_says_what_it_can_do(c
         "screen": {"width_px": 3840, "height_px": 2160},
         "backend": "framebuffer",
         "label_modes": ["none"],
-        "manifest_majors": [2, 1],
+        "manifest_majors": [2],
     }
     assert document["scene_id"] is None
 
 
 async def test_what_a_wall_on_the_frame_writes_conforms_and_says_what_it_can_do(settings, tv, state, publish, clock):
-    """The Frame's configured panel, now that this Player composes for it, and both majors it reads."""
-    watcher = Watcher(settings.manifest_path, rotation_interval_fallback=180, shuffle_fallback=False)
+    """The Frame's configured panel, which this Player composes for, and the one major it reads."""
+    watcher = Watcher(settings.manifest_path)
     loop = frame_wall(settings=settings, tv=tv, state=state, watcher=watcher, clock=clock.as_clock())
     publish(["w1"])
 
@@ -266,7 +233,7 @@ async def test_what_a_wall_on_the_frame_writes_conforms_and_says_what_it_can_do(
         "screen": {"width_px": settings.tv_panel_width_px, "height_px": settings.tv_panel_height_px},
         "backend": "frame",
         "label_modes": ["none"],
-        "manifest_majors": [2, 1],
+        "manifest_majors": [2],
     }
 
 

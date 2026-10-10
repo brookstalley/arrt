@@ -40,20 +40,18 @@ _DROP_COLUMN_SINCE: Final[tuple[int, int, int]] = (3, 35, 0)
 
 
 def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> None:
-    """Move a single-wall catalogue onto `Wall`, `ThemeAssignment` and per-wall directives.
+    """Move a single-wall catalogue onto `Wall` and `ThemeAssignment`.
 
     Before 2026-08-12 a theme was hung by a boolean on the theme itself — one
-    that could only ever mean "active on the one television" — and the display
-    plane's standing directive was a single row for the whole installation. This
-    carries both onto a named wall: whichever theme was active is hung on it, and
-    the singleton directive's counter and pin become that wall's, so no
-    deployment loses its picture and no advance is fired by the migration itself.
+    that could only ever mean "active on the one television". This carries it
+    onto a named wall: whichever theme was active is hung on it, so no
+    deployment loses its picture.
 
     **It also seeds the wall on a fresh file**, which is not a separate concern
     wearing this one's clothes: a catalogue with no wall has nowhere to hang
-    anything, and every operation that changes a wall names one. The old schema
-    seeded its singleton directive row the same way, in the DDL; a wall cannot be
-    seeded there because its name is a deployment value and its id is a UUID.
+    anything, and every operation that changes a wall names one. A wall cannot
+    be seeded in the DDL because its name is a deployment value and its id is a
+    UUID.
 
     **The name is written once.** A wall that already exists keeps the name it
     has — it is the curator's word by then, and configuration must not overwrite
@@ -64,15 +62,10 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> Non
         return
 
     hung_theme_id = _theme_that_was_active(connection)
-    sequence, pinned_work_id = _directive_that_was_the_only_one(connection)
     now = datetime.now(UTC).isoformat()
     wall_id = str(uuid.uuid4())
 
     connection.execute("INSERT INTO walls (id, name, created_at) VALUES (?, ?, ?)", (wall_id, wall_name, now))
-    connection.execute(
-        "INSERT INTO directives (wall_id, sequence, pinned_work_id) VALUES (?, ?, ?)",
-        (wall_id, sequence, pinned_work_id),
-    )
     if hung_theme_id is not None:
         connection.execute(
             "INSERT INTO theme_assignments (wall_id, theme_id, assigned_at) VALUES (?, ?, ?)",
@@ -84,10 +77,9 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> Non
     connection.commit()
 
     log.info(
-        "Established wall %r (%s) carrying directive sequence %d; %s.",
+        "Established wall %r (%s); %s.",
         wall_name,
         wall_id,
-        sequence,
         f"hung theme {hung_theme_id}" if hung_theme_id else "nothing is hanging on it",
     )
     _drop_what_the_wall_replaced(connection)
@@ -125,23 +117,6 @@ def _theme_that_was_active(connection: sqlite3.Connection) -> str | None:
     return None if row is None else str(row["id"])
 
 
-def _directive_that_was_the_only_one(connection: sqlite3.Connection) -> tuple[int, str | None]:
-    """The singleton directive's counter and pin, or a fresh wall's zero.
-
-    The counter is carried rather than restarted because the display plane acts
-    once each time it observes the number go up: a wall whose counter dropped to
-    zero at migration would see the next ordinary advance as a step it had
-    already taken, or — worse, on a file whose counter was zero — see nothing at
-    all where an advance was issued.
-    """
-    if not _has_table(connection, "directive"):
-        return 0, None
-    row = connection.execute("SELECT sequence, pinned_work_id FROM directive WHERE id = 1").fetchone()
-    if row is None:
-        return 0, None
-    return int(row["sequence"]), row["pinned_work_id"]
-
-
 def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
     """Take away the single-wall shape, once nothing needs to read it.
 
@@ -158,7 +133,7 @@ def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
         log.info("Dropped themes.is_active and its partial index; hanging is now a row on theme_assignments.")
     if _has_table(connection, "directive"):
         connection.execute("DROP TABLE directive")
-        log.info("Dropped the singleton directive table; each wall now carries its own.")
+        log.info("Dropped the singleton directive table, which no wall reads.")
     connection.commit()
 
 
@@ -364,3 +339,58 @@ def retire_conversations(connection: sqlite3.Connection) -> None:
             connection.execute(f'DROP TABLE "{table}"')
             log.info("Dropped table %s: Ask's threads are not stored.", table)
     connection.commit()
+
+
+def retire_directives(connection: sqlite3.Connection) -> None:
+    """Drop each wall's directive: its counter and the work it pinned.
+
+    A Player read the directive from manifest major 1, which is no longer
+    published. Show now and next republish the wall's schedule instead
+    (`player-contract.md` § What happens to `show_now` and `next`), so nothing
+    reads a counter or a pin, and nothing is carried. The table also held
+    `pinned_work_id`, a key across the Library/Programming seam
+    (`architecture.md` § Direction, rule 3), which goes with it.
+
+    Guarded by the file: a file without the table, or a fresh one, is left alone.
+    """
+    if not _has_table(connection, "directives"):
+        return
+    # Its index over the pin goes with it: SQLite drops a table's indexes with the table.
+    connection.execute("DROP TABLE directives")
+    log.info("Dropped table directives: show now and next republish the wall's schedule instead.")
+    connection.commit()
+
+
+def retire_television_canvases(connection: sqlite3.Connection) -> None:
+    """Forget every composed television canvas, and the previews drawn from them, once.
+
+    Each Player draws its own mat on the presentation master (`architecture.md`,
+    the label and the mat belong to the device). So the `tv_display` rows go, and
+    with them every `wall_preview` row, because a preview drawn from a canvas
+    passes the hash test against the original and would go on showing the old
+    matted picture; without its row it is drawn again from the master on next
+    view. Then the `mat_hex` column, which only a canvas filled.
+
+    **Keyed on that column, so it happens once.** Wall previews are still made,
+    from the master, after this; deleting them on every open would throw each one
+    away at each start. A file still carrying `mat_hex` is one this has not run
+    on, and the deletes and the drop are its single pass: the column goes last,
+    so an open interrupted before it repeats the pass rather than skipping it.
+
+    **The files are left where they are.** `ART_ROOT/ready/` holds the canvases,
+    and removing a directory of the operator's files is the operator's act;
+    `deploy/README.md` names it as safe to delete. The line says how many rows
+    went, 0 included, so the operator has one line to look for either way.
+    """
+    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
+        return
+    gone = connection.execute("DELETE FROM renditions WHERE kind IN ('tv_display', 'wall_preview')").rowcount
+    connection.commit()
+    _require_drop_column(predates="the retirement of television canvases")
+    connection.execute("ALTER TABLE renditions DROP COLUMN mat_hex")
+    connection.commit()
+    log.info(
+        "Forgot %d television canvases and previews drawn from them, and dropped renditions.mat_hex; "
+        "ART_ROOT/ready/ can be deleted.",
+        gone,
+    )

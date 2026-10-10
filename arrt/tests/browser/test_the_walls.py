@@ -73,14 +73,14 @@ def a_displayable_work(work_with_an_image, service, settings, decodable_jpeg):
     def _work(title="Nighthawks"):
         artwork = work_with_an_image(title=title)
         service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        rendered = f"ready/{artwork.id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=400, height=300)
         service.record_rendition(
             artwork_id=artwork.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=7680,
+            target_height=7680,
+            path=presented,
         )
         return artwork
 
@@ -423,7 +423,7 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall
 
     Two walls is the smallest arrangement that can tell the two behaviours apart;
     with one, a route that stepped everything would look perfect. Skip replaces
-    "Move on", and the directive's counter is not a thing a curator reads.
+    "Move on".
     """
     study = services.display.add_wall(name="Study")
     ui.serve(
@@ -435,7 +435,7 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall
             ]
         ),
     )
-    before = services.display.read_directive(a_hung_wall.id).sequence
+    before = services.display.published_manifest_v2(a_hung_wall.id)
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
@@ -444,10 +444,10 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall
     skip.click()
     ui.page.wait_for_selector(f".wall-said:has-text('Skipped. {a_hung_wall.name} shows its next work')")
 
-    assert services.display.read_directive(a_hung_wall.id).sequence == before + 1
-    assert services.display.read_directive(study.id).sequence == 0
-    # The wall with nothing on it is not offered a skip at all: advancing a wall
-    # that is showing nothing writes a directive nobody can act on.
+    assert services.display.published_manifest_v2(a_hung_wall.id) != before
+    assert services.display.published_manifest_v2(study.id) is None
+    # The wall with nothing on it is not offered a skip at all: it has no
+    # schedule to move on through.
     assert _skip(ui, "Study").count() == 0
     whole = ui.page.locator("#view").text_content()
     assert "Move " not in whole
@@ -505,6 +505,40 @@ def test_the_card_lists_no_theme_inventory(ui, a_hung_wall, a_health_reading, a_
 
     assert "Showing (" not in ui.page.locator("#view").text_content().replace("Not showing (", "")
     assert ui.page.locator("ul.hanging").count() == 0
+
+
+def _reads(services, wall, majors):
+    """A heartbeat from a Player that reads these manifest majors."""
+    capabilities = {"screen": {"width_px": 3840, "height_px": 2160}, "backend": "frame", "label_modes": ["none"]}
+    services.display.record_heartbeat(
+        wall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "capabilities": {**capabilities, "manifest_majors": majors},
+        },
+    )
+
+
+def test_a_wall_whose_player_cannot_read_the_feed_says_so_on_its_card(ui, services, a_hung_wall):
+    """The one sign of a Player missed in the upgrade: it asks for a feed that is no longer published."""
+    _reads(services, a_hung_wall, [1])
+
+    ui.open("#walls")
+    notice = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}'] .wall-feed")
+    notice.wait_for()
+
+    assert "can't read this server's feed" in notice.inner_text()
+    assert "Update Arrt Player" in notice.inner_text()
+
+
+def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, a_hung_wall):
+    _reads(services, a_hung_wall, [2, 1])
+
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    assert ui.page.locator(".wall-feed").count() == 0
+    assert "can't read this server's feed" not in ui.page.locator("#view").text_content()
 
 
 # -- one wall is the degenerate case of many -----------------------------------

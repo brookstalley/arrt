@@ -310,6 +310,9 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     sourceLine(wall),
     assignmentLine(wall, shownBy),
     labelsLine(wall),
+    // The server's sentence, so Walls and the tool surface say the same thing
+    // about a Player that cannot read this server's feed.
+    wall.feed_notice ? el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })]) : null,
     // The server's own sentence about how much of the theme reached the wall,
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact
@@ -400,7 +403,7 @@ function nowShowing(wall, now) {
   const artist = work.artist ? work.artist.name : null;
   const image = el("img", {
     // The large size: this box is drawn up to 48rem wide, and the tile's 480 px
-    // is soft there on a 2x screen. Still the bare work, never the wall render.
+    // is soft there on a 2x screen. The bare work: the mat is the wall's.
     src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail?size=large`,
     alt: artist ? `${work.title}, ${artist}` : work.title,
   });
@@ -561,9 +564,9 @@ function cannotReach(wall, build, beats) {
  * screen that actually changes the wall. */
 function controls(card, themes, reason, manifest) {
   const { wall } = card;
-  // Only where something is actually up. Skipping a wall that is showing
-  // nothing writes a directive nobody can act on, and offering it would say
-  // this screen thinks there is something to move on from.
+  // Only where something is actually up. A wall showing nothing has no
+  // schedule to move on through (the server refuses the step), and offering it
+  // would say this screen thinks there is something to move on from.
   //
   // **Both halves are load-bearing.** The reason answers whether a display has
   // spoken for this wall; the manifest answers whether there is anything for a
@@ -592,7 +595,7 @@ function controls(card, themes, reason, manifest) {
  * was going to advance by itself anyway. A dialog in front of it would teach the
  * curator to dismiss dialogs.
  *
- * The wall changes when its Player next reads the directive, and the card can
+ * The wall changes when its Player next reads its feed, and the card can
  * only know which work came up when the heartbeat reports it, so it says so and
  * watches for that (`awaitNext`). */
 function skipButton(card) {
@@ -606,7 +609,7 @@ function skipButton(card) {
       attempt(
         event.currentTarget,
         `skip the work on ${wall.name}`,
-        () => api("/api/directives", { method: "POST", body: JSON.stringify({ wall_id: wall.wall_id }) }),
+        () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/next`, { method: "POST" }),
         { then: () => awaitNext(card, `Skipped. ${wall.name} shows its next work when its display next reports, usually within a minute.`) },
       ),
   });
@@ -833,9 +836,7 @@ const MAT_CHOICES = [
 
 /* How the wall's Player draws the mat. The colour is always the work's own and
  * the width the Player's, so this chooses only how much of the screen the mat
- * fills. It reaches a wall whose Player composes its own picture (major 2); a
- * Player still on major 1 shows the render the server matted, and the note says
- * so rather than letting the choice look ignored. */
+ * fills. */
 function matPanel(wall) {
   const pickerId = `mat-${wall.wall_id}`;
   const picker = el("select", { id: pickerId });
@@ -875,7 +876,7 @@ function matPanel(wall) {
     said,
     el("p", {
       class: "muted",
-      text: "The mat is always the work's own colour. A Player that draws its own mat follows this; one that shows the server's render keeps the mat it was sent.",
+      text: "The mat is always the work's own colour.",
     }),
   ]);
 }

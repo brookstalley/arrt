@@ -1,7 +1,7 @@
 """Major 2's programme: show what the feed's schedule says, now.
 
 A schedule is state, not a command (`player-contract.md` § What happens to
-`show_now` and `next`): nothing here counts directives or keeps a place in a
+`show_now` and `next`): nothing here counts commands or keeps a place in a
 list. Each pass asks what the feed says to show at this instant, and changes the
 wall only when that differs from what this wall last put there. So a restart, a
 republished feed and an hour off the network all come to the same thing: the
@@ -18,10 +18,17 @@ held to `contract/vectors/schedule.json` by this plane's suite:
   the last work it showed** (§ Time): the gap still means dark, and this Player
   cannot yet act on it.
 
-**The art-mode gate is asked here, in the same order the rotation asks it**:
-the display's own wait first, which costs nothing, and only then whether the
-wall is ours, which on a Frame is a request to the set. A display that is not
+**The art-mode gate is asked here, and in this order**: the display's own
+wait first, which costs nothing, and only then whether the wall is ours, which
+on a Frame is a request to the set. A display that is not
 ours is left alone and asked again when its wait allows.
+
+**Where the wall's memory lives is the display's choice** (`Memory`). The
+Frame keeps the work it showed in its store, because the set holds the picture
+across a restart; a screen this host draws on is black after a restart, so it
+keeps it in memory (`InMemory`). **It names the work, not the picture**: a
+programme switched to from another major puts its own picture of that work up
+(`entered`).
 
 **What goes up is a composed picture, never the master** (`compose.py`). Each
 work the feed names is composed for the display's geometry and the feed's mat
@@ -39,13 +46,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 
 from arrt_player.compose import Geometry, Uncomposable, compose, composed_path, mat_mode
 from arrt_player.episodes import ReportOnce
 from arrt_player.logs import work_context
 from arrt_player.manifest import Feed
-from arrt_player.programmes.memory import Memory
 from arrt_player.wall import Clock, Display, Picture, Shown
 
 log = logging.getLogger(__name__)
@@ -64,6 +70,29 @@ COMPOSE_RETRY_SECONDS: Final[float] = 300.0
 
 #: What `compose.compose` is to this programme; a test passes one it controls.
 Composer = Callable[..., Path]
+
+
+class Memory(Protocol):
+    """What a wall remembers about the work on it. `state.DisplayState` is one."""
+
+    @property
+    def last_selected_work_id(self) -> str | None: ...
+
+    def set_last_selected_work_id(self, work_id: str) -> None: ...
+
+
+class InMemory:
+    """A `Memory` that lasts as long as the process."""
+
+    def __init__(self) -> None:
+        self._work_id: str | None = None
+
+    @property
+    def last_selected_work_id(self) -> str | None:
+        return self._work_id
+
+    def set_last_selected_work_id(self, work_id: str) -> None:
+        self._work_id = work_id
 
 
 @dataclass(frozen=True)
@@ -140,9 +169,9 @@ class Schedule:
         #: The work the display last could not show, and when.
         self._refused: tuple[str, float] | None = None
         #: The file this programme last put on the wall. **The work's id alone is
-        #: not enough**: a wall moved here from major 1 holds that work's
-        #: composed render, not its master, and a feed may give a work new
-        #: media under the same id. None until this programme has shown anything,
+        #: not enough**: a wall moved here from another major holds that major's
+        #: picture of the work, and a feed may give a work new media under the
+        #: same id. None until this programme has shown anything,
         #: so the first pass after a restart or a switch shows the slot's work even
         #: when the wall's memory already names it — on the Frame an idempotent
         #: re-selection of a picture it holds, on a screen the draw a restart owes.
@@ -255,7 +284,7 @@ class Schedule:
                     "cannot show %s yet: its media is not at %s",
                     picture.work_id,
                     planned.master,
-                    extra={"event": "schedule.media_missing", "wall_id": self._wall_id, "render_path": str(planned.master)},
+                    extra={"event": "schedule.media_missing", "wall_id": self._wall_id, "master_path": str(planned.master)},
                 )
             return False
         if not picture.path.is_file():
@@ -380,7 +409,7 @@ class Schedule:
                 "cannot show %s: %s",
                 planned.work_id,
                 reason,
-                extra={"event": event, "wall_id": self._wall_id, "render_path": str(planned.master)},
+                extra={"event": event, "wall_id": self._wall_id, "master_path": str(planned.master)},
             )
 
     def _tidy(self) -> None:

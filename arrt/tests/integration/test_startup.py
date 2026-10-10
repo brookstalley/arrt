@@ -28,8 +28,6 @@ from arrt.config import (
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
     DEFAULT_LABEL_UNITS,
-    DEFAULT_MAT_BOTTOM_WEIGHT,
-    DEFAULT_MAT_WIDTH_INCHES,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -46,9 +44,6 @@ from arrt.config import (
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
 from arrt.library.dimensions import Units
@@ -100,11 +95,6 @@ def _defaults(art_root, **overrides) -> Settings:
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
-            tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
-            tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
-            tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-            mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
-            mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
             quality_minimum_px=DEFAULT_QUALITY_MINIMUM_PX,
             phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
             phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
@@ -193,9 +183,6 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
             wall = observer.list_walls()[0]
             hanging = display.hanging_on(wall.id)
             served.append("nothing" if hanging is None else hanging.name)
-            # The counter came across too, so the first advance after the upgrade
-            # is a step rather than a repeat of one already taken.
-            served.append(str(display.read_directive(wall.id).sequence))
         finally:
             observer.close()
 
@@ -203,7 +190,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
 
     entry_point.main()
 
-    assert served == ["Late night", "4"], "the catalogue had not been moved onto walls when the server started"
+    assert served == ["Late night"], "the catalogue had not been moved onto walls when the server started"
 
 
 def _a_moment():
@@ -212,14 +199,13 @@ def _a_moment():
     return datetime(2026, 7, 20, 9, 30, tzinfo=UTC)
 
 
-def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monkeypatch, caplog):
+def test_startup_logs_the_resolved_root_and_no_screens_geometry(tmp_path, monkeypatch, caplog):
     """A misconfiguration should be one journal line away rather than a mystery.
 
-    The operational spec requires each plane to log its resolved `ART_ROOT` and
-    its own panel geometry at startup. Asserted through `main()` because a log
-    line nothing emits reads exactly like one nobody looked for — and the derived
-    pixel density is what the mat and the resolution floor are computed from, so
-    a wrong panel is silent until the art comes out the wrong size.
+    The operational spec requires each plane to log its resolved `ART_ROOT` at
+    startup. Asserted through `main()` because a log line nothing emits reads
+    exactly like one nobody looked for. No screen's geometry is logged: each
+    Player knows its own and draws its own mat.
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
@@ -228,14 +214,8 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
         art_root,
         rotation_interval_seconds=931,
         rotation_shuffle=False,
-        # A panel no default could produce, so a line built from the constants
-        # rather than the resolved settings would show.
-        tv_panel_width_px=1920,
-        tv_panel_height_px=1080,
-        tv_panel_diagonal_inches=55.0,
-        # Likewise the mat and the quality minimum, for the same reason.
-        mat_width_inches=3.0,
-        mat_bottom_weight=2.0,
+        # A quality minimum no default could produce, so a line built from the
+        # constants rather than the resolved settings would show.
         quality_minimum_px=1234,
         # And likewise every discovery value: the estimate below is arithmetic
         # over all of them, so a line built from the constants rather than the
@@ -262,23 +242,17 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
 
     logged = caplog.text
     assert str(art_root) in logged
-    assert "1920x1080px/55.0" in logged
-    # 1920x1080 measures 2202.9 pixels corner to corner; over 55 inches that is
-    # 40.1 per inch. Derived, so this also pins that the derivation ran.
-    assert "40.1 px per inch" in logged
+    assert f"feeds={art_root}/theme-manifest-{{wall_id}}.v2.json" in logged
     assert "rotation=931s" in logged
     assert "shuffle=False" in logged
-    # The derived artwork box as well as its inputs, and the quality minimum. A
-    # wrong minimum is otherwise visible only as scans labelled oddly in the
-    # grid, which reads as a catalogue problem rather than a configuration one,
-    # and a wrong mat only on the wall. 3" of mat at
-    # 40.05 px per inch is 120 px, taken twice horizontally and 1+2.0 times
-    # vertically: 1920-240 by 1080-360.
-    assert "artwork_box=1680x720px" in logged
-    assert 'mat=3.00" (bottom x2.00)' in logged
+    # A wrong minimum is otherwise visible only as scans labelled oddly in the
+    # grid, which reads as a catalogue problem rather than a configuration one.
     assert "quality_minimum=1234px" in logged
-    # The e-paper panel belongs to the display plane, and this one must hold no
-    # fact about it.
+    # No screen's geometry: the television's and the mat's are the Player's now.
+    for gone in ("tv_panel=", "artwork_box=", "px per inch", "ready="):
+        assert gone not in logged, gone
+    # The e-paper panel belongs to the display plane too, and this one must hold
+    # no fact about it.
     #
     # **Matched on digit boundaries, because a bare substring search matches the
     # test's own scratch directory.** `caplog.text` carries `art_root=<tmp_path>`,

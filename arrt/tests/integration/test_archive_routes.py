@@ -13,6 +13,8 @@ an in-process test would pass against an application that fails every MCP
 request in production.
 """
 
+import json
+
 import httpx
 import pytest
 
@@ -101,36 +103,38 @@ def test_an_unknown_work_is_refused_rather_than_silently_accepted(http, act):
     assert "no-such-work" in answer.json()["error"]
 
 
-def test_archiving_the_pinned_work_withdraws_the_pin_without_advancing_the_sequence(http, wall, service, display, ready_work):
+def _hang_with(display, wall_id, *works):
+    theme = display.add_theme(name="Late night")
+    for work in works:
+        display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+
+
+def test_archiving_the_work_shown_now_takes_it_off_the_wall(http, wall, display, ready_work, wall_settings):
     """The rule that reaches the room, exercised through the route that triggers it.
 
-    A pin naming an archived work is an instruction the display plane can never
-    carry out, so archiving withdraws it. It does **not** advance the sequence:
-    the plane acts every time that number goes up, and an advance here would fire
-    a directive nobody issued, stepping the wall to an unrelated work.
-
-    Read back over HTTP rather than from the store, because the wall listing is
-    where the client would look and a withdrawal it could not see would be the
-    same silence with a different cause.
+    A feed naming an archived work would put it back on the screen, so archiving
+    takes it off the feed, and a wall showing it starts fresh without it.
     """
+    kept = ready_work(title="Automat")
+    _hang_with(display, wall["wall_id"], kept)
     work = ready_work()
     display.show_work_now(wall["wall_id"], work.id)
-    pinned = http.get("/api/walls").json()["walls"][0]
-    assert pinned["pinned_work_id"] == work.id
 
     http.post(f"/api/works/{work.id}/archive")
 
-    after = http.get("/api/walls").json()["walls"][0]
-    assert after["pinned_work_id"] is None
-    assert after["directive_sequence"] == pinned["directive_sequence"]
+    feed = json.loads(wall_settings.manifest_v2_path(wall["wall_id"]).read_text())
+    assert work.id not in feed["works"]
+    assert feed["schedule"]["slots"][0]["work_id"] == kept.id
 
 
-def test_archiving_some_other_work_leaves_the_pin_where_it_was(http, wall, service, display, ready_work):
-    """The withdrawal is about the pinned work, not about archiving in general."""
-    pinned = ready_work()
+def test_archiving_some_other_work_leaves_the_wall_as_it_was(http, wall, service, display, ready_work, wall_settings):
+    """The withdrawal is about the work on the wall, not about archiving in general."""
+    _hang_with(display, wall["wall_id"], ready_work(title="Automat"))
+    display.show_work_now(wall["wall_id"], ready_work().id)
     other = service.add_artwork(title="Chop Suey")
-    display.show_work_now(wall["wall_id"], pinned.id)
+    before = wall_settings.manifest_v2_path(wall["wall_id"]).read_bytes()
 
     http.post(f"/api/works/{other.id}/archive")
 
-    assert http.get("/api/walls").json()["walls"][0]["pinned_work_id"] == pinned.id
+    assert wall_settings.manifest_v2_path(wall["wall_id"]).read_bytes() == before

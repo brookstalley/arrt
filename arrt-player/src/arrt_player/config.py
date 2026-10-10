@@ -131,13 +131,6 @@ DEFAULT_EPD_ROTATE_DEGREES: Final[int] = 180
 #: One `stat()` a second is free.
 DEFAULT_POLL_INTERVAL_SECONDS: Final[float] = 1.0
 
-#: Fallbacks for rotation, used only when a manifest carries no usable values.
-#: The manifest normally resolves them — curation writes the theme's settings or
-#: the deployment default into every one it publishes — so these are the answer
-#: to "the file said nothing", not a second place the pace is configured.
-DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
-DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
-
 #: The television's brightness scale, which is neither 0-100 nor 0-10: this set
 #: takes -4 through 10, and the sun-position curve is mapped onto that range.
 #: Carried forward from the 2024 plane, which runs the wall on these numbers.
@@ -183,12 +176,12 @@ DEFAULT_UPLOAD_RETRY_SECONDS: Final[float] = 300.0
 #: the failure it catches. A television whose panel is dark accepts
 #: `select_image`, returns no error, emits no event, and goes on displaying
 #: whatever it displayed before — indefinitely. A daemon that trusted the call's
-#: return would report a rotation it did not perform, once per interval, for as
-#: long as the set stayed dark.
+#: return would report a picture change it did not perform, once per slot, for
+#: as long as the set stayed dark.
 #:
 #: **It is a ceiling on the failing path only.** A set that is working answers
-#: inside a second and the wait ends there, so raising this does not slow
-#: rotation; it only lengthens how long a dark wall takes to be reported.
+#: inside a second and the wait ends there, so raising this does not slow a
+#: change of picture; it only lengthens how long a dark wall takes to be reported.
 DEFAULT_SELECT_CONFIRM_SECONDS: Final[float] = 8.0
 
 #: Reconnection backoff after the television goes away. An asleep set is the
@@ -253,8 +246,6 @@ class WallSettings:
     #: because both reach the journal.
     client_token: str = field(repr=False)
     poll_interval_seconds: float
-    rotation_interval_fallback_seconds: int
-    rotation_shuffle_fallback: bool
     #: The mat's proportions, which every wall composes with whatever it draws on.
     mat_width_inches: float = DEFAULT_MAT_WIDTH_INCHES
     mat_bottom_weight: float = DEFAULT_MAT_BOTTOM_WEIGHT
@@ -281,7 +272,7 @@ class WallSettings:
 
     @property
     def render_root(self) -> Path:
-        """What an entry's `render_path` is relative to: this wall's own cache."""
+        """What a work's `media_path` is relative to: this wall's own cache."""
         return self.wall_dir
 
     @property
@@ -488,8 +479,6 @@ class ClientSettings:
     #: there when the server is not.
     cache_dir: Path
     poll_interval_seconds: float
-    rotation_interval_fallback_seconds: int
-    rotation_shuffle_fallback: bool
     #: The Frame output, or None for a client that has none.
     frame: FrameSettings | None
     #: The label panel; `epd_device` empty for a client that has none.
@@ -516,8 +505,6 @@ class ClientSettings:
             server_url=self.server_url,
             client_token=self.client_token,
             poll_interval_seconds=self.poll_interval_seconds,
-            rotation_interval_fallback_seconds=self.rotation_interval_fallback_seconds,
-            rotation_shuffle_fallback=self.rotation_shuffle_fallback,
             mat_width_inches=self.mat_width_inches,
             mat_bottom_weight=self.mat_bottom_weight,
         )
@@ -564,8 +551,6 @@ def load(environ: dict[str, str] | None = None) -> ClientSettings:
         client_token=_require(env, "CLIENT_TOKEN"),
         cache_dir=cache_dir,
         poll_interval_seconds=_float(env, "MANIFEST_POLL_SECONDS", DEFAULT_POLL_INTERVAL_SECONDS),
-        rotation_interval_fallback_seconds=_int(env, "ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
-        rotation_shuffle_fallback=_bool(env, "ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
         frame=_frame(env, cache_dir),
         panel=_panel(env),
         mat_width_inches=_positive_float(env, "MAT_WIDTH_INCHES", DEFAULT_MAT_WIDTH_INCHES),
@@ -701,10 +686,3 @@ def _positive_float(env: dict[str, str], name: str, default: float) -> float:
     if not value > 0:
         raise ConfigError(f"{name} is {value}, and it must be above zero.")
     return value
-
-
-def _bool(env: dict[str, str], name: str, *, default: bool) -> bool:
-    raw = env.get(name)
-    if not raw:
-        return default
-    return raw.strip().lower() not in {"false", "0", "no", "off"}

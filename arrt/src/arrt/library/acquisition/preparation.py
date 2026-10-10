@@ -1,19 +1,18 @@
-"""Turning a held original into a wall-ready canvas, and deciding when to.
+"""Turning a held original into what a wall needs, and deciding when to.
 
 Acquisition ends with bytes on disk and a row naming them. This is what happens
-next: the work gets a mat colour with recorded provenance, and a television
-canvas composed against the configured panel. Everything policy-shaped lives
-here — when a mat is worth paying for, when a rendition is stale, what a failure
-costs — while `mat.py` knows how to choose a colour and `compose.py` knows how to
-draw one.
+next: the work gets a presentation master, the unmatted picture every Player
+composes from, and a mat colour with recorded provenance, which the feed sends
+beside it. Everything policy-shaped lives here — when a mat is worth paying for,
+when a master is stale, what a failure costs — while `mat.py` knows how to
+choose a colour and `master.py` how to make a master. Nothing here knows any
+screen's geometry: the Player that owns the screen draws the mat.
 
 **Preparation is idempotent, and free to re-run once a work has a mat.** The
-expensive half is the model call, so a work that already has a mat keeps it:
-re-preparing a hundred works after a panel change costs a hundred renders and
-nothing at all in model spend.
+expensive half is the model call, so a work that already has a mat keeps it.
 
 **The first preparation of a work is not free, and every result says so.** A work
-that has never had a mat cannot be rendered without choosing one, and `acquire()`
+that has never had a mat cannot be shown without choosing one, and `acquire()`
 does not prepare — so the first call on a freshly acquired work is a paid vision
 call, which is the normal case rather than an edge. `PreparationResult.cost_usd`
 carries it, the tool surface reports it, and a `mat_color_vision` spend row records
@@ -34,10 +33,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Final, Protocol
+from typing import Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
-from arrt.library.acquisition.compose import ArtworkBox, compose, layout
 from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_master, master_path
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
 from arrt.library.services.catalogue import CatalogueService
@@ -48,18 +46,11 @@ from arrt.services.errors import ServiceError
 
 log = logging.getLogger(__name__)
 
-#: What a work's television canvas is called on disk. The work's own id, for the
-#: reason the original's filename is: a title is not unique, not stable, and not
-#: a filename. No geometry in the name — the `Rendition` row carries the target
-#: size, and a `_w648_h480` suffix is how the 2024 tree ended up pointing at a
-#: panel that no longer existed.
-_FILENAME: Final[str] = "{artwork_id}.jpg"
-
 
 class PreparationOutcome(Enum):
     """What preparing a work amounted to."""
 
-    #: A canvas was composed and recorded.
+    #: A master was made, or a mat chosen, and recorded.
     PREPARED = "prepared"
     #: The work was already current and nothing needed doing.
     UNCHANGED = "unchanged"
@@ -74,16 +65,17 @@ class PreparationResult:
     detail: str
     mat_hex: str
     mat_method: str
+    #: The presentation master, relative to `ART_ROOT`.
     relative_path: str | None = None
     #: What the mat choice cost, zero when no model was asked. A curator
-    #: authorising a re-render is entitled to know whether it spends anything.
+    #: authorising a remake is entitled to know whether it spends anything.
     cost_usd: Decimal = Decimal(0)
     #: Why the mat came from the fallback, when it did. `None` otherwise.
     #:
     #: **Both outcomes leave the work ready for the wall**, so there is no
-    #: `prepared` flag to read: `unchanged` means the canvas was already current,
+    #: `prepared` flag to read: `unchanged` means the work was already current,
     #: not that anything failed. Failures raise, because every one of them —
-    #: no original, an original missing from disk, a canvas that would not
+    #: no original, an original missing from disk, a master that would not
     #: encode — needs a different thing done about it, and a caller handed a
     #: false-valued result would have to re-derive which.
     mat_fallback_detail: str | None = None
@@ -91,51 +83,9 @@ class PreparationResult:
 
 @dataclass(frozen=True, slots=True)
 class PreparationSettings:
-    """Where preparation writes and what geometry it composes against."""
+    """Where preparation writes. A master names no geometry, so this is the root and nothing else."""
 
     art_root: Path
-    ready_path: Path
-    #: The television's own panel, in pixels. The canvas is exactly this size.
-    panel_width: int
-    panel_height: int
-    #: The region inside the mat, already composed from the panel and the mat in
-    #: inches. Taken rather than derived so there is one answer to "how big is
-    #: the mat", computed where the deployment values are resolved.
-    box: ArtworkBox
-
-    def __post_init__(self) -> None:
-        """Refuse a wiring that could only ever render wrongly, at wiring time.
-
-        Every catalogue path is relative to `ART_ROOT`, so a canvas written
-        anywhere else has no representable path. Caught here it names both
-        directories at startup; caught where the row is written it is a
-        `ValueError` from `relative_to` thrown after the render is already done.
-
-        **The panel and the box are two fields that must agree, so the agreement
-        is checked rather than trusted.** The box is *derived from* the panel
-        wherever both come from one resolved `Settings` — but this object can be
-        built with either from anywhere, and a box wider than its panel yields a
-        negative mat, which pastes the artwork off the canvas and produces a
-        plausible-looking file with the picture cropped. Nothing downstream could
-        report that: the rendition row would be written, the manifest would carry
-        it, and the first sign would be the wall.
-        """
-        if not self.ready_path.is_relative_to(self.art_root):
-            raise ServiceError(f"The rendition directory at {self.ready_path} must sit inside ART_ROOT at {self.art_root}.")
-        if self.panel_width <= 0 or self.panel_height <= 0:
-            raise ServiceError(f"The panel must have a positive size, got {self.panel_width}x{self.panel_height}.")
-        if self.box.width > self.panel_width or self.box.height > self.panel_height:
-            raise ServiceError(
-                f"The artwork box of {self.box.width}x{self.box.height} does not fit the "
-                f"{self.panel_width}x{self.panel_height} panel it is composed against. These two are derived from "
-                "one another in a resolved configuration, so a mismatch here means the panel and the box came from "
-                "different deployments."
-            )
-
-    @property
-    def layout(self) -> str:
-        """What a canvas composed against these settings records, and is compared against."""
-        return layout(panel_width=self.panel_width, panel_height=self.panel_height, box=self.box)
 
     @property
     def masters_path(self) -> Path:
@@ -164,7 +114,7 @@ class SpendLedger(Protocol):
 
 
 class PreparationService:
-    """Give a work a mat and a television canvas."""
+    """Give a work a presentation master and a mat colour."""
 
     def __init__(
         self, catalogue: CatalogueService, mat_engine: MatEngine, settings: PreparationSettings, *, spend: SpendLedger
@@ -177,31 +127,22 @@ class PreparationService:
         #: and the month total would omit every mat call without anything failing.
         self._spend = spend
 
-    @property
-    def layout(self) -> str:
-        """The layout every canvas this service composes now records."""
-        return self._settings.layout
-
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult:
         """Make this work ready for the wall, doing only what is not already done.
 
-        `force` re-renders a canvas that is already current. It does **not**
-        re-choose the mat: a colour is a judgement with history, and replacing one
-        because someone asked for a re-render would spend money to overwrite a
-        decision they did not mention. Choosing again is `choose_mat` — a separate
-        request, because it is a separate intent.
+        `force` makes the master again even when a current one is on disk. It
+        does **not** re-choose the mat: a colour is a judgement with history, and
+        replacing one because someone asked for a remake would spend money to
+        overwrite a decision they did not mention. Choosing again is
+        `choose_mat`, a separate request, because it is a separate intent.
 
         **This is free for a work that already has a mat it may keep, and only
         for one.** A mat below `MAT_LIGHTNESS_FLOOR` is not one it may keep: it
-        predates the floor, and is chosen again here, and the canvas painted in it
-        is then not current. A
-        work that has never had a mat cannot be rendered without choosing one, so
-        the first preparation of a freshly acquired work asks the vision model —
-        and `acquire()` does not prepare, so that first call is the normal case
-        rather than an edge. The cost comes back on `cost_usd` and the caller
-        reports it. Saying "this never spends" would have been the easier
-        sentence and it would have been false at exactly the moment a curator
-        relied on it.
+        predates the floor, and is chosen again here. A work that has never had a
+        mat cannot be shown without choosing one, so the first preparation of a
+        freshly acquired work asks the vision model, and `acquire()` does not
+        prepare, so that first call is the normal case rather than an edge. The
+        cost comes back on `cost_usd` and the caller reports it.
         """
         original = self._catalogue.get_original(artwork_id)
         if original is None:
@@ -218,71 +159,22 @@ class PreparationService:
                 "Re-acquire it before preparing."
             )
 
-        # Before the mat and the canvas, and before the early return below: a
-        # master depends on the Original alone, so a work whose canvas is
-        # current can still owe one — every work held before masters existed is
-        # in exactly that state when the startup backfill reaches it. Never
-        # forced: `force` redraws the canvas for a changed panel or mat, and
-        # neither moves a master.
-        master_made = self._make_master_if_owed(artwork_id, source=source)
+        made = self._make_master_if_owed(artwork_id, source=source, force=force)
         mat, chosen = self._current_or_chosen_mat(artwork_id, source=source)
-        current = self._current_tv_rendition(artwork_id, mat_hex=mat.hex_rgb)
-        if current is not None and not force:
-            return PreparationResult(
-                artwork_id=artwork_id,
-                outcome=PreparationOutcome.UNCHANGED,
-                detail="the television canvas was already current"
-                + ("; its presentation master was made" if master_made else ""),
-                mat_hex=mat.hex_rgb,
-                mat_method=mat.method.value,
-                relative_path=current,
-                # Not unconditionally zero. A work with no mat gets one chosen
-                # above, and that can be a paid call even on the branch that then
-                # finds the canvas current — which is a real sequence, not a
-                # hypothetical: a rendition can outlive the mat row that a
-                # restored catalogue lost.
-                cost_usd=Decimal(0) if chosen is None else chosen.cost_usd,
-                mat_fallback_detail=None if chosen is None else chosen.fallback_detail,
-            )
-
-        destination = self._settings.ready_path / _FILENAME.format(artwork_id=artwork_id)
-        # `compose` translates its own decode failures, so an undecodable original
-        # is refused by name here as it is in the mat engine — and a disk that
-        # will not take the canvas still raises `OSError`, which is a fault on
-        # this host rather than in the museum's bytes.
-        composition = compose(
-            source,
-            destination=destination,
-            mat_hex=mat.hex_rgb,
-            panel_width=self._settings.panel_width,
-            panel_height=self._settings.panel_height,
-            box=self._settings.box,
-        )
-        relative = str(destination.relative_to(self._settings.art_root))
-        # Recorded after the file exists, never before: a row naming a canvas that
-        # was never written would be served to the television as current.
-        self._catalogue.record_rendition(
-            artwork_id=artwork_id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=composition.canvas_width,
-            target_height=composition.canvas_height,
-            path=relative,
-            layout=self._settings.layout,
-            mat_hex=mat.hex_rgb,
-        )
+        done = [part for part, did in (("its presentation master was made", made), ("its mat was chosen", chosen)) if did]
         return PreparationResult(
             artwork_id=artwork_id,
-            outcome=PreparationOutcome.PREPARED,
-            detail=f"composed at {composition.rendered_width}x{composition.rendered_height} in a {mat.hex_rgb} mat",
+            outcome=PreparationOutcome.PREPARED if done else PreparationOutcome.UNCHANGED,
+            detail="; ".join(done) if done else "its presentation master and mat were already current",
             mat_hex=mat.hex_rgb,
             mat_method=mat.method.value,
-            relative_path=relative,
+            relative_path=self._master_path(artwork_id),
             cost_usd=Decimal(0) if chosen is None else chosen.cost_usd,
             mat_fallback_detail=None if chosen is None else chosen.fallback_detail,
         )
 
     def choose_mat(self, artwork_id: str) -> PreparationResult:
-        """Ask the vision model for this work's mat colour again, and re-render.
+        """Ask the vision model for this work's mat colour again.
 
         Its own operation rather than a flag on `prepare`, because it is the one
         that spends money and the one that supersedes a judgement. The previous
@@ -311,23 +203,21 @@ class PreparationService:
             model_id=choice.model_id,
         )
         self._record_spend(artwork_id, choice)
-        # Forced, so asking again always redraws. A new colour would make the
-        # canvas not current anyway (it records the colour it was painted in);
-        # the force is for the answer that repeats the colour in force.
-        result = self.prepare(artwork_id, force=True)
+        # Nothing to redraw: the colour rides each wall's feed, which is
+        # republished when the Library announces the change.
         return PreparationResult(
-            artwork_id=result.artwork_id,
-            outcome=result.outcome,
-            detail=result.detail,
-            mat_hex=result.mat_hex,
-            mat_method=result.mat_method,
-            relative_path=result.relative_path,
+            artwork_id=artwork_id,
+            outcome=PreparationOutcome.PREPARED,
+            detail=f"its mat is now {choice.hex_rgb}",
+            mat_hex=choice.hex_rgb,
+            mat_method=choice.method.value,
+            relative_path=self._master_path(artwork_id),
             cost_usd=choice.cost_usd,
             mat_fallback_detail=choice.fallback_detail,
         )
 
     def set_mat(self, artwork_id: str, hex_rgb: str) -> PreparationResult:
-        """Record a mat colour the curator chose, and re-render in it.
+        """Record a mat colour the curator chose.
 
         Recorded as `manual`, which is the same provenance the 41 legacy colours
         carry: a person decided this one. It supersedes whatever the model chose
@@ -358,13 +248,20 @@ class PreparationService:
             normalised = format_hex(parse_hex(hex_rgb))
         except ColorError as exc:
             raise ServiceError(str(exc)) from exc
-        self._catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL)
-        return self.prepare(artwork_id, force=True)
+        recorded = self._catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL)
+        return PreparationResult(
+            artwork_id=artwork_id,
+            outcome=PreparationOutcome.PREPARED,
+            detail=f"its mat is now {recorded.hex_rgb}",
+            mat_hex=recorded.hex_rgb,
+            mat_method=recorded.method.value,
+            relative_path=self._master_path(artwork_id),
+        )
 
     def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None]:
         """The mat in force, choosing one only if the work has none it may keep.
 
-        **The reason a re-render is free for a work that already has a mat.** A
+        **The reason a remake is free for a work that already has a mat.** A
         mat is a judgement, and re-asking a model for one the work already has
         would both spend money and quietly replace a decision — including a
         curator's own manual choice, which is the worst version of it.
@@ -429,8 +326,8 @@ class PreparationService:
             units=1,
         )
 
-    def _make_master_if_owed(self, artwork_id: str, *, source: Path) -> bool:
-        """Make the work's presentation master unless a current one is on disk. True if one was made.
+    def _make_master_if_owed(self, artwork_id: str, *, source: Path, force: bool = False) -> bool:
+        """Make the work's presentation master unless a current one is on disk, or always when forced. True if made.
 
         Current means what it means for every Rendition — recorded from the
         Original the work holds now — and made by today's `MASTER_RULE`, and the
@@ -442,7 +339,8 @@ class PreparationService:
         for view in self._catalogue.list_renditions(artwork_id):
             rendition = view.rendition
             if (
-                rendition.kind is RenditionKind.PRESENTATION_MASTER
+                not force
+                and rendition.kind is RenditionKind.PRESENTATION_MASTER
                 and not view.stale
                 and rendition.layout == MASTER_RULE
                 and (self._settings.art_root / rendition.relative_path).is_file()
@@ -469,51 +367,11 @@ class PreparationService:
         )
         return True
 
-    def _current_tv_rendition(self, artwork_id: str, *, mat_hex: str) -> str | None:
-        """The path of a television canvas that is current and actually on disk.
-
-        Five conditions, and none is redundant. The hash test is the catalogue's
-        — `list_renditions` derives it by comparing each rendition's recorded
-        parent against the original the work holds now. The panel test catches a
-        canvas composed for a television this deployment no longer has, which the
-        hash cannot see because the *original* did not change. The layout test
-        catches a canvas at the right pixel size drawn with another mat or another
-        drawing rule, which neither of those can see. The mat test catches a
-        canvas painted in a colour that is no longer the work's mat: a mat is
-        recorded before its canvas is redrawn, so a crash or a failed redraw in
-        between would otherwise leave the old colour on the wall for good, every
-        later preparation finding the canvas current. And the file test
-        catches a row that is current by both and whose file has been deleted,
-        which is exactly the state a restored catalogue or a cleared `ready/`
-        leaves — trusting the row alone would report a work ready for a wall it
-        cannot reach.
-        """
+    def _master_path(self, artwork_id: str) -> str | None:
+        """The work's presentation master, relative to `ART_ROOT`, or None if it has none."""
         for view in self._catalogue.list_renditions(artwork_id):
-            rendition = view.rendition
-            if rendition.kind is not RenditionKind.TV_DISPLAY or view.stale:
-                continue
-            if rendition.target_width != self._settings.panel_width or rendition.target_height != self._settings.panel_height:
-                # Composed for a different panel. Not stale by the hash test —
-                # the original has not changed — but not showable here either,
-                # and the panel is a deployment value that can change under a
-                # catalogue that outlives the television.
-                continue
-            if rendition.layout != self._settings.layout:
-                # Drawn with another mat, panel or drawing rule. Its pixels are
-                # not what this deployment composes, and nothing else would
-                # notice: the original and the panel's pixel size can both be
-                # unchanged while every margin moved.
-                continue
-            if rendition.mat_hex != mat_hex:
-                # Painted in another colour, or before canvases recorded theirs.
-                continue
-            if (self._settings.art_root / rendition.relative_path).is_file():
-                return rendition.relative_path
-            log.info(
-                "the recorded canvas for %s at %s is not on disk; re-composing",
-                artwork_id,
-                rendition.relative_path,
-            )
+            if view.rendition.kind is RenditionKind.PRESENTATION_MASTER:
+                return view.rendition.relative_path
         return None
 
 

@@ -359,41 +359,15 @@ class AcquisitionQueue:
         )
         return RetryAllResult(cause=cause, retried=retried, refused=refused)
 
-    def owe_recomposition(self, layout: str) -> int:
-        """Queue a preparation for every work whose canvas was drawn at another layout. Returns how many.
-
-        Run at startup, so a changed mat or panel reaches the canvases already
-        drawn. The queue's prepare-only path does the work, one at a time, and
-        `prepare` recomposes because the canvas is no longer current. The old
-        canvas stays on the wall until the new one is recorded, since nothing
-        that decides what plays reads the layout. A work the queue already holds
-        a row for is left as it is, so this never resets a failure count.
-        """
-        queued = 0
-        with self._state_lock:
-            for artwork_id in self._store.works_with_canvas_outside_layout(layout):
-                if self._store.get_queued_acquisition(artwork_id) is None:
-                    self._store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id))
-                    queued += 1
-        log.info(
-            "%d canvases queued to be recomposed at %s",
-            queued,
-            layout,
-            extra={"event": "preparation.recompose_queued", "queued": queued, "layout": layout},
-        )
-        if queued:
-            self.nudge()
-        return queued
-
     def owe_presentation_masters(self) -> int:
         """Queue a preparation for every accepted work with no master made from its Original. Returns how many.
 
         Run at startup, so every work held before masters existed gets one, and
         so does a work whose Original was replaced while this process was down,
         and every work whose master was made by a rule since changed.
-        `prepare` makes the master before it looks at the canvas, so a work whose
-        canvas is current gets its master and nothing else; no mat is chosen and
-        nothing is spent. A recorded master whose file is gone is not found here,
+        `prepare` makes the master and keeps a mat the work may keep, so a work
+        with one gets its master and nothing else; no mat is chosen and nothing
+        is spent. A recorded master whose file is gone is not found here,
         as no recorded file's absence is by a query, and `prepare` remakes it the
         next time it runs for the work. A work the queue already holds a row for
         is left as it is, so this never resets a failure count.
@@ -414,22 +388,24 @@ class AcquisitionQueue:
         return queued
 
     def owe_mats_over_the_floor(self) -> int:
-        """Queue a preparation for every work on a canvas with no mat it may keep. Returns how many.
+        """Queue a preparation for every prepared work with no mat it may keep. Returns how many.
 
         Run at startup, so mats that predate the floor (all of them carried from
         2024) are chosen again without anyone asking for each, and so is the mat
-        of a work with a canvas and no mat at all, which is what a fresh seed
-        leaves for a 2024 colour below the floor. `prepare` does the choosing and
-        redraws the canvas in the new colour. The old canvas stays on the wall
-        until then. Each one is a paid model call, and the count is in the
-        journal. A work the queue already holds a row for is left as it is.
+        of a prepared work with no mat at all, which is what a fresh seed leaves
+        for a 2024 colour below the floor. Prepared means holding a presentation
+        master; a work with none is queued by `owe_presentation_masters`, and
+        its preparation chooses the mat too. `prepare` does the choosing, and the
+        new colour reaches each wall's feed. Each one is a paid model call, and
+        the count is in the journal. A work the queue already holds a row for is
+        left as it is.
 
         `CatalogueService.record_mat_color` refuses a colour below the floor, so
         once these are chosen this finds nothing on later starts.
         """
         queued = 0
         with self._state_lock:
-            for artwork_id, hex_rgb in self._store.current_mats_of_works_with_canvas():
+            for artwork_id, hex_rgb in self._store.current_mats_of_works_with_a_master():
                 owed = hex_rgb is None or below_the_floor(hex_rgb)
                 if owed and self._store.get_queued_acquisition(artwork_id) is None:
                     self._store.set_queued_acquisition(QueuedAcquisition(artwork_id=artwork_id))

@@ -157,7 +157,7 @@ _SHOW_NOW_TIP_PREPARES_FOR = {
     UnplayableReason.ARCHIVED: "archived",
     UnplayableReason.NO_ORIGINAL: "master image",
     UnplayableReason.NO_MAT_COLOR: "mat colour",
-    UnplayableReason.NO_RENDITION: "television render",
+    UnplayableReason.NO_RENDITION: "presentation master",
     # A stale render is present rather than missing, so "render" alone does not
     # describe it and would be satisfied by the row above.
     UnplayableReason.STALE_RENDITION: "earlier acquisition",
@@ -203,7 +203,7 @@ def test_every_reason_show_now_can_refuse_for_is_named_in_its_tip():
     [
         (UnplayableReason.NO_ORIGINAL, {"original": False}),
         (UnplayableReason.NO_MAT_COLOR, {"mat": False}),
-        (UnplayableReason.NO_RENDITION, {"rendition": False}),
+        (UnplayableReason.NO_RENDITION, {"master": False}),
     ],
 )
 def test_each_documented_refusal_is_one_the_service_actually_raises(display, library, ready_work, reason, unready, wall_id):

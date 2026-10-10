@@ -42,9 +42,9 @@ def _schema(schema_path: str) -> dict:
     return json.loads((CONTRACT / schema_path).read_text(encoding="utf-8"))
 
 
-# Every schema, registered under its $id, so a reference from one major to another
-# (major 2 reuses major 1's label) resolves to the file on disk rather than to a
-# URL nobody serves.
+# Every schema, registered under its $id, so a reference from one schema to another
+# (the label document reuses major 2's label) resolves to the file on disk rather
+# than to a URL nobody serves.
 REGISTRY = Registry().with_resources(
     (schema["$id"], Resource.from_contents(schema))
     for schema in (_schema(str(path.relative_to(CONTRACT))) for path in (CONTRACT / "schemas").glob("*.json"))
@@ -107,14 +107,14 @@ def test_every_schema_is_valid_draft_2020_12(schema_path):
 
 
 def test_the_facts_a_major_2_overlay_may_show_are_exactly_the_label_keys():
-    """`settings.facts` names label keys, and the label is major 1's, reused by reference.
+    """`settings.facts` names label keys, defined once in major 2's `$defs` and reused by reference.
 
     The enum is a copy, because a schema cannot list another definition's keys, so
     this is what keeps the copy from drifting: a key added to the label and not
     here would be a fact no setting could ask for.
     """
     facts = _schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]["facts"]["items"]["enum"]
-    label = _schema("schemas/manifest.v1.schema.json")["$defs"]["label"]["properties"]
+    label = _schema("schemas/manifest.v2.schema.json")["$defs"]["label"]["properties"]
 
     assert facts == list(label)
 
@@ -182,5 +182,5 @@ def test_every_invalid_fixture_says_what_it_breaks():
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():
     """Arrt Player's suite reads this flag while collecting, so a row without it stops that suite at collection."""
     for row in INDEX:
-        if row["path"].startswith(("fixtures/manifest.v1/invalid/", "fixtures/manifest.v2/invalid/")):
+        if row["path"].startswith("fixtures/manifest.v2/invalid/"):
             assert isinstance(row.get("player_must_refuse"), bool), row["path"]

@@ -252,7 +252,7 @@ class EpaperSurface(LabelSurface):
 def _as_image(raster: Raster, rotate_degrees: int) -> Image.Image:
     """The rendered bytes as the greyscale image omni-epd's `display()` takes.
 
-    Rotation happens here rather than in the rasterizer because it is a fact about
+    Turning the image happens here rather than in the rasterizer: it is a fact about
     how this panel is screwed to a wall, not about how the label is typeset — the
     same rendering hangs the other way up on a device mounted the other way up.
     """

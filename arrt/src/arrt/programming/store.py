@@ -1,6 +1,6 @@
 """The persistence contract over Programming's tables.
 
-Themes, what each holds, walls, what hangs on each, each wall's directive, the
+Themes, what each holds, walls, what hangs on each, the
 clients that show walls, their displays and label outputs, and the works kept
 off every wall.
 Programming reaches its storage only through this protocol and never through
@@ -22,7 +22,6 @@ from typing import Protocol
 
 from arrt.persistence.records import (
     Client,
-    Directive,
     Display,
     LabelOutput,
     Theme,
@@ -250,24 +249,6 @@ class ProgrammingStore(Protocol):
 
         Walls with nothing hanging have no row and do not appear.
         """
-        ...
-
-    # -- the display directives -----------------------------------------------
-
-    def add_directive(self, directive: Directive) -> None:
-        """Persist a wall's directive. Raises if that wall already has one."""
-        ...
-
-    def get_directive(self, wall_id: str) -> Directive:
-        """Return this wall's standing directive. A wall has one from creation."""
-        ...
-
-    def set_directive(self, directive: Directive) -> None:
-        """Replace a wall's standing directive. Raises if that wall has none."""
-        ...
-
-    def list_directives(self) -> Sequence[Directive]:
-        """Every wall's standing directive, in a stable order."""
         ...
 
     # -- works kept off every wall --------------------------------------------

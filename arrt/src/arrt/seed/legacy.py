@@ -24,17 +24,16 @@ import json
 import re
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, replace
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Final
 from urllib.parse import urlparse
 
 from arrt.persistence.records import AcquisitionMethod, SourceClass
 
-#: Where the index's masters and its finished television renders sit under
-#: ART_ROOT. Both trees are written by the 2024 pipeline and read by the wall
-#: today, so these are observed names rather than a layout chosen here.
+#: Where the index's masters sit under ART_ROOT: written by the 2024 pipeline,
+#: so this is an observed name rather than a layout chosen here. Its finished
+#: television renders are not read: every Player draws its own mat.
 RAW_DIRECTORY: Final[str] = "raw"
-READY_DIRECTORY: Final[str] = "ready"
 
 #: A four-digit year. Anchored to plausible ones so that a catalogue number or a
 #: pixel dimension elsewhere in a clause cannot be read as a date.
@@ -99,7 +98,6 @@ class LegacyRecord:
     title: str
     artist: ParsedArtist
     raw_path: str
-    ready_path: str
     mat_hex: str
     provider: str
     source_class: SourceClass
@@ -126,8 +124,7 @@ def read_index(path: Path) -> Sequence[LegacyRecord]:
     entries = document.get("art")
     if not isinstance(entries, list):
         raise LegacyIndexError(f"{path} has no 'art' list of records.")
-    default_resize = document.get("default_resize")
-    return [_record(entry, index=position, default_resize=default_resize, source=path) for position, entry in enumerate(entries)]
+    return [_record(entry, index=position, source=path) for position, entry in enumerate(entries)]
 
 
 def parse_artist(*, artist: str, details: str | None, nationality: str | None, born: object, died: object) -> ParsedArtist:
@@ -185,28 +182,13 @@ def artist_name(artist: str) -> str:
     return " ".join(name.split())
 
 
-def ready_path_for(raw_file: str, resize_option: str) -> str:
-    """Where the 2024 pipeline wrote the finished television render for a master.
-
-    The geometry is deliberately not in this name. The old pipeline encoded a
-    panel size into its label filenames and that is why the recovered index
-    points at a panel nobody owns any more; the render's real size is measured
-    from the file instead.
-    """
-    stem = PurePosixPath(raw_file).stem
-    return f"{READY_DIRECTORY}/{stem}_r{resize_option}.jpg"
-
-
-def _record(entry: object, *, index: int, default_resize: object, source: Path) -> LegacyRecord:
+def _record(entry: object, *, index: int, source: Path) -> LegacyRecord:
     if not isinstance(entry, dict):
         raise LegacyIndexError(f"{source} record {index} should be an object, got {type(entry).__name__}.")
     metadata = entry.get("metadata")
     metadata = metadata if isinstance(metadata, dict) else {}
     url = _required(entry, "url", index=index, source=source)
     raw_file = _required(entry, "raw_file", index=index, source=source)
-    resize_option = _text(entry.get("resize_option")) or _text(default_resize)
-    if resize_option is None:
-        raise LegacyIndexError(f"{source} record {index} has no resize_option and the file declares no default_resize.")
     provider, source_class, acquisition_method = _acquisition(url)
     return LegacyRecord(
         url=url,
@@ -219,7 +201,6 @@ def _record(entry: object, *, index: int, default_resize: object, source: Path) 
             died=metadata.get("creator_died"),
         ),
         raw_path=f"{RAW_DIRECTORY}/{raw_file}",
-        ready_path=ready_path_for(raw_file, resize_option),
         mat_hex=_required(entry, "mat_hexrgb", index=index, source=source),
         provider=provider,
         source_class=source_class,
