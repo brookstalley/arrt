@@ -24,6 +24,12 @@ last_validated: null
 > - The entities in § Planned entities are added.
 > - The two foreign keys that cross the seam today are dropped:
 >   `theme_memberships.artwork_id` and `directives.pinned_work_id`.
+>
+> *(Wave 4g, 2026-10-10: the first and the half of the third are built. The
+> `tv_display` Rendition and its `mat_hex` column are gone, and the presentation
+> master is what readiness rests on (§ Rendition). The Directive entity and its
+> table are gone (§ Directive), taking `directives.pinned_work_id` with them;
+> `theme_memberships.artwork_id` is the one cross-seam key left, for #216.)*
 
 ## Direction
 
@@ -84,6 +90,17 @@ entities owned by the plane that talks to that device.
 > `re-architecture.md` § Order of work, wave 4, which moves compositing to the
 > Player. **Interim rule:** no new per-device column or table in the catalogue.
 >
+> **Status 2026-10-10 (wave 4g): steady-state.** The departure is discharged.
+> The `tv_display` rows are deleted and `renditions.mat_hex` dropped by a startup
+> migration (`retire_television_canvases`, `persistence/migrations.py`), and the
+> server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`,
+> which are the Player's settings under the same names. Every Rendition kind left
+> is device-independent; `layout` survives as the presentation master's rule
+> (`MASTER_RULE`), which names no screen. The one device fact the server still
+> keeps is a wall's last heartbeat (the screens and majors its Player reports),
+> one file per wall under `ART_ROOT`, outside the catalogue, and read as a fact
+> about a place under the ruling below.
+>
 > **Rulings:** the Wall entity, and which client drives it on which named output,
 > conform — a wall is a place and its assignment a curatorial act (§ Wall, ruled
 > 2026-10-02 and amended by `clients.md`).
@@ -114,6 +131,13 @@ synced between machines.
 > `http/player.py` serves the matted, geometry-specific `tv_display` canvas and the
 > Player caches it. Tracking ref: `re-architecture.md` § Order of work, wave 4.
 > **Interim rule:** no new geometry-specific render is served to a Player.
+>
+> **Status 2026-10-10 (wave 4g): steady-state.** The departure is discharged.
+> Manifest major 1, which carried the canvas, is no longer published, and the
+> server composes nothing for a screen: what it serves a Player is the
+> presentation master (by hash, conforming under the ruling above) and the
+> schedule. The matted canvas is made on the Player that owns the screen and
+> never leaves it.
 
 **A picture Arrt fetches from outside is kept forever under `ART_ROOT/pictures/`,
 re-encoded as JPEG and keyed by its source; an ask of 2,048 px or less is answered
@@ -222,7 +246,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
 | Q40 | Is this request from a client allowed this wall? Asked by every per-wall Player route. | Owner 2026-10-02 (clients) |
 | Q41 | What outputs did this client last report, and when? Asked by the curator choosing an output for a wall. | Owner 2026-10-02 (clients) |
-| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. | Owner 2026-10-02 (#189, #74) |
+| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. *(Retired with the canvas in wave 4g, 2026-10-10. Its successor on the server is whether a presentation master was made by today's `MASTER_RULE`; the canvas question is now the Player's.)* | Owner 2026-10-02 (#189, #74) |
 | Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
 | Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
 | Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
@@ -634,22 +658,24 @@ prepared. So the table holds only the works still owing something:
 
 ### Rendition
 
-A derived, device-specific output. **Regenerated, never transported.**
+A derived output. **Regenerated, never transported.** *(Wave 4g, 2026-10-10:
+this read "a derived, device-specific output" while the server composed the
+`tv_display` canvas. Every kind left is device-independent.)*
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `kind` | enum | required | `tv_display` \| `thumbnail` \| `wall_preview` \| `presentation_master`. A `presentation_master` is the Original, upright and unmatted, capped at 7,680 px on its long edge, JPEG at quality 95: the device-independent image a Player composes from (re-architecture wave 4). Its target is the cap, so a work keeps one row however its Original changes; it records the rule it was made by (`MASTER_RULE`: cap and quality) in `layout`, so a changed rule makes it owed again as a changed layout does a canvas; it is made by `prepare()` before the canvas and backfilled at startup for every accepted work with none recorded from its Original by today's rule (**added 2026-10-08, wave 4b**). Transported to Players by hash, which conforms under the 2026-09-30 ruling in § Direction. A `thumbnail` is the work itself, drawn from the Original, for a library tile; a `wall_preview` is the `tv_display` canvas (or the Original, where there is none yet) downscaled for the Work page. **`wall_preview` was added and `thumbnail` stopped being drawn from the canvas 2026-10-07** (ruling 7, `ia-proposal.md`: tiles show the work at its own aspect). **`label` was removed 2026-07-20** — see below. |
+| `kind` | enum | required | `thumbnail` \| `wall_preview` \| `presentation_master` (`tv_display` until wave 4g, 2026-10-10; a startup migration deleted its rows, and the `wall_preview` rows with them). A `presentation_master` is the Original, upright and unmatted, capped at 7,680 px on its long edge, JPEG at quality 95: the device-independent image a Player composes from (re-architecture wave 4). Its target is the cap, so a work keeps one row however its Original changes; it records the rule it was made by (`MASTER_RULE`: cap and quality) in `layout`, so a changed rule makes it owed again; it is made by `prepare()` and backfilled at startup for every accepted work with none recorded from its Original by today's rule (**added 2026-10-08, wave 4b**). Since wave 4g it is what readiness rests on: a work with no master, or one whose file cannot be read, is `no_rendition`, and one made from an earlier acquisition is `stale_rendition`. Transported to Players by hash, which conforms under the 2026-09-30 ruling in § Direction. A `thumbnail` is the work itself, drawn from the Original, for a library tile; a `wall_preview` is the work at the size the Work page draws, drawn from the Original with no mat (until wave 4g it was the `tv_display` canvas, downscaled). **`wall_preview` was added and `thumbnail` stopped being drawn from the canvas 2026-10-07** (ruling 7, `ia-proposal.md`: tiles show the work at its own aspect). **`label` was removed 2026-07-20** — see below. |
 | `target_width` | integer | required | e.g. 3840 for the TV canvas. |
 | `target_height` | integer | required | e.g. 2160. |
 | `relative_path` | string | required | Relative to `ART_ROOT`. |
-| `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Note it is the *Original's* hash on every row, including a `wall_preview` actually drawn from a `tv_display` canvas — see invariant 4. |
-| `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `wall_preview` of it detectable (invariant 4). |
+| `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Since wave 4g every row is drawn from the Original, so this answers whether any row is current; until then a `wall_preview` drawn from a `tv_display` canvas also carried the Original's hash (invariant 4). |
+| `generated_at` | datetime | auto | Refreshed on upsert. Until wave 4g it was load-bearing: the only column that moved when a `tv_display` canvas was redrawn at the same path from the same Original, which made a stale `wall_preview` of it detectable (invariant 4). No row is drawn from another row now. |
 | `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
 | `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
-| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
-| `mat_hex` | string | optional | *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `presentation_master`, the rule it was made by (`MASTER_RULE`), as above. *(Wave 4g, 2026-10-10: what follows described the `tv_display` canvas, which is gone; the column stays for the master.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| ~~`mat_hex`~~ | string | dropped | *(Dropped in wave 4g, 2026-10-10, by `retire_television_canvases`; the colour rides each wall's feed.)* *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -684,6 +710,13 @@ A derived, device-specific output. **Regenerated, never transported.**
 > `tv_display` is removed, and its producers (`library/acquisition/compose.py`, the
 > `TV_PANEL_*` and `MAT_*` settings on the server) move to or are rebuilt on the
 > Player. `thumbnail` is unchanged; `wall_preview` goes with `tv_display`, since what a wall shows is then the Player's to compose.
+>
+> *(Landed in wave 4g, 2026-10-10, with one difference: `wall_preview` stayed,
+> drawn from the Original with no mat, because the Work page still needs a
+> sharp picture of the work. `compose.py` is deleted, and the server's
+> `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT` are no longer read;
+> the Player reads them under the same names. The mat-colour engine's own
+> `MAT_*` settings stay the server's.)*
 
 ### MatColor
 
@@ -694,7 +727,7 @@ regenerating it costs money.
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again and redraws the canvas, and at startup the acquisition queue gets a preparation for each accepted work holding a canvas with such a mat, or with none. |
+| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again, and at startup the acquisition queue gets a preparation for each work holding a presentation master with such a mat, or with none. *(Wave 4g, 2026-10-10: this read "redraws the canvas" and "holding a canvas"; nothing is drawn on the server now, and a mat change rides each wall's feed.)* |
 | `lab_l`, `lab_a`, `lab_b` | float | nullable | Preserved when the model returns them. |
 | `reason` | text | nullable | The model's stated rationale. |
 | `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual`. |
@@ -1039,7 +1072,9 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > way out — the deadlock the 2026-08-11 last-theme ruling was written to avoid. Taking
 > a theme down does **not** advance the wall's directive sequence, for the reason
 > recorded at **Directive**: it is not an instruction to the display plane, and an
-> advance would fire a directive nobody issued.
+> advance would fire a directive nobody issued. *(Wave 4g, 2026-10-10: there is no
+> directive now; taking a theme down writes no feed, and the wall goes on showing
+> what it was showing.)*
 >
 > `[DECISION: automatic promotion is dropped rather than made per-wall | with N
 > walls there is no defensible answer to "which theme should appear on a wall the
@@ -1048,6 +1083,16 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > existing wall so no deployment loses its picture | MED impact | user can veto/override]`
 
 ### Directive
+
+> **Retired in wave 4g, 2026-10-10.** The directive reached a Player only in
+> manifest major 1, which is no longer published, so a startup migration
+> (`retire_directives`, `persistence/migrations.py`) drops the `directives`
+> table and its index, and no wall is seeded with one. *Show now* and *next*
+> republish the wall's schedule starting with the work they name
+> (`DisplayService.show_work_now` and `step_display`; `player-contract.md`
+> § What happens to `show_now` and `next`). The pin's foreign key across the
+> seam went with the table. What follows is the entity as it was, kept because
+> the reasoning about phantom advances is cited elsewhere.
 
 > **Programming-owned from 2026-09-30** (`re-architecture.md`). `pinned_work_id` is a foreign key across the seam today. Its target is an opaque id, and pin withdrawal on archive is driven by the Library's `work.archived` event.
 
@@ -2198,7 +2243,7 @@ the entity that enforces the second Direction norm.
 | `artwork_id` | UUID | required, **unique per `wall_id`** | Reference to the catalogue's Artwork id. One television holds at most one image per work. |
 | `tv_content_id` | string | **required when `upload_status = 'uploaded'`, null otherwise** | The TV's own identifier for the uploaded image. **A per-set cache key, not an identity** — see below. |
 | `tv_thumb_md5` | string | nullable | **Modelled, and nothing writes it** (recorded 2026-08-06). It was to re-match after the TV loses or renames content; the display plane instead marks such a binding orphaned and uploads again, which costs one transfer and is correct even when nothing was renamed — fetching a thumbnail per work to compare hashes costs more than the re-upload it saves. The column stays because a future device driver may need it; the value is null on every row. |
-| `render_fingerprint` | string | nullable | The render file's modification time and size when it was sent, so a re-rendered work is sent again. `ready/{artwork_id}.jpg` is stable across re-renders, so without this a changed mat colour leaves the television showing the old composition indefinitely with every record agreeing. Null on rows written before this column existed, which counts as changed. |
+| `render_fingerprint` | string | nullable | The composed file's modification time and size when it was sent, so a picture rewritten in place is sent again. *(Wave 4g, 2026-10-10: this said the file was the server's `ready/{artwork_id}.jpg`, stable across re-renders. The Player now composes its own picture, named by its composition key, so a new mat arrives under a new name; the fingerprint still catches a file rewritten in place.)* Without it a picture rewritten under a name the binding holds leaves the television showing the old composition indefinitely with every record agreeing. Null on rows written before this column existed, which counts as changed. |
 | `uploaded_at` | datetime | auto | |
 | `upload_status` | enum | required | `uploaded` \| `failed` \| `orphaned`. |
 
@@ -2327,8 +2372,10 @@ the catalogue.
   **ThemeAssignment**), and a **Theme** may be hung on many **Walls**. **The
   many side is the point:** two rooms showing the same theme is one theme and two
   assignment rows, never a duplicated theme.
-- A **Wall** has one **Directive** (one-to-one, seeded with the wall). Advances are
-  per wall, so stepping one room does not step the others.
+- ~~A **Wall** has one **Directive** (one-to-one, seeded with the wall).~~
+  *(Retired in wave 4g, 2026-10-10, with the entity.)* Advances are still per
+  wall: *next* and *show now* republish one wall's schedule, so stepping one
+  room does not step the others.
 - A **TvBinding** references an **Artwork** and a **Wall** across the plane
   boundary — **by id only, never by foreign key**, because the two planes do not
   share a database. This is why `wall_id` on that table carries no FK while the
@@ -2362,7 +2409,9 @@ the catalogue.
 - `accepted → archived` — removed from circulation without losing the record or
   its mat history. If the work is the **Directive**'s pin, archiving withdraws
   the pin; that rule and its reasoning live with the Directive entity and are
-  deliberately not restated here.
+  deliberately not restated here. *(Wave 4g, 2026-10-10: the directive is gone;
+  archiving a work patches it off every wall's feed, through the Library's
+  `work.archived` event.)*
 - `archived → accepted` — restoration is permitted; renditions may be stale and
   are checked via `source_content_hash`.
 
@@ -2628,6 +2677,11 @@ suppresses it and leaves the verdict where it was.
    **Still open (#116)** for the wall preview: nothing records what a cached one was actually drawn
    from, so the mirror — canvas-derived bytes served under an `original` badge
    once the canvas file goes — is reachable and needs provenance on the row.
+   *(Wave 4g, 2026-10-10: the amendment above no longer applies. The `tv_display`
+   canvas is gone, a wall preview is drawn from the Original like every other
+   row, and `_drawn_from` went with it, so the shared predicate is the whole
+   answer for every kind. The migration forgot every `wall_preview` row, so none
+   drawn from a canvas survives; #116's premise is gone with it.)*
 5. **`Original.byte_size` must be greater than zero.** A zero-byte original is a
    known download failure — the 2024 code detected and deleted these inline; the
    constraint makes it impossible to record one as valid.
@@ -2982,6 +3036,8 @@ A live override spanning walls: a pin per wall, and a lifetime of *preview*
 ordinary Programming state). It takes over the pin's temporary, multi-wall
 uses; `show_now` and `next` themselves become republishes of the schedule, and
 the directive's sequence retires with major 1 (`player-contract.md` § Major 2).
+*(Wave 4g, 2026-10-10: that half is built. Major 1 and the directive are gone,
+and `show_now` and `next` republish the schedule; scenes and staging are 4f.)*
 The manifest also lists works under
 **staging**, so Players fetch and compose a scene's works while it is being
 assembled. Wave 4.
@@ -3023,9 +3079,10 @@ Configuration, not a stored entity, while it is one number (the owner,
   it would only ever support one active subset rather than named themes — so it
   is not a path to this product's requirements even if it works.
 - **`display-state.sqlite` beyond `TvBinding`.** The display plane's other device
-  state (last selected work, brightness state, the last-acted-on directive
-  sequence) is display-internal, never read by curation, and specified at build
+  state (last selected work, brightness state, and until wave 4g the
+  last-acted-on directive sequence) is display-internal, never read by curation, and specified at build
   time. Only `TvBinding` is modelled here, because it is the entity that enforces
   the per-device Direction norm; the rest earns no catalogue-side contract.
   Panel geometry is in neither store — it is configuration both planes read
-  (`operational-spec.md` § Configuration).
+  (`operational-spec.md` § Configuration). *(Wave 4g, 2026-10-10: only the
+  Player reads it now; the server reads no panel geometry.)*

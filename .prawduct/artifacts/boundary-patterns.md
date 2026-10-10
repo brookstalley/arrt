@@ -28,6 +28,13 @@
 > - **Configuration** loses `TV_PANEL_*` and `MAT_*` from the server in wave 4.
 >
 > Every "Exists" statement below still describes the code as built.
+>
+> *(Wave 4g, 2026-10-10: the configuration change is done. The server reads no
+> `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player reads them
+> under the same names, and the mat-colour engine's `MAT_MODEL`,
+> `MAT_MAX_OUTPUT_TOKENS` and `MAT_IMAGE_MAX_EDGE` stay the server's. The
+> sentence above no longer holds for § curation ↔ display, whose "Exists" bullet
+> is the file channel of 2026-08; that section opens with what runs now.)*
 
 ## Contract Surfaces
 
@@ -92,7 +99,7 @@
 - **Exists:** **yes**, as of 2026-07-27 — `arrt/src/arrt/services/`, split
   by concern into `CatalogueService` (works already accepted), `DiscoveryService`
   (everything before acceptance) and, since 2026-07-31, `DisplayService` (themes,
-  the standing directive, and the manifest built from them), bound by a `Services`
+  walls, the standing directive until wave 4g, and the manifest built from them), bound by a `Services`
   container that every surface takes. Discovery and display each depend on the
   catalogue and neither is depended on by it. Later operations join one of the
   three, or add a fourth member.
@@ -107,7 +114,7 @@
 - **Direction changed 2026-09-30 — a seam is planned inside this layer. See
   `re-architecture.md` § Seam 1.**
   - `DisplayService` is most of what becomes **Programming**: themes as
-    playlists, walls, hanging, directives and the manifest.
+    playlists, walls, hanging, directives (gone in wave 4g) and the manifest.
   - `CatalogueService` and `DiscoveryService` are most of the **Library**.
   - The dependency direction above ("discovery and display each depend on the
     catalogue, and neither is depended on by it") is already the one the seam
@@ -132,6 +139,20 @@
 
 ### curation ↔ display contract
 
+- **What runs now (wave 4g, 2026-10-10).** The server publishes one feed per
+  wall, manifest major 2 (`theme-manifest-{wall_id}.v2.json` in `ART_ROOT`),
+  served at `GET /walls/{wall_id}/manifest/v2` with an ETag, beside presentation
+  masters at `GET /media/sha256-{sha256}` and the heartbeat at
+  `POST /walls/{wall_id}/heartbeat` (`contract/routes.json`). The Player pulls
+  the walls `GET /client` names into its own cache, reads only major 2, and
+  composes each wall itself. Major 1, its builder, the unversioned route
+  `/walls/{wall_id}/manifest`, the directive block and the composed `ready/`
+  canvases are gone; `v1` and the unversioned route answer 404. The heartbeat
+  says which majors a Player reads (`capabilities.manifest_majors`), and a wall
+  whose Player does not list 2 carries a notice on Walls and the MCP `walls`
+  read. The contract is `player-contract.md` and `contract/`. The bullets below
+  are the file-channel contract as it was built in 2026-08, and the plan that
+  replaced it.
 - **Exists: both halves, as of 2026-08-06; per wall since 2026-08-12.** Curation
   writes `theme-manifest-{wall_id}.json` into `ART_ROOT` (schema major 1),
   atomically, with the rotation settings and directive block the design calls for;
@@ -207,7 +228,8 @@
     boundary" stops being true. It crosses a machine boundary, over the LAN.
   - **Wave 4 (schema major 2):** `render_path` to a composed 4K canvas is
     replaced by a presentation-master reference plus the current mat colour. The
-    Player composes the mat for its own geometry.
+    Player composes the mat for its own geometry. *(Done: major 2 published
+    beside major 1 in wave 4e, and the only major since wave 4g, 2026-10-10.)*
   - **Wave 5:** the Player moves to its own repository. From then on the
     **JSON Schema and example manifests written in wave 1** are the only
     thing both sides are tested against. That closes the "exercised end to end
@@ -217,7 +239,8 @@
   What survives:
   - The producer resolves content decisions, and `artist_nationality` stays
     the producer's.
-  - Directives remain desired state, not commands.
+  - Directives remain desired state, not commands. *(Since wave 4g there is no
+    directive; *show now* and *next* republish the schedule, which is state.)*
   - The wall's identity stays with the Player's configuration, now carried in
     the URL instead of the filename.
   - `TvBinding` references catalogue ids by id only.
@@ -240,7 +263,7 @@
   stdlib `sqlite3` in one file, behind two Protocols in
   `arrt/src/arrt/persistence/`: the `CatalogueStore` over Artwork,
   Artist, Theme, Wall, ThemeAssignment, Source, Original, Rendition, MatColor,
-  ThemeMembership and a Directive **per wall**, and the `DiscoveryStore`
+  ThemeMembership and a Directive **per wall** (dropped in wave 4g, 2026-10-10), and the `DiscoveryStore`
   over DiscoveryRun, CandidateWork, CandidateImage, SpendRecord and the
   ResolveRunWork join. A generic durable store sits under both adapters and is the
   only thing that opens the file, because acceptance writes across the two halves
@@ -298,7 +321,8 @@
     rules.
   - There are **no foreign keys across the seam**. Today two cross it:
     `theme_memberships.artwork_id` and `directives.pinned_work_id`, both pointing
-    at `artworks`. After the split, Programming holds work ids as opaque
+    at `artworks`. *(Wave 4g, 2026-10-10: the directives table is dropped, so
+    one is left, `theme_memberships.artwork_id`, for #216.)* After the split, Programming holds work ids as opaque
     references and tolerates ones that no longer resolve, the way `TvBinding`
     already does.
   - The single generic durable store that "acceptance writes across the two
@@ -319,7 +343,10 @@
     its own cache directory, which is Player state and not part of this contract.
   - **Wave 4 retires `ready/`,** the composed `tv_display` canvases. It adds the
     **presentation master**: derived from the Original, unmatted, capped, and
-    specific to no device. It is served to Players by content hash.
+    specific to no device. It is served to Players by content hash. *(Done:
+    masters since wave 4b; in wave 4g nothing writes `ready/` any more, its rows
+    are forgotten by a startup migration, and the files are left for the
+    operator to delete.)*
   - That is a derived artifact which *is* transported, and this row's rule says
     derived artifacts are "regenerated, never transported". **The rule's why is
     device-specificity:** `data-model.md` scopes the norm to anything "rendered
@@ -333,7 +360,7 @@
     anywhere.
 - **Contract:** **upstream artifacts** (`raw/`) are
   expensive and device-independent and *are* transported; **derived artifacts**
-  (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and are **regenerated, never
+  (`ready/` until wave 4g, `thumbs/`, `tv-thumbs/`) are cheap and are **regenerated, never
   transported**. (`label/` removed from this row 2026-07-20 — see the retirement
   bullet below. `thumbs/` added 2026-08-01 — see the bullet below it.)
   **`presentation/` joined on 2026-10-08 (wave 4b)**: one presentation master
@@ -414,7 +441,11 @@
   triggers are its whole rule. Each kind is cached in its own subdirectory of
   `thumbs/`, and a row moved to a new path deletes the file it used to name, which
   is how thumbnails cached from a canvas before that date are replaced rather than
-  served on. Nothing else ever deletes one, and
+  served on. *(Wave 4g, 2026-10-10: the third trigger is gone with the canvas.
+  A wall preview is drawn from the original like a thumbnail, `_drawn_from` is
+  deleted, and the first two triggers are the whole rule for both kinds. The
+  migration forgot every `wall_preview` row, so each is drawn again on next
+  view.)* Nothing else ever deletes one, and
   archiving a work therefore leaves its file and its `RenditionKind.THUMBNAIL`
   row where they are.
   `[DECISION: thumbnails are never evicted — regenerated when stale or absent,
@@ -430,8 +461,8 @@
   rather than bounded. *(Until that norm, candidate previews were the contrast
   case: swept, because nothing re-fetched one.)*
 - Each derived directory is device-specific in a different way, which is worth
-  stating because the row above reads as if they were alike: `ready/` and
-  `tv-thumbs/` are specific to the *television*, while `thumbs/` is specific to
+  stating because the row above reads as if they were alike: `ready/` (until
+  wave 4g) and `tv-thumbs/` are specific to the *television*, while `thumbs/` is specific to
   nothing — a thumbnail is a thumbnail. It is regenerated rather than
   transported because it is cheap and disposable, not because it would be wrong
   elsewhere.
@@ -546,7 +577,12 @@
   change hands.
   - **Wave 4 removes `TV_PANEL_*` and `MAT_*` from the server.** Screen
     geometry and mat proportions become Player configuration, beside the
-    e-paper values and `TV_ADDRESS` the display plane already reads.
+    e-paper values and `TV_ADDRESS` the display plane already reads. *(Done in
+    wave 4g, 2026-10-10. `MAT_*` meant the two geometry keys,
+    `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`. The server neither reads nor
+    warns about them, because one `.env` serves both planes on a development
+    checkout. `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` went the other
+    way: they are the server's alone, and the Player no longer reads them.)*
   - **The Player gains** the server's base URL, its local cache directory, and
     a label mode (e-paper, caption in the mat, or none).
   - **`WALL_ID` stays Player configuration**, as ruled on 2026-08-12. It now

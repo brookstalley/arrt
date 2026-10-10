@@ -22,7 +22,9 @@ This repo is turning into **two products**:
 Most of it already exists here: `arrt/` is most of the server and `arrt-player/`
 is most of the player. The work is moving the seams. The shared directory becomes
 an HTTP manifest that the player pulls into a local cache, and mat compositing
-moves from the server to the player. That happens in waves, and splitting this
+moves from the server to the player. *(Both are done as of wave 4g,
+2026-10-10: the player pulls manifest major 2 over HTTP and composes every mat
+itself.)* That happens in waves, and splitting this
 repo in two comes **last**, once the contract between them has settled. This
 repo then becomes Arrt, and Arrt Player moves to a repo of its own.
 
@@ -40,7 +42,10 @@ exactly one file between them:
   the TV and the e-paper panel, and keeps showing art whether or not curation is
   running. **Built.** It reads the manifest, rotates the active theme over the
   television, keeps its own record of what that set is holding, executes the
-  `next` and `show_now` directives the manifest carries, renders the wall label
+  `next` and `show_now` directives the manifest carries *(until wave 4g,
+  2026-10-10: the Player now pulls manifest major 2 over HTTP, composes each
+  wall's mat itself, and a `next` or `show_now` reaches it as a republished
+  schedule)*, renders the wall label
   onto this device's own surface, and writes the heartbeat curation's health panel
   reads. `deploy/curation.service` and `deploy/display.service` are written.
   The root `display.py` is a 2024 module and does none of this.
