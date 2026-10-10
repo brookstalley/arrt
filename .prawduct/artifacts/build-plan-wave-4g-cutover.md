@@ -256,7 +256,7 @@ comes from the thing itself).
 
 - [x] Chunk 01: The label's definition leaves major 1
 - [x] Chunk 02: The server stops publishing major 1, and the directive goes
-- [ ] Chunk 03: The server stops composing for a panel
+- [x] Chunk 03: The server stops composing for a panel
 - [x] Chunk 04: The Player reads only major 2
 - [ ] Chunk 05: Cutover on the wall, and the records
 
