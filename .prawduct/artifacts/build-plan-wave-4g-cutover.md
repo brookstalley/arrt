@@ -199,7 +199,7 @@ before any production code moves.
   page shows the wall render, mat and all, which no longer exists on the
   server. Drawing the mat around the picture in the browser is #346.
   `information-architecture.md` carries the dated note.
-  `[DECISION: the Work page shows the master without a mat until the browser draws one | the server no longer composes, and a browser mat around an object-fit image is UI work this wave does not need | the builder's, 2026-10-10; user can veto]`
+  `[DECISION: the Work page shows the master without a mat until the browser draws one | the server no longer composes, and a browser mat around an object-fit image is UI work this wave does not need | the builder's, 2026-10-10; confirmed by the owner 2026-10-10]`
 - 03: the migration forgets `wall_preview` rows as well as `tv_display`:
   a preview drawn from a canvas passes the hash test and would go on showing
   the matted picture. Each is drawn again from the master on next view.
@@ -209,8 +209,8 @@ before any production code moves.
   "once no heartbeat lists it", which a Player reading both majors never
   satisfies; the same sentence's "once every Player reports 2" is the intent,
   and the clause now says so (amended with a dated note). An amendment, not
-  a conformance: the owner should confirm it.
-  `[DECISION: a home major retires once every heartbeat lists a higher major the server publishes | the old wording could never be met by a Player reading both majors, and contradicted its own example | the builder's, 2026-10-10; user can veto]`
+  a conformance; the owner confirmed it 2026-10-10.
+  `[DECISION: a home major retires once every heartbeat lists a higher major the server publishes | the old wording could never be met by a Player reading both majors, and contradicted its own example | the builder's, 2026-10-10; confirmed by the owner 2026-10-10]`
 - 05: the precondition "every Player reports 2" is observed on the real wall
   at deploy, not before merge as Done-when 1 first said. There is one
   household, the owner deploys server and Player from one revision, and
@@ -222,6 +222,9 @@ before any production code moves.
   development checkout, and the Player already ignores the server's other keys.
   This reverses the open assumption above, which missed that the server reads
   the same two keys.
+- Owner rulings, 2026-10-10: every decision above is confirmed, including
+  the two the build left unruled: readiness means "has a current presentation
+  master", and the Walls notice wording stands as built.
 
 ## Inventory
 

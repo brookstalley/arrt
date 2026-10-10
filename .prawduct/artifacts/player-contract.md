@@ -465,7 +465,7 @@ upgraded on demand).
   `feed_notice`). *(Amended 2026-10-10, wave 4g. This said "once no heartbeat
   lists it", which a Player reading both majors never satisfies, since it
   lists 1 for as long as it can read it; the sentence's own "once every Player
-  reports 2" was the intent. The home wall cut over in wave 4g: the server
+  reports 2" was the intent; the owner confirmed the amendment 2026-10-10. The home wall cut over in wave 4g: the server
   publishes major 2 alone, and Arrt Player reads only major 2.)* *(Wave 4e,
   2026-10-09, until wave 4g:)* while both majors were built, Arrt published a
   wall's major 2 only when it carried at least one of the works major 1 did, or
