@@ -269,7 +269,7 @@ comes from the thing itself).
 - [x] Chunk 02: The server stops publishing major 1, and the directive goes
 - [x] Chunk 03: The server stops composing for a panel
 - [x] Chunk 04: The Player reads only major 2
-- [ ] Chunk 05: Cutover on the wall, and the records
+- [x] Chunk 05: Cutover on the wall, and the records
 
 Context: branched from develop at the merge of #345 (wave 4e).
 
