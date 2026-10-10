@@ -1343,6 +1343,12 @@ ART_THEME: Final = ToolRecord(
                 ),
                 _POSITION,
             ),
+            tips=(
+                (
+                    "A wall hanging the theme gets the work at once if it can be shown, keeping the work on the "
+                    "wall now; one that cannot be shown yet joins when it can. No sync is needed."
+                ),
+            ),
         ),
         Action(
             name="remove",
@@ -1352,6 +1358,7 @@ ART_THEME: Final = ToolRecord(
                 _THEME_ID,
                 Param(name="artwork_id", type="string", description="The work to remove.", required=True),
             ),
+            tips=("Every wall hanging the theme loses the work at once; one showing it now moves on.",),
         ),
         Action(
             name="reorder",
@@ -1445,8 +1452,8 @@ ART_THEME: Final = ToolRecord(
             params=(Param(name="artwork_id", type="string", description="The work to allow again.", required=True),),
             tips=(
                 (
-                    "Nothing is republished: a theme holding the work carries it again the next time it is hung or "
-                    "synced (art_display(action='sync'))."
+                    "Every wall hanging a theme that holds the work gets it back at once, if it can be shown. "
+                    "No sync is needed."
                 ),
             ),
         ),

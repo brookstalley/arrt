@@ -44,13 +44,14 @@ owed for 4g, which is done at the set.
   knows it. The server accepts capabilities with no screen, and records no
   size from them; the adequacy judgement already treats a wall with no size
   reported as unjudged. A heartbeat with no `capabilities` still reads as `[1]`.
-- **02: a hung theme's feed carries every work of the theme the Library will
-  show, without waiting for a re-hang.** Whenever a wall's hung theme would
-  send a different set of works than its feed carries, or the wall has no feed
-  for it, the server republishes the theme's feed, keeping the slot on the wall
-  now (as re-hanging the same theme does). It is checked at start, on every
-  Library announcement about a work the hung theme holds, and on every change
-  to the theme's membership or to the exclusions.
+- **02: a work of a wall's hung theme that the Library will show reaches the
+  wall without a re-hang.** The server republishes the theme's feed, keeping
+  the slot on the wall now (as re-hanging the same theme does), when an act or
+  an announcement concerns a member the build would send and the feed lacks:
+  adding to the theme, allowing a work back, and every Library announcement
+  (a restore, a master, a mat). At start it publishes a feed for a wall with a
+  theme hung and none on disk. The horizon rolls by building the hung theme,
+  which also carries an addition whose announcement was lost, within a day.
 - Done when: both suites green; the regression tests seen red against the
   unfixed code; the records say what the code does; deployed, with Walls
   showing no feed notice for the Pi with its screen unplugged.
@@ -68,27 +69,42 @@ owed for 4g, which is done at the set.
   *Not this one again* from the theme already did. Following only additions
   would leave a start-up check that removes what the act itself did not, so a
   restart would change the wall.
-- **[INFERENCE: order and pace still wait for a re-hang.]** Moving a work in
-  the theme, or changing its pace or shuffle, changes when works show, not
-  which; the owner's ruling is about which works. A republish for any other
-  reason carries them, as a re-hang does.
-- **[DECISION: the feed is compared as a set of works, not rebuilt every
-  time.]** Republishing reshuffles the future slots, so it is done only when
-  the set of works the theme would send differs from the set of its members
-  the feed carries (guests finishing a slot are not members, and are not
-  counted). A changed master or colour stays a patch, as it is now.
-- **[DECISION: offering a newly accepted work its theme publishes nothing by
-  itself.]** `offer_destinations` adds memberships without following, and its
-  callers (the announcement handler, and start-up after `catch_up_offers`)
-  reconcile afterwards, so a bulk acceptance builds each wall once and
-  `catch_up_offers` stays outside the start-up guard for unwritable feeds.
+- **[INFERENCE, flagged for the boundary: order and pace reach the wall at the
+  next roll, within a day.]** The plan first said they wait for a re-hang. The
+  roll has to build the hung theme (below), and a build carries the theme's
+  order and pace, so they arrive at the next roll; re-hanging still makes them
+  immediate. Holding them back would mean the roll building from the old
+  order, which nothing records. Amended after the boundary review.
+- **[DECISION, amended mid-build: additions are decided by the works an act or
+  announcement concerns, never by comparing the theme with the feed.]** The
+  feed names only the works its three-day horizon schedules (`as_document`
+  prunes `works` to the slots' names, as `player-contract.md` § Settled before
+  wave 4 asks), so a theme with more works than one horizon schedules always
+  "lacks" members that are simply not due. Comparing sets would republish at
+  every start. A changed master or colour stays a patch.
+  **Cost, accepted:** an announcement about a member that is not in the current
+  horizon reads as joining, so the wall is republished and its future slots
+  reshuffled (the slot on the wall now is kept). It matters only for themes
+  larger than one horizon, and nobody sees a schedule before it plays.
+- **[DECISION, found mid-build: the roll builds the hung theme.]** `_roll_v2`
+  rebuilt from the works the last horizon named, so such a theme narrowed to
+  its first horizon's works for good. It now builds the theme; a wall with
+  nothing hung rolls what it carries.
+- **[DECISION: offering a newly accepted work its theme publishes nothing.]**
+  A work is offered when it is accepted, before it is prepared, so it has
+  nothing a feed could send; the announcement of its master puts it on the
+  wall. `catch_up_offers` stays outside the start-up guard for unwritable feeds.
+- **[DECISION: a catalogue edit that adds or removes a hung work writes the
+  feed in its transaction]**, as hanging and *Not this one again* already do:
+  a feed that cannot be written refuses the edit rather than leave the wall
+  and the theme disagreeing with nothing saying so.
 - **[DECISION: deploy server first, a departure from § Versioning.]** A minor 4
   heartbeat without a screen fails a minor 3 server's check (it refuses
   `capabilities` with no `screen`). There is one server and one Player, and
   they deploy together; the deploy guide says server first.
-- **Cost:** a check that finds a difference builds the wall's whole theme, as
-  a hang does. An announcement builds only the walls whose hung theme holds the
-  work.
+- **Cost:** a republish builds the wall's whole theme, as a hang does. An
+  announcement asks the Library about its own work alone, and builds only the
+  walls whose hung theme holds the work and lacks it.
 
 ## Chunks
 
@@ -110,12 +126,11 @@ owed for 4g, which is done at the set.
 
 ### Chunk 02: the feed follows the hung theme (#349)
 
-- `programming/display.py`: a `_follow(walls)` step; `reconcile` runs it for
-  every wall with a theme hung (narrowed, for an announcement, to walls whose
-  hung theme holds the work); `add_to_theme`, `add_works_to_theme`,
-  `remove_from_theme`, `remove_works_from_theme` and `allow_work` run it for
-  the walls hanging the theme concerned; `on_work_changed` offers before it
-  reconciles. Docstrings citing the old ruling rewritten.
+- `programming/display.py`: `reconcile`, narrowed to the works concerned,
+  publishes additions; `add_to_theme`, `add_works_to_theme` and `allow_work`
+  call it; `remove_from_theme` and `remove_works_from_theme` withdraw from the
+  walls hanging the theme; start-up publishes for a hung wall with no feed;
+  `_roll_v2` builds the hung theme. Docstrings citing the old ruling rewritten.
 - Tests rewritten where they asserted the superseded ruling
   (`test_reconciliation.py`, `test_major_2_feed.py`,
   `test_selections_and_exclusions.py`), each recording why; new tests: a wall
@@ -132,4 +147,4 @@ owed for 4g, which is done at the set.
 ## Status
 
 - [x] Chunk 01: heartbeat minor 4, `screen` optional (#348)
-- [ ] Chunk 02: the feed follows the hung theme (#349)
+- [x] Chunk 02: the feed follows the hung theme (#349)

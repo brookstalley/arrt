@@ -329,21 +329,20 @@ def test_both_surfaces_say_the_same_sentence_about_a_restored_work():
     )
 
 
-def test_the_restore_sentence_says_how_to_make_the_wall_catch_up():
-    """The half the operator's ruling turns on, and the half easiest to drop.
+def test_the_restore_sentence_says_the_wall_catches_up_by_itself_and_offers_no_remedy():
+    """The wall takes a restored work back as the restore lands (the owner, 2026-10-10).
 
-    Archiving and restoring are both silent at the wall — nothing in either path
-    republishes a manifest. The operator ruled that this is acceptable *because*
-    a path exists to force one, so a sentence that names the delay without naming
-    the remedy leaves the curator holding a fact they cannot act on. That remedy
-    is a whole clause; a tidying edit removes it without touching the grammar of
-    what remains.
+    This test said the opposite until then: nothing republished an addition, so
+    the operator's 2026-08-12 ruling required the sentence to name re-hanging as
+    the way to make the wall catch up. Once the hung theme's feed takes the work
+    back by itself, that remedy is a pointless errand, and a tidying edit that
+    kept it would be the drift this guards against. The behaviour it describes
+    is `test_reconciliation.py`'s restore test.
     """
-    assert "Re-hanging" in RESTORE_NOTICE, (
-        "The restore notice no longer tells the reader how to build a manifest now. "
-        "The operator's ruling that an archived work may stay on the wall depends on "
-        "the surfaces naming that path."
-    )
+    assert "rotation of every wall" in RESTORE_NOTICE
+    assert "hang" not in RESTORE_NOTICE.replace(
+        "hanging a theme", ""
+    ), "The restore notice offers re-hanging again, which the wall no longer needs."
 
 
 def test_every_taste_kind_has_a_heading_the_screen_can_group_under():

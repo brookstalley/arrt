@@ -630,6 +630,11 @@ class DisplayService:
         Offer and membership commit together, so a work is never recorded as
         offered without having joined, or joined without the record that stops a
         second join.
+
+        **Nothing is published here.** A work is offered when it is accepted,
+        before it is prepared, so it has nothing a feed could send yet: the
+        announcement of its master puts it on any wall hanging its theme, and
+        failing that the next roll does (`_roll_v2`).
         """
         already = self._store.offered_work_ids()
         unoffered = [work_id for work_id in dict.fromkeys(work_ids) if work_id not in already]
@@ -653,7 +658,7 @@ class DisplayService:
                 if named is not None and target is None:
                     vanished.append((work_id, named))
                 if target is not None and self._store.get_membership(target.id, work_id) is None:
-                    self.add_to_theme(theme_id=target.id, artwork_id=work_id)
+                    self._insert(theme_id=target.id, artwork_id=work_id, position=None)
                     joined.append(work_id)
                     joined_by_theme[target.name] += 1
                 store_write(self._store.record_offer, work_id, datetime.now(UTC))
@@ -842,13 +847,14 @@ class DisplayService:
     def allow_work(self, artwork_id: str) -> None:
         """Undo *Not this one again* from every wall: the work may go on walls again.
 
-        **Nothing is republished**, by the rule that keeps reconciliation from
-        adding: deciding when work reaches a wall is what sync and hanging are
-        for. A theme holding it carries it again at the next build.
+        Every wall whose hung theme holds it gets it back now, if the Library
+        will show it (`reconcile`, the owner's ruling of 2026-10-10).
         """
         if not any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
             raise ServiceError(f"Artwork {artwork_id!r} is not kept off the walls, so there is nothing to allow.")
-        store_write(self._store.remove_exclusion, artwork_id)
+        with self._store.transaction():
+            store_write(self._store.remove_exclusion, artwork_id)
+            self.reconcile([artwork_id], cause="being allowed back")
         self._library.record(ProgrammingAct(kind=EventKind.ALLOWED, work_id=artwork_id))
 
     def excluded_works(self) -> Sequence[WorkExclusion]:
@@ -936,19 +942,24 @@ class DisplayService:
         number and stopping is what left two rows tied on a position with
         `added_at` picking the winner, and an add can produce that tie exactly as
         a move could.
+
+        **A wall hanging the theme gets the work at once**, if the Library will
+        show it (`reconcile`, the owner's ruling of 2026-10-10).
         """
         self.get_listed_theme(theme_id)
         self._require_held(artwork_id)
         target = self._require_position(position)
-        membership = ThemeMembership(
-            theme_id=theme_id,
-            artwork_id=artwork_id,
-            added_at=datetime.now(UTC),
-            position=None,
-        )
+        with self._store.transaction():
+            membership = self._insert(theme_id=theme_id, artwork_id=artwork_id, position=target)
+            self.reconcile([artwork_id], cause="joining its theme")
+        return membership
+
+    def _insert(self, *, theme_id: str, artwork_id: str, position: int | None) -> ThemeMembership:
+        """Write the membership at `position` (the end for None), renumbering what it displaces. Publishes nothing."""
+        membership = ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=datetime.now(UTC), position=None)
         with self._store.transaction():
             others = list(self._store.list_memberships(theme_id))
-            index = len(others) if target is None else min(target, len(others))
+            index = len(others) if position is None else min(position, len(others))
             self._renumber([*others[:index], membership, *others[index:]], new=membership)
         return replace(membership, position=index)
 
@@ -969,7 +980,8 @@ class DisplayService:
 
         Every id has to name a work the Library holds, asked of the facade in
         one question, and the whole act is refused otherwise, in the catalogue's
-        words — so nothing is half-added.
+        words — so nothing is half-added. Walls hanging the theme get what
+        joined, once, as `add_to_theme` says.
         """
         self.get_listed_theme(theme_id)
         chosen = list(dict.fromkeys(artwork_ids))
@@ -987,6 +999,8 @@ class DisplayService:
                     self._store.add_membership,
                     ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=now, position=place),
                 )
+            if joining:
+                self.reconcile(joining, cause="joining its theme")
         return len(joining), len(chosen) - len(joining)
 
     def remove_works_from_theme(self, *, theme_id: str, artwork_ids: Sequence[str]) -> Sequence[str]:
@@ -994,7 +1008,8 @@ class DisplayService:
 
         A work the theme does not hold is passed over: the selection was made
         by a filter, and the theme is what it is now. The order left behind is
-        not renumbered, as a single removal does not renumber it.
+        not renumbered, as a single removal does not renumber it. Walls hanging
+        the theme lose what left, as `remove_from_theme` says.
         """
         self.get_theme(theme_id)
         removed: list[str] = []
@@ -1004,6 +1019,9 @@ class DisplayService:
                     continue
                 store_write(self._store.remove_membership, theme_id, artwork_id)
                 removed.append(artwork_id)
+            walls = [wall.id for wall in self.walls_hanging(theme_id)]
+            for wall_id in walls:
+                self._withdraw_v2(wall_id, set(removed), cause="leaving its theme")
         return removed
 
     def move_in_theme(self, *, theme_id: str, artwork_id: str, position: int | None) -> ThemeMembership:
@@ -1084,10 +1102,18 @@ class DisplayService:
                 store_write(self._store.update_membership, replace(entry, position=place))
 
     def remove_from_theme(self, *, theme_id: str, artwork_id: str) -> None:
-        """Take a work out of a theme. The work itself is untouched."""
+        """Take a work out of a theme. The work itself is untouched.
+
+        Walls hanging the theme lose it now, as *Not this one again* from the
+        theme takes it off (`leave_theme`): the feed follows the hung theme both
+        ways, or a restart, which publishes what the theme lacks, would be the
+        only thing that moved the wall.
+        """
         if self._store.get_membership(theme_id, artwork_id) is None:
             raise ServiceError(f"Artwork {artwork_id!r} is not in theme {theme_id!r}.")
-        store_write(self._store.remove_membership, theme_id, artwork_id)
+        with self._store.transaction():
+            store_write(self._store.remove_membership, theme_id, artwork_id)
+            self._withdraw(artwork_id, [wall.id for wall in self.walls_hanging(theme_id)], cause="leaving its theme")
 
     def update_theme(
         self,
@@ -1425,9 +1451,13 @@ class DisplayService:
     # -- keeping published manifests true to the Library ---------------------
 
     def on_work_changed(self, event: WorkChanged) -> None:
-        """The Library changed a work: take it off any wall it can no longer go on, and offer a new one its theme.
+        """The Library changed a work: take it off walls it can no longer go on, or put it on walls whose theme holds it.
 
-        Subscribed to the Library's announcements. Both rules are the ones startup
+        A newly accepted work is offered its theme too. It joins no feed then,
+        since acceptance is what queues its preparation; its master's
+        announcement puts it on the wall.
+
+        Subscribed to the Library's announcements. The rules are the ones startup
         applies, narrowed to the one work, so the running server and a restarted
         one cannot disagree. The offer is made once per work, so an acceptance
         announced for a restore offers nothing (`offer_destinations`).
@@ -1437,45 +1467,105 @@ class DisplayService:
             self.offer_destinations([event.work_id])
 
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
-        """Make every published feed agree with what the Library will still show.
+        """Make every published feed agree with what the Library will show.
 
         Asks the facade about the works in question: the ones named, or, with
         none named, every work any published feed carries. A work the Library
         now refuses leaves every feed carrying it; a work whose master, colour
         or label changed has its entry replaced where it stands.
 
-        **No work is ever added.** A work that became showable is not published.
-        Deciding when new work reaches the wall is what sync is for (the
-        operator's ruling, 2026-09-30), and a reconciliation that also added
-        would publish a theme's unsynced changes as a side effect of archiving
-        something.
+        **A named work of a wall's hung theme that the Library will now show
+        joins that wall's feed**, and with none named, a wall with a theme hung
+        and no feed for it has the theme's feed published (the owner,
+        2026-10-10: it is fine, even desirable, for the server to add works to a
+        theme while it is hung). This superseded the ruling of 2026-09-30 that
+        additions wait for sync.
 
         **Run at every start**, because an announcement lost to a crash between
         the Library's commit and this handler would otherwise leave a wall
-        showing a work the curator withdrew until someone happened to sync.
+        showing a work the curator withdrew until someone happened to hang the
+        theme again. A lost announcement that would have added a work is not
+        searched for here: a feed names only what its horizon schedules, so a
+        member it does not name may simply not be due, and the next roll, which
+        builds the hung theme, carries it (`_roll_v2`).
         """
+        named = None if work_ids is None else set(work_ids)
         with self._store.transaction():
             walls = self._store.list_walls()
             feeds = {wall.id: read_published_v2(self._settings.manifest_v2_path(wall.id)) for wall in walls}
+            hung = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
             mentioned = {work_id for feed in feeds.values() if feed for work_id in feed.works}
-            asked = mentioned if work_ids is None else mentioned & set(work_ids)
+            asked = mentioned if named is None else mentioned & named
+            joining = {
+                wall_id: self._held(theme_id, named) - set(feeds[wall_id].works if feeds[wall_id] else ())
+                for wall_id, theme_id in hung.items()
+            }
+            asked |= {work_id for candidates in joining.values() for work_id in candidates}
             answers = self._library.playable(sorted(asked))
             refused = {work_id for work_id, answer in answers.items() if not isinstance(answer, PlayableWork)}
             republished = [wall.id for wall in walls if self._reconcile_v2(wall.id, feeds[wall.id], answers, cause=cause)]
+            for wall_id, theme_id in hung.items():
+                shown = {work_id for work_id in joining[wall_id] if isinstance(answers.get(work_id), PlayableWork)}
+                if (shown or self._unpublished(wall_id)) and self._publish_additions(wall_id, theme_id, shown, cause=cause):
+                    republished.append(wall_id)
 
-        result = Reconciliation(asked=len(asked), refused=tuple(sorted(refused)), republished=tuple(republished))
+        result = Reconciliation(asked=len(asked), refused=tuple(sorted(refused)), republished=tuple(dict.fromkeys(republished)))
         if work_ids is None and not result.changed:
             log.info("Reconciled %d walls against the Library at startup: nothing to change.", len(walls))
         return result
+
+    def _held(self, theme_id: str, work_ids: set[str] | None) -> set[str]:
+        """Which of these works the theme holds; none when none are named, since startup adds by publishing whole."""
+        if not work_ids:
+            return set()
+        return {work_id for work_id in work_ids if self._store.get_membership(theme_id, work_id) is not None}
+
+    def _unpublished(self, wall_id: str) -> bool:
+        """Whether the wall has no feed on disk.
+
+        A feed on disk that cannot be read is not unpublished: start-up leaves
+        it for the next publish to replace, as reconciliation always has, so a
+        bad file cannot stop the plane starting. A work joining the wall's theme
+        is such a publish, as a hang is.
+        """
+        return not self._settings.manifest_v2_path(wall_id).exists()
+
+    def _publish_additions(self, wall_id: str, theme_id: str, work_ids: Iterable[str], *, cause: str) -> bool:
+        """Republish the hung theme's feed if one of these works joins it, or if it has none. True if it did.
+
+        Built as a hang builds it, and published as re-hanging the same theme
+        publishes it: the slot on the wall now is kept. A work joins when the
+        build sends it and the feed does not carry it. Only then, because a
+        republish reshuffles the slots to come, and only for the works the act
+        or the announcement concerns: a feed names only what its horizon
+        schedules, so a member it lacks may simply not be due.
+        """
+        feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        build = self.build_manifest(wall_id, theme_id)
+        sent = {work.work_id for work in build.entries}
+        joining = sorted(set(work_ids) & sent - set(feed.works if feed is not None else ()))
+        if feed is not None and not joining:
+            return False
+        self._sync_v2(build)
+        log.info(
+            "Wall %r: published theme %r%s (after %s).",
+            build.wall.name,
+            build.theme.name,
+            f" with {', '.join(joining)} joining" if joining else ", which had no feed on this wall",
+            cause,
+        )
+        return True
 
     # -- the feed: the wall's schedule ------------------------------------------
     #
     # Published from every path that changes what a wall shows: a sync
     # (re-hanging the same theme keeps the slot on the wall now; another theme
-    # starts fresh), show now and next (start fresh), a withdrawal or a refusal
-    # (keep, unless the work on the wall is the one leaving), a new master or
-    # colour (patch, no slot moves), and a heartbeat with under two days of
-    # horizon left (keep). Each reads the wall's published feed back rather than
+    # starts fresh), a work joining the hung theme and a wall with a theme hung
+    # and no feed (a sync, `_publish_additions`), show now and next (start
+    # fresh), a withdrawal or a refusal (keep, unless the work on the wall is
+    # the one leaving), a new master or colour (patch, no slot moves), and a
+    # heartbeat with under two days of horizon left (a sync of the hung theme,
+    # or keep what is carried when nothing is hung). Each reads the wall's published feed back rather than
     # a copy of its own, for the reason `manifest/v2.py` gives.
 
     def _sync_v2(self, build: ManifestBuild) -> None:
@@ -1557,20 +1647,40 @@ class DisplayService:
         Run on the wall's heartbeat, which a live wall sends every few seconds, so
         no scheduler is needed; a wall nobody is running needs no fresh horizon,
         and its Player replays the one it has when it comes back.
+
+        **A wall with a theme hung rolls by building the theme**, as re-hanging
+        it does. A feed names only the works its horizon schedules, so rolling
+        from those alone narrowed a theme with more works than one horizon
+        shows to the ones it happened to show first. So a reorder or a new pace
+        reaches the wall at the next roll, within a day, without a re-hang. A wall with nothing hung
+        goes on with what its feed carries.
         """
         with self._store.transaction():
             previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
             if previous is None or previous.horizon_until - datetime.now(UTC) >= ROLL_WHEN_LEFT:
+                return
+            assignment = self._store.get_assignment(wall_id)
+            if assignment is not None:
+                build = self.build_manifest(wall_id, assignment.theme_id)
+                self._sync_v2(build)
+                # Said, because this is also how a work whose announcement was
+                # lost reaches the wall, and how a reorder or a new pace does.
+                log.info(
+                    "Wall %r: rolled its horizon forward from theme %r, %d of %d works.",
+                    build.wall.name,
+                    build.theme.name,
+                    len(build.entries),
+                    build.considered,
+                )
                 return
             self._rebuild_v2(wall_id, previous, works=dict(previous.works), start=Keep())
 
     def _rebuild_v2(self, wall_id: str, previous: Published, *, works: Mapping[str, Mapping[str, Any]], start: Start) -> Schedule:
         """Rebuild a wall's feed from what it carries now: no work arrives that is not already in it.
 
-        Deciding when new work reaches the wall is what sync is for (the
-        operator's ruling, 2026-09-30), so a horizon rolled forward or a work
-        withdrawn cycles through the works already published, in the theme's
-        order and at its pace.
+        A horizon rolled forward or a work withdrawn cycles through the works
+        already published, in the theme's order and at its pace. A work joining
+        the hung theme arrives by `_publish_additions`, which builds the theme.
         """
         order, slot_seconds, shuffle = self._v2_pace(previous.playlist_id, works)
         return self._write_v2(

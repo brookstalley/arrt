@@ -291,6 +291,38 @@ NAS, and the Pi's previous revision (`git rev-parse HEAD` before checking out
 the new one): a Player from before wave 4g reads major 1, which this server no
 longer writes, so the two go back as a pair.
 
+## Heartbeat minor 4, and the feed following its theme (2026-10-10)
+
+`build-plan-feed-follows-theme.md`. **Deploy the server first, then the
+Player.** The Player now sends `capabilities` without `screen` when its screen
+is unplugged, and a server from before this refuses that heartbeat, which would
+leave Walls reading the wall as silent until the server caught up. The other
+order is safe: the new server reads the old Player's heartbeats as before.
+
+On its first start the server publishes a feed for every wall that has a theme
+hung and none on disk, logging `Wall '<name>': published theme '<theme>', which
+had no feed on this wall (after startup).` The wave 4g deploy needed a re-hang
+by hand for this, and no longer does. Then check:
+
+1. **Walls shows no feed notice for a Player with its screen unplugged.** Its
+   heartbeat lists major 2 without a screen:
+
+       jq '.schema, .capabilities' <art root>/display-heartbeat-"$WALL_ID".json
+
+   It should print minor 4 and `manifest_majors: [2]`, with `screen` only while
+   the screen is connected.
+2. **A work added to the hung theme reaches the feed without a re-hang.** Add
+   one that can be shown, from Library › Works; the server logs `Wall '<name>':
+   published theme '<theme>' with <id> joining (after joining its theme).`, and
+   the feed carries it whenever its three days of slots name it:
+
+       jq --arg id "$WORK_ID" '.works | has($id)' <art root>/theme-manifest-"$WALL_ID".v2.json
+
+**The way back** is the previous image on the NAS and the Pi's previous
+revision. Nothing in the catalogue changed, so no copy is needed; a server from
+before this refuses the new Player's screenless heartbeats, so the Player goes
+back first.
+
 ## The two new units, and where everything they name now lives
 
 `display.service` and `curation.service` are the planes this product is being

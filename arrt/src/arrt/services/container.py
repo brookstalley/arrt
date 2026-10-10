@@ -422,9 +422,11 @@ class Services:
         Library tells Programming when a work changes, after the change commits,
         and a crash between the two loses the announcement. So every start takes
         any work the Library now refuses off every published manifest and pin,
-        and offers any accepted work never offered its theme (the default, or
-        the one its Get named), so a lost announcement delays either until the
-        next start rather than leaving it undone.
+        offers any accepted work never offered its theme (the default, or the
+        one its Get named), and publishes the hung theme's feed for any wall
+        with a theme hung and none on disk, so a lost announcement delays a
+        correction until the next start rather than leaving it undone. A lost
+        addition reaches the wall at its next roll.
         """
         self.discovery.reconcile()
         # Before anything serves: a write the last process died in leaves a

@@ -884,8 +884,10 @@ to show on any wall. Every manifest build leaves it out and names it among the
 exclusions with reason `kept_off_every_wall` (`KeptOff`,
 `programming/manifest/builder.py`); every published manifest and pin naming it is
 patched off when the row is written, adding nothing. Removing the row is the undo
-(from the Work page), and republishes nothing: the next hang or sync carries the
-work again.
+(from the Work page), and puts the work back on every wall hanging a theme that
+holds it, if it can be shown. *(Until 2026-10-10 the undo republished nothing and
+the next hang carried the work; the owner ruled then that a hung theme's feed
+takes additions as they happen, `build-plan-feed-follows-theme.md`.)*
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
@@ -2674,9 +2676,9 @@ suppresses it and leaves the verdict where it was.
    (`architecture.md`). The two states that reached a curator before this was
    added: a card badged "wall render" showing the unmatted master, and a mat
    colour they set that changed the wall and not the picture in front of them.
-   **Still open (#116)** for the wall preview: nothing records what a cached one was actually drawn
+   **Was open (#116, closed 2026-10-10 by wave 4g)** for the wall preview: nothing recorded what a cached one was actually drawn
    from, so the mirror — canvas-derived bytes served under an `original` badge
-   once the canvas file goes — is reachable and needs provenance on the row.
+   once the canvas file goes — was reachable and needed provenance on the row.
    *(Wave 4g, 2026-10-10: the amendment above no longer applies. The `tv_display`
    canvas is gone, a wall preview is drawn from the Original like every other
    row, and `_drawn_from` went with it, so the shared predicate is the whole
