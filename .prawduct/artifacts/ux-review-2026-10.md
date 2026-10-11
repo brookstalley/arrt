@@ -205,6 +205,13 @@ model's own instructions.
 | 44 | **Copy that explains the system rather than the art.** Taste opens with an 80-word preamble above one item, and its verbs differ from the Artist page's. Topic pages speak Wikidata and are titled "Wikidata Q7049". An unmatched artist is told so three times, with a QID. Clients explains the architecture. History is 40 near-identical rows with full timestamps. A Get spends four rows saying "under a cent". The Artworks rail offers groups whose only option is zero. | Taste, Topic, Artist, Clients, History, Get, Artworks | 2 | E7 E12 E15 E16 E17 E18 E20 N8 L7 | No. |
 | 45 | **Polish:** prose runs 1,168 px wide; table text is inset 12 px and numbers are left-aligned; the Themes index pins narrow cards left; Queue and Get stack headings with nothing between; topic indexes collide a one-item group with the next heading; Settings repeats its own sub-nav; Wanted's empty state explains click paths; *Start over* shows on an empty thread. | various | 1 | L13 L17 L19 L20 L22 L23 E22 E23 E25 | No. |
 
+**Routed** 2026-10-11: 31 → #352, and #353 for the shuffle move (ruling 2);
+32 → #363; 33 → #354; 34 and 39's raw detail → #355 (ruling 1); 35 → #356;
+36 and 41 → #357; 37, 38 and the Work picture's enlargement → #358; 39's three
+names and 44 → #359; 40 and 45 → #360; 42 → #361; 43 and Work → topic → #362.
+Comments on #318 (Queue's groups), #346 (the mat), #316 (what a wall has shown)
+and #165 (empty facets).
+
 **Data, not design:** the home page's rail offers "End-to-end validation
 2026-08-04 (1)", a test theme in the operator's library.
 
