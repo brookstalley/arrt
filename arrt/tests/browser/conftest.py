@@ -228,10 +228,11 @@ def _a_source(
     version="0.3.0",
     api_major=1,
     provides=None,
+    museum=None,
 ):
     # The server's own wording (`services/health.py`, `describe`): by the
-    # museum, never the plugin id.
-    museum = museum_name(name)
+    # museum, never the plugin id. A plugin from elsewhere names its own (1.4).
+    museum = museum or museum_name(name)
     if state == "declined":
         description = f"The {museum} plugin is installed and not configured here: {reason}."
     elif state == "failed":
@@ -244,6 +245,7 @@ def _a_source(
         description = f"The {museum} plugin is loaded, with no faults since startup."
     return {
         "name": name,
+        "museum": museum,
         "state": state,
         "reason": reason,
         "faults": faults,

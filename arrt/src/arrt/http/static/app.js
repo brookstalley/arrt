@@ -44,6 +44,8 @@ import { viewTheme } from "./screens/theme.js";
 import { viewTopic, viewTopics } from "./screens/topics.js";
 import { viewWalls } from "./screens/walls.js";
 import { viewWork } from "./screens/work.js";
+import { learnMuseums } from "./core/providers.js";
+import { api } from "./core/api.js";
 
 /* The sidebar's sections, in order: `information-architecture.md` § The *arr
  * layout. Each is a link to its first page below, and lists its other pages
@@ -160,6 +162,15 @@ const ROUTES = {
   // review card returns to that review, not to the page the review sits under.
   review: { render: viewReview, detail: true, opensFrom: "queue", title: "Review", returnLabel: "Review", returnFor: ["work"] },
 };
+
+// The installed plugins' own museum names, before the first paint names a
+// source. Without them every page still paints, naming a plugin from elsewhere
+// by its id, so a route that cannot be read costs only those names.
+try {
+  learnMuseums((await api("/api/sources")).sources);
+} catch { // prawduct:allow prawduct/broad-except -- a start-up nicety: any failure costs only plugin names
+  // The built-in names still apply; Status says why the route could not be read.
+}
 
 installStatus();
 installSearch();

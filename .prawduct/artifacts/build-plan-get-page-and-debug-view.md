@@ -114,6 +114,11 @@ all" to the suggestion of #363 and #355 first):
   browser; one declaring none is named by its id, outside debug only where no
   name exists.
 - The private plugins declare `museum` (their own repository, own commit).
+  **[DECISION, found mid-build: after this branch merges, not on it.]** Their
+  tests run against an Arrt commit pinned in their `pyproject.toml` (interface
+  1.1), where `museum=` is a `TypeError`; the step bumps that pin to the merged
+  commit and names the eleven, and the deploy follows it. Until then the live
+  library names those sources by id outside debug, as today.
 
 ## Status
 

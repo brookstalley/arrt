@@ -1276,6 +1276,9 @@ class SourcePluginOut(BaseModel):
     """One installed source plugin: loaded, declined, or not loaded, and its faults since startup."""
 
     name: str
+    #: The name a curator knows it by: the museum its module or plugin declares
+    #: (interface 1.4), else its `name`. Never null, so a client needs no rule.
+    museum: str
     #: `loaded`, `declined` (installed and not configured here) or `failed`
     #: (installed and could not be loaded). Carried as itself, never as a flag.
     state: str

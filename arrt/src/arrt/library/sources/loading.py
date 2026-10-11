@@ -54,7 +54,7 @@ from arrt.library.discovery.images import (
     ImageSearchFailure,
     offers_images,
 )
-from arrt.library.sources.names import museum_name
+from arrt.library.sources.names import declare_museums, museum_name
 from arrt.library.sources.plugin import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.reading import FetchLocator, Reader
 from arrt.logs import scrub
@@ -558,6 +558,8 @@ def load_sources(
         else:
             states[entry.name] = (PluginState.FAILED, loaded)
 
+    declare_museums({name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None})
+
     unknown = [name for name in order if name not in states]
     if unknown:
         # A misspelt name would otherwise reorder the sources in silence.
@@ -607,6 +609,31 @@ def load_sources(
             for n in ranked
         },
     )
+
+
+#: Long enough for "Solomon R. Guggenheim Museum and Foundation" with room to
+#: spare; a name past it is a paragraph, which every heading and table cell that
+#: names a source would then carry.
+_MUSEUM_MAX_CHARS: Final = 120
+
+
+def _museum_of(name: str, plugin: SourcePlugin) -> str | None:
+    """The museum a plugin declares, if it is one short line of text; else `None`, said once.
+
+    Refusing it costs the plugin only its name: it is still loaded, and named by
+    its id, as one that declares nothing is.
+    """
+    museum = getattr(plugin, "museum", None)
+    if museum is None:
+        return None
+    if isinstance(museum, str) and museum.strip() and len(museum) <= _MUSEUM_MAX_CHARS and museum.isprintable():
+        return museum.strip()
+    log.warning(
+        "source plugin %s declares a museum name that is not one short line of text; it is named by its id",
+        name,
+        extra={"event": "source.museum_refused", "plugin": name},
+    )
+    return None
 
 
 def _origin(entry: importlib.metadata.EntryPoint) -> tuple[str | None, str | None]:

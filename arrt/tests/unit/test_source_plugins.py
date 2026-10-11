@@ -679,3 +679,54 @@ def test_claimants_follow_the_order_the_loader_was_given():
 
     assert load_sources(context(), entry_points=points, order=("beta", "alpha")).route("https://example.org/1").plugin == "beta"
     assert load_sources(context(), entry_points=points, order=("alpha", "beta")).route("https://example.org/1").plugin == "alpha"
+
+
+# -- 1.4: a plugin names the museum it answers for ---------------------------------
+
+
+def test_a_plugin_that_names_its_museum_is_called_by_that_name():
+    from arrt.library.sources.names import museum_name
+
+    load_sources(context(), entry_points=[entry("good", "NAMED")])
+
+    assert museum_name("good") == "Tate"
+
+
+def test_a_plugin_that_declined_is_still_called_by_its_museum():
+    """Its rows outlive its configuration, and every sentence about them names it."""
+    from arrt.library.sources.names import museum_name
+
+    roster = load_sources(context(), entry_points=[entry("configured", "NAMED_DECLINING")])
+
+    assert states(roster)["configured"][0] is PluginState.DECLINED
+    assert museum_name("configured") == "The Whitney Museum of American Art"
+
+
+@pytest.mark.parametrize("target", ["BLANK_NAMED", "LONG_NAMED", "CONTROL_NAMED", "NOT_TEXT_NAMED"])
+def test_a_name_that_is_not_one_short_line_of_text_is_refused_and_the_id_stands(caplog, target):
+    from arrt.library.sources.names import museum_name
+
+    roster = load_sources(context(), entry_points=[entry("good", target)])
+
+    assert museum_name("good") == "good"
+    # Refusing the name costs the plugin nothing else.
+    assert states(roster) == {"good": (PluginState.LOADED, None)}
+    assert [r.plugin for r in caplog.records if getattr(r, "event", None) == "source.museum_refused"] == ["good"]
+
+
+def test_the_names_are_the_installed_plugins_of_the_latest_load():
+    """A plugin no longer installed is called by its id again, not by a name it once gave."""
+    from arrt.library.sources.names import museum_name
+
+    load_sources(context(), entry_points=[entry("good", "NAMED")])
+    load_sources(context(), entry_points=[entry("good", "GOOD")])
+
+    assert museum_name("good") == "good"
+
+
+def test_a_built_in_is_called_by_the_name_its_module_declares():
+    from arrt.library.sources.names import museum_name
+
+    load_sources(context(), entry_points=[entry("good", "NAMED")])
+
+    assert museum_name("met") == "Metropolitan Museum of Art"

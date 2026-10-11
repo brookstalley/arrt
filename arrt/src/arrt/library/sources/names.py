@@ -12,8 +12,11 @@ client's `MUSEUM_NAMES` (`http/static/core/providers.js`) is held to the same
 pairs by `tests/unit/test_client_vocabulary.py`, so the browser and the server
 cannot come to name one museum two ways.
 
-A plugin installed from elsewhere declares nothing here and is named by its id,
-which is still what it called itself.
+**A plugin installed from elsewhere names itself** with `SourcePlugin.museum`
+(interface 1.4). The loader declares those names here each time it loads
+(`declare_museums`), so they are the names of the plugins installed now. One that
+declares none is named by its id, which is still what it called itself. The
+browser learns the same names from `GET /api/sources`.
 """
 
 import importlib
@@ -43,6 +46,18 @@ def built_in_museums() -> Mapping[str, str]:
     return MappingProxyType(names)
 
 
+#: The names the installed plugins declared at the latest load, by plugin name.
+#: Replaced whole by each load, never added to, so a plugin since uninstalled is
+#: not named by a name it once gave.
+_declared: dict[str, str] = {}
+
+
+def declare_museums(names: Mapping[str, str]) -> None:
+    """Record the museum names the installed plugins declared, replacing the last load's."""
+    _declared.clear()
+    _declared.update(names)
+
+
 def museum_name(provider: str) -> str:
     """The name a curator knows this source by, or its plugin id when it declares none."""
-    return built_in_museums().get(provider, provider)
+    return built_in_museums().get(provider) or _declared.get(provider) or provider

@@ -199,6 +199,7 @@ from arrt.library.services.survey import FIT_BANDS, WorkDossier, WorkSurvey
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
+from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
     Affinity,
@@ -2642,6 +2643,7 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
     reading = health.reading
     return SourcePluginOut(
         name=reading.name,
+        museum=museum_name(reading.name),
         state=reading.state.value,
         reason=reading.reason,
         faults=reading.faults,

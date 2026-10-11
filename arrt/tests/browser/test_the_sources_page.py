@@ -133,3 +133,29 @@ def test_the_page_is_under_settings_after_clients(ui):
 
     links = ui.page.locator("nav a").all_inner_texts()
     assert links.index("Sources") == links.index("Clients") + 1
+
+
+def test_a_plugin_that_names_its_museum_is_called_by_it_on_every_page(ui, a_source_reading, service):
+    """1.4: a plugin from elsewhere says which museum it answers for, and the client learns it at start."""
+    from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
+
+    ui.serve("**/api/sources", a_listing([a_source_reading(name="moma", museum="The Museum of Modern Art")]))
+    work = service.add_artwork(title="The Starry Night")
+    service.add_source(
+        artwork_id=work.id,
+        url="https://www.moma.org/collection/works/79802",
+        provider="moma",
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DEZOOMIFY,
+        rights_status=RightsStatus.UNKNOWN,
+        is_primary=True,
+    )
+
+    ui.open("#sources")
+    assert panels(ui).locator("h2").all_inner_texts() == ["The Museum of Modern Art"]
+
+    ui.open(f"#work/{work.id}")
+    obtained = ui.page.locator(".panel", has=ui.page.locator("h2:text-is('Where it can be obtained')"))
+    obtained.wait_for()
+    assert "The Museum of Modern Art" in obtained.inner_text()
+    assert "moma\n" not in obtained.inner_text()

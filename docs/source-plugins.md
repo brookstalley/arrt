@@ -41,8 +41,18 @@ plugins it does not name follow by name.
 ## The factory
 
 ```python
-PLUGIN: Final = SourcePlugin(api_major=1, create=_create, claims=claims)
+PLUGIN: Final = SourcePlugin(api_major=1, create=_create, claims=claims, museum="Tate")
 ```
+
+**Name the museum** (1.4): `museum` is what a curator reads wherever Arrt names
+your source, on every page and in every sentence. Without it, your plugin's id
+stands in, and the browser shows ids only in its debug view. One line of plain
+text, at most 120 characters; anything else is refused at startup
+(`source.museum_refused`) and the id stands. It is read whether or not the
+factory declines.
+`SourcePlugin` takes `museum` only from 1.4: on an older Arrt the keyword is a
+`TypeError` at import and the plugin is left out. A plugin that must load on both
+passes it only when `"museum" in SourcePlugin.__dataclass_fields__`.
 
 Arrt imports the module and calls `create` once at startup with a
 `SourceContext`. The factory answers with `SourceParts` (any of a finder, a
@@ -73,10 +83,10 @@ configured the plugin.
   also load on an older Arrt, and decline when you need it and it is `None`.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 3)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 4)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
 optional capabilities. 1.1 added `ImageQuery.pages`, 1.2 `SourceContext.data_dir`,
-and 1.3 the IIIF parsers (§ Reading IIIF).
+1.3 the IIIF parsers (§ Reading IIIF), and 1.4 `SourcePlugin.museum`.
 
 ## Import from `arrt.library.sources` and nothing else
 

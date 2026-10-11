@@ -1666,6 +1666,7 @@ response is:
   "sources": [
     {
       "name": "artic",
+      "museum": "Art Institute of Chicago",
       "state": "loaded",
       "reason": null,
       "faults": 0,
@@ -1710,6 +1711,10 @@ for one registered by hand, or a name two packages register); `api_major` is the
 interface major the plugin was written for (null when it failed before saying);
 `provides` is what its parts provide, `finds_images`, `finds_pages`, `reads` and
 `browses`, and is empty for a plugin that did not load.
+*Added 2026-10-11 (interface 1.4, #355):* `museum` is the name a curator knows the
+plugin by, its module's `MUSEUM` or its `SourcePlugin.museum`, else its `name`;
+never null. `GET /api/sources` and `art_discovery(action='source_plugins')` carry it
+too.
 
 **`heartbeat` is gone from the top level and is not coming back**: one reading for
 an installation with two rooms is a reading that cannot name the room, which is
