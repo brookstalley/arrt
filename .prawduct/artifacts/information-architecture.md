@@ -240,6 +240,8 @@ takes — and refuses one of five words or fewer that opens with "The ".
 
 Priority is **core** (on a stated core flow) or **supporting**.
 
+**The debug view** *(2026-10-11, ruling 1 of `ia-proposal.md` § Rulings (2026-10-11), #355)*: a page opened with `?debug` in its own query (`/?debug#work/<id>`) keeps it across every in-app link, and only then shows engineering detail. On Work, the master's file and content hash, *What has been rendered* and *Mat colour*; on Status, each panel's *Details*; on Sources, each plugin's id, package and interface; on a Get, how the model read the request. The rows below describe a page with the flag; without it, those parts are absent.
+
 | Screen | Purpose | Entry points | Priority |
 |---|---|---|---|
 | **Walls** | One card per wall, leading with what its screen is doing (`display_state` on `GET /api/walls`, 2026-10-08): the work on it now when it is showing art, otherwise the state in words, then what the wall draws from (a theme, or "a selection") and "until changed". *Skip*, *Not this one again* (from this theme or from every wall), *Change*, and the wall's history *(2026-10-07, `build-plan-walls-work-and-trust.md` Chunk 05)*. | The sidebar; after activating a theme | core (flow 6) |

@@ -76,7 +76,8 @@ all" to the suggestion of #363 and #355 first):
 ### Chunk 01: the Get page (#363)
 
 - `core/reviewing.js` `rowPicture`/`instanceImage`: an absent picture reads
-  *No picture* (debug: the server's note); `screens/run.js`: *Review these
+  *No picture kept*, and a review card keeps the server's reason as a caption
+  under it (an existing contract: the card says why); `screens/run.js`: *Review these
   works* only when the review page has a card to judge (or could not be read);
   titles link per Goals; a held work's row says *In your library* as a link;
   `core/badges.js` `not_held` worded *in no collection*.
@@ -87,7 +88,7 @@ all" to the suggestion of #363 and #355 first):
 
 ### Chunk 02: `?debug` (#355, ruling 1)
 
-- `core/debug.js`: `debugging()` reads `location.search` once.
+- `core/debug.js`: `DEBUG`, read from `location.search` once.
 - Work: the Master image panel's file, pixels-size and hash rows, What has
   been rendered, and Mat colour only in debug; the acquisition line and Where
   it can be obtained stay. Status: every `details()` only in debug. Sources: the
@@ -96,7 +97,11 @@ all" to the suggestion of #363 and #355 first):
   what debug adds. `test_no_machine_dates.py` keeps holding raw values inside
   the disclosures.
 - Browser tests: each page with and without `?debug`; the flag survives a
-  link followed in-app.
+  link followed in-app. Nine existing tests of debug-only content (the mat,
+  Status's raw fields, paths breaking on a phone, the Work record's layout,
+  Sources' package words) open their page with `?debug`, assertions unchanged.
+- **[DECISION: Sources' Interface row goes to debug with the id and package]**:
+  all three say how a plugin is installed, not what it does.
 
 ### Chunk 03: every source named by its museum (#355)
 
@@ -113,5 +118,5 @@ all" to the suggestion of #363 and #355 first):
 ## Status
 
 - [x] Chunk 01: the Get page (#363)
-- [ ] Chunk 02: `?debug` (#355, ruling 1)
+- [x] Chunk 02: `?debug` (#355, ruling 1)
 - [ ] Chunk 03: every source named by its museum (#355)

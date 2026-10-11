@@ -104,7 +104,8 @@ def test_the_check_sees_an_iso_timestamp_where_one_is_shown(ui, records):
 def test_status_keeps_the_raw_instant_behind_details(ui, records, a_health_reading):
     """The raw fields are not lost, only put away: they are inside the disclosure."""
     ui.serve("**/api/health", a_health_reading())
-    ui.open("#health")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open("?debug#health")
     ui.page.wait_for_selector("#view h1:text-is('Status')")
 
     raw = ui.page.locator("details.raw-details").first

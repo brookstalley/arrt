@@ -20,6 +20,7 @@ import { ago, dated } from "../core/dates.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
 import { backRow, link } from "../core/router.js";
+import { DEBUG } from "../core/debug.js";
 
 /* The raw fields behind a panel, closed: what an operator compares against a
  * file or a log, kept off the face of a page a curator reads. Every raw key and
@@ -27,7 +28,9 @@ import { backRow, link } from "../core/router.js";
  * (`tests/browser/test_no_machine_dates.py`). */
 function details(...children) {
   const inside = children.filter(Boolean);
-  if (!inside.length) return null;
+  // Only in debug (ruling 1 of 2026-10-11): the page a curator reads ends at
+  // what each reading means.
+  if (!DEBUG || !inside.length) return null;
   return el("details", { class: "raw-details" }, [el("summary", { text: "Details" }), ...inside]);
 }
 

@@ -50,8 +50,8 @@ def hang(services):
     return _hang
 
 
-def open_work(ui, work):
-    ui.open(f"#work/{work.id}")
+def open_work(ui, work, *, debug=False):
+    ui.open(f"{'?debug' if debug else ''}#work/{work.id}")
     ui.page.wait_for_selector("#view h1")
 
 
@@ -386,7 +386,8 @@ def test_the_mat_shows_its_colour_and_nothing_else(ui, ready_work):
     """
     work = ready_work(title="Nighthawks")
 
-    open_work(ui, work)
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    open_work(ui, work, debug=True)
 
     swatch = ui.page.locator(".mat .mat-swatch")
     assert swatch.count() == 1

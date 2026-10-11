@@ -22,6 +22,7 @@ import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, emptyState, render } from "../core/render.js";
+import { DEBUG } from "../core/debug.js";
 
 /* What a plugin's parts provide, in the words a curator reads. */
 const PART_WORDS = {
@@ -59,11 +60,13 @@ function sourcePanel(source, index, count, interfaceMajor) {
     el("h2", { text: museumName(source.name) }),
     el("p", { class: "reading-sentence", text: source.description }),
     facts([
-      ["Plugin", source.name],
-      ["Package", packageWords(source)],
+      // The plugin's id, its package and the interface it was written for are
+      // how it is installed, not what it does: debug only (ruling 1 of 2026-10-11).
+      ["Plugin", DEBUG ? source.name : null],
+      ["Package", DEBUG ? packageWords(source) : null],
       ["State", PLUGIN_STATE_WORDS[source.state] || source.state],
       ["Provides", providesWords(source)],
-      ["Interface", interfaceWords(source, interfaceMajor)],
+      ["Interface", DEBUG ? interfaceWords(source, interfaceMajor) : null],
       ["Order", `${index + 1} of ${count}`],
     ]),
   ]);

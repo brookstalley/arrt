@@ -23,6 +23,7 @@ import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
 import { dollars, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
+import { DEBUG } from "../core/debug.js";
 
 /* What this run's state means, in a sentence.
  *
@@ -490,10 +491,10 @@ export async function viewRun(runId, generation) {
       // what that ending means. Text, never markup: a halt's reason quotes the
       // provider.
       run.end_reason ? el("p", { class: "muted run-end-reason", text: `Why it stopped: ${run.end_reason}` }) : null,
-      // The engine's own reading of the request, beside the request. A work list
-      // is judged against how the intent was read rather than against its
-      // wording, which is what makes a surprising list explicable.
-      run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
+      // The engine's own reading of the request, debug only: on one Get it is a
+      // fair paraphrase, on another the model's instructions echoed back, and
+      // nothing tells the two apart (ruling 1 of 2026-10-11).
+      DEBUG && run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
       el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(run, themes)) }),
       // What approving commits to, in the place the commitment is made. The
       // second sentence is the load-bearing half: the figure is zero because

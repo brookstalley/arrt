@@ -43,7 +43,8 @@ def test_every_installed_plugin_is_listed_in_order_with_its_package_and_version(
         ),
     )
 
-    ui.open("#sources")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open("?debug#sources")
     entries = panels(ui)
 
     # Each by the museum's name, and one this client has no name for by its own id.
@@ -79,7 +80,8 @@ def test_what_could_not_be_read_is_said_in_words(ui, a_source_reading):
         ),
     )
 
-    ui.open("#sources")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open("?debug#sources")
     gone, future = panels(ui).nth(0).inner_text(), panels(ui).nth(1).inner_text()
 
     assert "Not known: no installed package names this plugin alone." in gone
@@ -104,7 +106,8 @@ def test_a_plugins_text_is_shown_as_text(ui, a_source_reading):
         ),
     )
 
-    ui.open("#sources")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open("?debug#sources")
     entry = panels(ui).nth(0)
 
     assert entry.locator("h2").inner_text() == "<img src=x onerror=window.__ran=1>"
