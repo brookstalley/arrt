@@ -126,3 +126,58 @@ def test_a_get_shows_the_model_s_reading_of_the_request_only_in_debug(ui):
     ui.open("?debug#get/run-1")
     ui.page.wait_for_selector("#view section.asked-for")
     assert f"How it read the request: {reading}" in ui.text()
+
+
+def test_status_still_says_what_failed_on_a_wall_without_debug(ui, a_health_reading, a_wall_reading):
+    """The failure rows `observability-strategy.md` gives Status a reader for are not engineering detail."""
+    wall = a_wall_reading(
+        reported={
+            "television_reachable": False,
+            "television_showing_art": None,
+            "has_label_surface": True,
+            "label_surface_working": False,
+            "last_error": "the television refused the connection",
+        }
+    )
+    ui.serve("**/api/health", a_health_reading(walls=[wall]))
+
+    ui.open("#health")
+    panel = ui.page.locator(".wall-reading")
+    panel.wait_for()
+    text = panel.inner_text()
+    assert "Television\nNot reachable" in text
+    assert "Label panel\nNot working" in text
+    assert "Last error\nthe television refused the connection" in text
+    assert ui.page.locator(".raw-details").count() == 0
+
+
+def test_a_wall_reporting_no_failure_says_so_in_words(ui, a_health_reading, a_wall_reading):
+    wall = a_wall_reading(
+        reported={
+            "television_reachable": True,
+            "television_showing_art": True,
+            "has_label_surface": False,
+            "label_surface_working": None,
+            "last_error": None,
+        }
+    )
+    ui.serve("**/api/health", a_health_reading(walls=[wall]))
+
+    ui.open("#health")
+    panel = ui.page.locator(".wall-reading")
+    panel.wait_for()
+    text = panel.inner_text()
+    assert "Television\nShowing art" in text
+    # No label panel, so no row about one; and no error, so no error row.
+    assert "Label panel" not in text
+    assert "Last error" not in text
+
+
+def test_every_page_still_paints_when_the_source_names_cannot_be_read(ui, a_prepared_work):
+    """The client waits for `/api/sources` before its first paint; a failure there must cost only the names."""
+    ui.serve("**/api/sources", [(500, {"detail": "down"})])
+
+    ui.open(f"#work/{a_prepared_work.id}")
+    ui.page.wait_for_selector("h2:text-is('Where it can be obtained')")
+    # A built-in source is still named by its museum.
+    assert "Art Institute of Chicago" in ui.text()

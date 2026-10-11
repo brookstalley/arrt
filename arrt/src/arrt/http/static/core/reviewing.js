@@ -912,13 +912,6 @@ function offeredGroupSentence(group, allCards) {
 }
 
 
-/* Everything below a review's heading: the offer to re-search, the cards, and
- * the collection's offers grouped under their queries — as nodes, for the
- * screen drawing them to place under whatever heading it has.
- *
- * `page` is `fetchAllCandidates`'s `{run, works, total}`. `keptFrom` is the
- * section this one replaces, when the screen is redrawing the same run: its
- * cards whose works have not changed are kept rather than rebuilt (`BUILT`). */
 /* Where a card belongs on Review as it stands now: still to judge by its
  * picture, found with no image (folded, with Want and Forget), or decided
  * (folded). Review keeps a card where it was first drawn until the next visit;
@@ -928,6 +921,13 @@ export function placeNow(card) {
   return card.work.decided ? "decided" : card.work.resolution_status === "unresolved" ? "found-none" : "judge";
 }
 
+/* Everything below a review's heading: the offer to re-search, the cards, and
+ * the collection's offers grouped under their queries — as nodes, for the
+ * screen drawing them to place under whatever heading it has.
+ *
+ * `page` is `fetchAllCandidates`'s `{run, works, total}`. `keptFrom` is the
+ * section this one replaces, when the screen is redrawing the same run: its
+ * cards whose works have not changed are kept rather than rebuilt (`BUILT`). */
 export function reviewSection(page, { keptFrom = null } = {}) {
   /* One answer to "which works are wanted", held for as long
    * as this section is on screen.

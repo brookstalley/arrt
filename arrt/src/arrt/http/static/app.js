@@ -169,7 +169,7 @@ const ROUTES = {
 try {
   learnMuseums((await api("/api/sources")).sources);
 } catch { // prawduct:allow prawduct/broad-except -- a start-up nicety: any failure costs only plugin names
-  // The built-in names still apply; Status says why the route could not be read.
+  // The built-in names still apply; the Sources page says why the route could not be read.
 }
 
 installStatus();

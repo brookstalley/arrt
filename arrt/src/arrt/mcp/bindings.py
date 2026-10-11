@@ -964,7 +964,7 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
     reading = health.reading
     return {
         "name": reading.name,
-        "museum": museum_name(reading.name),
+        "museum": museum_name(reading.name, reading.identity.museum),
         "state": reading.state.value,
         "reason": reading.reason,
         "faults": reading.faults,

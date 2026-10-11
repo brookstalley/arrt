@@ -730,3 +730,11 @@ def test_a_built_in_is_called_by_the_name_its_module_declares():
     load_sources(context(), entry_points=[entry("good", "NAMED")])
 
     assert museum_name("met") == "Metropolitan Museum of Art"
+
+
+def test_a_plugin_s_reading_carries_the_museum_it_declared():
+    """The listing reads each plugin's name from its own reading, not from what the last load declared."""
+    roster = load_sources(context(), entry_points=[entry("good", "NAMED"), entry("other", "OTHER")])
+
+    identities = {reading.name: reading.identity.museum for reading in roster.observe()}
+    assert identities == {"good": "Tate", "other": None}

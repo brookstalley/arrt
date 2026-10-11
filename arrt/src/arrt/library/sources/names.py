@@ -58,6 +58,11 @@ def declare_museums(names: Mapping[str, str]) -> None:
     _declared.update(names)
 
 
-def museum_name(provider: str) -> str:
-    """The name a curator knows this source by, or its plugin id when it declares none."""
-    return built_in_museums().get(provider) or _declared.get(provider) or provider
+def museum_name(provider: str, declared: str | None = None) -> str:
+    """The name a curator knows this source by, or its plugin id when it declares none.
+
+    `declared` is the plugin's own declaration where the caller holds it (a
+    plugin's reading carries it), so a surface listing the plugins reads each
+    one's name from its own reading; without it, the latest load's.
+    """
+    return built_in_museums().get(provider) or declared or _declared.get(provider) or provider

@@ -39,7 +39,7 @@ all" to the suggestion of #363 and #355 first):
 
 - **01: a Get's page shows pictures, links and only acts that lead somewhere.**
   A picture cell with no picture is a short picture-shaped placeholder, never
-  the server's explanation (which stays reachable in debug). *Review these
+  the server's explanation (a review card keeps it as a caption). *Review these
   works* appears only while a card is left to judge. Each work's title links to
   a page: the work it was accepted as, else the library's own copy of it, else
   its Wikidata item. A work the library holds says so, with a link.
@@ -51,9 +51,11 @@ all" to the suggestion of #363 and #355 first):
   installed plugin by it (built-ins keep `MUSEUM`), `/api/sources` carries it,
   and the client names sources from the server. The operator's private plugins
   declare theirs, in their own repository.
-- Done when: the three suites and the browser suite green; each new browser
-  test seen red against the unfixed code; the records say what the code does;
-  deployed, with the operator's library showing no plugin id outside debug.
+- Done when (this branch): the three suites and the browser suite green; each
+  new test seen red against the unfixed code; the records say what the code
+  does. **Then, after the merge** (chunk 03's last step): the private plugins
+  name their museums against the merged commit, and the deploy shows the
+  operator's library with no plugin id outside debug.
 
 ### Decisions
 
@@ -70,6 +72,18 @@ all" to the suggestion of #363 and #355 first):
   no wired museum holds the work, and was read as "you don't have it".
 - **[DECISION: the branch starts from `docs/ux-walk-2026-10-11`]** (PR #364),
   which carries ruling 1; it merges after #364.
+- **[DECISION, mid-build: when only works found with no image are left, the
+  link reads *Want or forget the N works it found no image for*.]** Review
+  holds acts for them (Want, Forget) behind a fold, so hiding the link would
+  strand them; calling it *Review these works* opened onto "Nothing here is left
+  to judge".
+- **[DECISION, at the review: Status keeps each wall's failure rows outside
+  debug]** (Television, Label panel, Last error, in words). They are the rows
+  `observability-strategy.md` gives Status a reader for, and required fields of
+  the heartbeat schema; the rest of the Player's report is debug's.
+- **[DECISION: `museum` is carried by the MCP `source_plugins` answer too]**, as
+  `test_surface_parity.py`'s rule requires: the tool answers what the route
+  answers.
 
 ## Chunks
 
@@ -105,8 +119,10 @@ all" to the suggestion of #363 and #355 first):
 
 ### Chunk 03: every source named by its museum (#355)
 
-- `library/sources` plugin interface 1.4: optional `SourcePlugin.museum`;
-  `names.py` gathers installed plugins' names too; `SourcePluginOut.museum`;
+- Interface 1.4 in `arrt/src/arrt/library/sources/plugin.py`: optional
+  `SourcePlugin.museum`; `loading.py` checks it (`_museum_of`), carries it on
+  each plugin's `PluginIdentity` and declares the names to `names.py`, whose
+  `museum_name` serves every server sentence; `SourcePluginOut.museum`;
   the client loads the names once at start and `museumName` uses them, falling
   back to `MUSEUM_NAMES` and then the id.
 - Records: `source-plugins.md` (1.4), `docs/source-plugins.md`, `api-contract.md`.
@@ -124,4 +140,4 @@ all" to the suggestion of #363 and #355 first):
 
 - [x] Chunk 01: the Get page (#363)
 - [x] Chunk 02: `?debug` (#355, ruling 1)
-- [ ] Chunk 03: every source named by its museum (#355)
+- [ ] Chunk 03: every source named by its museum (#355) — this branch's part done; the private plugins' step follows the merge

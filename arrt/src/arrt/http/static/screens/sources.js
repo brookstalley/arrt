@@ -57,7 +57,7 @@ export async function viewSources(generation) {
 
 function sourcePanel(source, index, count, interfaceMajor) {
   return el("li", { class: "panel source-entry" }, [
-    el("h2", { text: museumName(source.name) }),
+    el("h2", { text: source.museum || museumName(source.name) }),
     el("p", { class: "reading-sentence", text: source.description }),
     facts([
       // The plugin's id, its package and the interface it was written for are

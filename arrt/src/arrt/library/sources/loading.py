@@ -136,6 +136,9 @@ class PluginIdentity:
     #: The interface major the plugin says it was written for.
     api_major: int | None = None
     provides: tuple[PluginPart, ...] = ()
+    #: The museum the plugin declares (interface 1.4), once it passed `_museum_of`;
+    #: `None` when it declares none, or one that was refused.
+    museum: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -558,7 +561,8 @@ def load_sources(
         else:
             states[entry.name] = (PluginState.FAILED, loaded)
 
-    declare_museums({name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None})
+    museums = {name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None}
+    declare_museums(museums)
 
     unknown = [name for name in order if name not in states]
     if unknown:
@@ -605,6 +609,7 @@ def load_sources(
                 version=origins[n][1],
                 api_major=plugins[n].api_major if n in plugins else None,
                 provides=() if n not in parts else _provides(parts[n].finder, parts[n].reader, parts[n].collection),
+                museum=museums.get(n),
             )
             for n in ranked
         },

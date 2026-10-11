@@ -2643,7 +2643,7 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
     reading = health.reading
     return SourcePluginOut(
         name=reading.name,
-        museum=museum_name(reading.name),
+        museum=museum_name(reading.name, reading.identity.museum),
         state=reading.state.value,
         reason=reading.reason,
         faults=reading.faults,

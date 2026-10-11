@@ -186,7 +186,7 @@ def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
     }
 
 
-def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2):
+def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None):
     return {
         "wall_id": wall_id,
         "wall_name": name,
@@ -201,7 +201,7 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
                 if absent
                 else f"The display plane last reported {age_seconds:.0f} seconds ago."
             ),
-            "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"},
+            "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"} | (reported or {}),
         },
     }
 

@@ -1182,3 +1182,13 @@ def test_a_work_the_library_holds_says_so_rather_than_not_held(ui):
     assert "not held" not in row.inner_text()
     # What the run found is still said, in words that cannot be read as the library's.
     assert "in no collection" in row.inner_text()
+
+
+def test_an_accepted_work_with_a_library_copy_is_not_told_twice(ui):
+    """Its title already opens the work it became; "In your library" is for a work the run did not add."""
+    accepted = a_candidate(work_id="acc", title="Champs de Mars", verdict="accepted", artwork_id="art-accepted")
+    _a_finished_discovery(ui, [accepted], [a_card(work=accepted, held_artwork_id="art-held")])
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    assert row.get_by_role("link", name="In your library").count() == 0
+    assert row.get_by_role("link", name="Champs de Mars").get_attribute("href").startswith("#work/art-accepted")

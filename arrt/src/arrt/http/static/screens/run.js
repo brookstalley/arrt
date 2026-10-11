@@ -556,20 +556,22 @@ export async function viewRun(runId, generation) {
       view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
     ]);
     panels.push(section);
-  } else
+  } else {
+    const toReview = view.works.length ? reviewLink(runId, reviewPage) : null;
     panels.push(
       el("div", { class: "panel" }, [
         el("h2", { text: `Works (${tally.total})` }),
         // The way from watching a run to judging what it brought back. Offered
         // only once the run holds works: a button onto an empty grid is a promise
         // the next screen cannot keep.
-        view.works.length && reviewLink(runId, reviewPage) ? el("p", {}, [reviewLink(runId, reviewPage)]) : null,
+        toReview ? el("p", {}, [toReview]) : null,
         reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
         ...(view.works.length
           ? worksBySource(view.works, reviewPage)
           : [el("p", { class: "muted", text: "This Get has not settled on any works yet." })]),
       ]),
     );
+  }
 
   render(generation, ...panels);
   shownReview = { generation, section };
