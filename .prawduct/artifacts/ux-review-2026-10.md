@@ -7,7 +7,7 @@ depends_on:
   - artifact: user-scenarios
   - artifact: design-direction
   - artifact: accessibility-spec
-last_validated: 2026-10-07
+last_validated: 2026-10-11
 ---
 
 # UX review — October 2026
@@ -164,6 +164,72 @@ synthetic library has no masters, so it has one band and the facet is not drawn.
 84 captures: every capture scans clean, no console errors, no screen reached
 only by a button, no dead end. The walk on the operator's library, and Pass 4,
 wait on the branch being deployed.
+
+## Second walk, on the deployed library (2026-10-11)
+
+The first walk of the operator's own library since both plans above were
+deployed (`develop` at `81e2d15e`: 61 works, one wall with its screen off, one
+client). The owner asked for a critical pass on four things: uneven spacing and
+layout, missing pictures, site and page navigation, and options or copy that
+should not be there. **Pass 1** photographed 28 pages (112 captures); no screen
+is reached only by a button, none is a dead end, and `search` is declared but
+reached only by typing, which is by design. Its probe clicks attempted 18
+writes (Create, Skip, Rename, Unassign, Retry, Want…), all refused in the
+browser; the server was checked afterwards and none landed. **Pass 3** ran four
+lenses, one per question, each by an independent reviewer: layout (L, 23
+findings), pictures (P, 14), navigation (N, 14), economy (E, 24). Passes 2 and
+4 did not run. The reviewers' files are working material in the gitignored
+`.ux-walk/`; the codes below are theirs.
+
+**What it says, in four lines.** Three screens carry most of the cost: the
+Theme page, a Get, and Walls. Each is where the earlier plans changed the least.
+The art is still missing where a person decides what to hang. And the product
+still shows its plumbing: file hashes, port names, exception text and the
+model's own instructions.
+
+| # | Finding | Screens | Sev | Lenses | Planned? |
+|---|---|---|---|---|---|
+| 31 | **The Theme page is a wall of buttons with no art and no links.** 61 rows × five acts (↑ ↓ Move to top, Move to bottom, Remove) make a 7,256 px page of 305 boxes. On a shuffled theme, 244 of them change nothing, under a caption that says position does not matter. Titles, artists and the wall badge are plain text. The Size column is empty. *Add a work* on *All works* offers only works already in it. On a phone the acts sit in a 517 px table inside a 342 px scroller, off-screen, with the caption cut at "does not dec". | Theme | 3 | L1 L2 E2 E19 P-3 N1 | **Ruled** 2026-10-11 (ia-proposal ruling 2): a theme is never shuffled; shuffle is the wall's. Layout, pictures and links not ruled. |
+| 32 | **A Get shows error text where its pictures should be, and its one act leads nowhere.** Every *Also offered* cell holds a 30-word sentence ("…disk, so it cannot be shown here… Its source URL is…"), clipped top and bottom, which promises a URL it does not show. *How it read the request* prints the model's instructions. *Review these works*, the only filled button, opens "Nothing here is left to judge". The works listed link nowhere, though Get → Work is in the IA. *Asked for* says "No image found / not held" for a work the library holds. | Get, Review | 3 | P-1 L4 E3 E4 E5 N3 P-6 | No. |
+| 33 | **Walls shows no picture.** With the screen off there is no last-shown work and no next three. The page says the screen is off twice, names `hdmi-a-1` and `epd-0`, and reads "not currently displayable". *Change* has no button shape, while the *History* link looks exactly like the *Skip* button. | Walls | 3 | P-4 E6 L16 N7 | **Ruled**: ia-proposal § Walls ("the work on the wall now, large… the next three"). #272 built the work now showing, drawn only while the screen reports one (`screens/walls.js`); the next three are not built. Screen off: **ruled** 2026-10-11 (ruling 3), the last-shown work. |
+| 34 | **The Work page ends in a disk listing.** Under the label sit the master's path, its SHA-256, a renditions table (`presentation_master`, UUID file names, "current" on every row) and the mat as `#27285b`, not as a picture of the matted work. The picture cannot be enlarged, and nothing links to the work's topics. | Work | 3 | E1 P-9 P-10 N6 L12 | **Ruled** 2026-10-11 (ruling 1): the engineering detail moves behind `?debug`. |
+| 35 | **The named back link goes to the sidebar index, not the page you came from.** A work opened from Dalí's page says "← Artists". An artist opened from a work says "← Artworks". From search the query is lost. The browser's Back is right every time, so the two disagree. | Work, Artist, Topic, Theme, Search | 3 | N2 | **Ruled**: IA § Direction ("returns to the page it was opened from"). Built for Work-from-lists only. |
+| 36 | **The phone top bar cuts the status to "● W…" on every page,** a state with no word, which design-direction forbids. The drawer hides its own Menu button. | all, phone | 3 | L3 N12 | No. |
+| 37 | **Two works with no master are text everywhere.** *Crak!* and *In the Third Sleep*: artic.edu refuses their master (403), and both are in the hung theme. Their thumbnails answer 400 and Artists asks for them anyway. Tiles print the endpoint's exception text, worded three ways across four screens. | Artworks, Artists, Work, Theme | 2 | P-5 E8 | No. Queue's retry is the data half. |
+| 38 | **Search's dropdown pictures strangers' works but not yours.** Pictures in search rows and registry tables are 48–56 px and sit inside the state badge. | top bar, Search, Artist (registry) | 2 | P-2 P-8 | Partly: #12 above fixed tiles, not rows. |
+| 39 | **Status has three names and talks in plugin IDs.** The masthead says *Well*, the sidebar *System*, the heading *Status*. 11 of 21 sources show by plugin ID, three columns repeat one value, and the disclosures are raw JSON. Queue groups failures by raw exception string, one group per URL. | Status, Sources, Queue | 2 | E9 E10 E11 E14 N11 | Partly: #265. Raw detail and plugin ids **ruled** behind `?debug` 2026-10-11 (ruling 1). |
+| 40 | **Rows and spacing drift in a few shared rules.** `.row { align-items: flex-end }` drops Ask's *Start over* 26 px and sits text low beside its button. Acts sit flush against text (Clients, Artist, Theme). Tile titles take a heading margin inside panels. A tile's badge floats to the next row's picture. A page's name gets three different gaps to its content. Dark mode paints every quiet control gilt. Badges by a heading fall into the serif. | all | 2 | L5 L6 L8 L9 L11 L18 L21 | No. #287 set the heading scale; these are the rules it did not reach. |
+| 41 | **Phone layouts outside Theme:** Artworks puts three toolbar rows before the first picture, and its filter rail is cut with no sign it scrolls. Clients' tables overflow and wrap IDs mid-word while Status's stack. Artists leaves about 175 px between rows. | Artworks, Clients, Artists | 2 | L14 L15 P-13 L10 | No. |
+| 42 | **A dead address leaves the previous page painted** under the new title. A dead work address on a fresh load sits on "Loading the catalogue…" for good. | any detail | 2 | N4 | No. |
+| 43 | **Walls and clients are named on six screens and linked from none.** | Work, Theme, History, Clients, Status | 2 | N5 | No. |
+| 44 | **Copy that explains the system rather than the art.** Taste opens with an 80-word preamble above one item, and its verbs differ from the Artist page's. Topic pages speak Wikidata and are titled "Wikidata Q7049". An unmatched artist is told so three times, with a QID. Clients explains the architecture. History is 40 near-identical rows with full timestamps. A Get spends four rows saying "under a cent". The Artworks rail offers groups whose only option is zero. | Taste, Topic, Artist, Clients, History, Get, Artworks | 2 | E7 E12 E15 E16 E17 E18 E20 N8 L7 | No. |
+| 45 | **Polish:** prose runs 1,168 px wide; table text is inset 12 px and numbers are left-aligned; the Themes index pins narrow cards left; Queue and Get stack headings with nothing between; topic indexes collide a one-item group with the next heading; Settings repeats its own sub-nav; Wanted's empty state explains click paths; *Start over* shows on an empty thread. | various | 1 | L13 L17 L19 L20 L22 L23 E22 E23 E25 | No. |
+
+**Routed** 2026-10-11: 31 → #352, and #353 for the shuffle move (ruling 2);
+32 → #363; 33 → #354; 34 and 39's raw detail → #355 (ruling 1); 35 → #356;
+36 and 41 → #357; 37, 38 and the Work picture's enlargement → #358; 39's three
+names and 44 → #359; 40 and 45 → #360; 42 → #361; 43 and Work → topic → #362.
+Comments on #318 (Queue's groups), #346 (the mat), #316 (what a wall has shown)
+and #165 (empty facets).
+
+**Data, not design:** the home page's rail offers "End-to-end validation
+2026-08-04 (1)", a test theme in the operator's library.
+
+**What the plans above did hold.** Back restores scroll and focus; filters, sort,
+search and paging live in the address and survive Back and Forward; keyboard
+order is sound; the phone drawer works; every capture's pictures load except the
+two masters artic.edu refuses (59 of 61 works answer on all three image routes).
+
+**For the owner** — ruled 2026-10-11, `ia-proposal.md` § Rulings (2026-10-11):
+(1) engineering detail goes to a debug view behind `?debug`; (2) a theme has an
+order and is never shuffled, and shuffle belongs to what plays it (the wall, chosen
+where a theme is hung on it, and so does the interval); (3) with the screen off, Walls shows the
+last-shown work.
+
+**Limits.** One wall, its screen off throughout; To review and Wanted were
+empty, so their full states were not seen; nothing past a write; the 40–60rem
+band was not measured; dark mode was spot-checked; Chromium only, no screen
+reader.
 
 ## What works, and should survive a redesign
 
