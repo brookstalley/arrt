@@ -38,6 +38,7 @@ from arrt.library.services.review import (
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.twins import InReview
 from arrt.library.services.wikidata_match import WorkMatch
+from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
@@ -963,6 +964,7 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
     reading = health.reading
     return {
         "name": reading.name,
+        "museum": museum_name(reading.name, reading.identity.museum),
         "state": reading.state.value,
         "reason": reading.reason,
         "faults": reading.faults,

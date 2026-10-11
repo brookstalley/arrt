@@ -20,6 +20,7 @@ import { ago, dated } from "../core/dates.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
 import { backRow, link } from "../core/router.js";
+import { DEBUG } from "../core/debug.js";
 
 /* The raw fields behind a panel, closed: what an operator compares against a
  * file or a log, kept off the face of a page a curator reads. Every raw key and
@@ -27,7 +28,9 @@ import { backRow, link } from "../core/router.js";
  * (`tests/browser/test_no_machine_dates.py`). */
 function details(...children) {
   const inside = children.filter(Boolean);
-  if (!inside.length) return null;
+  // Only in debug (ruling 1 of 2026-10-11): the page a curator reads ends at
+  // what each reading means.
+  if (!DEBUG || !inside.length) return null;
   return el("details", { class: "raw-details" }, [el("summary", { text: "Details" }), ...inside]);
 }
 
@@ -54,12 +57,39 @@ function reportedFacts(reported) {
   return pairs.length ? facts(pairs) : null;
 }
 
+/* What the wall's Player says about its television, its label panel and its
+ * last error, in words, outside debug. These are the failure rows
+ * `observability-strategy.md` gives this page a reader for, so they are not
+ * engineering detail; and they are required fields of the heartbeat's schema
+ * (`contract/schemas/heartbeat.v1.schema.json`), so naming them here invents no
+ * contract. Everything else the Player reported stays in debug's Details. A
+ * value not reported is left out rather than guessed. */
+function failureFacts(reported) {
+  if (!reported) return [];
+  const television =
+    reported.television_reachable === false
+      ? "Not reachable"
+      : reported.television_reachable === true
+        ? reported.television_showing_art === true
+          ? "Showing art"
+          : reported.television_showing_art === false
+            ? "Reachable, not showing art"
+            : "Reachable"
+        : null;
+  const panel = reported.has_label_surface === true ? (reported.label_surface_working === false ? "Not working" : reported.label_surface_working === true ? "Working" : null) : null;
+  return [
+    ["Television", television],
+    ["Label panel", panel],
+    ["Last error", typeof reported.last_error === "string" && reported.last_error ? reported.last_error : null],
+  ];
+}
+
 /* The work a wall's heartbeat names, as its title linking to its page, or why
  * it cannot be named. `showing` is `{ id, title }` from `showingTitles`. */
 function showingLine(showing) {
   if (!showing) return null;
   if (showing.title) return link({ view: "work", id: showing.id }, { class: "link", text: showing.title });
-  return "A work the library could not answer for; its id is under Details.";
+  return "A work the library could not answer for.";
 }
 
 /* Each wall's current work, read once per id: the heartbeat names it by id,
@@ -104,6 +134,7 @@ function heartbeatPanel(wall, titles) {
       ["Showing", showingLine(showingOf(reading, titles))],
       ["Last reported", reading.reported_at ? dated(reading.reported_at) : null],
       ["Problem", reading.problem],
+      ...failureFacts(reading.reported),
     ]),
     reading.absent
       ? el("p", {

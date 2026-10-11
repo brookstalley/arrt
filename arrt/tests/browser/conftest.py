@@ -186,7 +186,7 @@ def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
     }
 
 
-def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2):
+def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None):
     return {
         "wall_id": wall_id,
         "wall_name": name,
@@ -201,7 +201,7 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
                 if absent
                 else f"The display plane last reported {age_seconds:.0f} seconds ago."
             ),
-            "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"},
+            "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"} | (reported or {}),
         },
     }
 
@@ -228,10 +228,11 @@ def _a_source(
     version="0.3.0",
     api_major=1,
     provides=None,
+    museum=None,
 ):
     # The server's own wording (`services/health.py`, `describe`): by the
-    # museum, never the plugin id.
-    museum = museum_name(name)
+    # museum, never the plugin id. A plugin from elsewhere names its own (1.4).
+    museum = museum or museum_name(name)
     if state == "declined":
         description = f"The {museum} plugin is installed and not configured here: {reason}."
     elif state == "failed":
@@ -244,6 +245,7 @@ def _a_source(
         description = f"The {museum} plugin is loaded, with no faults since startup."
     return {
         "name": name,
+        "museum": museum,
         "state": state,
         "reason": reason,
         "faults": faults,

@@ -49,8 +49,8 @@ def first_wall(services):
     return services.display.survey_walls()[0].wall
 
 
-def open_work(ui, work):
-    ui.open(f"#work/{work.id}")
+def open_work(ui, work, *, debug=False):
+    ui.open(f"{'?debug' if debug else ''}#work/{work.id}")
     ui.page.wait_for_selector(".state-strip dl")
 
 
@@ -334,7 +334,8 @@ def test_the_picture_sits_beside_its_label_and_the_record_is_ruled_not_boxed(ui,
     under the picture. A work with nothing acquired keeps every section."""
     work = hangable("Automat") if held else service.add_artwork(title="Automat")
     ui.page.set_viewport_size({"width": 1280, "height": 900})
-    open_work(ui, work)
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    open_work(ui, work, debug=True)
     wide = _layout(ui)
     ui.page.set_viewport_size({"width": 800, "height": 900})
     narrow = _layout(ui)

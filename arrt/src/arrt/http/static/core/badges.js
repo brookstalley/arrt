@@ -185,7 +185,9 @@ export const REASON_SENTENCES = {
 };
 
 const REASON_WORDS = {
-  not_held: "not held",
+  // Not "not held", which elsewhere means the library does not hold a work
+  // (the owner's ruling on #172). This reason is about the museums.
+  not_held: "in no collection",
   identity_refused: "wrong artist",
   size_unknown: "size unknown",
   below_floor: "too small",

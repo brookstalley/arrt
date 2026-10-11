@@ -892,7 +892,8 @@ def test_a_work_the_run_found_nothing_for_says_so_without_asking_for_a_picture(u
     assert "No scan was found for this work." in ui.text()
     # Chunk 21's point, still standing at the far end of the pipe.
     assert "not_held" not in ui.text()
-    assert "not held" in ui.text()
+    # In words, and not "not held", which elsewhere says the library lacks a work.
+    assert "in no collection" in ui.text()
 
 
 def test_a_work_whose_every_scan_was_turned_down_is_not_told_nothing_was_found(ui):

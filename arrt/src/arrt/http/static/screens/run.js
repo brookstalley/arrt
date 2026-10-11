@@ -18,11 +18,12 @@ import { destinationOf, destinationSentence, readThemes } from "../core/destinat
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { museumName } from "../core/providers.js";
-import { reviewSection, rowPicture } from "../core/reviewing.js";
+import { placeNow, reviewSection, rowPicture } from "../core/reviewing.js";
 import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
 import { dollars, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
+import { DEBUG } from "../core/debug.js";
 
 /* What this run's state means, in a sentence.
  *
@@ -166,7 +167,15 @@ function worksBySource(works, reviewPage) {
     if (!offeredBy.has(museum)) offeredBy.set(museum, []);
     offeredBy.get(museum).push(work);
   }
-  const rowOf = (work) => [rowPicture(cards.get(work.work_id), work, reviewPage !== null), work.title, work.artist || "—", el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)])];
+  const rowOf = (work) => {
+    const card = cards.get(work.work_id);
+    return [
+      rowPicture(card, work, reviewPage !== null),
+      titleOf(work, card),
+      work.artist || "—",
+      el("div", { class: "stack-tight" }, [heldLink(work, card), resolutionBadge(work), reasonBadge(work)]),
+    ];
+  };
   const sections = [];
   if (asked.length) {
     sections.push(
@@ -195,6 +204,43 @@ function worksBySource(works, reviewPage) {
     );
   }
   return sections;
+}
+
+/* The page a Get's work opens: the work it was accepted as, else the
+ * library's own copy of it (a held twin, by Wikidata item), else its Wikidata
+ * item's page. A proposed work with none of these has no page, and its title
+ * stays text rather than a link onto nothing. */
+function workPageOf(work, card) {
+  return work.artwork_id || (card && card.held_artwork_id) || work.wikidata_qid || null;
+}
+
+function titleOf(work, card) {
+  const id = workPageOf(work, card);
+  return id ? link({ view: "work", id }, { text: work.title }) : work.title;
+}
+
+/* Said only when the library holds the work under another record, so a row
+ * whose run found nothing does not read as the library lacking it. An
+ * accepted work's title already opens its page. */
+function heldLink(work, card) {
+  if (work.artwork_id || !card || !card.held_artwork_id) return null;
+  return link({ view: "work", id: card.held_artwork_id }, { class: "badge badge-held", text: "In your library" });
+}
+
+/* The way from a Get to judging what it brought back, worded for what Review
+ * will offer, and absent when it would offer nothing. Review folds the works
+ * found with no image behind their own line, so when they are all that is left
+ * the link names them; when every card is decided there is no link at all.
+ * Unread cards (`reviewPage` null) still offer it: the page cannot tell, and
+ * Review will say for itself. */
+function reviewLink(runId, reviewPage) {
+  const target = { view: "review", id: runId };
+  if (reviewPage === null) return link(target, { class: "action", text: "Review these works" });
+  const places = reviewPage.works.map(placeNow);
+  if (places.includes("judge")) return link(target, { class: "action", text: "Review these works" });
+  const foundNone = places.filter((place) => place === "found-none").length;
+  if (foundNone) return link(target, { class: "action", text: `Want or forget the ${counted(foundNone, "work")} it found no image for` });
+  return null;
 }
 
 /* A finished Get from words, as three counts: how many works it was asked
@@ -445,10 +491,10 @@ export async function viewRun(runId, generation) {
       // what that ending means. Text, never markup: a halt's reason quotes the
       // provider.
       run.end_reason ? el("p", { class: "muted run-end-reason", text: `Why it stopped: ${run.end_reason}` }) : null,
-      // The engine's own reading of the request, beside the request. A work list
-      // is judged against how the intent was read rather than against its
-      // wording, which is what makes a surprising list explicable.
-      run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
+      // The engine's own reading of the request, debug only: on one Get it is a
+      // fair paraphrase, on another the model's instructions echoed back, and
+      // nothing tells the two apart (ruling 1 of 2026-10-11).
+      DEBUG && run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
       el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(run, themes)) }),
       // What approving commits to, in the place the commitment is made. The
       // second sentence is the load-bearing half: the figure is zero because
@@ -510,22 +556,22 @@ export async function viewRun(runId, generation) {
       view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
     ]);
     panels.push(section);
-  } else
+  } else {
+    const toReview = view.works.length ? reviewLink(runId, reviewPage) : null;
     panels.push(
       el("div", { class: "panel" }, [
         el("h2", { text: `Works (${tally.total})` }),
         // The way from watching a run to judging what it brought back. Offered
         // only once the run holds works: a button onto an empty grid is a promise
         // the next screen cannot keep.
-        view.works.length
-          ? el("p", {}, [link({ view: "review", id: runId }, { class: "action", text: "Review these works" })])
-          : null,
+        toReview ? el("p", {}, [toReview]) : null,
         reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
         ...(view.works.length
           ? worksBySource(view.works, reviewPage)
           : [el("p", { class: "muted", text: "This Get has not settled on any works yet." })]),
       ]),
     );
+  }
 
   render(generation, ...panels);
   shownReview = { generation, section };

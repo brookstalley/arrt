@@ -45,6 +45,7 @@ import { el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
 import { backLink, link, redirect, setTitle } from "../core/router.js";
 import { hangSelection } from "../core/selection.js";
+import { DEBUG } from "../core/debug.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
  *
@@ -530,10 +531,12 @@ function paint(detail, generation, { where, focusAction = false }) {
       el("h2", { text: "Master image" }),
       detail.original
         ? facts([
-            ["File", detail.original.relative_path],
+            // Where it lies and what it hashes to are for whoever is debugging
+            // the store; how big it is says what a wall can make of it.
+            ["File", DEBUG ? detail.original.relative_path : null],
             ["Pixels", `${detail.original.width} × ${detail.original.height}`],
             ["Size", `${(detail.original.byte_size / 1048576).toFixed(1)} MB`],
-            ["Content hash", detail.original.content_hash],
+            ["Content hash", DEBUG ? detail.original.content_hash : null],
           ])
         : detail.acquisition
           ? null
@@ -568,7 +571,9 @@ function paint(detail, generation, { where, focusAction = false }) {
     ]),
   );
 
-  panels.push(
+  // What was made from the master, and the mat's colour as a hex, are the
+  // store's own record, shown only in debug (ruling 1 of 2026-10-11).
+  if (DEBUG) panels.push(
     el("div", { class: "panel" }, [
       el("h2", { text: "What has been rendered" }),
       detail.renditions.length
@@ -586,7 +591,7 @@ function paint(detail, generation, { where, focusAction = false }) {
     ]),
   );
 
-  panels.push(matPanel(detail.mat_colors));
+  if (DEBUG) panels.push(matPanel(detail.mat_colors));
 
   render(
     generation,

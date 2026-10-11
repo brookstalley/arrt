@@ -79,7 +79,8 @@ def test_the_work_page_s_facts_break_between_words(ui, work_with_an_image):
     """The work's own facts, and its master image's, which carry a path and a hash."""
     work = work_with_an_image("Untitled (Purple, White, and Red)")
     at_phone_width(ui)
-    ui.open(f"#work/{work.id}")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open(f"?debug#work/{work.id}")
     ui.page.wait_for_selector("#view dt:text-is('Content hash')")
 
     measured(ui, at_least=6)
@@ -92,7 +93,8 @@ def test_the_health_page_s_facts_break_between_words(ui):
     what is measured is what a reader who opens them sees.
     """
     at_phone_width(ui)
-    ui.open("#health")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open("?debug#health")
     ui.page.wait_for_selector("#view details.raw-details summary")
     for summary in ui.page.locator("#view details.raw-details summary").all():
         summary.click()

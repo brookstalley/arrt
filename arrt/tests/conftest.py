@@ -1093,3 +1093,18 @@ def build_catalogue(tmp_path_factory):
 def every_feed_keeps_the_contract(monkeypatch):
     """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`)."""
     monkeypatch.setattr(display_module, "as_v2_document", feed_checked(display_module.as_v2_document))
+
+
+@pytest.fixture(autouse=True)
+def _museum_names_reset():
+    """Each test starts and ends with no plugin-declared museum names.
+
+    `load_sources` declares the installed plugins' names to `names.py`, which is
+    process state; without this, a test's names would depend on which test this
+    worker ran before it.
+    """
+    from arrt.library.sources import names
+
+    names.declare_museums({})
+    yield
+    names.declare_museums({})

@@ -66,6 +66,40 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-11: The Get page, and a debug view (#363, #355)
+
+<!-- prawduct: scope=get-page-and-debug-view -->
+
+**Why:** The second UX walk on the deployed library (`ux-review-2026-10.md`
+§ Second walk, findings 32, 34 and 39) found a Get's pictures replaced by
+clipped error prose, its one act leading to an empty review, its works linking
+nowhere, and engineering detail (file paths, hashes, renditions, raw keys,
+plugin ids) on pages a curator reads. The owner ruled that detail into a
+separate debug view (`ia-proposal.md` § Rulings (2026-10-11), ruling 1).
+`build-plan-get-page-and-debug-view.md` carries the plan.
+
+**What:**
+- A Get's rows link each work to its page (the work it became, the library's
+  copy, or its Wikidata item), say *In your library* for a held work, and show
+  *No picture kept* rather than the server's sentence, which a review card keeps
+  as a caption. *Review these works* shows only while a card is left to judge;
+  when only works found with no image are left it reads *Want or forget the N
+  works it found no image for*, and with every card decided there is no link.
+- The `not_held` reason reads *in no collection*: "not held" means the library
+  lacks a work everywhere else.
+- `?debug` in the page's own query shows the Work page's file, hash,
+  renditions and mat, Status's raw details, Sources' plugin id, package and
+  interface, and a Get's reading of the request. Without it they are absent.
+  Status keeps each wall's Television, Label panel and Last error rows outside
+  debug: they are the failures it exists to show.
+- Source plugin interface 1.4: an optional `SourcePlugin.museum`, the name every
+  page and server sentence uses for the source; `museum` on `/api/sources` and
+  the MCP `source_plugins` answer.
+
+**Deploy:** server only. The private plugins name their museums in their own
+repository once this has merged, by moving their pinned Arrt to the merged
+commit; until then they are named by id outside debug.
+
 ## 2026-10-10: The feed follows the hung theme, and heartbeat minor 4 (#348, #349)
 
 <!-- prawduct: scope=feed-follows-theme -->

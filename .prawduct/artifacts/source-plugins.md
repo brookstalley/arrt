@@ -400,6 +400,15 @@ open data, which the NGA's is, is offered for exactly that.
   by three roads and share only this last step (`linked-art-findings.md`), which
   is why the shared part is IIIF and not Linked Art. *Mine*, on the owner's
   approval of a shared helper (arrt#242, 2026-10-06).
+- **1.4 (2026-10-11) added `SourcePlugin.museum`**, the name a curator knows the
+  source by, shown wherever Arrt names it: server sentences through
+  `museum_name`, `GET /api/sources`' `museum`, and the browser, which learns the
+  names from that route when it starts. Static, so a plugin that declines is
+  still named by it. One line of plain text, at most 120 characters; anything
+  else is refused at load with `source.museum_refused` and the plugin is named by
+  its id, as one that declares nothing is. A built-in keeps its module's `MUSEUM`.
+  *The owner's ruling 1 of 2026-10-11 (`ia-proposal.md`): a plugin id is shown only
+  in debug, which needs every source to have a name (#355).*
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,

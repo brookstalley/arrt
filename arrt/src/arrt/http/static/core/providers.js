@@ -10,8 +10,8 @@
  * so a new built-in source fails there until it has a name. Each name is the
  * one that plugin declares as its `MUSEUM`, which the server's own sentences
  * use (`library/sources/names.py`); the same test holds the two to one spelling. A plugin installed
- * from elsewhere is not known here and is named by its id, which is still what
- * it called itself. Imports nothing, so `node` can run it. */
+ * from elsewhere names itself, and the client learns those names when it starts
+ * (`learnMuseums`, below). Imports nothing, so `node` can run it. */
 
 export const MUSEUM_NAMES = {
   artic: "Art Institute of Chicago",
@@ -26,8 +26,20 @@ export const MUSEUM_NAMES = {
   yale: "Yale art museums",
 };
 
+/* The names the installed plugins declare (interface 1.4), as `GET /api/sources`
+ * carries them, learnt once when the client starts (`learnMuseums`). A plugin
+ * from elsewhere is named by its own declaration; one that declares nothing
+ * still by its id. */
+const declared = new Map();
+
+export function learnMuseums(sources) {
+  for (const source of sources || []) {
+    if (source && typeof source.museum === "string" && source.museum && source.museum !== source.name) declared.set(source.name, source.museum);
+  }
+}
+
 export function museumName(provider) {
-  return MUSEUM_NAMES[provider] || provider || "an unnamed source";
+  return MUSEUM_NAMES[provider] || declared.get(provider) || provider || "an unnamed source";
 }
 
 /* A source plugin's state as a word, by the server's `PluginState`, for Sources

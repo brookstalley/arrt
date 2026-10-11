@@ -177,7 +177,10 @@ export function prose(text) {
  * pressing it does, which is not what the picture that opens is. */
 function instanceImage(instance, { alt, label, name }) {
   if (!instance.preview_available) {
-    return el("div", { class: "card-image" }, [absentImage(instance.preview_note)]);
+    // Two words in a picture-sized box. The server's `preview_note` says why
+    // there is no copy, in a sentence for whoever asks, and a cell the size of
+    // a thumbnail cut it off at both ends.
+    return el("div", { class: "card-image" }, [absentImage("No picture kept")]);
   }
   const preview = `/api/candidate-images/${encodeURIComponent(instance.image_id)}/preview`;
   const image = el("img", { src: preview, alt: alt || "", loading: "lazy" });
@@ -677,6 +680,13 @@ function candidateCard(card, notice, alternatesOpen = false, onVerdict) {
       // The shown scan's own size, above the fold: the one fact a picture at
       // card size cannot convey, and the first thing asked of a scan.
       card.shown && scanSize(card.shown) ? el("p", { class: "card-resolution", text: scanSize(card.shown) }) : null,
+      // Why the picture box says "No picture kept", where there is room to read
+      // it: the reason sends the curator to the right place (a picture that
+      // never arrived, not a bad download), and the Scans table below carries
+      // the source URL it points to.
+      card.shown && !card.shown.preview_available && card.shown.preview_note
+        ? el("p", { class: "muted card-picture-note", text: card.shown.preview_note })
+        : null,
       el("div", { class: "card-footer" }, [
         verdictBadge(work),
         provenanceBadge(work),
@@ -902,6 +912,15 @@ function offeredGroupSentence(group, allCards) {
 }
 
 
+/* Where a card belongs on Review as it stands now: still to judge by its
+ * picture, found with no image (folded, with Want and Forget), or decided
+ * (folded). Review keeps a card where it was first drawn until the next visit;
+ * this is the placement that visit will make, which is what a page offering a
+ * way into Review has to ask. */
+export function placeNow(card) {
+  return card.work.decided ? "decided" : card.work.resolution_status === "unresolved" ? "found-none" : "judge";
+}
+
 /* Everything below a review's heading: the offer to re-search, the cards, and
  * the collection's offers grouped under their queries — as nodes, for the
  * screen drawing them to place under whatever heading it has.
@@ -1006,7 +1025,7 @@ export function reviewSection(page, { keptFrom = null } = {}) {
     for (const fold of keptFrom.querySelectorAll("details.fold[open]")) openBefore.add(fold.dataset.fold);
   }
   const placeOf = (card) => {
-    const now = card.work.decided ? "decided" : card.work.resolution_status === "unresolved" ? "found-none" : "judge";
+    const now = placeNow(card);
     const before = placedBefore.get(card.work.work_id);
     return now === "decided" && before && before !== "decided" ? before : now;
   };
