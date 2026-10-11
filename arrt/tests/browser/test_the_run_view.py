@@ -1073,3 +1073,112 @@ def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection
 
     headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
     assert "Also offered by the collection (1)" in headings
+
+
+# -- the Get page shows pictures, links, and only acts that lead somewhere (#363) --
+
+
+#: What the server says of a picture it cannot show: a sentence for whoever asks
+#: why, which in a 128-px cell was cut off at both ends.
+_SERVER_NOTE = (
+    "No local copy of this image is on disk, so it cannot be shown here: the file its record names "
+    "is no longer there. Its source URL is reported beside it."
+)
+
+
+def test_a_row_whose_picture_is_not_kept_shows_a_placeholder_not_the_server_s_explanation(ui):
+    offered = a_candidate(
+        work_id="gift",
+        title="Homage to Blériot",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Robert Delaunay",
+        offered_artist_matched=4,
+    )
+    gone = an_instance(work_id="gift", image_id="img-gone", preview_available=False, preview_note=_SERVER_NOTE)
+    asked = a_candidate(work_id="asked", title="Rhythm")
+    _a_finished_discovery(ui, [asked, offered], [a_card(work=asked), a_card(work=offered, shown=gone)])
+
+    cell = ui.page.locator("#view section.offered tbody tr .row-picture")
+    assert cell.inner_text().strip() == "No picture kept"
+    assert "cannot be shown here" not in ui.text()
+
+
+def _review_links(ui):
+    return ui.page.locator(f'#view a[href^="#review/{RUN_ID}"]')
+
+
+def test_review_these_works_is_offered_while_a_card_is_left_to_judge(ui):
+    waiting = a_candidate(work_id="waiting", title="Rhythm")
+    decided = a_candidate(work_id="decided", title="Saint-Séverin", verdict="accepted", artwork_id="art-9")
+    _a_finished_discovery(ui, [waiting, decided], [a_card(work=waiting), a_card(work=decided)])
+
+    assert _review_links(ui).all_inner_texts() == ["Review these works"]
+
+
+def test_nothing_left_to_judge_offers_no_way_into_an_empty_review(ui):
+    """The owner's walk: every card decided, and the one filled act opened onto "Nothing here is left to judge"."""
+    works = [a_candidate(work_id=f"d{n}", title=f"Decided {n}", verdict="rejected") for n in range(2)]
+    _a_finished_discovery(ui, works, [a_card(work=w) for w in works])
+
+    assert _review_links(ui).count() == 0
+    assert "Review these works" not in ui.text()
+
+
+def test_only_works_found_with_no_image_left_says_what_there_is_to_decide(ui):
+    """Their cards fold behind "found no image" on Review, where Want and Forget are; the link says so."""
+    lost = [
+        a_candidate(
+            work_id=f"lost-{n}",
+            title=f"Rhythm No. {n}",
+            resolution_status=ResolutionStatus.UNRESOLVED.value,
+            unresolved_reason=UnresolvedReason.NOT_HELD.value,
+        )
+        for n in range(2)
+    ]
+    _a_finished_discovery(ui, lost, [a_card(work=w, shown=None) for w in lost])
+
+    assert _review_links(ui).all_inner_texts() == ["Want or forget the 2 works it found no image for"]
+
+
+def test_each_work_s_title_links_to_the_page_it_has(ui):
+    """Accepted, held by the library under another record, chosen by its Wikidata item, or none of these."""
+    accepted = a_candidate(work_id="acc", title="Champs de Mars", verdict="accepted", artwork_id="art-accepted")
+    twin = a_candidate(work_id="twin", title="The Persistence of Memory")
+    chosen = a_candidate(work_id="chosen", title="Rhythm", provenance=WorkProvenance.CHOSEN.value, wikidata_qid="Q20166468")
+    plain = a_candidate(work_id="plain", title="Rhythm No. 2")
+    cards = [
+        a_card(work=accepted),
+        a_card(work=twin, held_artwork_id="art-held"),
+        a_card(work=chosen),
+        a_card(work=plain),
+    ]
+    _a_finished_discovery(ui, [accepted, twin, chosen, plain], cards)
+
+    def title_href(title):
+        row = ui.page.locator("#view section.asked-for tbody tr", has_text=title)
+        anchors = row.get_by_role("link", name=title, exact=True)
+        return anchors.first.get_attribute("href") if anchors.count() else None
+
+    assert title_href("Champs de Mars").startswith("#work/art-accepted")
+    assert title_href("The Persistence of Memory").startswith("#work/art-held")
+    assert title_href("Rhythm").startswith("#work/Q20166468")
+    # Nothing to open: proposed, never accepted, no copy in the library, no item.
+    assert title_href("Rhythm No. 2") is None
+
+
+def test_a_work_the_library_holds_says_so_rather_than_not_held(ui):
+    """P-6: The Persistence of Memory, held with a working picture, read "No image found / not held"."""
+    twin = a_candidate(
+        work_id="twin",
+        title="The Persistence of Memory",
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    _a_finished_discovery(ui, [twin], [a_card(work=twin, shown=None, held_artwork_id="art-held")])
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    held = row.get_by_role("link", name="In your library")
+    assert held.get_attribute("href").startswith("#work/art-held")
+    assert "not held" not in row.inner_text()
+    # What the run found is still said, in words that cannot be read as the library's.
+    assert "in no collection" in row.inner_text()

@@ -18,7 +18,7 @@ import { destinationOf, destinationSentence, readThemes } from "../core/destinat
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
 import { museumName } from "../core/providers.js";
-import { reviewSection, rowPicture } from "../core/reviewing.js";
+import { placeNow, reviewSection, rowPicture } from "../core/reviewing.js";
 import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
 import { dollars, tierMark } from "../core/spend.js";
@@ -166,7 +166,15 @@ function worksBySource(works, reviewPage) {
     if (!offeredBy.has(museum)) offeredBy.set(museum, []);
     offeredBy.get(museum).push(work);
   }
-  const rowOf = (work) => [rowPicture(cards.get(work.work_id), work, reviewPage !== null), work.title, work.artist || "—", el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)])];
+  const rowOf = (work) => {
+    const card = cards.get(work.work_id);
+    return [
+      rowPicture(card, work, reviewPage !== null),
+      titleOf(work, card),
+      work.artist || "—",
+      el("div", { class: "stack-tight" }, [heldLink(work, card), resolutionBadge(work), reasonBadge(work)]),
+    ];
+  };
   const sections = [];
   if (asked.length) {
     sections.push(
@@ -195,6 +203,43 @@ function worksBySource(works, reviewPage) {
     );
   }
   return sections;
+}
+
+/* The page a Get's work opens: the work it was accepted as, else the
+ * library's own copy of it (a held twin, by Wikidata item), else its Wikidata
+ * item's page. A proposed work with none of these has no page, and its title
+ * stays text rather than a link onto nothing. */
+function workPageOf(work, card) {
+  return work.artwork_id || (card && card.held_artwork_id) || work.wikidata_qid || null;
+}
+
+function titleOf(work, card) {
+  const id = workPageOf(work, card);
+  return id ? link({ view: "work", id }, { text: work.title }) : work.title;
+}
+
+/* Said only when the library holds the work under another record, so a row
+ * whose run found nothing does not read as the library lacking it. An
+ * accepted work's title already opens its page. */
+function heldLink(work, card) {
+  if (work.artwork_id || !card || !card.held_artwork_id) return null;
+  return link({ view: "work", id: card.held_artwork_id }, { class: "badge badge-held", text: "In your library" });
+}
+
+/* The way from a Get to judging what it brought back, worded for what Review
+ * will offer, and absent when it would offer nothing. Review folds the works
+ * found with no image behind their own line, so when they are all that is left
+ * the link names them; when every card is decided there is no link at all.
+ * Unread cards (`reviewPage` null) still offer it: the page cannot tell, and
+ * Review will say for itself. */
+function reviewLink(runId, reviewPage) {
+  const target = { view: "review", id: runId };
+  if (reviewPage === null) return link(target, { class: "action", text: "Review these works" });
+  const places = reviewPage.works.map(placeNow);
+  if (places.includes("judge")) return link(target, { class: "action", text: "Review these works" });
+  const foundNone = places.filter((place) => place === "found-none").length;
+  if (foundNone) return link(target, { class: "action", text: `Want or forget the ${counted(foundNone, "work")} it found no image for` });
+  return null;
 }
 
 /* A finished Get from words, as three counts: how many works it was asked
@@ -517,9 +562,7 @@ export async function viewRun(runId, generation) {
         // The way from watching a run to judging what it brought back. Offered
         // only once the run holds works: a button onto an empty grid is a promise
         // the next screen cannot keep.
-        view.works.length
-          ? el("p", {}, [link({ view: "review", id: runId }, { class: "action", text: "Review these works" })])
-          : null,
+        view.works.length && reviewLink(runId, reviewPage) ? el("p", {}, [reviewLink(runId, reviewPage)]) : null,
         reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
         ...(view.works.length
           ? worksBySource(view.works, reviewPage)

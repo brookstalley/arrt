@@ -112,6 +112,6 @@ all" to the suggestion of #363 and #355 first):
 
 ## Status
 
-- [ ] Chunk 01: the Get page (#363)
+- [x] Chunk 01: the Get page (#363)
 - [ ] Chunk 02: `?debug` (#355, ruling 1)
 - [ ] Chunk 03: every source named by its museum (#355)
