@@ -391,3 +391,23 @@ Without the gate, an Ask whose model proposes eighty works lands eighty cards in
 To review; the gate was guarding attention as much as money. If that bites, the
 remedy is a bound on works per Ask, not a cost approval.
 
+## Rulings (2026-10-11)
+
+The owner ruled on the three questions the second walkthrough raised
+(`ux-review-2026-10.md` § Second walk, "For the owner"). The wording of each
+option is the builder's; the choice is the owner's.
+
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | Where engineering detail lives | **A separate debug view.** The owner suggested a global `debug` query string and left the mechanism to the builder. The builder's choice: `?debug` in the page's own query (`/?debug#work/<id>`), not the route's. Every in-app link is a hash, so the flag survives navigation until the address drops it, and it shows in the address bar rather than hiding in browser storage. Without it, a Work page ends at the label and the sources a person can act on. The master's file, hash, renditions and mat hex move behind the flag, and so do Status's raw disclosures. A plugin id is shown only there; elsewhere a source is named by its museum. Findings 34 and 39. |
+| 2 | Order and shuffle | **A theme has an order and is never shuffled.** *"Much like music playlists the theme has an order, but a player may be configured to shuffle."* The Theme page shows its order and lets it be edited, and nothing on it speaks of shuffle. Shuffle is a setting of what plays the theme. **Builder's inference, to confirm:** in this architecture the server schedules each wall's slots and the Player only follows them (`player-contract.md`, the time-anchored `schedule`), so "the player" here is the **wall**, and shuffle becomes a per-wall setting, with the deployment default as before. This also settles where the 244 inert buttons of finding 31 went: they are no longer inert. **Not ruled:** whether the rotation interval moves with shuffle or stays on the theme. Finding 31. |
+| 3 | Walls with the screen off | **Show the last-shown work.** Today the page shows a work only while the screen reports one, and its `last` covers only a Player that has stopped reporting, not a screen that is dark. The next three stay as ruled on 2026-10-07 (ruling 1). Finding 33. |
+
+**Ruling 2 changes a stored field.** `Theme.shuffle` (`data-model.md`, nullable,
+null meaning the deployment default) moves to the wall, and with it the API's
+`shuffle` on a theme, the MCP `shuffle` argument, and `display.shuffles(theme)`.
+A theme saved with `shuffle: false` today already has the order this ruling
+keeps. A wall hanging a theme the operator set to shuffle should start
+shuffled, so that the migration does not change what a wall shows.
+
+
