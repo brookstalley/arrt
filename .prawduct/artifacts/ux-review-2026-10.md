@@ -222,8 +222,8 @@ two masters artic.edu refuses (59 of 61 works answer on all three image routes).
 
 **For the owner** — ruled 2026-10-11, `ia-proposal.md` § Rulings (2026-10-11):
 (1) engineering detail goes to a debug view behind `?debug`; (2) a theme has an
-order and is never shuffled, and shuffle belongs to what plays it (the builder
-reads that as the wall, to confirm); (3) with the screen off, Walls shows the
+order and is never shuffled, and shuffle belongs to what plays it (the wall, chosen
+where a theme is hung on it); (3) with the screen off, Walls shows the
 last-shown work.
 
 **Limits.** One wall, its screen off throughout; To review and Wanted were
