@@ -1,7 +1,7 @@
 # Moving the Pi's Arrt Player to a new revision
 
-Owner: the operator · Last executed: null (this document, as written; the
-2026-10-11 deploy of 81e2d15e it is drawn from followed `deploy/README.md`)
+Owner: the operator · Last executed: 2026-10-11, 81e2d15e → 75770fe8 (no new
+setting or unit, so steps 7, 10–11 and the way back were not exercised)
 
 ## When to use this
 You have a newer commit of this repo and the Pi beside the wall runs an older
@@ -66,8 +66,8 @@ Arrt deploy runbook), unless step 2 says this release goes Player-first.
 
        cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
 
-   **Expected:** ends with an `Installed …`, `Uninstalled …` or
-   `Audited …` line, and no `error:`.
+   **Expected:** ends with an `Installed …`, `Uninstalled …`, `Audited …`
+   or `Checked …` line, and no `error:`.
    *Why the groups: without them the sync removes the label's typesetter and
    the panel driver.*
 
