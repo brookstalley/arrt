@@ -112,6 +112,10 @@ What installing a plugin trusts is `security-model.md` § Source plugins.
 
 ## The Player as a client of the NAS (2026-10-02, `build-plan-clients.md`)
 
+**To move a running Pi onto a newer revision**, follow
+`.prawduct/runbooks/moving-the-pi-player-to-a-new-revision.md`. The dated
+sections below are what each release added to that.
+
 **A Pi is a client of the server.** The server knows which walls each client
 shows and on which of its outputs. The Pi is configured with the server's
 address and its own token, and learns everything else from `GET /client`.
