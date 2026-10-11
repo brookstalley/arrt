@@ -82,12 +82,16 @@ separate debug view (`ia-proposal.md` § Rulings (2026-10-11), ruling 1).
 - A Get's rows link each work to its page (the work it became, the library's
   copy, or its Wikidata item), say *In your library* for a held work, and show
   *No picture kept* rather than the server's sentence, which a review card keeps
-  as a caption. *Review these works* shows only while a card is left to judge.
+  as a caption. *Review these works* shows only while a card is left to judge;
+  when only works found with no image are left it reads *Want or forget the N
+  works it found no image for*, and with every card decided there is no link.
 - The `not_held` reason reads *in no collection*: "not held" means the library
   lacks a work everywhere else.
 - `?debug` in the page's own query shows the Work page's file, hash,
   renditions and mat, Status's raw details, Sources' plugin id, package and
   interface, and a Get's reading of the request. Without it they are absent.
+  Status keeps each wall's Television, Label panel and Last error rows outside
+  debug: they are the failures it exists to show.
 - Source plugin interface 1.4: an optional `SourcePlugin.museum`, the name every
   page and server sentence uses for the source; `museum` on `/api/sources` and
   the MCP `source_plugins` answer.

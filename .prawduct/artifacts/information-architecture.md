@@ -240,7 +240,7 @@ takes — and refuses one of five words or fewer that opens with "The ".
 
 Priority is **core** (on a stated core flow) or **supporting**.
 
-**The debug view** *(2026-10-11, ruling 1 of `ia-proposal.md` § Rulings (2026-10-11), #355)*: a page opened with `?debug` in its own query (`/?debug#work/<id>`) keeps it across every in-app link, and only then shows engineering detail. On Work, the master's file and content hash, *What has been rendered* and *Mat colour*; on Status, each panel's *Details*; on Sources, each plugin's id, package and interface; on a Get, how the model read the request. The rows below describe a page with the flag; without it, those parts are absent.
+**The debug view** *(2026-10-11, ruling 1 of `ia-proposal.md` § Rulings (2026-10-11), #355)*: a page opened with `?debug` in its own query (`/?debug#work/<id>`) keeps it across every in-app link, and only then shows engineering detail. On Work, the master's file and content hash, *What has been rendered* and *Mat colour*; on Status, each panel's *Details* (each wall's *Television*, *Label panel* and *Last error* stay outside it, in words); on Sources, each plugin's id, package and interface; on a Get, how the model read the request. The rows below describe a page with the flag; without it, those parts are absent.
 
 | Screen | Purpose | Entry points | Priority |
 |---|---|---|---|

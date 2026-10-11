@@ -140,4 +140,4 @@ all" to the suggestion of #363 and #355 first):
 
 - [x] Chunk 01: the Get page (#363)
 - [x] Chunk 02: `?debug` (#355, ruling 1)
-- [ ] Chunk 03: every source named by its museum (#355) — this branch's part done; the private plugins' step follows the merge
+- [x] Chunk 03: every source named by its museum (#355) — this branch's part; the private plugins' step follows the merge, in their own repository, tracked on #355
