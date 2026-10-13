@@ -70,8 +70,8 @@
 
 <!-- prawduct: scope=flaky-tests -->
 
-**Why:** Two tests failed intermittently. One of them, #344, was a client
-defect that only looked like a flaky test. Focusing *Show more* scrolls its
+**Why:** Tests failed intermittently. One, #344, was a client defect that
+only looked like a flaky test. Focusing *Show more* scrolls its
 row into view, which makes the scroll fetch a page of its own. Pressing the
 button then focused the first work of the page after that one, so the works
 the scroll brought were behind the keyboard, reachable only with Shift-Tab.
