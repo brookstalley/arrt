@@ -92,6 +92,11 @@ off that wall's feed, by name, the way a work kept off every wall already is.
   by shape could not be undone, because there is no theme to rebuild from
   when the range is widened again. *Decided at build; not settled by the
   goals.*
+- **Shapes are a panel of their own on the card**, *Shapes it shows*, beside
+  the rotation, rather than a row inside a renamed *How it plays*. Each has
+  its own Set, as the mat does, and the two share one current state so
+  neither puts back what the other set. *Decided at build; the plan's
+  chunk 02 text said one panel.*
 - **The new reason is the curator's**, beside `KeptOff.EVERY_WALL`: a
   `KeptOff.WALL_SHAPE` (`"outside_wall_shape"`) whose detail names the work's
   shape and the wall's range, e.g. "This wall shows nothing wider than 1:1; this
@@ -160,4 +165,4 @@ matches nothing and confirm the feed has no works and Walls says why.
 ## Status
 
 - [x] 01 — store, service, exclusion, API, MCP
-- [ ] 02 — the client
+- [x] 02 — the client

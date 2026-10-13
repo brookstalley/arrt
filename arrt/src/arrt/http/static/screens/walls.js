@@ -317,12 +317,21 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact
     // invite the reader to look for the difference between them.
-    manifest && reason !== "empty-theme" ? el("p", { class: "note", text: manifest.summary }) : null,
+    manifest && reason !== "empty-theme" ? summaryLine(manifest) : null,
     ...emptiness(reason, wall, build, beats),
     controls(card, themes, reason, manifest),
     card.said,
     manifest ? setup(wall, manifest) : null,
   ]);
+}
+
+/* The server's sentence about how much of the theme reached the wall. Marked
+ * as a problem when none of it did, because the wall is then dark although a
+ * theme hangs there; the sentence says so ("so the wall is dark"), and the
+ * glyph only draws the eye to it. */
+function summaryLine(manifest) {
+  if (manifest.entries.length > 0) return el("p", { class: "note", text: manifest.summary });
+  return el("p", { class: "note wall-feed wall-dark" }, [el("span", { text: `${GLYPHS.problem} ${manifest.summary}` })]);
 }
 
 /* A screen not showing art, in the product's voice. `showing_art` and `silent`
@@ -793,7 +802,7 @@ const EXCLUSION_WORDS = {
 };
 
 /* How the wall is set up: what of its theme is not reaching it, how it
- * rotates, and how its mat is drawn. Behind a disclosure, because the card is about the work on the wall;
+ * rotates, which shapes it shows, and how its mat is drawn. Behind a disclosure, because the card is about the work on the wall;
  * this is what to open when the wall is not doing what was expected. */
 function setup(wall, manifest) {
   return el("details", { class: "wall-setup" }, [
@@ -813,9 +822,32 @@ function setup(wall, manifest) {
             text: `Every work it draws from reaches the wall: ${counted(manifest.entries.length, "work")} in rotation.`,
           }),
     ]),
-    rotationPanel(wall, manifest),
+    ...playbackPanels(wall, manifest),
     matPanel(wall),
   ]);
+}
+
+/* The rotation and shapes panels, which write one body between them
+ * (`PUT /api/walls/{id}/playback` states the wall's whole playback). Each Set
+ * sends the settings as the server last answered them with its own fields
+ * changed, and keeps the server's answer: a body built from the wall as first
+ * drawn would put back whatever the other panel set since. */
+function playbackPanels(wall, manifest) {
+  const playback = {
+    rotation_interval_seconds: wall.rotation_interval_seconds ?? null,
+    shuffle: wall.shuffle ?? null,
+    tallest: wall.tallest ?? null,
+    widest: wall.widest ?? null,
+  };
+  const send = (changes) =>
+    api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, {
+      method: "PUT",
+      body: JSON.stringify({ ...playback, ...changes }),
+    }).then((answer) => {
+      for (const key of Object.keys(playback)) playback[key] = answer[key] ?? null;
+      return answer;
+    });
+  return [rotationPanel(wall, manifest, send), shapesPanel(wall, send)];
 }
 
 /* The wall's orders in the curator's words, in the order the picker offers
@@ -836,7 +868,7 @@ const ORDER_CHOICES = [
  * default. The facts say what the wall plays at now, the default resolved, and
  * are asked of the server again (`GET /api/manifest`) after Set rather than worked out here,
  * since only the server knows the default. */
-function rotationPanel(wall, manifest) {
+function rotationPanel(wall, manifest, send) {
   const intervalId = `interval-${wall.wall_id}`;
   const orderId = `order-${wall.wall_id}`;
   const interval = el("input", {
@@ -886,15 +918,10 @@ function rotationPanel(wall, manifest) {
             event.currentTarget,
             `set the rotation on ${wall.name}`,
             () =>
-              api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, {
-                method: "PUT",
-                body: JSON.stringify({
-                  // A second at least: the wire is whole seconds, and the server refuses zero.
-                  rotation_interval_seconds: minutes === null ? null : Math.max(1, Math.round(minutes * 60)),
-                  shuffle: order.value === "" ? null : order.value === "true",
-                  tallest: wall.tallest ?? null,
-                  widest: wall.widest ?? null,
-                }),
+              send({
+                // A second at least: the wire is whole seconds, and the server refuses zero.
+                rotation_interval_seconds: minutes === null ? null : Math.max(1, Math.round(minutes * 60)),
+                shuffle: order.value === "" ? null : order.value === "true",
               }),
             {
               then: async () => {
@@ -909,6 +936,89 @@ function rotationPanel(wall, manifest) {
     ]),
     said,
     el("p", { class: "muted", text: "These belong to the wall, so they stay when another theme is hung here." }),
+  ]);
+}
+
+/* The shapes the picker offers, as the bounds each sends: the tallest and the
+ * widest, null for no limit. Custom is whatever the two fields hold. */
+const SHAPE_CHOICES = [
+  ["any", "Any shape", null, null],
+  ["portrait", "Portrait and square", null, "1:1"],
+  ["landscape", "Landscape and square", "1:1", null],
+  ["custom", "Custom", undefined, undefined],
+];
+
+/* Which shapes of work this wall shows (#370): the tallest and the widest, as
+ * width:height. Set by hand and off by default. The screen's own shape is shown
+ * beside them as a hint and never applied. A range that leaves nothing is
+ * honoured and the wall goes dark, so after Set the panel says the server's own
+ * summary, which says that. */
+function shapesPanel(wall, send) {
+  const pickerId = `shapes-${wall.wall_id}`;
+  const tallestId = `tallest-${wall.wall_id}`;
+  const widestId = `widest-${wall.wall_id}`;
+  const tallest = el("input", { id: tallestId, type: "text", placeholder: "Any", value: wall.tallest ?? "" });
+  const widest = el("input", { id: widestId, type: "text", placeholder: "Any", value: wall.widest ?? "" });
+  const picker = el("select", { id: pickerId });
+  const chosen = () => {
+    const [low, high] = [tallest.value.trim() || null, widest.value.trim() || null];
+    const preset = SHAPE_CHOICES.find(([, , t, w]) => t !== undefined && t === low && w === high);
+    return preset ? preset[0] : "custom";
+  };
+  for (const [value, words] of SHAPE_CHOICES) picker.append(el("option", { value, text: words }));
+  picker.value = chosen();
+  picker.addEventListener("change", () => {
+    const [, , low, high] = SHAPE_CHOICES.find(([value]) => value === picker.value);
+    if (low === undefined) return tallest.focus();
+    tallest.value = low ?? "";
+    widest.value = high ?? "";
+  });
+  for (const field of [tallest, widest]) field.addEventListener("input", () => (picker.value = chosen()));
+  const now = el("div", {}, [shapeFacts(wall)]);
+  // Said here and the panel left as it is, as the mat's is: a repaint would
+  // close the disclosure the curator just worked in.
+  const said = el("p", { class: "wall-said", role: "status" });
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Shapes it shows" }),
+    now,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: pickerId, text: `Shapes on ${wall.name}` }), picker]),
+      el("div", { class: "field" }, [el("label", { for: tallestId, text: "Tallest, as width:height" }), tallest]),
+      el("div", { class: "field" }, [el("label", { for: widestId, text: "Widest, as width:height" }), widest]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Set the shapes",
+        "aria-label": `Set the shapes on ${wall.name}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `set the shapes on ${wall.name}`,
+            () => send({ tallest: tallest.value.trim() || null, widest: widest.value.trim() || null }),
+            {
+              then: async (answer) => {
+                tallest.value = answer.tallest ?? "";
+                widest.value = answer.widest ?? "";
+                picker.value = chosen();
+                fill(now, shapeFacts(answer));
+                const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
+                said.textContent = `${wall.name} shows ${answer.shapes ?? "every shape"}. ${fresh.summary}`;
+              },
+            },
+          ),
+      }),
+    ]),
+    said,
+    el("p", { class: "muted", text: "A work outside these shapes is left off this wall, and listed above with why." }),
+  ]);
+}
+
+/* What the wall shows now, and the screen's own shape beside it as a hint. */
+function shapeFacts(wall) {
+  const screen = wall.sizes_judged_against;
+  return facts([
+    ["Shows", wall.shapes ?? "every shape"],
+    ["Its screen", screen ? screen.shape : "has not said its size"],
   ]);
 }
 

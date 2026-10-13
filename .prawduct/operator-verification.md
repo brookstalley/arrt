@@ -10,6 +10,24 @@ each entry, which is the durable form.
 
 ## Pending
 
+### A wall's shapes, and a wall they darken — added 2026-10-13
+
+**`build-plan-wall-shape-filter.md`, #370.** On Walls, open a wall's *How it is
+set up* and find *Shapes it shows*, below the rotation.
+
+- **The panel.** Judge whether *Shapes*, *Tallest* and *Widest* read as one
+  control, whether "width:height" is clear enough on the field labels, and
+  whether the screen's own shape beside them reads as a hint rather than a
+  setting. Pick *Portrait and square* on a landscape wall and *Set the shapes*:
+  the panel says the server's summary, ending "so the wall is dark".
+- **The dark wall.** After that, reload Walls: the card says the same sentence
+  near the top with the ▲ glyph, and *Not showing* lists each work as *Outside
+  this wall's shapes* with its own shape. Judge whether a curator reading only
+  the top of the card would know what to change.
+- **The television.** Within a poll interval, the wall's screen goes dark. Set
+  *Any shape* again and the works return. Run the server from this branch:
+  `cd arrt && uv run python -m arrt`.
+
 ### The cutover: walls on major 2 alone, and a missed Player named — added 2026-10-10
 
 **`build-plan-wave-4g-cutover.md`.** The server publishes each wall's feed

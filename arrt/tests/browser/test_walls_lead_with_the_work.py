@@ -494,6 +494,119 @@ def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, wi
     assert setup.get_by_label(f"Order on {the_wall.name}", exact=True).input_value() == "true"
 
 
+def open_setup(ui, wall):
+    open_walls(ui)
+    setup = card(ui, wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    return setup
+
+
+def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, winter):
+    """Both works are 4:3: landscape-and-square keeps them, portrait-and-square darkens the wall, and the panel says so."""
+    setup = open_setup(ui, the_wall)
+    picker = setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)
+    tallest = setup.get_by_label("Tallest, as width:height", exact=True)
+    widest = setup.get_by_label("Widest, as width:height", exact=True)
+    assert picker.locator("option").all_inner_texts() == ["Any shape", "Portrait and square", "Landscape and square", "Custom"]
+    assert (picker.input_value(), tallest.input_value(), widest.input_value()) == ("any", "", "")
+    assert "has not said its size" in setup.locator("dl.facts").nth(1).inner_text()
+    button = setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}")
+    said = setup.locator(".wall-said")
+
+    picker.select_option("landscape")
+    assert (tallest.input_value(), widest.input_value()) == ("1:1", "")
+    button.click()
+    said.filter(has_text=f"{the_wall.name} shows nothing taller than 1:1. All 2 works in this theme are on the wall.").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.min_aspect_ratio, wall.max_aspect_ratio) == (1.0, None)
+
+    picker.select_option("portrait")
+    button.click()
+    said.filter(has_text="2 are outside this wall's shapes, so the wall is dark.").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.min_aspect_ratio, wall.max_aspect_ratio) == (None, 1.0)
+    assert "nothing wider than 1:1" in setup.locator("dl.facts").nth(1).inner_text()
+    assert setup.get_attribute("open") is not None, "the panel stays open after setting the shapes"
+
+
+def test_typing_a_bound_makes_the_picker_say_custom(ui, the_wall, winter):
+    setup = open_setup(ui, the_wall)
+
+    setup.get_by_label("Widest, as width:height", exact=True).fill("4:5")
+
+    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
+    setup.get_by_label("Widest, as width:height", exact=True).fill("1:1")
+    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "portrait"
+
+
+def test_setting_the_rotation_after_the_shapes_keeps_the_shapes(ui, services, the_wall, winter):
+    """The two panels write one body: the second Set must send what the first one set, not the card as first drawn."""
+    setup = open_setup(ui, the_wall)
+    said = setup.locator(".wall-said")
+    setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).select_option("landscape")
+    setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}").click()
+    said.filter(has_text="shows nothing taller than 1:1").wait_for()
+
+    setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("10")
+    setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+    said.filter(has_text="each work for 10 minutes").wait_for()
+
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.rotation_interval_seconds, wall.min_aspect_ratio) == (600, 1.0)
+
+
+def test_a_shape_that_is_not_one_is_refused_in_the_servers_words(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, widest="16:9")
+    setup = open_setup(ui, the_wall)
+
+    setup.get_by_label("Widest, as width:height", exact=True).fill("wide")
+    setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}").click()
+
+    setup.locator(".act-failure").filter(has_text="width:height").wait_for()
+    assert services.display.get_wall(the_wall.id).max_aspect_ratio == pytest.approx(16 / 9)
+
+
+def test_chosen_shapes_are_the_ones_the_fields_show(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, tallest="4:5", widest="16:9")
+    setup = open_setup(ui, the_wall)
+
+    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
+    assert setup.get_by_label("Tallest, as width:height", exact=True).input_value() == "4:5"
+    assert setup.get_by_label("Widest, as width:height", exact=True).input_value() == "16:9"
+    assert "works from 4:5 to 16:9" in setup.locator("dl.facts").nth(1).inner_text()
+
+
+def test_the_screens_own_shape_is_shown_beside_the_walls_as_a_hint(ui, services, the_wall, winter, two_works):
+    report_with_screen(services, the_wall, two_works[0].id, width=1080, height=1920)
+    setup = open_setup(ui, the_wall)
+
+    assert "9:16" in setup.locator("dl.facts").nth(1).inner_text()
+    # A hint only: nothing was set from it.
+    assert services.display.get_wall(the_wall.id).max_aspect_ratio is None
+
+
+def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, widest="1:1")
+    open_walls(ui)
+
+    warning = card(ui, the_wall).locator(".wall-dark")
+    assert warning.inner_text().endswith("2 are outside this wall's shapes, so the wall is dark.")
+    card(ui, the_wall).locator("details.wall-setup summary").click()
+    reasons = card(ui, the_wall).locator("details.wall-setup table tbody tr")
+    assert set(reasons.all_inner_texts()) == {
+        f"{title}\tOutside this wall's shapes\tThis wall shows nothing wider than 1:1, and this work is 4:3. "
+        "Change the wall's shapes on Walls to put it back."
+        for title in ("Nighthawks", "Automat")
+    }
+
+
+def test_a_wall_showing_works_carries_no_dark_warning(ui, the_wall, winter):
+    open_walls(ui)
+
+    card(ui, the_wall).locator(".note", has_text="on the wall").first.wait_for()
+    assert card(ui, the_wall).locator(".wall-dark").count() == 0
+
+
 @pytest.fixture
 def with_master(service, settings, decodable_jpeg):
     """Give a work a presentation master of a size of its own, so the wall's feed carries it."""
