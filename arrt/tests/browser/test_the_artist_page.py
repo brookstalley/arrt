@@ -265,7 +265,9 @@ class TestTheArtistPage:
         fresco = ui.page.locator(f"{section} tbody tr", has_text="A fresco")
         assert fresco.locator(".year-under" if width < 640 else "td.year-col").inner_text() == "50 BCE"
 
-    def test_an_image_found_is_a_commons_thumbnail_that_sends_no_referrer(self, ui, rothko):
+    def test_an_image_found_is_a_commons_thumbnail_that_sends_no_referrer(self, pictures_load, rothko):
+        # The picture has to load to stay on the page, and Commons is not asked.
+        ui = pictures_load
         artist, _work = rothko
         _page(ui, artist)
         _registry_answered(ui)

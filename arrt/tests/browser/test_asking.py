@@ -425,9 +425,41 @@ def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
     assert _settled_turn(ui) == live
 
 
+def test_the_thread_s_pictures_are_not_fetched_from_commons_under_test(ui, ask_model):
+    """The suite's page reaches no origin but its own server (`ui`, #343).
+
+    Through a real reply, whose cards ask Commons for their pictures: the
+    requests are made and every one fails here, so no answer from outside
+    reaches the page and each box says why it has no picture.
+    """
+    answered = []
+    ui.page.on("response", lambda response: answered.append(response.url))
+    ask_model.replies += [calls(SEARCH), says(ANSWER)]
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+    ask(ui, "Something wintry")
+    ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
+    _settled_turn(ui)
+
+    assert any("commons.wikimedia.org" in url for url in ui.requests), "no card asked Commons, so nothing here was guarded"
+    assert [url for url in answered if not url.startswith(f"{ui.base_url}/")] == []
+    assert ui.page.locator(".ask-turn .card-image-absent").all_inner_texts() == ["Picture unavailable", "Picture unavailable"]
+
+
 def _settled_turn(ui) -> str:
-    """The turn's text once a work card's theme picker has read the themes, which it does after the card is drawn."""
+    """The turn's text once everything a card fills in after it is drawn has arrived.
+
+    Two things do: a work card's theme picker reads the themes, and each
+    picture box is filled when its picture answers — with the picture, or with
+    words saying why there is none. Read before a box settled, the text lacks
+    words it later gains, and a comparison of two reads races the picture (#343).
+    """
     ui.page.wait_for_function("() => !document.querySelector('.ask-turn').innerText.includes('Reading themes')")
+    ui.page.wait_for_function(
+        "() => [...document.querySelectorAll('.ask-turn .card-image')].every((box) =>"
+        " box.querySelector('.card-image-absent')"
+        " || [...box.querySelectorAll('img')].some((img) => img.complete && img.naturalWidth > 0))"
+    )
     return ui.page.locator(".ask-turn").inner_text()
 
 

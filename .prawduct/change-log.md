@@ -66,6 +66,48 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-12: Show more keeps the keyboard's place; three intermittent tests made deterministic (#343, #344, #365)
+
+<!-- prawduct: scope=flaky-tests -->
+
+**Why:** Two tests failed intermittently. One of them, #344, was a client
+defect that only looked like a flaky test. Focusing *Show more* scrolls its
+row into view, which makes the scroll fetch a page of its own. Pressing the
+button then focused the first work of the page after that one, so the works
+the scroll brought were behind the keyboard, reachable only with Shift-Tab.
+The test failed whenever the scroll's page landed between the focus and the
+press. It failed 3 of 4 runs alone and passed when the press came first.
+#365 bounded a real MCP round trip at 2 s of wall-clock time, so a busy
+machine could fail a correct `start`. #343 compared two reads of an Ask
+thread whose cards fetched their pictures from the live Commons site. One
+request failed (`ERR_BLOCKED_BY_ORB`), and *Picture unavailable* appeared
+whenever the internet answered, so it was in one read and not the other.
+
+**What:**
+- *Show more* counts arrived works from when the keyboard reached the button,
+  not from the press, and forgets that count when focus leaves.
+- `test_the_grid.py` builds the scroll-page-first case deterministically and
+  pairs it with a click after the keyboard has left. They fail against the old
+  client and against a client without the `blur` reset, respectively.
+- The browser suite's `ui` fixture aborts every request to an origin other
+  than the suite's server, so no browser test reaches Commons. A test that
+  needs a picture to load uses `pictures_load`. That moved one artist-page
+  test, which had been passing only when Commons answered. The Ask thread's
+  settle wait now waits for every picture box. A new test covers the guard;
+  without it the test fails on a machine with a network, while offline
+  Chromium fails the request on its own and the test cannot tell.
+- The other wall-clock bounds of #365's shape are now derived from the
+  quantity they separate from, not from a guess at a round trip:
+  `FakeEngine`'s gate is `GATE_SECONDS`, the browser surface's start and
+  status and the MCP status checks bound by a half of it or of
+  `STATUS_HOLD_SECONDS`, and the look budget test by its own slow fetch. The
+  grid tests read `NEAR_THE_END` from `collection.js` rather than copying it.
+- `test_discovery_tool.py` asserts that `start` returns while the fake engine
+  holds phase 1 open, with a bound of half the gate's own, not 2 s. It fails
+  by name when `start` runs phase 1 inline.
+
+**Deploy:** server only (the browser client).
+
 ## 2026-10-11: The Get page, and a debug view (#363, #355)
 
 <!-- prawduct: scope=get-page-and-debug-view -->

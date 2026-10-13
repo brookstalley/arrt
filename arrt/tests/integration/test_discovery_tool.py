@@ -17,9 +17,10 @@ import time
 from dataclasses import replace
 
 import pytest
-from fakes import a_work_list, spent, stored_awaiting_approval, works
+from fakes import GATE_SECONDS, a_work_list, spent, stored_awaiting_approval, works
 
 from arrt.library.discovery.engine import BudgetExhausted, WorkList
+from arrt.library.services.runner import STATUS_HOLD_SECONDS
 from arrt.persistence.discovery_records import RunStatus
 
 
@@ -82,24 +83,29 @@ async def test_every_declared_action_is_reachable_over_the_wire(server_url):
 
 
 async def test_a_start_returns_a_handle_rather_than_a_result(server_url, engine):
-    """Well inside the two seconds the contract allows, and not by being fast.
+    """The handle comes back while phase 1 is still held open, not by being fast.
 
-    The gate holds phase 1 open, so a `start` that waited for the work could not
-    return at all — which is what makes this a test of the handle rather than of
-    a quick fake.
+    The gate holds phase 1 open until `finally` releases it, so a `start` that
+    waited for the work could not return at all: it would sit until the fake
+    engine's `GATE_SECONDS` gave out. Whether the call returned is the claim, so
+    that is what is asserted, bounded by half the gate's wait rather than by the
+    contract's two seconds, which a busy machine misses (`GATE_SECONDS`).
     """
     import threading
 
     engine.gate = threading.Event()
     try:
-        began = time.monotonic()
-        payload, errored = await call(server_url, "art_discovery", action="start", intent="Dutch still life")
-        elapsed = time.monotonic() - began
+        try:
+            payload, errored = await asyncio.wait_for(
+                call(server_url, "art_discovery", action="start", intent="Dutch still life"),
+                timeout=GATE_SECONDS / 2,
+            )
+        except TimeoutError:
+            pytest.fail("start did not return while phase 1 was held: it waited on the work")
 
         assert errored is False
         assert payload["run_id"]
         assert payload["status"] == RunStatus.RESOLVING_WORKS
-        assert elapsed < 2.0, "a discovery call must return its handle immediately"
         assert "status" in payload["notice"], "the handle should say how to follow the run"
     finally:
         engine.gate.set()
@@ -127,7 +133,7 @@ async def test_status_holds_while_a_run_is_being_worked_on_and_answers_when_it_c
     assert errored is False
     # It waited for the change rather than answering "still working" at once,
     # and it did not sit out the full hold once the change arrived.
-    assert 0.3 <= elapsed < 20.0, f"status returned after {elapsed:.2f}s"
+    assert 0.3 <= elapsed < STATUS_HOLD_SECONDS / 2, f"status returned after {elapsed:.2f}s"
     assert payload["status"] != RunStatus.RESOLVING_WORKS
 
 
@@ -144,7 +150,8 @@ async def test_status_on_a_run_that_is_waiting_for_a_person_answers_at_once(serv
     payload, _ = await call(server_url, "art_discovery", action="status", run_id=run_id)
 
     assert payload["status"] == RunStatus.AWAITING_APPROVAL
-    assert time.monotonic() - began < 5.0
+    # Half the hold: a held call sits all of it, since nothing here changes.
+    assert time.monotonic() - began < STATUS_HOLD_SECONDS / 2
 
 
 # -- how the intent was read ------------------------------------------------------

@@ -924,10 +924,22 @@ export async function viewCollection(generation) {
   }
 
   // From *Show more*, the keyboard goes to the first work that arrived, so the
-  // next Tab continues through the new ones rather than past them.
+  // next Tab continues through the new ones rather than past them. "Arrived"
+  // counts from when the button took focus, not from the press: focusing it
+  // scrolls its row into view, the scroll asks for a page of its own, and the
+  // works that page brings land above a button the keyboard already stands on.
+  // Counted from the press, they would be skipped, reachable only backwards
+  // (#344).
+  let reachedAt = null;
+  showMore.addEventListener("focus", () => {
+    reachedAt = grid.children.length;
+  });
+  showMore.addEventListener("blur", () => {
+    reachedAt = null;
+  });
   showMore.addEventListener("click", () =>
     attempt(showMore, "show more works", async () => {
-      const before = grid.children.length;
+      const before = reachedAt ?? grid.children.length;
       await loadPage();
       const arrived = grid.children[before];
       const opener = arrived ? arrived.querySelector("a[href]:not([tabindex='-1'])") : null;
