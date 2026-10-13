@@ -422,6 +422,76 @@ def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter
     assert card(ui, the_wall).get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"
 
 
+def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, winter):
+    """Minutes on the screen, seconds in the store; the facts are read back from the published feed."""
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    minutes = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
+    order = setup.get_by_label(f"Order on {the_wall.name}", exact=True)
+    assert order.locator("option").all_inner_texts() == ["Default", "As curated", "Shuffled"]
+    assert (minutes.input_value(), order.input_value()) == ("", "")
+    button = setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}")
+    said = setup.locator(".wall-said")
+
+    # 1.5 minutes: a value that is not whole minutes, so a lost factor of 60 or a
+    # rounding to minutes shows.
+    minutes.fill("1.5")
+    order.select_option("false")
+    button.click()
+    said.filter(has_text=f"Rotation on {the_wall.name}: each work for 90 seconds, as curated.").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.rotation_interval_seconds, wall.shuffle) == (90, False)
+    assert "90 seconds" in setup.locator("dl.facts").first.inner_text()
+    assert setup.get_attribute("open") is not None, "the panel stays open after setting the rotation"
+
+    minutes.fill("")
+    order.select_option("")
+    button.click()
+    said.filter(has_text=f"Rotation on {the_wall.name}: each work for 3 minutes,").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.rotation_interval_seconds, wall.shuffle) == (None, None)
+
+
+def test_a_rotation_of_no_minutes_is_refused_in_words_and_nothing_is_sent(ui, services, the_wall, winter):
+    services.display.set_rotation(the_wall.id, rotation_interval_seconds=931)
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+
+    setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("0")
+    setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+
+    setup.locator(".wall-said").filter(has_text="Minutes must be more than zero").wait_for()
+    assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 931
+
+
+def test_minutes_that_are_not_a_number_are_not_read_as_the_default(ui, services, the_wall, winter):
+    """A number field holding "e" reports an empty value; sent, that would reset the wall to the default."""
+    services.display.set_rotation(the_wall.id, rotation_interval_seconds=931)
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    field = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
+
+    field.fill("")
+    field.press_sequentially("e")
+    setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+
+    setup.locator(".wall-said").filter(has_text="Minutes must be a number").wait_for()
+    assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 931
+
+
+def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, winter):
+    services.display.set_rotation(the_wall.id, rotation_interval_seconds=600, shuffle=True)
+    open_walls(ui)
+    card(ui, the_wall).locator("details.wall-setup summary").click()
+
+    setup = card(ui, the_wall)
+    assert setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).input_value() == "10"
+    assert setup.get_by_label(f"Order on {the_wall.name}", exact=True).input_value() == "true"
+
+
 @pytest.fixture
 def with_master(service, settings, decodable_jpeg):
     """Give a work a presentation master of a size of its own, so the wall's feed carries it."""

@@ -93,5 +93,5 @@ tests and their payloads, and the Themes and Walls rows in `information-architec
 
 ## Status
 
-- [ ] 01 — store, service, migration, API, MCP
-- [ ] 02 — the client
+- [x] 01 — store, service, migration, API, MCP
+- [x] 02 — the client

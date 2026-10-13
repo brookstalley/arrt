@@ -812,15 +812,116 @@ function setup(wall, manifest) {
             text: `Every work it draws from reaches the wall: ${counted(manifest.entries.length, "work")} in rotation.`,
           }),
     ]),
-    el("div", { class: "panel" }, [
-      el("h3", { text: "How it rotates" }),
-      facts([
-        ["Interval", `${manifest.rotation_interval_seconds} seconds`],
-        ["Order", manifest.shuffle ? "shuffled" : "as curated"],
-      ]),
-    ]),
+    rotationPanel(wall, manifest),
     matPanel(wall),
   ]);
+}
+
+/* The wall's orders in the curator's words, in the order the picker offers
+ * them: the value sent (`shuffle`), and the picker's words. The empty value is
+ * no choice at all: the deployment's default, which the facts below resolve. */
+const ORDER_CHOICES = [
+  ["", "Default"],
+  ["false", "As curated"],
+  ["true", "Shuffled"],
+];
+
+/* How the wall plays what hangs on it: how long each work stays up, and whether
+ * in the theme's order or shuffled. The wall's settings, not the theme's
+ * (ruling 2 of 2026-10-11), so they stay when another theme is hung.
+ *
+ * Minutes here and seconds on the wire: a curator thinks of a work staying up
+ * for minutes, and a decimal still reaches a 90-second interval. Empty is the
+ * default. The facts say what the wall plays at now, the default resolved, and
+ * are read again from the published feed after Set rather than worked out here,
+ * since only the server knows the default. */
+function rotationPanel(wall, manifest) {
+  const intervalId = `interval-${wall.wall_id}`;
+  const orderId = `order-${wall.wall_id}`;
+  const interval = el("input", {
+    id: intervalId,
+    type: "number",
+    min: "0.1",
+    step: "any",
+    inputmode: "decimal",
+    placeholder: "Default",
+    value: wall.rotation_interval_seconds == null ? "" : String(wall.rotation_interval_seconds / 60),
+  });
+  const order = el("select", { id: orderId });
+  for (const [value, words] of ORDER_CHOICES) {
+    order.append(el("option", { value, text: words, selected: String(wall.shuffle ?? "") === value }));
+  }
+  const now = el("div", {}, [rotationFacts(manifest)]);
+  // Said here and the panel left as it is, as the mat's is: a repaint would
+  // close the disclosure the curator just worked in.
+  const said = el("p", { class: "wall-said", role: "status" });
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "How it rotates" }),
+    now,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: intervalId, text: `Minutes each work stays up on ${wall.name}` }), interval]),
+      el("div", { class: "field" }, [el("label", { for: orderId, text: `Order on ${wall.name}` }), order]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Set the rotation",
+        "aria-label": `Set the rotation on ${wall.name}`,
+        onclick: (event) => {
+          // A number field holding something that is not a number reads as
+          // empty, which would quietly mean "the default": asked apart.
+          if (interval.validity.badInput) {
+            said.textContent = "Minutes must be a number, or left empty for the default.";
+            return;
+          }
+          const minutes = interval.value.trim() === "" ? null : Number(interval.value);
+          // Refused here only what the server would refuse anyway, so the
+          // sentence names the field rather than the route.
+          if (minutes !== null && !(minutes > 0)) {
+            said.textContent = "Minutes must be more than zero, or left empty for the default.";
+            return;
+          }
+          return attempt(
+            event.currentTarget,
+            `set the rotation on ${wall.name}`,
+            () =>
+              api(`/api/walls/${encodeURIComponent(wall.wall_id)}/rotation`, {
+                method: "PUT",
+                body: JSON.stringify({
+                  rotation_interval_seconds: minutes === null ? null : Math.max(1, Math.round(minutes * 60)),
+                  shuffle: order.value === "" ? null : order.value === "true",
+                }),
+              }),
+            {
+              then: async () => {
+                const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
+                fill(now, rotationFacts(fresh));
+                said.textContent = `Rotation on ${wall.name}: ${rotationWords(fresh)}.`;
+              },
+            },
+          );
+        },
+      }),
+    ]),
+    said,
+    el("p", { class: "muted", text: "These belong to the wall, so they stay when another theme is hung here." }),
+  ]);
+}
+
+/* What the wall plays at now, the default resolved. */
+function rotationFacts(manifest) {
+  return facts([
+    ["Each work stays up", durationWords(manifest.rotation_interval_seconds)],
+    ["Order", manifest.shuffle ? "shuffled" : "as curated"],
+  ]);
+}
+
+function rotationWords(manifest) {
+  return `each work for ${durationWords(manifest.rotation_interval_seconds)}, ${manifest.shuffle ? "shuffled" : "as curated"}`;
+}
+
+/* Whole minutes in minutes, anything else in seconds, so a value is never rounded into a different one. */
+function durationWords(seconds) {
+  return seconds % 60 === 0 ? counted(seconds / 60, "minute") : counted(seconds, "second");
 }
 
 /* The mat's modes in the curator's words (`feeds-and-players.md` § Mat modes),

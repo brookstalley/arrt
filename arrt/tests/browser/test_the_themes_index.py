@@ -6,8 +6,8 @@ measure the index was rebuilt to: the old index expanded every theme with its
 whole membership and grew by a table row per work.
 
 The theme page orders its works with Move to top and Move to bottom beside ↑
-and ↓, all of them buttons a keyboard reaches, and says whether position decides
-what the wall shows first — which it does only when the theme is not shuffled.
+and ↓, all of them buttons a keyboard reaches. A theme has an order and is never
+shuffled, so its page says nothing of shuffle; that is the wall's setting.
 """
 
 import re
@@ -231,36 +231,22 @@ def test_the_ends_offer_no_move_to_where_a_work_already_is(ui, winter):
     assert ui.page.is_enabled("button[aria-label='Move Number 1 to the top']")
 
 
-POSITION_DECIDES = "Position decides what the wall shows first"
-SHUFFLED = "Shown in shuffled order"
+def test_the_order_copy_says_only_that_the_theme_is_in_order(ui, services, winter):
+    """A theme is never shuffled, so its page does not speak of shuffle — even when the wall hanging it shuffles.
 
-
-@pytest.mark.parametrize("shuffle", [False, True], ids=["shuffle-off", "shuffle-on"])
-def test_the_order_copy_says_whether_position_decides(ui, services, winter, shuffle):
-    """Each sentence where it is true, and absent where it is not.
-
-    The theme's own setting, set both ways, so neither case is the deployment
-    default standing in for the theme's.
+    The wall shuffles here so the case where a stale caption would say
+    "shuffled" is the one exercised; and position deciding what "the wall"
+    shows first would be false of that wall.
     """
-    services.display.update_theme(winter.id, shuffle=shuffle)
+    wall = services.display.survey_walls()[0].wall
+    services.display.set_rotation(wall.id, shuffle=True)
+    services.display.activate_theme(winter.id, wall_id=wall.id)
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
     caption = ui.page.inner_text("table caption")
 
-    assert (SHUFFLED in caption) is shuffle
-    assert (POSITION_DECIDES in caption) is not shuffle
-
-
-def test_the_copy_agrees_with_what_walls_says(ui, services, winter):
-    """A theme that inherits is shuffled as the deployment is, and Walls says so too."""
-    wall = services.display.survey_walls()[0].wall
-    services.display.activate_theme(winter.id, wall_id=wall.id)
-    shuffled = services.display.build_manifest(wall.id, winter.id).shuffle
-
-    ui.open(f"#theme/{winter.id}")
-    ui.page.wait_for_selector("tbody tr")
-
-    assert (SHUFFLED in ui.page.inner_text("table caption")) is shuffled
+    assert caption == "In curated order."
+    assert "shuffle" not in ui.page.inner_text("main").lower()
 
 
 # -- the title follows a rename (#302) -----------------------------------------

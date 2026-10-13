@@ -66,6 +66,48 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-13: Shuffle and the interval are the wall's, not the theme's (#353)
+
+<!-- prawduct: scope=wall-rotation-settings -->
+
+**Why:** The owner's ruling 2 of 2026-10-11 said a theme has an order and is
+never shuffled. Whether a wall shuffles, and how long each work stays up, are
+settings of the wall that plays the theme. On 2026-10-13, with #370 (a wall
+filtering its theme by aspect ratio) in view, the owner chose to store both on
+the wall itself, beside `mat_mode`, not on the hanging. They survive hanging
+another theme and clearing the wall, and #370's filter will go in the same
+place.
+
+**What changed:**
+- `Wall` gains `rotation_interval_seconds` and `shuffle`, where null means the
+  deployment default. `Theme` loses both. `DisplayService.pace(wall)` is the
+  single reader for a build, a rebuild and a rolled horizon.
+  `DisplayService.set_rotation` republishes the wall's feed at once and keeps
+  the slot currently on the wall.
+- `migrations.carry_rotation_to_walls` gives each wall the values its hung theme
+  had set. It logs, by name, any value whose theme hangs nowhere, then drops
+  the theme's columns. A wall's own value is never overwritten, so an
+  interrupted open is finished by the next one.
+- HTTP: `PUT /api/walls/{id}/rotation`. Its body carries both fields, so
+  leaving one out is a `422`, not a reset. `ThemeOut` loses both fields and
+  `ThemeDetailOut` loses `shuffled`.
+- MCP: `art_display(action='set_rotation')`. This surface drops a null
+  argument, so the default is sent as words: `shuffle='default'` and
+  `default_interval=true`. `art_theme(action='update')` refuses both settings
+  by name. Four other action descriptions in `art_display`'s menu were
+  shortened to keep it under the 2 KB client budget (2046 bytes).
+- Client: Walls › *How {wall} is set up* has minutes and an order, set with
+  *Set the rotation*. The facts are read back from the published feed. The
+  Theme page caption says only *In curated order.*
+- Tests: one test changed meaning. `test_the_order_copy_says_whether_position_decides`
+  became `test_the_order_copy_says_only_that_the_theme_is_in_order`, because the
+  ruling removes that sentence. Two store widening tests now check
+  `is_hidden`, since `themes` no longer carries the rotation columns. Every new
+  test was seen failing against the old code or a deliberate break (the carry
+  left unregistered, the `COALESCE` guard removed, the republish removed,
+  shuffle read from the default only, the old client, the not-a-number guard
+  removed).
+
 ## 2026-10-12: Show more keeps the keyboard's place; three intermittent tests made deterministic (#343, #344, #365)
 
 <!-- prawduct: scope=flaky-tests -->
