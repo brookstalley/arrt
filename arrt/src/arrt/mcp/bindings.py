@@ -1094,7 +1094,7 @@ def _set_verdict(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
         # Both reported on every acceptance, empty included. A key present only
         # when an artist was minted would teach a caller to read its absence as
         # "nothing happened", which is the silence this pair exists to break —
-        # the same rule `not_displayable` follows on the display surface.
+        # the same rule `not_on_the_wall` follows on the display surface.
         #
         # **Uncapped, and what bounds it is worth naming rather than assuming.**
         # `possible_duplicate_artists` holds artists already in the catalogue that
@@ -1562,7 +1562,10 @@ def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
         # Never omitted when empty: a caller that saw this key only sometimes
         # would learn to read its absence as "everything is fine", which is
         # exactly the silence the exclusion report exists to break.
-        not_displayable=[
+        # Named for what it holds: every work not on the wall, for any reason.
+        # The curator's reasons leave displayable works off, so a name saying
+        # "not displayable" would tell an agent those works need repair.
+        not_on_the_wall=[
             {
                 "artwork_id": exclusion.work_id,
                 "title": exclusion.title,
@@ -2661,10 +2664,10 @@ def _sync_notice(build: ManifestBuild) -> str:
 
     The counts come from the build itself, so this surface and the browser one
     cannot disagree about them. Only the field name is this surface's own — a
-    model reading a tool result has `not_displayable` in front of it, and naming
+    model reading a tool result has `not_on_the_wall` in front of it, and naming
     it is worth a clause that would be meaningless anywhere else.
     """
     summary = build.summarise()
     if not build.exclusions:
         return summary
-    return f"{summary} See not_displayable for each one and why."
+    return f"{summary} See not_on_the_wall for each one and why."

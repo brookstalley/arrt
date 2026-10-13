@@ -147,7 +147,7 @@ async def test_a_work_that_cannot_be_shown_is_reported_rather_than_dropped(serve
         published = await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=walls["walls"][0]["wall_id"])
 
     assert published["on_the_wall"] == []
-    excluded = {entry["title"]: entry for entry in published["not_displayable"]}
+    excluded = {entry["title"]: entry for entry in published["not_on_the_wall"]}
     assert set(excluded) == set(seeded_titles)
 
     for title, entry in excluded.items():

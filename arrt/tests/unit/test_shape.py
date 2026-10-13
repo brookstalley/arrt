@@ -14,7 +14,9 @@ def test_a_bound_is_read_as_a_curator_writes_it(spelled, ratio):
     assert shape.parse(spelled) == (None if ratio is None else pytest.approx(ratio))
 
 
-@pytest.mark.parametrize("spelled", ["", "wide", "0:1", "1:0", "4:", ":5", "-1", "0", "nan", "inf", "4:-5", "none"])
+@pytest.mark.parametrize(
+    "spelled", ["", "wide", "0:1", "1:0", "0:0", "4:", ":5", "-1", "0", "nan", "inf", "4:-5", "-4:-5", "none"]
+)
 def test_anything_else_is_refused_by_name(spelled):
     with pytest.raises(ServiceError, match="width:height"):
         shape.parse(spelled)
@@ -22,18 +24,29 @@ def test_anything_else_is_refused_by_name(spelled):
 
 @pytest.mark.parametrize(
     ("ratio", "spoken"),
-    [(1.0, "1:1"), (16 / 9, "16:9"), (9 / 16, "9:16"), (0.8, "4:5"), (2 / 3, "2:3"), (3000 / 3003, "1:1"), (2.35, "2.35:1")],
+    [
+        (1.0, "1:1"),
+        (16 / 9, "16:9"),
+        (9 / 16, "9:16"),
+        (0.8, "4:5"),
+        (2 / 3, "2:3"),
+        (3000 / 3003, "1:1"),
+        (2.35, "2.35:1"),
+        (0.305, "0.305:1"),
+    ],
 )
 def test_a_shape_is_spoken_as_a_curator_would_say_it(ratio, spoken):
     assert shape.spoken(ratio) == spoken
 
 
-@pytest.mark.parametrize("spelled", ["1:1", "4:5", "16:9", "9:16", "2:3", "21:9", "1.618", "2.39"])
+# With no near simple fraction too (0.305, 0.004, 1.6180339): two decimal places
+# moved 0.305 past the tolerance and spoke 0.004 as an unreadable 0.00.
+@pytest.mark.parametrize("spelled", ["1:1", "4:5", "16:9", "9:16", "2:3", "21:9", "1.618", "2.39", "0.305", "0.004", "1.6180339"])
 def test_sending_back_a_spoken_bound_does_not_move_it(spelled):
     """The client sends back what it was given, so a round trip must leave the bound where the curator put it."""
     ratio = shape.parse(spelled)
 
-    assert shape.parse(shape.spoken(ratio)) == pytest.approx(ratio, rel=shape.TOLERANCE / 2)
+    assert shape.parse(shape.spoken(ratio)) == pytest.approx(ratio, rel=shape.TOLERANCE / 20)
     # And a second trip moves it no further.
     assert shape.spoken(shape.parse(shape.spoken(ratio))) == shape.spoken(ratio)
 

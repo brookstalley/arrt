@@ -224,7 +224,7 @@ from arrt.persistence.records import (
 )
 from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import SizeJudgement, ThemeCount, ThemePlacement, WallView, feed_notice
+from arrt.programming.display import UNSET, SizeJudgement, ThemeCount, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -1279,12 +1279,13 @@ def set_playback(request: Request, wall_id: str, body: SetPlayback) -> WallOut:
     republished at once, keeping the work on the wall now.
     """
     services = _services(request)
+    # A field the body leaves out is left as it is, and null is "the default" or
+    # "no limit": so a page that sets the shapes cannot put back a pace another
+    # surface set since that page was drawn.
+    sent = body.model_fields_set
     services.display.set_playback(
         wall_id,
-        rotation_interval_seconds=body.rotation_interval_seconds,
-        shuffle=body.shuffle,
-        tallest=body.tallest,
-        widest=body.widest,
+        **{field: getattr(body, field) if field in sent else UNSET for field in SetPlayback.model_fields},
     )
     return _wall(services, services.display.get_wall_view(wall_id))
 

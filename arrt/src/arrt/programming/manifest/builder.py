@@ -46,6 +46,16 @@ class KeptOff(StrEnum):
     WALL_SHAPE = "outside_wall_shape"
 
 
+#: How the build's summary says each of the curator's reasons, in the order it
+#: says them; every `KeptOff` reason has one (`test_counting`). A reason of the
+#: Library's is `_UNSHOWABLE`.
+_KEPT_OFF_PHRASES: dict[UnplayableReason | KeptOff, str] = {
+    KeptOff.WALL_SHAPE: "outside this wall's shapes",
+    KeptOff.EVERY_WALL: "kept off every wall",
+}
+_UNSHOWABLE = "not currently displayable"
+
+
 @dataclass(frozen=True, slots=True)
 class Exclusion:
     """One work that is in the theme and not on the wall, and why."""
@@ -151,16 +161,15 @@ class ManifestBuild:
         # is right to — there the subject really is "All N works". Same helper,
         # different subject, and the nearest count is the wrong one exactly half
         # the time.
-        # Counted apart because a work outside the wall's shapes is displayable:
-        # lumped in with the broken ones, "0 of 12 on the wall" would read as
-        # twelve works needing repair when one setting on the wall is the cause.
-        outside = sum(1 for exclusion in self.exclusions if exclusion.reason is KeptOff.WALL_SHAPE)
-        unshowable = len(self.exclusions) - outside
-        why = [
-            f"{count} {agree(count, 'is', 'are')} {reason}"
-            for count, reason in ((outside, "outside this wall's shapes"), (unshowable, "not currently displayable"))
-            if count
-        ]
+        # Each of the curator's reasons counted apart from the Library's: a work
+        # kept off or outside the wall's shapes is displayable, and lumped in with
+        # the broken ones "0 of 12 on the wall" would read as twelve works needing
+        # repair when one choice of the curator's is the cause. Keyed on the
+        # reason's kind, so a new `KeptOff` reason cannot fall into "not displayable".
+        counts = dict.fromkeys((*_KEPT_OFF_PHRASES.values(), _UNSHOWABLE), 0)
+        for exclusion in self.exclusions:
+            counts[_KEPT_OFF_PHRASES.get(exclusion.reason, _UNSHOWABLE)] += 1
+        why = [f"{count} {agree(count, 'is', 'are')} {phrase}" for phrase, count in counts.items() if count]
         # An empty feed is an ordinary state (`player-contract.md`), and an
         # ordinary state on a television is a dark screen: said, because a
         # curator reading only the counts would expect a picture.
@@ -168,7 +177,7 @@ class ManifestBuild:
         return (
             f"{len(self.entries)} of {counted(self.considered, 'work')} in this theme "
             f"{agree_partitive(len(self.entries), self.considered, 'is', 'are')} on the wall; "
-            f"{' and '.join(why)}{dark}."
+            f"{', '.join(why[:-1])}{' and ' if len(why) > 1 else ''}{why[-1]}{dark}."
         )
 
 

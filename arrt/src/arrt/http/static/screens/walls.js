@@ -827,26 +827,14 @@ function setup(wall, manifest) {
   ]);
 }
 
-/* The rotation and shapes panels, which write one body between them
- * (`PUT /api/walls/{id}/playback` states the wall's whole playback). Each Set
- * sends the settings as the server last answered them with its own fields
- * changed, and keeps the server's answer: a body built from the wall as first
- * drawn would put back whatever the other panel set since. */
+/* The rotation and shapes panels, which share one route
+ * (`PUT /api/walls/{id}/playback`). Each sends only its own fields, and the
+ * server leaves the rest as they are: a body carrying the other panel's
+ * settings as this page first drew them would put back whatever was set since,
+ * here or on another surface. */
 function playbackPanels(wall, manifest) {
-  const playback = {
-    rotation_interval_seconds: wall.rotation_interval_seconds ?? null,
-    shuffle: wall.shuffle ?? null,
-    tallest: wall.tallest ?? null,
-    widest: wall.widest ?? null,
-  };
   const send = (changes) =>
-    api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, {
-      method: "PUT",
-      body: JSON.stringify({ ...playback, ...changes }),
-    }).then((answer) => {
-      for (const key of Object.keys(playback)) playback[key] = answer[key] ?? null;
-      return answer;
-    });
+    api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, { method: "PUT", body: JSON.stringify(changes) });
   return [rotationPanel(wall, manifest, send), shapesPanel(wall, send)];
 }
 
@@ -983,8 +971,10 @@ function shapesPanel(wall, send) {
     now,
     el("div", { class: "row" }, [
       el("div", { class: "field" }, [el("label", { for: pickerId, text: `Shapes on ${wall.name}` }), picker]),
-      el("div", { class: "field" }, [el("label", { for: tallestId, text: "Tallest, as width:height" }), tallest]),
-      el("div", { class: "field" }, [el("label", { for: widestId, text: "Widest, as width:height" }), widest]),
+      // The wall's name in each label, as every other field on the card has it:
+      // with two walls, a reader moving by form field hears which wall each is.
+      el("div", { class: "field" }, [el("label", { for: tallestId, text: `Tallest on ${wall.name}, as width:height` }), tallest]),
+      el("div", { class: "field" }, [el("label", { for: widestId, text: `Widest on ${wall.name}, as width:height` }), widest]),
       el("button", {
         class: "action",
         type: "button",

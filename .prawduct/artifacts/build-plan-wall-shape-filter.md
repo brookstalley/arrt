@@ -97,6 +97,16 @@ off that wall's feed, by name, the way a work kept off every wall already is.
   its own Set, as the mat does, and the two share one current state so
   neither puts back what the other set. *Decided at build; the plan's
   chunk 02 text said one panel.*
+- **After review: the HTTP body leaves an omitted field alone** rather than
+  requiring all four, so neither panel nor another surface can be overwritten
+  by a page drawn earlier; each panel sends only its own fields.
+- **An explicit show-now still shows a work outside the wall's shapes**: it is
+  the curator naming that work for that moment. *Decided after review; the
+  goals did not settle it.*
+- **The plan's verification against a copy of the catalogue was not run.** No
+  catalogue copy is on this machine. What stands in for it: the integration
+  test that publishes through HTTP and reads the feed and summary back, and the
+  operator walk queued for the real wall.
 - **The new reason is the curator's**, beside `KeptOff.EVERY_WALL`: a
   `KeptOff.WALL_SHAPE` (`"outside_wall_shape"`) whose detail names the work's
   shape and the wall's range, e.g. "This wall shows nothing wider than 1:1; this

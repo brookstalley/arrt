@@ -2002,14 +2002,15 @@ class SetPlayback(BaseModel):
 
     Null on the interval or shuffle is the deployment default; null on `tallest`
     or `widest` is no limit, and either is spelled `W:H`, a decimal, or `any`.
-    Every field is required: the body states the wall's whole playback, so a
-    client that sends one field cannot clear another by leaving it out.
+    **A field left out is left as it is**, never read as null: a client sends
+    only what it is changing, so it cannot undo a setting another surface made
+    after it read the wall.
     """
 
-    rotation_interval_seconds: int | None
-    shuffle: bool | None
-    tallest: str | None
-    widest: str | None
+    rotation_interval_seconds: int | None = None
+    shuffle: bool | None = None
+    tallest: str | None = None
+    widest: str | None = None
 
 
 class AssignDisplay(BaseModel):

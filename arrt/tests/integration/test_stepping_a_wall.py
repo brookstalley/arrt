@@ -195,15 +195,24 @@ def test_a_walls_rotation_returns_to_the_default_with_null_and_refuses_what_is_n
 
     cleared = http.put(path, json={"rotation_interval_seconds": None, "shuffle": None, "tallest": None, "widest": None})
     refused = http.put(path, json={"rotation_interval_seconds": 0, "shuffle": None, "tallest": None, "widest": None})
-    # Both fields are the body: one left out is refused, not read as "the default".
-    half = http.put(path, json={"shuffle": False})
-
     assert (cleared.json()["rotation_interval_seconds"], cleared.json()["shuffle"]) == (None, None)
     assert refused.status_code == 400
     assert "greater than zero" in refused.json()["error"]
-    assert half.status_code == 422
     wall = _wall_named(http, the_wall["name"])
     assert (wall["rotation_interval_seconds"], wall["shuffle"]) == (None, None)
+
+
+def test_a_field_left_out_of_the_playback_body_is_left_as_it_is_never_read_as_the_default(http, the_wall):
+    """So a page setting the shapes cannot put back a pace another surface set after that page was drawn."""
+    path = f"/api/walls/{the_wall['wall_id']}/playback"
+    http.put(path, json={"rotation_interval_seconds": 931, "shuffle": True, "widest": "16:9"})
+
+    shapes_only = http.put(path, json={"tallest": "1:1"})
+    pace_only = http.put(path, json={"rotation_interval_seconds": 47})
+
+    assert shapes_only.status_code == 200
+    assert (shapes_only.json()["rotation_interval_seconds"], shapes_only.json()["shuffle"]) == (931, True)
+    assert (pace_only.json()["tallest"], pace_only.json()["widest"], pace_only.json()["shuffle"]) == ("1:1", "16:9", True)
 
 
 def test_a_walls_shapes_are_chosen_over_http_and_leave_its_wider_works_off(http, ready_work, the_wall):

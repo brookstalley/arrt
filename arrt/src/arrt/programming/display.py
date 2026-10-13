@@ -43,7 +43,7 @@ from arrt.programming import adequacy, shape
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest import heartbeat
-from arrt.programming.manifest.builder import Exclusion, ManifestBuild, write_atomically
+from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
@@ -632,8 +632,10 @@ class DisplayService:
             store_write(self._store.update_wall, chosen)
             assignment = self._store.get_assignment(wall_id)
             feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            build = None
             if assignment is not None:
-                self._sync_v2(self.build_manifest(wall_id, assignment.theme_id))
+                build = self.build_manifest(wall_id, assignment.theme_id)
+                self._sync_v2(build)
             elif feed is not None:
                 self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep())
         interval, shuffled = self.pace(chosen)
@@ -646,6 +648,8 @@ class DisplayService:
             "" if chosen.shuffle is not None else " (the default)",
             shape.described(chosen.min_aspect_ratio, chosen.max_aspect_ratio) or "every shape",
         )
+        if build is not None:
+            _log_published(build)
         return self.get_wall(wall_id)
 
     def add_theme(self, *, name: str, description: str | None = None) -> Theme:
@@ -1384,24 +1388,7 @@ class DisplayService:
         with self._store.transaction():
             build = self.build_manifest(wall_id, theme_id)
             self._sync_v2(build)
-        if build.exclusions:
-            # Named at WARNING with the count, because a theme quietly showing
-            # fewer works than it holds is precisely this product's
-            # characteristic failure.
-            log.warning(
-                "Wall %r, theme %r: %d of %d works are left off the wall (%s).",
-                build.wall.name,
-                build.theme.name,
-                len(build.exclusions),
-                build.considered,
-                ", ".join(sorted({exclusion.reason.value for exclusion in build.exclusions})),
-            )
-        log.info(
-            "Published the feed for wall %r showing theme %r, with %d works.",
-            build.wall.name,
-            build.theme.name,
-            len(build.entries),
-        )
+        _log_published(build)
         return build
 
     # -- what a Player reads and writes --------------------------------------------
@@ -2003,3 +1990,18 @@ SCREEN_MEMORY: Final[timedelta] = timedelta(days=7)
 #: hour against a week's memory: a screen still reporting is never near falling
 #: out of the window, and a live wall costs one write an hour, not one a minute.
 SCREEN_REFRESH: Final[timedelta] = timedelta(hours=1)
+
+
+def _log_published(build: ManifestBuild) -> None:
+    """Say what a published build put on its wall, and what it left off and why.
+
+    WARNING when a work is left off for a reason the curator did not choose, or
+    when nothing reached the wall: a theme quietly showing fewer works than it
+    holds is this product's characteristic failure, and a dark wall is the
+    loudest form of it. A work the curator kept off, by hand or by the wall's
+    shapes, is the curator's choice and logged at INFO, so a wall narrowed on
+    purpose does not warn on every sync.
+    """
+    unchosen = [exclusion for exclusion in build.exclusions if not isinstance(exclusion.reason, KeptOff)]
+    level = logging.WARNING if unchosen or (build.considered and not build.entries) else logging.INFO
+    log.log(level, "Published the feed for wall %r showing theme %r: %s", build.wall.name, build.theme.name, build.summarise())

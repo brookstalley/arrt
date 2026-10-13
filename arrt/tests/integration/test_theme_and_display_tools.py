@@ -329,13 +329,13 @@ async def test_activating_publishes_exactly_the_readiness_filtered_theme(
 
     assert errored is False
     assert [entry["artwork_id"] for entry in payload["on_the_wall"]] == [ready]
-    assert len(payload["not_displayable"]) == 2
+    assert len(payload["not_on_the_wall"]) == 2
     assert payload["considered"] == 3
     # Exact-match, not a substring: this sentence is the only place a caller is
     # told how much of the theme is missing, and a substring assertion is blind
     # to exactly the drift that matters — a clause added, dropped, or doubled.
     assert payload["notice"] == (
-        "1 of 3 works in this theme is on the wall; 2 are not currently displayable. See not_displayable for each one and why."
+        "1 of 3 works in this theme is on the wall; 2 are not currently displayable. See not_on_the_wall for each one and why."
     )
 
     # And the feed the wall reads carries exactly that one work.
@@ -558,11 +558,11 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
     assert errored is False
     assert payload["on_the_wall"] == []
     assert payload["considered"] == 3
-    assert {entry["reason"] for entry in payload["not_displayable"]} == {"no_original"}
-    assert {entry["title"] for entry in payload["not_displayable"]} == set(works)
+    assert {entry["reason"] for entry in payload["not_on_the_wall"]} == {"no_original"}
+    assert {entry["title"] for entry in payload["not_on_the_wall"]} == set(works)
     assert payload["notice"] == (
         "0 of 3 works in this theme are on the wall; 3 are not currently displayable, so the wall is dark. "
-        "See not_displayable for each one and why."
+        "See not_on_the_wall for each one and why."
     )
 
 
@@ -573,14 +573,14 @@ async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, 
 
     assert errored is False
     assert payload["on_the_wall"] == []
-    assert payload["not_displayable"] == []
+    assert payload["not_on_the_wall"] == []
     assert payload["considered"] == 0
     # The sentence this test's own name promises. Without it the empty case is
     # the one branch of the notice nothing reads — and it is the branch that
     # used to say "All 0 works in this theme are on the wall."
     assert payload["notice"] == "This theme holds no works yet, so nothing is on the wall."
     # No pointer at a field that is empty: there is nothing to look at.
-    assert "not_displayable" not in payload["notice"]
+    assert "not_on_the_wall" not in payload["notice"]
 
 
 async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
@@ -667,10 +667,10 @@ async def test_a_theme_with_nothing_missing_says_so_in_full(server_url, service,
     payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
 
     assert errored is False
-    assert payload["not_displayable"] == []
+    assert payload["not_on_the_wall"] == []
     assert payload["considered"] == 2
     assert payload["notice"] == "All 2 works in this theme are on the wall."
-    assert "not_displayable" not in payload["notice"]
+    assert "not_on_the_wall" not in payload["notice"]
 
 
 async def test_showing_an_archived_work_is_refused_rather_than_shown(server_url, service, wall):

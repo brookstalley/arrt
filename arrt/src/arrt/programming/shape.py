@@ -28,12 +28,6 @@ TOLERANCE: Final[float] = 0.01
 #: The word that removes a bound.
 ANY: Final[str] = "any"
 
-#: What reading a bound raises when it is not a number or divides by zero. A
-#: named tuple rather than the unparenthesised form this plane's formatter writes,
-#: because the root suite's seam guards parse this source on Python 3.12
-#: (backlog #166).
-_UNREADABLE: Final[tuple[type[Exception], ...]] = (ValueError, ZeroDivisionError)
-
 #: The largest side a shape is spoken with, so 1.7778 reads "16:9" and an
 #: irrational ratio still reads as something a person can picture.
 _LARGEST_SIDE: Final[int] = 21
@@ -50,11 +44,13 @@ def parse(text: str) -> float | None:
         return None
     try:
         if ":" in spelled:
-            width, _, height = spelled.partition(":")
-            ratio = float(width) / float(height)
+            left, _, right = spelled.partition(":")
+            width, height = float(left), float(right)
+            # Each side on its own: -4:-5 divides to a positive ratio and is still no shape.
+            ratio = width / height if width > 0 and height > 0 else math.nan
         else:
             ratio = float(spelled)
-    except _UNREADABLE:
+    except ValueError:
         ratio = math.nan
     if not math.isfinite(ratio) or ratio <= 0:
         raise ServiceError(
@@ -68,7 +64,10 @@ def spoken(ratio: float) -> str:
     near = Fraction(ratio).limit_denominator(_LARGEST_SIDE)
     if near.numerator <= _LARGEST_SIDE and abs(near - Fraction(ratio)) / Fraction(ratio) <= TOLERANCE / 2:
         return f"{near.numerator}:{near.denominator}"
-    return f"{ratio:.2f}:1"
+    # Four significant figures, not two places: the client sends back what it
+    # was shown, so this must read back within a twentieth of the tolerance at
+    # any size. Two places turned 0.305 into 0.30 and 0.004 into an unreadable 0.00.
+    return f"{ratio:.4g}:1"
 
 
 def require_range(tallest: float | None, widest: float | None) -> None:

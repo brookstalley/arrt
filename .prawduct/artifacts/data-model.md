@@ -2926,6 +2926,9 @@ warning.)*
 - **A wall with nothing hung keeps the feed it carries untrimmed.** The range
   applies at the next hanging, because with no theme to rebuild from, a work
   the range took off could not come back when the range was widened.
+- **An explicit show-now is not filtered.** `show_work_now` names one work for
+  this moment, which is the curator overriding the range, as it overrides the
+  theme's membership. *(Decided at build, 2026-10-13; for the owner to veto.)*
 
 ### Why this is nearly free here
 

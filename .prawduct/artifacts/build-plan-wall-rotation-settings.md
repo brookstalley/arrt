@@ -80,6 +80,10 @@ settings of the wall that plays the theme. Today both are nullable fields on
   curator thinks of a work staying up in minutes, and accepts decimals so 90 s
   can still be set.
 
+*(2026-10-13, #370: `set_rotation`, `PUT /api/walls/{id}/rotation` and
+`art_display(action='set_rotation')` were widened and renamed `set_playback`
+and `/playback` before either was released; see `build-plan-wall-shape-filter.md`.)*
+
 ## Chunks
 
 ### 01 — store, service, migration, API, MCP

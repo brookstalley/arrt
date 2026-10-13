@@ -66,6 +66,37 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-13: A wall shows only the shapes it is set to (#370)
+
+<!-- prawduct: scope=wall-shape-filter -->
+
+**Why:** A portrait wall was sent wide landscapes, which it shows as a strip
+across the middle of the screen. The owner ruled on 2026-10-13: a min–max
+range of width ÷ height on each wall, set by hand and off by default, with the
+screen's reported shape shown only as a hint; and a range that leaves nothing
+is honoured, so the wall goes dark and says so.
+
+**What changed:**
+- `Wall` gains `min_aspect_ratio` (tallest) and `max_aspect_ratio` (widest),
+  null for no limit. `programming/shape.py` reads a bound as `W:H`, a decimal
+  or `any`, speaks it back as `W:H` (or four significant figures), and counts
+  a work inside with 1% of give, measured on its upright master.
+- A wall's feed leaves a playable work outside its range off, named with
+  reason `outside_wall_shape`, after the curator's keep-off and never over a
+  Library refusal. On a wall with nothing hung, the range waits for the next
+  hanging. An explicit show-now still puts any work up.
+- The build's summary counts each of the curator's reasons apart from the
+  works that are not displayable, and ends "so the wall is dark" whenever
+  nothing reaches the wall. A published build logs that summary, at WARNING
+  only for an unchosen exclusion or a dark wall.
+- `set_rotation` widened into `set_playback`: `PUT /api/walls/{id}/playback`,
+  where a field left out is left as it is, and `art_display(action='set_playback')`.
+  MCP's `not_displayable` key is now `not_on_the_wall`. `WallOut` carries
+  `tallest`, `widest` and `shapes`, and `sizes_judged_against` the screen's
+  `shape`.
+- Walls: a *Shapes it shows* panel (presets, custom bounds, the screen's shape
+  as a hint), and a card whose wall is dark says so at the top.
+
 ## 2026-10-13: Shuffle and the interval are the wall's, not the theme's (#353)
 
 <!-- prawduct: scope=wall-rotation-settings -->

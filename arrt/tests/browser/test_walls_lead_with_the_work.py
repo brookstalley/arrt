@@ -505,8 +505,8 @@ def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, wint
     """Both works are 4:3: landscape-and-square keeps them, portrait-and-square darkens the wall, and the panel says so."""
     setup = open_setup(ui, the_wall)
     picker = setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)
-    tallest = setup.get_by_label("Tallest, as width:height", exact=True)
-    widest = setup.get_by_label("Widest, as width:height", exact=True)
+    tallest = setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True)
+    widest = setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True)
     assert picker.locator("option").all_inner_texts() == ["Any shape", "Portrait and square", "Landscape and square", "Custom"]
     assert (picker.input_value(), tallest.input_value(), widest.input_value()) == ("any", "", "")
     assert "has not said its size" in setup.locator("dl.facts").nth(1).inner_text()
@@ -532,10 +532,10 @@ def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, wint
 def test_typing_a_bound_makes_the_picker_say_custom(ui, the_wall, winter):
     setup = open_setup(ui, the_wall)
 
-    setup.get_by_label("Widest, as width:height", exact=True).fill("4:5")
+    setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("4:5")
 
     assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
-    setup.get_by_label("Widest, as width:height", exact=True).fill("1:1")
+    setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("1:1")
     assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "portrait"
 
 
@@ -559,7 +559,7 @@ def test_a_shape_that_is_not_one_is_refused_in_the_servers_words(ui, services, t
     services.display.set_playback(the_wall.id, widest="16:9")
     setup = open_setup(ui, the_wall)
 
-    setup.get_by_label("Widest, as width:height", exact=True).fill("wide")
+    setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("wide")
     setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}").click()
 
     setup.locator(".act-failure").filter(has_text="width:height").wait_for()
@@ -571,8 +571,8 @@ def test_chosen_shapes_are_the_ones_the_fields_show(ui, services, the_wall, wint
     setup = open_setup(ui, the_wall)
 
     assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
-    assert setup.get_by_label("Tallest, as width:height", exact=True).input_value() == "4:5"
-    assert setup.get_by_label("Widest, as width:height", exact=True).input_value() == "16:9"
+    assert setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True).input_value() == "4:5"
+    assert setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).input_value() == "16:9"
     assert "works from 4:5 to 16:9" in setup.locator("dl.facts").nth(1).inner_text()
 
 

@@ -18,8 +18,10 @@ set up* and find *Shapes it shows*, below the rotation.
 - **The panel.** Judge whether *Shapes*, *Tallest* and *Widest* read as one
   control, whether "width:height" is clear enough on the field labels, and
   whether the screen's own shape beside them reads as a hint rather than a
-  setting. Pick *Portrait and square* on a landscape wall and *Set the shapes*:
-  the panel says the server's summary, ending "so the wall is dark".
+  setting. On a wall hanging a theme of landscapes only, pick *Portrait and
+  square* and *Set the shapes*: the panel says the server's summary, ending
+  "so the wall is dark". (With any portrait or square work in the theme, the
+  wall keeps showing those instead.)
 - **The dark wall.** After that, reload Walls: the card says the same sentence
   near the top with the ▲ glyph, and *Not showing* lists each work as *Outside
   this wall's shapes* with its own shape. Judge whether a curator reading only

@@ -548,6 +548,26 @@ def test_a_work_kept_off_every_wall_is_reported_as_that_whatever_its_shape(displ
     assert {(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions} == {(wide.id, KeptOff.EVERY_WALL)}
 
 
+def test_a_wall_its_shapes_darken_warns_and_a_narrowed_wall_that_still_shows_works_does_not(
+    display, three_shapes, theme_of, wall_id, caplog
+):
+    """The curator's choice is not a fault, unless it leaves the wall dark: then it is the loudest one."""
+    wide, tall, square = three_shapes
+    display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
+
+    with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
+        display.set_playback(wall_id, widest="1:1")
+        narrowed = [r for r in caplog.records if "Published the feed" in r.getMessage()]
+        caplog.clear()
+        display.set_playback(wall_id, tallest="21:9", widest="any")
+        darkened = [r for r in caplog.records if "Published the feed" in r.getMessage()]
+
+    assert [r.levelno for r in narrowed] == [logging.INFO]
+    assert "1 is outside this wall's shapes" in narrowed[0].getMessage()
+    assert [r.levelno for r in darkened] == [logging.WARNING]
+    assert darkened[0].getMessage().endswith("so the wall is dark.")
+
+
 def test_a_tallest_wider_than_the_widest_is_refused_and_nothing_changes(display, wall_id):
     display.set_playback(wall_id, widest="16:9")
 
