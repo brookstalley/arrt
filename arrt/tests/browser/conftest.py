@@ -412,4 +412,16 @@ class Ui:
 
 @pytest.fixture
 def ui(page, server_url):
+    """The page, kept off every origin but the suite's own server.
+
+    The client asks Commons for the pictures a reply or a search names, and an
+    unguarded page fetched them from the live site: a test then read a picture
+    box that filled with "Picture unavailable" whenever the internet answered,
+    which is when it failed (#343). Aborted here, every outside request fails
+    the same way on every run, and a test that needs a picture to load says so
+    with `pictures_load` or a route of its own, which Playwright tries first
+    because it was registered later.
+    """
+    # With its slash, so a port that merely begins with this one's digits is outside.
+    page.route(lambda url: not url.startswith(f"{server_url}/"), lambda route: route.abort())
     return Ui(page, server_url)

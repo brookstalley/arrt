@@ -23,6 +23,7 @@ from decimal import Decimal
 import httpx
 import pytest
 from fakes import (
+    GATE_SECONDS,
     FakeFinder,
     a_collection_holding,
     a_roster,
@@ -96,10 +97,11 @@ class TestCommissioningARun:
         assert http.get("/api/runs").json()["count"] == 0
 
     def test_a_start_returns_a_handle_rather_than_a_result(self, http, engine):
-        """Well inside the two seconds the contract allows, and not by being fast.
+        """The handle comes back while phase 1 is still held open.
 
-        The gate holds phase 1 open, so a `start` that waited for the work could
-        not return at all — which is what makes this a test of the handle.
+        The gate holds phase 1 open, so a `start` that waited for the work would
+        sit out `GATE_SECONDS`; half of it is the bound, not the contract's two
+        seconds, which a busy machine misses.
         """
         engine.gate = threading.Event()
         try:
@@ -111,7 +113,7 @@ class TestCommissioningARun:
             run = response.json()
             assert run["run_id"]
             assert run["status"] == RunStatus.RESOLVING_WORKS
-            assert elapsed < 2.0, "a start must return its handle immediately"
+            assert elapsed < GATE_SECONDS / 2, "a start must return its handle without waiting on phase 1"
         finally:
             engine.gate.set()
 
@@ -145,7 +147,9 @@ class TestCommissioningARun:
 
             assert response.status_code == 200
             assert response.json()["run"]["status"] == RunStatus.RESOLVING_WORKS
-            assert elapsed < 2.0, "the browser surface held the request open instead of answering"
+            # A held request would wait on the run, which the gate keeps from
+            # changing for `GATE_SECONDS`.
+            assert elapsed < GATE_SECONDS / 2, "the browser surface held the request open instead of answering"
         finally:
             engine.gate.set()
 

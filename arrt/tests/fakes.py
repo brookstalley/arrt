@@ -94,6 +94,13 @@ def a_work_list(count: int = 3, *, searches: int = 1, artist: str | None = "Salv
     return WorkList(works=works(count, artist=artist), spend=spent(searches=searches))
 
 
+#: How long `FakeEngine` waits at a closed gate before failing the run. A
+#: surface that blocked on phase 1 answers no sooner than this, so a test telling
+#: "answered" from "waited" bounds itself by a fraction of it, never by the
+#: wall-clock speed of a round trip, which is the machine's load (#365).
+GATE_SECONDS = 20.0
+
+
 @dataclass
 class FakeEngine:
     """Answers with whatever it was built to answer, and records what it was asked.
@@ -120,7 +127,7 @@ class FakeEngine:
         if self.gate is not None:
             # Bounded so a test that forgets to release the gate fails as a test
             # rather than hanging the suite.
-            assert self.gate.wait(timeout=20), "the fake engine was never released"
+            assert self.gate.wait(timeout=GATE_SECONDS), "the fake engine was never released"
         if self.error is not None:
             raise self.error
         return self.result

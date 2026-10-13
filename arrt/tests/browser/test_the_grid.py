@@ -8,6 +8,8 @@ a freshly loaded page.
 """
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 from payloads import a_catalogue_work, a_listing
@@ -18,6 +20,27 @@ from payloads import a_catalogue_work, a_listing
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
+)
+
+
+def _near_the_end() -> int:
+    """`NEAR_THE_END` read from the client, so a wait on the observer's reach
+    moves with it rather than holding a copy that drifts."""
+    source = (Path(__file__).resolve().parents[2] / "src/arrt/http/static/screens/collection.js").read_text()
+    found = re.search(r"^const NEAR_THE_END = (\d+);$", source, re.MULTILINE)
+    assert found, "collection.js no longer declares NEAR_THE_END as a number"
+    return int(found.group(1))
+
+
+#: How far below the window the client's observer reaches, in pixels.
+NEAR_THE_END = _near_the_end()
+
+#: True once the grid has stopped loading on its own: nothing on its way, and
+#: the *Show more* row beyond the observer's reach.
+SETTLED = (
+    "(reach) => !document.querySelector('ul.grid-skeleton')"
+    " && document.querySelector('#view button.show-more').getBoundingClientRect().top"
+    " >= window.innerHeight + reach"
 )
 
 
@@ -118,18 +141,65 @@ def test_the_next_page_arrives_as_the_curator_scrolls(ui, a_catalogue_past_one_p
 
 
 def test_show_more_takes_the_keyboard_to_the_first_work_it_brought(ui, a_catalogue_past_one_page):
-    """The keyboard's way to the next page, and the next Tab continues into it."""
+    """The keyboard's way to the next page, and the next Tab continues into it.
+
+    "Brought" counts from when the keyboard reached the button, and the case
+    built here is the one that makes that matter: focusing *Show more* scrolls
+    its row into view, the scroll fetches a page of its own, and those works
+    land above a button the keyboard is already on. A client counting from the
+    press sends focus a page further on, past works the keyboard never reached
+    (#344, where this test failed intermittently because it raced that page
+    instead of waiting for it).
+    """
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
+    # Settled first, so the only page the scroll fetches is the one the focus
+    # below sets off.
+    ui.page.wait_for_function(SETTLED, arg=NEAR_THE_END)
     first = ui.page.locator("ul.grid li.card").count()
 
     button = ui.page.locator("#view button.show-more")
     assert button.evaluate("node => node.tagName") == "BUTTON"
     button.focus()
-    ui.page.keyboard.press("Enter")
     ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=first)
+    ui.page.wait_for_function("() => !document.querySelector('ul.grid-skeleton')")
+    scrolled_in = ui.page.locator("ul.grid li.card").count()
+
+    ui.page.keyboard.press("Enter")
+    ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=scrolled_in)
 
     arrived = ui.page.locator("ul.grid li.card").nth(first)
+    ui.page.wait_for_function(
+        "(id) => document.activeElement && document.activeElement.closest('li.card')"
+        " && document.activeElement.closest('li.card').dataset.artwork === id",
+        arg=arrived.get_attribute("data-artwork"),
+    )
+
+
+def test_show_more_counts_from_the_press_once_the_keyboard_has_left_it(ui, a_catalogue_past_one_page):
+    """The paired case: where the keyboard reached the button is forgotten when it leaves.
+
+    A press that does not focus the button — a click in Safari, which never
+    focuses one — after the keyboard has moved on must count from the press.
+    Remembered past the blur, focus would jump back to works the curator has
+    already passed.
+    """
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    # Settled as above, so the focus below is what sets off the scroll's page.
+    ui.page.wait_for_function(SETTLED, arg=NEAR_THE_END)
+    button = ui.page.locator("#view button.show-more")
+    reached = ui.page.locator("ul.grid li.card").count()
+    button.focus()
+    ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=reached)
+    ui.page.wait_for_function("() => !document.querySelector('ul.grid-skeleton')")
+    button.evaluate("node => node.blur()")
+
+    pressed = ui.page.locator("ul.grid li.card").count()
+    button.evaluate("node => node.click()")
+    ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=pressed)
+
+    arrived = ui.page.locator("ul.grid li.card").nth(pressed)
     ui.page.wait_for_function(
         "(id) => document.activeElement && document.activeElement.closest('li.card')"
         " && document.activeElement.closest('li.card').dataset.artwork === id",
@@ -252,9 +322,11 @@ def test_a_tile_whose_image_cannot_be_loaded_says_so(ui, work_with_an_image):
     ui.page.route("**/thumbnail", lambda route: route.fulfill(status=404, body="gone"))
 
     ui.open("#collection")
-    ui.page.wait_for_selector(".card-image-absent")
+    # The sentence itself, not `.card-image-absent`: the catalogue's works with
+    # no master paint that class at first paint, so a wait on it returns before
+    # the 404 has been heard.
+    ui.page.wait_for_selector(".card-image-absent:has-text('Its image could not be loaded just now.')")
 
-    assert "Its image could not be loaded just now." in ui.text()
     # The broken image must be gone, not merely covered: an <img> left in place
     # is still announced, and still draws the browser's own broken-image glyph.
     assert ui.page.locator("ul.grid img").count() == 0
