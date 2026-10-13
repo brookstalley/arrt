@@ -119,14 +119,15 @@ place.
   had set. It logs, by name, any value whose theme hangs nowhere, then drops
   the theme's columns. A wall's own value is never overwritten, so an
   interrupted open is finished by the next one.
-- HTTP: `PUT /api/walls/{id}/rotation`. Its body carries both fields, so
-  leaving one out is a `422`, not a reset. `ThemeOut` loses both fields and
-  `ThemeDetailOut` loses `shuffled`.
-- MCP: `art_display(action='set_rotation')`. This surface drops a null
+- HTTP: the wall's two settings are set through `PUT /api/walls/{id}/playback`
+  (#370, which replaced this branch's `/rotation` before either was released).
+  `ThemeOut` loses both fields and `ThemeDetailOut` loses `shuffled`.
+- MCP: `art_display(action='set_playback')` (#370's widening of
+  `set_rotation`, also never released). This surface drops a null
   argument, so the default is sent as words: `shuffle='default'` and
   `default_interval=true`. `art_theme(action='update')` refuses both settings
   by name. Seven other action descriptions in `art_display`'s menu were
-  shortened to keep it under the 2 KB client budget (2046 bytes).
+  shortened to keep it under the 2 KB client budget, which a test enforces.
 - Client: Walls › *How {wall} is set up* has minutes and an order, set with
   *Set the rotation*. The facts are read back from the published feed. The
   Theme page caption says only *In curated order.*
@@ -138,6 +139,12 @@ place.
   left unregistered, the `COALESCE` guard removed, the republish removed,
   shuffle read from the default only, the old client, the not-a-number guard
   removed).
+- **Deploying it: copy the catalogue first.** `carry_rotation_to_walls` runs
+  the first time the catalogue is opened and drops the theme's rotation
+  columns; a value set on a theme that hangs on no wall is logged and then
+  gone. Take
+  `sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-wall-playback-<timestamp>.sqlite"`
+  before deploying; the way back is that copy and the previous image, together.
 
 ## 2026-10-12: Show more keeps the keyboard's place; three intermittent tests made deterministic (#343, #344, #365)
 
