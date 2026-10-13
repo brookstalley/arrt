@@ -39,11 +39,11 @@ from arrt.library.facade import (
     WorkChanged,
 )
 from arrt.persistence.records import Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
-from arrt.programming import adequacy
+from arrt.programming import adequacy, shape
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest import heartbeat
-from arrt.programming.manifest.builder import Exclusion, ManifestBuild, write_atomically
+from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
@@ -77,6 +77,13 @@ class MatMode(StrEnum):
 #: Player's own mat". A spelling apart from every mode, so it can never be taken
 #: for one.
 PLAYERS_OWN_MAT: Final[str] = "players_own"
+
+#: What a caller with only text to send says for each shuffle setting, the
+#: deployment default included, which such a caller cannot say as null.
+SHUFFLED: Final[str] = "shuffled"
+IN_ORDER: Final[str] = "in_order"
+DEFAULT_SHUFFLE: Final[str] = "default"
+SHUFFLE_CHOICES: Final[Mapping[str, bool | None]] = {SHUFFLED: True, IN_ORDER: False, DEFAULT_SHUFFLE: None}
 
 
 class Unjudged(StrEnum):
@@ -155,7 +162,7 @@ class DisplaySettings:
     #: names as many walls as the curator has rooms, and each one has its own
     #: pair of files.
     art_root: Path
-    #: What a theme that has expressed no pace of its own inherits.
+    #: What a wall that has chosen no pace of its own plays at.
     rotation_interval_seconds: int
     shuffle: bool
 
@@ -363,15 +370,21 @@ class DisplayService:
             )
         return theme
 
-    def shuffles(self, theme: Theme) -> bool:
-        """Whether a wall hanging this theme shows its works in shuffled order.
+    def pace(self, wall: Wall) -> tuple[int, bool]:
+        """How long each work stays up on this wall, and whether it plays shuffled.
 
-        The theme's own setting when it has expressed one, else the deployment's:
-        null on `Theme.shuffle` means "inherit", not "off". One place, so the
-        manifest a wall is given and the theme page's account of its order
-        cannot disagree about which of the two decides what the wall shows first.
+        The wall's own setting where it has chosen one, else the deployment's:
+        null on either means "the default", never "off". One place, so a build,
+        a rebuild and a rolled horizon cannot disagree about how a wall plays.
         """
-        return theme.shuffle if theme.shuffle is not None else self._settings.shuffle
+        return (
+            (
+                wall.rotation_interval_seconds
+                if wall.rotation_interval_seconds is not None
+                else self._settings.rotation_interval_seconds
+            ),
+            wall.shuffle if wall.shuffle is not None else self._settings.shuffle,
+        )
 
     def default_theme(self) -> Theme | None:
         """The theme new works join, or None while the curator has marked none."""
@@ -569,6 +582,74 @@ class DisplayService:
             if feed is not None:
                 self._patch_v2_works(wall_id, feed, {})
         log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
+        return self.get_wall(wall_id)
+
+    def set_playback(
+        self,
+        wall_id: str,
+        *,
+        rotation_interval_seconds: int | Unset | None = UNSET,
+        shuffle: bool | Unset | None = UNSET,
+        tallest: str | Unset | None = UNSET,
+        widest: str | Unset | None = UNSET,
+    ) -> Wall:
+        """Choose how this wall plays its theme: how long each work stays up, in what order, and which shapes.
+
+        None on the interval or shuffle is the deployment default. `tallest` and
+        `widest` are spelled as a curator says them (`shape.parse`: `4:5`, `0.8`,
+        or `any`), and None on either is no limit. An omitted setting is left as
+        it is.
+
+        The wall's feed is republished at once, keeping the work on the wall
+        now: a new order, pace or range changes the slots after it, which is
+        what the curator asked for, not something to wait a day's roll for. A
+        range that leaves nothing is honoured: the wall goes dark, and the
+        build's summary says so.
+
+        **On a wall with nothing hung, the range waits for the next hanging.**
+        The feed such a wall carries is re-paced, but not trimmed: with no theme
+        to rebuild from, a work the range took off could never come back when
+        the range was widened again.
+        """
+        wall = self.get_wall(wall_id)
+        chosen = replace(
+            wall,
+            rotation_interval_seconds=(
+                wall.rotation_interval_seconds
+                if isinstance(rotation_interval_seconds, Unset)
+                else self._require_interval(rotation_interval_seconds)
+            ),
+            shuffle=wall.shuffle if isinstance(shuffle, Unset) else shuffle,
+            min_aspect_ratio=(
+                wall.min_aspect_ratio if isinstance(tallest, Unset) else None if tallest is None else shape.parse(tallest)
+            ),
+            max_aspect_ratio=(
+                wall.max_aspect_ratio if isinstance(widest, Unset) else None if widest is None else shape.parse(widest)
+            ),
+        )
+        shape.require_range(chosen.min_aspect_ratio, chosen.max_aspect_ratio)
+        with self._store.transaction():
+            store_write(self._store.update_wall, chosen)
+            assignment = self._store.get_assignment(wall_id)
+            feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            build = None
+            if assignment is not None:
+                build = self.build_manifest(wall_id, assignment.theme_id)
+                self._sync_v2(build)
+            elif feed is not None:
+                self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep())
+        interval, shuffled = self.pace(chosen)
+        log.info(
+            "Wall %r: each work stays up %ds%s, %s%s; it shows %s.",
+            wall.name,
+            interval,
+            "" if chosen.rotation_interval_seconds is not None else " (the default)",
+            "shuffled" if shuffled else "in the theme's order",
+            "" if chosen.shuffle is not None else " (the default)",
+            shape.described(chosen.min_aspect_ratio, chosen.max_aspect_ratio) or "every shape",
+        )
+        if build is not None:
+            _log_published(build)
         return self.get_wall(wall_id)
 
     def add_theme(self, *, name: str, description: str | None = None) -> Theme:
@@ -1121,27 +1202,18 @@ class DisplayService:
         *,
         name: str | None = None,
         description: str | Unset | None = UNSET,
-        rotation_interval_seconds: int | Unset | None = UNSET,
-        shuffle: bool | Unset | None = UNSET,
     ) -> Theme:
-        """Change a theme's name, description, or pace.
+        """Change a theme's name or description.
 
-        The nullable fields take a sentinel rather than defaulting to `None`,
-        because `None` is a meaningful value for all three — "no description",
-        and "inherit the global default" for the two rotation settings. Without
-        it, a caller changing only the name would silently clear the theme's pace.
+        The description takes a sentinel rather than defaulting to `None`,
+        because `None` is a meaningful value — "no description" — and a caller
+        changing only the name would otherwise silently clear it.
         """
         theme = self.get_listed_theme(theme_id)
         updated = replace(
             theme,
             name=theme.name if name is None else require_text(name, field="name"),
             description=theme.description if isinstance(description, Unset) else description,
-            rotation_interval_seconds=(
-                theme.rotation_interval_seconds
-                if isinstance(rotation_interval_seconds, Unset)
-                else self._require_interval(rotation_interval_seconds)
-            ),
-            shuffle=theme.shuffle if isinstance(shuffle, Unset) else shuffle,
         )
         store_write(self._store.update_theme, updated)
         return updated
@@ -1269,23 +1341,28 @@ class DisplayService:
             if answer.work_id in kept_off:
                 exclusions.append(Exclusion.kept_off(answer))
             elif isinstance(answer, PlayableWork):
-                entries.append(answer)
+                # Only a playable work is judged by shape. A work the Library
+                # refuses is reported for that, because widening the wall's
+                # range would not put it on the wall.
+                if shape.fits(
+                    (answer.master.width, answer.master.height),
+                    tallest=wall.min_aspect_ratio,
+                    widest=wall.max_aspect_ratio,
+                ):
+                    entries.append(answer)
+                else:
+                    exclusions.append(Exclusion.outside_shape(answer, wall))
             else:
                 exclusions.append(Exclusion.of(answer))
 
+        interval, shuffle = self.pace(wall)
         return ManifestBuild(
             wall=wall,
             theme=theme,
             entries=entries,
             exclusions=exclusions,
-            # Null on either field means "inherit the global default", so the
-            # theme's own value is used only when it has expressed one.
-            rotation_interval_seconds=(
-                theme.rotation_interval_seconds
-                if theme.rotation_interval_seconds is not None
-                else self._settings.rotation_interval_seconds
-            ),
-            shuffle=self.shuffles(theme),
+            rotation_interval_seconds=interval,
+            shuffle=shuffle,
         )
 
     def sync(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
@@ -1311,24 +1388,7 @@ class DisplayService:
         with self._store.transaction():
             build = self.build_manifest(wall_id, theme_id)
             self._sync_v2(build)
-        if build.exclusions:
-            # Named at WARNING with the count, because a theme quietly showing
-            # fewer works than it holds is precisely this product's
-            # characteristic failure.
-            log.warning(
-                "Wall %r, theme %r: %d of %d works are not currently displayable (%s).",
-                build.wall.name,
-                build.theme.name,
-                len(build.exclusions),
-                build.considered,
-                ", ".join(sorted({exclusion.reason.value for exclusion in build.exclusions})),
-            )
-        log.info(
-            "Published the feed for wall %r showing theme %r, with %d works.",
-            build.wall.name,
-            build.theme.name,
-            len(build.entries),
-        )
+        _log_published(build)
         return build
 
     # -- what a Player reads and writes --------------------------------------------
@@ -1679,10 +1739,11 @@ class DisplayService:
         """Rebuild a wall's feed from what it carries now: no work arrives that is not already in it.
 
         A horizon rolled forward or a work withdrawn cycles through the works
-        already published, in the theme's order and at its pace. A work joining
+        already published, in the theme's order and at the wall's pace. A work joining
         the hung theme arrives by `_publish_additions`, which builds the theme.
         """
-        order, slot_seconds, shuffle = self._v2_pace(previous.playlist_id, works)
+        order = self._v2_order(previous.playlist_id, works)
+        slot_seconds, shuffle = self.pace(self.get_wall(wall_id))
         return self._write_v2(
             wall_id,
             playlist=(previous.playlist_id, previous.playlist_name),
@@ -1693,22 +1754,18 @@ class DisplayService:
             start=start,
         )
 
-    def _v2_pace(self, playlist_id: str, works: Mapping[str, Any]) -> tuple[list[str], int, bool]:
-        """The cycle (the theme's members the feed carries, in its order), the slot length and the shuffle.
+    def _v2_order(self, playlist_id: str, works: Mapping[str, Any]) -> list[str]:
+        """The cycle: the theme's members the feed carries, in its order.
 
         A theme deleted since (possible once it hangs nowhere, after `clear_wall`)
-        leaves the works the feed carries in id order at the default pace.
+        leaves the works the feed carries in id order. The pace is the wall's
+        either way (`pace`).
         """
         theme = self._store.get_theme(playlist_id)
         if theme is None:
-            return sorted(works), self._settings.rotation_interval_seconds, self._settings.shuffle
+            return sorted(works)
         members = [membership.artwork_id for membership in self._store.list_memberships(theme.id)]
-        interval = (
-            theme.rotation_interval_seconds
-            if theme.rotation_interval_seconds is not None
-            else self._settings.rotation_interval_seconds
-        )
-        return [work_id for work_id in members if work_id in works], interval, self.shuffles(theme)
+        return [work_id for work_id in members if work_id in works]
 
     def _write_v2(
         self,
@@ -1933,3 +1990,18 @@ SCREEN_MEMORY: Final[timedelta] = timedelta(days=7)
 #: hour against a week's memory: a screen still reporting is never near falling
 #: out of the window, and a live wall costs one write an hour, not one a minute.
 SCREEN_REFRESH: Final[timedelta] = timedelta(hours=1)
+
+
+def _log_published(build: ManifestBuild) -> None:
+    """Say what a published build put on its wall, and what it left off and why.
+
+    WARNING when a work is left off for a reason the curator did not choose, or
+    when nothing reached the wall: a theme quietly showing fewer works than it
+    holds is this product's characteristic failure, and a dark wall is the
+    loudest form of it. A work the curator kept off, by hand or by the wall's
+    shapes, is the curator's choice and logged at INFO, so a wall narrowed on
+    purpose does not warn on every sync.
+    """
+    unchosen = [exclusion for exclusion in build.exclusions if not isinstance(exclusion.reason, KeptOff)]
+    level = logging.WARNING if unchosen or (build.considered and not build.entries) else logging.INFO
+    log.log(level, "Published the feed for wall %r showing theme %r: %s", build.wall.name, build.theme.name, build.summarise())

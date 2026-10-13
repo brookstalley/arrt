@@ -850,7 +850,7 @@ class TestWhatTheWallSummaryClaims:
         assert published["exclusions"] == []
 
     def test_the_browser_summary_carries_no_pointer_at_a_tool_result_field(self, http, hold, wall):
-        """The shared sentence stops at the counts; `not_displayable` is the MCP surface's word.
+        """The shared sentence stops at the counts; `not_on_the_wall` is the MCP surface's word.
 
         A browser has no field by that name, so a summary naming one would be
         telling a curator to look at something that is not on their screen.
@@ -861,8 +861,10 @@ class TestWhatTheWallSummaryClaims:
 
         published = http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]}).json()
 
-        assert "not_displayable" not in published["summary"]
-        assert published["summary"] == "0 of 1 work in this theme is on the wall; 1 is not currently displayable."
+        assert "not_on_the_wall" not in published["summary"]
+        assert published["summary"] == (
+            "0 of 1 work in this theme is on the wall; 1 is not currently displayable, so the wall is dark."
+        )
 
 
 class TestPagingPastTheCatalogueCap:

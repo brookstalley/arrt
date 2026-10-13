@@ -55,11 +55,13 @@ from arrt.persistence.discovery_records import (
     Verdict,
 )
 from arrt.persistence.records import Artist, Artwork, Client, Display, Source, Theme, VocabularyKind, Wall
+from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import PLAYERS_OWN_MAT, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
+from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
+from arrt.services.errors import ServiceError
 from arrt.services.health import PicturesReading, SourceHealth
 
 #: A bound action: validated arguments in, a result payload out. Every binding
@@ -434,14 +436,12 @@ def _create_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str,
 
 
 def _update_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    # `UNSET` for anything the caller did not name, so updating one field does
-    # not clear the others — null is a meaningful value for all three.
+    # `UNSET` for a description the caller did not name, so renaming a theme
+    # does not clear it — null is a meaningful value there.
     theme = services.display.update_theme(
         arguments["theme_id"],
         name=arguments.get("name"),
         description=arguments.get("description", UNSET),
-        rotation_interval_seconds=arguments.get("rotation_interval_seconds", UNSET),
-        shuffle=arguments.get("shuffle", UNSET),
     )
     return ok(theme=_theme_fields(theme))
 
@@ -1094,7 +1094,7 @@ def _set_verdict(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
         # Both reported on every acceptance, empty included. A key present only
         # when an artist was minted would teach a caller to read its absence as
         # "nothing happened", which is the silence this pair exists to break —
-        # the same rule `not_displayable` follows on the display surface.
+        # the same rule `not_on_the_wall` follows on the display surface.
         #
         # **Uncapped, and what bounds it is worth naming rather than assuming.**
         # `possible_duplicate_artists` holds artists already in the catalogue that
@@ -1322,6 +1322,25 @@ def _set_mat_mode(services: Services, arguments: Mapping[str, Any]) -> dict[str,
     return ok(wall=_wall_fields(services, wall))
 
 
+def _set_playback(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # `UNSET` for a setting the caller did not name, so choosing one leaves the
+    # others. The deployment default and "no limit" are words rather than null,
+    # because this surface drops a null argument as though it had not been sent.
+    if arguments.get("default_interval") and "rotation_interval_seconds" in arguments:
+        raise ServiceError("Give rotation_interval_seconds or default_interval=true, not both.")
+    shuffle = arguments.get("shuffle")
+    wall = services.display.set_playback(
+        arguments["wall_id"],
+        rotation_interval_seconds=(
+            None if arguments.get("default_interval") else arguments.get("rotation_interval_seconds", UNSET)
+        ),
+        shuffle=UNSET if shuffle is None else SHUFFLE_CHOICES[shuffle],
+        tallest=arguments.get("tallest", UNSET),
+        widest=arguments.get("widest", UNSET),
+    )
+    return ok(wall=_wall_fields(services, wall))
+
+
 def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.clients.list_clients()
     survey = services.clients.placements.survey()
@@ -1543,7 +1562,10 @@ def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
         # Never omitted when empty: a caller that saw this key only sometimes
         # would learn to read its absence as "everything is fine", which is
         # exactly the silence the exclusion report exists to break.
-        not_displayable=[
+        # Named for what it holds: every work not on the wall, for any reason.
+        # The curator's reasons leave displayable works off, so a name saying
+        # "not displayable" would tell an agent those works need repair.
+        not_on_the_wall=[
             {
                 "artwork_id": exclusion.work_id,
                 "title": exclusion.title,
@@ -1630,6 +1652,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
     ("art_display", "set_mat_mode"): _set_mat_mode,
+    ("art_display", "set_playback"): _set_playback,
     ("art_display", "status"): _wall_status,
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
@@ -1801,11 +1824,6 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "theme_id": theme.id,
         "name": theme.name,
         "description": theme.description,
-        # Null means "inherit the deployment default" rather than "unset", so it
-        # is reported as it is stored rather than resolved to a number that would
-        # read as a choice the curator made.
-        "rotation_interval_seconds": theme.rotation_interval_seconds,
-        "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
         "is_default": theme.is_default,
         "hidden": theme.hidden,
@@ -1830,6 +1848,15 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         "output": placement.output,
         "display_id": wall.display_id,
         "mat_mode": wall.mat_mode,
+        # Null means "the deployment default" rather than "unset", so each is
+        # reported as it is stored rather than resolved to a value that would
+        # read as a choice the curator made.
+        "rotation_interval_seconds": wall.rotation_interval_seconds,
+        "shuffle": wall.shuffle,
+        # Each bound spoken as `W:H`, None for no limit on that side.
+        "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
+        "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
+        "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
         **_size_fields(services.display.judge_sizes(wall.id)),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
@@ -1849,7 +1876,13 @@ def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
     return {
         "too_small": sorted(judgement.too_small),
         "sizes_judged_against": (
-            None if judgement.screen is None else {"width_px": judgement.screen[0], "height_px": judgement.screen[1]}
+            None
+            if judgement.screen is None
+            else {
+                "width_px": judgement.screen[0],
+                "height_px": judgement.screen[1],
+                "shape": shape.spoken(judgement.screen[0] / judgement.screen[1]),
+            }
         ),
         "sizes_unjudged": None if judgement.unjudged is None else judgement.unjudged.value,
     }
@@ -2631,10 +2664,10 @@ def _sync_notice(build: ManifestBuild) -> str:
 
     The counts come from the build itself, so this surface and the browser one
     cannot disagree about them. Only the field name is this surface's own — a
-    model reading a tool result has `not_displayable` in front of it, and naming
+    model reading a tool result has `not_on_the_wall` in front of it, and naming
     it is worth a clause that would be meaningless anywhere else.
     """
     summary = build.summarise()
     if not build.exclusions:
         return summary
-    return f"{summary} See not_displayable for each one and why."
+    return f"{summary} See not_on_the_wall for each one and why."

@@ -133,6 +133,7 @@ from arrt.http.models import (
     SetAffinity,
     SetIdentity,
     SetMatMode,
+    SetPlayback,
     SetVerdict,
     SightingHostOut,
     SightingHostsOut,
@@ -218,10 +219,12 @@ from arrt.persistence.records import (
     Original,
     Source,
     Theme,
+    Wall,
     WorkFacet,
 )
+from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import SizeJudgement, ThemeCount, ThemePlacement, WallView, feed_notice
+from arrt.programming.display import UNSET, SizeJudgement, ThemeCount, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
@@ -1268,6 +1271,25 @@ def set_mat_mode(request: Request, wall_id: str, body: SetMatMode) -> WallOut:
     return _wall(services, services.display.get_wall_view(wall_id))
 
 
+@router.put("/walls/{wall_id}/playback")
+def set_playback(request: Request, wall_id: str, body: SetPlayback) -> WallOut:
+    """Choose how this wall plays its theme: pace, order and shapes (`SetPlayback`).
+
+    Read-back-after-mutate, for the reason `clear_wall` gives. The wall's feed is
+    republished at once, keeping the work on the wall now.
+    """
+    services = _services(request)
+    # A field the body leaves out is left as it is, and null is "the default" or
+    # "no limit": so a page that sets the shapes cannot put back a pace another
+    # surface set since that page was drawn.
+    sent = body.model_fields_set
+    services.display.set_playback(
+        wall_id,
+        **{field: getattr(body, field) if field in sent else UNSET for field in SetPlayback.model_fields},
+    )
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
 @router.post("/walls/{wall_id}/labels")
 def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignmentOut:
     """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
@@ -1974,7 +1996,6 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
         # Two calls composed, as the MCP binding composes them: Programming's
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
-        shuffled=services.display.shuffles(theme),
         too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
         sizes_unjudged={
             name: judgement.unjudged.value
@@ -2211,8 +2232,6 @@ def _theme(theme: Theme) -> ThemeOut:
         theme_id=theme.id,
         name=theme.name,
         description=theme.description,
-        rotation_interval_seconds=theme.rotation_interval_seconds,
-        shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
         is_default=theme.is_default,
         hidden=theme.hidden,
@@ -2244,8 +2263,20 @@ def _wall(services: Services, view: WallView) -> WallOut:
         ],
         display_state=_display_state(view.display_state),
         mat_mode=view.wall.mat_mode,
+        rotation_interval_seconds=view.wall.rotation_interval_seconds,
+        shuffle=view.wall.shuffle,
+        **_shape_fields(view.wall),
         **_size_fields(services.display.judge_sizes(view.wall.id)),
     )
+
+
+def _shape_fields(wall: Wall) -> dict[str, Any]:
+    """The shapes a wall shows, as `WallOut` carries them: each bound spoken, and the range as a phrase."""
+    return {
+        "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
+        "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
+        "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
+    }
 
 
 def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
@@ -2253,7 +2284,13 @@ def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
     return {
         "too_small": sorted(judgement.too_small),
         "sizes_judged_against": (
-            None if judgement.screen is None else ScreenSizeOut(width_px=judgement.screen[0], height_px=judgement.screen[1])
+            None
+            if judgement.screen is None
+            else ScreenSizeOut(
+                width_px=judgement.screen[0],
+                height_px=judgement.screen[1],
+                shape=shape.spoken(judgement.screen[0] / judgement.screen[1]),
+            )
         ),
         "sizes_unjudged": None if judgement.unjudged is None else judgement.unjudged.value,
     }

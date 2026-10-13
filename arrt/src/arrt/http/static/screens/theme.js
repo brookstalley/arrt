@@ -234,9 +234,8 @@ function themePanel(placement, walls, allWorks, generation) {
   const count = el("span", { class: "muted" });
   // Held rather than only rendered, so a rename can relabel the membership
   // controls without asking the server for an order it has already been given.
-  // Every membership answer carries both: the order, and whether the wall
-  // follows it.
-  let members = { works: [], shuffled: false };
+  // Every membership answer carries the order.
+  let members = { works: [] };
   const paintMembers = (detail) => {
     members = detail;
     count.textContent = members.works.length === 1 ? "1 work" : `${members.works.length} works`;
@@ -484,19 +483,13 @@ function sizeCell(work, walls) {
   return el("span", { class: "size-marks" }, [fit, small]);
 }
 
-/* The order copy, which depends on whether the wall follows the order.
- *
- * With shuffle off, position is what decides what the wall shows first, and
- * saying so is why the moves are worth making. With it on, saying that would be
- * false, so the caption says what Walls says ("shuffled") instead; the order is
- * still kept, and is what the wall follows once shuffle is turned off. */
-function orderCaption(shuffled) {
-  return shuffled
-    ? "Shown in shuffled order, so position here does not decide what the wall shows first."
-    : "In curated order. Position decides what the wall shows first.";
-}
+/* A theme has an order and is never shuffled (ruling 2 of 2026-10-11), so the
+ * caption says only that. Whether a wall plays it in this order is the wall's
+ * setting, said on Walls; claiming here that position decides what a wall
+ * shows first would be false of a wall that shuffles. */
+const ORDER_CAPTION = "In curated order.";
 
-function memberList(themeId, themeName, { works, shuffled, too_small_for: tooSmallFor = {} }, paint) {
+function memberList(themeId, themeName, { works, too_small_for: tooSmallFor = {} }, paint) {
   if (!works.length) {
     return el("p", { class: "muted", text: "This theme holds no works yet." });
   }
@@ -582,7 +575,7 @@ function memberList(themeId, themeName, { works, shuffled, too_small_for: tooSma
     return [String(index + 1), work.title, work.artist ? work.artist.name : "—", sizeCell(work, tooSmallFor[work.artwork_id]), controls];
   });
   return table(
-    orderCaption(shuffled),
+    ORDER_CAPTION,
     // The last column is named rather than left blank: an empty `th` is
     // announced as an empty column header, which tells a screen-reader user
     // nothing about the buttons in every row beneath it.

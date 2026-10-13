@@ -227,10 +227,11 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    # The setup's two panels, behind their disclosure, and nothing else.
+    # The setup's panels, behind their disclosure, and nothing else.
     assert ui.page.locator("section.wall details.wall-setup .panel h3").all_text_contents() == [
         "Not showing (0)",
         "How it rotates",
+        "Shapes it shows",
         "Mat",
     ]
 

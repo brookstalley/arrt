@@ -66,6 +66,86 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-13: A wall shows only the shapes it is set to (#370)
+
+<!-- prawduct: scope=wall-shape-filter -->
+
+**Why:** A portrait wall was sent wide landscapes, which it shows as a strip
+across the middle of the screen. The owner ruled on 2026-10-13: a min–max
+range of width ÷ height on each wall, set by hand and off by default, with the
+screen's reported shape shown only as a hint; and a range that leaves nothing
+is honoured, so the wall goes dark and says so.
+
+**What changed:**
+- `Wall` gains `min_aspect_ratio` (tallest) and `max_aspect_ratio` (widest),
+  null for no limit. `programming/shape.py` reads a bound as `W:H`, a decimal
+  or `any`, speaks it back as `W:H` (or four significant figures), and counts
+  a work inside with 1% of give, measured on its upright master.
+- A wall's feed leaves a playable work outside its range off, named with
+  reason `outside_wall_shape`, after the curator's keep-off and never over a
+  Library refusal. On a wall with nothing hung, the range waits for the next
+  hanging. An explicit show-now still puts any work up.
+- The build's summary counts each of the curator's reasons apart from the
+  works that are not displayable, and ends "so the wall is dark" whenever
+  nothing reaches the wall. A published build logs that summary, at WARNING
+  only for an unchosen exclusion or a dark wall.
+- `set_rotation` widened into `set_playback`: `PUT /api/walls/{id}/playback`,
+  where a field left out is left as it is, and `art_display(action='set_playback')`.
+  MCP's `not_displayable` key is now `not_on_the_wall`. `WallOut` carries
+  `tallest`, `widest` and `shapes`, and `sizes_judged_against` the screen's
+  `shape`.
+- Walls: a *Shapes it shows* panel (presets, custom bounds, the screen's shape
+  as a hint), and a card whose wall is dark says so at the top.
+
+## 2026-10-13: Shuffle and the interval are the wall's, not the theme's (#353)
+
+<!-- prawduct: scope=wall-rotation-settings -->
+
+**Why:** The owner's ruling 2 of 2026-10-11 said a theme has an order and is
+never shuffled. Whether a wall shuffles, and how long each work stays up, are
+settings of the wall that plays the theme. On 2026-10-13, with #370 (a wall
+filtering its theme by aspect ratio) in view, the owner chose to store both on
+the wall itself, beside `mat_mode`, not on the hanging. They survive hanging
+another theme and clearing the wall, and #370's filter will go in the same
+place.
+
+**What changed:**
+- `Wall` gains `rotation_interval_seconds` and `shuffle`, where null means the
+  deployment default. `Theme` loses both. `DisplayService.pace(wall)` is the
+  single reader for a build, a rebuild and a rolled horizon.
+  `DisplayService.set_rotation` republishes the wall's feed at once and keeps
+  the slot currently on the wall.
+- `migrations.carry_rotation_to_walls` gives each wall the values its hung theme
+  had set. It logs, by name, any value whose theme hangs nowhere, then drops
+  the theme's columns. A wall's own value is never overwritten, so an
+  interrupted open is finished by the next one.
+- HTTP: the wall's two settings are set through `PUT /api/walls/{id}/playback`
+  (#370, which replaced this branch's `/rotation` before either was released).
+  `ThemeOut` loses both fields and `ThemeDetailOut` loses `shuffled`.
+- MCP: `art_display(action='set_playback')` (#370's widening of
+  `set_rotation`, also never released). This surface drops a null
+  argument, so the default is sent as words: `shuffle='default'` and
+  `default_interval=true`. `art_theme(action='update')` refuses both settings
+  by name. Seven other action descriptions in `art_display`'s menu were
+  shortened to keep it under the 2 KB client budget, which a test enforces.
+- Client: Walls › *How {wall} is set up* has minutes and an order, set with
+  *Set the rotation*. The facts are read back from the published feed. The
+  Theme page caption says only *In curated order.*
+- Tests: one test changed meaning. `test_the_order_copy_says_whether_position_decides`
+  became `test_the_order_copy_says_only_that_the_theme_is_in_order`, because the
+  ruling removes that sentence. Two store widening tests now check
+  `is_hidden`, since `themes` no longer carries the rotation columns. Every new
+  test was seen failing against the old code or a deliberate break (the carry
+  left unregistered, the `COALESCE` guard removed, the republish removed,
+  shuffle read from the default only, the old client, the not-a-number guard
+  removed).
+- **Deploying it: copy the catalogue first.** `carry_rotation_to_walls` runs
+  the first time the catalogue is opened and drops the theme's rotation
+  columns; a value set on a theme that hangs on no wall is logged and then
+  gone. Take
+  `sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-wall-playback-<timestamp>.sqlite"`
+  before deploying; the way back is that copy and the previous image, together.
+
 ## 2026-10-12: Show more keeps the keyboard's place; three intermittent tests made deterministic (#343, #344, #365)
 
 <!-- prawduct: scope=flaky-tests -->

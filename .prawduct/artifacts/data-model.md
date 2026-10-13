@@ -914,6 +914,10 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `created_at` | datetime | auto | |
 | `display_id` | UUID | optional, FK → Display | *(Added 2026-10-08, `build-plan-displays-and-label-outputs.md`.)* The display the wall is shown on. Null while it has none, which is an ordinary state. At most one wall per display, held by the partial unique index `walls_one_per_display` over the non-null ids. |
 | `mat_mode` | enum? | optional: `none`, `proportional`, `full` | *(Added 2026-10-09, wave 4e.)* How the wall's Player draws the mat, sent as its feed's `settings.mat.mode` (§ Wall settings). Null leaves it to the Player. The values are checked by the service, because a `CHECK` on an added column would bind new files only. A curatorial choice about the room, not a fact about its screen. |
+| `rotation_interval_seconds` | integer? | optional, > 0 (checked by the service) | *(Added 2026-10-13, #353; § Rotation.)* How long each work stays up on this wall: the slot length of its schedule. Null ⇒ the deployment default. |
+| `shuffle` | boolean? | optional | *(Added 2026-10-13, #353; § Rotation.)* Whether the wall plays its theme in a fresh random order each cycle rather than in `ThemeMembership.position` order. Null ⇒ the deployment default. |
+| `min_aspect_ratio` | real? | optional, > 0, ≤ `max_aspect_ratio` (checked by the service) | *(Added 2026-10-13, #370; § The wall's shapes.)* The tallest shape the wall shows, as width ÷ height. Null ⇒ no limit. |
+| `max_aspect_ratio` | real? | optional, > 0 (checked by the service) | *(Added 2026-10-13, #370; § The wall's shapes.)* The widest shape the wall shows, as width ÷ height. Null ⇒ no limit. |
 
 *Removed 2026-10-08:* `client_id` and `output` (added 2026-10-02), which named the
 client showing the wall and its output. A wall names a display now, and the
@@ -2875,30 +2879,56 @@ rotation from the host with a local timer calling `select_image(content_id)`.
 active theme becomes a *host-side pointer into a TV-side content library*, and
 rotation timing becomes this product's data rather than the TV's setting.
 
-### Theme — additional fields
+### Rotation — how a wall plays its theme
 
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `rotation_interval_seconds` | integer | nullable | How long each work is shown. Null ⇒ inherit the global default. |
-| `shuffle` | boolean | nullable | Random vs. `ThemeMembership.position` order. Null ⇒ global default. |
+How long each work stays up and whether it plays shuffled are **fields on Wall**
+(`rotation_interval_seconds`, `shuffle`, § Wall), not on Theme. *(Moved
+2026-10-13, #353, by the owner's ruling 2 of 2026-10-11, `ia-proposal.md`: a
+theme has an order and is never shuffled; shuffle and the interval are settings
+of the wall that plays it. The owner chose the wall over the hanging on
+2026-10-13, so both survive hanging another theme and clearing the wall.
+`migrations.carry_rotation_to_walls` gave each wall its hung theme's values and
+dropped the theme's columns. Until then both were nullable fields on Theme, an
+`[ASSUMPTION]` that a contemplative theme could breathe while a busy one moved.)*
 
-> `[ASSUMPTION: rotation timing is per-theme with a global fallback, rather than
-> a single global setting | LOW impact | user can collapse to global]` — it costs
-> two nullable columns and lets a contemplative theme breathe while a busy one
-> moves, but no stated requirement demands it.
+> **Where "the default" lives** *(settled 2026-07-31, at build).* It is
+> deployment configuration — `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` —
+> defaulting to **180 seconds on shuffle**, which is what the 2024 plane ran the
+> wall at. The values were carried forward rather than chosen: a wall that
+> silently changed pace at cutover would have been a regression nobody asked for.
 >
-> **Where "the global default" lives** *(settled 2026-07-31, at build; this
-> artifact named the fallback without saying what supplied it).* It is deployment
-> configuration — `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` — defaulting
-> to **180 seconds on shuffle**, which is what the 2024 plane runs the wall at
-> today. The values are carried forward rather than chosen: the cutover at Chunk
-> 13 replaces the machinery, and a wall that silently changed pace on the same
-> day would be a regression nobody asked for.
->
-> Null is therefore "inherit", never "unset". The distinction is load-bearing in
-> two places: the row mapping keeps null as null rather than coercing it, and a
-> partial update to a theme leaves an unnamed field alone rather than clearing
-> it — otherwise renaming a theme would silently reset its pace.
+> Null is therefore "the default", never "unset". The distinction is load-bearing
+> in two places: the row mapping keeps null as null rather than coercing it, and
+> a partial update to a wall (`DisplayService.set_playback`, MCP
+> `art_display(action='set_playback')`) leaves an unnamed field alone rather than
+> clearing it.
+
+### The wall's shapes *(Programming; fields on Wall)*
+
+A wall may limit the shapes of work it shows: `min_aspect_ratio` (the tallest)
+and `max_aspect_ratio` (the widest), each width ÷ height and each optional. A
+portrait wall that shows "nothing wider than 1:1" holds `max_aspect_ratio = 1.0`.
+*(Added 2026-10-13, #370. The owner ruled the same day: a min–max range, set by
+hand and off by default, with the screen's reported shape shown only as a hint;
+and a range that leaves nothing is honoured, so the wall goes dark with a
+warning.)*
+
+- **Measured on the presentation master**, which is written upright, so a
+  portrait photograph stored sideways counts as portrait.
+- **Inclusive, with 1% of give** (`programming/shape.py`), so a square scanned a
+  few pixels off square still fits a square-only wall.
+- **Applied when the wall's feed is built.** A playable work outside the range
+  is left off and named among the exclusions with reason `outside_wall_shape`
+  (`KeptOff.WALL_SHAPE`). A work kept off every wall is reported as that
+  instead, and a work the Library refuses is reported for that, so the
+  shape never hides a work that needs repair. The Player sees only a feed with
+  fewer works.
+- **A wall with nothing hung keeps the feed it carries untrimmed.** The range
+  applies at the next hanging, because with no theme to rebuild from, a work
+  the range took off could not come back when the range was widened.
+- **An explicit show-now is not filtered.** `show_work_now` names one work for
+  this moment, which is the curator overriding the range, as it overrides the
+  theme's membership. *(Decided at build, 2026-10-13; for the owner to veto.)*
 
 ### Why this is nearly free here
 

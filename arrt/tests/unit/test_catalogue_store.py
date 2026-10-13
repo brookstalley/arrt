@@ -87,7 +87,9 @@ _EXPECTED_SCHEMA = {
     # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
     # works join, under the partial index that allows at most one; and with
     # `is_hidden`, which marks a selection hung on a wall rather than a theme.
-    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default", "is_hidden"},
+    # `rotation_interval_seconds` and `shuffle` went to `walls` on 2026-10-13
+    # (`migrations.carry_rotation_to_walls`): a theme has an order and no pace.
+    "themes": {"id", "name", "description", "created_at", "is_default", "is_hidden"},
     # Which works the default theme has been offered, so each is offered once.
     "default_theme_offers": {"artwork_id", "offered_at"},
     # The works kept off every wall, and the history of every act: both new
@@ -99,7 +101,17 @@ _EXPECTED_SCHEMA = {
     # client that shows the wall, and on which output, arrived in their place,
     # and gave way on 2026-10-08 to the display the wall is on
     # (`migrations.walls_name_displays`).
-    "walls": {"id", "name", "created_at", "display_id", "mat_mode"},
+    "walls": {
+        "id",
+        "name",
+        "created_at",
+        "display_id",
+        "mat_mode",
+        "rotation_interval_seconds",
+        "shuffle",
+        "min_aspect_ratio",
+        "max_aspect_ratio",
+    },
     # An installed Player: a name and the verifier of its one token, nothing
     # about the device.
     "clients": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
@@ -459,6 +471,27 @@ def test_a_fresh_catalogue_carries_one_wall(tmp_path):
         connection.close()
 
 
+@pytest.mark.parametrize(("interval", "shuffle"), [(None, None), (931, False), (47, True)])
+def test_a_walls_rotation_survives_a_reopen(tmp_path, interval, shuffle):
+    """Null stays null ("the deployment default"), and `False` stays `False`, not null.
+
+    `bool(None)` written as 0 would turn "the default" into "in order" silently,
+    and a dropped column would turn either into null; each case catches one.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    first = SqliteCatalogue(open_catalogue_file(path))
+    wall = first.list_walls()[0]
+    first.update_wall(replace(wall, rotation_interval_seconds=interval, shuffle=shuffle))
+    first.close()
+
+    reopened = SqliteCatalogue(open_catalogue_file(path))
+    try:
+        again = reopened.get_wall(wall.id)
+        assert (again.rotation_interval_seconds, again.shuffle) == (interval, shuffle)
+    finally:
+        reopened.close()
+
+
 def test_a_second_theme_on_a_wall_is_a_row_that_cannot_be_inserted(tmp_path):
     """One theme per wall is the primary key, not a rule anything checks.
 
@@ -560,7 +593,7 @@ def test_an_earlier_catalogue_gains_the_tables_it_did_not_have(tmp_path):
 
 
 def test_an_earlier_catalogue_gains_columns_added_to_a_table_it_already_had(tmp_path):
-    """The rotation settings widened `themes`, which the frozen DDL above created.
+    """`is_hidden` widened `themes`, which the frozen DDL above created.
 
     `CREATE TABLE IF NOT EXISTS` does nothing at all to a table that exists, so
     without a widening step the new columns would never reach this file. The
@@ -573,19 +606,16 @@ def test_an_earlier_catalogue_gains_columns_added_to_a_table_it_already_had(tmp_
 
     catalogue = SqliteCatalogue(open_catalogue_file(path))
     try:
-        # The theme the older revision wrote reads back, and its rotation
-        # settings are null — "inherit the global default", which is the correct
-        # answer for a theme written before the fields existed.
+        # The theme the older revision wrote reads back, and is not hidden —
+        # the column's default, which is the correct answer for a theme written
+        # before selections existed.
         stored = catalogue.get_theme("t1")
-        assert stored.rotation_interval_seconds is None
-        assert stored.shuffle is None
+        assert stored.hidden is False
 
-        # And the file now accepts a write that names them. Values no default
-        # could produce, so a column silently dropped on the way down would show.
-        catalogue.update_theme(replace(stored, rotation_interval_seconds=930, shuffle=True))
-        reread = catalogue.get_theme("t1")
-        assert reread.rotation_interval_seconds == 930
-        assert reread.shuffle is True
+        # And the file now accepts a write that names it. A value the default
+        # could not produce, so a column silently dropped on the way down would show.
+        catalogue.update_theme(replace(stored, hidden=True))
+        assert catalogue.get_theme("t1").hidden is True
     finally:
         catalogue.close()
 
@@ -658,12 +688,12 @@ def test_widening_survives_the_process_that_did_it(tmp_path):
     _write_legacy_catalogue(path)
 
     first = SqliteCatalogue(open_catalogue_file(path))
-    first.update_theme(replace(first.get_theme("t1"), rotation_interval_seconds=930))
+    first.update_theme(replace(first.get_theme("t1"), hidden=True))
     first.close()
 
     reopened = SqliteCatalogue(open_catalogue_file(path))
     try:
-        assert reopened.get_theme("t1").rotation_interval_seconds == 930
+        assert reopened.get_theme("t1").hidden is True
     finally:
         reopened.close()
 

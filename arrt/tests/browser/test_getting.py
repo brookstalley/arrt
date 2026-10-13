@@ -690,8 +690,6 @@ def test_a_run_page_that_could_not_name_the_theme_tries_again_at_the_next_poll(u
                     "theme_id": "t-all",
                     "name": "All works",
                     "description": None,
-                    "rotation_interval_seconds": None,
-                    "shuffle": None,
                     "created_at": "2026-10-02T10:00:00+00:00",
                     "is_default": True,
                 },

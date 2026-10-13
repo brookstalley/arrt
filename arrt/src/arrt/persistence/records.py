@@ -513,19 +513,17 @@ class Theme:
     is hanging where is `ThemeAssignment`'s to say, so two walls may hang the
     same theme with nothing duplicated.
 
-    Rotation is host-driven — the TV's own slideshow can only be scoped to a
-    whole category, so timing is this product's data rather than the television's
-    setting. It is per-theme so that a contemplative theme can breathe while a
-    busy one moves; null on either field means "inherit the global default",
-    which is why neither is required.
+    **A theme has an order and is never shuffled, and sets no pace.** Like a
+    playlist, it is played: whether the works come shuffled and how long each
+    stays up are settings of the wall that plays it (`Wall.shuffle`,
+    `Wall.rotation_interval_seconds`; the owner's ruling 2 of 2026-10-11,
+    `ia-proposal.md`).
     """
 
     id: str
     name: str
     created_at: datetime
     description: str | None = None
-    rotation_interval_seconds: int | None = None
-    shuffle: bool | None = None
     #: Whether works the Library accepts join this theme. At most one theme
     #: carries it. Read from the store and written only by marking a theme the
     #: default, never by saving a theme, so a rename built from a stale copy
@@ -662,6 +660,21 @@ class Wall:
     #: chosen, and the Player uses its own default. A curatorial choice about
     #: the room, not a fact about its screen: the width stays the Player's.
     mat_mode: str | None = None
+    #: How long each work stays up on this wall, or None for the deployment
+    #: default. The wall's rather than the theme's (ruling 2 of 2026-10-11), and
+    #: so kept when a different theme is hung or the wall is cleared.
+    rotation_interval_seconds: int | None = None
+    #: Whether this wall plays its theme shuffled, or None for the deployment
+    #: default. None is "inherit", never "off": a theme's own order is what
+    #: `False` plays.
+    shuffle: bool | None = None
+    #: The tallest shape this wall shows, as width over height, or None for no
+    #: limit. The curator's choice for the room, set by hand: a work narrower
+    #: than this is left off this wall's feed, by name.
+    min_aspect_ratio: float | None = None
+    #: The widest shape this wall shows, as width over height, or None for no
+    #: limit. A portrait wall showing "nothing wider than 1:1" holds 1.0 here.
+    max_aspect_ratio: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

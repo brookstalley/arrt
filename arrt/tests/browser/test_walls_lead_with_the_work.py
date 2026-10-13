@@ -422,6 +422,191 @@ def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter
     assert card(ui, the_wall).get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"
 
 
+def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, winter):
+    """Minutes on the screen, seconds in the store; the facts are read back from the server's build."""
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    minutes = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
+    order = setup.get_by_label(f"Order on {the_wall.name}", exact=True)
+    assert order.locator("option").all_inner_texts() == ["Default", "As curated", "Shuffled"]
+    assert (minutes.input_value(), order.input_value()) == ("", "")
+    button = setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}")
+    said = setup.locator(".wall-said")
+
+    # 1.5 minutes: a value that is not whole minutes, so a lost factor of 60 or a
+    # rounding to minutes shows.
+    minutes.fill("1.5")
+    order.select_option("false")
+    button.click()
+    said.filter(has_text=f"Rotation on {the_wall.name}: each work for 90 seconds, as curated.").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.rotation_interval_seconds, wall.shuffle) == (90, False)
+    assert "90 seconds" in setup.locator("dl.facts").first.inner_text()
+    assert setup.get_attribute("open") is not None, "the panel stays open after setting the rotation"
+
+    minutes.fill("")
+    order.select_option("")
+    button.click()
+    said.filter(has_text=f"Rotation on {the_wall.name}: each work for 3 minutes,").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.rotation_interval_seconds, wall.shuffle) == (None, None)
+
+
+def test_a_rotation_of_no_minutes_is_refused_in_words_and_nothing_is_sent(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, rotation_interval_seconds=931)
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+
+    setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("0")
+    setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+
+    setup.locator(".wall-said").filter(has_text="Minutes must be more than zero").wait_for()
+    assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 931
+
+
+def test_minutes_that_are_not_a_number_are_not_read_as_the_default(ui, services, the_wall, winter):
+    """A number field holding "e" reports an empty value; sent, that would reset the wall to the default."""
+    services.display.set_playback(the_wall.id, rotation_interval_seconds=931)
+    open_walls(ui)
+    setup = card(ui, the_wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    field = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
+
+    field.fill("")
+    field.press_sequentially("e")
+    setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+
+    setup.locator(".wall-said").filter(has_text="Minutes must be a number").wait_for()
+    assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 931
+
+
+@pytest.mark.parametrize(("seconds", "shown"), [(600, "10"), (931, "15.52")])
+def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, winter, seconds, shown):
+    """To two places: 931 seconds is not shown as 15.516666666666667."""
+    services.display.set_playback(the_wall.id, rotation_interval_seconds=seconds, shuffle=True)
+    open_walls(ui)
+    card(ui, the_wall).locator("details.wall-setup summary").click()
+
+    setup = card(ui, the_wall)
+    assert setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).input_value() == shown
+    assert setup.get_by_label(f"Order on {the_wall.name}", exact=True).input_value() == "true"
+
+
+def open_setup(ui, wall):
+    open_walls(ui)
+    setup = card(ui, wall).locator("details.wall-setup")
+    setup.locator("summary").click()
+    return setup
+
+
+def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, winter):
+    """Both works are 4:3: landscape-and-square keeps them, portrait-and-square darkens the wall, and the panel says so."""
+    setup = open_setup(ui, the_wall)
+    picker = setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)
+    tallest = setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True)
+    widest = setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True)
+    assert picker.locator("option").all_inner_texts() == ["Any shape", "Portrait and square", "Landscape and square", "Custom"]
+    assert (picker.input_value(), tallest.input_value(), widest.input_value()) == ("any", "", "")
+    assert "has not said its size" in setup.locator("dl.facts").nth(1).inner_text()
+    button = setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}")
+    said = setup.locator(".wall-said")
+
+    picker.select_option("landscape")
+    assert (tallest.input_value(), widest.input_value()) == ("1:1", "")
+    button.click()
+    said.filter(has_text=f"{the_wall.name} shows nothing taller than 1:1. All 2 works in this theme are on the wall.").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.min_aspect_ratio, wall.max_aspect_ratio) == (1.0, None)
+
+    picker.select_option("portrait")
+    button.click()
+    said.filter(has_text="2 are outside this wall's shapes, so the wall is dark.").wait_for()
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.min_aspect_ratio, wall.max_aspect_ratio) == (None, 1.0)
+    assert "nothing wider than 1:1" in setup.locator("dl.facts").nth(1).inner_text()
+    assert setup.get_attribute("open") is not None, "the panel stays open after setting the shapes"
+
+
+def test_typing_a_bound_makes_the_picker_say_custom(ui, the_wall, winter):
+    setup = open_setup(ui, the_wall)
+
+    setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("4:5")
+
+    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
+    setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("1:1")
+    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "portrait"
+
+
+def test_setting_the_rotation_after_the_shapes_keeps_the_shapes(ui, services, the_wall, winter):
+    """The two panels write one body: the second Set must send what the first one set, not the card as first drawn."""
+    setup = open_setup(ui, the_wall)
+    said = setup.locator(".wall-said")
+    setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).select_option("landscape")
+    setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}").click()
+    said.filter(has_text="shows nothing taller than 1:1").wait_for()
+
+    setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("10")
+    setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+    said.filter(has_text="each work for 10 minutes").wait_for()
+
+    wall = services.display.get_wall(the_wall.id)
+    assert (wall.rotation_interval_seconds, wall.min_aspect_ratio) == (600, 1.0)
+
+
+def test_a_shape_that_is_not_one_is_refused_in_the_servers_words(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, widest="16:9")
+    setup = open_setup(ui, the_wall)
+
+    setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("wide")
+    setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}").click()
+
+    setup.locator(".act-failure").filter(has_text="width:height").wait_for()
+    assert services.display.get_wall(the_wall.id).max_aspect_ratio == pytest.approx(16 / 9)
+
+
+def test_chosen_shapes_are_the_ones_the_fields_show(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, tallest="4:5", widest="16:9")
+    setup = open_setup(ui, the_wall)
+
+    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
+    assert setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True).input_value() == "4:5"
+    assert setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).input_value() == "16:9"
+    assert "works from 4:5 to 16:9" in setup.locator("dl.facts").nth(1).inner_text()
+
+
+def test_the_screens_own_shape_is_shown_beside_the_walls_as_a_hint(ui, services, the_wall, winter, two_works):
+    report_with_screen(services, the_wall, two_works[0].id, width=1080, height=1920)
+    setup = open_setup(ui, the_wall)
+
+    assert "9:16" in setup.locator("dl.facts").nth(1).inner_text()
+    # A hint only: nothing was set from it.
+    assert services.display.get_wall(the_wall.id).max_aspect_ratio is None
+
+
+def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, services, the_wall, winter):
+    services.display.set_playback(the_wall.id, widest="1:1")
+    open_walls(ui)
+
+    warning = card(ui, the_wall).locator(".wall-dark")
+    assert warning.inner_text().endswith("2 are outside this wall's shapes, so the wall is dark.")
+    card(ui, the_wall).locator("details.wall-setup summary").click()
+    reasons = card(ui, the_wall).locator("details.wall-setup table tbody tr")
+    assert set(reasons.all_inner_texts()) == {
+        f"{title}\tOutside this wall's shapes\tThis wall shows nothing wider than 1:1, and this work is 4:3. "
+        "Change the wall's shapes on Walls to put it back."
+        for title in ("Nighthawks", "Automat")
+    }
+
+
+def test_a_wall_showing_works_carries_no_dark_warning(ui, the_wall, winter):
+    open_walls(ui)
+
+    card(ui, the_wall).locator(".note", has_text="on the wall").first.wait_for()
+    assert card(ui, the_wall).locator(".wall-dark").count() == 0
+
+
 @pytest.fixture
 def with_master(service, settings, decodable_jpeg):
     """Give a work a presentation master of a size of its own, so the wall's feed carries it."""
@@ -509,5 +694,5 @@ def test_the_walls_api_says_what_the_judgement_was_made_against(ui, services, th
 
     wall = next(entry for entry in walls if entry["wall_id"] == the_wall.id)
     assert wall["too_small"] == [nighthawks.id]
-    assert wall["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160}
+    assert wall["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160, "shape": "16:9"}
     assert wall["sizes_unjudged"] is None

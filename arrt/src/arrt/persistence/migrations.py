@@ -394,3 +394,66 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
         "ART_ROOT/ready/ can be deleted.",
         gone,
     )
+
+
+#: The theme's two playing settings, which became the wall's: the order is the
+#: carry's, and both go in one pass.
+_THEME_ROTATION_COLUMNS: Final[tuple[str, ...]] = ("rotation_interval_seconds", "shuffle")
+
+
+def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
+    """Move how long a work stays up and whether it is shuffled from each theme to the walls hanging it.
+
+    A theme has an order and is never shuffled; shuffle and the interval are
+    settings of the wall that plays it (the owner's ruling 2 of 2026-10-11,
+    `ia-proposal.md`). So that no wall shows anything differently after, each
+    wall hanging a theme that set a value takes that value. A theme that set
+    nothing gives its walls nothing, which is the same deployment default. A
+    theme hanging nowhere has no wall to give its value to, and the value goes:
+    each is logged by theme and value, because it is a setting nobody took away.
+
+    Guarded by the file, and ordered so that any prefix is finished by the next
+    open: the values are carried and committed before the theme columns are
+    dropped, and a wall that already has a value of its own keeps it, so a
+    carry repeated after an interrupted drop changes nothing.
+    """
+    present = [column for column in _THEME_ROTATION_COLUMNS if _has_column(connection, "themes", column)]
+    if not present:
+        return
+    # Both or neither, except after an open interrupted between the two drops
+    # below, when only `shuffle` is left and has already been carried.
+    if len(present) == len(_THEME_ROTATION_COLUMNS):
+        themes = connection.execute(
+            "SELECT id, name, rotation_interval_seconds, shuffle FROM themes "
+            "WHERE rotation_interval_seconds IS NOT NULL OR shuffle IS NOT NULL"
+        ).fetchall()
+        carried = 0
+        hung = 0
+        for theme in themes:
+            walls = connection.execute("SELECT wall_id FROM theme_assignments WHERE theme_id = ?", (theme["id"],)).fetchall()
+            if not walls:
+                log.warning(
+                    "Theme %r set rotation_interval_seconds=%s, shuffle=%s and hangs on no wall; "
+                    "these are a wall's settings now, so they were not kept.",
+                    theme["name"],
+                    theme["rotation_interval_seconds"],
+                    None if theme["shuffle"] is None else bool(theme["shuffle"]),
+                )
+            else:
+                hung += 1
+            for wall in walls:
+                connection.execute(
+                    "UPDATE walls SET "
+                    "rotation_interval_seconds = COALESCE(rotation_interval_seconds, ?), "
+                    "shuffle = COALESCE(shuffle, ?) WHERE id = ?",
+                    (theme["rotation_interval_seconds"], theme["shuffle"], wall["wall_id"]),
+                )
+                carried += 1
+        connection.commit()
+        log.info("Carried the rotation settings of %d hung theme(s) onto %d wall(s).", hung, carried)
+
+    _require_drop_column(predates="rotation as a wall setting")
+    for column in present:
+        connection.execute(f'ALTER TABLE themes DROP COLUMN "{column}"')
+    connection.commit()
+    log.info("Dropped themes.rotation_interval_seconds and themes.shuffle; they are the wall's now.")

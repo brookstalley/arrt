@@ -409,5 +409,10 @@ nullable, null meaning the deployment default) move to the wall, and with it the
 A theme saved with `shuffle: false` today already has the order this ruling
 keeps. A wall hanging a theme the operator set to shuffle should start
 shuffled, so that the migration does not change what a wall shows.
+**On the wall itself, not on the hanging** *(the owner, 2026-10-13, asked with
+#370, a wall filtering its theme by aspect ratio, in view)*: both are columns on
+`walls` beside `mat_mode`, so they survive hanging another theme and clearing the
+wall, and #370's filter will sit with them. Built on
+`feature/wall-rotation-settings` (#353).
 
 

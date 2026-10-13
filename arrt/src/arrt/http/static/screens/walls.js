@@ -317,12 +317,21 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     // and not repeated when a reason below is about to say the same thing in
     // more useful words: a screen states a fact once, and two copies of one fact
     // invite the reader to look for the difference between them.
-    manifest && reason !== "empty-theme" ? el("p", { class: "note", text: manifest.summary }) : null,
+    manifest && reason !== "empty-theme" ? summaryLine(manifest) : null,
     ...emptiness(reason, wall, build, beats),
     controls(card, themes, reason, manifest),
     card.said,
     manifest ? setup(wall, manifest) : null,
   ]);
+}
+
+/* The server's sentence about how much of the theme reached the wall. Marked
+ * as a problem when none of it did, because the wall is then dark although a
+ * theme hangs there; the sentence says so ("so the wall is dark"), and the
+ * glyph only draws the eye to it. */
+function summaryLine(manifest) {
+  if (manifest.entries.length > 0) return el("p", { class: "note", text: manifest.summary });
+  return el("p", { class: "note wall-feed wall-dark" }, [el("span", { text: `${GLYPHS.problem} ${manifest.summary}` })]);
 }
 
 /* A screen not showing art, in the product's voice. `showing_art` and `silent`
@@ -789,10 +798,11 @@ const EXCLUSION_WORDS = {
   no_mat_color: "No mat colour",
   not_in_catalogue: "No longer in the library",
   kept_off_every_wall: "Kept off every wall",
+  outside_wall_shape: "Outside this wall's shapes",
 };
 
 /* How the wall is set up: what of its theme is not reaching it, how it
- * rotates, and how its mat is drawn. Behind a disclosure, because the card is about the work on the wall;
+ * rotates, which shapes it shows, and how its mat is drawn. Behind a disclosure, because the card is about the work on the wall;
  * this is what to open when the wall is not doing what was expected. */
 function setup(wall, manifest) {
   return el("details", { class: "wall-setup" }, [
@@ -812,15 +822,211 @@ function setup(wall, manifest) {
             text: `Every work it draws from reaches the wall: ${counted(manifest.entries.length, "work")} in rotation.`,
           }),
     ]),
-    el("div", { class: "panel" }, [
-      el("h3", { text: "How it rotates" }),
-      facts([
-        ["Interval", `${manifest.rotation_interval_seconds} seconds`],
-        ["Order", manifest.shuffle ? "shuffled" : "as curated"],
-      ]),
-    ]),
+    ...playbackPanels(wall, manifest),
     matPanel(wall),
   ]);
+}
+
+/* The rotation and shapes panels, which share one route
+ * (`PUT /api/walls/{id}/playback`). Each sends only its own fields, and the
+ * server leaves the rest as they are: a body carrying the other panel's
+ * settings as this page first drew them would put back whatever was set since,
+ * here or on another surface. */
+function playbackPanels(wall, manifest) {
+  const send = (changes) =>
+    api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, { method: "PUT", body: JSON.stringify(changes) });
+  return [rotationPanel(wall, manifest, send), shapesPanel(wall, send)];
+}
+
+/* The wall's orders in the curator's words, in the order the picker offers
+ * them: the value sent (`shuffle`), and the picker's words. The empty value is
+ * no choice at all: the deployment's default, which the facts below resolve. */
+const ORDER_CHOICES = [
+  ["", "Default"],
+  ["false", "As curated"],
+  ["true", "Shuffled"],
+];
+
+/* How the wall plays what hangs on it: how long each work stays up, and whether
+ * in the theme's order or shuffled. The wall's settings, not the theme's
+ * (ruling 2 of 2026-10-11), so they stay when another theme is hung.
+ *
+ * Minutes here and seconds on the wire: a curator thinks of a work staying up
+ * for minutes, and a decimal still reaches a 90-second interval. Empty is the
+ * default. The facts say what the wall plays at now, the default resolved, and
+ * are asked of the server again (`GET /api/manifest`) after Set rather than worked out here,
+ * since only the server knows the default. */
+function rotationPanel(wall, manifest, send) {
+  const intervalId = `interval-${wall.wall_id}`;
+  const orderId = `order-${wall.wall_id}`;
+  const interval = el("input", {
+    id: intervalId,
+    type: "number",
+    step: "any",
+    inputmode: "decimal",
+    placeholder: "Default",
+    // To two places, so 931 seconds reads 15.52 rather than 15.516666666666667;
+    // sent back unchanged it rounds to the same whole second.
+    value: wall.rotation_interval_seconds == null ? "" : String(Math.round((wall.rotation_interval_seconds / 60) * 100) / 100),
+  });
+  const order = el("select", { id: orderId });
+  for (const [value, words] of ORDER_CHOICES) {
+    order.append(el("option", { value, text: words, selected: String(wall.shuffle ?? "") === value }));
+  }
+  const now = el("div", {}, [rotationFacts(manifest)]);
+  // Said here and the panel left as it is, as the mat's is: a repaint would
+  // close the disclosure the curator just worked in.
+  const said = el("p", { class: "wall-said", role: "status" });
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "How it rotates" }),
+    now,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: intervalId, text: `Minutes each work stays up on ${wall.name}` }), interval]),
+      el("div", { class: "field" }, [el("label", { for: orderId, text: `Order on ${wall.name}` }), order]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Set the rotation",
+        "aria-label": `Set the rotation on ${wall.name}`,
+        onclick: (event) => {
+          // A number field holding something that is not a number reads as
+          // empty, which would quietly mean "the default": asked apart.
+          if (interval.validity.badInput) {
+            said.textContent = "Minutes must be a number, or left empty for the default.";
+            return;
+          }
+          const minutes = interval.value.trim() === "" ? null : Number(interval.value);
+          // Refused here only what the server would refuse anyway, so the
+          // sentence names the field rather than the route.
+          if (minutes !== null && !(minutes > 0)) {
+            said.textContent = "Minutes must be more than zero, or left empty for the default.";
+            return;
+          }
+          return attempt(
+            event.currentTarget,
+            `set the rotation on ${wall.name}`,
+            () =>
+              send({
+                // A second at least: the wire is whole seconds, and the server refuses zero.
+                rotation_interval_seconds: minutes === null ? null : Math.max(1, Math.round(minutes * 60)),
+                shuffle: order.value === "" ? null : order.value === "true",
+              }),
+            {
+              then: async () => {
+                const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
+                fill(now, rotationFacts(fresh));
+                said.textContent = `Rotation on ${wall.name}: ${rotationWords(fresh)}.`;
+              },
+            },
+          );
+        },
+      }),
+    ]),
+    said,
+    el("p", { class: "muted", text: "These belong to the wall, so they stay when another theme is hung here." }),
+  ]);
+}
+
+/* The shapes the picker offers, as the bounds each sends: the tallest and the
+ * widest, null for no limit. Custom is whatever the two fields hold. */
+const SHAPE_CHOICES = [
+  ["any", "Any shape", null, null],
+  ["portrait", "Portrait and square", null, "1:1"],
+  ["landscape", "Landscape and square", "1:1", null],
+  ["custom", "Custom", undefined, undefined],
+];
+
+/* Which shapes of work this wall shows (#370): the tallest and the widest, as
+ * width:height. Set by hand and off by default. The screen's own shape is shown
+ * beside them as a hint and never applied. A range that leaves nothing is
+ * honoured and the wall goes dark, so after Set the panel says the server's own
+ * summary, which says that. */
+function shapesPanel(wall, send) {
+  const pickerId = `shapes-${wall.wall_id}`;
+  const tallestId = `tallest-${wall.wall_id}`;
+  const widestId = `widest-${wall.wall_id}`;
+  const tallest = el("input", { id: tallestId, type: "text", placeholder: "Any", value: wall.tallest ?? "" });
+  const widest = el("input", { id: widestId, type: "text", placeholder: "Any", value: wall.widest ?? "" });
+  const picker = el("select", { id: pickerId });
+  const chosen = () => {
+    const [low, high] = [tallest.value.trim() || null, widest.value.trim() || null];
+    const preset = SHAPE_CHOICES.find(([, , t, w]) => t !== undefined && t === low && w === high);
+    return preset ? preset[0] : "custom";
+  };
+  for (const [value, words] of SHAPE_CHOICES) picker.append(el("option", { value, text: words }));
+  picker.value = chosen();
+  picker.addEventListener("change", () => {
+    const [, , low, high] = SHAPE_CHOICES.find(([value]) => value === picker.value);
+    if (low === undefined) return tallest.focus();
+    tallest.value = low ?? "";
+    widest.value = high ?? "";
+  });
+  for (const field of [tallest, widest]) field.addEventListener("input", () => (picker.value = chosen()));
+  const now = el("div", {}, [shapeFacts(wall)]);
+  // Said here and the panel left as it is, as the mat's is: a repaint would
+  // close the disclosure the curator just worked in.
+  const said = el("p", { class: "wall-said", role: "status" });
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Shapes it shows" }),
+    now,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: pickerId, text: `Shapes on ${wall.name}` }), picker]),
+      // The wall's name in each label, as every other field on the card has it:
+      // with two walls, a reader moving by form field hears which wall each is.
+      el("div", { class: "field" }, [el("label", { for: tallestId, text: `Tallest on ${wall.name}, as width:height` }), tallest]),
+      el("div", { class: "field" }, [el("label", { for: widestId, text: `Widest on ${wall.name}, as width:height` }), widest]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Set the shapes",
+        "aria-label": `Set the shapes on ${wall.name}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `set the shapes on ${wall.name}`,
+            () => send({ tallest: tallest.value.trim() || null, widest: widest.value.trim() || null }),
+            {
+              then: async (answer) => {
+                tallest.value = answer.tallest ?? "";
+                widest.value = answer.widest ?? "";
+                picker.value = chosen();
+                fill(now, shapeFacts(answer));
+                const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
+                said.textContent = `${wall.name} shows ${answer.shapes ?? "every shape"}. ${fresh.summary}`;
+              },
+            },
+          ),
+      }),
+    ]),
+    said,
+    el("p", { class: "muted", text: "A work outside these shapes is left off this wall, and listed above with why." }),
+  ]);
+}
+
+/* What the wall shows now, and the screen's own shape beside it as a hint. */
+function shapeFacts(wall) {
+  const screen = wall.sizes_judged_against;
+  return facts([
+    ["Shows", wall.shapes ?? "every shape"],
+    ["Its screen", screen ? screen.shape : "has not said its size"],
+  ]);
+}
+
+/* What the wall plays at now, the default resolved. */
+function rotationFacts(manifest) {
+  return facts([
+    ["Each work stays up", durationWords(manifest.rotation_interval_seconds)],
+    ["Order", manifest.shuffle ? "shuffled" : "as curated"],
+  ]);
+}
+
+function rotationWords(manifest) {
+  return `each work for ${durationWords(manifest.rotation_interval_seconds)}, ${manifest.shuffle ? "shuffled" : "as curated"}`;
+}
+
+/* Whole minutes in minutes, anything else in seconds, so a value is never rounded into a different one. */
+function durationWords(seconds) {
+  return seconds % 60 === 0 ? counted(seconds / 60, "minute") : counted(seconds, "second");
 }
 
 /* The mat's modes in the curator's words (`feeds-and-players.md` § Mat modes),

@@ -11,6 +11,7 @@ evidence is a file on disk named for a wall.
 """
 
 import json
+from datetime import datetime, timedelta
 
 import httpx
 import pytest
@@ -167,6 +168,85 @@ def test_a_walls_mat_is_chosen_and_handed_back_over_http(http, the_wall):
     assert refused.status_code == 400
     assert "mat mode" in refused.json()["error"]
     assert _wall_named(http, the_wall["name"])["mat_mode"] is None
+
+
+def test_a_walls_rotation_is_chosen_and_handed_back_over_http(http, settings, ready_work, the_wall):
+    """Values no default could produce; the feed is what the wall plays, so it is read too."""
+    _hang(http, the_wall, ready_work(title="Automat"), ready_work(title="Nighthawks"))
+    path = f"/api/walls/{the_wall['wall_id']}/playback"
+
+    chosen = http.put(path, json={"rotation_interval_seconds": 931, "shuffle": False, "tallest": None, "widest": None})
+    listed = _wall_named(http, the_wall["name"])
+    manifest = http.get("/api/manifest", params={"wall_id": the_wall["wall_id"]}).json()
+    slots = _feed(settings, the_wall)["schedule"]["slots"]
+
+    assert chosen.status_code == 200
+    assert (chosen.json()["rotation_interval_seconds"], chosen.json()["shuffle"]) == (931, False)
+    assert (listed["rotation_interval_seconds"], listed["shuffle"]) == (931, False)
+    assert (manifest["rotation_interval_seconds"], manifest["shuffle"]) == (931, False)
+    # The first slot was kept and the last may be cut by the horizon; those between are the new length.
+    lengths = {datetime.fromisoformat(slot["until"]) - datetime.fromisoformat(slot["from"]) for slot in slots[1:-1]}
+    assert lengths == {timedelta(seconds=931)}
+
+
+def test_a_walls_rotation_returns_to_the_default_with_null_and_refuses_what_is_not_a_length(http, the_wall):
+    path = f"/api/walls/{the_wall['wall_id']}/playback"
+    http.put(path, json={"rotation_interval_seconds": 931, "shuffle": True, "tallest": None, "widest": None})
+
+    cleared = http.put(path, json={"rotation_interval_seconds": None, "shuffle": None, "tallest": None, "widest": None})
+    refused = http.put(path, json={"rotation_interval_seconds": 0, "shuffle": None, "tallest": None, "widest": None})
+    assert (cleared.json()["rotation_interval_seconds"], cleared.json()["shuffle"]) == (None, None)
+    assert refused.status_code == 400
+    assert "greater than zero" in refused.json()["error"]
+    wall = _wall_named(http, the_wall["name"])
+    assert (wall["rotation_interval_seconds"], wall["shuffle"]) == (None, None)
+
+
+def test_a_field_left_out_of_the_playback_body_is_left_as_it_is_never_read_as_the_default(http, the_wall):
+    """So a page setting the shapes cannot put back a pace another surface set after that page was drawn."""
+    path = f"/api/walls/{the_wall['wall_id']}/playback"
+    http.put(path, json={"rotation_interval_seconds": 931, "shuffle": True, "widest": "16:9"})
+
+    shapes_only = http.put(path, json={"tallest": "1:1"})
+    pace_only = http.put(path, json={"rotation_interval_seconds": 47})
+
+    assert shapes_only.status_code == 200
+    assert (shapes_only.json()["rotation_interval_seconds"], shapes_only.json()["shuffle"]) == (931, True)
+    assert (pace_only.json()["tallest"], pace_only.json()["widest"], pace_only.json()["shuffle"]) == ("1:1", "16:9", True)
+
+
+def test_a_walls_shapes_are_chosen_over_http_and_leave_its_wider_works_off(http, ready_work, the_wall):
+    """Every fixture master is 4:3, so a wall showing nothing wider than 1:1 shows none of them."""
+    _hang(http, the_wall, ready_work(title="Automat"), ready_work(title="Nighthawks"))
+    path = f"/api/walls/{the_wall['wall_id']}/playback"
+
+    chosen = http.put(path, json={"rotation_interval_seconds": None, "shuffle": None, "tallest": "9:16", "widest": "1:1"})
+    manifest = http.get("/api/manifest", params={"wall_id": the_wall["wall_id"]}).json()
+
+    assert chosen.status_code == 200
+    assert (chosen.json()["tallest"], chosen.json()["widest"]) == ("9:16", "1:1")
+    assert chosen.json()["shapes"] == "works from 9:16 to 1:1"
+    assert {exclusion["reason"] for exclusion in manifest["exclusions"]} == {"outside_wall_shape"}
+    assert manifest["summary"].endswith("2 are outside this wall's shapes, so the wall is dark.")
+
+    reopened = http.put(path, json={"rotation_interval_seconds": None, "shuffle": None, "tallest": None, "widest": "any"})
+
+    assert (reopened.json()["tallest"], reopened.json()["widest"], reopened.json()["shapes"]) == (None, None, None)
+    assert http.get("/api/manifest", params={"wall_id": the_wall["wall_id"]}).json()["exclusions"] == []
+
+
+def test_a_shape_that_is_not_one_or_a_range_that_holds_nothing_is_refused_over_http(http, the_wall):
+    path = f"/api/walls/{the_wall['wall_id']}/playback"
+    body = {"rotation_interval_seconds": None, "shuffle": None}
+
+    unreadable = http.put(path, json={**body, "tallest": None, "widest": "wide"})
+    inverted = http.put(path, json={**body, "tallest": "16:9", "widest": "1:1"})
+
+    assert unreadable.status_code == 400
+    assert "width:height" in unreadable.json()["error"]
+    assert inverted.status_code == 400
+    assert "wider than the widest" in inverted.json()["error"]
+    assert _wall_named(http, the_wall["name"])["widest"] is None
 
 
 def test_a_wall_says_why_it_judged_no_work_for_size_over_http(http, the_wall):

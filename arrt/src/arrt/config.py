@@ -130,7 +130,7 @@ DEFAULT_MIN_FREE_BYTES: Final[int] = 2 * 1024 * 1024 * 1024
 DEFAULT_HOST: Final[str] = "127.0.0.1"
 DEFAULT_PORT: Final[int] = 8770
 
-#: What the wall does for a theme that has expressed no pace of its own. Carried
+#: What a wall that has chosen no pace of its own plays at. Carried
 #: forward from the 2024 plane, which ran the wall at three minutes on shuffle —
 #: this is the behaviour on the wall today, and changing it silently at cutover
 #: would be a regression nobody asked for.
