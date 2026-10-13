@@ -2206,7 +2206,7 @@ design_decisions:
         greyscale, colour blindness, and a room with the lights down.
 
         The second is the same rule that governs the tool surface's
-        `not_displayable` key and the sync notice: a section that appeared only
+        `not_on_the_wall` key and the sync notice: a section that appeared only
         when something was wrong would train a reader to take its absence as
         "everything is fine". On a product whose defining failure mode is
         silence, an empty "Not showing (0)" is the point.

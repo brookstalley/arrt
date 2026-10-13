@@ -568,6 +568,30 @@ def test_a_wall_its_shapes_darken_warns_and_a_narrowed_wall_that_still_shows_wor
     assert darkened[0].getMessage().endswith("so the wall is dark.")
 
 
+def _published_levels(caplog):
+    return [r.levelno for r in caplog.records if "Published the feed" in r.getMessage()]
+
+
+def test_a_broken_work_warns_even_while_the_wall_shows_others(display, mastered, ready_work, theme_of, wall_id, caplog):
+    """A reason the curator did not choose is the characteristic failure, whether or not the wall is lit."""
+    theme = theme_of(mastered("Shown"), ready_work("Unprepared", master=False))
+
+    with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
+        display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert _published_levels(caplog) == [logging.WARNING]
+
+
+def test_an_empty_theme_is_published_quietly(display, theme_of, wall_id, caplog):
+    """Nothing held is nothing left off: the wall has no work to miss, so there is no fault to warn of."""
+    theme = theme_of(name="Empty")
+
+    with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
+        display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert _published_levels(caplog) == [logging.INFO]
+
+
 def test_a_tallest_wider_than_the_widest_is_refused_and_nothing_changes(display, wall_id):
     display.set_playback(wall_id, widest="16:9")
 
