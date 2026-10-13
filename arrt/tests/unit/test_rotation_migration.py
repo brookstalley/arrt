@@ -108,9 +108,11 @@ def test_the_theme_columns_are_gone(tmp_path):
 def test_a_theme_hanging_nowhere_loses_its_setting_by_name(tmp_path, caplog):
     path = _pre_move_catalogue(tmp_path / "catalogue.sqlite")
 
-    with caplog.at_level("WARNING", logger="arrt.persistence.migrations"):
+    with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
         open_catalogue_file(path).close()
 
+    # The summary counts only the themes that gave a wall something.
+    assert "Carried the rotation settings of 4 hung theme(s) onto 5 wall(s)." in caplog.messages
     lost = [record.getMessage() for record in caplog.records if record.levelname == "WARNING"]
     assert len(lost) == 1
     assert "'Unhung'" in lost[0]

@@ -833,7 +833,7 @@ const ORDER_CHOICES = [
  * Minutes here and seconds on the wire: a curator thinks of a work staying up
  * for minutes, and a decimal still reaches a 90-second interval. Empty is the
  * default. The facts say what the wall plays at now, the default resolved, and
- * are read again from the published feed after Set rather than worked out here,
+ * are asked of the server again (`GET /api/manifest`) after Set rather than worked out here,
  * since only the server knows the default. */
 function rotationPanel(wall, manifest) {
   const intervalId = `interval-${wall.wall_id}`;
@@ -841,11 +841,12 @@ function rotationPanel(wall, manifest) {
   const interval = el("input", {
     id: intervalId,
     type: "number",
-    min: "0.1",
     step: "any",
     inputmode: "decimal",
     placeholder: "Default",
-    value: wall.rotation_interval_seconds == null ? "" : String(wall.rotation_interval_seconds / 60),
+    // To two places, so 931 seconds reads 15.52 rather than 15.516666666666667;
+    // sent back unchanged it rounds to the same whole second.
+    value: wall.rotation_interval_seconds == null ? "" : String(Math.round((wall.rotation_interval_seconds / 60) * 100) / 100),
   });
   const order = el("select", { id: orderId });
   for (const [value, words] of ORDER_CHOICES) {
@@ -887,6 +888,7 @@ function rotationPanel(wall, manifest) {
               api(`/api/walls/${encodeURIComponent(wall.wall_id)}/rotation`, {
                 method: "PUT",
                 body: JSON.stringify({
+                  // A second at least: the wire is whole seconds, and the server refuses zero.
                   rotation_interval_seconds: minutes === null ? null : Math.max(1, Math.round(minutes * 60)),
                   shuffle: order.value === "" ? null : order.value === "true",
                 }),

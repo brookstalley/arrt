@@ -1721,7 +1721,7 @@ class DisplayService:
         """Rebuild a wall's feed from what it carries now: no work arrives that is not already in it.
 
         A horizon rolled forward or a work withdrawn cycles through the works
-        already published, in the theme's order and at its pace. A work joining
+        already published, in the theme's order and at the wall's pace. A work joining
         the hung theme arrives by `_publish_additions`, which builds the theme.
         """
         order = self._v2_order(previous.playlist_id, works)

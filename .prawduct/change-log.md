@@ -94,7 +94,7 @@ place.
 - MCP: `art_display(action='set_rotation')`. This surface drops a null
   argument, so the default is sent as words: `shuffle='default'` and
   `default_interval=true`. `art_theme(action='update')` refuses both settings
-  by name. Four other action descriptions in `art_display`'s menu were
+  by name. Seven other action descriptions in `art_display`'s menu were
   shortened to keep it under the 2 KB client budget (2046 bytes).
 - Client: Walls › *How {wall} is set up* has minutes and an order, set with
   *Set the rotation*. The facts are read back from the published feed. The

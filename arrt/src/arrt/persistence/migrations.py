@@ -428,6 +428,7 @@ def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
             "WHERE rotation_interval_seconds IS NOT NULL OR shuffle IS NOT NULL"
         ).fetchall()
         carried = 0
+        hung = 0
         for theme in themes:
             walls = connection.execute("SELECT wall_id FROM theme_assignments WHERE theme_id = ?", (theme["id"],)).fetchall()
             if not walls:
@@ -438,6 +439,8 @@ def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
                     theme["rotation_interval_seconds"],
                     None if theme["shuffle"] is None else bool(theme["shuffle"]),
                 )
+            else:
+                hung += 1
             for wall in walls:
                 connection.execute(
                     "UPDATE walls SET "
@@ -447,7 +450,7 @@ def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
                 )
                 carried += 1
         connection.commit()
-        log.info("Carried the rotation settings of %d hung theme(s) onto %d wall(s).", len(themes), carried)
+        log.info("Carried the rotation settings of %d hung theme(s) onto %d wall(s).", hung, carried)
 
     _require_drop_column(predates="rotation as a wall setting")
     for column in present:

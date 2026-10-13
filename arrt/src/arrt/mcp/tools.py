@@ -1622,7 +1622,7 @@ ART_DISPLAY: Final = ToolRecord(
         Action(
             name="status",
             description=(
-                "Report what each wall's display last said about itself and when, and how much the picture " "store keeps."
+                "Report what each wall's display last said about itself and when, and how much the picture store keeps."
             ),
             example="art_display(action='status')",
             tips=(

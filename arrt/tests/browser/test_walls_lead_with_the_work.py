@@ -423,7 +423,7 @@ def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter
 
 
 def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, winter):
-    """Minutes on the screen, seconds in the store; the facts are read back from the published feed."""
+    """Minutes on the screen, seconds in the store; the facts are read back from the server's build."""
     open_walls(ui)
     setup = card(ui, the_wall).locator("details.wall-setup")
     setup.locator("summary").click()
@@ -482,13 +482,15 @@ def test_minutes_that_are_not_a_number_are_not_read_as_the_default(ui, services,
     assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 931
 
 
-def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, winter):
-    services.display.set_rotation(the_wall.id, rotation_interval_seconds=600, shuffle=True)
+@pytest.mark.parametrize(("seconds", "shown"), [(600, "10"), (931, "15.52")])
+def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, winter, seconds, shown):
+    """To two places: 931 seconds is not shown as 15.516666666666667."""
+    services.display.set_rotation(the_wall.id, rotation_interval_seconds=seconds, shuffle=True)
     open_walls(ui)
     card(ui, the_wall).locator("details.wall-setup summary").click()
 
     setup = card(ui, the_wall)
-    assert setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).input_value() == "10"
+    assert setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).input_value() == shown
     assert setup.get_by_label(f"Order on {the_wall.name}", exact=True).input_value() == "true"
 
 
