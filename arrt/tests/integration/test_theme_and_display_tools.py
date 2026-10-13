@@ -176,36 +176,72 @@ async def test_removing_a_work_from_a_theme_leaves_the_work_in_the_catalogue(ser
     assert {work["title"] for work in catalogue["artworks"]} == set(seeded_titles)
 
 
-async def test_a_themes_rotation_settings_survive_the_round_trip(server_url):
+async def test_a_walls_rotation_survives_the_round_trip(server_url, wall):
     """Values no default could produce, so a field dropped in the binding would show."""
-    theme_id = await _a_theme(server_url)
-
     payload, errored = await call(
-        server_url,
-        "art_theme",
-        action="update",
-        theme_id=theme_id,
-        rotation_interval_seconds=931,
-        shuffle=False,
+        server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order"
     )
 
     assert errored is False
-    assert payload["theme"]["rotation_interval_seconds"] == 931
-    assert payload["theme"]["shuffle"] is False
-
-    listed, _ = await call(server_url, "art_theme", action="list")
-    assert listed["themes"][0]["rotation_interval_seconds"] == 931
+    assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (931, False)
+    listed, _ = await call(server_url, "art_display", action="walls")
+    assert (listed["walls"][0]["rotation_interval_seconds"], listed["walls"][0]["shuffle"]) == (931, False)
 
 
-async def test_updating_one_field_does_not_clear_the_others(server_url):
+async def test_choosing_one_rotation_setting_leaves_the_other(server_url, wall):
+    """The sentinel's whole reason: absent cannot mean "the default"."""
+    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931)
+
+    payload, _ = await call(server_url, "art_display", action="set_rotation", wall_id=wall, shuffle="shuffled")
+
+    assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (931, True)
+
+
+async def test_the_deployment_default_is_said_in_words(server_url, wall):
+    """This surface drops a null argument, so "the default" has to be something a caller can send."""
+    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931, shuffle="shuffled")
+
+    payload, _ = await call(
+        server_url, "art_display", action="set_rotation", wall_id=wall, default_interval=True, shuffle="default"
+    )
+
+    assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (None, None)
+
+
+async def test_an_interval_and_the_default_interval_together_are_refused(server_url, wall):
+    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931)
+
+    payload, errored = await call(
+        server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=47, default_interval=True
+    )
+
+    assert errored is True
+    assert "not both" in payload["error"]
+    walls, _ = await call(server_url, "art_display", action="walls")
+    assert walls["walls"][0]["rotation_interval_seconds"] == 931
+
+
+async def test_a_theme_takes_no_pace(server_url):
+    """A theme has an order and is never shuffled; the refusal is what a caller still sending these meets."""
+    theme_id = await _a_theme(server_url)
+
+    payload, errored = await call(server_url, "art_theme", action="update", theme_id=theme_id, shuffle=False)
+
+    assert errored is True
+    assert "does not take 'shuffle'" in payload["error"]
+    theme, _ = await call(server_url, "art_theme", action="update", theme_id=theme_id, name="Precisionists")
+    assert not {"shuffle", "rotation_interval_seconds"} & set(theme["theme"])
+
+
+async def test_renaming_a_theme_does_not_clear_its_description(server_url):
     """The sentinel's whole reason: null is meaningful, so absent cannot mean null."""
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="update", theme_id=theme_id, rotation_interval_seconds=931)
+    await call(server_url, "art_theme", action="update", theme_id=theme_id, description="Hopper and after")
 
     payload, _ = await call(server_url, "art_theme", action="update", theme_id=theme_id, name="Precisionists")
 
     assert payload["theme"]["name"] == "Precisionists"
-    assert payload["theme"]["rotation_interval_seconds"] == 931
+    assert payload["theme"]["description"] == "Hopper and after"
 
 
 async def test_activating_a_theme_puts_it_on_the_wall_rather_than_arming_a_later_sync(server_url, wall_settings, wall):
@@ -531,7 +567,7 @@ async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, 
 
 async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="update", theme_id=theme_id, rotation_interval_seconds=931, shuffle=False)
+    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order")
 
     payload, _ = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
 

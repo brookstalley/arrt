@@ -237,9 +237,9 @@ async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_ur
         theme_id = created["theme"]["theme_id"]
         await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=first.id)
         added = await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=work.id)
-        await caller.ok("art_theme", "update", theme_id=theme_id, shuffle=False)
         walls = await caller.ok("art_display", "walls")
         wall_id = walls["walls"][0]["wall_id"]
+        await caller.ok("art_display", "set_rotation", wall_id=wall_id, shuffle="in_order")
         await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
 
         shown = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])

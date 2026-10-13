@@ -795,7 +795,11 @@ class WorkDetailOut(BaseModel):
 
 
 class ThemeOut(BaseModel):
-    """A grouping of works, and the pace it runs at.
+    """A grouping of works, in an order.
+
+    **It sets no pace and is never shuffled**: how long a work stays up and
+    whether it plays shuffled are the wall's (`WallOut`; ruling 2 of
+    2026-10-11).
 
     **It does not say where it is hanging**, and that is the shape of the
     2026-08-12 ruling rather than an omission: a theme is global, two walls may
@@ -806,11 +810,6 @@ class ThemeOut(BaseModel):
     theme_id: str
     name: str
     description: str | None
-    #: Null means "inherit the deployment default" rather than "unset", so it is
-    #: reported as stored rather than resolved to a number that would read as a
-    #: choice the curator made.
-    rotation_interval_seconds: int | None
-    shuffle: bool | None
     created_at: str
     #: Whether works the curator accepts join this theme. At most one is.
     is_default: bool
@@ -1002,6 +1001,12 @@ class WallOut(BaseModel):
     #: How the wall's Player draws the mat (`none`, `proportional`, `full`), or
     #: null while the curator has left it to the Player.
     mat_mode: str | None = None
+    #: How long each work stays up on this wall, and whether it plays shuffled.
+    #: Null means "the deployment default" rather than "unset", so each is
+    #: reported as stored rather than resolved to a value that would read as a
+    #: choice the curator made; the wall's feed reports what it resolves to.
+    rotation_interval_seconds: int | None = None
+    shuffle: bool | None = None
     #: The works on this wall too small for the largest screen its Player
     #: reported recently. Read it with the two fields below: it is empty both
     #: when every work is big enough and when nothing was judged.
@@ -1137,11 +1142,6 @@ class ThemeDetailOut(BaseModel):
 
     theme: ThemeOut
     works: list[WorkOut]
-    #: Whether a wall hanging it shows its works shuffled: `theme.shuffle`
-    #: resolved against the deployment's default, as the manifest resolves it.
-    #: `theme.shuffle` alone is null when it inherits, which says nothing about
-    #: whether the order on this page decides what the wall shows first.
-    shuffled: bool
     #: For each work too small for a wall hanging this theme, those walls'
     #: names (Programming's judgement from each wall's reported screen). A work
     #: absent here was judged fine, or there was nothing to judge it against.
@@ -1951,11 +1951,11 @@ class CreateTheme(BaseModel):
 class RenameTheme(BaseModel):
     """The new name, and deliberately nothing else.
 
-    `update_theme` can also change a description and a theme's pace, and this
-    body cannot reach either. That is the route's scope rather than an oversight:
+    `update_theme` can also change a description, and this body cannot reach
+    it. That is the route's scope rather than an oversight:
     the service distinguishes "leave this alone" from "clear it" with a sentinel,
     and a request model whose optional fields default to `None` would erase a
-    theme's rotation settings every time a curator corrected a typo in its name.
+    theme's description every time a curator corrected a typo in its name.
     A body that can only say one thing cannot say that one by accident.
     """
 
@@ -1985,6 +1985,17 @@ class SetMatMode(BaseModel):
     """How the wall's Player draws the mat: `none`, `proportional` or `full`, or null to leave it to the Player."""
 
     mode: str | None
+
+
+class SetRotation(BaseModel):
+    """How long each work stays up on the wall, and whether it plays shuffled; null on either for the default.
+
+    Both are required: the body states the wall's whole rotation, so a client
+    that sends one field cannot clear the other by leaving it out.
+    """
+
+    rotation_interval_seconds: int | None
+    shuffle: bool | None
 
 
 class AssignDisplay(BaseModel):

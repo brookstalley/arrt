@@ -34,7 +34,7 @@ from arrt.library.services.review import MAX_REVIEW_LIMIT
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
-from arrt.programming.display import PLAYERS_OWN_MAT, MatMode
+from arrt.programming.display import DEFAULT_SHUFFLE, IN_ORDER, PLAYERS_OWN_MAT, SHUFFLED, MatMode
 
 _STATUS = Param(
     name="status",
@@ -1276,28 +1276,17 @@ ART_THEME: Final = ToolRecord(
         ),
         Action(
             name="update",
-            description="Change a theme's name, description, or rotation settings. Omitted fields are left alone.",
-            example="art_theme(action='update', theme_id='<a theme_id>', rotation_interval_seconds=600)",
+            description="Change a theme's name or description. Omitted fields are left alone.",
+            example="art_theme(action='update', theme_id='<a theme_id>', name='Winter light')",
             params=(
                 _THEME_ID,
                 Param(name="name", type="string", description="A new name for the theme."),
                 Param(name="description", type="string", description="A new description."),
-                Param(
-                    name="rotation_interval_seconds",
-                    type="integer",
-                    description="How long each work is shown in this theme. Omit to leave unchanged.",
-                    minimum=1,
-                ),
-                Param(
-                    name="shuffle",
-                    type="boolean",
-                    description="Show this theme in random order rather than curated order.",
-                ),
             ),
             tips=(
                 (
-                    "A theme that has never set an interval or shuffle inherits the deployment default, "
-                    "which is what art_display(action='sync') reports."
+                    "A theme has an order and is never shuffled. How long each work stays up and whether it "
+                    "plays shuffled are the wall's: art_display(action='set_rotation')."
                 ),
             ),
         ),
@@ -1540,7 +1529,7 @@ ART_DISPLAY: Final = ToolRecord(
     actions=(
         Action(
             name="walls",
-            description="Return every wall, with the theme hanging on each and whether its Player reads the feed.",
+            description="Return every wall, the theme hanging on each, and whether its Player reads the feed.",
             example="art_display(action='walls')",
             tips=(
                 (
@@ -1574,7 +1563,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="set_mat_mode",
-            description="Choose how a named wall's Player draws the mat around each work, or leave it to the Player.",
+            description="Choose how a named wall's Player draws the mat, or leave it to the Player.",
             example="art_display(action='set_mat_mode', wall_id='<a wall_id>', mode='full')",
             params=(
                 _WALL_ID,
@@ -1597,10 +1586,43 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="set_rotation",
+            description=("Set how long each work stays up on a named wall, and whether it shuffles."),
+            example="art_display(action='set_rotation', wall_id='<a wall_id>', shuffle='in_order')",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="rotation_interval_seconds",
+                    type="integer",
+                    description="How long each work stays up on this wall, in seconds.",
+                    minimum=1,
+                ),
+                Param(
+                    name="default_interval",
+                    type="boolean",
+                    description="true returns the interval to the deployment default. Not with rotation_interval_seconds.",
+                ),
+                Param(
+                    name="shuffle",
+                    type="string",
+                    description=(
+                        f"{SHUFFLED} (a fresh random order each cycle), {IN_ORDER} (the theme's own order), "
+                        f"or {DEFAULT_SHUFFLE} (the deployment default)."
+                    ),
+                    choices=(SHUFFLED, IN_ORDER, DEFAULT_SHUFFLE),
+                ),
+            ),
+            tips=(
+                (
+                    "These are the wall's, not the theme's: they stay when another theme is hung. The wall's feed "
+                    "is republished at once, and the work on the wall now finishes its slot."
+                ),
+            ),
+        ),
+        Action(
             name="status",
             description=(
-                "Report what the display serving each wall last said about itself, and how long ago, and how "
-                "much the picture store keeps."
+                "Report what each wall's display last said about itself and when, and how much the picture " "store keeps."
             ),
             example="art_display(action='status')",
             tips=(
@@ -1726,7 +1748,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="issue_client_token",
-            description="Issue a client's token, replacing any it had. The answer is the only place it ever appears.",
+            description="Issue a client's token, replacing any it had. The answer is the only place it appears.",
             example="art_display(action='issue_client_token', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
@@ -1761,7 +1783,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="assign_display",
-            description="Show a named wall on a display, by the display's id, wherever that display now is.",
+            description="Show a named wall on a display, by its id, wherever that display now is.",
             example="art_display(action='assign_display', wall_id='<a wall_id>', display_id='<a display_id>')",
             params=(_WALL_ID, _DISPLAY_ID),
             tips=(
@@ -1795,14 +1817,14 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="remove_label",
-            description="Stop a label output captioning a named wall. The label output stays, captioning nothing.",
+            description="Stop a label output captioning a named wall. The output stays, captioning nothing.",
             example="art_display(action='remove_label', wall_id='<a wall_id>', label_id='<a label_id>')",
             params=(_WALL_ID, _LABEL_ID),
             tips=("Removing one that captions no wall is not an error. Get label ids from the wall's labels in action='walls'.",),
         ),
         Action(
             name="unassign_wall",
-            description="Take a named wall off whichever client showed it. Its theme stays hung.",
+            description="Take a named wall off the client showing it. Its theme stays hung.",
             example="art_display(action='unassign_wall', wall_id='<a wall_id>')",
             params=(_WALL_ID,),
             tips=("Unassigning a wall no client shows is not an error. Get wall ids from action='walls'.",),

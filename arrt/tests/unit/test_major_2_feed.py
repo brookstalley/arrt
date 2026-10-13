@@ -48,12 +48,14 @@ def mastered(services, ready_work, wall_settings, decodable_jpeg):
 
 
 @pytest.fixture
-def theme_of(display):
+def theme_of(display, wall_id):
+    """A theme of these works, in this order; the wall it is hung on plays it in order at `interval`."""
+
     def _theme(*works, name="Surrealism", interval=HOUR):
         theme = display.add_theme(name=name)
         for position, work in enumerate(works):
             display.add_to_theme(theme_id=theme.id, artwork_id=work.id, position=position)
-        display.update_theme(theme.id, rotation_interval_seconds=interval, shuffle=False)
+        display.set_rotation(wall_id, rotation_interval_seconds=interval, shuffle=False)
         return theme
 
     return _theme
@@ -384,12 +386,86 @@ def test_a_heartbeat_with_more_than_two_days_left_rewrites_nothing(display, mast
     assert wall_settings.manifest_v2_path(wall_id).read_bytes() == before
 
 
+# -- the wall's rotation: how long a work stays up, and whether it is shuffled ------------
+
+
+def test_a_new_pace_republishes_at_once_and_keeps_the_slot_on_the_wall(display, mastered, theme_of, wall_id, feed):
+    """The slot on the wall now finishes as published; later ones take the new length, bar the last, which the horizon may cut."""
+    theme = theme_of(mastered("A"), mastered("B"), mastered("C"))
+    display.activate_theme(theme.id, wall_id=wall_id)
+    before = feed(wall_id)
+
+    display.set_rotation(wall_id, rotation_interval_seconds=2 * HOUR)
+
+    after = feed(wall_id)
+    assert after.slots[0] == before.slots[0]
+    assert {slot.until - slot.start for slot in after.slots[1:-1]} == {timedelta(hours=2)}
+    # The setting left alone is left alone.
+    assert display.get_wall(wall_id).shuffle is False
+
+
+def test_the_walls_pace_stays_when_another_theme_is_hung(display, mastered, theme_of, wall_id, feed):
+    """The ruling's point: the pace is the wall's, so it is not the theme's to take with it."""
+    display.activate_theme(theme_of(mastered("A"), mastered("B"), name="Before").id, wall_id=wall_id)
+    display.set_rotation(wall_id, rotation_interval_seconds=2 * HOUR)
+    other = display.add_theme(name="After")
+    for work in (mastered("C"), mastered("D")):
+        display.add_to_theme(theme_id=other.id, artwork_id=work.id)
+
+    display.activate_theme(other.id, wall_id=wall_id)
+
+    assert feed(wall_id).playlist_name == "After"
+    assert {slot.until - slot.start for slot in feed(wall_id).slots[:-1]} == {timedelta(hours=2)}
+
+
+def test_a_wall_with_nothing_hung_takes_a_new_pace_for_what_it_carries(display, mastered, theme_of, wall_id, feed):
+    works = {mastered("A").id, mastered("B").id}
+    theme = display.add_theme(name="Taken down")
+    for work_id in sorted(works):
+        display.add_to_theme(theme_id=theme.id, artwork_id=work_id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    display.clear_wall(wall_id)
+
+    display.set_rotation(wall_id, rotation_interval_seconds=2 * HOUR)
+
+    assert set(feed(wall_id).works) == works
+    assert {slot.until - slot.start for slot in feed(wall_id).slots[1:-1]} == {timedelta(hours=2)}
+
+
+def test_a_wall_with_no_feed_keeps_the_setting_and_publishes_nothing(display, wall_id, wall_settings):
+    display.set_rotation(wall_id, rotation_interval_seconds=931, shuffle=True)
+
+    assert (display.get_wall(wall_id).rotation_interval_seconds, display.get_wall(wall_id).shuffle) == (931, True)
+    assert not wall_settings.manifest_v2_path(wall_id).exists()
+
+
+def test_null_returns_each_setting_to_the_deployment_default(display, mastered, theme_of, wall_id, wall_settings, feed):
+    display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
+
+    display.set_rotation(wall_id, rotation_interval_seconds=None, shuffle=None)
+
+    wall = display.get_wall(wall_id)
+    assert (wall.rotation_interval_seconds, wall.shuffle) == (None, None)
+    default = timedelta(seconds=wall_settings.rotation_interval_seconds)
+    assert {slot.until - slot.start for slot in feed(wall_id).slots[1:-1]} == {default}
+
+
+def test_a_pace_of_zero_is_refused_and_nothing_changes(display, wall_id):
+    display.set_rotation(wall_id, rotation_interval_seconds=931)
+
+    with pytest.raises(ServiceError, match="greater than zero"):
+        display.set_rotation(wall_id, rotation_interval_seconds=0)
+
+    assert display.get_wall(wall_id).rotation_interval_seconds == 931
+
+
 # -- the household rule across walls -----------------------------------------------------
 
 
 def test_two_walls_hanging_one_theme_never_show_a_work_at_the_same_moment(display, mastered, theme_of, wall_id, feed):
     theme = theme_of(mastered("A"), mastered("B"), mastered("C"))
     study = display.add_wall(name="Study").id
+    display.set_rotation(study, rotation_interval_seconds=HOUR, shuffle=False)
 
     display.activate_theme(theme.id, wall_id=wall_id)
     display.activate_theme(theme.id, wall_id=study)
@@ -402,6 +478,7 @@ def test_two_walls_hanging_one_theme_never_show_a_work_at_the_same_moment(displa
 def test_a_clash_the_rule_cannot_avoid_is_said(display, mastered, theme_of, wall_id, caplog):
     theme = theme_of(mastered("Solo"))
     study = display.add_wall(name="Study").id
+    display.set_rotation(study, rotation_interval_seconds=HOUR, shuffle=False)
     display.activate_theme(theme.id, wall_id=wall_id)
 
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):

@@ -78,6 +78,13 @@ class MatMode(StrEnum):
 #: for one.
 PLAYERS_OWN_MAT: Final[str] = "players_own"
 
+#: What a caller with only text to send says for each shuffle setting, the
+#: deployment default included, which such a caller cannot say as null.
+SHUFFLED: Final[str] = "shuffled"
+IN_ORDER: Final[str] = "in_order"
+DEFAULT_SHUFFLE: Final[str] = "default"
+SHUFFLE_CHOICES: Final[Mapping[str, bool | None]] = {SHUFFLED: True, IN_ORDER: False, DEFAULT_SHUFFLE: None}
+
 
 class Unjudged(StrEnum):
     """Why no work on a wall was judged for size: each quiet state said apart from "every work is big enough"."""
@@ -155,7 +162,7 @@ class DisplaySettings:
     #: names as many walls as the curator has rooms, and each one has its own
     #: pair of files.
     art_root: Path
-    #: What a theme that has expressed no pace of its own inherits.
+    #: What a wall that has chosen no pace of its own plays at.
     rotation_interval_seconds: int
     shuffle: bool
 
@@ -363,15 +370,21 @@ class DisplayService:
             )
         return theme
 
-    def shuffles(self, theme: Theme) -> bool:
-        """Whether a wall hanging this theme shows its works in shuffled order.
+    def pace(self, wall: Wall) -> tuple[int, bool]:
+        """How long each work stays up on this wall, and whether it plays shuffled.
 
-        The theme's own setting when it has expressed one, else the deployment's:
-        null on `Theme.shuffle` means "inherit", not "off". One place, so the
-        manifest a wall is given and the theme page's account of its order
-        cannot disagree about which of the two decides what the wall shows first.
+        The wall's own setting where it has chosen one, else the deployment's:
+        null on either means "the default", never "off". One place, so a build,
+        a rebuild and a rolled horizon cannot disagree about how a wall plays.
         """
-        return theme.shuffle if theme.shuffle is not None else self._settings.shuffle
+        return (
+            (
+                wall.rotation_interval_seconds
+                if wall.rotation_interval_seconds is not None
+                else self._settings.rotation_interval_seconds
+            ),
+            wall.shuffle if wall.shuffle is not None else self._settings.shuffle,
+        )
 
     def default_theme(self) -> Theme | None:
         """The theme new works join, or None while the curator has marked none."""
@@ -569,6 +582,49 @@ class DisplayService:
             if feed is not None:
                 self._patch_v2_works(wall_id, feed, {})
         log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
+        return self.get_wall(wall_id)
+
+    def set_rotation(
+        self,
+        wall_id: str,
+        *,
+        rotation_interval_seconds: int | Unset | None = UNSET,
+        shuffle: bool | Unset | None = UNSET,
+    ) -> Wall:
+        """Choose how long each work stays up on this wall and whether it plays shuffled.
+
+        None on either is the deployment default, and an omitted one is left as
+        it is. The wall's feed is republished at once, keeping the work on the
+        wall now: a new order or pace changes the slots after it, which is what
+        the curator asked for, not something to wait a day's roll for.
+        """
+        wall = self.get_wall(wall_id)
+        chosen = replace(
+            wall,
+            rotation_interval_seconds=(
+                wall.rotation_interval_seconds
+                if isinstance(rotation_interval_seconds, Unset)
+                else self._require_interval(rotation_interval_seconds)
+            ),
+            shuffle=wall.shuffle if isinstance(shuffle, Unset) else shuffle,
+        )
+        with self._store.transaction():
+            store_write(self._store.update_wall, chosen)
+            assignment = self._store.get_assignment(wall_id)
+            feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            if assignment is not None:
+                self._sync_v2(self.build_manifest(wall_id, assignment.theme_id))
+            elif feed is not None:
+                self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep())
+        interval, shuffled = self.pace(chosen)
+        log.info(
+            "Wall %r: each work stays up %ds%s, %s%s.",
+            wall.name,
+            interval,
+            "" if chosen.rotation_interval_seconds is not None else " (the default)",
+            "shuffled" if shuffled else "in the theme's order",
+            "" if chosen.shuffle is not None else " (the default)",
+        )
         return self.get_wall(wall_id)
 
     def add_theme(self, *, name: str, description: str | None = None) -> Theme:
@@ -1121,27 +1177,18 @@ class DisplayService:
         *,
         name: str | None = None,
         description: str | Unset | None = UNSET,
-        rotation_interval_seconds: int | Unset | None = UNSET,
-        shuffle: bool | Unset | None = UNSET,
     ) -> Theme:
-        """Change a theme's name, description, or pace.
+        """Change a theme's name or description.
 
-        The nullable fields take a sentinel rather than defaulting to `None`,
-        because `None` is a meaningful value for all three — "no description",
-        and "inherit the global default" for the two rotation settings. Without
-        it, a caller changing only the name would silently clear the theme's pace.
+        The description takes a sentinel rather than defaulting to `None`,
+        because `None` is a meaningful value — "no description" — and a caller
+        changing only the name would otherwise silently clear it.
         """
         theme = self.get_listed_theme(theme_id)
         updated = replace(
             theme,
             name=theme.name if name is None else require_text(name, field="name"),
             description=theme.description if isinstance(description, Unset) else description,
-            rotation_interval_seconds=(
-                theme.rotation_interval_seconds
-                if isinstance(rotation_interval_seconds, Unset)
-                else self._require_interval(rotation_interval_seconds)
-            ),
-            shuffle=theme.shuffle if isinstance(shuffle, Unset) else shuffle,
         )
         store_write(self._store.update_theme, updated)
         return updated
@@ -1273,19 +1320,14 @@ class DisplayService:
             else:
                 exclusions.append(Exclusion.of(answer))
 
+        interval, shuffle = self.pace(wall)
         return ManifestBuild(
             wall=wall,
             theme=theme,
             entries=entries,
             exclusions=exclusions,
-            # Null on either field means "inherit the global default", so the
-            # theme's own value is used only when it has expressed one.
-            rotation_interval_seconds=(
-                theme.rotation_interval_seconds
-                if theme.rotation_interval_seconds is not None
-                else self._settings.rotation_interval_seconds
-            ),
-            shuffle=self.shuffles(theme),
+            rotation_interval_seconds=interval,
+            shuffle=shuffle,
         )
 
     def sync(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
@@ -1682,7 +1724,8 @@ class DisplayService:
         already published, in the theme's order and at its pace. A work joining
         the hung theme arrives by `_publish_additions`, which builds the theme.
         """
-        order, slot_seconds, shuffle = self._v2_pace(previous.playlist_id, works)
+        order = self._v2_order(previous.playlist_id, works)
+        slot_seconds, shuffle = self.pace(self.get_wall(wall_id))
         return self._write_v2(
             wall_id,
             playlist=(previous.playlist_id, previous.playlist_name),
@@ -1693,22 +1736,18 @@ class DisplayService:
             start=start,
         )
 
-    def _v2_pace(self, playlist_id: str, works: Mapping[str, Any]) -> tuple[list[str], int, bool]:
-        """The cycle (the theme's members the feed carries, in its order), the slot length and the shuffle.
+    def _v2_order(self, playlist_id: str, works: Mapping[str, Any]) -> list[str]:
+        """The cycle: the theme's members the feed carries, in its order.
 
         A theme deleted since (possible once it hangs nowhere, after `clear_wall`)
-        leaves the works the feed carries in id order at the default pace.
+        leaves the works the feed carries in id order. The pace is the wall's
+        either way (`pace`).
         """
         theme = self._store.get_theme(playlist_id)
         if theme is None:
-            return sorted(works), self._settings.rotation_interval_seconds, self._settings.shuffle
+            return sorted(works)
         members = [membership.artwork_id for membership in self._store.list_memberships(theme.id)]
-        interval = (
-            theme.rotation_interval_seconds
-            if theme.rotation_interval_seconds is not None
-            else self._settings.rotation_interval_seconds
-        )
-        return [work_id for work_id in members if work_id in works], interval, self.shuffles(theme)
+        return [work_id for work_id in members if work_id in works]
 
     def _write_v2(
         self,

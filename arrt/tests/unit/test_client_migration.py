@@ -114,7 +114,15 @@ def test_the_wall_token_columns_are_dropped_and_the_old_verifier_is_in_no_table(
 
     open_catalogue_file(path).close()
 
-    assert _columns(path, "walls") == {"id", "name", "created_at", "display_id", "mat_mode"}
+    assert _columns(path, "walls") == {
+        "id",
+        "name",
+        "created_at",
+        "display_id",
+        "mat_mode",
+        "rotation_interval_seconds",
+        "shuffle",
+    }
     for (table,) in _raw(path, "SELECT name FROM sqlite_master WHERE type = 'table'"):
         for column in _columns(path, table):
             found = _raw(

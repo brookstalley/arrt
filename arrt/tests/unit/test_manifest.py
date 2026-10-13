@@ -8,7 +8,6 @@ a theme and never reach the wall with nothing saying so.
 """
 
 import json
-from dataclasses import replace
 
 import pytest
 
@@ -348,7 +347,7 @@ def test_entries_follow_the_curated_order(display, ready_work, theme_of, wall_id
 # -- rotation settings ----------------------------------------------------------
 
 
-def test_a_theme_that_expressed_no_pace_inherits_the_deployment_default(display, ready_work, theme_of, wall_settings, wall_id):
+def test_a_wall_that_chose_no_pace_plays_at_the_deployment_default(display, ready_work, theme_of, wall_settings, wall_id):
     theme = theme_of(ready_work())
 
     build = display.build_manifest(wall_id, theme.id)
@@ -357,16 +356,26 @@ def test_a_theme_that_expressed_no_pace_inherits_the_deployment_default(display,
     assert build.shuffle == wall_settings.shuffle
 
 
-def test_a_themes_own_pace_wins_over_the_default(store, display, ready_work, theme_of, wall_settings, wall_id):
-    """Seeded through the store: nothing writes these yet, and the manifest is their only reader."""
+def test_a_walls_own_pace_wins_over_the_default(display, ready_work, theme_of, wall_settings, wall_id):
     theme = theme_of(ready_work())
     # Values no default could produce, so a field read from the wrong place shows.
-    store.update_theme(replace(theme, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle))
+    display.set_rotation(wall_id, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle)
 
     build = display.build_manifest(wall_id, theme.id)
 
     assert build.rotation_interval_seconds == 931
     assert build.shuffle is (not wall_settings.shuffle)
+
+
+def test_one_walls_pace_is_not_another_walls(display, ready_work, theme_of, wall_settings, wall_id):
+    """Two walls hanging one theme: the pace is each wall's, so one choosing leaves the other at the default."""
+    theme = theme_of(ready_work())
+    study = display.add_wall(name="Study").id
+    display.set_rotation(wall_id, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle)
+
+    build = display.build_manifest(study, theme.id)
+
+    assert (build.rotation_interval_seconds, build.shuffle) == (wall_settings.rotation_interval_seconds, wall_settings.shuffle)
 
 
 # -- writing ---------------------------------------------------------------------

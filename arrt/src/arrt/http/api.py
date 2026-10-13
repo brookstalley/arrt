@@ -133,6 +133,7 @@ from arrt.http.models import (
     SetAffinity,
     SetIdentity,
     SetMatMode,
+    SetRotation,
     SetVerdict,
     SightingHostOut,
     SightingHostsOut,
@@ -1268,6 +1269,18 @@ def set_mat_mode(request: Request, wall_id: str, body: SetMatMode) -> WallOut:
     return _wall(services, services.display.get_wall_view(wall_id))
 
 
+@router.put("/walls/{wall_id}/rotation")
+def set_rotation(request: Request, wall_id: str, body: SetRotation) -> WallOut:
+    """Choose how long each work stays up on this wall and whether it plays shuffled; null on either for the default.
+
+    Read-back-after-mutate, for the reason `clear_wall` gives. The wall's feed is
+    republished at once, keeping the work on the wall now.
+    """
+    services = _services(request)
+    services.display.set_rotation(wall_id, rotation_interval_seconds=body.rotation_interval_seconds, shuffle=body.shuffle)
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
 @router.post("/walls/{wall_id}/labels")
 def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignmentOut:
     """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
@@ -1974,7 +1987,6 @@ def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
         # Two calls composed, as the MCP binding composes them: Programming's
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
-        shuffled=services.display.shuffles(theme),
         too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
         sizes_unjudged={
             name: judgement.unjudged.value
@@ -2211,8 +2223,6 @@ def _theme(theme: Theme) -> ThemeOut:
         theme_id=theme.id,
         name=theme.name,
         description=theme.description,
-        rotation_interval_seconds=theme.rotation_interval_seconds,
-        shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
         is_default=theme.is_default,
         hidden=theme.hidden,
@@ -2244,6 +2254,8 @@ def _wall(services: Services, view: WallView) -> WallOut:
         ],
         display_state=_display_state(view.display_state),
         mat_mode=view.wall.mat_mode,
+        rotation_interval_seconds=view.wall.rotation_interval_seconds,
+        shuffle=view.wall.shuffle,
         **_size_fields(services.display.judge_sizes(view.wall.id)),
     )
 

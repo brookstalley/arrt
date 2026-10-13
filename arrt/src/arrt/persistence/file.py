@@ -18,6 +18,7 @@ from pathlib import Path
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.migrations import (
     DEFAULT_WALL_NAME,
+    carry_rotation_to_walls,
     establish_the_wall,
     mark_the_default_theme,
     rename_awaiting_to_wanted,
@@ -58,5 +59,8 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
             retire_conversations,
             retire_directives,
             retire_television_canvases,
+            # After the walls take their final shape: this writes onto columns
+            # the widening step has just added to `walls`.
+            carry_rotation_to_walls,
         ),
     )

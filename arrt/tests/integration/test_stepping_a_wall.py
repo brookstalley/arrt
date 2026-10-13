@@ -11,6 +11,7 @@ evidence is a file on disk named for a wall.
 """
 
 import json
+from datetime import datetime, timedelta
 
 import httpx
 import pytest
@@ -167,6 +168,42 @@ def test_a_walls_mat_is_chosen_and_handed_back_over_http(http, the_wall):
     assert refused.status_code == 400
     assert "mat mode" in refused.json()["error"]
     assert _wall_named(http, the_wall["name"])["mat_mode"] is None
+
+
+def test_a_walls_rotation_is_chosen_and_handed_back_over_http(http, settings, ready_work, the_wall):
+    """Values no default could produce; the feed is what the wall plays, so it is read too."""
+    _hang(http, the_wall, ready_work(title="Automat"), ready_work(title="Nighthawks"))
+    path = f"/api/walls/{the_wall['wall_id']}/rotation"
+
+    chosen = http.put(path, json={"rotation_interval_seconds": 931, "shuffle": False})
+    listed = _wall_named(http, the_wall["name"])
+    manifest = http.get("/api/manifest", params={"wall_id": the_wall["wall_id"]}).json()
+    slots = _feed(settings, the_wall)["schedule"]["slots"]
+
+    assert chosen.status_code == 200
+    assert (chosen.json()["rotation_interval_seconds"], chosen.json()["shuffle"]) == (931, False)
+    assert (listed["rotation_interval_seconds"], listed["shuffle"]) == (931, False)
+    assert (manifest["rotation_interval_seconds"], manifest["shuffle"]) == (931, False)
+    # The first slot was kept and the last may be cut by the horizon; those between are the new length.
+    lengths = {datetime.fromisoformat(slot["until"]) - datetime.fromisoformat(slot["from"]) for slot in slots[1:-1]}
+    assert lengths == {timedelta(seconds=931)}
+
+
+def test_a_walls_rotation_returns_to_the_default_with_null_and_refuses_what_is_not_a_length(http, the_wall):
+    path = f"/api/walls/{the_wall['wall_id']}/rotation"
+    http.put(path, json={"rotation_interval_seconds": 931, "shuffle": True})
+
+    cleared = http.put(path, json={"rotation_interval_seconds": None, "shuffle": None})
+    refused = http.put(path, json={"rotation_interval_seconds": 0, "shuffle": None})
+    # Both fields are the body: one left out is refused, not read as "the default".
+    half = http.put(path, json={"shuffle": False})
+
+    assert (cleared.json()["rotation_interval_seconds"], cleared.json()["shuffle"]) == (None, None)
+    assert refused.status_code == 400
+    assert "greater than zero" in refused.json()["error"]
+    assert half.status_code == 422
+    wall = _wall_named(http, the_wall["name"])
+    assert (wall["rotation_interval_seconds"], wall["shuffle"]) == (None, None)
 
 
 def test_a_wall_says_why_it_judged_no_work_for_size_over_http(http, the_wall):

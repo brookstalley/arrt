@@ -405,8 +405,8 @@ def test_an_unreadable_feed_is_left_for_the_next_sync(display, ready_work, hung,
 def test_next_reaches_the_published_feed_without_a_sync(display, ready_work, hung, wall_id, wall_settings):
     """The Player reads only its feed, so a step has to be a republish of it."""
     first, second = ready_work(title="Nighthawks"), ready_work(title="Automat")
-    theme = hung(wall_id, first, second)
-    display.update_theme(theme.id, shuffle=False)
+    hung(wall_id, first, second)
+    display.set_rotation(wall_id, shuffle=False)
     display.sync(wall_id)
     on_the_wall = _first(wall_settings, wall_id)
     before = _published(wall_settings, wall_id)

@@ -56,10 +56,11 @@ from arrt.persistence.discovery_records import (
 )
 from arrt.persistence.records import Artist, Artwork, Client, Display, Source, Theme, VocabularyKind, Wall
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import PLAYERS_OWN_MAT, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
+from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services.container import Services
+from arrt.services.errors import ServiceError
 from arrt.services.health import PicturesReading, SourceHealth
 
 #: A bound action: validated arguments in, a result payload out. Every binding
@@ -434,14 +435,12 @@ def _create_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str,
 
 
 def _update_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    # `UNSET` for anything the caller did not name, so updating one field does
-    # not clear the others — null is a meaningful value for all three.
+    # `UNSET` for a description the caller did not name, so renaming a theme
+    # does not clear it — null is a meaningful value there.
     theme = services.display.update_theme(
         arguments["theme_id"],
         name=arguments.get("name"),
         description=arguments.get("description", UNSET),
-        rotation_interval_seconds=arguments.get("rotation_interval_seconds", UNSET),
-        shuffle=arguments.get("shuffle", UNSET),
     )
     return ok(theme=_theme_fields(theme))
 
@@ -1322,6 +1321,23 @@ def _set_mat_mode(services: Services, arguments: Mapping[str, Any]) -> dict[str,
     return ok(wall=_wall_fields(services, wall))
 
 
+def _set_rotation(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # `UNSET` for a setting the caller did not name, so choosing one leaves the
+    # other. The deployment default is a word rather than null, because this
+    # surface drops a null argument as though it had not been sent.
+    if arguments.get("default_interval") and "rotation_interval_seconds" in arguments:
+        raise ServiceError("Give rotation_interval_seconds or default_interval=true, not both.")
+    shuffle = arguments.get("shuffle")
+    wall = services.display.set_rotation(
+        arguments["wall_id"],
+        rotation_interval_seconds=(
+            None if arguments.get("default_interval") else arguments.get("rotation_interval_seconds", UNSET)
+        ),
+        shuffle=UNSET if shuffle is None else SHUFFLE_CHOICES[shuffle],
+    )
+    return ok(wall=_wall_fields(services, wall))
+
+
 def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.clients.list_clients()
     survey = services.clients.placements.survey()
@@ -1630,6 +1646,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
     ("art_display", "set_mat_mode"): _set_mat_mode,
+    ("art_display", "set_rotation"): _set_rotation,
     ("art_display", "status"): _wall_status,
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
@@ -1801,11 +1818,6 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "theme_id": theme.id,
         "name": theme.name,
         "description": theme.description,
-        # Null means "inherit the deployment default" rather than "unset", so it
-        # is reported as it is stored rather than resolved to a number that would
-        # read as a choice the curator made.
-        "rotation_interval_seconds": theme.rotation_interval_seconds,
-        "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
         "is_default": theme.is_default,
         "hidden": theme.hidden,
@@ -1830,6 +1842,11 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         "output": placement.output,
         "display_id": wall.display_id,
         "mat_mode": wall.mat_mode,
+        # Null means "the deployment default" rather than "unset", so each is
+        # reported as it is stored rather than resolved to a value that would
+        # read as a choice the curator made.
+        "rotation_interval_seconds": wall.rotation_interval_seconds,
+        "shuffle": wall.shuffle,
         **_size_fields(services.display.judge_sizes(wall.id)),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [

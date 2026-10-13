@@ -27,7 +27,6 @@ request in production.
 import httpx
 import pytest
 
-from arrt.config import DEFAULT_ROTATION_SHUFFLE
 from arrt.persistence.records import AcquisitionMethod, FetchStatus, RenditionKind, RightsStatus, SourceClass
 
 
@@ -98,21 +97,21 @@ class TestRenamingATheme:
         assert answer.json() == {"error": "name cannot be empty."}
         assert _names(http) == ["Late night"]
 
-    def test_renaming_leaves_the_pace_the_theme_was_given(self, http, services):
+    def test_renaming_leaves_the_description_the_theme_was_given(self, http, services):
         """The reason the request body cannot say anything but a name.
 
         `update_theme` distinguishes "leave this alone" from "clear it" with a
-        sentinel, because `None` means "inherit the deployment default" for both
-        rotation settings. A body whose optional fields defaulted to `None` would
-        silently reset a theme's pace every time a curator fixed a typo.
+        sentinel, because `None` means "no description". A body whose optional
+        fields defaulted to `None` would silently clear it every time a curator
+        fixed a typo.
         """
         theme = _theme(http, "Late night")
-        services.display.update_theme(theme["theme_id"], rotation_interval_seconds=900, shuffle=True)
+        services.display.update_theme(theme["theme_id"], description="After hours")
 
         http.post(f"/api/themes/{theme['theme_id']}", json={"name": "Winter"})
 
         after = services.display.get_theme(theme["theme_id"])
-        assert (after.name, after.rotation_interval_seconds, after.shuffle) == ("Winter", 900, True)
+        assert (after.name, after.description) == ("Winter", "After hours")
 
 
 class TestDeletingATheme:
@@ -358,25 +357,12 @@ class TestTheIndexCard:
         assert [(entry["work_count"], entry["picture_ids"]) for entry in deleted] == [(0, [])]
 
 
-class TestWhetherTheOrderDecides:
-    """`shuffled` on a theme's detail: the setting resolved the way the manifest resolves it.
+class TestAThemeHasNoPace:
+    """A theme has an order and is never shuffled (ruling 2 of 2026-10-11): neither its answer nor its detail speaks of either."""
 
-    The theme page says "Position decides what the wall shows first" only when it
-    does, and a theme that inherits the deployment's setting stores null, which
-    on its own says neither.
-    """
-
-    def test_a_theme_that_inherits_is_shuffled_as_the_deployment_is(self, http, services):
+    def test_neither_a_theme_nor_its_detail_carries_a_pace(self, http, services):
         theme = services.display.add_theme(name="Winter")
-        assert theme.shuffle is None
 
-        assert http.get(f"/api/themes/{theme.id}").json()["shuffled"] is DEFAULT_ROTATION_SHUFFLE
+        detail = http.get(f"/api/themes/{theme.id}").json()
 
-    def test_a_theme_that_says_otherwise_is_answered_with_its_own(self, http, services, the_wall):
-        theme = services.display.add_theme(name="Winter")
-        services.display.update_theme(theme.id, shuffle=not DEFAULT_ROTATION_SHUFFLE)
-
-        assert http.get(f"/api/themes/{theme.id}").json()["shuffled"] is (not DEFAULT_ROTATION_SHUFFLE)
-        # And it is the answer the wall is given, from the same resolution.
-        manifest = http.get("/api/manifest", params={"theme_id": theme.id, "wall_id": the_wall["wall_id"]}).json()
-        assert manifest["shuffle"] is (not DEFAULT_ROTATION_SHUFFLE)
+        assert not {"shuffle", "shuffled", "rotation_interval_seconds"} & (set(detail) | set(detail["theme"]))

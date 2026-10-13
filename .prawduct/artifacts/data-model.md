@@ -914,6 +914,8 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `created_at` | datetime | auto | |
 | `display_id` | UUID | optional, FK → Display | *(Added 2026-10-08, `build-plan-displays-and-label-outputs.md`.)* The display the wall is shown on. Null while it has none, which is an ordinary state. At most one wall per display, held by the partial unique index `walls_one_per_display` over the non-null ids. |
 | `mat_mode` | enum? | optional: `none`, `proportional`, `full` | *(Added 2026-10-09, wave 4e.)* How the wall's Player draws the mat, sent as its feed's `settings.mat.mode` (§ Wall settings). Null leaves it to the Player. The values are checked by the service, because a `CHECK` on an added column would bind new files only. A curatorial choice about the room, not a fact about its screen. |
+| `rotation_interval_seconds` | integer? | optional, > 0 (checked by the service) | *(Added 2026-10-13, #353; § Rotation.)* How long each work stays up on this wall: the slot length of its schedule. Null ⇒ the deployment default. |
+| `shuffle` | boolean? | optional | *(Added 2026-10-13, #353; § Rotation.)* Whether the wall plays its theme in a fresh random order each cycle rather than in `ThemeMembership.position` order. Null ⇒ the deployment default. |
 
 *Removed 2026-10-08:* `client_id` and `output` (added 2026-10-02), which named the
 client showing the wall and its output. A wall names a display now, and the
@@ -2875,30 +2877,29 @@ rotation from the host with a local timer calling `select_image(content_id)`.
 active theme becomes a *host-side pointer into a TV-side content library*, and
 rotation timing becomes this product's data rather than the TV's setting.
 
-### Theme — additional fields
+### Rotation — how a wall plays its theme
 
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `rotation_interval_seconds` | integer | nullable | How long each work is shown. Null ⇒ inherit the global default. |
-| `shuffle` | boolean | nullable | Random vs. `ThemeMembership.position` order. Null ⇒ global default. |
+How long each work stays up and whether it plays shuffled are **fields on Wall**
+(`rotation_interval_seconds`, `shuffle`, § Wall), not on Theme. *(Moved
+2026-10-13, #353, by the owner's ruling 2 of 2026-10-11, `ia-proposal.md`: a
+theme has an order and is never shuffled; shuffle and the interval are settings
+of the wall that plays it. The owner chose the wall over the hanging on
+2026-10-13, so both survive hanging another theme and clearing the wall.
+`migrations.carry_rotation_to_walls` gave each wall its hung theme's values and
+dropped the theme's columns. Until then both were nullable fields on Theme, an
+`[ASSUMPTION]` that a contemplative theme could breathe while a busy one moved.)*
 
-> `[ASSUMPTION: rotation timing is per-theme with a global fallback, rather than
-> a single global setting | LOW impact | user can collapse to global]` — it costs
-> two nullable columns and lets a contemplative theme breathe while a busy one
-> moves, but no stated requirement demands it.
+> **Where "the default" lives** *(settled 2026-07-31, at build).* It is
+> deployment configuration — `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` —
+> defaulting to **180 seconds on shuffle**, which is what the 2024 plane ran the
+> wall at. The values were carried forward rather than chosen: a wall that
+> silently changed pace at cutover would have been a regression nobody asked for.
 >
-> **Where "the global default" lives** *(settled 2026-07-31, at build; this
-> artifact named the fallback without saying what supplied it).* It is deployment
-> configuration — `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` — defaulting
-> to **180 seconds on shuffle**, which is what the 2024 plane runs the wall at
-> today. The values are carried forward rather than chosen: the cutover at Chunk
-> 13 replaces the machinery, and a wall that silently changed pace on the same
-> day would be a regression nobody asked for.
->
-> Null is therefore "inherit", never "unset". The distinction is load-bearing in
-> two places: the row mapping keeps null as null rather than coercing it, and a
-> partial update to a theme leaves an unnamed field alone rather than clearing
-> it — otherwise renaming a theme would silently reset its pace.
+> Null is therefore "the default", never "unset". The distinction is load-bearing
+> in two places: the row mapping keeps null as null rather than coercing it, and
+> a partial update to a wall (`DisplayService.set_rotation`, MCP
+> `art_display(action='set_rotation')`) leaves an unnamed field alone rather than
+> clearing it.
 
 ### Why this is nearly free here
 

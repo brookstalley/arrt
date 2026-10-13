@@ -443,7 +443,8 @@ Panel geometry was briefly listed as a second shared value; it is not, because
 > *(Wave 4g, 2026-10-10: built. The server holds no screen geometry. The Player
 > reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`.
 > `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` are the server's alone (the
-> pace a theme inherits), and the Player no longer reads them.)*
+> pace a wall plays at when it has chosen none; a theme's until 2026-10-13, #353),
+> and the Player no longer reads them.)*
 >
 > *(2026-10-08, pointer only: `feeds-and-players.md` ruling 7 made the mat's
 > width the client's, so `MAT_*` moves to the Player's configuration with

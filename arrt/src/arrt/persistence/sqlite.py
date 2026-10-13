@@ -169,9 +169,9 @@ CREATE INDEX IF NOT EXISTS work_facets_by_artwork ON work_facets(artwork_id);
 -- carry this item"; it enforces nothing.
 CREATE INDEX IF NOT EXISTS work_facets_by_item ON work_facets(value_qid);
 
--- `rotation_interval_seconds` and `shuffle` are nullable because null means
--- "inherit the global default" rather than "unset": a theme that has never
--- expressed a pace is a normal theme, not an incomplete one.
+-- A theme has an order and no pace: `rotation_interval_seconds` and `shuffle`
+-- moved to `walls` on 2026-10-13 (ruling 2 of 2026-10-11), and
+-- `migrations.carry_rotation_to_walls` carries a file that still has them.
 --
 -- A theme is global: nothing here says where it is hanging. `is_active` and its
 -- `themes_one_active` partial index were dropped on 2026-08-12, when hanging
@@ -182,8 +182,6 @@ CREATE TABLE IF NOT EXISTS themes (
     name                      TEXT NOT NULL UNIQUE,
     description               TEXT,
     created_at                TEXT NOT NULL,
-    rotation_interval_seconds INTEGER,
-    shuffle                   INTEGER,
     is_default                INTEGER NOT NULL DEFAULT 0,
     is_hidden                 INTEGER NOT NULL DEFAULT 0
 );
@@ -252,7 +250,12 @@ CREATE TABLE IF NOT EXISTS walls (
     -- How the wall's Player draws the mat, or NULL for its own default. The
     -- values are checked by the service: a CHECK here would bind new files
     -- only, since an added column cannot carry one onto an older file.
-    mat_mode         TEXT
+    mat_mode         TEXT,
+    -- How the wall plays its theme: how long each work stays up, and whether in
+    -- shuffled order. NULL on either is the deployment default rather than
+    -- "unset", so a wall that has chosen nothing is an ordinary wall.
+    rotation_interval_seconds INTEGER,
+    shuffle          INTEGER
 );
 
 -- One wall per display, since one screen shows one picture. The service refuses
@@ -1337,11 +1340,6 @@ def _theme_row(theme: Theme) -> dict[str, Any]:
         "name": theme.name,
         "description": theme.description,
         "created_at": to_iso(theme.created_at),
-        "rotation_interval_seconds": theme.rotation_interval_seconds,
-        # None survives as null — "inherit the global default" — where int(None)
-        # would raise and bool(None) would silently write a decision the curator
-        # never made.
-        "shuffle": None if theme.shuffle is None else int(theme.shuffle),
         # `is_default` is not written from the record: only `mark_default_theme`
         # writes it, so saving a theme leaves the mark where it is.
         "is_hidden": int(theme.hidden),
@@ -1374,6 +1372,11 @@ def _wall_row(wall: Wall) -> dict[str, Any]:
         "created_at": to_iso(wall.created_at),
         "display_id": wall.display_id,
         "mat_mode": wall.mat_mode,
+        "rotation_interval_seconds": wall.rotation_interval_seconds,
+        # None survives as null — "the deployment default" — where int(None)
+        # would raise and bool(None) would silently write a decision the curator
+        # never made.
+        "shuffle": None if wall.shuffle is None else int(wall.shuffle),
     }
 
 
@@ -1537,8 +1540,6 @@ def _theme(row: Mapping[str, Any]) -> Theme:
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),
         description=row["description"],
-        rotation_interval_seconds=row["rotation_interval_seconds"],
-        shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
         is_default=bool(row["is_default"]),
         hidden=bool(row["is_hidden"]),
     )
@@ -1551,6 +1552,8 @@ def _wall(row: Mapping[str, Any]) -> Wall:
         created_at=require_datetime(row["created_at"], "created_at"),
         display_id=row["display_id"],
         mat_mode=row["mat_mode"],
+        rotation_interval_seconds=row["rotation_interval_seconds"],
+        shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
     )
 
 
