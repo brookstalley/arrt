@@ -322,9 +322,11 @@ def test_a_tile_whose_image_cannot_be_loaded_says_so(ui, work_with_an_image):
     ui.page.route("**/thumbnail", lambda route: route.fulfill(status=404, body="gone"))
 
     ui.open("#collection")
-    ui.page.wait_for_selector(".card-image-absent")
+    # The sentence itself, not `.card-image-absent`: the catalogue's works with
+    # no master paint that class at first paint, so a wait on it returns before
+    # the 404 has been heard.
+    ui.page.wait_for_selector(".card-image-absent:has-text('Its image could not be loaded just now.')")
 
-    assert "Its image could not be loaded just now." in ui.text()
     # The broken image must be gone, not merely covered: an <img> left in place
     # is still announced, and still draws the browser's own broken-image glyph.
     assert ui.page.locator("ul.grid img").count() == 0

@@ -102,6 +102,10 @@ whenever the internet answered, so it was in one read and not the other.
   status and the MCP status checks bound by a half of it or of
   `STATUS_HOLD_SECONDS`, and the look budget test by its own slow fetch. The
   grid tests read `NEAR_THE_END` from `collection.js` rather than copying it.
+- `test_a_tile_whose_image_cannot_be_loaded_says_so` waits for its sentence,
+  not for `.card-image-absent`, which the catalogue's works with no master
+  paint at first paint. The old wait returned before the 404 had been heard,
+  and CI failed this PR's first run on it.
 - `test_discovery_tool.py` asserts that `start` returns while the fake engine
   holds phase 1 open, with a bound of half the gate's own, not 2 s. It fails
   by name when `start` runs phase 1 inline.
