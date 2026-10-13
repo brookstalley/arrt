@@ -172,6 +172,8 @@ def test_the_old_columns_and_index_are_gone(upgraded, tmp_path):
         "mat_mode",
         "rotation_interval_seconds",
         "shuffle",
+        "min_aspect_ratio",
+        "max_aspect_ratio",
     }
     indexes = {row[1] for row in _raw(path, "PRAGMA index_list(walls)")}
     assert "walls_one_per_output" not in indexes
@@ -240,4 +242,6 @@ def test_an_open_interrupted_between_the_two_drops_takes_away_the_last(tmp_path)
         "mat_mode",
         "rotation_interval_seconds",
         "shuffle",
+        "min_aspect_ratio",
+        "max_aspect_ratio",
     }

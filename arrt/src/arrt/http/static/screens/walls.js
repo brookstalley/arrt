@@ -789,6 +789,7 @@ const EXCLUSION_WORDS = {
   no_mat_color: "No mat colour",
   not_in_catalogue: "No longer in the library",
   kept_off_every_wall: "Kept off every wall",
+  outside_wall_shape: "Outside this wall's shapes",
 };
 
 /* How the wall is set up: what of its theme is not reaching it, how it
@@ -885,12 +886,14 @@ function rotationPanel(wall, manifest) {
             event.currentTarget,
             `set the rotation on ${wall.name}`,
             () =>
-              api(`/api/walls/${encodeURIComponent(wall.wall_id)}/rotation`, {
+              api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, {
                 method: "PUT",
                 body: JSON.stringify({
                   // A second at least: the wire is whole seconds, and the server refuses zero.
                   rotation_interval_seconds: minutes === null ? null : Math.max(1, Math.round(minutes * 60)),
                   shuffle: order.value === "" ? null : order.value === "true",
+                  tallest: wall.tallest ?? null,
+                  widest: wall.widest ?? null,
                 }),
               }),
             {

@@ -239,7 +239,7 @@ async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_ur
         added = await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=work.id)
         walls = await caller.ok("art_display", "walls")
         wall_id = walls["walls"][0]["wall_id"]
-        await caller.ok("art_display", "set_rotation", wall_id=wall_id, shuffle="in_order")
+        await caller.ok("art_display", "set_playback", wall_id=wall_id, shuffle="in_order")
         await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
 
         shown = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])
@@ -548,7 +548,7 @@ async def test_walls_and_a_themes_page_say_which_works_are_too_small_for_a_wall(
         page = await caller.ok("art_theme", "get", theme_id=theme.id)
 
     assert walls["walls"][0]["too_small"] == [small.id]
-    assert walls["walls"][0]["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160}
+    assert walls["walls"][0]["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160, "shape": "16:9"}
     assert walls["walls"][0]["sizes_unjudged"] is None
     assert page["too_small_for"] == {small.id: [wall.name]}
     assert page["sizes_unjudged"] == {}

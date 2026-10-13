@@ -122,6 +122,8 @@ def test_the_wall_token_columns_are_dropped_and_the_old_verifier_is_in_no_table(
         "mat_mode",
         "rotation_interval_seconds",
         "shuffle",
+        "min_aspect_ratio",
+        "max_aspect_ratio",
     }
     for (table,) in _raw(path, "SELECT name FROM sqlite_master WHERE type = 'table'"):
         for column in _columns(path, table):

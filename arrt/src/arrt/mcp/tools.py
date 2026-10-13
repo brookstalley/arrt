@@ -35,6 +35,7 @@ from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
 from arrt.programming.display import DEFAULT_SHUFFLE, IN_ORDER, PLAYERS_OWN_MAT, SHUFFLED, MatMode
+from arrt.programming.shape import ANY as ANY_SHAPE
 
 _STATUS = Param(
     name="status",
@@ -1286,7 +1287,7 @@ ART_THEME: Final = ToolRecord(
             tips=(
                 (
                     "A theme has an order and is never shuffled. How long each work stays up and whether it "
-                    "plays shuffled are the wall's: art_display(action='set_rotation')."
+                    "plays shuffled are the wall's: art_display(action='set_playback')."
                 ),
             ),
         ),
@@ -1586,9 +1587,9 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
-            name="set_rotation",
-            description=("Set how long each work stays up on a named wall, and whether it shuffles."),
-            example="art_display(action='set_rotation', wall_id='<a wall_id>', shuffle='in_order')",
+            name="set_playback",
+            description="Set a named wall's pace, order and the shapes of work it shows.",
+            example="art_display(action='set_playback', wall_id='<a wall_id>', widest='1:1')",
             params=(
                 _WALL_ID,
                 Param(
@@ -1611,11 +1612,26 @@ ART_DISPLAY: Final = ToolRecord(
                     ),
                     choices=(SHUFFLED, IN_ORDER, DEFAULT_SHUFFLE),
                 ),
+                Param(
+                    name="tallest",
+                    type="string",
+                    description=f"The tallest shape the wall shows, as width:height (4:5) or decimal; {ANY_SHAPE} for no limit.",
+                ),
+                Param(
+                    name="widest",
+                    type="string",
+                    description=f"The widest shape the wall shows, as width:height (1:1) or decimal; {ANY_SHAPE} for no limit.",
+                ),
             ),
             tips=(
                 (
                     "These are the wall's, not the theme's: they stay when another theme is hung. The wall's feed "
                     "is republished at once, and the work on the wall now finishes its slot."
+                ),
+                (
+                    "A work outside the wall's shapes is left off it and listed with why. Shapes that leave "
+                    "nothing are honoured: the wall goes dark, and the summary says so. On a wall with nothing "
+                    "hung, the shapes apply when a theme is next hung."
                 ),
             ),
         ),

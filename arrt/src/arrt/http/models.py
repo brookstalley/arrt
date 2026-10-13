@@ -959,6 +959,9 @@ class ScreenSizeOut(BaseModel):
 
     width_px: int
     height_px: int
+    #: The screen's shape as a curator says it (`16:9`): the hint beside the
+    #: wall's shapes, never applied to them.
+    shape: str
 
 
 class WallOut(BaseModel):
@@ -1007,6 +1010,13 @@ class WallOut(BaseModel):
     #: choice the curator made; the wall's feed reports what it resolves to.
     rotation_interval_seconds: int | None = None
     shuffle: bool | None = None
+    #: The tallest and widest shapes this wall shows, spelled `W:H`, or null for
+    #: no limit on that side.
+    tallest: str | None = None
+    widest: str | None = None
+    #: The range as a phrase finishing "This wall shows …", or null while the
+    #: wall shows every shape.
+    shapes: str | None = None
     #: The works on this wall too small for the largest screen its Player
     #: reported recently. Read it with the two fields below: it is empty both
     #: when every work is big enough and when nothing was judged.
@@ -1987,15 +1997,19 @@ class SetMatMode(BaseModel):
     mode: str | None
 
 
-class SetRotation(BaseModel):
-    """How long each work stays up on the wall, and whether it plays shuffled; null on either for the default.
+class SetPlayback(BaseModel):
+    """How the wall plays its theme: how long each work stays up, in what order, and which shapes.
 
-    Both are required: the body states the wall's whole rotation, so a client
-    that sends one field cannot clear the other by leaving it out.
+    Null on the interval or shuffle is the deployment default; null on `tallest`
+    or `widest` is no limit, and either is spelled `W:H`, a decimal, or `any`.
+    Every field is required: the body states the wall's whole playback, so a
+    client that sends one field cannot clear another by leaving it out.
     """
 
     rotation_interval_seconds: int | None
     shuffle: bool | None
+    tallest: str | None
+    widest: str | None
 
 
 class AssignDisplay(BaseModel):

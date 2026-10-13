@@ -406,7 +406,7 @@ def test_next_reaches_the_published_feed_without_a_sync(display, ready_work, hun
     """The Player reads only its feed, so a step has to be a republish of it."""
     first, second = ready_work(title="Nighthawks"), ready_work(title="Automat")
     hung(wall_id, first, second)
-    display.set_rotation(wall_id, shuffle=False)
+    display.set_playback(wall_id, shuffle=False)
     display.sync(wall_id)
     on_the_wall = _first(wall_settings, wall_id)
     before = _published(wall_settings, wall_id)

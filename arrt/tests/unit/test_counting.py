@@ -33,7 +33,7 @@ import pytest
 from arrt.counting import agree, agree_partitive, counted, noun
 from arrt.library.facade import UnplayableReason
 from arrt.persistence.records import Theme, Wall
-from arrt.programming.manifest.builder import Exclusion, ManifestBuild
+from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def one_work_build():
     sentence it is about.
     """
 
-    def _build(*, excluded: int, entries: int = 0) -> ManifestBuild:
+    def _build(*, excluded: int, entries: int = 0, outside: int = 0) -> ManifestBuild:
         stamp = datetime(2026, 8, 17, tzinfo=UTC)
         return ManifestBuild(
             wall=Wall(id="wall-1", name="The living room", created_at=stamp),
@@ -61,6 +61,15 @@ def one_work_build():
                     detail="nothing has been rendered for the television yet",
                 )
                 for index in range(excluded)
+            ]
+            + [
+                Exclusion(
+                    work_id=f"shape-{index}",
+                    title=f"Outside {index}",
+                    reason=KeptOff.WALL_SHAPE,
+                    detail="This wall shows nothing wider than 1:1, and this work is 16:9.",
+                )
+                for index in range(outside)
             ],
             rotation_interval_seconds=180,
             shuffle=True,
@@ -137,7 +146,19 @@ class TestTheManifestSummary:
 
     def test_one_work_and_it_is_not_displayable(self, one_work_build):
         assert (
-            one_work_build(excluded=1).summarise() == "0 of 1 work in this theme is on the wall; 1 is not currently displayable."
+            one_work_build(excluded=1).summarise()
+            == "0 of 1 work in this theme is on the wall; 1 is not currently displayable, so the wall is dark."
+        )
+
+    def test_works_outside_the_walls_shapes_are_counted_apart_from_the_broken_ones(self, one_work_build):
+        """A work the wall's range leaves off is displayable, so it is not counted as one that is not."""
+        assert (
+            one_work_build(excluded=1, outside=2, entries=1).summarise()
+            == "1 of 4 works in this theme is on the wall; 2 are outside this wall's shapes and 1 is not currently displayable."
+        )
+        assert (
+            one_work_build(excluded=0, outside=1, entries=1).summarise()
+            == "1 of 2 works in this theme is on the wall; 1 is outside this wall's shapes."
         )
 
     def test_two_works_are_unchanged(self, one_work_build):

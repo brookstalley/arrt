@@ -101,7 +101,17 @@ _EXPECTED_SCHEMA = {
     # client that shows the wall, and on which output, arrived in their place,
     # and gave way on 2026-10-08 to the display the wall is on
     # (`migrations.walls_name_displays`).
-    "walls": {"id", "name", "created_at", "display_id", "mat_mode", "rotation_interval_seconds", "shuffle"},
+    "walls": {
+        "id",
+        "name",
+        "created_at",
+        "display_id",
+        "mat_mode",
+        "rotation_interval_seconds",
+        "shuffle",
+        "min_aspect_ratio",
+        "max_aspect_ratio",
+    },
     # An installed Player: a name and the verifier of its one token, nothing
     # about the device.
     "clients": {"id", "name", "created_at", "token_verifier", "token_issued_at"},

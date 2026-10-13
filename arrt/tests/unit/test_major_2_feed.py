@@ -23,6 +23,7 @@ from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming.display import Unjudged
+from arrt.programming.manifest.builder import KeptOff
 from arrt.programming.manifest.v2 import read_published
 from arrt.services.errors import ServiceError
 
@@ -55,7 +56,7 @@ def theme_of(display, wall_id):
         theme = display.add_theme(name=name)
         for position, work in enumerate(works):
             display.add_to_theme(theme_id=theme.id, artwork_id=work.id, position=position)
-        display.set_rotation(wall_id, rotation_interval_seconds=interval, shuffle=False)
+        display.set_playback(wall_id, rotation_interval_seconds=interval, shuffle=False)
         return theme
 
     return _theme
@@ -395,7 +396,7 @@ def test_a_new_pace_republishes_at_once_and_keeps_the_slot_on_the_wall(display, 
     display.activate_theme(theme.id, wall_id=wall_id)
     before = feed(wall_id)
 
-    display.set_rotation(wall_id, rotation_interval_seconds=2 * HOUR)
+    display.set_playback(wall_id, rotation_interval_seconds=2 * HOUR)
 
     after = feed(wall_id)
     assert after.slots[0] == before.slots[0]
@@ -407,7 +408,7 @@ def test_a_new_pace_republishes_at_once_and_keeps_the_slot_on_the_wall(display, 
 def test_the_walls_pace_stays_when_another_theme_is_hung(display, mastered, theme_of, wall_id, feed):
     """The ruling's point: the pace is the wall's, so it is not the theme's to take with it."""
     display.activate_theme(theme_of(mastered("A"), mastered("B"), name="Before").id, wall_id=wall_id)
-    display.set_rotation(wall_id, rotation_interval_seconds=2 * HOUR)
+    display.set_playback(wall_id, rotation_interval_seconds=2 * HOUR)
     other = display.add_theme(name="After")
     for work in (mastered("C"), mastered("D")):
         display.add_to_theme(theme_id=other.id, artwork_id=work.id)
@@ -426,14 +427,14 @@ def test_a_wall_with_nothing_hung_takes_a_new_pace_for_what_it_carries(display, 
     display.activate_theme(theme.id, wall_id=wall_id)
     display.clear_wall(wall_id)
 
-    display.set_rotation(wall_id, rotation_interval_seconds=2 * HOUR)
+    display.set_playback(wall_id, rotation_interval_seconds=2 * HOUR)
 
     assert set(feed(wall_id).works) == works
     assert {slot.until - slot.start for slot in feed(wall_id).slots[1:-1]} == {timedelta(hours=2)}
 
 
 def test_a_wall_with_no_feed_keeps_the_setting_and_publishes_nothing(display, wall_id, wall_settings):
-    display.set_rotation(wall_id, rotation_interval_seconds=931, shuffle=True)
+    display.set_playback(wall_id, rotation_interval_seconds=931, shuffle=True)
 
     assert (display.get_wall(wall_id).rotation_interval_seconds, display.get_wall(wall_id).shuffle) == (931, True)
     assert not wall_settings.manifest_v2_path(wall_id).exists()
@@ -442,7 +443,7 @@ def test_a_wall_with_no_feed_keeps_the_setting_and_publishes_nothing(display, wa
 def test_null_returns_each_setting_to_the_deployment_default(display, mastered, theme_of, wall_id, wall_settings, feed):
     display.activate_theme(theme_of(mastered("A"), mastered("B")).id, wall_id=wall_id)
 
-    display.set_rotation(wall_id, rotation_interval_seconds=None, shuffle=None)
+    display.set_playback(wall_id, rotation_interval_seconds=None, shuffle=None)
 
     wall = display.get_wall(wall_id)
     assert (wall.rotation_interval_seconds, wall.shuffle) == (None, None)
@@ -451,12 +452,127 @@ def test_null_returns_each_setting_to_the_deployment_default(display, mastered, 
 
 
 def test_a_pace_of_zero_is_refused_and_nothing_changes(display, wall_id):
-    display.set_rotation(wall_id, rotation_interval_seconds=931)
+    display.set_playback(wall_id, rotation_interval_seconds=931)
 
     with pytest.raises(ServiceError, match="greater than zero"):
-        display.set_rotation(wall_id, rotation_interval_seconds=0)
+        display.set_playback(wall_id, rotation_interval_seconds=0)
 
     assert display.get_wall(wall_id).rotation_interval_seconds == 931
+
+
+# -- the wall's shapes ------------------------------------------------------------------
+
+
+@pytest.fixture
+def three_shapes(mastered):
+    """A landscape, a portrait, and a square scanned a few pixels off square."""
+    return (
+        mastered("Wide", width=4000, height=3000),
+        mastered("Tall", width=2000, height=3000),
+        mastered("Square", width=3003, height=3000),
+    )
+
+
+def test_a_work_wider_than_the_wall_shows_is_left_off_by_name(display, three_shapes, theme_of, wall_id, feed):
+    wide, tall, square = three_shapes
+    display.set_playback(wall_id, widest="1:1")
+
+    build = display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
+
+    assert set(feed(wall_id).works) == {tall.id, square.id}
+    [exclusion] = build.exclusions
+    assert (exclusion.work_id, exclusion.reason) == (wide.id, KeptOff.WALL_SHAPE)
+    assert exclusion.detail.startswith("This wall shows nothing wider than 1:1, and this work is 4:3.")
+    assert build.summarise() == "2 of 3 works in this theme are on the wall; 1 is outside this wall's shapes."
+
+
+def test_a_tallest_bound_alone_leaves_off_only_the_taller_work(display, three_shapes, theme_of, wall_id, feed):
+    wide, tall, square = three_shapes
+    display.set_playback(wall_id, tallest="1:1")
+
+    display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
+
+    assert set(feed(wall_id).works) == {wide.id, square.id}
+
+
+def test_new_shapes_republish_at_once_and_any_puts_the_work_back(display, three_shapes, theme_of, wall_id, feed):
+    wide, tall, square = three_shapes
+    display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
+    before = feed(wall_id)
+
+    display.set_playback(wall_id, widest="1:1")
+    narrowed = feed(wall_id)
+    display.set_playback(wall_id, widest="any")
+
+    assert set(narrowed.works) == {tall.id, square.id}
+    assert wide.id not in {slot.work_id for slot in narrowed.slots[1:]}
+    assert set(feed(wall_id).works) == {wide.id, tall.id, square.id}
+    assert display.get_wall(wall_id).max_aspect_ratio is None
+    # The pace and order were not named, so they stayed.
+    assert (display.get_wall(wall_id).rotation_interval_seconds, display.get_wall(wall_id).shuffle) == (HOUR, False)
+    assert before.slots[0].start == feed(wall_id).slots[0].start
+
+
+def test_shapes_that_leave_nothing_make_the_wall_dark_and_say_so(display, three_shapes, theme_of, wall_id, feed):
+    """The owner's ruling: honoured exactly, never a quiet fallback to the whole theme."""
+    wide, tall, square = three_shapes
+    display.set_playback(wall_id, tallest="21:9")
+
+    build = display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
+
+    assert feed(wall_id).works == {}
+    assert feed(wall_id).slots == ()
+    assert build.summarise() == (
+        "0 of 3 works in this theme are on the wall; 3 are outside this wall's shapes, so the wall is dark."
+    )
+
+
+def test_the_walls_shapes_stay_when_another_theme_is_hung(display, three_shapes, theme_of, wall_id, feed):
+    wide, tall, square = three_shapes
+    display.activate_theme(theme_of(tall, name="Before").id, wall_id=wall_id)
+    display.set_playback(wall_id, widest="1:1")
+
+    display.activate_theme(theme_of(wide, square, name="After").id, wall_id=wall_id)
+
+    assert set(feed(wall_id).works) == {square.id}
+
+
+def test_a_work_kept_off_every_wall_is_reported_as_that_whatever_its_shape(display, three_shapes, theme_of, wall_id):
+    """The curator's word on the work outranks the wall's range: allowing it again is what would change anything first."""
+    wide, tall, square = three_shapes
+    display.exclude_work(wide.id)
+    display.set_playback(wall_id, widest="1:1")
+
+    build = display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
+
+    assert {(exclusion.work_id, exclusion.reason) for exclusion in build.exclusions} == {(wide.id, KeptOff.EVERY_WALL)}
+
+
+def test_a_tallest_wider_than_the_widest_is_refused_and_nothing_changes(display, wall_id):
+    display.set_playback(wall_id, widest="16:9")
+
+    with pytest.raises(ServiceError, match="wider than the widest"):
+        display.set_playback(wall_id, tallest="21:9")
+    with pytest.raises(ServiceError, match="width:height"):
+        display.set_playback(wall_id, widest="wide")
+
+    wall = display.get_wall(wall_id)
+    assert (wall.min_aspect_ratio, wall.max_aspect_ratio) == (None, pytest.approx(16 / 9))
+
+
+def test_on_a_wall_with_nothing_hung_the_shapes_wait_for_the_next_hanging(display, three_shapes, theme_of, wall_id, feed):
+    """The carried feed cannot be trimmed: with no theme to rebuild from, a widened range could not bring a work back."""
+    wide, tall, square = three_shapes
+    theme = theme_of(wide, tall, square)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    display.clear_wall(wall_id)
+
+    display.set_playback(wall_id, widest="1:1")
+    carried = feed(wall_id)
+    display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert set(carried.works) == {wide.id, tall.id, square.id}
+    assert set(feed(wall_id).works) == {tall.id, square.id}
 
 
 # -- the household rule across walls -----------------------------------------------------
@@ -465,7 +581,7 @@ def test_a_pace_of_zero_is_refused_and_nothing_changes(display, wall_id):
 def test_two_walls_hanging_one_theme_never_show_a_work_at_the_same_moment(display, mastered, theme_of, wall_id, feed):
     theme = theme_of(mastered("A"), mastered("B"), mastered("C"))
     study = display.add_wall(name="Study").id
-    display.set_rotation(study, rotation_interval_seconds=HOUR, shuffle=False)
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
 
     display.activate_theme(theme.id, wall_id=wall_id)
     display.activate_theme(theme.id, wall_id=study)
@@ -478,7 +594,7 @@ def test_two_walls_hanging_one_theme_never_show_a_work_at_the_same_moment(displa
 def test_a_clash_the_rule_cannot_avoid_is_said(display, mastered, theme_of, wall_id, caplog):
     theme = theme_of(mastered("Solo"))
     study = display.add_wall(name="Study").id
-    display.set_rotation(study, rotation_interval_seconds=HOUR, shuffle=False)
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
     display.activate_theme(theme.id, wall_id=wall_id)
 
     with caplog.at_level(logging.INFO, logger="arrt.programming.display"):

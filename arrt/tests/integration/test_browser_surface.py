@@ -862,7 +862,9 @@ class TestWhatTheWallSummaryClaims:
         published = http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]}).json()
 
         assert "not_displayable" not in published["summary"]
-        assert published["summary"] == "0 of 1 work in this theme is on the wall; 1 is not currently displayable."
+        assert published["summary"] == (
+            "0 of 1 work in this theme is on the wall; 1 is not currently displayable, so the wall is dark."
+        )
 
 
 class TestPagingPastTheCatalogueCap:

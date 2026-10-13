@@ -239,7 +239,7 @@ def test_the_order_copy_says_only_that_the_theme_is_in_order(ui, services, winte
     shows first would be false of that wall.
     """
     wall = services.display.survey_walls()[0].wall
-    services.display.set_rotation(wall.id, shuffle=True)
+    services.display.set_playback(wall.id, shuffle=True)
     services.display.activate_theme(winter.id, wall_id=wall.id)
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")

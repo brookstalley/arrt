@@ -27,6 +27,7 @@ from typing import Any
 from arrt.counting import agree, agree_partitive, counted
 from arrt.library.facade import Media, PlayableWork, Unplayable, UnplayableReason
 from arrt.persistence.records import Theme, Wall
+from arrt.programming import shape
 
 
 class KeptOff(StrEnum):
@@ -39,6 +40,10 @@ class KeptOff(StrEnum):
 
     #: *Not this one again*, from every wall. Undone from the work's page.
     EVERY_WALL = "kept_off_every_wall"
+    #: Outside the shapes this wall shows (`shape.py`). Undone on Walls, by
+    #: widening the wall's range; the work is displayable and goes on any wall
+    #: whose range it fits.
+    WALL_SHAPE = "outside_wall_shape"
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +76,20 @@ class Exclusion:
             title=answer.title if answer.title is not None else answer.work_id,
             reason=KeptOff.EVERY_WALL,
             detail="You said not to show this again on any wall. Allow it again from its page to put it back.",
+        )
+
+    @classmethod
+    def outside_shape(cls, work: PlayableWork, wall: Wall) -> Exclusion:
+        """A work the wall's own range of shapes leaves off it."""
+        size = (work.master.width, work.master.height)
+        return cls(
+            work_id=work.work_id,
+            title=work.title,
+            reason=KeptOff.WALL_SHAPE,
+            detail=(
+                f"This wall shows {shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio)}, "
+                f"and this work is {shape.spoken(size[0] / size[1])}. Change the wall's shapes on Walls to put it back."
+            ),
         )
 
 
@@ -132,10 +151,24 @@ class ManifestBuild:
         # is right to — there the subject really is "All N works". Same helper,
         # different subject, and the nearest count is the wrong one exactly half
         # the time.
+        # Counted apart because a work outside the wall's shapes is displayable:
+        # lumped in with the broken ones, "0 of 12 on the wall" would read as
+        # twelve works needing repair when one setting on the wall is the cause.
+        outside = sum(1 for exclusion in self.exclusions if exclusion.reason is KeptOff.WALL_SHAPE)
+        unshowable = len(self.exclusions) - outside
+        why = [
+            f"{count} {agree(count, 'is', 'are')} {reason}"
+            for count, reason in ((outside, "outside this wall's shapes"), (unshowable, "not currently displayable"))
+            if count
+        ]
+        # An empty feed is an ordinary state (`player-contract.md`), and an
+        # ordinary state on a television is a dark screen: said, because a
+        # curator reading only the counts would expect a picture.
+        dark = ", so the wall is dark" if not self.entries else ""
         return (
             f"{len(self.entries)} of {counted(self.considered, 'work')} in this theme "
             f"{agree_partitive(len(self.entries), self.considered, 'is', 'are')} on the wall; "
-            f"{len(self.exclusions)} {agree(len(self.exclusions), 'is', 'are')} not currently displayable."
+            f"{' and '.join(why)}{dark}."
         )
 
 

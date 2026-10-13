@@ -179,7 +179,7 @@ async def test_removing_a_work_from_a_theme_leaves_the_work_in_the_catalogue(ser
 async def test_a_walls_rotation_survives_the_round_trip(server_url, wall):
     """Values no default could produce, so a field dropped in the binding would show."""
     payload, errored = await call(
-        server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order"
+        server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order"
     )
 
     assert errored is False
@@ -190,29 +190,47 @@ async def test_a_walls_rotation_survives_the_round_trip(server_url, wall):
 
 async def test_choosing_one_rotation_setting_leaves_the_other(server_url, wall):
     """The sentinel's whole reason: absent cannot mean "the default"."""
-    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931)
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931)
 
-    payload, _ = await call(server_url, "art_display", action="set_rotation", wall_id=wall, shuffle="shuffled")
+    payload, _ = await call(server_url, "art_display", action="set_playback", wall_id=wall, shuffle="shuffled")
 
     assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (931, True)
 
 
 async def test_the_deployment_default_is_said_in_words(server_url, wall):
     """This surface drops a null argument, so "the default" has to be something a caller can send."""
-    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931, shuffle="shuffled")
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="shuffled")
 
     payload, _ = await call(
-        server_url, "art_display", action="set_rotation", wall_id=wall, default_interval=True, shuffle="default"
+        server_url, "art_display", action="set_playback", wall_id=wall, default_interval=True, shuffle="default"
     )
 
     assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (None, None)
 
 
+async def test_a_walls_shapes_survive_the_round_trip_and_any_removes_a_bound(server_url, wall):
+    """`any` is the word for no limit, because this surface drops a null argument."""
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931)
+
+    payload, errored = await call(server_url, "art_display", action="set_playback", wall_id=wall, tallest="4:5", widest="1:1")
+    reopened, _ = await call(server_url, "art_display", action="set_playback", wall_id=wall, widest="any")
+
+    assert errored is False
+    assert (payload["wall"]["tallest"], payload["wall"]["widest"], payload["wall"]["shapes"]) == (
+        "4:5",
+        "1:1",
+        "works from 4:5 to 1:1",
+    )
+    assert (reopened["wall"]["tallest"], reopened["wall"]["widest"]) == ("4:5", None)
+    # The pace was not named, so it stayed.
+    assert reopened["wall"]["rotation_interval_seconds"] == 931
+
+
 async def test_an_interval_and_the_default_interval_together_are_refused(server_url, wall):
-    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931)
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931)
 
     payload, errored = await call(
-        server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=47, default_interval=True
+        server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=47, default_interval=True
     )
 
     assert errored is True
@@ -543,7 +561,7 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
     assert {entry["reason"] for entry in payload["not_displayable"]} == {"no_original"}
     assert {entry["title"] for entry in payload["not_displayable"]} == set(works)
     assert payload["notice"] == (
-        "0 of 3 works in this theme are on the wall; 3 are not currently displayable. "
+        "0 of 3 works in this theme are on the wall; 3 are not currently displayable, so the wall is dark. "
         "See not_displayable for each one and why."
     )
 
@@ -567,7 +585,7 @@ async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, 
 
 async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_display", action="set_rotation", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order")
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order")
 
     payload, _ = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
 

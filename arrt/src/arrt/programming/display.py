@@ -39,7 +39,7 @@ from arrt.library.facade import (
     WorkChanged,
 )
 from arrt.persistence.records import Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
-from arrt.programming import adequacy
+from arrt.programming import adequacy, shape
 from arrt.programming.clients import Placements
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest import heartbeat
@@ -584,19 +584,32 @@ class DisplayService:
         log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
         return self.get_wall(wall_id)
 
-    def set_rotation(
+    def set_playback(
         self,
         wall_id: str,
         *,
         rotation_interval_seconds: int | Unset | None = UNSET,
         shuffle: bool | Unset | None = UNSET,
+        tallest: str | Unset | None = UNSET,
+        widest: str | Unset | None = UNSET,
     ) -> Wall:
-        """Choose how long each work stays up on this wall and whether it plays shuffled.
+        """Choose how this wall plays its theme: how long each work stays up, in what order, and which shapes.
 
-        None on either is the deployment default, and an omitted one is left as
-        it is. The wall's feed is republished at once, keeping the work on the
-        wall now: a new order or pace changes the slots after it, which is what
-        the curator asked for, not something to wait a day's roll for.
+        None on the interval or shuffle is the deployment default. `tallest` and
+        `widest` are spelled as a curator says them (`shape.parse`: `4:5`, `0.8`,
+        or `any`), and None on either is no limit. An omitted setting is left as
+        it is.
+
+        The wall's feed is republished at once, keeping the work on the wall
+        now: a new order, pace or range changes the slots after it, which is
+        what the curator asked for, not something to wait a day's roll for. A
+        range that leaves nothing is honoured: the wall goes dark, and the
+        build's summary says so.
+
+        **On a wall with nothing hung, the range waits for the next hanging.**
+        The feed such a wall carries is re-paced, but not trimmed: with no theme
+        to rebuild from, a work the range took off could never come back when
+        the range was widened again.
         """
         wall = self.get_wall(wall_id)
         chosen = replace(
@@ -607,7 +620,14 @@ class DisplayService:
                 else self._require_interval(rotation_interval_seconds)
             ),
             shuffle=wall.shuffle if isinstance(shuffle, Unset) else shuffle,
+            min_aspect_ratio=(
+                wall.min_aspect_ratio if isinstance(tallest, Unset) else None if tallest is None else shape.parse(tallest)
+            ),
+            max_aspect_ratio=(
+                wall.max_aspect_ratio if isinstance(widest, Unset) else None if widest is None else shape.parse(widest)
+            ),
         )
+        shape.require_range(chosen.min_aspect_ratio, chosen.max_aspect_ratio)
         with self._store.transaction():
             store_write(self._store.update_wall, chosen)
             assignment = self._store.get_assignment(wall_id)
@@ -618,12 +638,13 @@ class DisplayService:
                 self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep())
         interval, shuffled = self.pace(chosen)
         log.info(
-            "Wall %r: each work stays up %ds%s, %s%s.",
+            "Wall %r: each work stays up %ds%s, %s%s; it shows %s.",
             wall.name,
             interval,
             "" if chosen.rotation_interval_seconds is not None else " (the default)",
             "shuffled" if shuffled else "in the theme's order",
             "" if chosen.shuffle is not None else " (the default)",
+            shape.described(chosen.min_aspect_ratio, chosen.max_aspect_ratio) or "every shape",
         )
         return self.get_wall(wall_id)
 
@@ -1316,7 +1337,17 @@ class DisplayService:
             if answer.work_id in kept_off:
                 exclusions.append(Exclusion.kept_off(answer))
             elif isinstance(answer, PlayableWork):
-                entries.append(answer)
+                # Only a playable work is judged by shape. A work the Library
+                # refuses is reported for that, because widening the wall's
+                # range would not put it on the wall.
+                if shape.fits(
+                    (answer.master.width, answer.master.height),
+                    tallest=wall.min_aspect_ratio,
+                    widest=wall.max_aspect_ratio,
+                ):
+                    entries.append(answer)
+                else:
+                    exclusions.append(Exclusion.outside_shape(answer, wall))
             else:
                 exclusions.append(Exclusion.of(answer))
 
@@ -1358,7 +1389,7 @@ class DisplayService:
             # fewer works than it holds is precisely this product's
             # characteristic failure.
             log.warning(
-                "Wall %r, theme %r: %d of %d works are not currently displayable (%s).",
+                "Wall %r, theme %r: %d of %d works are left off the wall (%s).",
                 build.wall.name,
                 build.theme.name,
                 len(build.exclusions),

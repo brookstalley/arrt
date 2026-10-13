@@ -668,6 +668,13 @@ class Wall:
     #: default. None is "inherit", never "off": a theme's own order is what
     #: `False` plays.
     shuffle: bool | None = None
+    #: The tallest shape this wall shows, as width over height, or None for no
+    #: limit. The curator's choice for the room, set by hand: a work narrower
+    #: than this is left off this wall's feed, by name.
+    min_aspect_ratio: float | None = None
+    #: The widest shape this wall shows, as width over height, or None for no
+    #: limit. A portrait wall showing "nothing wider than 1:1" holds 1.0 here.
+    max_aspect_ratio: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

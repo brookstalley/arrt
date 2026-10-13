@@ -55,6 +55,7 @@ from arrt.persistence.discovery_records import (
     Verdict,
 )
 from arrt.persistence.records import Artist, Artwork, Client, Display, Source, Theme, VocabularyKind, Wall
+from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
@@ -1321,19 +1322,21 @@ def _set_mat_mode(services: Services, arguments: Mapping[str, Any]) -> dict[str,
     return ok(wall=_wall_fields(services, wall))
 
 
-def _set_rotation(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def _set_playback(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     # `UNSET` for a setting the caller did not name, so choosing one leaves the
-    # other. The deployment default is a word rather than null, because this
-    # surface drops a null argument as though it had not been sent.
+    # others. The deployment default and "no limit" are words rather than null,
+    # because this surface drops a null argument as though it had not been sent.
     if arguments.get("default_interval") and "rotation_interval_seconds" in arguments:
         raise ServiceError("Give rotation_interval_seconds or default_interval=true, not both.")
     shuffle = arguments.get("shuffle")
-    wall = services.display.set_rotation(
+    wall = services.display.set_playback(
         arguments["wall_id"],
         rotation_interval_seconds=(
             None if arguments.get("default_interval") else arguments.get("rotation_interval_seconds", UNSET)
         ),
         shuffle=UNSET if shuffle is None else SHUFFLE_CHOICES[shuffle],
+        tallest=arguments.get("tallest", UNSET),
+        widest=arguments.get("widest", UNSET),
     )
     return ok(wall=_wall_fields(services, wall))
 
@@ -1646,7 +1649,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
     ("art_display", "set_mat_mode"): _set_mat_mode,
-    ("art_display", "set_rotation"): _set_rotation,
+    ("art_display", "set_playback"): _set_playback,
     ("art_display", "status"): _wall_status,
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
@@ -1847,6 +1850,10 @@ def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
         # read as a choice the curator made.
         "rotation_interval_seconds": wall.rotation_interval_seconds,
         "shuffle": wall.shuffle,
+        # Each bound spoken as `W:H`, None for no limit on that side.
+        "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
+        "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
+        "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
         **_size_fields(services.display.judge_sizes(wall.id)),
         "display": None if placement.display is None else _display_fields(placement.display, survey),
         "labels": [
@@ -1866,7 +1873,13 @@ def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
     return {
         "too_small": sorted(judgement.too_small),
         "sizes_judged_against": (
-            None if judgement.screen is None else {"width_px": judgement.screen[0], "height_px": judgement.screen[1]}
+            None
+            if judgement.screen is None
+            else {
+                "width_px": judgement.screen[0],
+                "height_px": judgement.screen[1],
+                "shape": shape.spoken(judgement.screen[0] / judgement.screen[1]),
+            }
         ),
         "sizes_unjudged": None if judgement.unjudged is None else judgement.unjudged.value,
     }

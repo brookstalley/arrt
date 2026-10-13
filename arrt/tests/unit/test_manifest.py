@@ -359,7 +359,7 @@ def test_a_wall_that_chose_no_pace_plays_at_the_deployment_default(display, read
 def test_a_walls_own_pace_wins_over_the_default(display, ready_work, theme_of, wall_settings, wall_id):
     theme = theme_of(ready_work())
     # Values no default could produce, so a field read from the wrong place shows.
-    display.set_rotation(wall_id, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle)
+    display.set_playback(wall_id, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle)
 
     build = display.build_manifest(wall_id, theme.id)
 
@@ -371,7 +371,7 @@ def test_one_walls_pace_is_not_another_walls(display, ready_work, theme_of, wall
     """Two walls hanging one theme: the pace is each wall's, so one choosing leaves the other at the default."""
     theme = theme_of(ready_work())
     study = display.add_wall(name="Study").id
-    display.set_rotation(wall_id, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle)
+    display.set_playback(wall_id, rotation_interval_seconds=931, shuffle=not wall_settings.shuffle)
 
     build = display.build_manifest(study, theme.id)
 

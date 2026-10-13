@@ -454,7 +454,7 @@ def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, win
 
 
 def test_a_rotation_of_no_minutes_is_refused_in_words_and_nothing_is_sent(ui, services, the_wall, winter):
-    services.display.set_rotation(the_wall.id, rotation_interval_seconds=931)
+    services.display.set_playback(the_wall.id, rotation_interval_seconds=931)
     open_walls(ui)
     setup = card(ui, the_wall).locator("details.wall-setup")
     setup.locator("summary").click()
@@ -468,7 +468,7 @@ def test_a_rotation_of_no_minutes_is_refused_in_words_and_nothing_is_sent(ui, se
 
 def test_minutes_that_are_not_a_number_are_not_read_as_the_default(ui, services, the_wall, winter):
     """A number field holding "e" reports an empty value; sent, that would reset the wall to the default."""
-    services.display.set_rotation(the_wall.id, rotation_interval_seconds=931)
+    services.display.set_playback(the_wall.id, rotation_interval_seconds=931)
     open_walls(ui)
     setup = card(ui, the_wall).locator("details.wall-setup")
     setup.locator("summary").click()
@@ -485,7 +485,7 @@ def test_minutes_that_are_not_a_number_are_not_read_as_the_default(ui, services,
 @pytest.mark.parametrize(("seconds", "shown"), [(600, "10"), (931, "15.52")])
 def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, winter, seconds, shown):
     """To two places: 931 seconds is not shown as 15.516666666666667."""
-    services.display.set_rotation(the_wall.id, rotation_interval_seconds=seconds, shuffle=True)
+    services.display.set_playback(the_wall.id, rotation_interval_seconds=seconds, shuffle=True)
     open_walls(ui)
     card(ui, the_wall).locator("details.wall-setup summary").click()
 
@@ -581,5 +581,5 @@ def test_the_walls_api_says_what_the_judgement_was_made_against(ui, services, th
 
     wall = next(entry for entry in walls if entry["wall_id"] == the_wall.id)
     assert wall["too_small"] == [nighthawks.id]
-    assert wall["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160}
+    assert wall["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160, "shape": "16:9"}
     assert wall["sizes_unjudged"] is None

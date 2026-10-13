@@ -255,7 +255,12 @@ CREATE TABLE IF NOT EXISTS walls (
     -- shuffled order. NULL on either is the deployment default rather than
     -- "unset", so a wall that has chosen nothing is an ordinary wall.
     rotation_interval_seconds INTEGER,
-    shuffle          INTEGER
+    shuffle          INTEGER,
+    -- The shapes the wall shows, as width over height: the tallest and the
+    -- widest. NULL on either is no limit on that side, which is every wall
+    -- that has chosen nothing.
+    min_aspect_ratio REAL,
+    max_aspect_ratio REAL
 );
 
 -- One wall per display, since one screen shows one picture. The service refuses
@@ -1377,6 +1382,8 @@ def _wall_row(wall: Wall) -> dict[str, Any]:
         # would raise and bool(None) would silently write a decision the curator
         # never made.
         "shuffle": None if wall.shuffle is None else int(wall.shuffle),
+        "min_aspect_ratio": wall.min_aspect_ratio,
+        "max_aspect_ratio": wall.max_aspect_ratio,
     }
 
 
@@ -1554,6 +1561,8 @@ def _wall(row: Mapping[str, Any]) -> Wall:
         mat_mode=row["mat_mode"],
         rotation_interval_seconds=row["rotation_interval_seconds"],
         shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
+        min_aspect_ratio=row["min_aspect_ratio"],
+        max_aspect_ratio=row["max_aspect_ratio"],
     )
 
 
