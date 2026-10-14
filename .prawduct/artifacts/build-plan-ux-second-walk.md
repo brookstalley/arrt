@@ -195,6 +195,16 @@ open.
     folds the other columns around it. The 48–56px the walk measured were the
     search rows. The library's own works in the dropdown are pictured only
     when they hold a master.
+  - **[RULING, the owner, 2026-10-14: Walls' last-shown work comes from #316's
+    record, built first]** Asked between the published schedule's slot at the
+    time the screen went dark (recommended), building #316 first, and a
+    one-field record. The owner chose "Build #316 first".
+    - Chunk 04 therefore waits on #316: a durable per-wall record of the
+      works shown, which is a new persisted format with its own requirements
+      pass.
+    - #316 is server work of another kind, so it gets its own plan, which may
+      share this branch.
+    - Chunks 05 and 06 do not depend on it and are built first.
   - [DECISION, 03: the Work page's picture opens in `core/enlarge.js`'s
     dialog, from a plain button around it] The review cards already use that
     dialog. It gives Escape, Close, a backdrop click and focus restored to the
@@ -367,6 +377,6 @@ plan's. It follows the deploy.
 - [x] Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
 - [x] Chunk 02: shared rules, then phone width (#360, #357)
 - [x] Chunk 03: pictures where a person decides (#358)
-- [ ] Chunk 04: Walls shows a picture, and the next three (#354)
 - [ ] Chunk 05: the Theme page (#352)
 - [ ] Chunk 06: copy (#359)
+- [ ] Chunk 04: Walls shows a picture, and the next three (#354), after #316's record (the owner's ruling, 2026-10-14)
