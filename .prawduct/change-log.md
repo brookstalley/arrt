@@ -66,6 +66,40 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-14: The Theme page shows its art, at two boxes a row (#352)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (finding 31), the Theme page was 61 rows of five
+acts: 305 boxes, no pictures, no links, an empty Size column. *Add a work* on
+*All works* offered only works already in it, and on a phone the acts were
+off-screen.
+
+**What changed:**
+- **One Position field a row** replaces ↑, ↓, *Move to top*, *Move to bottom*
+  and "#".
+  - It commits once, on Enter or leaving the field. It never commits on
+    `change`, which Chromium fires at every arrow step.
+  - It commits once per field, because removing a focused field fires
+    `blur`.
+  - A place past either end is clamped, and a move to where the work already
+    is sends nothing.
+  - The keyboard stays on the moved work's new field.
+  - A refused move puts the field back.
+- **Each member row** leads with its picture, or `noPicture`, and links its
+  title to Work and its artist to Artist.
+- **The Size column** appears only when some work has something to say in it.
+- **The table is stacked into cards on a phone.**
+- ***Add a work*** offers only works not in the theme, rebuilt with every
+  change of membership. With none left, it says so, and its row stays hidden
+  until the members have arrived.
+- **Tests changed:** `test_the_theme_screen.py` and `test_the_themes_index.py`
+  drive the Position field where they drove the buttons. Each test's intent
+  is kept: a move takes effect and survives a reload, a move reaches either
+  end, moves work from the keyboard, the ends send no non-move. The dated
+  docstrings say what changed. Their title helpers read
+  `td[data-label='Title']`.
+
 ## 2026-10-14: Pictures where a person decides (#358)
 
 <!-- prawduct: scope=ux-second-walk -->

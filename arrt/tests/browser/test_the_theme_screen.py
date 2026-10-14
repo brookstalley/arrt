@@ -49,7 +49,7 @@ def winter(services, service):
 
 def _titles(ui):
     """The member table's Title column, in the order it is painted."""
-    return ui.page.locator("tbody tr td:nth-child(2)").all_inner_texts()
+    return ui.page.locator("tbody tr td[data-label='Title']").all_inner_texts()
 
 
 def _painted(ui):
@@ -71,7 +71,7 @@ def _first_row_becomes(ui, title):
     happens to win a race nothing is holding open.
     """
     ui.page.wait_for_function(
-        "(title) => { const cell = document.querySelector('tbody tr td:nth-child(2)');"
+        "(title) => { const cell = document.querySelector(\"tbody tr td[data-label='Title']\");"
         " return cell && cell.textContent === title; }",
         arg=title,
     )
@@ -80,10 +80,17 @@ def _first_row_becomes(ui, title):
 def _row_becomes(ui, index, title):
     """`_first_row_becomes` for a move that leaves the first row where it was."""
     ui.page.wait_for_function(
-        "([index, title]) => { const cells = document.querySelectorAll('tbody tr td:nth-child(2)');"
+        "([index, title]) => { const cells = document.querySelectorAll(\"tbody tr td[data-label='Title']\");"
         " return cells[index] && cells[index].textContent === title; }",
         arg=[index, title],
     )
+
+
+def _move(ui, title, place):
+    """Type a work's new place into its Position field and commit it, as a curator does."""
+    field = ui.page.locator(f"input[aria-label='Position of {title}']")
+    field.fill(str(place))
+    field.press("Enter")
 
 
 def _count(ui):
@@ -112,7 +119,7 @@ class TestReordering:
         _painted(ui)
         assert _titles(ui) == list(POLLOCKS)
 
-        ui.page.click("button[aria-label='Move Autumn Rhythm later']")
+        _move(ui, "Autumn Rhythm", 2)
         _first_row_becomes(ui, "Blue Poles")
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
@@ -143,12 +150,12 @@ class TestReordering:
         # Waiting on a row that is *not* already what it will become — the first
         # row never changes here, so waiting on it would wait for nothing and the
         # assertion below would read the order that was already on screen.
-        ui.page.click("button[aria-label='Move Number 1 earlier']")
+        _move(ui, "Number 1", 3)
         _row_becomes(ui, 2, "Number 1")
         assert _titles(ui) == ["Autumn Rhythm", "Blue Poles", "Number 1", "Convergence"]
 
         # And back down, which is the direction that had never worked.
-        ui.page.click("button[aria-label='Move Number 1 later']")
+        _move(ui, "Number 1", 4)
         _row_becomes(ui, 2, "Convergence")
         assert _titles(ui) == ["Autumn Rhythm", "Blue Poles", "Convergence", "Number 1"]
 
@@ -173,25 +180,37 @@ class TestReordering:
             "**/api/themes/*/works/*/position",
             a_theme_detail([a_catalogue_work(artwork_id="only-1", title="Only what the answer said")]),
         )
-        ui.page.click("button[aria-label='Move Autumn Rhythm later']")
+        _move(ui, "Autumn Rhythm", 2)
         _first_row_becomes(ui, "Only what the answer said")
 
         assert _titles(ui) == ["Only what the answer said"]
 
     def test_the_ends_of_the_order_offer_no_move_that_would_do_nothing(self, ui, winter):
-        """The first work cannot go earlier and the last cannot go later.
+        """A place is offered only where the order has one, and a move to where a
+        work already is sends nothing.
 
-        A disabled control rather than an absent one: the row keeps its shape, so
-        the buttons do not shuffle sideways as a work reaches the end of the list
-        and land somewhere else under a curator's cursor.
+        *(Until 2026-10-14 the order was four buttons a row, and this test held
+        that the first work's ↑ and the last's ↓ were disabled. #352 made the
+        order one Position field a row; the same rule is held on the field: it
+        offers the places 1 to N, and a place that is the work's own, typed or
+        reached by going past an end, is put back rather than sent.)*
         """
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        assert ui.page.is_disabled("button[aria-label='Move Autumn Rhythm earlier']")
-        assert ui.page.is_disabled("button[aria-label='Move Convergence later']")
-        assert ui.page.is_enabled("button[aria-label='Move Autumn Rhythm later']")
-        assert ui.page.is_enabled("button[aria-label='Move Convergence earlier']")
+        fields = ui.page.locator("input.theme-position")
+        assert fields.evaluate_all("(els) => els.map((el) => [el.min, el.max, el.value])") == [
+            ["1", "3", "1"],
+            ["1", "3", "2"],
+            ["1", "3", "3"],
+        ]
+        _move(ui, "Autumn Rhythm", 0)
+        _move(ui, "Autumn Rhythm", 1)
+        _move(ui, "Convergence", 9)
+        ui.page.wait_for_timeout(300)
+        assert ui.requests_matching("/position") == []
+        assert _titles(ui) == list(POLLOCKS)
+        assert ui.page.locator("input[aria-label='Position of Convergence']").input_value() == "3"
 
 
 class TestTheMembershipControl:
@@ -578,7 +597,7 @@ class TestOneThemeHasItsOwnAddress:
 
         assert ui.page.locator("button[aria-label='Rename Winter']").count() == 1
         assert ui.page.locator("button[aria-label='Delete Winter']").count() == 1
-        assert ui.page.locator("button[aria-label='Move Autumn Rhythm later']").count() == 1
+        assert ui.page.locator("input[aria-label='Position of Autumn Rhythm']").count() == 1
         assert ui.page.locator("button:has-text('Hang on ')").count() >= 1
 
     def test_reordering_works_from_the_addressed_view(self, ui, two_themes):
@@ -591,7 +610,7 @@ class TestOneThemeHasItsOwnAddress:
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
 
-        ui.page.click("button[aria-label='Move Autumn Rhythm later']")
+        _move(ui, "Autumn Rhythm", 2)
         _first_row_becomes(ui, "Blue Poles")
 
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]

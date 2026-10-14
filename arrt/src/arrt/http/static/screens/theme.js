@@ -31,7 +31,7 @@
 
 import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks } from "../core/api.js";
-import { fitBadge, shortfallNote, table } from "../core/badges.js";
+import { fitBadge, noPicture, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { hangTheme } from "../core/hanging.js";
@@ -204,14 +204,46 @@ function themePanel(placement, walls, allWorks, generation) {
 
   const heading = el("span", { text: currentName });
   const picker = el("select", { id: `add-${theme.theme_id}` });
-  for (const work of allWorks) {
-    picker.append(
-      el("option", {
-        value: work.artwork_id,
-        text: work.artist ? `${work.title} — ${work.artist.name}` : work.title,
-      }),
+  // Said in place of the picker when every work is already in the theme, as
+  // on *All works*, where the picker offered only works it already held.
+  const nothingToAdd = el("p", { class: "muted", hidden: true });
+  /* The works not already in the theme, rebuilt with every answer that changes
+   * its membership: offering a work the theme holds is offering an act that
+   * changes nothing. */
+  const fillPicker = () => {
+    const held = new Set(members.works.map((work) => work.artwork_id));
+    const offered = allWorks.filter((work) => !held.has(work.artwork_id));
+    fill(
+      picker,
+      ...offered.map((work) =>
+        el("option", { value: work.artwork_id, text: work.artist ? `${work.title} — ${work.artist.name}` : work.title }),
+      ),
     );
-  }
+    addRow.hidden = !offered.length;
+    nothingToAdd.hidden = Boolean(offered.length);
+    nothingToAdd.textContent = `Every work in the library is in ${currentName}.`;
+  };
+  // Hidden until the theme's works have arrived and the picker is filled from
+  // them: an empty picker's Add would send no work at all.
+  const addRow = el("div", { class: "row", hidden: true }, [
+    el("div", { class: "field" }, [el("label", { for: `add-${theme.theme_id}`, text: "Add a work" }), picker]),
+    el("button", {
+      class: "action quiet",
+      type: "button",
+      text: "Add",
+      onclick: (event) =>
+        attempt(
+          event.currentTarget,
+          `add ${picker.selectedOptions.length ? picker.selectedOptions[0].text : "the work"} to ${currentName}`,
+          () =>
+            api(`/api/themes/${encodeURIComponent(theme.theme_id)}/works`, {
+              method: "POST",
+              body: JSON.stringify({ artwork_id: picker.value }),
+            }),
+          { then: (detail) => paintMembers(detail) },
+        ),
+    }),
+  ]);
 
   const body = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Loading works…" })]);
   /* **How many works are in here, said in words rather than left to be counted.**
@@ -230,6 +262,7 @@ function themePanel(placement, walls, allWorks, generation) {
     members = detail;
     count.textContent = members.works.length === 1 ? "1 work" : `${members.works.length} works`;
     fill(body, memberList(theme.theme_id, currentName, members, paintMembers));
+    fillPicker();
   };
   // The one read here that is a read: nothing has answered with this theme's
   // works yet, because the listing this panel was built from does not carry them.
@@ -337,27 +370,9 @@ function themePanel(placement, walls, allWorks, generation) {
     theme.is_default ? el("p", { class: "muted", text: "Works you accept join this theme, at the end." }) : null,
     theme.description ? el("p", { class: "muted", text: theme.description }) : null,
     renameRow,
+    nothingToAdd,
+    addRow,
     el("div", { class: "row" }, [
-      el("div", { class: "field" }, [
-        el("label", { for: `add-${theme.theme_id}`, text: "Add a work" }),
-        picker,
-      ]),
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "Add",
-        onclick: (event) =>
-          attempt(
-            event.currentTarget,
-            `add ${picker.selectedOptions.length ? picker.selectedOptions[0].text : "the work"} to ${currentName}`,
-            () =>
-              api(`/api/themes/${encodeURIComponent(theme.theme_id)}/works`, {
-                method: "POST",
-                body: JSON.stringify({ artwork_id: picker.value }),
-              }),
-            { then: (detail) => paintMembers(detail) },
-          ),
-      }),
       // One button per wall, named for that wall. There is no single-wall
       // shortcut to replace when a second display arrives, which is the whole
       // point: with one wall this reads "Hang on the living room" and with three
@@ -483,93 +498,135 @@ function memberList(themeId, themeName, { works, too_small_for: tooSmallFor = {}
   if (!works.length) {
     return el("p", { class: "muted", text: "This theme holds no works yet." });
   }
-  const last = works.length - 1;
+  // The Size column only where some work has something to say in it: a column
+  // empty on every row was a heading over nothing.
+  const sized = works.map((work) => sizeCell(work, tooSmallFor[work.artwork_id]));
+  const anySized = sized.some((cell) => cell !== "");
   const rows = works.map((work, index) => {
     // The answer to the move is what the list becomes, so the table is repainted
     // from it. A second read would be the same order arrived at more slowly, and
     // repainting from the *sent* position would be optimism: the service clamps
     // and renumbers, so where a work lands is its answer to give.
-    const move = (position, words) => (event) =>
+    const move = (control, position) =>
       attempt(
-        event.currentTarget,
-        `move ${work.title} ${words}`,
+        control,
+        `move ${work.title} to position ${position + 1}`,
         () =>
           api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}/position`, {
             method: "POST",
             body: JSON.stringify({ position }),
           }),
-        { then: (detail) => paint(detail) },
+        {
+          then: (detail) => {
+            paint(detail);
+            // The keyboard stays on the work it was moving, now at its new
+            // place: a number field's arrows commit at every step, and the
+            // repaint replaced the field the next press was meant for.
+            const moved = document.querySelector(`input.theme-position[data-work="${CSS.escape(work.artwork_id)}"]`);
+            if (moved) moved.focus();
+          },
+        },
       );
-    /* **Four moves, all buttons, none a drag.** A drag has no keyboard
-     * equivalent, and in a theme of hundreds ↑ alone is hundreds of presses to
-     * bring the last work first. The top and the bottom are the two ends a
-     * curator reorders towards; the bottom is sent as the last index, since a
-     * null position means "unplaced" rather than "last". Disabled rather than
-     * absent at the ends, so the row keeps its shape and the buttons do not
-     * shuffle sideways under a cursor as a work reaches an end. */
-    const controls = el("div", { class: "row" }, [
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "↑",
-        "aria-label": `Move ${work.title} earlier`,
-        disabled: index === 0,
-        onclick: move(index - 1, "earlier"),
-      }),
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "↓",
-        "aria-label": `Move ${work.title} later`,
-        disabled: index === last,
-        onclick: move(index + 1, "later"),
-      }),
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "Move to top",
-        "aria-label": `Move ${work.title} to the top`,
-        disabled: index === 0,
-        onclick: move(0, "to the top"),
-      }),
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "Move to bottom",
-        "aria-label": `Move ${work.title} to the bottom`,
-        disabled: index === last,
-        onclick: move(last, "to the bottom"),
-      }),
-      // **The label says which collection the work is leaving.** "Remove" alone
-      // promises the work is gone, and `information-architecture.md` rules that
-      // out for a *work*: there is no delete of one, archive is the word, and a
-      // curator who believes removal is destructive hesitates over something
-      // cheap. This control removes a work from a *theme* — the work stays
-      // catalogued, stays in every other theme, and is put back by adding it —
-      // so the honest fix is to name the theme rather than to borrow Archive,
-      // which would say something false about the catalogue.
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: `Remove from ${themeName}`,
-        "aria-label": `Remove ${work.title} from ${themeName}`,
-        onclick: (event) =>
-          attempt(
-            event.currentTarget,
-            `remove ${work.title} from ${themeName}`,
-            () => api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}`, { method: "DELETE" }),
-            { then: (detail) => paint(detail) },
-          ),
-      }),
-    ]);
-    return [String(index + 1), work.title, work.artist ? work.artist.name : "—", sizeCell(work, tooSmallFor[work.artwork_id]), controls];
+    /* **One field per row for the order, none a drag.** Its number is the
+     * work's place, and typing another moves it there: one box where four
+     * buttons stood (↑, ↓, to the top, to the bottom), which made a theme of
+     * sixty a page of three hundred boxes (`ux-review-2026-10.md` finding 31).
+     * A drag has no keyboard equivalent; a number field is a keyboard's own,
+     * its arrows step the number, and it reaches the last work from the
+     * first in one edit where ↑ took hundreds of presses. It moves once, when
+     * the place is committed (Enter, or leaving the field), and a value that is
+     * not a place is put back rather than sent. */
+    const place = el("input", {
+      type: "number",
+      class: "theme-position",
+      min: 1,
+      max: works.length,
+      value: index + 1,
+      inputmode: "numeric",
+      "data-work": work.artwork_id,
+      "aria-label": `Position of ${work.title}`,
+    });
+    // Committed on Enter or on leaving the field, never on `change`: a number
+    // field's arrows fire `change` at every step in Chromium, which sent a move
+    // per press and repainted the field from under the next one.
+    // Once per field: the repaint that answers a move removes this field, and
+    // a focused field removed fires `blur`, which would send the move again.
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      const typed = Number.parseInt(place.value, 10);
+      // Clamped before it is compared, so a place past either end that comes to
+      // where the work already is sends nothing: a move that would do nothing.
+      const wanted = Number.isInteger(typed) ? Math.min(Math.max(typed, 1), works.length) : index + 1;
+      if (wanted === index + 1) {
+        place.value = String(index + 1);
+        return;
+      }
+      committed = true;
+      // A refused move leaves the field as it was, free to try again.
+      move(place, wanted - 1).then((moved) => {
+        if (moved) return;
+        committed = false;
+        // Put back, so leaving the field does not send the refused move again.
+        place.value = String(index + 1);
+      });
+    };
+    place.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      }
+    });
+    place.addEventListener("blur", () => {
+      if (place.value !== String(index + 1)) commit();
+    });
+    // **The label says which collection the work is leaving.** "Remove" alone
+    // promises the work is gone, and `information-architecture.md` rules that
+    // out for a *work*: there is no delete of one, archive is the word, and a
+    // curator who believes removal is destructive hesitates over something
+    // cheap. This control removes a work from a *theme* — the work stays
+    // catalogued, stays in every other theme, and is put back by adding it —
+    // so the honest fix is to name the theme rather than to borrow Archive,
+    // which would say something false about the catalogue.
+    const remove = el("button", {
+      class: "action quiet",
+      type: "button",
+      text: `Remove from ${themeName}`,
+      "aria-label": `Remove ${work.title} from ${themeName}`,
+      onclick: (event) =>
+        attempt(
+          event.currentTarget,
+          `remove ${work.title} from ${themeName}`,
+          () => api(`/api/themes/${encodeURIComponent(themeId)}/works/${encodeURIComponent(work.artwork_id)}`, { method: "DELETE" }),
+          { then: (detail) => paint(detail) },
+        ),
+    });
+    return [
+      place,
+      memberPicture(work),
+      link({ view: "work", id: work.artwork_id }, { class: "row-title", text: work.title }),
+      work.artist ? link({ view: "artist", id: work.artist.artist_id }, { class: "link", text: work.artist.name }) : "—",
+      ...(anySized ? [sized[index]] : []),
+      remove,
+    ];
   });
   return table(
     ORDER_CAPTION,
-    // The last column is named rather than left blank: an empty `th` is
-    // announced as an empty column header, which tells a screen-reader user
-    // nothing about the buttons in every row beneath it.
-    ["#", "Title", "Artist", "Size", "Order and membership"],
+    // Every column is named, the picture's and the act's included: an empty
+    // `th` is announced as an empty column header, which tells a screen-reader
+    // user nothing about what is in every row beneath it.
+    ["Position", "Picture", "Title", "Artist", ...(anySized ? ["Size"] : []), "Membership"],
     rows,
+    // Cards on a phone, so every act is reachable without a sideways scroll.
+    { stacked: true },
   );
+}
+
+/* A member's picture: its thumbnail when it holds a master, else the shared
+ * placeholder, which asks for nothing (`noPicture`, `core/badges.js`). */
+function memberPicture(work) {
+  if (!work.image || !work.image.available) return el("div", { class: "card-image member-picture" }, [noPicture(work.image && work.image.note)]);
+  return el("div", { class: "card-image member-picture" }, [
+    el("img", { src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`, alt: "", loading: "lazy" }),
+  ]);
 }

@@ -205,6 +205,27 @@ open.
     - #316 is server work of another kind, so it gets its own plan, which may
       share this branch.
     - Chunks 05 and 06 do not depend on it and are built first.
+  - [DECISION, 05: a theme's order is one Position field a row (1 to N),
+    replacing ↑, ↓, *Move to top*, *Move to bottom* and the "#" column] It
+    needs no drag:
+    - it is a keyboard's own control, and its arrows step the number;
+    - it moves the last work to the first in one edit;
+    - it commits once, on Enter or leaving the field, never on `change`
+      (Chromium fires that at every arrow step, which sent a move per press);
+    - a place past either end is clamped, and a move to where the work
+      already is sends nothing.
+    A row now costs two boxes (the field and *Remove from …*). Settled by
+    #352 ("fewer than five boxes a row, with a keyboard equivalent") and by
+    `accessibility-spec.md`. `test_the_theme_screen.py`'s ends test now holds
+    the same rule on the field's range rather than on disabled buttons; its
+    docstring says so.
+  - [DECISION, 05: the member table is stacked into cards on a phone, as
+    Status's and Clients' are] #352: every act reachable without a sideways
+    scroll.
+  - [DECISION, 05: *Add a work* offers only works not in the theme, rebuilt
+    with every change of membership; with none left it says "Every work in
+    the library is in <theme>."] The walk found *All works* offering only
+    works it already held.
   - [DECISION, 03: the Work page's picture opens in `core/enlarge.js`'s
     dialog, from a plain button around it] The review cards already use that
     dialog. It gives Escape, Close, a backdrop click and focus restored to the
@@ -326,7 +347,8 @@ open.
 - **Type:** feature
 - Opens with a design pass on reordering.
 - Each member row: the work's picture, its title linked to Work, its artist to
-  Artist. A member with no master draws `noPicture()` (`core/badges.js`), as
+  Artist. A member with no master draws `noPicture()`
+  (`arrt/src/arrt/http/static/core/badges.js`), as
   every other screen does since chunk 03, and asks for no thumbnail. Reordering costs fewer than five boxes a row. The pattern is chosen
   in the design pass; the keyboard equivalent is required by
   `accessibility-spec.md`.
@@ -377,6 +399,6 @@ plan's. It follows the deploy.
 - [x] Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
 - [x] Chunk 02: shared rules, then phone width (#360, #357)
 - [x] Chunk 03: pictures where a person decides (#358)
-- [ ] Chunk 05: the Theme page (#352)
+- [x] Chunk 05: the Theme page (#352)
 - [ ] Chunk 06: copy (#359)
 - [ ] Chunk 04: Walls shows a picture, and the next three (#354), after #316's record (the owner's ruling, 2026-10-14)

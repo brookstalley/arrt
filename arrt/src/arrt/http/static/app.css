@@ -3487,3 +3487,28 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
 /* A work's Get, its button and what it started stacked to the card's width. */
 .ask-card .get-control { flex-direction: column; align-items: stretch; gap: var(--space-1); margin-top: var(--space-1); }
 .ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }
+
+/* -- one theme's members --------------------------------------------------
+   Each row leads with the work on its mat, small enough that a theme of sixty
+   is still a list, large enough to tell one work from the next. The position
+   is a field of its own width, sized for three figures. */
+.member-picture {
+  width: 4rem;
+  height: 4rem;
+  aspect-ratio: auto;
+}
+
+.member-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.member-picture .card-image-absent {
+  font-size: var(--text-xs);
+}
+
+input.theme-position {
+  width: 4.5rem;
+  font-variant-numeric: tabular-nums;
+}
