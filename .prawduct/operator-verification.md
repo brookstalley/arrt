@@ -10,6 +10,21 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Pictures where a person decides — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 03, #358.** Run from this branch on the
+operator's library, where *Crak!* and *In the Third Sleep* have no master.
+
+- **The placeholder.** Both read "No picture" on Artworks, on Aleksandra
+  Ekster's page and on the Artists index, and in the Work page's picture.
+  Nothing shows the server's exception text. Add `?debug` to the address to
+  see the server's reason under it.
+- **Search.** Type a title you hold: its row in the dropdown carries its
+  picture. On the results page each work leads with its picture, larger.
+  Judge the sizes (2.5rem in the dropdown, 4.5rem on the page).
+- **Enlarge.** On a work's page, click the picture, or Tab to it and press
+  Enter. It opens large, and Escape, Close or a click outside closes it.
+
 ### Shared rules and the phone — added 2026-10-14
 
 **`build-plan-ux-second-walk.md` chunk 02, #360 #357.** Run from this branch on the
