@@ -66,6 +66,45 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-14: The way back names where it goes, a dead address says so, and walls, clients and topics link (#356, #361, #362)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 35, 42, 43 and 34), the back link on a
+detail page went to the sidebar index rather than to the page it was opened
+from. An address naming nothing left the previous page painted, or waited for
+ever on a fresh load. Walls, clients and a work's topics were named on six
+screens and linked from none.
+
+**What changed:**
+- **The way back.** Work, Artist, Topic, one Theme and Search results are each
+  a place to return to (`returnLabel`, `returnFor` in `app.js`). Search results
+  carry their query (`returnParam`). The back link names its opener from the
+  name that page gave itself this visit (`setTitle`), or its kind when reached
+  from a bookmark. A way back records no opener of its own.
+- **An address naming nothing** (a work, artist, topic, theme, Get or review)
+  is one not-found page (`core/router.js`, `notFound`). A refusal (400, the
+  server's one refusal status) or a 404 on a one-thing read reaches it. A 5xx
+  keeps the banner, and on arrival the view says only that the page could not
+  be shown. A failed repaint keeps the page that was showing. A gone Get stops
+  its watch at the first refusal.
+- **Names that link.** A wall is addressed `#walls?wall=<id>` and a client
+  `#clients?client=<id>`, and the page brings that card to the reader
+  (`data-arrive`). They are linked from Work, Theme, History, Clients and
+  Status, and from Walls for clients (`core/places.js`). A facet with a
+  `value_qid` links to its Topic page.
+- **Found and fixed:** a search pressed while the client started submitted the
+  form natively. The top bar now installs before the start-up read.
+  `tests/browser` `ui.open` waited on the served placeholder, so it returned
+  before the client ran; it now waits for `html[data-started]`.
+- **Tests changed in meaning:**
+  - `test_the_run_view.py`'s two give-up tests held a 400. They now hold a
+    502, because a refusal now ends the watch at once with the not-found page,
+    which a new test pins.
+  - The not-found link selectors in `test_the_theme_screen.py` and
+    `test_topics.py` follow the link's new name, the index's sidebar label.
+- Filed: #376, a feed test that passes only within one wall-clock second.
+
 ## 2026-10-13: Two walls sharing a few works no longer lock onto one each (#350)
 
 <!-- prawduct: scope=household-schedule-lock -->

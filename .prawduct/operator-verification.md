@@ -10,6 +10,26 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The way back, a dead address, and names that link — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 01, #356 #361 #362.** Run the server from
+this branch (`cd arrt && uv run python -m arrt`) on the operator's library.
+
+- **The way back.** From an artist's page open one of their works: the link at the
+  top reads "← <the artist's name>" and returns to that artist. From that work,
+  open its artist, a theme or a topic; each says "← <the work's title>". Search
+  for something, open a result, and come back: the query is still there.
+  Judge whether a named way back reads better than the index's name did.
+- **A dead address.** Change a work's address in the bar to one that does not
+  exist, from a live page and on a fresh load: one page says "That work is not
+  here" with a way to Artworks, and nothing of the page before stays.
+- **Names that link.** On a work hanging on a wall, its *Walls* fact and its
+  theme's "(on …)" link to Walls with that wall's card in view and in focus.
+  A topic in *What this work is* opens its Topic page. History, Clients and
+  Status name walls as links; Walls names its client as a link to Clients at
+  that client. Judge whether so many links on Clients and History read as
+  clutter.
+
 ### A wall's shapes, and a wall they darken — added 2026-10-13
 
 **`build-plan-wall-shape-filter.md`, #370.** On Walls, open a wall's *How it is

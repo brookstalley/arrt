@@ -19,6 +19,7 @@ import { facts } from "../core/badges.js";
 import { ago, dated } from "../core/dates.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
+import { wallLink } from "../core/places.js";
 import { backRow, link } from "../core/router.js";
 import { DEBUG } from "../core/debug.js";
 
@@ -110,11 +111,13 @@ async function showingTitles(walls) {
 }
 
 function heartbeatPanel(wall, titles) {
-  const name = wall.wall_name || "An unnamed wall";
+  // The wall's name opens it on Walls: this panel is what its Player says, and
+  // the wall itself is a page away.
+  const name = wall.wall_name ? wallLink(wall.wall_id, wall.wall_name) : "An unnamed wall";
   const reading = wall.heartbeat;
   if (!reading) {
     return el("div", { class: "panel wall-reading" }, [
-      el("h2", { text: name }),
+      el("h2", {}, [name]),
       el("p", { class: "note", text: "The health reading carries no heartbeat for this wall." }),
     ]);
   }
@@ -126,7 +129,7 @@ function heartbeatPanel(wall, titles) {
   return el("div", { class: "panel wall-reading" }, [
     // The wall's own name is the heading. "The display plane" was right while
     // there was one of it, and is a sentence that silently becomes wrong.
-    el("h2", { text: name }),
+    el("h2", {}, [name]),
     // An observation with its age, never a verdict. A green dot computed from
     // a file that may simply be young is how a health surface starts lying.
     el("p", { class: "reading-sentence", text: reading.description }),

@@ -39,7 +39,9 @@ import { agree, counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { isStale, screenCell, screenPhrase, STALE_AFTER_SECONDS } from "../core/outputs.js";
 import { el, emptyState, render } from "../core/render.js";
+import { wallLink } from "../core/places.js";
 import { refresh } from "../core/router.js";
+import { state } from "../core/state.js";
 
 /* The output kinds `player-contract.md` names, in the words a curator reads. */
 const KIND_WORDS = {
@@ -157,7 +159,7 @@ async function issue(client) {
 }
 
 function clientPanel(client, walls, names, shown, said) {
-  const heading = el("h2", { tabindex: "-1", text: client.name });
+  const heading = el("h2", { tabindex: "-1", "data-arrive": state.params.client === client.client_id, text: client.name });
   return el("section", { class: "panel client", "data-client": client.client_id }, [
     heading,
     shown && shown.clientId === client.client_id ? tokenOnce(client, shown.token) : null,
@@ -297,7 +299,11 @@ function labels(client, walls) {
   const rows = names.map((name) => {
     const each = byName.get(name);
     const record = records.get(name);
-    const captions = record && record.wall_id ? wallNames.get(record.wall_id) || "a wall this page could not name" : "No wall";
+    const captions = !(record && record.wall_id)
+      ? "No wall"
+      : wallNames.has(record.wall_id)
+        ? wallLink(record.wall_id, wallNames.get(record.wall_id))
+        : "a wall this page could not name";
     if (!each) return [name, "—", `${GLYPHS.waiting} not in its last report`, "—", captions];
     return [
       name,
@@ -315,7 +321,7 @@ function labels(client, walls) {
       ? el(
           "ul",
           { class: "client-label-list" },
-          mapped.map((record) => stopCaptioning(client, record, wallNames.get(record.wall_id) || "its wall")),
+          mapped.map((record) => stopCaptioning(client, record, wallNames.get(record.wall_id) || "its wall", wallNames.has(record.wall_id))),
         )
       : null,
     captionForm(client, walls, names, records, wallNames, id),
@@ -329,9 +335,9 @@ function panelCell(output, stale) {
   return output.connected ? `${GLYPHS.good} answering` : `${GLYPHS.problem} not answering`;
 }
 
-function stopCaptioning(client, record, wallName) {
+function stopCaptioning(client, record, wallName, named) {
   return el("li", {}, [
-    el("span", { text: `${record.output} captions ${wallName}` }),
+    el("span", {}, [`${record.output} captions `, named ? wallLink(record.wall_id, wallName) : wallName]),
     el("button", {
       class: "action quiet",
       type: "button",
@@ -420,7 +426,7 @@ function shownWalls(client) {
           { class: "client-wall-list" },
           client.walls.map((wall) =>
             el("li", {}, [
-              el("span", { text: `${wall.name}, on ${wall.output}` }),
+              el("span", {}, [wallLink(wall.wall_id, wall.name), `, on ${wall.output}`]),
               el("button", {
                 class: "action quiet",
                 type: "button",

@@ -292,8 +292,12 @@ class Ui:
     def open(self, fragment: str = "") -> None:
         """Load the shell and wait for the client's first paint to land."""
         self.page.goto(f"{self.base_url}/{fragment}")
-        # The view starts empty and every route fills it, so waiting on content
-        # is what distinguishes "painted" from "the script has not run yet".
+        # The client marks <html> once it has started (`app.js`). The view is
+        # served holding a "Loading the catalogue…" placeholder, so waiting on
+        # its content returned before the script had run, and a test could act
+        # on a top bar with nothing installed behind it. Then the first paint's
+        # content, as before: `data-started` is set before the paint begins.
+        self.page.wait_for_selector("html[data-started]", state="attached")
         self.page.wait_for_selector("#view *")
 
     def serve(self, pattern: str, payloads) -> None:

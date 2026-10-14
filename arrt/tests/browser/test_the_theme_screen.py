@@ -624,7 +624,7 @@ class TestOneThemeHasItsOwnAddress:
         ui.page.wait_for_selector("h1:has-text('That theme is not here')")
 
         assert "most likely deleted" in ui.text()
-        ui.page.click("a:has-text('All themes')")
+        ui.page.click("#view .not-found a:text-is('Themes')")
         ui.page.wait_for_selector("li.theme-card h2:has-text('Winter')")
 
     def test_the_address_survives_a_reload(self, ui, two_themes):

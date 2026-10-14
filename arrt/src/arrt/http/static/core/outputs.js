@@ -88,19 +88,26 @@ export function screenPhrase(output, stale = false) {
 /* Walls' line for a wall assigned to `clientName`'s `outputName`. `heartbeat`
  * is the client's reading, for the age a stale report states. */
 export function wallScreenLine(clientName, outputName, state, heartbeat = null) {
-  const assigned = `Assigned to ${clientName} on ${outputName}`;
-  if (state === DETECTED) return `Shown by ${clientName} on ${outputName}`;
-  if (state === NOT_DETECTED) return `${assigned}, where no screen is detected (off or unplugged)`;
+  return wallScreenParts(clientName, clientName, outputName, state, heartbeat).join("");
+}
+
+/* The same line in parts, with `named` (the client's name, or a link to it)
+ * where the sentence first names the client and its plain `clientName` after,
+ * so a line names its client once as a link and not twice. */
+export function wallScreenParts(named, clientName, outputName, state, heartbeat = null) {
+  const assigned = ["Assigned to ", named, ` on ${outputName}`];
+  if (state === DETECTED) return ["Shown by ", named, ` on ${outputName}`];
+  if (state === NOT_DETECTED) return [...assigned, ", where no screen is detected (off or unplugged)"];
   if (state === NOT_REPORTED) {
-    return `${assigned}. ${clientName} has not reported its outputs yet, so whether a screen is there is not known.`;
+    return [...assigned, `. ${clientName} has not reported its outputs yet, so whether a screen is there is not known.`];
   }
   if (state === UNREADABLE) {
-    return `${assigned}. ${clientName}'s last report could not be read, so whether a screen is there is not known.`;
+    return [...assigned, `. ${clientName}'s last report could not be read, so whether a screen is there is not known.`];
   }
   if (state === STALE) {
-    return `${assigned}. ${clientName} last reported ${ago(heartbeat.age_seconds)}, so whether a screen is there now is not known.`;
+    return [...assigned, `. ${clientName} last reported ${ago(heartbeat.age_seconds)}, so whether a screen is there now is not known.`];
   }
-  if (state === NOT_LISTED) return `${assigned}. ${clientName}'s last report lists no output called ${outputName}.`;
+  if (state === NOT_LISTED) return [...assigned, `. ${clientName}'s last report lists no output called ${outputName}.`];
   // A state added above and not worded here would otherwise fall through to a
   // sentence claiming one of the others.
   throw new Error(`no words for the screen state ${state}`);

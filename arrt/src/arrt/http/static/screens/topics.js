@@ -47,7 +47,7 @@ import {
   yearCell,
 } from "../core/registry.js";
 import { el, emptyState, fill, render } from "../core/render.js";
-import { backLink, go, link, setTitle } from "../core/router.js";
+import { backLink, go, link, notFound, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 
 /* What a section says when its request failed outright, rather than answering
@@ -194,10 +194,7 @@ export async function viewTopic(qid, generation) {
     if (failure.status !== 400) throw failure;
     render(
       generation,
-      el("p", {}, [backLink()]),
-      el("h1", { text: "That is not a topic's address" }),
-      el("p", { class: "note", text: "A topic is addressed by its Wikidata item, a Q and digits. The topics your works are in are listed together." }),
-      el("div", { class: "row" }, [link({ view: "topics" }, { class: "action", text: "All topics" })]),
+      ...notFound("That is not a topic's address", "A topic is addressed by its Wikidata item, a Q and digits. The topics your works are in are listed together."),
     );
     return;
   }

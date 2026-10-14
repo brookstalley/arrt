@@ -20,6 +20,7 @@ import { attempt } from "../core/acting.js";
 import { stamp } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
+import { wallLink } from "../core/places.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
@@ -351,8 +352,11 @@ export async function viewHistory(generation) {
     panels.push(
       el("p", { class: "muted" }, [
         "What was hung on it, and what was kept off from it. ",
+        // The heading names the wall as this page's subject; the way to the wall
+        // itself is here, beside the way to every wall's history.
+        wallNames.has(params.wall) ? [wallLink(params.wall, `${wallName} on Walls`), " · "] : null,
         link({ view: "history", params: { kind: params.kind || "" } }, { text: "Every wall's history" }),
-      ]),
+      ].flat()),
     );
   }
   panels.push(kindFilter(group, params));
@@ -458,7 +462,10 @@ function sentence(event, wallNames, titles) {
   const detail = event.detail || {};
   const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the library";
   const work = () => (event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title);
-  const wall = detail.wall_name || wallNames.get(event.wall_id) || "a wall no longer recorded";
+  // A wall still recorded is a link to it; one since removed is its name, as
+  // the event recorded it.
+  const wallName = detail.wall_name || wallNames.get(event.wall_id) || "a wall no longer recorded";
+  const wall = event.wall_id && wallNames.has(event.wall_id) ? wallLink(event.wall_id, wallName) : wallName;
   const run = (text) => (event.run_id ? link({ view: "get", id: event.run_id }, { class: "link", text }) : text);
   switch (event.kind) {
     case "get.started":
@@ -485,17 +492,18 @@ function sentence(event, wallNames, titles) {
       return ["Restored ", work()];
     case "wall.hung":
       if (detail.selection) {
-        return [`Hung a selection${typeof detail.works === "number" ? ` of ${counted(detail.works, "work")}` : ""} on ${wall}`];
+        return [`Hung a selection${typeof detail.works === "number" ? ` of ${counted(detail.works, "work")}` : ""} on `, wall];
       }
       return [
         "Hung ",
         event.theme_id ? link({ view: "theme", id: event.theme_id }, { class: "link", text: detail.theme_name || "a theme" }) : detail.theme_name || "a theme",
-        ` on ${wall}`,
+        " on ",
+        wall,
       ];
     case "work.left_theme":
-      return ["Took ", work(), ` out of ${detail.selection ? "the selection" : detail.theme_name || "its theme"} on ${wall}`];
+      return ["Took ", work(), ` out of ${detail.selection ? "the selection" : detail.theme_name || "its theme"} on `, wall];
     case "work.excluded":
-      return ["Kept ", work(), " off every wall", event.wall_id ? ` (from ${wall})` : ""];
+      return ["Kept ", work(), " off every wall", ...(event.wall_id ? [" (from ", wall, ")"] : [])];
     case "work.allowed":
       return ["Let ", work(), " back on the walls"];
     default:

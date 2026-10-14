@@ -65,7 +65,8 @@ import { counted } from "../core/counting.js";
 import { hangTheme } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
+import { screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
+import { clientLink } from "../core/places.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
 
@@ -180,12 +181,13 @@ function assignmentLine(wall, shownBy) {
     ]);
   }
   const client = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
-  return el("p", {
-    class: "muted wall-client",
-    text: client
-      ? wallScreenLine(client.name, wall.output, screenState(client.heartbeat, wall.output), client.heartbeat)
-      : `Assigned to ${wall.output} of a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
-  });
+  return el(
+    "p",
+    { class: "muted wall-client" },
+    client
+      ? wallScreenParts(clientLink(client.client_id, client.name), client.name, wall.output, screenState(client.heartbeat, wall.output), client.heartbeat)
+      : [`Assigned to ${wall.output} of a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
+  );
 }
 
 /* Which label outputs caption this wall, and on which client each is.
@@ -195,17 +197,22 @@ function assignmentLine(wall, shownBy) {
  * the client's other surfaces, and this line links there. */
 function labelsLine(wall) {
   if (!wall.labels || !wall.labels.length) return null;
-  const named = wall.labels.map((label) => `${label.output} on ${label.client_name}`);
+  // A client the server could not name is said as one rather than drawn as a
+  // link with no words in it.
+  const named = wall.labels.map((label) => [
+    `${label.output} on `,
+    label.client_name ? clientLink(label.client_id, label.client_name) : "a client whose name could not be read",
+  ]);
   return el("p", { class: "muted wall-labels" }, [
-    el("span", { text: `Captioned by ${listed(named)}. ` }),
+    el("span", {}, ["Captioned by ", ...listedParts(named), ". "]),
     link({ view: "clients" }, { text: "Change in Settings › Clients" }),
   ]);
 }
 
-/* "a", "a and b", "a, b and c". */
-function listed(names) {
-  if (names.length < 2) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+/* "a", "a and b", "a, b and c", of items that are each a list of parts (text
+ * and links). */
+function listedParts(items) {
+  return items.flatMap((parts, at) => [at === 0 ? "" : at === items.length - 1 ? " and " : ", ", ...parts]);
 }
 
 /* Every wall's last observation, or the fact that the reading did not arrive.
@@ -305,7 +312,7 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     // `h2` for the wall and `h3` for what is in it, so the nesting survives a
     // second wall: a reader navigating by heading gets each room with its own
     // work inside it.
-    el("h2", { class: "wall-title", text: wall.name }),
+    el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
     card.lead,
     sourceLine(wall),
     assignmentLine(wall, shownBy),

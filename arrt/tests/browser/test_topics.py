@@ -560,7 +560,7 @@ class TestTheTopicPage:
     def test_an_address_that_is_not_a_qid_says_so(self, ui):
         ui.open("#topic/nonsense")
         ui.page.wait_for_selector('#view h1:text-is("That is not a topic\'s address")')
-        ui.page.click("#view a:text-is('All topics')")
+        ui.page.click("#view .not-found a:text-is('Topics')")
         ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
 

@@ -84,7 +84,48 @@ open.
     keeps its state word ("Well") and the page is *Status* in both the
     sidebar and the heading. *Status* is the *arr name, and the
     information-architecture norm says to use it.
-- **Decisions made mid-build:** (appended while building)
+- **Decisions made mid-build:**
+  - [DECISION, 01: a refusal (400) of a one-thing read is the not-found page,
+    as a 404 is] The server answers every service refusal with 400 by design
+    (`service_error_response`, one `ServiceError`). The Artist and Topic
+    screens already read a 400 on their own read as "nobody is here". The
+    router now does this for every route that declares a `thing`. A 5xx is
+    still the banner's. A 404 type on the server would grow the per-error
+    table that `services/errors.py` exists to avoid.
+  - [DECISION, 01: the not-found page's way on is named by the index's
+    sidebar label ("Artworks", "Themes", "Queue")] It was "All artists" and
+    "All themes" before. "All queue" for a Get made that pattern ungrammatical.
+    Two tests' selectors moved with it (`test_the_theme_screen.py`,
+    `test_topics.py`). Each still asserts the link reaches the index.
+  - [DECISION, 01: a way back names its opener from the name the opener gave
+    itself this visit (`setTitle`), and otherwise its kind ("← Artist")] A
+    cold bookmark carrying `?from=` has no name to hand without a second read,
+    and the address still returns to the right place. Settled by #356's
+    acceptance (it names and returns) and the cost of an extra request per page.
+  - [DECISION, 01: a wall is addressed `#walls?wall=<id>` and a client
+    `#clients?client=<id>`, and the page brings that card to the reader
+    (`data-arrive`)] Neither has a page of its own, and the IA requires that
+    every consequential state be addressable. The Walls screen's own wall names
+    are not links, because they are on their own page.
+  - [DECISION, 01: a History page about one wall names the wall in its heading
+    as plain text and links it in the line beneath ("… on Walls")] A link
+    inside the page's `h1` would make the page's name a control.
+  - [DECISION, 01: fixed in this chunk, outside its items: a search pressed
+    while the client starts loaded the page natively (`/?q=…`), and the
+    browser harness's `ui.open` returned before the client ran] Both were
+    found by `test_the_shell.py`'s magnifier test failing once under the full
+    parallel run of this chunk.
+    - The cause, measured: `app.js` awaited `/api/sources` before calling
+      `installSearch`. `ui.open` waited on `#view *`, which the served
+      "Loading the catalogue…" placeholder already satisfied.
+    - The fix: the top bar installs before the read. The client marks
+      `html[data-started]` once the router is installed, and `ui.open` waits
+      for that before the view's content.
+    - Not "painted": five tests hold one of a screen's reads open to see the
+      screen part-way, so a first-paint mark never came for them.
+    - A held-read test now reproduces the failure deterministically. It was
+      seen red first.
+    - Not backlogged: fixed, per "no pre-existing exception".
 - **Level: Medium.** Chunks 01–03 are well understood: each item is at
   `ready`, or is a client-only change with a concrete proposal. Chunks 04–06
   are at `design`, and 04 may need a server read. Each of those chunks opens
@@ -95,12 +136,12 @@ open.
 
 ### Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
 
-- **Type:** bugfix, client navigation.
-- `core/router.js`: a route whose object the server answers 404 for clears
+- **Type:** bugfix
+- `arrt/src/arrt/http/static/core/router.js`: a route whose object the server refuses (400) or answers 404 for clears
   the view and paints a not-found state. The state names what was asked for
   and offers a way on (the page's index). A fresh load of a dead work address
   reaches the same state instead of "Loading the catalogue…" for ever.
-- `core/router.js` and `app.js` (`returnTarget`, `backLink`, the route table's
+- `arrt/src/arrt/http/static/core/router.js` and `arrt/src/arrt/http/static/app.js` (`returnTarget`, `backLink`, the route table's
   `returnLabel`/`returnFor`): Work, Artist, Topic, Theme and Search each carry
   the opener in `?from=`, with Search's query kept. The back link names the
   opener and returns to it. A page opened cold falls back to its index, as
@@ -123,7 +164,7 @@ open.
 
 ### Chunk 02: shared rules, then phone width (#360, #357)
 
-- **Type:** feature, stylesheet first.
+- **Type:** feature
 - `app.css` shared rules:
   - row alignment;
   - the gap between an act and its text, and after a page's name;
@@ -150,7 +191,8 @@ open.
 
 ### Chunk 03: pictures where a person decides (#358)
 
-- **Type:** feature. Opens with a design pass on the placeholder and the
+- **Type:** feature
+- Opens with a design pass on the placeholder and the
   enlarge control.
 - A work with no master: one picture-shaped placeholder and one short
   sentence, the same on Artworks, Artists, Work and Theme. The client makes no
@@ -166,7 +208,8 @@ open.
 
 ### Chunk 04: Walls shows a picture, and the next three (#354)
 
-- **Type:** feature. It may cross into the server (see the design pass).
+- **Type:** feature
+- It may cross into the server (see the design pass).
 - **Design pass first:** where the last-shown work and the next three come
   from. #354 names #316 and #309 as possible sources. Surveyed 2026-10-14:
   - **No server record of the last-shown work for a dark screen.**
@@ -197,7 +240,8 @@ open.
 
 ### Chunk 05: the Theme page (#352)
 
-- **Type:** feature. Opens with a design pass on reordering.
+- **Type:** feature
+- Opens with a design pass on reordering.
 - Each member row: the work's picture, its title linked to Work, its artist to
   Artist. Reordering costs fewer than five boxes a row. The pattern is chosen
   in the design pass; the keyboard equivalent is required by
@@ -209,7 +253,7 @@ open.
 
 ### Chunk 06: copy (#359)
 
-- **Type:** feature, copy and small client logic.
+- **Type:** feature
 - Status has one name. Topic pages are titled by the topic's name, with no
   bare QID in a title or heading. An unmatched artist is told so once. The
   cost of a Get is stated in one row. Taste's preamble is cut, with its verbs
@@ -246,7 +290,7 @@ plan's. It follows the deploy.
 
 ## Status
 
-- [ ] Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
+- [x] Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
 - [ ] Chunk 02: shared rules, then phone width (#360, #357)
 - [ ] Chunk 03: pictures where a person decides (#358)
 - [ ] Chunk 04: Walls shows a picture, and the next three (#354)

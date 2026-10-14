@@ -43,6 +43,7 @@ import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
 import { el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
+import { wallLinks } from "../core/places.js";
 import { backLink, link, redirect, setTitle } from "../core/router.js";
 import { hangSelection } from "../core/selection.js";
 import { DEBUG } from "../core/debug.js";
@@ -644,7 +645,12 @@ function facetValues(held) {
   const nodes = [];
   for (const facet of held) {
     if (nodes.length) nodes.push(", ");
-    nodes.push(el("span", { class: "facet-value", text: facet.value }));
+    // A value that names a Wikidata item is a topic, and opens its page.
+    nodes.push(
+      facet.value_qid
+        ? link({ view: "topic", id: facet.value_qid }, { class: "facet-value link", text: facet.value })
+        : el("span", { class: "facet-value", text: facet.value }),
+    );
     if (facet.derivation === "sourced") {
       nodes.push(
         el("span", { class: "sourced" }, [
@@ -713,7 +719,7 @@ function wallsHanging(placements) {
 function themeLine(placement) {
   const name = link({ view: "theme", id: placement.theme.theme_id }, { class: "link", text: placement.theme.name });
   if (!placement.hanging_on.length) return [name];
-  return [name, ` (on ${placement.hanging_on.map((wall) => wall.name).join(", ")})`];
+  return [name, " (on ", ...wallLinks(placement.hanging_on), ")"];
 }
 
 function joined(parts) {
@@ -734,7 +740,7 @@ function paintStrip(strip, work, where, { said = "", focusHang = false } = {}) {
   if (held && kept) {
     lines.push(["Walls", `Kept off every wall since ${dated(kept)}.`]);
   } else if (held) {
-    lines.push(["Walls", walls.length ? walls.map((wall) => wall.name).join(", ") : "Not hanging on any wall."]);
+    lines.push(["Walls", walls.length ? el("span", {}, wallLinks(walls)) : "Not hanging on any wall."]);
   }
   lines.push(["Themes", themes.length ? el("span", {}, joined(themes.map(themeLine))) : "In no theme."]);
 

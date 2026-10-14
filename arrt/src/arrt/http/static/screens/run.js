@@ -326,6 +326,10 @@ export async function viewRun(runId, generation) {
     // re-arm, and the tab request that run every two seconds for as long as it
     // stayed open — bounded only by navigation, with nothing on screen saying
     // the watch was still retrying.
+    // A refusal is the server saying there is no such Get, not a blip: nothing
+    // is re-armed, and the router paints the page an address naming nothing
+    // gets (`core/router.js`, `notFound`), with no watch left behind it.
+    if (failure.status === 400 || failure.status === 404) throw failure;
     if (noteWatchFailure(runId) >= RUN_POLL_MAX_FAILURES) {
       // Say the watch stopped, not only what failed. The two are different
       // facts and only one of them tells the curator what to do next: a message

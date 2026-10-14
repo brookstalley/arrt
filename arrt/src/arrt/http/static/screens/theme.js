@@ -36,7 +36,8 @@ import { confirmAct } from "../core/confirm.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { backLink, backRow, go, link, refresh, setTitle } from "../core/router.js";
+import { wallLinks } from "../core/places.js";
+import { backLink, backRow, go, link, notFound, refresh, setTitle } from "../core/router.js";
 
 /* How many pictures a card's strip holds: the server's `THEME_CARD_PICTURES`,
  * which is how many it sends. Every card keeps this many slots, filled or not,
@@ -149,7 +150,7 @@ const defaultBadge = () =>
 const hangingBadge = (walls) =>
   el("span", { class: "badge" }, [
     el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
-    el("span", { text: `on ${walls.map((wall) => wall.name).join(", ")}` }),
+    el("span", {}, ["on ", ...wallLinks(walls)]),
   ]);
 
 /* -- one theme -------------------------------------------------------------- */
@@ -168,18 +169,7 @@ async function oneTheme(themeId, generation) {
   const [themes, walls, works] = await Promise.all([api("/api/themes"), api("/api/walls"), fetchAllWorks()]);
   const placement = themes.themes.find((entry) => entry.theme.theme_id === themeId);
   if (!placement) {
-    render(
-      generation,
-      el("p", {}, [backLink()]),
-      el("h1", { text: "That theme is not here" }),
-      el("p", {
-        class: "note",
-        text: "Nothing in the collection has this address. It was most likely deleted — the themes that do exist are listed together.",
-      }),
-      el("div", { class: "row" }, [
-        link({ view: "theme" }, { class: "action", text: "All themes" }),
-      ]),
-    );
+    render(generation, ...notFound(null, "Nothing in the collection has this address. It was most likely deleted."));
     return;
   }
 

@@ -128,23 +128,9 @@ function artistTable(artists, count) {
  * catalogue holds is an ordinary state, for the reason one theme's is: a link
  * outlives what it pointed at. */
 async function oneArtist(artistId, generation) {
-  let page;
-  try {
-    page = await api(`/api/artists/${encodeURIComponent(artistId)}`);
-  } catch (failure) {
-    // Only the refusal says nobody is here; a fault is the error banner's, and
-    // telling a curator an artist is gone because the server stumbled would
-    // send them looking for something that was never lost.
-    if (failure.status !== 400) throw failure;
-    render(
-      generation,
-      el("p", {}, [backLink()]),
-      el("h1", { text: "That artist is not here" }),
-      el("p", { class: "note", text: "Nothing in the library has this address. The artists the library holds are listed together." }),
-      el("div", { class: "row" }, [link({ view: "artist" }, { class: "action", text: "All artists" })]),
-    );
-    return;
-  }
+  // An address naming nobody the catalogue holds is refused, and the router
+  // turns the refusal into the page saying so (`core/router.js`, `notFound`).
+  const page = await api(`/api/artists/${encodeURIComponent(artistId)}`);
   const artist = page.artist;
   // Paged by the shared loop, which sends no limit of its own: the server's
   // default and cap govern, and the client holds no copy of either (`core/api.js`).
