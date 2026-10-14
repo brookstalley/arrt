@@ -105,7 +105,7 @@ that it never moves a wall nobody touched.
   says another wall's schedule is left alone. Mixed paces: #374.
 - `Reconciliation.republished` still lists only the walls whose feed changed for
   the works in question.
-- Tests: one changed meaning, by the ruling.
+- Tests: these changed meaning, by the ruling.
   `TestOneFeedPerWall::test_one_walls_rewrite_does_not_touch_another_walls_file`
   hung one theme on both walls and asserted the study's file never changed; it
   is now `..._does_not_touch_a_wall_sharing_no_work_with_it` with disjoint
