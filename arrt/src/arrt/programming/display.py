@@ -49,7 +49,7 @@ from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
-from arrt.programming.schedule import Keep, Schedule, Start, StartFresh
+from arrt.programming.schedule import Keep, Schedule, Start, StartFresh, movable_walls
 from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -644,14 +644,7 @@ class DisplayService:
         shape.require_range(chosen.min_aspect_ratio, chosen.max_aspect_ratio)
         with self._store.transaction():
             store_write(self._store.update_wall, chosen)
-            assignment = self._store.get_assignment(wall_id)
-            feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
-            build = None
-            if assignment is not None:
-                build = self.build_manifest(wall_id, assignment.theme_id)
-                self._sync_v2(build)
-            elif feed is not None:
-                self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep())
+            build = self._republish(wall_id, read_published_v2(self._settings.manifest_v2_path(wall_id)))
         interval, shuffled = self.pace(chosen)
         log.info(
             "Wall %r: each work stays up %ds%s, %s%s; it shows %s.",
@@ -1297,8 +1290,9 @@ class DisplayService:
 
         A republish of the wall's feed starting now (`player-contract.md` § What
         happens to `show_now` and `next`). One wall's step leaves every other
-        wall's schedule alone, so a `next` aimed at the living room never moves
-        the study.
+        wall's picture alone, so a `next` aimed at the living room never moves
+        the study; a wall sharing works with it has its slots to come rebuilt
+        beside it (`_write_v2`).
         """
         self.get_wall(wall_id)
         with self._store.transaction():
@@ -1578,7 +1572,14 @@ class DisplayService:
             asked |= {work_id for candidates in joining.values() for work_id in candidates}
             answers = self._library.playable(sorted(asked))
             refused = {work_id for work_id, answer in answers.items() if not isinstance(answer, PlayableWork)}
-            republished = [wall.id for wall in walls if self._reconcile_v2(wall.id, feeds[wall.id], answers, cause=cause)]
+            # Each feed read again as its turn comes: an earlier wall's republish
+            # may have rebuilt it beside that wall, and the copy read above would
+            # write the old schedule back over the new.
+            republished = [
+                wall.id
+                for wall in walls
+                if self._reconcile_v2(wall.id, read_published_v2(self._settings.manifest_v2_path(wall.id)), answers, cause=cause)
+            ]
             for wall_id, theme_id in hung.items():
                 shown = {work_id for work_id in joining[wall_id] if isinstance(answers.get(work_id), PlayableWork)}
                 if (shown or self._unpublished(wall_id)) and self._publish_additions(wall_id, theme_id, shown, cause=cause):
@@ -1735,10 +1736,8 @@ class DisplayService:
             previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
             if previous is None or previous.horizon_until - datetime.now(UTC) >= ROLL_WHEN_LEFT:
                 return
-            assignment = self._store.get_assignment(wall_id)
-            if assignment is not None:
-                build = self.build_manifest(wall_id, assignment.theme_id)
-                self._sync_v2(build)
+            build = self._republish(wall_id, previous)
+            if build is not None:
                 # Said, because this is also how a work whose announcement was
                 # lost reaches the wall, and how a reorder or a new pace does.
                 log.info(
@@ -1748,8 +1747,6 @@ class DisplayService:
                     len(build.entries),
                     build.considered,
                 )
-                return
-            self._rebuild_v2(wall_id, previous, works=dict(previous.works), start=Keep())
 
     def _rebuild_v2(
         self,
@@ -1829,7 +1826,8 @@ class DisplayService:
             neighbours = sorted(
                 other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
             )
-            movable, align_to = frozenset(neighbours), ()
+            movable = movable_walls(wall_id, neighbours, {other: feed.works.keys() for other, feed in feeds.items()})
+            align_to = ()
         else:
             neighbours, movable, align_to = [], beside.movable, beside.align_to
         cycle = [work_id for work_id in order if work_id in works]
@@ -1865,7 +1863,18 @@ class DisplayService:
             )
         starts = tuple(slot.start for slot in schedule.slots)
         for at, neighbour in enumerate(neighbours):
-            self._rebuild_beside(neighbour, wall_id, _Beside(movable=frozenset(neighbours[at + 1 :]), align_to=starts))
+            beside = _Beside(movable=movable & set(neighbours[at + 1 :]), align_to=starts)
+            try:
+                self._rebuild_beside(neighbour, wall_id, beside)
+            except ServiceError as error:
+                # This wall's own act succeeded; the neighbour goes on with the
+                # schedule it had, as before a pass existed, and says why.
+                log.warning(
+                    "Wall %r: its slots to come could not be rebuilt beside wall %r: %s",
+                    self.get_wall(neighbour).name,
+                    self.get_wall(wall_id).name,
+                    error,
+                )
         return schedule
 
     def _rebuild_beside(self, wall_id: str, republished: str, beside: _Beside) -> None:
@@ -1880,11 +1889,7 @@ class DisplayService:
         feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
         if feed is None:
             return
-        assignment = self._store.get_assignment(wall_id)
-        if assignment is not None and assignment.theme_id == feed.playlist_id:
-            self._sync_v2(self.build_manifest(wall_id, assignment.theme_id), beside=beside)
-        else:
-            self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep(), beside=beside)
+        self._republish(wall_id, feed, beside=beside)
         # Said, because a wall's feed changing when nobody touched that wall is
         # otherwise a mystery in the journal.
         log.info(
@@ -1892,6 +1897,27 @@ class DisplayService:
             self.get_wall(wall_id).name,
             self.get_wall(republished).name,
         )
+
+    def _republish(self, wall_id: str, feed: Published | None, *, beside: _Beside | None = None) -> ManifestBuild | None:
+        """Republish a wall keeping the work on it now: from its hung theme, else from what its feed carries.
+
+        Returns the build when it built the theme. From the theme so one with
+        more works than a horizon names is not narrowed to those its feed named.
+        **A feed not of the hung theme** (written, then the hang's transaction
+        rolled back) is put right by the wall's own roll or setting change, which
+        publish the hung theme and so start it fresh; a pass `beside` another
+        wall leaves it as it is, since that would change the picture on a wall
+        nobody touched.
+        """
+        assignment = self._store.get_assignment(wall_id)
+        carries_it = feed is not None and assignment is not None and feed.playlist_id == assignment.theme_id
+        if assignment is not None and (beside is None or carries_it):
+            build = self.build_manifest(wall_id, assignment.theme_id)
+            self._sync_v2(build, beside=beside)
+            return build
+        if feed is not None:
+            self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep(), beside=beside)
+        return None
 
     def _reconcile_v2(
         self,

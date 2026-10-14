@@ -39,7 +39,8 @@ boundary of the wall just built, in step with its slots, where that is cheap and
 clashes with nothing (`align_to`). Two walls whose slots start seconds apart
 could otherwise not alternate two works at all: every slot of one would overlap
 one of each on the other. Nothing on any screen changes: the slot covering now
-keeps its work and its start.
+keeps its work and its start, and may stay up under one interval longer (the
+owner, 2026-10-14).
 
 **What a pass cannot do.** It lines walls up only where one interval is a
 multiple of the other. And it builds the republished wall first, so where that
@@ -208,6 +209,28 @@ def build(
         clashes.extend(busy.clashes(work_id, cursor, until))
         cursor = until
     return Schedule(horizon_from, horizon_until, tuple(slots), tuple(clashes))
+
+
+def movable_walls(wall_id: str, neighbours: Collection[str], works: Mapping[str, Collection[str]]) -> frozenset[str]:
+    """Which of a republished wall's neighbours have room to step aside, so only their slot now counts against it.
+
+    A neighbour moves aside by showing another work, so it is movable only if
+    it holds at least two works that no fixed wall holds: one wall with a single
+    work, or whose others another wall always shows, has nowhere to go, and
+    discounting its slots to come would send the republished wall onto the one
+    work it can show and leave the two clashing. Fixed is every wall outside
+    the pass, and any neighbour found not movable, asked again until nothing
+    changes. Held is any work a wall's feed carries, at any time; that is coarse
+    in the safe direction, since a wall wrongly thought fixed is built as it
+    was before a pass existed.
+    """
+    movable = set(neighbours)
+    while True:
+        fixed = {work_id for other, held in works.items() if other != wall_id and other not in movable for work_id in held}
+        still = {neighbour for neighbour in movable if len(set(works.get(neighbour, ())) - fixed) > 1}
+        if still == movable:
+            return frozenset(movable)
+        movable = still
 
 
 def _kept(previous: Sequence[Slot], now: datetime, held: Collection[str]) -> Slot | None:

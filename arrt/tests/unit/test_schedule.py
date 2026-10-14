@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from arrt.programming.schedule import HORIZON, Keep, Slot, StartFresh, build
+from arrt.programming.schedule import HORIZON, Keep, Slot, StartFresh, build, movable_walls
 
 NOW = datetime(2026, 10, 9, 18, 30, 15, 123456, tzinfo=UTC)
 AT = NOW.replace(microsecond=0)
@@ -602,3 +602,32 @@ def test_a_kept_slot_already_clashing_is_run_on_into_step():
     )
 
     assert schedule.slots[0] == Slot("b", AT - timedelta(minutes=1), AT + timedelta(minutes=4))
+
+
+# -- which neighbours can step aside ----------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("works", "movable"),
+    [
+        # #350's own case: each holds both, so each can show the other.
+        ({"here": {"x", "y"}, "n": {"x", "y"}}, {"n"}),
+        # One work: nothing to step aside to.
+        ({"here": {"x", "y"}, "n": {"x"}}, set()),
+        # Two works, but a wall outside the pass always holds the other.
+        ({"here": {"x", "y"}, "n": {"x", "z"}, "c": {"z"}}, set()),
+        # The same, with the other held by a neighbour that is itself fixed.
+        ({"here": {"x", "y"}, "n": {"x", "z"}, "m": {"z", "x"}, "c": {"z"}}, set()),
+        # Found only by asking again: `m` can show only `y`, since `c` holds `w`,
+        # and so `n` can show only `x`.
+        ({"here": {"x", "y"}, "n": {"x", "y"}, "m": {"y", "w"}, "c": {"w"}}, set()),
+        # A third work left free keeps it movable.
+        ({"here": {"x", "y"}, "n": {"x", "z", "w"}, "c": {"z"}}, {"n"}),
+        # The republished wall's own works never fix a neighbour.
+        ({"here": {"x", "y", "z"}, "n": {"y", "z"}}, {"n"}),
+    ],
+)
+def test_a_neighbour_is_movable_only_with_two_works_no_fixed_wall_holds(works, movable):
+    neighbours = {wall for wall in works if wall not in ("here", "c")}
+
+    assert movable_walls("here", neighbours, works) == movable

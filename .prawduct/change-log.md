@@ -93,6 +93,16 @@ that it never moves a wall nobody touched.
   neighbour is rebuilt from its hung theme when its feed carries that theme,
   else from what its feed carries, and never starts fresh. Each is logged by
   name. A wall sharing no work is untouched, to the byte.
+- A neighbour is movable only if it holds two works no fixed wall holds
+  (`schedule.movable_walls`): with one work, or with its others always shown by
+  a wall outside the pass, it has nothing to step aside to, so its slots to
+  come count as fixed. A neighbour that cannot be rebuilt
+  (a `ServiceError`) keeps its schedule and is named in a warning; the act
+  asked for stands. `_republish` is the one place the roll, a setting change
+  and a pass decide how a wall republishes keeping its picture. Reconciliation
+  reads each wall's feed as it reaches it, so it cannot write a neighbour's
+  old schedule back over its rebuild. The `step_display` docstring no longer
+  says another wall's schedule is left alone. Mixed paces: #374.
 - `Reconciliation.republished` still lists only the walls whose feed changed for
   the works in question.
 - Tests: one changed meaning, by the ruling.

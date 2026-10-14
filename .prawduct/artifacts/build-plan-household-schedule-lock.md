@@ -47,7 +47,10 @@ of one-wall rebuilds can break it.
   neighbour is rebuilt, in wall-id order, keeping its slot now, against the
   full slots of the walls already rebuilt in this pass and the kept slot of
   those still to come. One level only: a neighbour's rebuild does not rebuild
-  its own neighbours, so a pass is bounded by the wall count. *Inferred.*
+  its own neighbours, so one write rebuilds each wall at most once. A caller
+  that writes every wall in turn (reconciliation, a startup catch-up) can so
+  rebuild up to the square of the wall count; harmless at a household's few
+  walls, and said here so it is not discovered. *Inferred.*
 - **A neighbour's slots line up with the wall just built.** Breaking the lock
   is not enough: two walls' slots start seconds apart in practice, so with two
   shared works every neighbour slot would overlap one of each on the other wall
@@ -55,7 +58,8 @@ of one-wall rebuilds can break it.
   on the wall now runs on until the slots after it are in step with the wall
   just built: by `(boundary − end) mod interval`, under one interval, the whole
   slot staying under two. Nothing on screen changes; the picture now stays up a
-  little longer, and the two walls alternate from there. *Inferred.*
+  little longer, and the two walls alternate from there. *Ruled by the owner,
+  2026-10-14: the picture now may linger, under one more interval.*
 - **A neighbour is rebuilt as its roll would rebuild it:** from its hung theme
   when the feed carries that theme (so a large theme is not narrowed to the
   works one horizon named), else from the works its feed carries. Either way
@@ -78,7 +82,24 @@ of one-wall rebuilds can break it.
   lesser failure). Before a work is allowed back, both walls show the one work
   left, a clash nothing could avoid. Refusing to run it on left the next slot
   overlapping both of the other wall's works for a whole interval.
-- **Not solved, and said:** walls whose intervals are not multiples, and a
+- **A neighbour is movable only with two works no fixed wall holds**
+  (`schedule.movable_walls`; settled by the household rule, raised by the
+  Critic twice). One with a single work, or whose others a wall outside the
+  pass always shows, has nothing to step aside to: discounting its slots to
+  come sent the republished wall onto its one work and left a clash for the
+  horizon where the old build avoided it. Fixed is every wall outside the pass
+  and any neighbour already found fixed, asked again until nothing changes.
+  Coarse in the safe direction: a wall wrongly thought fixed is built as before.
+- **A neighbour that cannot be rebuilt keeps its schedule** (settled by "the act
+  asked for succeeds"): a `ServiceError` there is logged by the neighbour's name
+  and the republished wall's write stands, as before a pass existed.
+- **One helper decides how a wall republishes keeping its picture**
+  (`_republish`): the roll, a setting change and a pass all use it. They
+  differ in one case, said there: a feed not of the hung theme is put right by
+  the wall's own act and left alone by a pass beside another.
+- **Reconciliation reads each feed as it reaches it**, since an earlier wall's
+  pass may have rebuilt it.
+- **Not solved, and said** (filed as #374): walls whose intervals are not multiples, and a
   republished wall with shorter slots than a neighbour when the two share only
   two works. The republished wall is built first, so the neighbour's long slot
   spans both works; the clash is named in the journal. Solving it means
@@ -88,7 +109,7 @@ of one-wall rebuilds can break it.
 
 ## Chunks
 
-### 01 — neighbours are rebuilt with the wall
+### Chunk 01: Neighbours are rebuilt with the wall
 
 - `schedule.build` takes `movable`: other walls whose slots after the one
   covering now are about to be rebuilt, so only that slot counts against this
