@@ -10,6 +10,21 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Copy that says one thing once — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 06, #359.** Run from this branch on the
+operator's library.
+
+- **Status.** Each wall says "Last heard from …" once. No "display plane",
+  and no file path unless `?debug`.
+- **An unmatched artist** (Charles Demuth in the walk): "not matched" is said
+  once. Where Wikidata offers people, their list asks "Is it one of these?",
+  and each links "on Wikidata" in place of its item.
+- **A Get's page.** *What it cost* is one row on a finished Get.
+- **History.** A review session's verdicts read as one line per Get, with the
+  works behind *Which works*.
+- **Artworks' rail.** No *Walls* heading over a lone "Not on any wall (0)".
+
 ### The Theme page — added 2026-10-14
 
 **`build-plan-ux-second-walk.md` chunk 05, #352.** Run from this branch on the
