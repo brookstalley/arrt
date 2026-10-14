@@ -10,6 +10,22 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The Theme page — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 05, #352.** Run from this branch on the
+operator's library: open the hung theme (61 works) and *All works*.
+
+- **Order.** Each work has one Position field. Type a place and press Enter,
+  or step it with the arrows and Tab away: the work moves once, and the
+  keyboard stays on it. Judge whether a number reads as "its place" without
+  the old arrows.
+- **Art and links.** Every row leads with its picture ("No picture" for the
+  two artic.edu refuses). Titles open the work, artists their page.
+- **Add.** On *All works*, the page says every work is already in it rather
+  than offering any. On the hung theme, the picker lists only works not in it.
+- **Phone.** At 390 px the rows are cards, and every field and *Remove* is
+  reachable without a sideways scroll.
+
 ### Pictures where a person decides — added 2026-10-14
 
 **`build-plan-ux-second-walk.md` chunk 03, #358.** Run from this branch on the
