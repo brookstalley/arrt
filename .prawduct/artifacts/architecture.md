@@ -1083,7 +1083,10 @@ per wall | change detection is an mtime poll at ~1 s, and a shared file makes
 every wall's display wake on every other wall's change while making "the
 manifest's sequence" ambiguous exactly where the coalescing and
 sequence-regression rules need it to be singular; per-file also keeps a display
-plane unable to read a wall it does not serve | user can veto/override]`
+plane unable to read a wall it does not serve | user can veto/override]` *(2026-10-13,
+#350: a wall sharing a work with the one republished is republished with it,
+since its slots to come are rebuilt to keep the two from showing that work at
+once; a wall sharing none is still left alone.)*
 
 **Two consequences, both taken:**
 

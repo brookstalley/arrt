@@ -20,7 +20,7 @@ from arrt.library.facade import UnplayableReason
 from arrt.library.services import catalogue as catalogue_module
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
-from arrt.persistence.records import MatMethod, RenditionKind, ThemeMembership
+from arrt.persistence.records import MatMethod, RenditionKind, ThemeAssignment, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming.display import Unjudged
 from arrt.programming.manifest.builder import KeptOff
@@ -633,6 +633,190 @@ def test_two_walls_hanging_one_theme_never_show_a_work_at_the_same_moment(displa
     hall, other = feed(wall_id), feed(study)
     for slot in other.slots:
         assert not any(s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) for s in hall.slots)
+
+
+def test_two_walls_sharing_two_works_each_show_both_and_never_at_once(display, mastered, theme_of, wall_id, wall_settings, feed):
+    """#350: kept off every wall and allowed again, the walls republish one after the other.
+
+    Each wall used to be rebuilt against the other's single-work schedule, which
+    left one showing `a` and the other `b` for the whole horizon, every roll
+    answering the other with its mirror image. The study's slots start 97 seconds
+    before the hall's, as two walls' do, so the pass has to line them up as well.
+    """
+    a, b = mastered("A"), mastered("B")
+    theme = theme_of(a, b)
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    display.activate_theme(theme.id, wall_id=study)
+    display.exclude_work(a.id)
+    _age(wall_settings, study, by=timedelta(seconds=97))
+
+    allowed = _now()
+    display.allow_work(a.id)
+
+    for one, other in ((wall_id, study), (study, wall_id)):
+        assert {slot.work_id for slot in feed(one).slots} == {a.id, b.id}
+        # Both walls were showing `b` as `a` came back, which nothing could avoid;
+        # every slot after that keeps them apart.
+        for slot in feed(one).slots[1:]:
+            assert not any(s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) for s in feed(other).slots)
+        assert feed(one).slots[0].covers(allowed.replace(microsecond=0))
+
+
+def test_a_wall_rebuilt_beside_another_goes_on_through_its_whole_theme(display, mastered, theme_of, wall_id, wall_settings, feed):
+    """Rebuilt from its hung theme, as its roll would be, not from the works one horizon happened to name.
+
+    Four 18-hour slots fill the study's horizon, so its feed names four of its five
+    works. Nineteen hours on, a rebuild from those four would come round to the
+    first again where the theme's fifth is due.
+    """
+    works = [mastered(f"S{i}") for i in range(1, 6)]
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=18 * HOUR, shuffle=False)
+    display.activate_theme(theme_of(*works, name="Study's").id, wall_id=study)
+    assert works[4].id not in feed(study).works
+    _age(wall_settings, study, by=timedelta(hours=19))
+
+    display.activate_theme(theme_of(works[0], mastered("Hall's own"), name="Hall's").id, wall_id=wall_id)
+
+    assert works[4].id in {slot.work_id for slot in feed(study).slots}
+
+
+def test_a_wall_whose_feed_is_not_of_its_hung_theme_keeps_its_picture_when_rebuilt_beside_another(
+    store, display, mastered, theme_of, wall_id, feed
+):
+    """The feed is written inside the store's transaction, so a rollback after the write leaves the two disagreeing.
+
+    Building the hung theme then would start the study fresh, changing its
+    picture though nobody touched it; it goes on with what its feed carries.
+    """
+    shared, own = mastered("Shared"), mastered("Own")
+    study = display.add_wall(name="Study").id
+    display.activate_theme(theme_of(shared, own, name="Published").id, wall_id=study)
+    on_the_study = feed(study).on_the_wall(_now())
+    store.set_assignment(ThemeAssignment(wall_id=study, theme_id=theme_of(mastered("Other"), name="Hung").id, assigned_at=_now()))
+
+    display.activate_theme(theme_of(shared, mastered("Hall's own"), name="Hall's").id, wall_id=wall_id)
+
+    kept = feed(study).on_the_wall(_now())
+    assert (kept.work_id, kept.start) == (on_the_study.work_id, on_the_study.start)
+    assert feed(study).playlist_id != store.get_assignment(study).theme_id
+
+
+def _overlaps(one, other):
+    """Slots of one feed showing a work the other shows at the same moment."""
+    return [
+        slot for slot in one.slots if any(s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) for s in other.slots)
+    ]
+
+
+def test_a_wall_with_one_work_is_not_stepped_onto_by_a_wall_with_others(display, mastered, theme_of, wall_id, feed):
+    """The study can show nothing but `x`, so the hall shows `y` throughout rather than taking turns with it.
+
+    Its slots to come are as fixed as published ones: counting only its slot now,
+    the hall would cycle back to `x`, and the study, rebuilt beside it with
+    nothing else to show, would clash at every turn of the horizon.
+    """
+    x, y = mastered("X"), mastered("Y")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    display.activate_theme(theme_of(x, name="Only x").id, wall_id=study)
+
+    display.activate_theme(theme_of(x, y, name="Both").id, wall_id=wall_id)
+
+    assert _overlaps(feed(wall_id), feed(study)) == []
+    assert _overlaps(feed(study), feed(wall_id)) == []
+
+
+def test_a_neighbour_whose_other_work_a_third_wall_holds_is_not_stepped_onto(display, mastered, theme_of, wall_id, feed):
+    """The study's feed carries `z` and `x`, but the kitchen shows `z` throughout, so the study can show only `x`.
+
+    The kitchen shares nothing with the hall, so it is no part of the hall's pass.
+    The study hangs first, showing `z` now, so its feed still names `z` once the
+    kitchen has taken it: two works by count, one it can go to.
+    """
+    x, y, z = mastered("X"), mastered("Y"), mastered("Z")
+    study, kitchen = display.add_wall(name="Study").id, display.add_wall(name="Kitchen").id
+    for wall in (study, kitchen):
+        display.set_playback(wall, rotation_interval_seconds=HOUR, shuffle=False)
+    display.activate_theme(theme_of(z, x, name="Study's").id, wall_id=study)
+    display.activate_theme(theme_of(z, name="Only z").id, wall_id=kitchen)
+    assert set(feed(study).works) == {x.id, z.id}
+
+    display.activate_theme(theme_of(x, y, name="Hall's").id, wall_id=wall_id)
+
+    assert _overlaps(feed(wall_id), feed(study)) == []
+    # Its picture now is `z`, which it showed before the kitchen took it; after
+    # that, it is never on `z` with the kitchen, nor on `x` with the hall.
+    assert _overlaps(feed(study), feed(kitchen))[1:] == []
+
+
+def test_a_roll_puts_right_a_feed_not_of_the_hung_theme(store, display, mastered, theme_of, wall_id, wall_settings, feed):
+    """The wall's own roll publishes what the store says hangs there, unlike a pass beside another wall."""
+    display.activate_theme(theme_of(mastered("A"), name="Published").id, wall_id=wall_id)
+    hung = theme_of(mastered("B"), name="Hung")
+    store.set_assignment(ThemeAssignment(wall_id=wall_id, theme_id=hung.id, assigned_at=_now()))
+    _age(wall_settings, wall_id, by=timedelta(days=1, hours=1))
+
+    display.record_heartbeat(wall_id, _heartbeat())
+
+    assert feed(wall_id).playlist_id == hung.id
+
+
+def test_reconciliation_does_not_write_a_wall_back_over_its_rebuild_beside_another(
+    store, display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """The hall loses a work and is rebuilt; the study, sharing works with it, is rebuilt beside it.
+
+    The study then has an entry patched. Patched from the copy read before the
+    hall's rebuild, it would get its old schedule back, built against a hall
+    schedule that no longer exists: `slots != before` is what catches that. The
+    overlap check skips the first slot, the study's picture now, which is kept
+    whatever the hall shows.
+    """
+    leaving, x, y = mastered("Leaving"), mastered("X"), mastered("Y")
+    # Named to come after the hall: walls are reconciled in name order.
+    study = display.add_wall(name="Upstairs").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
+    display.activate_theme(theme_of(leaving, x, y, name="Hall's").id, wall_id=wall_id)
+    path = wall_settings.manifest_v2_path(study)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["works"][x.id]["mat_color"] = "#010203"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    before = feed(study).slots
+    CatalogueService(store).archive_artwork(leaving.id)
+
+    display.reconcile([leaving.id, x.id])
+
+    assert feed(study).slots != before
+    assert _overlaps(feed(study), feed(wall_id))[1:] == []
+
+
+def test_a_neighbour_that_cannot_be_rebuilt_leaves_the_act_done_and_says_why(
+    display, mastered, theme_of, wall_id, feed, monkeypatch, caplog
+):
+    """The hall's hang is the act asked for; the study keeps the schedule it had, and the journal names it."""
+    x, y = mastered("X"), mastered("Y")
+    study = display.add_wall(name="Study").id
+    display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
+    before = feed(study).slots
+    hall = theme_of(x, y, name="Hall's")
+    built = display.build_manifest
+
+    def refusing(wall, theme_id=None):
+        if wall == study:
+            raise ServiceError("the study's theme cannot be read")
+        return built(wall, theme_id)
+
+    monkeypatch.setattr(display, "build_manifest", refusing)
+    with caplog.at_level(logging.WARNING, logger="arrt.programming.display"):
+        display.activate_theme(hall.id, wall_id=wall_id)
+
+    assert feed(wall_id).playlist_id == hall.id
+    assert feed(study).slots == before
+    assert any("Study" in r.getMessage() and "could not be rebuilt" in r.getMessage() for r in caplog.records)
 
 
 def test_a_clash_the_rule_cannot_avoid_is_said(display, mastered, theme_of, wall_id, caplog):

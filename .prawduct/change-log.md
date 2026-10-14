@@ -66,6 +66,69 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-13: Two walls sharing a few works no longer lock onto one each (#350)
+
+<!-- prawduct: scope=household-schedule-lock -->
+
+**Why:** Two walls whose themes share only a few works could each show one work
+for the whole three-day horizon. Each wall was rebuilt against the other's
+published schedule, which could not move; against a wall showing `b` throughout,
+the only schedule the household rule allows is `a` throughout, and every roll
+answered the other with its mirror image. The owner ruled on 2026-10-13 that a
+republish may rebuild other walls' slots to come, vetoing the wave-4e decision
+that it never moves a wall nobody touched.
+
+**What changed:**
+- `schedule.build` takes `movable` (walls rebuilt after this one, of which only
+  the slot covering now counts) and `align_to` (the slot starts of the wall just
+  built). A kept slot runs on until the slots after it are in step with those
+  boundaries, by under one interval, while the whole slot stays under two and it
+  clashes with no wall it was not already clashing with. Without that, two walls
+  whose slots start seconds apart could not alternate two works: every slot of
+  one would overlap one of each on the other. Not solved, and said in the module
+  docstring: intervals that are not multiples, and a republished wall with
+  shorter slots than a neighbour sharing only two works (the clash is named).
+- `DisplayService._write_v2` rebuilds every wall whose feed shares a work with
+  the wall it writes, in wall-id order, each keeping the work on it now. A
+  neighbour is rebuilt from its hung theme when its feed carries that theme,
+  else from what its feed carries, and never starts fresh. Each is logged by
+  name. A wall sharing no work is untouched, to the byte.
+- A neighbour is movable only if it holds two works no fixed wall holds
+  (`schedule.movable_walls`): with one work, or with its others always shown by
+  a wall outside the pass, it has nothing to step aside to, so its slots to
+  come count as fixed. A neighbour that cannot be rebuilt
+  (a `ServiceError`) keeps its schedule and is named in a warning; the act
+  asked for stands. `_republish` is the one place the roll, a setting change
+  and a pass decide how a wall republishes keeping its picture. Reconciliation
+  reads each wall's feed as it reaches it, so it cannot write a neighbour's
+  old schedule back over its rebuild. The `step_display` docstring no longer
+  says another wall's schedule is left alone. Mixed paces: #374.
+- `Reconciliation.republished` still lists only the walls whose feed changed for
+  the works in question.
+- Tests: these changed meaning, by the ruling.
+  `TestOneFeedPerWall::test_one_walls_rewrite_does_not_touch_another_walls_file`
+  hung one theme on both walls and asserted the study's file never changed; it
+  is now `..._does_not_touch_a_wall_sharing_no_work_with_it` with disjoint
+  themes, and `test_a_wall_sharing_a_work_keeps_the_work_on_it_now` holds the
+  sharing case to its slot now. `test_showing_a_work_now_reaches_one_wall_and_not_the_other`
+  asserted the study's whole schedule unchanged, which passed only because both
+  walls were hung in the same second. It is now `..._and_never_both_at_once`.
+  `test_undo_puts_it_back_on_the_walls_whose_theme_holds_it` asserts each wall
+  rather than their union, which the lock had forced. Three integration tests
+  asserted a second wall hanging the same theme was never rewritten
+  (`test_a_step_on_one_wall_leaves_another_where_it_was`,
+  `test_a_step_leaves_every_other_walls_feed_alone`, now `..._picture_alone`,
+  and `test_a_second_wall_hangs_the_same_theme_without_disturbing_the_first`);
+  each now holds that wall's picture (its first slot's work and start) and, in
+  the last, its works. `test_from_this_theme_takes_it_out_of_that_theme_and_off_that_wall_now`
+  asserted the study carried both works; with the hall showing `stays`
+  throughout, the study rebuilt beside it keeps `stays` only as its picture now,
+  so it asserts the work its comment names, `gone`. Every new test was seen
+  failing against a re-break: no pass, `movable` ignored, no lengthening, each
+  lengthening guard removed, the already-clashing allowance removed, a
+  neighbour rebuilt from its feed alone, and the theme-must-match guard removed. The `_single_work` fixture first covered five
+  hours and could not tell `movable` from its absence; it covers the horizon.
+
 ## 2026-10-13: A wall shows only the shapes it is set to (#370)
 
 <!-- prawduct: scope=wall-shape-filter -->

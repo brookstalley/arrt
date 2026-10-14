@@ -61,16 +61,20 @@ class TestSteppingAWall:
             "work_id": _feed(settings, the_wall)["schedule"]["slots"][0]["work_id"],
         }
 
-    def test_a_step_leaves_every_other_walls_feed_alone(self, http, settings, ready_work, the_wall):
-        """On a one-wall deployment the two behaviours are indistinguishable, which is why this is asserted with two."""
+    def test_a_step_leaves_every_other_walls_picture_alone(self, http, settings, ready_work, the_wall):
+        """On a one-wall deployment the two behaviours are indistinguishable, which is why this is asserted with two.
+
+        The study hangs the same theme, so its slots to come are rebuilt beside
+        this wall's (the owner, 2026-10-13); the work on it now, and since when, stay.
+        """
         study = http.post("/api/walls", json={"name": "The study"}).json()
         theme = _hang(http, the_wall, ready_work("Automat"), ready_work("Chop Suey"))
         http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": study["wall_id"]})
-        untouched = settings.manifest_v2_path(study["wall_id"]).read_bytes()
+        on_the_study = _slot_now(settings, study["wall_id"])
 
         http.post(f"/api/walls/{the_wall['wall_id']}/next")
 
-        assert settings.manifest_v2_path(study["wall_id"]).read_bytes() == untouched
+        assert _slot_now(settings, study["wall_id"]) == on_the_study
 
     def test_a_step_moves_on_from_a_work_shown_now(self, http, services, ready_work, the_wall):
         """A work shown from outside the theme has its one slot, and Skip moves past it."""
@@ -134,8 +138,9 @@ class TestActivationPublishesToTheNamedWallOnly:
     def test_a_second_wall_hangs_the_same_theme_without_disturbing_the_first(self, http, settings, ready_work, the_wall):
         """Two walls may hang one theme, and that must not require duplicating it.
 
-        The first wall's published file is compared before and after, because the
-        failure worth catching is a second activation rewriting it.
+        The first wall's picture and works are compared before and after, because
+        the failure worth catching is a second activation changing what it shows.
+        Its slots to come may be rebuilt beside the second's (the owner, 2026-10-13).
         """
         work = ready_work(title="Automat")
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
@@ -146,7 +151,13 @@ class TestActivationPublishesToTheNamedWallOnly:
 
         http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": study["wall_id"]})
 
-        assert json.loads(settings.manifest_v2_path(the_wall["wall_id"]).read_text(encoding="utf-8")) == first
+        after = json.loads(settings.manifest_v2_path(the_wall["wall_id"]).read_text(encoding="utf-8"))
+        assert after["works"] == first["works"]
+        assert after["playlist"] == first["playlist"]
+        assert _slot_now(settings, the_wall["wall_id"]) == (
+            first["schedule"]["slots"][0]["work_id"],
+            first["schedule"]["slots"][0]["from"],
+        )
         assert settings.manifest_v2_path(study["wall_id"]).is_file()
         themes = http.get("/api/themes").json()["themes"]
         hanging = next(entry for entry in themes if entry["theme"]["theme_id"] == theme["theme_id"])
@@ -253,3 +264,9 @@ def test_a_wall_says_why_it_judged_no_work_for_size_over_http(http, the_wall):
     wall = _wall_named(http, the_wall["name"])
 
     assert (wall["too_small"], wall["sizes_judged_against"], wall["sizes_unjudged"]) == ([], None, "no_display")
+
+
+def _slot_now(settings, wall_id):
+    """The work a wall's feed shows now and since when: its first slot, which a republish keeps."""
+    first = json.loads(settings.manifest_v2_path(wall_id).read_text(encoding="utf-8"))["schedule"]["slots"][0]
+    return first["work_id"], first["from"]
