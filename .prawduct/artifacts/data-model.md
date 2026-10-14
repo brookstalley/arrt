@@ -3049,7 +3049,10 @@ A work for one wall over a time span (from, until), computed for each wall
 against every other wall's published schedule over a horizon of three days (`player-contract.md` § Settled before
 wave 4), so rules such as "no work on two walls
 at once" are central calculations. Dark hours are gaps. The Player follows the
-clock from its cache. Wave 4, with schema major 2.
+clock from its cache. Wave 4, with schema major 2. *(2026-10-13, #350: a wall's
+republish also rebuilds the entries to come of every wall sharing a work with
+it, keeping the entry on each now, so the walls alternate shared works rather
+than each holding one.)*
 
 ### Reported screen *(Programming)*
 

@@ -13,21 +13,39 @@ suite state them as properties rather than sampling them.
 
 **Stability: a republish keeps the slot on the wall now** (`Keep`). Editing a
 theme or rolling the horizon forward must not swap the picture mid-slot, so the
-slot covering *now* in the last published schedule is carried over unchanged and
-the new schedule starts where it ends. The acts that *mean* "change what is on the
+slot covering *now* in the last published schedule is carried over, its work and
+its start unchanged, and the new schedule starts where it ends (a household pass
+may run it on a little; below). The acts that *mean* "change what is on the
 wall" — showing a work now, skipping on, hanging a theme — start fresh at *now*
 instead (`StartFresh`).
 
 **The household rule: no work on two walls at the same moment** (the owner,
 2026-10-08, `re-architecture.md` § Order of work). One wall is built at a time,
-against the slots every other wall has already published, which cannot move:
-a wall's republish is the common case, and moving another wall's published
-schedule to make room would swap a picture nobody asked to change. So
-the rule is: never choose a work whose span overlaps that work's span on another
-wall, if any other work is available. When none is, as with one work hanging on
-two walls, the wall shows it anyway and the clash is returned by name. A wall left
-dark to satisfy a rule about variety would be the worse failure, and a clash
-nobody hears about would be the silent one.
+against the slots every other wall has published: never choose a work whose span
+overlaps that work's span on another wall, if any other work is available. When
+none is, as with one work hanging on two walls, the wall shows it anyway and the
+clash is returned by name. A wall left dark to satisfy a rule about variety would
+be the worse failure, and a clash nobody hears about would be the silent one.
+
+**A wall sharing works with the one republished is rebuilt with it** (the owner,
+2026-10-13). Built against the other walls' whole schedules, two walls sharing
+two works lock: one shows the first throughout because the other shows the
+second throughout, and each rebuild of either answers the other with its mirror
+image. So the caller rebuilds them as a pass. The wall republished is built
+against only the slot covering now on each wall about to be rebuilt (`movable`),
+since nothing after it is fixed yet; each of those is then rebuilt keeping that
+slot, against the walls already rebuilt, with its slot now lengthened to the next
+boundary of the wall just built, in step with its slots, where that is cheap and
+clashes with nothing (`align_to`). Two walls whose slots start seconds apart
+could otherwise not alternate two works at all: every slot of one would overlap
+one of each on the other. Nothing on any screen changes: the slot covering now
+keeps its work and its start.
+
+**What a pass cannot do.** It lines walls up only where one interval is a
+multiple of the other. And it builds the republished wall first, so where that
+wall's slots are shorter than a neighbour's and the two share nothing else, a
+neighbour's long slot spans both works and the clash is named: the rule is kept
+on the house's ordinary case, walls at one pace, and said where it gives way.
 """
 
 import random
@@ -110,6 +128,8 @@ def build(
     published: Mapping[str, Sequence[Slot]],
     seed: str,
     also_showable: Collection[str] = (),
+    movable: Collection[str] = (),
+    align_to: Sequence[datetime] = (),
 ) -> Schedule:
     """One wall's schedule from `now` (or from the kept slot) to the end of the horizon.
 
@@ -122,6 +142,12 @@ def build(
     now from outside the theme), so a theme edit does not cut it short. `seed`
     makes the shuffle reproducible, so a test and a rebuild from the same inputs
     agree.
+
+    `movable` names other walls about to be rebuilt after this one, so only the
+    slot covering now on each counts against this wall. `align_to` is the slot
+    starts of the wall just built: a kept slot is lengthened to the first of them
+    at or after its end, when that is less than one slot away and its work is
+    shown nowhere else meanwhile, so the slots after it line up with that wall's.
 
     The last slot ends at the horizon even when that cuts it short: every slot
     must lie inside the horizon (`player-contract.md` § Rules a schema cannot
@@ -140,12 +166,19 @@ def build(
     now = now.replace(microsecond=0)
     length = timedelta(seconds=slot_seconds)
     rng = random.Random(seed)  # noqa: S311 -- an order for pictures, not a secret
-    busy = _Busy({other: slots for other, slots in published.items() if other != wall_id})
+    busy = _Busy(
+        {
+            other: [slot for slot in slots if slot.covers(now)] if other in movable else slots
+            for other, slots in published.items()
+            if other != wall_id
+        }
+    )
 
     slots: list[Slot] = []
     clashes: list[Clash] = []
     kept = _kept(published.get(wall_id, ()), now, {*work_ids, *also_showable}) if isinstance(start, Keep) else None
     if kept is not None:
+        kept = _lengthened(kept, align_to, length, busy)
         horizon_from = kept.start
         slots.append(kept)
         # Checked again, not trusted: the other walls may have been rebuilt since
@@ -188,6 +221,39 @@ def _kept(previous: Sequence[Slot], now: datetime, held: Collection[str]) -> Slo
         if slot.covers(now) and slot.work_id in held:
             return slot
     return None
+
+
+def _lengthened(kept: Slot, align_to: Sequence[datetime], length: timedelta, busy: _Busy) -> Slot:
+    """The kept slot, run on until the slots after it are in step with the other wall's, where that is cheap.
+
+    In step: the slots after it end on that wall's boundaries, the first boundary
+    at or after its end being reached a whole number of this wall's slots on. So
+    it moves by less than one slot, and walls whose intervals are equal, or one a
+    multiple of the other, change pictures together. Cheap is the whole slot
+    staying under two of this wall's intervals. Bounded by its start rather than
+    by how far it moves: a pass comes with every step on the other wall, and
+    each could otherwise lengthen the same slot again.
+
+    It clashes with no wall it was not already clashing with as it ended. One
+    it was is a clash nothing could have avoided (two walls kept on the one
+    work both could show), and running it on under one slot is the lesser
+    failure: left out of step, the next slot would overlap both of that wall's
+    works when the two walls share only two.
+    """
+    boundary = next((at for at in sorted(align_to) if at >= kept.until), None)
+    if boundary is None:
+        return kept
+    until = kept.until + (boundary - kept.until) % length
+    if until - kept.start >= 2 * length:
+        return kept
+    already = {clash.other_wall_id for clash in busy.clashes(kept.work_id, kept.until - _INSTANT, kept.until)}
+    if {clash.other_wall_id for clash in busy.clashes(kept.work_id, kept.until, until)} - already:
+        return kept
+    return Slot(kept.work_id, kept.start, until)
+
+
+#: The smallest span the schedule names: its instants are whole seconds.
+_INSTANT: Final[timedelta] = timedelta(seconds=1)
 
 
 class _Busy:

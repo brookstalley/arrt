@@ -8,6 +8,8 @@ a theme and never reach the wall with nothing saying so.
 """
 
 import json
+import logging
+from datetime import UTC, datetime
 
 import pytest
 
@@ -529,7 +531,7 @@ def test_building_an_unknown_theme_names_the_id_it_could_not_find(display, wall_
 
 
 class TestOneFeedPerWall:
-    """Each wall gets its own document, and one room's rewrite leaves the rest alone.
+    """Each wall gets its own document, and one room's rewrite leaves alone every wall sharing no work with it.
 
     **This is the property the per-file decision was made for.** A Player polls
     its wall's feed by ETag about once a second, so a shared file would change
@@ -554,14 +556,16 @@ class TestOneFeedPerWall:
         assert json.loads(wall_settings.manifest_v2_path(living_room).read_text())["playlist"]["name"] == "Late night"
         assert json.loads(wall_settings.manifest_v2_path(study).read_text())["playlist"]["name"] == "Surrealists"
 
-    def test_one_walls_rewrite_does_not_touch_another_walls_file(self, display, ready_work, theme_of, wall_settings, two_walls):
+    def test_one_walls_rewrite_does_not_touch_a_wall_sharing_no_work_with_it(
+        self, display, ready_work, theme_of, wall_settings, two_walls
+    ):
         """**The bytes and the mtime, not just the parse.** A step or a sync in the
-        living room is a republish of the living room alone; touching the study's
-        file at all would change its ETag and wake its Player for nothing."""
+        living room touches the study's file only when a work could be on both at
+        once; touching it otherwise would change its ETag and wake its Player for
+        nothing. (A wall that does share a work is rebuilt beside it: the next test.)"""
         living_room, study = two_walls
-        theme = theme_of(ready_work("Nighthawks"), ready_work("Automat"))
-        display.activate_theme(theme.id, wall_id=living_room)
-        display.activate_theme(theme.id, wall_id=study)
+        display.activate_theme(theme_of(ready_work("Nighthawks"), ready_work("Automat")).id, wall_id=living_room)
+        display.activate_theme(theme_of(ready_work("The Elephants"), name="Surrealists").id, wall_id=study)
         untouched = wall_settings.manifest_v2_path(study)
         before = (untouched.stat().st_mtime_ns, untouched.read_bytes())
 
@@ -571,19 +575,38 @@ class TestOneFeedPerWall:
 
         assert (untouched.stat().st_mtime_ns, untouched.read_bytes()) == before
 
-    def test_showing_a_work_now_reaches_one_wall_and_not_the_other(self, display, ready_work, theme_of, feed, two_walls):
-        """Multi-hop: the work is published first on one wall, and the neighbour's schedule is as it was."""
+    def test_a_wall_sharing_a_work_keeps_the_work_on_it_now(self, display, ready_work, theme_of, feed, two_walls, caplog):
+        """Its slots to come are rebuilt beside the living room (the owner, 2026-10-13); its picture now is not."""
         living_room, study = two_walls
         first, second = ready_work("Nighthawks"), ready_work("Automat")
         theme = theme_of(first, second)
         display.activate_theme(theme.id, wall_id=living_room)
         display.activate_theme(theme.id, wall_id=study)
-        study_before = feed(study).slots
+        on_the_study = feed(study).on_the_wall(datetime.now(UTC))
 
-        display.show_work_now(living_room, second.id)
+        with caplog.at_level(logging.INFO, logger="arrt.programming.display"):
+            display.show_work_now(living_room, second.id)
 
         assert feed(living_room).slots[0].work_id == second.id
-        assert feed(study).slots == study_before
+        kept = feed(study).on_the_wall(datetime.now(UTC))
+        assert (kept.work_id, kept.start) == (on_the_study.work_id, on_the_study.start)
+        assert any("The study" in r.getMessage() and "rebuilt beside" in r.getMessage() for r in caplog.records)
+
+    def test_showing_a_work_now_reaches_one_wall_and_never_both_at_once(self, display, ready_work, theme_of, feed, two_walls):
+        living_room, study = two_walls
+        first, second, third = ready_work("Nighthawks"), ready_work("Automat"), ready_work("Chop Suey")
+        theme = theme_of(first, second, third)
+        display.activate_theme(theme.id, wall_id=living_room)
+        display.activate_theme(theme.id, wall_id=study)
+        # Not the study's work now: showing that would be a clash nothing could avoid, and is named.
+        on_the_study = feed(study).on_the_wall(datetime.now(UTC)).work_id
+        shown = next(work.id for work in (first, second, third) if work.id != on_the_study)
+
+        display.show_work_now(living_room, shown)
+
+        assert feed(living_room).slots[0].work_id == shown
+        for slot in feed(study).slots:
+            assert not any(s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) for s in feed(living_room).slots)
 
     def test_the_one_wall_case_is_named_by_its_file(self, display, ready_work, theme_of, wall_settings, wall_id):
         """The document itself carries no wall: the *filename* names it, which keeps

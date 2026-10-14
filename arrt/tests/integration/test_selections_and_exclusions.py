@@ -218,8 +218,10 @@ class TestNotThisOneAgain:
         assert response.status_code == 200, response.text
         assert response.json()["left_theme"]["name"] == "Late night"
         assert published(settings, the_wall["wall_id"]) == {stays.id}
-        # The other wall hangs another theme, which still holds it.
-        assert published(settings, study["wall_id"]) == {gone.id, stays.id}
+        # The other wall hangs another theme, which still holds it. Not `stays`
+        # as well: this wall now shows it throughout, so the study, rebuilt
+        # beside it, keeps it only if it is the study's picture now.
+        assert gone.id in published(settings, study["wall_id"])
         assert http.get(f"/api/works/{gone.id}").json()["work"]["status"] == "accepted"
 
     def test_from_every_wall_keeps_it_off_every_wall_and_in_the_library(self, http, settings, the_wall, two_walls_hanging):
@@ -249,10 +251,8 @@ class TestNotThisOneAgain:
     def test_undo_puts_it_back_on_the_walls_whose_theme_holds_it(self, http, settings, the_wall, two_walls_hanging):
         """The hung theme's feed follows it (the owner, 2026-10-10), so the undo needs no re-hang.
 
-        Asserted across the two walls rather than on each: they share only these
-        two works, and the household rule then lets each wall show one of them
-        for the whole horizon, so which wall names the returning work is the
-        schedule's choice. Both feeds are republished either way.
+        On each wall: they share only these two works, and the walls republished
+        one after the other used to lock, one showing each for the whole horizon.
         """
         gone, stays, study = two_walls_hanging
         http.post(f"/api/walls/{the_wall['wall_id']}/not-again", json={"artwork_id": gone.id, "scope": "every_wall"})
@@ -264,7 +264,7 @@ class TestNotThisOneAgain:
 
         assert response.status_code == 200
         assert response.json()["exclusions"] == []
-        assert gone.id in set().union(*(published(settings, wall_id) for wall_id in walls))
+        assert all(gone.id in published(settings, wall_id) for wall_id in walls)
         assert all(settings.manifest_v2_path(wall_id).read_bytes() != before[wall_id] for wall_id in walls)
 
     def test_an_excluded_work_cannot_be_shown_now(self, http, services, the_wall, two_walls_hanging):

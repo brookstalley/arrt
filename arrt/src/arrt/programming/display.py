@@ -315,6 +315,18 @@ class NotAgain:
 
 
 @dataclass(frozen=True, slots=True)
+class _Beside:
+    """A wall rebuilt in a household pass, after the wall republished (`schedule` module docstring).
+
+    `movable` is the walls still to be rebuilt after this one; `align_to` is the
+    slot starts of the wall republished.
+    """
+
+    movable: frozenset[str]
+    align_to: tuple[datetime, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Reconciliation:
     """What one reconciliation found and did, so a caller and a test can read it rather than the journal."""
 
@@ -322,7 +334,9 @@ class Reconciliation:
     asked: int
     #: The ids the Library refused, whether or not any wall was carrying them.
     refused: Sequence[str]
-    #: Walls whose published feed was rewritten.
+    #: Walls whose published feed was rewritten for the works in question. A wall
+    #: sharing a work with one of them has its slots to come rebuilt too
+    #: (`_write_v2`), and is not listed for that.
     republished: Sequence[str]
 
     @property
@@ -1376,10 +1390,11 @@ class DisplayService:
         converges within the display plane's poll interval, and saying anything
         stronger would assert something this plane cannot observe.
 
-        **It takes a wall and writes that wall's feed, and no other's**, so
-        hanging a theme in the study leaves the living room's file untouched. The
-        household rule reads every other wall's published schedule, and moves
-        none of them (`_write_v2`).
+        **It writes this wall's feed, and another wall's only when the two share
+        a work**, so hanging a theme in the study leaves the living room's file
+        untouched unless a work could be on both at once. A wall that shares one
+        has its slots to come rebuilt beside this one, keeping the work on it
+        now (`_write_v2`).
         """
         # Built and written inside one transaction, which is also what serialises
         # every rewrite of a published feed: a step or a reconciliation
@@ -1628,7 +1643,7 @@ class DisplayService:
     # or keep what is carried when nothing is hung). Each reads the wall's published feed back rather than
     # a copy of its own, for the reason `manifest/v2.py` gives.
 
-    def _sync_v2(self, build: ManifestBuild) -> None:
+    def _sync_v2(self, build: ManifestBuild, *, beside: _Beside | None = None) -> None:
         """Publish the wall's feed from a build.
 
         The same theme as the feed already carries keeps the slot on the wall now
@@ -1654,6 +1669,7 @@ class DisplayService:
             slot_seconds=build.rotation_interval_seconds,
             shuffle=build.shuffle,
             start=start,
+            beside=beside,
         )
 
     def _restart(self, wall_id: str, *, pinned: PlayableWork | None) -> str:
@@ -1735,7 +1751,15 @@ class DisplayService:
                 return
             self._rebuild_v2(wall_id, previous, works=dict(previous.works), start=Keep())
 
-    def _rebuild_v2(self, wall_id: str, previous: Published, *, works: Mapping[str, Mapping[str, Any]], start: Start) -> Schedule:
+    def _rebuild_v2(
+        self,
+        wall_id: str,
+        previous: Published,
+        *,
+        works: Mapping[str, Mapping[str, Any]],
+        start: Start,
+        beside: _Beside | None = None,
+    ) -> Schedule:
         """Rebuild a wall's feed from what it carries now: no work arrives that is not already in it.
 
         A horizon rolled forward or a work withdrawn cycles through the works
@@ -1752,6 +1776,7 @@ class DisplayService:
             slot_seconds=slot_seconds,
             shuffle=shuffle,
             start=start,
+            beside=beside,
         )
 
     def _v2_order(self, playlist_id: str, works: Mapping[str, Any]) -> list[str]:
@@ -1777,18 +1802,36 @@ class DisplayService:
         slot_seconds: int,
         shuffle: bool,
         start: Start,
+        beside: _Beside | None = None,
     ) -> Schedule:
         """Schedule the wall against every other wall's published feed, and publish it.
 
         `order` is the cycle; any other work in `works` may only finish the slot
         it is in now, or be the one a `StartFresh` names.
+
+        **Then every wall whose feed shares a work with this one is rebuilt beside
+        it** (the owner, 2026-10-13): this wall is built against only the slot on
+        each of them now, and each is then rebuilt keeping that slot, lined up
+        with this wall's slots. Rebuilt one at a time against the others' whole
+        schedules, two walls sharing two works lock, each showing one of them for
+        a whole horizon (`schedule` module docstring). A wall rebuilt `beside`
+        another is one step of that pass, and rebuilds no neighbours of its own,
+        so a pass touches each wall once.
         """
         now = datetime.now(UTC)
-        published = {
-            wall.id: feed.slots
+        feeds = {
+            wall.id: feed
             for wall in self._store.list_walls()
             if (feed := read_published_v2(self._settings.manifest_v2_path(wall.id))) is not None
         }
+        published = {other: feed.slots for other, feed in feeds.items()}
+        if beside is None:
+            neighbours = sorted(
+                other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
+            )
+            movable, align_to = frozenset(neighbours), ()
+        else:
+            neighbours, movable, align_to = [], beside.movable, beside.align_to
         cycle = [work_id for work_id in order if work_id in works]
         schedule = build_schedule(
             wall_id=wall_id,
@@ -1800,6 +1843,8 @@ class DisplayService:
             published=published,
             seed=f"{wall_id}:{now.isoformat()}",
             also_showable=set(works) - set(cycle),
+            movable=movable,
+            align_to=align_to,
         )
         feed = Feed(
             playlist_id=playlist[0],
@@ -1818,7 +1863,35 @@ class DisplayService:
                 self.get_wall(wall_id).name,
                 ", ".join(f"{work_id} (with {other})" for work_id, other in shared),
             )
+        starts = tuple(slot.start for slot in schedule.slots)
+        for at, neighbour in enumerate(neighbours):
+            self._rebuild_beside(neighbour, wall_id, _Beside(movable=frozenset(neighbours[at + 1 :]), align_to=starts))
         return schedule
+
+    def _rebuild_beside(self, wall_id: str, republished: str, beside: _Beside) -> None:
+        """Rebuild a wall's slots to come in a household pass, keeping the work on it now.
+
+        As its roll would: from its hung theme when its feed carries that theme,
+        so a theme with more works than one horizon names is not narrowed to the
+        ones it named; else from what its feed carries. Never a fresh start, which
+        would change the picture on a wall nobody touched. The work on it now
+        changes only when that work has left the wall, as at any rebuild.
+        """
+        feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if feed is None:
+            return
+        assignment = self._store.get_assignment(wall_id)
+        if assignment is not None and assignment.theme_id == feed.playlist_id:
+            self._sync_v2(self.build_manifest(wall_id, assignment.theme_id), beside=beside)
+        else:
+            self._rebuild_v2(wall_id, feed, works=dict(feed.works), start=Keep(), beside=beside)
+        # Said, because a wall's feed changing when nobody touched that wall is
+        # otherwise a mystery in the journal.
+        log.info(
+            "Wall %r: its slots to come were rebuilt beside wall %r, which shares works with it.",
+            self.get_wall(wall_id).name,
+            self.get_wall(republished).name,
+        )
 
     def _reconcile_v2(
         self,

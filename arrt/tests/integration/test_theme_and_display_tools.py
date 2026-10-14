@@ -417,7 +417,11 @@ async def test_taking_down_a_wall_holding_nothing_is_refused(server_url, wall):
 
 
 async def test_a_step_on_one_wall_leaves_another_where_it_was(server_url, ready_work, wall, wall_settings):
-    """A `next` aimed at the living room republishes the living room alone."""
+    """A `next` aimed at the living room moves the living room's picture alone.
+
+    The study hangs the same theme, so its slots to come are rebuilt beside the
+    living room's (the owner, 2026-10-13); the work on it now, and since when, stay.
+    """
     added, errored = await call(server_url, "art_display", action="add_wall", name="Study")
     assert errored is False
     study = added["wall"]["wall_id"]
@@ -426,13 +430,19 @@ async def test_a_step_on_one_wall_leaves_another_where_it_was(server_url, ready_
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
     for room in (wall, study):
         await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=room)
-    untouched = wall_settings.manifest_v2_path(study).read_bytes()
+    on_the_study = _slot_now(wall_settings, study)
 
     stepped, errored = await call(server_url, "art_display", action="next", wall_id=wall)
 
     assert errored is False
     assert stepped["wall_id"] == wall
-    assert wall_settings.manifest_v2_path(study).read_bytes() == untouched
+    assert _slot_now(wall_settings, study) == on_the_study
+
+
+def _slot_now(wall_settings, wall_id):
+    """The work a wall's feed shows now and since when: its first slot, which a republish keeps."""
+    first = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())["schedule"]["slots"][0]
+    return first["work_id"], first["from"]
 
 
 async def test_two_walls_may_hang_the_same_theme(server_url, wall):

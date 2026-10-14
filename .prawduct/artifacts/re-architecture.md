@@ -303,8 +303,11 @@ Programming publishes a **time-anchored schedule** for each wall: this work from
 computes each wall against every other wall's published schedule, so "no work
 on two walls at once", "change the whole house together" and "spread this
 playlist across rooms" become central calculations. *(Wave 4e builds one wall
-at a time against the others' published slots, so a republish never moves a
-wall nobody touched: `build-plan-wave-4e-schedule.md`.)* The Player follows the clock from its cache, so an unreachable
+at a time against the others' published slots. Direction changed 2026-10-13, the
+owner, #350: built that way, two walls sharing two works locked onto one each
+for a whole horizon, so a republish now rebuilds the slots to come of every wall
+sharing a work with it, keeping the work on each now:
+`build-plan-household-schedule-lock.md`.)* The Player follows the clock from its cache, so an unreachable
 server still never blanks a wall. It just runs to the end of the horizon.
 
 - **The dark hours are gaps in the schedule.** That settles who owns the
