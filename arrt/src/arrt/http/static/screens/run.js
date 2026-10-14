@@ -293,6 +293,22 @@ function scheduleRunPoll(runId, generation, { done }) {
   schedulePollUnlessDone({ view: "get", detailId: runId, generation, intervalMs: RUN_POLL_MS, done });
 }
 
+/* The Cost row's words: this Get's own spend, and the family's where it
+ * differs. A finished Get with nothing recorded says so; one still running and
+ * not yet billed leaves the row out, its estimate standing below. */
+function costWords(own, family, finished) {
+  const retried = family && Number(family.cost_usd) > 0 ? dollars(family.cost_usd) : null;
+  if (own === null || own === undefined) {
+    // A cancelled Get can record nothing of its own while the Gets that retried
+    // it spent; that total must not vanish with the empty row.
+    if (retried) return `None recorded for this Get, ${retried} with the Gets that retried it`;
+    return finished ? "None recorded" : null;
+  }
+  const mine = dollars(own);
+  if (!family || dollars(family.cost_usd) === mine) return mine;
+  return `${mine}, ${dollars(family.cost_usd)} with the Gets that retried it`;
+}
+
 /* The Get's works section this screen last painted, and under which navigation.
  *
  * Handed to the next paint of the same page so the cards whose works have not
@@ -408,10 +424,10 @@ export async function viewRun(runId, generation) {
       // Said, not swallowed — the same call the gate estimate makes above, for
       // the same reason. Losing the rollup must not cost the curator the costs
       // panel, and it must not do so in silence either: this is the only place
-      // the family total appears, so a panel that quietly drops the row leaves
-      // "Spent by this run alone" reading as what asking cost, which is the
-      // exact misreading that row was added to prevent.
-      familySpendProblem = `The total including every Get again could not be read: ${failure.message}`;
+      // the family total appears, so a panel that quietly drops it leaves this
+      // Get's own cost reading as what asking cost, which is the exact
+      // misreading the family total was added to prevent.
+      familySpendProblem = `What it cost with the Gets that retried it could not be read: ${failure.message}`;
     }
     if (!pollIsCurrent(pollGeneration)) return;
   }
@@ -517,28 +533,18 @@ export async function viewRun(runId, generation) {
     el("div", { class: "panel" }, [
       el("h2", { text: "What it cost" }),
       facts([
-        // Named for what it actually is. This figure is written when phase 1
-        // finishes and the work count is known, so it prices *resolving the work
-        // list* — labelling it as the estimate made before starting would put
-        // the phase-1 price under a heading describing phase 2.
-        ["Estimated to find the images", run.estimated_cost_usd === null ? null : dollars(run.estimated_cost_usd)],
-        // Labelled as this run's own, because that is what it is: the record
-        // carries `run_cost(run_id).direct`. Left unqualified it reads as the
-        // whole cost of having asked, which it is not the moment a re-search
-        // descends from it.
-        ["Spent by this Get alone", run.actual_cost_usd === null ? null : dollars(run.actual_cost_usd)],
-        // The family total — what asking for this cost altogether, re-searches
-        // included. A run billed little whose re-searches cost ten times more is
-        // exactly the case the two figures exist to keep apart, and it is the
-        // only place this number appears.
-        [
-          "Spent including every Get again",
-          familySpend === null ? null : dollars(familySpend.cost_usd),
-        ],
-        // Two numbers, never a verdict: the usage is this run's history and the
-        // allowance is the deployment's setting as it stands now.
-        // The model's own web lookups while choosing works, not the free search.
-        ["Web lookups used", `${view.searches.used} of an allowance of ${view.searches.allowance}`],
+        // What this Get cost, in one row (`ux-review-2026-10.md` finding E12:
+        // four rows said "under a cent"). The family total — this Get and the
+        // Gets that retried it — joins the row only where it says something
+        // more: a Get billed little whose retries cost ten times as much is the
+        // case it exists for, and an equal one is the same number twice.
+        ["Cost", costWords(run.actual_cost_usd, familySpend, run.is_terminal)],
+        // Only while it runs: the estimate prices what is still to come, and
+        // the lookups are the model's own while it chooses, its allowance the
+        // deployment's setting. Once it has finished, the cost above is the
+        // answer and these are history the curator does not act on.
+        ["Estimated to find the images", run.is_terminal || run.estimated_cost_usd === null ? null : dollars(run.estimated_cost_usd)],
+        ["Web lookups used", run.is_terminal ? null : `${view.searches.used} of an allowance of ${view.searches.allowance}`],
       ]),
       // The row's absence, said out loud. `facts` drops a null pair entirely, so
       // without this the total simply is not there — and a panel showing only

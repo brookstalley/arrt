@@ -389,7 +389,7 @@ function skeletonScreen(density) {
 
 /* -- the rails -------------------------------------------------------------- */
 
-function facetRail(groups, chosen) {
+function facetRail(groups, chosen, narrowed) {
   const rails = [];
   for (const kind of FACET_KINDS) {
     const group = groups.find((candidate) => candidate.kind === kind);
@@ -398,6 +398,7 @@ function facetRail(groups, chosen) {
     // whose count has fallen to nothing under the current filter — this kind has
     // never had one, and six empty controls would be six dead ends.
     if (!group || !group.options.length) continue;
+    if (offersNothing(group.options, narrowed)) continue;
     rails.push(
       el("div", { class: "rail" }, [
         el("h2", { text: FACET_LABELS[kind] || kind }),
@@ -418,6 +419,20 @@ function facetRail(groups, chosen) {
     );
   }
   return rails;
+}
+
+/* A group whose every option counts nothing in the whole collection is a
+ * heading over dead controls (`ux-review-2026-10.md` finding E7: *Walls* over a
+ * lone "Not on any wall (0)"), so the group is left out.
+ *
+ * **Only while nothing narrows the counts.** Under a theme, a facet or a search,
+ * an option at zero means "none in this slice", and the disabled-not-hidden
+ * rule (`facetOption`) keeps it, group and all: a vocabulary that vanished as
+ * filters were applied would read as the collection having lost it. One chosen
+ * keeps its group too, so the curator can undo it. `narrowed` is
+ * `railContents`'s reading of the address. */
+function offersNothing(options, narrowed) {
+  return !narrowed && options.every((option) => !option.count && !option.selected);
 }
 
 function facetOption(kind, option, chosen, label = option.value) {
@@ -466,8 +481,9 @@ function fitRail(fits, chosen) {
 /* *Not on any wall*: one toggle, drawn once some work is on a wall (its count
  * is below the works the rest of the filter selects) or it is chosen. Before
  * anything hangs, every work is on no wall and the option would select them all. */
-function wallRail(option, total) {
+function wallRail(option, total, narrowed) {
   if (!option || (option.count >= total && !option.selected)) return null;
+  if (offersNothing([option], narrowed)) return null;
   return el("div", { class: "rail" }, [
     el("h2", { text: "Walls" }),
     el("ul", { class: "rail-options" }, [
@@ -493,8 +509,8 @@ function wallRail(option, total) {
  * would select given every other filter, disabled at zero — the facet rule,
  * for the reason the facet rule exists. Themes themselves are reached from
  * Library › Themes, not from here (the owner's ruling on #169). */
-function themeRail(themes) {
-  if (!themes.length) return null;
+function themeRail(themes, narrowed) {
+  if (!themes.length || offersNothing(themes, narrowed)) return null;
   return el("div", { class: "rail" }, [
     el("h2", { text: "Theme" }),
     el("ul", { class: "rail-options" }, themes.map((option) => el("li", {}, [themeOption(option)]))),
@@ -984,11 +1000,12 @@ function staleThemeNote() {
  * drawn empty when there is neither, since a rail with no group in it reads as
  * a screen that failed to load its filters. */
 function railContents(page, chosen) {
+  const narrowed = anyFacetChosen(chosen) || page.themes.some((option) => option.selected) || Boolean(state.params.q);
   const groups = [
-    themeRail(page.themes),
+    themeRail(page.themes, narrowed),
     fitRail(page.fits || [], chosen),
-    wallRail(page.not_on_wall, page.total),
-    ...facetRail(page.facets, chosen),
+    wallRail(page.not_on_wall, page.total, narrowed),
+    ...facetRail(page.facets, chosen, narrowed),
   ].filter(Boolean);
   return groups.length
     ? groups

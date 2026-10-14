@@ -66,6 +66,50 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-14: Each screen says one thing once (#359)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 39 and 44), copy explained the system
+rather than the art:
+- Status said one fact three times.
+- Topic pages were titled "Wikidata Q7049".
+- An unmatched artist was told so three times, with a QID.
+- A Get's cost took four rows.
+- History listed forty near-identical rows.
+- The rail drew a heading over one dead option.
+
+**What changed:**
+- **Status.** A wall's panel says "Last heard from …" once. The server's
+  sentence (the display plane, the file path) shows only under `?debug`. The
+  page summary shows only over more than one wall.
+- **Topic.** "Topic" until a name arrives, never the bare item, and the tab
+  follows the name. The link reads "On Wikidata".
+- **Artist.** An unmatched artist is told so once, by the server's note. Where
+  people are offered, their list asks "Is it one of these?". The identity line
+  there shows "Wikidata:" and *Edit*. A candidate's item is only the link's
+  target.
+- **Get.** One *Cost* row; the family total joins it only where it differs,
+  and is kept when the Get recorded nothing of its own. The estimate and the
+  lookups show only while the Get runs.
+- **History.** Three or more consecutive verdicts of one kind from one Get are
+  one row, with the works behind *Which works*.
+- **Artworks' rail.** A group whose every option counts zero is left out
+  while nothing narrows the counts.
+- **Clients and Taste.** Their leads are cut.
+- **Kept, with reasons in the plan:** Taste's list of ways (pinned), Wanted's
+  empty state (pinned), *Clients* as the page's name.
+- **Open for the owner:** one set of verbs for a taste judgment.
+- **Tests changed in meaning:** re-pointed to the new wording, each keeping
+  its check.
+  - In `test_the_run_view.py`, the cost rows became one.
+  - `test_fact_lists_on_a_phone.py` measures a running Get, and its floor of
+    facts is 3.
+  - `test_topics.py` and `test_the_artist_page.py`: no bare item. The
+    candidates test now checks link targets.
+  - `test_the_debug_view.py` waits on the wall's panel.
+  - `test_names_that_link.py`'s scroll allows a sub-pixel.
+
 ## 2026-10-14: The Theme page shows its art, at two boxes a row (#352)
 
 <!-- prawduct: scope=ux-second-walk -->

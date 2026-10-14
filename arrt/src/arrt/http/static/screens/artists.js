@@ -184,7 +184,7 @@ async function oneArtist(artistId, generation) {
         ["Life", lifeDates(artist)],
         ["Nationality", artist.display_nationality || artist.nationality],
       ]),
-      identityControl("artist", artist, () => refresh()),
+      identityControl("artist", artist, () => refresh(), { quietWhenUnmatched: true }),
       about,
       tasteControls(artist),
     ]),
@@ -376,13 +376,15 @@ function heldCard(work, selection) {
  * is drawn again: with an item, *Their work* lists what Wikidata does. */
 function candidateList(candidates, artistId) {
   return el("div", { class: "stack" }, [
-    el("p", { id: "candidates", text: "Wikidata knows these people by that name. If one is them, say so:" }),
+    el("p", { id: "candidates", text: "Is it one of these? Wikidata knows them by that name." }),
     el("ul", { class: "results-list", "aria-labelledby": "candidates" }, candidates.map((person) => {
       const life = lifeDates(person);
       return el("li", {}, [
         el("span", { text: named(person.name, person.qid) }),
         life ? el("span", { class: "muted", text: ` ${life}` }) : null,
-        el("span", { class: "muted" }, [" · ", wikidataLink(person.qid, person.qid)]),
+        // The item is the link's target, not words on the page: a curator
+        // reads who they are, and opens Wikidata to check.
+        el("span", { class: "muted" }, [" · ", wikidataLink(person.qid, "on Wikidata")]),
         person.years_agree ? el("span", { class: "muted", text: " · their years agree" }) : null,
         " ",
         el("button", {
@@ -421,9 +423,14 @@ function paintRegistry(section, about, view, { name = null, artistId = null, sel
   const heading = section.querySelector("h2");
   if (view.state !== "known") {
     const candidates = view.candidates || [];
+    // Said once: the server's note says why nothing is listed, and where
+    // people are offered instead, their list asks the question it would have
+    // answered. The line under the name does not repeat it on this page
+    // (`identityControl`'s `quietWhenUnmatched`).
+    const why = view.state === "no_identity" && candidates.length ? null : view.note;
     fill(section,
       heading,
-      el("p", { class: "note", text: view.note }),
+      why ? el("p", { class: "note", text: why }) : null,
       candidates.length && artistId ? candidateList(candidates, artistId) : null,
     );
     return;

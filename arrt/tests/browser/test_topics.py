@@ -535,7 +535,8 @@ class TestTheTopicPage:
 
         assert escaped.count() == 1
         assert ui.page.evaluate("() => window.pwned") is None
-        link = ui.page.locator("#view a:text-is('Wikidata Q7017')")
+        # Worded, with the item as the link's target (#359: no bare item on the page).
+        link = ui.page.locator("#view a:text-is('On Wikidata')")
         assert link.get_attribute("href") == f"https://www.wikidata.org/wiki/{SIXTEENTH}"
 
     def test_an_outage_leaves_the_library_half_standing(self, ui, held, registry):
@@ -744,7 +745,8 @@ class TestWithNoRegistryConfigured:
 
         # The head is the first panel, and says it in its own words, not a section's.
         head = ui.page.locator("#view .panel").first
-        assert head.locator("h1").inner_text() == f"Wikidata {SIXTEENTH}"
+        # No name to give it, so the route's own word, never the bare item (#359).
+        assert head.locator("h1").inner_text() == "Topic"
         assert "WIKIDATA_USER_AGENT" in head.locator("p.note").inner_text()
         for where in (WORKS, ARTISTS):
             assert "WIKIDATA_USER_AGENT" in ui.page.locator(f"{where} p.note").inner_text()

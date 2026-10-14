@@ -433,9 +433,17 @@ class TestAnUnlinkedArtist:
 
         rows = [" ".join(text.split()) for text in _their_work(ui).locator("li").all_inner_texts()]
         assert rows == [
-            f"Mark Rothko 1903–1970 · {ROTHKO} · their years agree This is them",
-            "Mark Rothko 1850–1900 · Q900001 This is them",
+            # The item is each link's target, not words in the row (#359).
+            "Mark Rothko 1903–1970 · on Wikidata · their years agree This is them",
+            "Mark Rothko 1850–1900 · on Wikidata This is them",
         ]
+        targets = _their_work(ui).locator("li a:text-is('on Wikidata')").evaluate_all("(links) => links.map((a) => a.href)")
+        assert [target.rsplit("/", 1)[-1] for target in targets] == [ROTHKO, "Q900001"]
+        # Said once: where people are offered, their list asks the question and
+        # the server's "not matched" note is not said beside it (#359).
+        assert _their_work(ui).locator("p.note").count() == 0
+        assert "Is it one of these?" in _their_work(ui).inner_text()
+        assert "not matched" not in ui.page.locator("#view").inner_text()
         _their_work(ui).locator("li").first.locator("button").click()
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
 

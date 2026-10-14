@@ -134,7 +134,7 @@ function either(parts) {
 function howTasteIsRecorded() {
   const control = (words) => el("em", { text: words });
   return el("div", { class: "taste-help" }, [
-    el("p", { class: "muted", text: "What the product has come to think you like. A judgment is recorded when you:" }),
+    el("p", { class: "muted", text: "What Arrt thinks you like. It learns it when you:" }),
     el("ul", { class: "muted" }, [
       el("li", {}, ["react to an artist or topic Ask offers, with ", ...either(CARD_REACTIONS.map(control)), ";"]),
       el("li", {}, [

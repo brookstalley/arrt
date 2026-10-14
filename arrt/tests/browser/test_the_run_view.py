@@ -222,10 +222,14 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
-    assert "The total including every Get again could not be read" in shown
-    # The panel survives the failure: the two figures beside it are read off the
-    # run record and are still true, so losing the rollup must not cost them.
-    assert "Spent by this Get alone" in shown
+    assert "What it cost with the Gets that retried it could not be read" in shown
+    # The panel survives the failure: the Get's own cost is read off the run
+    # record and is still true, so losing the rollup must not cost it.
+    # *(Since 2026-10-14, #359: one Cost row where "Spent by this Get alone"
+    # was one of four.)*
+    cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
+    assert cost.locator("dt").all_inner_texts() == ["Cost"]
+    assert cost.locator("dd").inner_text() == "$0.01"
 
 
 def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
@@ -258,16 +262,73 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
 
 
 def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
-    """The paired negative — the notice appears on failure and not otherwise."""
+    """The paired negative — the notice appears on failure and not otherwise —
+    and a family total that differs from the Get's own is said beside it.
+
+    *(Since 2026-10-14, #359: in the Cost row, "$0.25 with the Gets that
+    retried it", where "Spent including every Get again" was a row of its own.)*
+    """
     ui = a_finished_run
-    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
 
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
     assert "could not be read" not in shown
-    assert "Spent including every Get again" in shown
+    assert "$0.01, $0.25 with the Gets that retried it" in shown
+
+
+@pytest.fixture
+def a_finished_run_with_nothing_of_its_own(ui):
+    """A Get that finished with no cost recorded of its own, as a cancelled one can."""
+    ui.serve("**/api/estimate?*", an_estimate())
+    ui.serve(
+        f"**/api/runs/{RUN_ID}",
+        a_run_view(
+            run=a_run(
+                status=RunStatus.CANCELLED.value,
+                is_terminal=True,
+                completed_at="2026-08-05T10:05:00+00:00",
+                actual_cost_usd=None,
+            ),
+            works=[a_candidate()],
+        ),
+    )
+    return ui
+
+
+def _cost(ui):
+    return ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts dd").inner_text()
+
+
+def test_a_finished_get_with_nothing_recorded_says_so(a_finished_run_with_nothing_of_its_own):
+    ui = a_finished_run_with_nothing_of_its_own
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0"))
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    assert _cost(ui) == "None recorded"
+
+
+def test_a_get_with_nothing_of_its_own_keeps_what_its_retries_cost(a_finished_run_with_nothing_of_its_own):
+    """The family total is the one figure with no second home; an empty own row must not take it away."""
+    ui = a_finished_run_with_nothing_of_its_own
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    assert _cost(ui) == "None recorded for this Get, $0.25 with the Gets that retried it"
+
+
+def test_a_family_total_equal_to_the_gets_own_is_not_said_twice(a_finished_run):
+    ui = a_finished_run
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.0134"))
+
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+
+    assert "retried" not in ui.text()
+    cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
+    assert cost.locator("dt").all_inner_texts() == ["Cost"]
 
 
 # -- which kind of nothing --------------------------------------------------

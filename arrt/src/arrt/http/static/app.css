@@ -2458,10 +2458,9 @@ button.action:disabled:hover {
 }
 
 /* The label column is as wide as its longest label up to two fifths of the
-   list, and wraps between words past that; the value takes the rest. A label
-   held to one line on a phone ("Spent including every re-search") left the
-   value a column too narrow for "allowance", and `overflow-wrap: anywhere`
-   below then broke the word itself. */
+   list, and wraps between words past that; the value takes the rest. A long
+   label held to one line on a phone left the value a column too narrow for one
+   of its words, and `overflow-wrap: anywhere` below then broke the word itself. */
 dl.facts {
   display: grid;
   grid-template-columns: fit-content(40%) 1fr;
@@ -3511,4 +3510,10 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
 input.theme-position {
   width: 4.5rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* A raw sentence shown under `?debug` carries a path wider than a phone, and
+   breaks anywhere rather than pushing the page sideways. */
+.raw-sentence {
+  overflow-wrap: anywhere;
 }

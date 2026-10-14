@@ -132,10 +132,12 @@ function heartbeatPanel(wall, titles) {
     el("h2", {}, [name]),
     // An observation with its age, never a verdict. A green dot computed from
     // a file that may simply be young is how a health surface starts lying.
-    el("p", { class: "reading-sentence", text: reading.description }),
+    // Said once, in the curator's words: the server's own sentence names the
+    // file it read and "the display plane", and is debug's (ruling 1).
+    reading.reported_at ? el("p", { class: "reading-sentence", text: `Last heard from ${dated(reading.reported_at)}.` }) : null,
+    DEBUG ? el("p", { class: "muted raw-sentence", text: reading.description }) : null,
     facts([
       ["Showing", showingLine(showingOf(reading, titles))],
-      ["Last reported", reading.reported_at ? dated(reading.reported_at) : null],
       ["Problem", reading.problem],
       ...failureFacts(reading.reported),
     ]),
@@ -350,7 +352,9 @@ export async function viewHealth(generation) {
     // used for nothing else: it applies no threshold and reaches no verdict, so
     // deriving a state from it here would be inventing a judgement the plane
     // deliberately declined to make.
-    health.description ? el("p", { class: "note", text: health.description }) : null,
+    // Only over more than one wall: over one it is the wall's own panel said a
+    // second time, a line above it.
+    health.description && (health.walls || []).length > 1 ? el("p", { class: "note", text: health.description }) : null,
     ...heartbeatPanels(health, titles),
     sourcesPanel(health, yields),
     picturesPanel(health),

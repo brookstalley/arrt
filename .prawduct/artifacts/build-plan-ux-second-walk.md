@@ -205,6 +205,51 @@ open.
     - #316 is server work of another kind, so it gets its own plan, which may
       share this branch.
     - Chunks 05 and 06 do not depend on it and are built first.
+  - [DECISION, 06: Status's one name already held] The sidebar's page link
+    and the heading both say "Status", and the masthead carries a state word
+    ("Well", "Unwell"). The *System* section over it is the *arr layout, as
+    in Sonarr. E9's "drop the sidebar entry or its sub-nav" is kept, because
+    `information-architecture.md`'s norm puts the page where Sonarr puts it.
+    What changed:
+    - A wall's panel says "Last heard from …" once. The server's sentence,
+      which names "the display plane" and a file path, is shown only under
+      `?debug`.
+    - The page-top summary shows only over more than one wall.
+  - [DECISION, 06: an unmatched artist is told so once, by the server's note
+    in *Their work*] The identity line on the Artist page shows "Wikidata:"
+    and *Edit*. *Edit* alone at rest is the owner's ruling on #174, pinned on
+    both pages.
+    - When people are offered, their list asks "Is it one of these?" in place
+      of the note.
+    - The server's note stays because the MCP agent reads it too.
+    - The Work page, which has no *Their work* section, keeps "not matched
+      yet".
+    - A candidate's item is the link's target, not words on the page.
+  - [DECISION, 06: the rail leaves out a group whose every option counts
+    zero, only while nothing narrows the counts] Under a theme, facet or
+    search, an option at zero means "none in this slice", and the
+    disabled-not-hidden rule keeps it, as
+    `test_removing_recounts_the_facets_so_none_leads_to_an_empty_grid` pins.
+  - [DECISION, 06: a Get's cost is one *Cost* row] The family total is added
+    in the same row only when it differs ("$0.01, $0.25 with the Gets that
+    retried it"). The estimate and the lookups show only while the Get runs.
+    A finished Get with nothing recorded says "None recorded".
+  - [DECISION, 06: History folds three or more consecutive verdicts of one
+    kind from one Get into one row ("Turned down 28 works from its Get"),
+    with the works behind *Which works*]
+  - [DECISION, 06: kept, with the reason]
+    - **E17, Taste's list of the ways a judgment is recorded.** Kept.
+      `test_the_settings_index.py` pins that the help names every way, so a
+      curator does not look for a control that is not there. Only the
+      third-person lead changed.
+    - **E23, Wanted's empty state naming its controls.** Kept, for the same
+      reason (`test_wanted.py`).
+    - **E15's "pick *Player* and drop *client*".** Kept: *Clients* is the page
+      name in the *arr layout, like Radarr's Download Clients. The intro is
+      cut to one line.
+  - **[OPEN, for the owner: one set of verbs for a taste judgment]** Taste
+    says *More of this* and *Keep showing me*. The Artist page says *More
+    like this* and *Tell me more*. E17 leaves the choice to the owner.
   - [DECISION, 05: a theme's order is one Position field a row (1 to N),
     replacing ↑, ↓, *Move to top*, *Move to bottom* and the "#" column] It
     needs no drag:
@@ -400,5 +445,5 @@ plan's. It follows the deploy.
 - [x] Chunk 02: shared rules, then phone width (#360, #357)
 - [x] Chunk 03: pictures where a person decides (#358)
 - [x] Chunk 05: the Theme page (#352)
-- [ ] Chunk 06: copy (#359)
+- [x] Chunk 06: copy (#359), with the verbs for a taste judgment left OPEN for the owner
 - [ ] Chunk 04: Walls shows a picture, and the next three (#354), after #316's record (the owner's ruling, 2026-10-14)

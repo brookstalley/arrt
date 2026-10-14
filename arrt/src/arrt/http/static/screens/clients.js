@@ -80,9 +80,9 @@ export async function viewClients(generation) {
     el("h1", { text: "Clients" }),
     el("p", {
       class: "muted",
-      text:
-        "A client is an installed Player. It holds one token, and shows the walls assigned to it here, each on one of " +
-        "its outputs. Its host is given this server's address and its token, and learns its walls from this page.",
+      // What the page is for, said once; how a Player learns its walls is in
+      // the token's own instructions, where it is acted on.
+      text: "The Players at your walls, and which walls each one shows.",
     }),
     addPanel(),
     loose,

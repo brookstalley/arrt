@@ -201,7 +201,9 @@ export async function viewTopic(qid, generation) {
   // The server's QID, which it has checked; checked again here because it is
   // about to become part of an address out.
   const item = isQid(page.qid) ? page.qid : null;
-  const title = page.label ? topicName(page.label, page.qid) : `Wikidata ${page.qid}`;
+  // Never the bare item: until a name arrives the page is "Topic", as its
+  // route is, and the name replaces it in the heading and the tab.
+  const title = page.label ? topicName(page.label, page.qid) : "Topic";
   setTitle(generation, title);
   const name = el("h1", { text: title });
   const kinds = el("div");
@@ -212,7 +214,7 @@ export async function viewTopic(qid, generation) {
     name,
     kinds,
     about,
-    item ? el("p", { class: "muted" }, [wikidataLink(item, `Wikidata ${item}`)]) : null,
+    item ? el("p", { class: "muted" }, [wikidataLink(item, "On Wikidata")]) : null,
   ]);
   const worksSection = asking("representative-works", "Representative works");
   const artistsSection = asking("topic-artists", "Artists");
@@ -260,6 +262,7 @@ export async function viewTopic(qid, generation) {
       if (!head.isConnected) return;
       if (known.state === "known") {
         name.textContent = topicName(known.label, page.qid);
+        setTitle(generation, name.textContent);
         showKinds(known.kinds);
         fill(about, known.description ? el("p", { text: known.description }) : null);
       } else {

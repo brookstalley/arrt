@@ -381,7 +381,12 @@ export async function viewHistory(generation) {
       el(
         "ol",
         { class: "history-events", "aria-label": "What happened, newest first" },
-        page.events.map((event) => el("li", { "data-kind": event.kind }, [when(event.occurred_at), el("span", {}, sentence(event, wallNames, titles))])),
+        // A run too short to fold is every one of its events, each its own row.
+        runsOfVerdicts(page.events).flatMap((run) =>
+          run.length < VERDICT_RUN
+            ? run.map((event) => el("li", { "data-kind": event.kind }, [when(event.occurred_at), el("span", {}, sentence(event, wallNames, titles))]))
+            : [verdictRun(run, wallNames, titles)],
+        ),
       ),
     );
   }
@@ -446,6 +451,53 @@ async function titlesFor(events) {
     }),
   );
   return new Map(answers);
+}
+
+/* Verdicts from one Get in a row of at least this many are one line: a review
+ * of forty works made forty near-identical rows and pushed every other event off
+ * the page (`ux-review-2026-10.md` finding E20). Fewer read fine one by one. */
+const VERDICT_RUN = 3;
+const VERDICT_WORDS = { "work.accepted": "Accepted", "work.rejected": "Turned down" };
+
+/* The events in order, consecutive verdicts of one kind from one Get together;
+ * every other event alone. */
+function runsOfVerdicts(events) {
+  const runs = [];
+  for (const event of events) {
+    const last = runs[runs.length - 1];
+    const joins =
+      last && event.kind in VERDICT_WORDS && event.run_id && last[0].kind === event.kind && last[0].run_id === event.run_id;
+    if (joins) last.push(event);
+    else runs.push([event]);
+  }
+  return runs;
+}
+
+/* A run of verdicts as one line, newest time first as the list is, with the
+ * works one disclosure away: the count is what the page is for, and which works
+ * is still a click from it. */
+function verdictRun(run, wallNames, titles) {
+  const first = run[0];
+  const getLink = link({ view: "get", id: first.run_id }, { class: "link", text: "its Get" });
+  return el("li", { "data-kind": first.kind, class: "verdict-run" }, [
+    when(first.occurred_at),
+    el("span", {}, [
+      `${VERDICT_WORDS[first.kind]} ${counted(run.length, "work")} from `,
+      getLink,
+      el("details", {}, [
+        el("summary", { text: "Which works" }),
+        // Each work by its title alone: the verb and the Get are the line's.
+        el("ul", { class: "verdict-run-works" }, run.map((event) => el("li", {}, [verdictWork(event, titles)]))),
+      ]),
+    ]),
+  ]);
+}
+
+/* A work in a run of verdicts: a link while the library holds it (an accepted
+ * work), else its title, as the event recorded it. */
+function verdictWork(event, titles) {
+  const title = (event.detail && event.detail.title) || titles.get(event.artwork_id) || "a work no longer in the library";
+  return event.kind === "work.accepted" && event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title;
 }
 
 /* How a Get ended, in words, by `RunStatus`. A status added there and not here

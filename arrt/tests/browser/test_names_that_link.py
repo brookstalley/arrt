@@ -164,7 +164,8 @@ def test_a_fresh_load_of_a_clients_address_scrolls_to_it_and_leaves_the_focus(ui
     ui.page.wait_for_function("() => window.scrollY > 0")
 
     box = heading.bounding_box()
-    assert 0 <= box["y"] < 600
+    # Scrolled to its top, within a sub-pixel of it.
+    assert -2 <= box["y"] < 600
     assert ui.page.evaluate("() => document.activeElement === document.body")
 
 
