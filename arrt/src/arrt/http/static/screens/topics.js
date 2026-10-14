@@ -24,7 +24,7 @@
  * built from a QID checked against `Q` and digits, never from a URL. */
 
 import { api, apiLines } from "../core/api.js";
-import { absentImage, facts, workName } from "../core/badges.js";
+import { facts, noPicture, workName } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { selectionMode } from "../core/selecting.js";
 import { toolbar } from "../core/toolbar.js";
@@ -306,7 +306,7 @@ function heldSection(works) {
 function heldCard(work) {
   const picture = work.image.available
     ? el("img", { src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`, alt: "", loading: "lazy" })
-    : absentImage(work.image.note);
+    : noPicture(work.image.note);
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [

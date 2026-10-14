@@ -66,6 +66,40 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-14: Pictures where a person decides (#358)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 37, 38 and 34):
+- Works whose master the museum refuses read as the server's exception text,
+  in three wordings across four screens, and the Artists index asked for
+  thumbnails the server refused.
+- The search dropdown pictured Wikidata's works but not the library's own.
+- Result pictures sat small inside the state's badge.
+- The Work page's picture could not be enlarged.
+
+**What changed:**
+- **`noPicture` (`core/badges.js`).** One placeholder, "No picture", for a
+  held work with no master, on Artworks, Artists, a topic and the Work page.
+  The server's note shows only under `?debug`.
+- **An artist is pictured only by a work holding a master.**
+  `held_artists` in `persistence/sqlite.py` now does this, and
+  `pictured_artwork_id` is null when no such work exists. It fell back to a
+  work with no image, whose thumbnail answers 400. The model, the store
+  protocol, `api-contract.md` and the IA's Artists row say so.
+- **Search.** The dropdown and the results page lead each work's row with
+  its picture, out of the badge (`statePicture`, `heldPicture`), at 2.5rem
+  and 4.5rem. The library's own works are pictured when they hold a master.
+- **Work page.** The picture is a button that opens it large in
+  `core/enlarge.js`'s dialog.
+- **Tests changed in meaning:**
+  - `test_artist_surface.py`'s ordering test gives both its works a master,
+    and a new test pins null.
+  - `test_asking.py`'s and `test_the_artist_page.py`'s held-artist picture
+    tests give their work a master.
+  - `test_the_work_page.py`'s "the picture is the largest thing" passes over
+    the picture's own button.
+
 ## 2026-10-14: Shared rules that hold every page, and the pages at a phone's width (#360, #357)
 
 <!-- prawduct: scope=ux-second-walk -->

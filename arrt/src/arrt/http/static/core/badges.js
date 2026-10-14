@@ -10,6 +10,7 @@
  */
 
 import { agree } from "./counting.js";
+import { DEBUG } from "./debug.js";
 import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 
@@ -93,6 +94,19 @@ export function statusBadge(work) {
 export function workName(work) {
   const artist = work.artist ? work.artist.name : null;
   return [work.title, artist, work.date_created].filter(Boolean).join(", ");
+}
+
+/* A held work with no master image, the same on every screen that pictures one
+ * (Artworks, Artists, a topic, the Work page): one sentence in the picture's
+ * place. The server's note says why in its own words, an exception's as often
+ * as not, and three wordings of it across four screens was the plumbing showing
+ * (`ux-review-2026-10.md` finding 37); the why is the Work page's *Master image*
+ * panel's to say. With `?debug` the note is shown beneath, for whoever asked. */
+export function noPicture(note = null) {
+  return el("div", { class: "card-image-absent no-picture" }, [
+    el("span", { text: "No picture" }),
+    DEBUG && note ? el("span", { class: "muted no-picture-note", text: note }) : null,
+  ]);
 }
 
 export function absentImage(note) {

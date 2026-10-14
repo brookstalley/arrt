@@ -23,7 +23,7 @@
 
 import { api } from "../core/api.js";
 import { selectionMode } from "../core/selecting.js";
-import { gettable, lifeDates, named, reviewMark, stateMark, topicKinds, topicName, workState } from "../core/registry.js";
+import { gettable, heldPicture, lifeDates, named, reviewMark, stateMark, statePicture, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, link, setTitle } from "../core/router.js";
 import { asksWikidata, fold } from "../core/search.js";
@@ -260,7 +260,8 @@ function workRows(library, found, selection) {
   const held = library.works.map((work) => ({
     title: work.title,
     by: work.artist ? work.artist.name : null,
-    mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false }),
+    picture: heldPicture(work),
+    mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false, picture: false }),
     open: { view: "work", id: work.artwork_id },
   }));
   const notHeld = [];
@@ -271,7 +272,8 @@ function workRows(library, found, selection) {
       const row = {
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
-        mark: workState(work, { opens: false, grouped: true }),
+        picture: statePicture(work),
+        mark: workState(work, { opens: false, grouped: true, picture: false }),
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
         box: gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null,
       };
@@ -282,8 +284,9 @@ function workRows(library, found, selection) {
 }
 
 function workRow(row) {
-  return el("li", {}, [
+  return el("li", { class: "row-pictured" }, [
     row.box || null,
+    row.picture,
     link(row.open, { class: "row-title", text: row.title }),
     row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
     row.mark,

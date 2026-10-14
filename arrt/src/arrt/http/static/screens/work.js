@@ -32,7 +32,7 @@
 import { acquisitionLine } from "../core/acquiring.js";
 import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
-import { absentImage, facts, fitBadge, pixelSize, statusBadge, table } from "../core/badges.js";
+import { absentImage, facts, fitBadge, noPicture, pixelSize, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
@@ -347,6 +347,26 @@ function lookPictureName(picture) {
   return `${who}, from ${museumName(picture.provider)}${size ? `, ${size}` : ""}`;
 }
 
+/* The work's own picture, which opens large over the page: a button, so a
+ * keyboard reaches it as a pointer does, and the dialog's Escape, Close and
+ * backdrop close it (`core/enlarge.js`). The column draws it at a size it can
+ * hold sharply; enlarged, the same picture fills the window. */
+function enlargeableHero(work) {
+  const alt = work.artist ? `${work.title}, by ${work.artist.name}` : work.title;
+  const src = `${workPath(work.artwork_id)}/wall-preview`;
+  const button = el(
+    "button",
+    {
+      class: "work-picture-button",
+      type: "button",
+      "aria-label": `Enlarge ${alt}`,
+      onclick: () => enlarge({ src, alt, trigger: button }),
+    },
+    [el("img", { class: "detail-image work-picture", src, alt })],
+  );
+  return button;
+}
+
 /* One find as a card: the picture, enlargeable in place as a review card's is,
  * then its pixels and fit, its source, and why a Get would keep it. */
 function lookPicture(picture, qid) {
@@ -478,15 +498,7 @@ async function paintTheirWork(section, maker, qid) {
 function paint(detail, generation, { where, focusAction = false }) {
   const work = detail.work;
   setTitle(generation, work.title);
-  const image = work.image.available
-    ? el("img", {
-        class: "detail-image work-picture",
-        // The work at a size this column draws sharply; a tile's thumbnail is a
-        // fraction of this width.
-        src: `${workPath(work.artwork_id)}/wall-preview`,
-        alt: work.artist ? `${work.title}, by ${work.artist.name}` : work.title,
-      })
-    : el("p", { class: "note", text: work.image.note || "No image held." });
+  const image = work.image.available ? enlargeableHero(work) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
   const action = circulationControl(work, generation, where);
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
   paintStrip(strip, work, where);

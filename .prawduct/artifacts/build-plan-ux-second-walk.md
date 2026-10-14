@@ -171,6 +171,34 @@ open.
     the sentence for a screen reader] A state word, whole, is what
     `design-direction.md` § Visual Identity 3 asks. The sentence is too long
     for the bar. Recorded in § Spacing & Layout.
+  - [DECISION, 03: a held work with no master is drawn by one placeholder,
+    "No picture", on Artworks, Artists, a topic and the Work page
+    (`noPicture` in `core/badges.js`)] The server's note (an exception's text
+    as often as not) is shown only under `?debug`, per ruling 1. Why a work
+    has no picture is the Work page's *Master image* panel's to say, where its
+    acquisition line already says it. A picture that fails to load keeps its
+    own sentence, because it is a different state.
+  - [DECISION, 03: an artist is pictured only by a work holding a master, and
+    `pictured_artwork_id` is null when none does] It fell back to a work with
+    no image, whose thumbnail answers 400: the walk's "Artists asks for them
+    anyway".
+    - A contract change: the model, the store protocol, `api-contract.md` and
+      the IA's Artists row all said "else their first accepted work".
+    - `test_artist_surface.py`'s ordering test now gives both its works a
+      master, so it still pins first-accepted, and a new test pins null.
+    - Settled by #358's acceptance ("no thumbnail request for a work known to
+      have no master").
+  - [DECISION, 03: results and the dropdown lead each row with its picture,
+    out of the state's badge (`statePicture`, `heldPicture`); the registry
+    tables on Artist, Topic and Work keep theirs in the State column] The
+    tables already draw it at 5rem (4rem on a phone), and their phone layout
+    folds the other columns around it. The 48–56px the walk measured were the
+    search rows. The library's own works in the dropdown are pictured only
+    when they hold a master.
+  - [DECISION, 03: the Work page's picture opens in `core/enlarge.js`'s
+    dialog, from a plain button around it] The review cards already use that
+    dialog. It gives Escape, Close, a backdrop click and focus restored to the
+    picture.
 - **Level: Medium.** Chunks 01–03 are well understood: each item is at
   `ready`, or is a client-only change with a concrete proposal. Chunks 04–06
   are at `design`, and 04 may need a server read. Each of those chunks opens
@@ -288,7 +316,8 @@ open.
 - **Type:** feature
 - Opens with a design pass on reordering.
 - Each member row: the work's picture, its title linked to Work, its artist to
-  Artist. Reordering costs fewer than five boxes a row. The pattern is chosen
+  Artist. A member with no master draws `noPicture()` (`core/badges.js`), as
+  every other screen does since chunk 03, and asks for no thumbnail. Reordering costs fewer than five boxes a row. The pattern is chosen
   in the design pass; the keyboard equivalent is required by
   `accessibility-spec.md`.
 - The caption speaks of order only. *Add a work* offers only works not
@@ -337,7 +366,7 @@ plan's. It follows the deploy.
 
 - [x] Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
 - [x] Chunk 02: shared rules, then phone width (#360, #357)
-- [ ] Chunk 03: pictures where a person decides (#358)
+- [x] Chunk 03: pictures where a person decides (#358)
 - [ ] Chunk 04: Walls shows a picture, and the next three (#354)
 - [ ] Chunk 05: the Theme page (#352)
 - [ ] Chunk 06: copy (#359)

@@ -227,11 +227,15 @@ def test_each_card_is_a_poster_pictured_by_what_it_names(pictures_load, ask_mode
     assert "In your library" not in ui.page.locator(".ask-cards").inner_text()
 
 
-def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_load, services, service, ask_model):
-    """By their own work's thumbnail, and marked as held, without asking Wikidata for their works."""
+def test_a_held_artist_is_pictured_as_library_artists_pictures_them(pictures_load, services, service, ready_work, ask_model):
+    """By their own work's thumbnail, and marked as held, without asking Wikidata for their works.
+
+    The work holds a master, since only a work that does pictures an artist
+    (2026-10-14, #358): one that does not has no thumbnail to show.
+    """
     ui = pictures_load
     rothko = service.add_artist(name="Mark Rothko", born=1903, died=1970)
-    work = service.add_artwork(title="Untitled", artist_id=rothko.id)
+    work = ready_work("Untitled", artist_id=rothko.id)
     services.identity.set_artist_identity(rothko.id, ROTHKO)
     ask_model.replies += [calls(("art_discovery", {"action": "search", "q": "rothko"})), says(f"Rothko [{ROTHKO}].")]
     ui.open("#discover")

@@ -34,7 +34,7 @@
 
 import { attempt } from "../core/acting.js";
 import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
-import { absentImage, fitBadge, shortfallNote, statusBadge, workName } from "../core/badges.js";
+import { absentImage, fitBadge, noPicture, shortfallNote, statusBadge, workName } from "../core/badges.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
@@ -209,10 +209,10 @@ function cardImage(work, { inTabOrder = true } = {}) {
     // work whose image has not arrived yet was a tile nothing could open.
     if (inTabOrder) {
       return link({ view: "work", id: work.artwork_id }, { class: "card-image", "aria-label": `Open ${workName(work)}` }, [
-        absentImage(work.image.note),
+        noPicture(work.image.note),
       ]);
     }
-    return el("div", { class: "card-image" }, [absentImage(work.image.note)]);
+    return el("div", { class: "card-image" }, [noPicture(work.image.note)]);
   }
   const image = el("img", {
     src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`,
