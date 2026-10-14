@@ -90,9 +90,13 @@ export async function askPanel({ term = "" } = {}) {
       openThread = null;
       fill(turns);
       fill(status);
+      restart.hidden = true;
       words.focus();
     },
   });
+  // Offered once something has been said: on an empty thread there is nothing
+  // to start over from.
+  restart.hidden = !current.turns.length;
 
   async function ask() {
     const said = words.value.trim();
@@ -102,6 +106,7 @@ export async function askPanel({ term = "" } = {}) {
     }
     const view = turnView(said, []);
     turns.append(view.node);
+    restart.hidden = false;
     if (examples) examples.remove();
     words.value = "";
     send.disabled = true;

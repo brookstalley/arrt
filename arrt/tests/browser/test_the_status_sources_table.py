@@ -54,7 +54,7 @@ def _rows(ui):
     return ui.page.evaluate("""() => [...document.querySelectorAll('.source-table tbody tr')].map((row) =>
              Object.fromEntries([...row.cells]
                .filter((cell) => getComputedStyle(cell).display !== 'none')
-               .map((cell) => [cell.className.replace('col-', ''), cell.innerText.trim()])))""")
+               .map((cell) => [[...cell.classList].find((name) => name.startsWith('col-')).slice(4), cell.innerText.trim()])))""")
 
 
 def test_each_source_is_one_row_with_its_state_in_words_and_what_it_has_given(ui, three_sources):
@@ -105,7 +105,8 @@ def test_columns_leave_in_the_owners_order_and_a_fault_never_leaves_the_screen(u
                  // Read off a body row rather than the headings, which a phone's
                  // stacked cards move off screen while every cell stays.
                  const faulted = table.querySelector('tbody tr');
-                 const shown = [...faulted.cells].filter(visible).map((cell) => cell.className.replace('col-', ''));
+                 const column_of = (cell) => [...cell.classList].find((name) => name.startsWith('col-')).slice(4);
+                 const shown = [...faulted.cells].filter(visible).map(column_of);
                  const column = faulted.querySelector('.col-faults');
                  const inState = faulted.querySelector('.state-faults');
                  const scroll = table.querySelector('.table-scroll');

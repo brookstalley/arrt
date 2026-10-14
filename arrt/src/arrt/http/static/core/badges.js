@@ -134,15 +134,30 @@ function breakableAtSlashes(text) {
  * 14). A cell link marked `row-link` then covers its whole card, so the row is
  * the link (`app.css`). */
 export function table(caption, headers, rows, { stacked = false } = {}) {
+  const numeric = headers.map((_, index) => isNumberColumn(rows.map((cells) => cells[index])));
   const cell = (c, index) => {
-    const label = headers[index] ? { "data-label": headers[index] } : {};
-    return c instanceof Node ? el("td", label, [c]) : el("td", { ...label, text: c === null || c === undefined ? "—" : String(c) });
+    const attrs = { ...(headers[index] ? { "data-label": headers[index] } : {}), class: numeric[index] ? "num" : null };
+    return c instanceof Node ? el("td", attrs, [c]) : el("td", { ...attrs, text: c === null || c === undefined ? "—" : String(c) });
   };
   return el("div", { class: "table-scroll" }, [el("table", { class: stacked ? "stacked" : null }, [
     el("caption", { text: caption }),
-    el("thead", {}, [el("tr", {}, headers.map((h) => el("th", { scope: "col", text: h })))]),
+    el("thead", {}, [el("tr", {}, headers.map((h, index) => el("th", { scope: "col", class: numeric[index] ? "num" : null, text: h })))]),
     el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map(cell)))),
   ])]);
+}
+
+/* A figure, with at most a unit after it: "12", "1,110 px", "7.5 MB", "40%". */
+const FIGURE = /^-?[\d][\d,.]*(\s?(px|KB|MB|GB|%))?$/;
+
+/* A column is one of numbers when every cell that holds anything holds a figure
+ * (a dash for "none" is not a figure, and does not count against it), so its
+ * cells and its heading are set right-aligned (`app.css`, `.num`). Decided from
+ * the values rather than declared by each caller, so a table gains it the day a
+ * column of counts is added to it. */
+function isNumberColumn(cells) {
+  if (cells.some((c) => c instanceof Node)) return false;
+  const filled = cells.map((c) => (c === null || c === undefined ? "" : String(c).trim())).filter((text) => text && text !== "—");
+  return filled.length > 0 && filled.every((text) => FIGURE.test(text));
 }
 
 /* Only ever shown when a list stopped short of its own total: the runaway guard

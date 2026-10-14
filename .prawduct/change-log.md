@@ -66,6 +66,48 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-14: Shared rules that hold every page, and the pages at a phone's width (#360, #357)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 36, 40, 41 and 45), rows, gaps and
+type drifted in a few shared rules, not page by page. At 390 px the status was
+cut to "● W…", the open drawer covered Menu, and Clients' tables broke output
+names.
+
+**What changed:**
+- **`app.css` shared rules:**
+  - Rows align on the baseline, and labelled fields on their boxes.
+  - One gap under a page's name.
+  - Tile titles take no panel heading margin, and a tile's badge follows its
+    label.
+  - Badges are set in the UI face, and quiet acts in ink in both schemes.
+  - Prose is held to 70ch.
+  - A table's first column sits on the page edge.
+  - An act in a line of words is spaced from it, and what follows a row is a
+    step below it.
+  - A sub-heading after content stands clear of it.
+  - The budget line sits on the nav's grid.
+- **`core/badges.js` `table()`:** marks a column of figures `.num` (right
+  aligned, tabular), decided from its values. Status's sources table marks
+  its own.
+- **Phone:**
+  - The status shows "Well" or "Unwell" and keeps the sentence for a screen
+    reader.
+  - Menu sits above the open drawer.
+  - The facet rail fades at its edge.
+  - Clients' outputs and labels are cards.
+  - Artist posters reserve their own shape.
+- **Ask:** *Start over* is offered once something has been said.
+- **Queue:** the fetching section says its counts before its parts.
+- **Rules recorded:** `design-direction.md` § Spacing & Layout and § Component
+  Patterns.
+- **Kept, with reasons in the plan:** E22, the ⚙ glyph, L22 (ten themes on a
+  screen) and the Artworks toolbar. E23 moves to chunk 06.
+- **Tests changed:** `test_the_status_sources_table.py` reads a column's
+  `col-` class rather than its whole class string, which now also carries
+  `num`.
+
 ## 2026-10-14: The way back names where it goes, a dead address says so, and walls, clients and topics link (#356, #361, #362)
 
 <!-- prawduct: scope=ux-second-walk -->

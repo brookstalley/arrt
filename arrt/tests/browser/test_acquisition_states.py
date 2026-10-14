@@ -411,3 +411,32 @@ def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_recor
           };
         }""")
     assert layout == {"side_by_side": True, "failure_in_master": True, "ruled": True}
+
+
+def test_the_fetches_section_says_what_it_holds_before_its_parts(ui):
+    """Under its name and above its first part, so two headings never stand one on the other."""
+    work = {
+        "title": "Hunters in the Snow",
+        "acquisition": {
+            "artwork_id": "w-1",
+            "phase": "queued",
+            "failures": 0,
+            "detail": None,
+            "next_try_at": None,
+            "since": None,
+            "condition": None,
+            "remedy": None,
+        },
+    }
+    ui.serve("**/api/acquisitions", _listing(works=[work]))
+
+    ui.open("#queue")
+    summary = ui.page.locator(".acquisitions > .acquisition-summary")
+    summary.wait_for()
+
+    assert summary.inner_text() == "1 work in line"
+    order = ui.page.locator(".acquisitions").evaluate(
+        "(panel) => [...panel.querySelectorAll('h2, .acquisition-summary, h3')]"
+        ".map((n) => n.tagName === 'P' ? 'summary' : n.tagName)"
+    )
+    assert order[:3] == ["H2", "summary", "H3"]

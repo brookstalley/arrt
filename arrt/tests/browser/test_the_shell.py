@@ -59,7 +59,11 @@ def test_a_search_pressed_while_the_client_starts_is_still_a_search(ui):
     Held here by answering that read only after the search is pressed.
     """
     held = []
-    ui.page.route("**/api/sources", lambda route: held.append(route))
+
+    def hold(route):
+        held.append(route)
+
+    ui.page.route("**/api/sources", hold)
     ui.page.goto(f"{ui.base_url}/#collection")
     # The client is running once it has asked for the sources.
     while not held:

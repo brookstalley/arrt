@@ -136,8 +136,10 @@ function acquisitionPanel(listing, causes, opened, generation) {
           ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
         ])
       : null,
+    // What the section holds, said under its name before its parts: two
+    // headings one under the other read as a section that lost its content.
     owed
-      ? null
+      ? el("p", { class: "muted acquisition-summary", text: [listing.failing ? `${counted(listing.failing, "work")} failed` : null, listing.total ? `${counted(listing.total, "work")} in line` : null].filter(Boolean).join(" · ") })
       : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
     listing.failing ? failurePanel(listing, causes, opened, generation) : null,
     listing.total ? inLinePanel(listing, generation) : null,

@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Shared rules and the phone — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 02, #360 #357.** Run from this branch on the
+operator's library, at desktop width in both schemes and on a phone.
+
+- **Rows and type.** On Ask, Artist and Work, words beside a button sit level
+  with its label. In dark, quiet buttons are ink and only the filled one is gilt.
+  On a Theme page, the badges beside its name are in the sans.
+- **Gaps.** Every page's name has the same gap to what follows it. On Topics, a
+  kind with one held topic no longer touches the "Other …" heading under it.
+- **Tables.** On Status, the counts are right-aligned and the first column
+  starts under the headings.
+- **A Get's page (not seen by any walk: the synthetic library has no Get).**
+  Judge whether "Works", its act and "Asked for" still stand one on the other
+  (layout review L17). If they do, it is a finding for this plan.
+- **Phone.** The top bar shows "Well" or "Unwell" in whole. Menu stays visible
+  over the open drawer and closes it. Artworks' rail fades at its right edge.
+  Clients' outputs and labels are cards, and no output's name breaks.
+
 ### The way back, a dead address, and names that link — added 2026-10-14
 
 **`build-plan-ux-second-walk.md` chunk 01, #356 #361 #362.** Run the server from

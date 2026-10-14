@@ -489,6 +489,11 @@ header.topbar {
 
 /* No box: a box around the status is a button, and this is a link to a page.
    Its glyph and its words still carry the state with the colour. */
+/* Shown only at a phone's width (below). */
+.status-short {
+  display: none;
+}
+
 .status-indicator:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -672,6 +677,14 @@ nav.sidebar a[aria-current="page"] {
 
   nav.sidebar[data-open] {
     display: block;
+    /* Its links start under the top bar, which sits above it while it is open
+       (below), so Menu, the control that opened it, stays there to close it. */
+    padding-top: var(--masthead);
+  }
+
+  body:has(nav.sidebar[data-open]) header.topbar {
+    position: relative;
+    z-index: 21;
   }
 
   .drawer-backdrop[data-open] {
@@ -695,6 +708,29 @@ main {
   padding: var(--space-5);
   max-width: 96rem;
   min-width: 0;
+}
+
+/* The first thing under a page's name sits one gap below it, whatever it is:
+   a note's margin, an empty state's padding or a section's rule would each
+   make a page's head look put together differently (the name's own margin is
+   the gap). An empty slot the page fills later is passed over, and so is the
+   top margin of the first thing drawn inside that first block. */
+#view h1 + *,
+#view h1 + :empty + *,
+#view h1 + * > :first-child,
+#view h1 + * > :empty:first-child + * {
+  margin-top: 0;
+}
+
+#view h1 + :is(.empty, .panel, .note),
+#view h1 + :empty + :is(.empty, .panel, .note) {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Prose is held to a readable measure; tables, grids and rows are not prose. */
+#view p {
+  max-width: 70ch;
 }
 
 /* A screen's own heading is its `h1`; the product's name in the top bar is not
@@ -899,18 +935,35 @@ h1 {
   box-sizing: border-box;
 }
 
+/* An artist's poster has no date or medium lines, so it reserves its own
+   longest shape: two lines of name, one of life and count, and the badge row.
+   Reserving a work's left a hand's width of empty ground under every row. */
+.card[data-artist] .card-body {
+  min-height: calc(
+    var(--space-3) + 2 * 1.25 * var(--text-lg) + var(--tile-line) * var(--text-sm) + 2px + var(--space-3) + 1.75rem
+  );
+}
+
 .card:is([data-artwork], [data-artist], .tile-skeleton) :is(.card-artist, .card-meta) {
   line-height: var(--tile-line);
 }
 
 .card:is([data-artwork], [data-artist], .tile-skeleton) .card-footer {
   min-height: 1.75rem;
+  /* Under the label's last line, not at the floor of the block reserved for
+     the longest label: pinned there, a badge sat against the next row's
+     picture and read as that work's. */
+  margin-top: 0;
 }
 
 /* Clamped, so one long title cannot make its row taller than the rest: two
    lines of title, one of artist, two of date and medium. The full text is the
    link's accessible name and is on the work's own page. */
 .card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
+  /* A panel's headings take a margin and a weight that a tile's title, which
+     is one, must not: the tile is laid out the same on every page. */
+  margin: 0;
+  font-weight: 400;
   font-size: var(--text-lg);
   line-height: 1.25;
   display: -webkit-box;
@@ -1389,6 +1442,11 @@ h1 {
     max-height: none;
     overflow-x: auto;
     padding-bottom: var(--space-2);
+    /* The pills run on past the edge, and the edge says so by fading; the end
+       padding lets the last one scroll clear of the fade. A mask reads only
+       alpha, so any opaque token draws it. */
+    padding-inline-end: var(--space-6);
+    mask-image: linear-gradient(to right, var(--text) calc(100% - var(--space-6)), transparent);
   }
 
   .rail-options {
@@ -1499,7 +1557,9 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--text-xs);
+  /* Its own face and weight, so a badge beside a page's name is not set in the
+     name's serif. */
+  font: 400 var(--text-xs) / 1.2 var(--font-ui);
   padding: 0.15rem var(--space-2);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
@@ -1965,6 +2025,18 @@ td {
   vertical-align: top;
 }
 
+/* A table's first column starts where the page's headings and prose do. */
+:is(th, td):first-child {
+  padding-left: 0;
+}
+
+/* A column of numbers, marked by `table` in core/badges.js, reads down its
+   units: right-aligned, in figures of one width. */
+:is(th, td).num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 th {
   color: var(--text-strong);
   font-weight: 600;
@@ -2005,6 +2077,13 @@ th {
   margin: 0 0 var(--space-3);
   font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
+}
+
+/* A heading inside a section that follows content of its own (a list, a
+   sentence) starts a new part, so it stands a step clear of what is above it
+   rather than glued to its last line. */
+.panel > * + :is(h3, h4) {
+  margin-top: var(--space-5);
 }
 
 /* One wall's heartbeat on the health view. Separated by a rule rather than by
@@ -2075,15 +2154,16 @@ section.wall {
   min-width: 0;
 }
 
-/* A wall the client shows, with the control that takes it off, on one line
-   where there is room and wrapping beneath the name where there is not. */
-.client-wall-list {
+/* A wall the client shows, or a label output and the wall it captions, with
+   the control that takes it off, on one line where there is room and wrapping
+   beneath the name where there is not. */
+:is(.client-wall-list, .client-label-list) {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.client-wall-list li {
+:is(.client-wall-list, .client-label-list) li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2189,8 +2269,11 @@ select {
   cursor: pointer;
 }
 
+/* Ink, in both schemes: the accent belongs to the one filled act, focus and the
+   lit page. In dark it is gilt, and quiet acts in it made every control on a
+   page the same brass. */
 :is(button, a).action.quiet {
-  color: var(--accent);
+  color: var(--text);
   background: var(--surface-1);
   border-color: var(--border-strong);
 }
@@ -2215,10 +2298,18 @@ button.action:disabled:hover {
   cursor: not-allowed;
 }
 
+/* Acts, captioned acts and words on one line share a baseline: a captioned act
+   is taller than a bare one, and aligning bottom edges dropped the bare act to
+   the caption's foot and set a sentence level with a button's border rather
+   than its label. A row of labelled fields aligns their boxes instead (below). */
 .row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+  align-items: baseline;
+}
+
+.row:has(> .field) {
   align-items: flex-end;
 }
 
@@ -2227,8 +2318,16 @@ button.action:disabled:hover {
    `.stack-tight`) are already spaced by its gap, and are left to it; a new
    flex column of rows needs adding here, or its rows are spaced twice. */
 :not(.stack, .stack-tight, .row) > * + .row,
-:not(.stack, .stack-tight, .row) > * + .identity {
+:not(.stack, .stack-tight, .row) > * + .identity,
+:not(.stack, .stack-tight, .row) > .row + * {
   margin-top: var(--space-4);
+}
+
+/* An act set in a line of words (a list item, a sentence) keeps a gap from the
+   words before it, so it reads as a thing to press and not as the sentence's
+   last word. A row spaces its own with its gap. */
+:is(li, p):not(.row) > :is(button, a).action:not(:first-child) {
+  margin-left: var(--space-3);
 }
 
 /* An act with one line under it that says what pressing costs or starts
@@ -2882,8 +2981,10 @@ section.offered + section.offered {
   font-weight: 600;
 }
 
+/* Inset as the nav's links are (their padding and their 2px marker), so the
+   budget's words start on the line the section glyphs start on. */
 .sidebar .budget {
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-5) + 2px);
   border-top: 1px solid var(--border);
   font-size: var(--text-sm);
 }
@@ -3027,16 +3128,26 @@ input[type="checkbox"] {
     white-space: nowrap;
   }
 
+  /* The indicator keeps its whole word: the search field gives up room first.
+     A trouble's whole sentence is too long for the bar, so the bar shows its
+     state in a word and the sentence stays for a screen reader and on Status. */
   .status-indicator {
-    flex: 0 1 auto;
-    max-width: 7rem;
-    overflow: hidden;
+    flex: 0 0 auto;
     margin-left: 0;
   }
 
-  .status-indicator > span:last-child {
+  .status-indicator .status-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
     overflow: hidden;
-    text-overflow: ellipsis;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .status-indicator .status-short {
+    display: inline;
     white-space: nowrap;
   }
 
@@ -3319,6 +3430,9 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
  * reply — what the agent looked at, its answer, and the cards for what it
  * offers, in a grid that is one column on a phone. */
 .ask-turns { display: grid; gap: var(--space-4); margin-bottom: var(--space-4); }
+/* Before anything is said the thread is empty, and its margin was a second gap
+   under the page's name. */
+.ask-turns:empty { margin-bottom: 0; }
 .ask-turn { border-top: 1px solid var(--border); padding-top: var(--space-3); }
 .ask-turn:first-child { border-top: 0; padding-top: 0; }
 .ask-asked { margin: 0 0 var(--space-2); color: var(--text-strong); }

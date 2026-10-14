@@ -119,9 +119,14 @@ function paint(reading) {
   }
   indicator.dataset.state = state;
   indicator.dataset.words = reading.words;
+  // Two wordings: the whole sentence, and its state in one word for a phone's
+  // top bar, which has room for a word and not for "The hall has not
+  // reported". The stylesheet shows one; a screen reader always reads the
+  // sentence (`app.css`, `.status-short`).
   fill(indicator,
     el("span", { class: "glyph", text: reading.well ? GLYPHS.good : GLYPHS.problem, "aria-hidden": true }),
-    el("span", { text: reading.words }),
+    el("span", { class: "status-words", text: reading.words }),
+    el("span", { class: "status-short", text: reading.well ? "Well" : "Unwell", "aria-hidden": true }),
   );
   paintBadge(reading);
 }

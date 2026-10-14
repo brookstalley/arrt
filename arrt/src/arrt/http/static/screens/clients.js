@@ -235,6 +235,9 @@ function outputs(client) {
         screenCell(output, stale),
         output.screen ? `${output.screen[0]} × ${output.screen[1]}` : "size unknown",
       ]),
+      // Cards on a phone, as Status's sources are: four columns of a Player's
+      // report cannot fit 342 px without breaking its outputs' names.
+      { stacked: true },
     );
     // Said once above the table rather than in every row: it is one fact about
     // the report, and Walls reads the same threshold (`core/outputs.js`).
@@ -316,7 +319,7 @@ function labels(client, walls) {
   const mapped = names.map((name) => records.get(name)).filter((record) => record && record.wall_id);
   return el("div", { class: "client-labels" }, [
     heading,
-    table(`Label outputs ${client.name} last reported.`, ["Label output", "Kind", "Panel", "Size", "Captions"], rows),
+    table(`Label outputs ${client.name} last reported.`, ["Label output", "Kind", "Panel", "Size", "Captions"], rows, { stacked: true }),
     mapped.length
       ? el(
           "ul",

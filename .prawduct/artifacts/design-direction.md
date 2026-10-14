@@ -224,6 +224,12 @@ tabs overflowed a 375px viewport — and the prototype reproduced the same failu
 at *tablet* width the moment the status label grew. A top bar whose items cannot
 shrink will overflow again the next time a word gets longer.
 
+**The status indicator is the exception: it never shrinks below a whole word.**
+Below 40rem it shows its state in one word ("Well", "Unwell") and gives up no
+room; the search field shrinks first. The sentence naming what is wrong stays
+in it for a screen reader and is whole on Status. Ellipsized, it read "● W…",
+which is a state with no word (§ Visual Identity 3; #357, 2026-10-14).
+
 **Touch targets are keyed on the pointer, not the viewport.** `@media (pointer:
 coarse)` raises control heights to 2.75rem (44px). The 2.5rem default
 (`--control-h`) clears WCAG 2.2 AA's 24px floor, but 44px is what every touch
@@ -246,7 +252,11 @@ classes the client never had.*
   (`.panel h2`, a wall's title, an offered group) is `--text-xl` serif, weight
   500. The confirmation's title is an `h2` and takes the same type. A filter rail's group names are small capitals in the UI
   sans, a label rather than a section. Nothing else is a heading: an empty
-  page's lead sentence is a paragraph.
+  page's lead sentence is a paragraph. **The first thing under a page's name
+  sits one gap below it** (the `h1`'s own margin), with no rule above it and
+  no padding of its own, whether it is a note, a section or an empty state. A
+  sub-heading inside a section that follows content of its own stands
+  `--space-5` clear of it *(2026-10-14, #360)*.
 - **Empty states** — one shape, `emptyState()` in `core/render.js`: the lead
   (what is missing) in the label serif at `--text-md`, never larger than the page's `h1`, then a muted line saying
   why or what fills it, then the way on as links or acts. No panel around it.
@@ -254,7 +264,10 @@ classes the client never had.*
   page that has other things, is one muted line under its heading.
 - **Buttons** — `.action` is an act, and a link offered at the same weight
   wears its shape. Filled is the one committing act in a region: if two things
-  are filled, neither is. `.action.quiet` is every other act. Hover tints toward
+  are filled, neither is. `.action.quiet` is every other act, set in the
+  text's ink in both schemes: the accent is the filled act's, focus's and the
+  lit page's, and quiet acts in it made every control in the dark scheme gilt
+  *(2026-10-14, #360)*. Hover tints toward
   the act's own text colour. **A disabled act looks disabled**: no fill, muted
   text, no hover, a not-allowed cursor. There is no destructive style:
   removal is confirmed in words (`core/confirm.js`), and colour reaching the
@@ -266,6 +279,16 @@ classes the client never had.*
   by that column's gap. One line of words that says what pressing an act
   costs or starts sits under that act, starting where it starts, small and muted
   (`captioned`, `.act-caption`), and is read with it by a screen reader.
+  *(2026-10-14, #360:)* A row aligns its words on one baseline, so a sentence
+  sits level with a button's label and a bare act level with a captioned one;
+  a row of labelled fields aligns the boxes' edges instead. Whatever follows a
+  row sits one step below it too. An act set inside a line of words (a list
+  item, a sentence) keeps `--space-3` from them.
+- **Prose and tables** *(2026-10-14, #360)* — a paragraph is held to 70ch. A
+  table's first column starts on the page's left edge, where its headings and
+  prose start. A column of figures is right-aligned in tabular numerals
+  (`.num`), decided by `table()` from the values, so a table gains it the day a
+  count is added.
 - **Controls** *(2026-10-08)* — one height for every act and field,
   `--control-h` (2.5rem), and a compact one, `--control-h-compact` (2rem),
   for a menu's items. Under `@media (pointer: coarse)` both are 2.75rem.

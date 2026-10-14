@@ -126,6 +126,51 @@ open.
     - A held-read test now reproduces the failure deterministically. It was
       seen red first.
     - Not backlogged: fixed, per "no pre-existing exception".
+  - [DECISION, 02: #360's list is mapped to the layout review's codes as the
+    review wrote them] The issue swaps L18 and L21. Both are fixed: the
+    badge's face, and quiet acts in ink.
+  - Fixed as shared rules, each pinned in `test_shared_rules_and_phone.py`:
+    - L5: rows align on the baseline, and fields on their boxes.
+    - L6: an act in a line of words is spaced from them, what follows a row
+      sits a step below it, and Clients' caption list loses its stray bullet.
+    - L8: a tile's title takes no panel heading margin or weight.
+    - L9: a tile's badge follows its label.
+    - L11: one gap under a page's name.
+    - L13: a sub-heading after content stands clear of it.
+    - L17 (Queue): the section says its counts before its parts.
+    - L18/L21: badges are set in the UI face, and quiet acts in ink.
+    - L19: prose held to 70ch.
+    - L20: a table's first column on the page edge, and figure columns
+      right-aligned.
+    - L23: the budget line on the nav's grid.
+    - E25: *Start over* only after something has been said.
+  - [DECISION, 02: kept, with the reason]
+    - **E22, Settings repeats its sub-nav.** Kept. ux-review-2026-10 #24 made
+      Settings an index on Sonarr and Radarr v4's precedent, and the
+      information-architecture norm puts a page where the *arr app does.
+    - **L23, the ⚙ glyph's weight.** Kept. It comes from a fallback font, and
+      swapping the glyph is a choice of mark for the owner, not a spacing rule.
+    - **L22, narrow theme cards.** Kept. `test_ten_themes_fit_on_one_desktop_screen`
+      pins an earlier requirement, ten themes on one desktop screen, and
+      13rem cards already break it at wider fonts. Larger theme pictures need
+      the owner to trade that requirement away.
+    - **L17, Get's "Works", button, "Asked for".** Kept. The Get page was
+      rebuilt by #363 after the walk, and the synthetic library has no Get, so
+      no walk has seen it since. It is queued for the operator's look
+      (`operator-verification.md`) rather than claimed.
+  - [DECISION, 02: E23 (Wanted's empty state names the controls that add a
+    work) moves to chunk 06] `test_wanted.py` pins those words deliberately,
+    so that the page names the controls that really put a work there. Cutting
+    them is a copy decision for #359's single pass, not a spacing rule.
+  - [DECISION, 02: #357's Artworks toolbar stays three short rows at 390 px]
+    With a rail of facets above the grid, the first pictures are inside the
+    first screen. That was #357's acceptance, and it held before this chunk
+    (seen in the test against the old client). Collapsing View and Sort into
+    one menu would change a control shared with desktop for no acceptance gain.
+  - [DECISION, 02: on a phone the status shows "Well" or "Unwell", keeping
+    the sentence for a screen reader] A state word, whole, is what
+    `design-direction.md` § Visual Identity 3 asks. The sentence is too long
+    for the bar. Recorded in § Spacing & Layout.
 - **Level: Medium.** Chunks 01–03 are well understood: each item is at
   `ready`, or is a client-only change with a concrete proposal. Chunks 04–06
   are at `design`, and 04 may need a server read. Each of those chunks opens
@@ -291,7 +336,7 @@ plan's. It follows the deploy.
 ## Status
 
 - [x] Chunk 01: the way back, a dead address, and names that link (#361, #356, #362)
-- [ ] Chunk 02: shared rules, then phone width (#360, #357)
+- [x] Chunk 02: shared rules, then phone width (#360, #357)
 - [ ] Chunk 03: pictures where a person decides (#358)
 - [ ] Chunk 04: Walls shows a picture, and the next three (#354)
 - [ ] Chunk 05: the Theme page (#352)

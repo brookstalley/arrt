@@ -210,15 +210,16 @@ function heartbeatPanels(health, titles) {
  * edge goes first because the owner did not name it; Faults since startup goes
  * last, and when it does the count moves into the State cell, so a fault is on
  * screen at every width (owner, 2026-10-08). The class is what the stylesheet
- * and the width test both key on. */
+ * and the width test both key on. `num` marks a column of figures, set
+ * right-aligned (`app.css`, `.num`). */
 const SOURCE_COLUMNS = [
   { name: "source", heading: "Source" },
   { name: "state", heading: "State" },
-  { name: "offered", heading: "Offered" },
-  { name: "chosen", heading: "Chosen" },
-  { name: "only-here", heading: "Only here", drops: 3 },
-  { name: "median", heading: "Median long edge", drops: 1 },
-  { name: "faults", heading: "Faults since startup", drops: 4 },
+  { name: "offered", heading: "Offered", num: true },
+  { name: "chosen", heading: "Chosen", num: true },
+  { name: "only-here", heading: "Only here", drops: 3, num: true },
+  { name: "median", heading: "Median long edge", drops: 1, num: true },
+  { name: "faults", heading: "Faults since startup", drops: 4, num: true },
   { name: "last-fault", heading: "Last fault", drops: 2 },
 ];
 
@@ -260,10 +261,10 @@ function sourceRow(source, yielded) {
   };
   // `data-label` is the column's name over each cell once a phone stacks the
   // rows into cards (`app.css`); the Source cell leads its card and needs none.
-  return el("tr", {}, SOURCE_COLUMNS.map(({ name, heading }) => {
+  return el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => {
     const value = cells[name];
     const label = name === "source" ? {} : { "data-label": heading };
-    return el("td", { class: `col-${name}`, ...label }, Array.isArray(value) ? value.filter(Boolean) : [String(value)]);
+    return el("td", { class: `col-${name}${num ? " num" : ""}`, ...label }, Array.isArray(value) ? value.filter(Boolean) : [String(value)]);
   }));
 }
 
@@ -292,7 +293,7 @@ function sourcesPanel(health, yields) {
                 el("caption", {
                   text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for.",
                 }),
-                el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading }) => el("th", { scope: "col", class: `col-${name}`, text: heading })))]),
+                el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => el("th", { scope: "col", class: `col-${name}${num ? " num" : ""}`, text: heading })))]),
                 el("tbody", {}, sources.map((source) => sourceRow(source, byName.get(source.name)))),
               ]),
             ]),
