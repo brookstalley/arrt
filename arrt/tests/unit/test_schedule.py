@@ -501,7 +501,7 @@ def test_a_movable_walls_slots_to_come_do_not_count_against_this_one():
     assert movable.clashes == ()
 
 
-def test_the_kept_slot_is_lengthened_to_the_next_boundary_of_the_wall_just_built():
+def test_the_kept_slot_runs_on_into_step_with_the_wall_just_built():
     previous = [Slot("b", AT - timedelta(minutes=1), AT + timedelta(minutes=2))]
     boundaries = [AT - timedelta(minutes=2) + timedelta(minutes=3) * i for i in range(10)]
 

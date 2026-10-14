@@ -32,11 +32,11 @@ be the worse failure, and a clash nobody hears about would be the silent one.
 two works lock: one shows the first throughout because the other shows the
 second throughout, and each rebuild of either answers the other with its mirror
 image. So the caller rebuilds them as a pass. The wall republished is built
-against only the slot covering now on each wall about to be rebuilt (`movable`),
-since nothing after it is fixed yet; each of those is then rebuilt keeping that
-slot, against the walls already rebuilt, with its slot now lengthened to the next
-boundary of the wall just built, in step with its slots, where that is cheap and
-clashes with nothing (`align_to`). Two walls whose slots start seconds apart
+against only the slot covering now on each neighbour with room to step aside
+(`movable`, chosen by `movable_walls`), since nothing after it is fixed yet;
+each neighbour is then rebuilt keeping that slot, against the walls already
+rebuilt, with that slot run on until the slots after it are in step with the
+wall just built, where that is cheap (`align_to`, `_lengthened`). Two walls whose slots start seconds apart
 could otherwise not alternate two works at all: every slot of one would overlap
 one of each on the other. Nothing on any screen changes: the slot covering now
 keeps its work and its start, and may stay up under one interval longer (the
@@ -146,9 +146,9 @@ def build(
 
     `movable` names other walls about to be rebuilt after this one, so only the
     slot covering now on each counts against this wall. `align_to` is the slot
-    starts of the wall just built: a kept slot is lengthened to the first of them
-    at or after its end, when that is less than one slot away and its work is
-    shown nowhere else meanwhile, so the slots after it line up with that wall's.
+    starts of the wall just built: a kept slot runs on, by under one slot, until
+    the slots after it are in step with that wall's (`_lengthened` says when it
+    does not).
 
     The last slot ends at the horizon even when that cuts it short: every slot
     must lie inside the horizon (`player-contract.md` § Rules a schema cannot
