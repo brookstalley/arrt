@@ -127,4 +127,4 @@ of one-wall rebuilds can break it.
 
 ## Status
 
-- [ ] 01 — neighbours are rebuilt with the wall
+- [x] 01 — neighbours are rebuilt with the wall
