@@ -601,6 +601,11 @@ class WorkPageOut(BaseModel):
     #: selection hanging on it, counted over every other filter. Null only on
     #: a page built before the facet existed.
     not_on_wall: FacetOptionOut | None = None
+    #: *Last shown*: one option per period, always in the order `never`,
+    #: `month`, `quarter`, `year`, each the works no wall has shown in it
+    #: (never-shown works in every one), counted over every other filter. A
+    #: single choice: at most one is selected.
+    shown: list[FacetOptionOut] = []
 
 
 class SourceOut(BaseModel):
@@ -2274,6 +2279,7 @@ class WorksFilter(BaseModel):
     palette: list[str] = []
     fit: list[str] = []
     not_on_wall: bool = False
+    shown: str | None = None
 
 
 class WorkSelection(BaseModel):

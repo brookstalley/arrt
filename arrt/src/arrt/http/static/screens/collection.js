@@ -72,9 +72,25 @@ const FIT_LABELS = {
 
 /* *Not on any wall*, in the address as `?wall=none`: works no wall plays now,
  * through the theme or selection hanging on it (the owner's ruling of
- * 2026-10-08 on #288). Not "never hung", which nothing records. */
+ * 2026-10-08 on #288). What walls have shown is *Last shown*'s, below. */
 function notOnWall() {
   return state.params.wall === "none";
+}
+
+/* *Last shown*, in the address as `?shown=`: works no wall has shown, never or
+ * not in a period, each period counting the never-shown works too (the owner,
+ * 2026-10-15). One choice at a time, since the periods nest. The server's
+ * values, in the rail's order and words. */
+const SHOWN_LABELS = {
+  never: "Never shown",
+  month: "Not in the last month",
+  quarter: "Not in 3 months",
+  year: "Not in a year",
+};
+
+function shownPeriod() {
+  const period = state.params.shown;
+  return Object.hasOwn(SHOWN_LABELS, period) ? period : null;
 }
 
 const CONTACT = "contact";
@@ -168,10 +184,11 @@ function facetsFor(params) {
   return chosen;
 }
 
-/* Whether any rail narrowing is chosen: a facet, a size band, or *Not on
- * any wall*. The theme is asked about separately, since the heading names it. */
+/* Whether any rail narrowing is chosen: a facet, a size band, *Not on any
+ * wall* or *Last shown*. The theme is asked about separately, since the
+ * heading names it. */
 function anyFacetChosen(chosen) {
-  return FACET_KINDS.some((kind) => chosen[kind].length) || chosen[FIT].length > 0 || notOnWall();
+  return FACET_KINDS.some((kind) => chosen[kind].length) || chosen[FIT].length > 0 || notOnWall() || shownPeriod() !== null;
 }
 
 /* The change to the address that turns one facet value on or off. The rest of
@@ -502,6 +519,35 @@ function wallRail(option, total, narrowed) {
   ]);
 }
 
+/* *Last shown*: one choice among the periods, drawn once some work has been
+ * shown (an option counts fewer than the works the rest of the filter selects)
+ * or one is chosen. Before any wall has shown anything, every option would
+ * select every work. Choosing the chosen one again clears it. */
+function shownRail(options, total, narrowed) {
+  if (!options.some((option) => option.count < total || option.selected)) return null;
+  if (offersNothing(options, narrowed)) return null;
+  return el("div", { class: "rail" }, [
+    el("h2", { text: "Last shown" }),
+    el(
+      "ul",
+      { class: "rail-options" },
+      options.map((option) =>
+        el("li", {}, [
+          el("button", {
+            class: "facet-option",
+            type: "button",
+            "aria-pressed": option.selected ? "true" : "false",
+            disabled: option.disabled,
+            text: `${SHOWN_LABELS[option.value] || option.value} (${option.count})`,
+            "data-focus-key": `shown:${option.value}`,
+            onclick: () => goWithParams({ shown: option.selected ? "" : option.value }),
+          }),
+        ]),
+      ),
+    ),
+  ]);
+}
+
 /* The rail's Theme group: one theme at a time, beside the facets.
  *
  * **A theme is one more filter**, as a tag is in Radarr's: it composes with the
@@ -624,7 +670,8 @@ function nothingShown(query, chosen, shownTheme) {
     artists.length === 1 &&
     !FACET_KINDS.filter((kind) => kind !== "artist").some((kind) => chosen[kind].length) &&
     !chosen[FIT].length &&
-    !notOnWall();
+    !notOnWall() &&
+    shownPeriod() === null;
 
   if (onlyAnArtist) {
     return emptyState(
@@ -672,6 +719,7 @@ function filterPhrase(query, chosen, shownTheme) {
     parts.push(`size ${chosen[FIT].map((value) => `“${FIT_LABELS[value] || value}”`).join(" or ")}`);
   }
   if (notOnWall()) parts.push("not on any wall");
+  if (shownPeriod()) parts.push(SHOWN_LABELS[shownPeriod()].toLowerCase());
   return parts.join(", and ");
 }
 
@@ -728,7 +776,7 @@ export async function viewCollection(generation) {
   // the count in the heading a statement about the catalogue rather than about
   // this screen's first page — and what lets the three compose.
   const sort = offeredSort();
-  const narrowing = (theme) => ({ theme, notOnWall: notOnWall() });
+  const narrowing = (theme) => ({ theme, notOnWall: notOnWall(), shown: shownPeriod() });
   // A bookmark can outlive the theme it names. The server refuses an unknown
   // theme, rightly, since answering with the whole catalogue under its name
   // would be a lie; but passing that refusal on would take the home page down,
@@ -789,7 +837,7 @@ export async function viewCollection(generation) {
   const recountRail = async () => {
     const rail = document.querySelector("aside.rails");
     if (!rail) return;
-    const counts = await fetchFilterCounts(query, chosen, { theme, notOnWall: notOnWall() });
+    const counts = await fetchFilterCounts(query, chosen, { theme, notOnWall: notOnWall(), shown: shownPeriod() });
     fill(rail, ...railContents(counts, chosen));
   };
   const tileOf = (artworkId) => grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
@@ -805,7 +853,7 @@ export async function viewCollection(generation) {
     held: {
       themes: themes.map((option) => ({ theme_id: option.theme_id, name: option.name })),
       shownTheme,
-      filter: worksFilterBody(query, chosen, offeredSort(), { theme, notOnWall: notOnWall() }),
+      filter: worksFilterBody(query, chosen, offeredSort(), { theme, notOnWall: notOnWall(), shown: shownPeriod() }),
       total: page.total,
       onAdded: (into, added) => moveThemeCount(into, added),
       onArchived: (ids) => {
@@ -1005,6 +1053,7 @@ function railContents(page, chosen) {
     themeRail(page.themes, narrowed),
     fitRail(page.fits || [], chosen),
     wallRail(page.not_on_wall, page.total, narrowed),
+    shownRail(page.shown || [], page.total, narrowed),
     ...facetRail(page.facets, chosen, narrowed),
   ].filter(Boolean);
   return groups.length

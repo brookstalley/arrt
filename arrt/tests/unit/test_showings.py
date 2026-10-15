@@ -280,8 +280,7 @@ def test_a_rotation_reported_by_heartbeat_is_kept_as_showings(display, hung, wal
     assert display.last_showing(wall_id) == Showing(
         wall_id=wall_id, work_id=second.id, started_at=now - MINUTE, last_seen_at=now - MINUTE, ended_at=now
     )
-    assert display.work_ids_shown() == {first.id, second.id}
-    assert display.work_ids_shown(since=now - MINUTE - timedelta(seconds=1)) == {second.id}
+    assert display.last_shown_by_work() == {first.id: now - 2 * MINUTE, second.id: now - MINUTE}
 
 
 def test_a_player_before_minor_3_is_kept_from_its_current_work(display, hung, wall_id):
@@ -302,7 +301,7 @@ def test_a_work_the_walls_feed_does_not_carry_is_not_recorded_and_is_logged(disp
         display.record_heartbeat(wall_id, _heartbeat(now, work_id=stranger.id))
 
     assert display.last_showing(wall_id) is None
-    assert display.work_ids_shown() == frozenset()
+    assert display.last_shown_by_work() == {}
     (line,) = [record for record in caplog.records if getattr(record, "event", None) == "showings.not_in_feed"]
     assert (line.wall_id, line.work_id) == (wall_id, stranger.id)
 
@@ -344,7 +343,7 @@ def test_a_showing_on_a_wall_since_removed_still_counts_as_shown(display, store,
     first, _ = hung
     store.save_showing(Showing(wall_id="a-wall-taken-down", work_id=first.id, started_at=T0, last_seen_at=T0 + MINUTE))
 
-    assert display.work_ids_shown() == {first.id}
+    assert set(display.last_shown_by_work()) == {first.id}
 
 
 def test_a_record_that_cannot_be_written_is_logged_and_the_heartbeat_still_kept(

@@ -10,6 +10,26 @@ each entry, which is the durable form.
 
 ## Pending
 
+### What each wall has shown — added 2026-10-15
+
+**`build-plan-shown-record.md` chunk 03, #316.** Deploy from this branch to the
+NAS and leave the HDMI wall running for a day: the log fills from now on, so a
+fresh deploy has nothing to show.
+
+- **Artworks' rail.** A *Last shown* group appears once a wall has shown
+  something: *Never shown*, *Not in the last month*, *Not in 3 months*,
+  *Not in a year*, each with a count. After one day, the month, 3 months and
+  a year count the same works, and *Never shown* leaves out what the wall
+  played. Judge the four labels, and whether *Last shown* reads as the group's
+  name.
+- **One choice.** Choosing one presses it and releases the others. Choosing it
+  again clears it.
+- **Beside *Not on any wall*.** The two together find the works neither hung
+  now nor shown in the period.
+- **The journal.** No `showings.not_recorded` after a day. A
+  `showings.not_in_feed` is ordinary just after a work leaves a theme, and
+  worth a look if it repeats for one wall.
+
 ### Copy that says one thing once — added 2026-10-14
 
 **`build-plan-ux-second-walk.md` chunk 06, #359.** Run from this branch on the

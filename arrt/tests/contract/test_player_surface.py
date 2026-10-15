@@ -357,7 +357,7 @@ def test_a_posted_heartbeat_showing_art_is_kept_as_what_the_wall_showed(server_u
 
     assert response.status_code == 204
     assert services.display.last_showing(wall_id).work_id == playing.id
-    assert services.display.work_ids_shown() == {playing.id}
+    assert set(services.display.last_shown_by_work()) == {playing.id}
 
 
 def test_a_showing_the_store_cannot_write_still_answers_the_heartbeat(
@@ -388,7 +388,7 @@ def test_a_heartbeat_from_a_client_not_showing_the_wall_is_refused_and_kept_as_n
 
     assert response.status_code == 403
     assert services.display.last_showing(wall_id) is None
-    assert services.display.work_ids_shown() == frozenset()
+    assert services.display.last_shown_by_work() == {}
 
 
 # -- admission --------------------------------------------------------------------------

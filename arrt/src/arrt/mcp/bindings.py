@@ -60,9 +60,11 @@ from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
+from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 from arrt.services.health import PicturesReading, SourceHealth
+from arrt.services.works_filter import FilterOption
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -105,11 +107,22 @@ log = logging.getLogger(__name__)
 
 
 def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    # A theme's works are Programming's to name and the Library's to list: two
-    # calls composed, as `_get_theme` composes them.
+    # The theme, the fit bands, *Not on any wall* and *Last shown* are
+    # Programming's and the Library's composed, by the composer the browser's
+    # listing uses too, so one filter selects the same works on both surfaces.
     theme = arguments.get("theme")
-    within = None if theme is None else services.display.theme_work_ids(theme)
     facets = {kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)}
+    narrowing = works_filter.narrowing(
+        services,
+        status=arguments.get("status"),
+        q=arguments.get("q"),
+        facets=facets,
+        artist_id=arguments.get("artist_id"),
+        theme=theme,
+        fit=arguments.get("fit") or [],
+        not_on_wall=bool(arguments.get("not_on_wall")),
+        shown=arguments.get("shown"),
+    )
     listing = services.catalogue.list_artworks(
         status=arguments.get("status"),
         q=arguments.get("q"),
@@ -118,7 +131,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
         artist_id=arguments.get("artist_id"),
-        within=within,
+        within=narrowing.within(),
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],
@@ -146,18 +159,18 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
                 "selected": option.selected,
                 "disabled": option.disabled,
             }
-            for option in services.display.theme_counts(
-                services.catalogue.matching_ids(
-                    status=arguments.get("status"),
-                    q=arguments.get("q"),
-                    facets=facets,
-                    artist_id=arguments.get("artist_id"),
-                ),
-                selected=theme,
-            )
+            for option in services.display.theme_counts(narrowing.among(but="theme"), selected=theme)
         ],
+        # The clean-up filters, counted the same way, in `GET /api/works`' shape.
+        fits=[_filter_option(option) for option in narrowing.fit_options()],
+        not_on_wall=_filter_option(narrowing.off_wall_option()),
+        shown=[_filter_option(option) for option in narrowing.shown_options()],
         notice=_truncation_notice(listing),
     )
+
+
+def _filter_option(option: FilterOption) -> dict[str, Any]:
+    return {"value": option.value, "count": option.count, "selected": option.selected, "disabled": option.disabled}
 
 
 def _facet_group(group: FacetGroup) -> dict[str, Any]:

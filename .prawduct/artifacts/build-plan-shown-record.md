@@ -164,6 +164,24 @@ chunk 02 here serves. That chunk waits on this plan (the owner's ruling,
     feed is what the Player plays, so a wall taken down whose feed still
     carries slots shows them. Settled by the plan's "from the published
     schedule".
+  - [DECISION, 03: `work_ids_shown(since=)` is replaced by
+    `last_shown_by_work()`, a map from each work to its latest sight] The
+    composer needs the instants to count four periods from one read, and a
+    method read only by tests would be dead code. Chunk 01's tests now assert
+    the instants, which is stronger than the sets they asserted.
+  - [DECISION, 03: the periods are 30, 90 and 365 days, named `month`,
+    `quarter` and `year`] The owner chose fixed periods on 2026-10-15; the
+    day counts are the inference already listed under Inferred. The rail says
+    "Not in the last month", "Not in 3 months" and "Not in a year".
+  - [DECISION, 03: the period edge is inclusive: a work last seen exactly 30
+    days ago was shown in the month] "Not in the last month" excludes what was
+    up within it, to the second. Pinned by `test_works_filter.py`.
+  - [DECISION, 03: *Last shown* is drawn once some option counts fewer than
+    the filter's total, or one is chosen] The same rule as *Not on any wall*:
+    before any wall has shown anything, every option selects every work.
+  - [DECISION, 03: #288 is closed, so its scope-out line is not edited] The
+    supersession is recorded here and in `api-contract.md`'s `GET /api/works`
+    row, which is where a reader of that facet looks.
 - **Level: High.** The source exists and is parsed today
   (`display_state.reported_state`), the store has a precedent for
   heartbeat-derived rows (`reported_screens`), and the facet composition has a
@@ -217,7 +235,8 @@ Q53, read through the primary key.
   that names no work, record nothing. Every other state closes the open
   showing.
 - `DisplayService` reads: `last_showing(wall_id)` and
-  `work_ids_shown(since=None)`, ids opaque as `work_ids_on_walls` returns
+  `last_shown_by_work()` (each work's latest sight; chunk 03 replaced
+  `work_ids_shown(since=)`, which only it read), ids opaque as `work_ids_on_walls` returns
   them.
 - **Records:**
   - `data-model.md`: the Showing entity, with Q53–Q57 in § What this data
@@ -302,4 +321,4 @@ Q53, read through the primary key.
 
 - [x] Chunk 01: the log of showings, written from the heartbeat
 - [x] Chunk 02: Walls' read: the last-shown work and the next three
-- [ ] Chunk 03: Artworks' *Last shown* facet, and MCP parity for the clean-up facets
+- [x] Chunk 03: Artworks' *Last shown* facet, and MCP parity for the clean-up facets

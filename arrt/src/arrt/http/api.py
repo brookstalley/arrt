@@ -22,9 +22,7 @@ that safe.
 """
 
 import logging
-from collections import Counter
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -198,7 +196,7 @@ from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
-from arrt.library.services.survey import FIT_BANDS, WorkDossier, WorkSurvey
+from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
@@ -231,9 +229,11 @@ from arrt.programming.display import UNSET, SizeJudgement, ThemeCount, ThemePlac
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
+from arrt.services import works_filter
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 from arrt.services.health import HealthReading, PicturesReading, SourceHealth
+from arrt.services.works_filter import FilterOption
 
 log = logging.getLogger(__name__)
 
@@ -294,6 +294,7 @@ def list_works(
     theme: Annotated[str | None, Query()] = None,
     fit: Annotated[list[str] | None, Query()] = None,
     not_on_wall: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
+    shown: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -317,14 +318,16 @@ def list_works(
 
     `fit` narrows to works whose size is in one of the bands named
     (`meets_minimum`, `below_minimum`, or `unknown` for a work with no
-    master), and `not_on_wall` to works no wall plays now. Both are counted
-    like a facet, each ignoring its own selection, and every other count
-    narrows by them (`_Narrowing`).
+    master), `not_on_wall` to works no wall plays now, and `shown` to works
+    no wall has shown in a period (`never`, `month`, `quarter`, `year`,
+    `works_filter.SHOWN_PERIODS`). Each is counted like a facet, ignoring its
+    own selection, and every other count narrows by them
+    (`services/works_filter.py`).
     """
     services = _services(request)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
     facets = {kind: values for kind, values in chosen.items() if values}
-    narrowing = _narrowing(
+    narrowing = works_filter.narrowing(
         services,
         status=status,
         q=q,
@@ -333,6 +336,7 @@ def list_works(
         theme=theme,
         fit=fit or [],
         not_on_wall=not_on_wall,
+        shown=shown,
     )
     page = services.survey.list_works(
         status=status,
@@ -355,115 +359,20 @@ def list_works(
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
         themes=[_theme_option(option) for option in services.display.theme_counts(narrowing.among(but="theme"), selected=theme)],
-        fits=narrowing.fit_options(),
-        not_on_wall=narrowing.off_wall_option(),
+        fits=[_option(option) for option in narrowing.fit_options()],
+        not_on_wall=_option(narrowing.off_wall_option()),
+        shown=[_option(option) for option in narrowing.shown_options()],
     )
 
 
-def _meet(*restrictions: frozenset[str] | None) -> frozenset[str] | None:
-    """The works every restriction allows; None when none restricts anything."""
-    present = [restriction for restriction in restrictions if restriction is not None]
-    if not present:
-        return None
-    return frozenset.intersection(*present)
-
-
-@dataclass(frozen=True)
-class _Narrowing:
-    """Which works a filter selects, composed across the seam, with what each narrowing would count.
-
-    **The bindings compose; neither plane reaches the other.** The Library
-    answers what its own narrowings select (`matching_ids`) and each work's
-    size band (`fit_bands`); Programming answers a theme's members and
-    which works a wall plays now (`work_ids_on_walls`), all as opaque ids. Here
-    they meet as sets, and the Library is handed the result as `within`, the
-    restriction it already lists theme slices by (`architecture.md` seam rule 1).
-
-    Three restrictions on top of the Library's own: the theme, the fit bands
-    and *Not on any wall*. Each is counted with its own selection dropped and
-    the others kept, as a facet is (`CatalogueService._facet_groups`), so an
-    option offered as enabled cannot lead to an empty grid.
-    """
-
-    base: frozenset[str]
-    theme: frozenset[str] | None
-    fit: frozenset[str] | None
-    wall: frozenset[str] | None
-    bands: Mapping[str, str]
-    on_walls: frozenset[str]
-    chosen_bands: frozenset[str]
-    not_on_wall: bool
-
-    def _restrictions(self, but: str | None = None) -> list[frozenset[str] | None]:
-        named = (("theme", self.theme), ("fit", self.fit), ("wall", self.wall))
-        return [restriction for name, restriction in named if name != but]
-
-    def within(self) -> frozenset[str] | None:
-        """The restriction the Library lists within: every one of the three in force."""
-        return _meet(*self._restrictions())
-
-    def among(self, *, but: str) -> frozenset[str]:
-        """What every narrowing but `but` selects: the set `but`'s options are counted over."""
-        return _meet(self.base, *self._restrictions(but)) or frozenset()
-
-    def fit_options(self) -> list[FacetOptionOut]:
-        counts = Counter(self.bands[work_id] for work_id in self.among(but="fit") if work_id in self.bands)
-        return [
-            FacetOptionOut(
-                value=band,
-                count=counts[band],
-                selected=band in self.chosen_bands,
-                disabled=counts[band] == 0 and band not in self.chosen_bands,
-            )
-            for band in FIT_BANDS
-        ]
-
-    def off_wall_option(self) -> FacetOptionOut:
-        count = len(self.among(but="wall") - self.on_walls)
-        return FacetOptionOut(
-            value="not_on_wall",
-            count=count,
-            selected=self.not_on_wall,
-            disabled=count == 0 and not self.not_on_wall,
-        )
-
-
-def _narrowing(
-    services: Services,
-    *,
-    status: str | None,
-    q: str | None,
-    facets: Mapping[str, Sequence[str]],
-    artist_id: str | None,
-    theme: str | None,
-    fit: Sequence[str],
-    not_on_wall: bool,
-) -> _Narrowing:
-    """Compose the Library's narrowings with the theme, the fit bands and *Not on any wall*."""
-    unknown = [band for band in fit if band not in FIT_BANDS]
-    if unknown:
-        raise ServiceError(f"fit must be one of {', '.join(FIT_BANDS)}; got {', '.join(repr(band) for band in unknown)}.")
-    base = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
-    chosen_bands = frozenset(fit)
-    bands = services.survey.fit_bands(base)
-    on_walls = services.display.work_ids_on_walls()
-    return _Narrowing(
-        base=base,
-        # An unknown theme is refused here, by name, as the listing always has.
-        theme=None if theme is None else frozenset(services.display.theme_work_ids(theme)),
-        fit=None if not chosen_bands else frozenset(work_id for work_id, band in bands.items() if band in chosen_bands),
-        wall=None if not not_on_wall else base - on_walls,
-        bands=bands,
-        on_walls=on_walls,
-        chosen_bands=chosen_bands,
-        not_on_wall=not_on_wall,
-    )
+def _option(option: FilterOption) -> FacetOptionOut:
+    return FacetOptionOut(value=option.value, count=option.count, selected=option.selected, disabled=option.disabled)
 
 
 def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
     """Every work `narrowing` selects, in the order its listing shows them.
 
-    Composed exactly as `list_works` composes it (`_narrowing`), so *Select all*
+    Composed exactly as `list_works` composes it (`works_filter.narrowing`), so *Select all*
     acts on the works the grid beside it is counting.
     """
     chosen = {
@@ -475,7 +384,7 @@ def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
         "palette": narrowing.palette,
     }
     facets = {kind: values for kind, values in chosen.items() if values}
-    composed = _narrowing(
+    composed = works_filter.narrowing(
         services,
         status=narrowing.status,
         q=narrowing.q,
@@ -484,6 +393,7 @@ def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
         theme=narrowing.theme,
         fit=narrowing.fit,
         not_on_wall=narrowing.not_on_wall,
+        shown=narrowing.shown,
     )
     return services.catalogue.matching_ids_in_order(
         status=narrowing.status,

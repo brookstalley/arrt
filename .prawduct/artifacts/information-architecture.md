@@ -500,11 +500,14 @@ listed below so it can be disputed.
   with Native and Matted small, until wave 4b took the panel out of the Library
   on 2026-10-08), and *Walls › Not on any wall*,
   the works no wall plays now through the theme or selection hanging on it
-  (the owner's ruling: which works a wall has shown is not recorded, so "never
-  hung" is not offered). Both are counted by the server like a facet and
-  compose with the search, the theme and the facets. Each group is drawn only
-  once it can narrow: *Size* when two bands hold works, *Not on any
-  wall* once something hangs.
+  (the owner's ruling of 2026-10-08), and *Last shown* (from 2026-10-15, #316):
+  one choice among *Never shown*, *Not in the last month*, *Not in 3 months*
+  and *Not in a year*, read from the log of what each wall has shown, each
+  period counting the never-shown works too. All are counted by the server
+  like a facet and compose with the search, the theme and the facets. Each
+  group is drawn only once it can narrow: *Size* when two bands hold works,
+  *Not on any wall* once something hangs, *Last shown* once a wall has shown
+  something.
 - **Wanted holds the works the curator wants** *(shown since 2026-10-02, the
   owner's ruling on #168, `build-plan-after-review.md` Chunk 05)*: a work wanted
   on a no-scan review card, or whose scan on offer was turned down, which is one

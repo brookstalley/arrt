@@ -547,9 +547,8 @@ class DisplayService:
         What Artworks' *Not on any wall* facet leaves out (the owner's ruling of
         2026-10-08 on #288): a work is on a wall when a theme or selection
         hanging on one holds it and it is not kept off every wall. **Not what a
-        wall has shown**: which works a wall actually displayed is not
-        recorded, so "never hung" cannot be answered, and this does not pretend
-        to. Nor is it readiness: a held work a wall would skip for want of a
+        wall has shown**, which is `last_shown_by_work`'s, from the Players'
+        reports. Nor is it readiness: a held work a wall would skip for want of a
         render still counts as on it, since the curator's act — hanging the
         theme — is what this answers for.
 
@@ -1496,16 +1495,14 @@ class DisplayService:
         self.get_wall(wall_id)
         return self._store.latest_showing(wall_id)
 
-    def work_ids_shown(self, *, since: datetime | None = None) -> frozenset[str]:
-        """The ids of every work some wall has shown, or shown at or after `since`.
+    def last_shown_by_work(self) -> Mapping[str, datetime]:
+        """Each work any wall has shown, with the latest report naming it; walls since removed count.
 
-        Walls since removed count: the work was shown. Ids, opaque to this
-        plane, as `work_ids_on_walls` returns them, for the bindings to meet with
-        the Library's. Read from the showings' last sight, so a work up now
-        counts as shown now.
+        Ids, opaque to this plane, as `work_ids_on_walls` returns them, for the
+        composer to meet with the Library's (`services/works_filter.py`). Read
+        from the showings' last sight, so a work up now counts as shown now.
         """
-        last_seen = self._store.last_shown_by_work()
-        return frozenset(work_id for work_id, at in last_seen.items() if since is None or at >= since)
+        return self._store.last_shown_by_work()
 
     # -- too small for this wall ----------------------------------------------
 
