@@ -3240,9 +3240,10 @@ build_state:
 #
 # active_build_plan: artifacts/build-plan-my-scope.md
 
-# Two plans claim feature/ux-second-walk: shown-record (#316) is built first,
-# then ux-second-walk chunk 04 reads it (the owner's ruling, 2026-10-14).
-active_build_plan: artifacts/build-plan-shown-record.md
+# Two plans claim feature/ux-second-walk: shown-record (#316) was built first
+# and is complete; ux-second-walk chunk 04 reads it (the owner's ruling,
+# 2026-10-14), so the open plan breaks the tie.
+active_build_plan: artifacts/build-plan-ux-second-walk.md
 
 # Moved back 2026-08-12, in the PR that lands curation-ux. That plan is archived
 # and complete, so it is no longer something governance can resolve a chunk
