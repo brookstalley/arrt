@@ -14,6 +14,7 @@ holds that a token issued under the old scheme opens nothing.
 import hashlib
 import json
 import logging
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -340,6 +341,54 @@ def test_a_display_state_a_later_minor_added_is_read_as_unreachable(server_url, 
     walls = httpx.get(server_url + "/api/walls").json()["walls"]
     state = next(wall for wall in walls if wall["wall_id"] == wall_id)["display_state"]
     assert (state["state"], state["work_id"]) == ("unreachable", None)
+
+
+def _showing_art(work_id: str) -> dict:
+    now = datetime.now(UTC).isoformat()
+    return {
+        "schema": {"major": 1, "minor": 3},
+        "reported_at": now,
+        "display_state": {"state": "showing_art", "work_id": work_id, "since": now},
+    }
+
+
+def test_a_posted_heartbeat_showing_art_is_kept_as_what_the_wall_showed(server_url, services, playing, token, wall_id):
+    response = httpx.post(server_url + _path("heartbeat", wall_id=wall_id), json=_showing_art(playing.id), headers=_bearer(token))
+
+    assert response.status_code == 204
+    assert services.display.last_showing(wall_id).work_id == playing.id
+    assert services.display.work_ids_shown() == {playing.id}
+
+
+def test_a_showing_the_store_cannot_write_still_answers_the_heartbeat(
+    server_url, services, store, playing, token, wall_id, wall_settings, monkeypatch, caplog
+):
+    """A full disk reaches the service as the driver's own error, not the store's refusal, and the Player is still answered."""
+
+    def full(showing):
+        raise sqlite3.OperationalError("database or disk is full")
+
+    monkeypatch.setattr(store, "save_showing", full)
+    with caplog.at_level(logging.ERROR, logger="arrt.programming.display"):
+        response = httpx.post(
+            server_url + _path("heartbeat", wall_id=wall_id), json=_showing_art(playing.id), headers=_bearer(token)
+        )
+
+    assert response.status_code == 204
+    assert wall_settings.heartbeat_path(wall_id).exists()
+    assert [record for record in caplog.records if getattr(record, "event", None) == "showings.not_recorded"]
+
+
+def test_a_heartbeat_from_a_client_not_showing_the_wall_is_refused_and_kept_as_nothing(
+    server_url, services, playing, study_token, wall_id
+):
+    response = httpx.post(
+        server_url + _path("heartbeat", wall_id=wall_id), json=_showing_art(playing.id), headers=_bearer(study_token)
+    )
+
+    assert response.status_code == 403
+    assert services.display.last_showing(wall_id) is None
+    assert services.display.work_ids_shown() == frozenset()
 
 
 # -- admission --------------------------------------------------------------------------

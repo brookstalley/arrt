@@ -303,7 +303,9 @@ convenience would otherwise make that split a migration.
 > 2026-10-07: Programming's acts on the walls (a hang, *Not this one again*, its
 > undo) reach the Library's history through `LibraryFacade.record`, written after
 > Programming's own change commits, and the facade refuses any other kind;
-> `work_exclusions` holds its work ids with no foreign key, as rule 3 asks.)* **Still in the
+> `work_exclusions` holds its work ids with no foreign key, as rule 3 asks.
+> 2026-10-15: so does `showings`, what each wall has shown, written from the
+> Players' heartbeats.)* **Still in the
 > inventory:** the two foreign keys (rule 3), and one migration:
 > `mark_the_default_theme` (`persistence/migrations.py`) reads the Library's
 > `artworks` to back-fill Programming's `default_theme_offers` on a file that

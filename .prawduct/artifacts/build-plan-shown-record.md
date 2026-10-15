@@ -127,7 +127,35 @@ chunk 02 here serves. That chunk waits on this plan (the owner's ruling,
   - **A showing on a wall since deleted still counts.** The work was shown.
     There is no foreign key to a wall (as with `history_events`), and a wall
     is never named by the facet.
-- **Decisions made mid-build:** (none yet)
+- **Decisions made mid-build:**
+  - [DECISION, 01: the rules live in a pure module, `programming/showings.py`,
+    and `DisplayService` only feeds it the latest showing and the feed] Settled
+    by the architecture goal that the writer takes a reported state, so #309
+    adds a caller, and by `display.py`'s size.
+  - [DECISION, 01: a showing never starts before the one it follows ended, and
+    a report older than the latest sight changes nothing] Settled by "a wall
+    shows one thing at a time", which makes `(wall_id, started_at)` the key.
+    Both cases are a controller contradicting itself, or a report arriving
+    late, and a later report of the moved showing still extends it.
+  - [DECISION, 01: the two new log lines are structured events,
+    `showings.not_recorded` and `showings.not_in_feed`, in
+    `observability-strategy.md`'s table] Matched to the picture store's events
+    (`extra={"event": …}`), which are the product's way of naming a line.
+  - [DECISION, 01: verified through the booted-server contract test, which
+    posts a real heartbeat over HTTP, rather than by hand against the dev
+    server] The dev server reads the operator's `.env`, whose art root is real
+    data. The contract test is the same wire, and it is repeatable.
+  - [DECISION, 01, from its review: the showing write is a bulkhead, a broad
+    catch waived in place, logged as `showings.not_recorded`] The store
+    translates only a refused row into `StorageError`, so a full disk refused
+    the Player's heartbeat with a 500, and skipped the horizon roll after it.
+    Catching the driver's error by name is forbidden above the persistence
+    package (`test_persistence_boundary.py`), and any failure of the record,
+    a bug in its rules included, must leave the roll running. Pinned through
+    the route with the driver's own error.
+  - [DECISION, 01, from its review: `keep_showing(wall_id, reported, at=)` is
+    the writer, and the heartbeat is one caller] So #309 adds a caller and
+    changes no write path, as the architecture goal asks.
 - **Level: High.** The source exists and is parsed today
   (`display_state.reported_state`), the store has a precedent for
   heartbeat-derived rows (`reported_screens`), and the facet composition has a
@@ -168,7 +196,7 @@ Q53, read through the primary key.
 
 - **Type:** code. **Critic mode:** final. This is the keystone, a persisted
   format, and it is reviewed before anything reads it.
-- New table `showings` in the store schema (`persistence/sqlite.py`), with its
+- New table `showings` in the store schema (`arrt/src/arrt/persistence/sqlite.py`), with its
   methods on `ProgrammingStore`:
   - record a reported state against the wall's open showing;
   - the wall's latest showing;
@@ -246,9 +274,9 @@ Q53, read through the primary key.
 
 ## Verification strategy
 
-- Chunk 01 is exercised against the dev server with a real heartbeat posted
-  over HTTP, the way a Player posts it, before the review: a rotation, a
-  dark screen, a re-sent heartbeat. The table is read back with `sqlite3`.
+- Chunk 01 is exercised through the booted-server contract test, which posts a
+  real heartbeat over HTTP the way a Player does (§ Decisions: not by hand
+  against the dev server, whose art root is the operator's real library).
 - Chunk 03 is seen in the browser on a library with a few seeded showings,
   through `ux_walk.py`'s Artworks capture.
 - The owner's NAS deployment is the first real feed. One HDMI wall reports on
@@ -264,6 +292,6 @@ Q53, read through the primary key.
 
 ## Status
 
-- [ ] Chunk 01: the log of showings, written from the heartbeat
+- [x] Chunk 01: the log of showings, written from the heartbeat
 - [ ] Chunk 02: Walls' read: the last-shown work and the next three
 - [ ] Chunk 03: Artworks' *Last shown* facet, and MCP parity for the clean-up facets

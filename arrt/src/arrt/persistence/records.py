@@ -699,6 +699,31 @@ class ThemeAssignment:
 
 
 @dataclass(frozen=True, slots=True)
+class Showing:
+    """One stretch of a wall showing one work, as its Player reported it.
+
+    Programming's, kept from each heartbeat that says `showing_art` with a work
+    the wall's feed carries. A wall shows one thing at a time, so `(wall_id,
+    started_at)` identifies it. A work shown, taken down and shown again is two
+    showings. **Neither id is a foreign key**: a wall removed keeps the fact that
+    a work was shown on it, and `work_id` is an opaque reference, as everywhere
+    Programming names a work.
+    """
+
+    wall_id: str
+    work_id: str
+    #: When the screen began showing the work: the controller's `since`, or the
+    #: first report naming it from a Player that does not send one.
+    started_at: datetime
+    #: The latest report still naming it. How far the showing is known to have
+    #: run while it has no end.
+    last_seen_at: datetime
+    #: When the wall reported something else, and null until it does: a wall
+    #: still showing it, or one that has stopped reporting.
+    ended_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class WorkExclusion:
     """A work the curator said not to show again on any wall: *Not this one again*, from every wall.
 

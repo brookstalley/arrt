@@ -1,8 +1,8 @@
 """The persistence contract over Programming's tables.
 
 Themes, what each holds, walls, what hangs on each, the
-clients that show walls, their displays and label outputs, and the works kept
-off every wall.
+clients that show walls, their displays and label outputs, the works kept
+off every wall, and what each wall has shown.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -15,7 +15,7 @@ contract gives: every rule about what a valid arrangement looks like belongs to
 the service, which is the only caller.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
@@ -24,6 +24,7 @@ from arrt.persistence.records import (
     Client,
     Display,
     LabelOutput,
+    Showing,
     Theme,
     ThemeAssignment,
     ThemeMembership,
@@ -127,6 +128,20 @@ class ProgrammingStore(Protocol):
 
     def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
         """Drop one reported size, once it is too old to count."""
+        ...
+
+    # -- what each wall has shown ---------------------------------------------
+
+    def save_showing(self, showing: Showing) -> None:
+        """Write a showing, replacing the one with the same wall and start."""
+        ...
+
+    def latest_showing(self, wall_id: str) -> Showing | None:
+        """The wall's showing that started last, ended or not; None if it has shown nothing."""
+        ...
+
+    def last_shown_by_work(self) -> Mapping[str, datetime]:
+        """Each work any wall has shown, walls since removed included, with the latest report naming it."""
         ...
 
     def add_wall(self, wall: Wall) -> None:

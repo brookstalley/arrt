@@ -96,6 +96,9 @@ _EXPECTED_SCHEMA = {
     # tables that `CREATE TABLE IF NOT EXISTS` brings to an older file.
     "work_exclusions": {"artwork_id", "excluded_at"},
     "history_events": {"id", "kind", "occurred_at", "work_id", "run_id", "wall_id", "theme_id", "detail"},
+    # What each wall has shown, one row per stretch of one work, kept from the
+    # heartbeats; also new, and brought to an older file the same way.
+    "showings": {"wall_id", "started_at", "work_id", "last_seen_at", "ended_at"},
     # The wall token columns went on 2026-10-02, when a Player became a client
     # admitted by the client's token (`migrations.retire_wall_tokens`); the
     # client that shows the wall, and on which output, arrived in their place,

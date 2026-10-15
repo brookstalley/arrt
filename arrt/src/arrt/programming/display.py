@@ -38,10 +38,10 @@ from arrt.library.facade import (
     WorkChange,
     WorkChanged,
 )
-from arrt.persistence.records import Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
-from arrt.programming import adequacy, shape
+from arrt.persistence.records import Showing, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
+from arrt.programming import adequacy, shape, showings
 from arrt.programming.clients import Placements
-from arrt.programming.display_state import DisplayState
+from arrt.programming.display_state import DisplayState, ReportedState, reported_state
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
@@ -1420,8 +1420,74 @@ class DisplayService:
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this plane can read: {problem}")
         write_atomically(self._settings.heartbeat_path(wall_id), document)
+        self._record_showing(wall_id, document)
         self._record_screen(wall_id, document)
         self._roll_v2(wall_id)
+
+    def _record_showing(self, wall_id: str, document: Mapping[str, Any]) -> None:
+        """Keep what a heartbeat says the wall is showing.
+
+        Before the roll, so the feed that vouches for the work is the one the
+        Player was showing from.
+        """
+        at = observations.instant(document[heartbeat.REPORTED_AT_KEY])
+        if at is not None:
+            self.keep_showing(wall_id, reported_state(dict(document)), at=at)
+
+    def keep_showing(self, wall_id: str, reported: ReportedState, *, at: datetime) -> None:
+        """Keep what one report made `at` says the wall's screen is doing (`showings.py`), against the feed it carries now.
+
+        Any source of a reported state feeds the record through here: the
+        heartbeat today, and display state reported on change when it arrives.
+        **A record that cannot be written is logged, never raised**: the report is
+        the Player's, and its heartbeat must not be refused for this plane's
+        bookkeeping.
+        """
+        published = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        playable = frozenset() if published is None else frozenset(published.works)
+        try:
+            with self._store.transaction():
+                latest = self._store.latest_showing(wall_id)
+                for showing in showings.advance(latest, reported, wall_id=wall_id, at=at, playable=playable):
+                    self._store.save_showing(showing)
+        # A bulkhead, not a filter: the store translates only a refused row into
+        # `StorageError`, and a full disk or a held lock arrives as the driver's
+        # own error, which this layer may not name. Whatever fails here, the
+        # heartbeat's later steps still run, and one of them rolls the wall's
+        # horizon forward.
+        except Exception:  # prawduct:allow prawduct/broad-except -- the shown record never stops a heartbeat
+            log.exception(
+                "a wall's report was not kept as a showing",
+                extra={"event": "showings.not_recorded", "wall_id": wall_id, "reported_at": at.isoformat()},
+            )
+            return
+        stranger = showings.unbelieved_work(reported, playable)
+        # Only against a feed that exists, and only for a report that is still
+        # news: a wall with nothing published, or a report a later one has
+        # superseded, says nothing about what the Player is showing from.
+        if stranger is not None and published is not None and not showings.superseded(latest, at):
+            log.info(
+                "a wall reported a work its feed does not carry, and it was not kept as a showing",
+                extra={"event": "showings.not_in_feed", "wall_id": wall_id, "work_id": stranger},
+            )
+
+    # -- what each wall has shown ---------------------------------------------
+
+    def last_showing(self, wall_id: str) -> Showing | None:
+        """The work this wall showed last and for how long, whatever its screen does now; None if it has shown nothing."""
+        self.get_wall(wall_id)
+        return self._store.latest_showing(wall_id)
+
+    def work_ids_shown(self, *, since: datetime | None = None) -> frozenset[str]:
+        """The ids of every work some wall has shown, or shown at or after `since`.
+
+        Walls since removed count: the work was shown. Ids, opaque to this
+        plane, as `work_ids_on_walls` returns them, for the bindings to meet with
+        the Library's. Read from the showings' last sight, so a work up now
+        counts as shown now.
+        """
+        last_seen = self._store.last_shown_by_work()
+        return frozenset(work_id for work_id, at in last_seen.items() if since is None or at >= since)
 
     # -- too small for this wall ----------------------------------------------
 
