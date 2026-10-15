@@ -275,6 +275,42 @@ open.
     dialog, from a plain button around it] The review cards already use that
     dialog. It gives Escape, Close, a backdrop click and focus restored to the
     picture.
+  - [DECISION, 04: the last-shown work and the next three are read from
+    `build-plan-shown-record.md`'s server reads (`WallOut.last_shown`,
+    `upcoming`)] This is the owner's ruling of 2026-10-14, built first, and
+    the design pass's choice is closed by it.
+  - [DECISION, 04, INFERRED, for the owner to confirm or narrow: the
+    last-shown work leads in every state that names no work of ours (off,
+    in use, no screen on the output, not known, silent), not only when the
+    screen is off] Ruling 3 names the screen off. The same answer holds for
+    every such state: what was last up is the best picture of the room. Only
+    an *unassigned* wall, which no client shows, leads with that alone:
+    `test_walls_lead_with_the_work.py` holds that its lead claims nothing
+    from its heartbeat, and its past is History's. Narrowing to "off" is one
+    line in `nowOn` (`screens/walls.js`) and one test.
+  - [DECISION, 04: "screen off" is said once by dropping the assignment
+    line's "no screen is detected" clause while the lead says the screen is
+    off] The lead is the more specific of the two, from the controller.
+  - [DECISION, 04: Walls names a port (`hdmi-a-1`, `epd-0`) only with
+    `?debug`; Settings › Clients still names them always] Ruling 1 of
+    2026-10-11. On Clients an output is chosen by its name, so there the
+    name is the content. Ten existing assertions were re-pointed:
+    - where the port was the claim (which output shows the wall), the test
+      opens with `?debug` and still asserts it;
+    - elsewhere, the expected sentence lost only the port.
+  - [DECISION, 04: *Change* wears the act's shape by adding `summary` to
+    `.action`'s selectors, and *History* is a plain link] The walk's cause:
+    `:is(button, a).action` never matched Change's `<summary>`.
+  - [DECISION, 04: the server's "not currently displayable" sentence
+    (`ManifestBuild`'s summary) is left as it is] It is about the theme's
+    works, not the screen, and #354's acceptance does not name it. Noted for
+    the owner's next walk rather than changed unasked.
+  - [DECISION, 04: fixed in this chunk, outside its item: the way back's
+    topic test, which failed three times under the full parallel run] It
+    waited only on the address, and `back_link` was satisfied by the work
+    page's own way back before the topic painted. Reproduced by holding the
+    topic read for 3 s, with the exact observed assertion. Now it waits on
+    the topic's title, as its siblings wait on theirs. Recorded on #371.
 - **Level: Medium.** Chunks 01–03 are well understood: each item is at
   `ready`, or is a client-only change with a concrete proposal. Chunks 04–06
   are at `design`, and 04 may need a server read. Each of those chunks opens
@@ -373,7 +409,7 @@ open.
     published schedule's slot at the moment the screen went dark (an
     inference, since the schedule says what was meant to show).
   - **The next three are in the published schedule but not exposed.**
-    - `Published.on_the_wall(now)` and `after(now)` (`programming/manifest/v2.py`)
+    - `Published.on_the_wall(now)` and `after(now)` (`arrt/src/arrt/programming/manifest/v2.py`)
       exist, and nothing routes them.
     - A read belongs beside `get_wall_view` in `DisplayService`, served on
       `WallOut`, with its MCP twin.
@@ -446,4 +482,4 @@ plan's. It follows the deploy.
 - [x] Chunk 03: pictures where a person decides (#358)
 - [x] Chunk 05: the Theme page (#352)
 - [x] Chunk 06: copy (#359), with the verbs for a taste judgment left OPEN for the owner
-- [ ] Chunk 04: Walls shows a picture, and the next three (#354), after #316's record (the owner's ruling, 2026-10-14)
+- [x] Chunk 04: Walls shows a picture, and the next three (#354), after #316's record (the owner's ruling, 2026-10-14)

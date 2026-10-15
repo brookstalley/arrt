@@ -10,6 +10,29 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walls with the screen off — added 2026-10-15
+
+**`build-plan-ux-second-walk.md` chunk 04, #354.** Deploy from this branch, let
+the HDMI wall show a few works, then switch its screen off and open Walls.
+
+- **The picture.** The card says "Its screen is off" once, then the work it
+  last showed, large, under "Last on the wall, until …". Judge whether the
+  work reads as past rather than present.
+- **Beyond off (the agent's inference, yours to veto).** The same picture
+  leads when somebody is using the screen ("Somebody is using the screen"),
+  when the display cannot tell ("Not known"), and when the wall has gone
+  quiet. A wall no screen shows says only that. Say if it should lead only
+  when the screen is off.
+- **Next.** Three small works under the lead, each with "From …". Judge the
+  size and whether "Next" is enough of a heading.
+- **No ports.** No `hdmi-a-1` or `epd-0` on the page. Add `?debug` before
+  the `#` and both come back.
+- **Acts and links.** *Change* looks like a button beside *Skip*; *History*
+  reads as a link.
+- **Not changed:** the server's sentence about works "not currently
+  displayable", which the walk also flagged, is about the theme's works and is
+  left for your next look.
+
 ### What each wall has shown — added 2026-10-15
 
 **`build-plan-shown-record.md` chunk 03, #316.** Deploy from this branch to the

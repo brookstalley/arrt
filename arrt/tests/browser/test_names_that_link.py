@@ -189,7 +189,7 @@ def test_a_label_whose_client_cannot_be_named_is_said_in_words_not_an_empty_link
     line = ui.page.locator(f"#view section[data-wall='{the_wall.id}'] .wall-labels")
     line.wait_for()
 
-    assert "epd-0 on a client whose name could not be read" in line.inner_text()
+    assert "a label on a client whose name could not be read" in line.inner_text()
     links = line.locator("a")
     assert all(links.nth(at).inner_text().strip() for at in range(links.count())), "a link with no words names nothing"
     assert line.locator(f"a[href='{client_address(hall)}']:text-is('{hall.name}')").count() == 1

@@ -170,7 +170,11 @@ def a_wintry_work(service, pablum):
 def test_a_topic_opened_from_a_work_returns_to_that_work(ui, a_wintry_work):
     ui.open(f"#work/{a_wintry_work.id}")
     ui.page.click("#view dl.facets a:text-is('winter')")
-    ui.page.wait_for_function("(qid) => window.location.hash.startsWith(`#topic/${qid}`)", arg=WINTER)
+    # The address changes, and the router titles the page "Topic", before the
+    # topic paints, while the work's own way back ("← Artworks") still satisfies
+    # `back_link`; so wait for the topic's own name, as every other arrival here
+    # waits on its destination's title.
+    ui.page.wait_for_function("() => document.title === 'Winter - Arrt'")
 
     back = back_link(ui)
     assert back.inner_text() == "← Celestial Pablum"

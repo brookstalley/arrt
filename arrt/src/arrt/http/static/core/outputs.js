@@ -93,10 +93,18 @@ export function wallScreenLine(clientName, outputName, state, heartbeat = null) 
 
 /* The same line in parts, with `named` (the client's name, or a link to it)
  * where the sentence first names the client and its plain `clientName` after,
- * so a line names its client once as a link and not twice. */
-export function wallScreenParts(named, clientName, outputName, state, heartbeat = null) {
-  const assigned = ["Assigned to ", named, ` on ${outputName}`];
-  if (state === DETECTED) return ["Shown by ", named, ` on ${outputName}`];
+ * so a line names its client once as a link and not twice.
+ *
+ * `outputName` null leaves the output unnamed: Walls names a port only with
+ * `?debug` (the owner's ruling 1 of 2026-10-11), since on Walls the port is
+ * engineering detail. `offSaid` drops the
+ * "no screen is detected" clause where the line's reader has just been told the
+ * screen is off, so the page says it once. */
+export function wallScreenParts(named, clientName, outputName, state, heartbeat = null, { offSaid = false } = {}) {
+  const on = outputName ? ` on ${outputName}` : "";
+  const assigned = ["Assigned to ", named, on];
+  if (state === DETECTED) return ["Shown by ", named, on];
+  if (state === NOT_DETECTED && offSaid) return assigned;
   if (state === NOT_DETECTED) return [...assigned, ", where no screen is detected (off or unplugged)"];
   if (state === NOT_REPORTED) {
     return [...assigned, `. ${clientName} has not reported its outputs yet, so whether a screen is there is not known.`];
@@ -107,7 +115,12 @@ export function wallScreenParts(named, clientName, outputName, state, heartbeat 
   if (state === STALE) {
     return [...assigned, `. ${clientName} last reported ${ago(heartbeat.age_seconds)}, so whether a screen is there now is not known.`];
   }
-  if (state === NOT_LISTED) return [...assigned, `. ${clientName}'s last report lists no output called ${outputName}.`];
+  if (state === NOT_LISTED) {
+    return [
+      ...assigned,
+      outputName ? `. ${clientName}'s last report lists no output called ${outputName}.` : `. ${clientName}'s last report does not list the output this wall is assigned to.`,
+    ];
+  }
   // A state added above and not worded here would otherwise fall through to a
   // sentence claiming one of the others.
   throw new Error(`no words for the screen state ${state}`);

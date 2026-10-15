@@ -140,12 +140,24 @@ def test_hidden_rails_still_say_a_clean_up_filter_is_narrowing(ui, hung):
 
 
 @pytest.fixture
-def shown_once(store, sized):
-    """The large scan shown on a wall forty days ago, so the month's count differs from the rest; every other work never shown."""
-    seen = datetime.now(UTC) - timedelta(days=40)
-    store.save_showing(
-        Showing(wall_id="the-hall", work_id=sized["large"].id, started_at=seen - timedelta(minutes=3), last_seen_at=seen)
-    )
+def shown_once(store, seeded_service, sized):
+    """Five works last shown at five different distances, so every period counts differently and none counts them all.
+
+    The large scan ten days ago, the tiny one forty, two seeded works 200 and 400
+    days ago, and the third seeded work never: *Never shown* 1, *Not in the last
+    month* 4, *Not in 3 months* 3, *Not in a year* 2.
+    """
+    seeded = [
+        entry.artwork.id
+        for entry in seeded_service.list_artworks().entries
+        if entry.artwork.id not in {work.id for work in sized.values()}
+    ]
+    now = datetime.now(UTC)
+    for work_id, days in ((sized["large"].id, 10), (sized["tiny"].id, 40), (seeded[0], 200), (seeded[1], 400)):
+        seen = now - timedelta(days=days)
+        store.save_showing(
+            Showing(wall_id="the-hall", work_id=work_id, started_at=seen - timedelta(minutes=3), last_seen_at=seen)
+        )
     return sized
 
 
@@ -158,10 +170,10 @@ def test_last_shown_offers_each_period_with_its_count(ui, shown_once):
     ui.page.wait_for_selector("ul.grid li.card")
 
     assert _last_shown(ui).locator("button.facet-option").all_inner_texts() == [
-        "Never shown (4)",
-        "Not in the last month (5)",
-        "Not in 3 months (4)",
-        "Not in a year (4)",
+        "Never shown (1)",
+        "Not in the last month (4)",
+        "Not in 3 months (3)",
+        "Not in a year (2)",
     ]
 
 
@@ -170,7 +182,7 @@ def test_choosing_never_shown_narrows_at_the_server_and_is_in_the_address(ui, sh
     ui.page.wait_for_selector("ul.grid li.card")
 
     option(ui, "Never shown").click()
-    ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 4")
+    ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     assert "A large scan" not in cards(ui)
     assert "shown=never" in ui.page.evaluate("() => window.location.hash")
@@ -217,7 +229,7 @@ def test_select_all_under_last_shown_sends_it_and_reaches_only_its_works(ui, ser
     ui.page.click(".selection button.select-all")
     ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
-    ui.page.wait_for_selector(".selection-status:has-text('Added 4 works to Never up.')")
+    ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Never up.')")
 
     assert sent[0]["filter"]["shown"] == "never"
     assert shown_once["large"].id not in services.display.theme_work_ids(theme.id)
@@ -226,10 +238,10 @@ def test_select_all_under_last_shown_sends_it_and_reaches_only_its_works(ui, ser
 @pytest.mark.parametrize(
     ("label", "value", "count"),
     [
-        ("Never shown", "never", 4),
-        ("Not in the last month", "month", 5),
-        ("Not in 3 months", "quarter", 4),
-        ("Not in a year", "year", 4),
+        ("Never shown", "never", 1),
+        ("Not in the last month", "month", 4),
+        ("Not in 3 months", "quarter", 3),
+        ("Not in a year", "year", 2),
     ],
 )
 def test_each_period_narrows_the_grid_to_its_count(ui, shown_once, label, value, count):
@@ -244,8 +256,8 @@ def test_each_period_narrows_the_grid_to_its_count(ui, shown_once, label, value,
 
 
 def test_the_period_counts_move_with_a_search(ui, shown_once):
-    """Counted over every other filter, as a facet is: searching for the shown work leaves only the month counting it."""
-    ui.open("#collection?q=large")
+    """Counted over every other filter: searching for the work shown forty days ago leaves only the month counting it."""
+    ui.open("#collection?q=tiny")
     ui.page.wait_for_selector("ul.grid li.card")
 
     assert _last_shown(ui).locator("button.facet-option").all_inner_texts() == [

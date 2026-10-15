@@ -246,10 +246,7 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
     line = ui.page.locator("section.wall p.wall-client").inner_text()
-    assert (
-        line
-        == "Assigned to Hall Pi on hdmi-a-1. Hall Pi last reported 5 days ago, so whether a screen is there now is not known."
-    )
+    assert line == "Assigned to Hall Pi. Hall Pi last reported 5 days ago, so whether a screen is there now is not known."
     assert "Shown by" not in line
 
 
@@ -266,7 +263,7 @@ def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, s
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
-    assert ui.page.locator("section.wall p.wall-client").inner_text() == "Shown by Hall Pi on hdmi-a-1"
+    assert ui.page.locator("section.wall p.wall-client").inner_text() == "Shown by Hall Pi"
 
 
 def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):

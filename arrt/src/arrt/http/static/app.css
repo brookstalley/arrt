@@ -2276,7 +2276,7 @@ select {
 /* An act, and a way to another page offered at the same weight — "All
    themes", "Go to Ask", a way back. The second is a link, as every navigation
    is, and wears the act's shape because it sits among acts. */
-:is(button, a).action {
+:is(button, a, summary).action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2297,7 +2297,7 @@ select {
 /* Ink, in both schemes: the accent belongs to the one filled act, focus and the
    lit page. In dark it is gilt, and quiet acts in it made every control on a
    page the same brass. */
-:is(button, a).action.quiet {
+:is(button, a, summary).action.quiet {
   color: var(--text);
   background: var(--surface-1);
   border-color: var(--border-strong);
@@ -2308,7 +2308,7 @@ select {
    `filter`: a filter makes the act the containing block of anything absolutely
    positioned inside it, so a full-card link's cover shrank to the act under the
    pointer and a press on the card missed. */
-:is(button, a).action:hover {
+:is(button, a, summary).action:hover {
   box-shadow: inset 0 0 0 100vmax color-mix(in srgb, currentColor 10%, transparent);
 }
 
@@ -2856,6 +2856,63 @@ section.offered + section.offered {
   margin: var(--space-1) 0 0;
 }
 
+/* The work a wall showed last, under the state that says why it is not on
+   now: drawn as the work on the wall is, a little below the state's words. */
+.wall-last {
+  margin: var(--space-3) 0 0;
+}
+
+/* The next three: small, in a row that wraps, each with its time. Smaller than
+   the lead on purpose: the lead is what the room is looking at. */
+.wall-next {
+  margin: 0 0 var(--space-4);
+}
+
+.wall-next-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.wall-next-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-next-list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 10rem;
+}
+
+.wall-next-list img {
+  display: block;
+  width: 10rem;
+  height: 7.5rem;
+  object-fit: contain;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.wall-next-work {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-sm);
+}
+
+/* History goes to another page, so it is a link beside the acts, not one of
+   them. */
+.wall-history {
+  align-self: center;
+  font-size: var(--text-sm);
+}
+
 .wall-source {
   margin: 0 0 var(--space-2);
 }
@@ -2882,10 +2939,9 @@ section.offered + section.offered {
   margin: 0;
 }
 
-/* The summary is Change's button, so it reads as one and keeps the browser's
-   disclosure triangle out of a row of buttons. */
+/* The summary is Change's button, so it wears an act's shape (`.action`
+   above) and keeps the browser's disclosure triangle out of a row of buttons. */
 .wall-change > summary {
-  display: inline-block;
   list-style: none;
   cursor: pointer;
 }

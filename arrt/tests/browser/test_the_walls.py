@@ -709,10 +709,15 @@ def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, ser
     _report(settings, hall)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.display.add_wall(name="Study")
-    ui.open("#walls")
+    # The output by its port name is engineering detail, named with `?debug`
+    # (the owner's ruling 1 of 2026-10-11); without it the line ends at the client.
+    ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
 
     assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-1"
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi"
     # The other wall's line is its own: an assignment painted under every wall
     # would read correctly with one wall and be wrong with two.
     assert _client_line(ui, "Study").inner_text().startswith("No client shows this wall.")
@@ -733,9 +738,11 @@ def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui,
     ui.page.wait_for_selector("section.wall p.wall-client")
 
     dark = _client_line(ui, the_wall.name).inner_text()
-    assert dark == "Assigned to Hall Pi on hdmi-a-2, where no screen is detected (off or unplugged)"
+    assert dark == "Assigned to Hall Pi, where no screen is detected (off or unplugged)"
     assert "Shown" not in dark
-    assert _client_line(ui, "Study").inner_text() == "Shown by Hall Pi on hdmi-a-1"
+    # Told apart by what each output reports, not by its name, which the line
+    # leaves out without `?debug`.
+    assert _client_line(ui, "Study").inner_text() == "Shown by Hall Pi"
 
 
 @pytest.mark.parametrize(
@@ -743,7 +750,10 @@ def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui,
     [
         (None, "Hall Pi has not reported its outputs yet, so whether a screen is there is not known."),
         ("{not json", "Hall Pi's last report could not be read, so whether a screen is there is not known."),
-        (HALL_REPORT | {"outputs": HALL_REPORT["outputs"][1:]}, "Hall Pi's last report lists no output called hdmi-a-1."),
+        (
+            HALL_REPORT | {"outputs": HALL_REPORT["outputs"][1:]},
+            "Hall Pi's last report does not list the output this wall is assigned to.",
+        ),
     ],
     ids=["never-reported", "unreadable", "output-not-reported"],
 )
@@ -762,7 +772,7 @@ def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, s
     ui.page.wait_for_selector("section.wall p.wall-client")
 
     line = _client_line(ui, the_wall.name).inner_text()
-    assert line == f"Assigned to Hall Pi on hdmi-a-1. {words}"
+    assert line == f"Assigned to Hall Pi. {words}"
     assert "Shown" not in line
     assert "no screen is detected" not in line
 
@@ -791,7 +801,8 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     hall = services.clients.add_client(name="Hall Pi")
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     ui.serve("**/api/clients", (503, {"error": "the client listing is down"}))
-    ui.open("#walls")
+    # Which output is engineering detail, said with `?debug` (ruling 1 of 2026-10-11).
+    ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
 
     line = _client_line(ui, the_wall.name).inner_text()

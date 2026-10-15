@@ -113,7 +113,7 @@ def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls
         assert panel(ui, hall).locator(".client-labels tbody tr").inner_text().split("\t")[-1] == wall.name
         open_walls(ui)
         line = wall_card(ui, wall).locator(".wall-labels")
-        assert line.inner_text().startswith("Captioned by epd-0 on Hall Pi.")
+        assert line.inner_text().startswith("Captioned by a label on Hall Pi.")
         for other in three_walls:
             if other is not wall:
                 assert wall_card(ui, other).locator(".wall-labels").count() == 0
