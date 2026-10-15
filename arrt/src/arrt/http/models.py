@@ -1026,6 +1026,31 @@ class WallOut(BaseModel):
     #: Why no judgement was made (`no_display`, `no_screen_reported`, `no_feed`),
     #: or null when one was.
     sizes_unjudged: str | None = None
+    #: The work the wall showed last, whatever its screen does now, or null while
+    #: it has shown nothing. What Walls draws for a dark screen.
+    last_shown: LastShownOut | None = None
+    #: Up to three works the wall's published schedule puts up next, in order,
+    #: not counting the one on it now. Empty with no feed published.
+    upcoming: list[UpcomingOut] = []
+
+
+class LastShownOut(BaseModel):
+    """The work a wall showed last, and for how long, as its Player reported it."""
+
+    work_id: str
+    #: When the screen began showing it.
+    started_at: str
+    #: When it stopped, or while `ended` is false, the latest report still naming
+    #: it: a wall showing it now, or one that has stopped reporting.
+    until: str
+    ended: bool
+
+
+class UpcomingOut(BaseModel):
+    """One slot of a wall's published schedule still to come."""
+
+    work_id: str
+    starts_at: str
 
 
 class ClientWallOut(BaseModel):

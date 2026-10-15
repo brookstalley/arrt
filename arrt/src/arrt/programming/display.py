@@ -49,7 +49,7 @@ from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
-from arrt.programming.schedule import Keep, Schedule, Start, StartFresh, movable_walls
+from arrt.programming.schedule import Keep, Schedule, Slot, Start, StartFresh, movable_walls
 from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -195,6 +195,12 @@ class WallView:
     #: 2), from its last readable heartbeat. None when there is no such
     #: heartbeat to read. `heartbeat.reads_major` says how silence is read.
     reads_feed: bool | None = None
+    #: The work the wall showed last, whatever its screen does now (`showings.py`);
+    #: None while it has shown nothing.
+    last_shown: Showing | None = None
+    #: Up to `UPCOMING` slots of the published schedule starting after now: what
+    #: the wall's Player will put up next, in order.
+    upcoming: Sequence[Slot] = ()
 
 
 def feed_notice(*, reads_feed: bool | None) -> str | None:
@@ -455,11 +461,21 @@ class DisplayService:
             hanging=self.hanging_on(wall_id),
             display_state=self._display_state(wall),
             reads_feed=self._reads_feed(wall.id),
+            last_shown=self._store.latest_showing(wall.id),
+            upcoming=self._upcoming(wall.id),
         )
 
     def _display_state(self, wall: Wall) -> DisplayState:
         """What the wall's screen is doing, read from its heartbeat file now, as every label reads it too."""
         return self._placements.wall_state(wall).state
+
+    def _upcoming(self, wall_id: str) -> Sequence[Slot]:
+        """The published schedule's next slots, starting after now: the one on the wall now is not among them."""
+        published = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if published is None:
+            return ()
+        now = datetime.now(UTC)
+        return tuple(slot for slot in published.slots if slot.start > now)[:UPCOMING]
 
     def _reads_feed(self, wall_id: str) -> bool | None:
         """Whether the wall's last readable heartbeat lists major 2, or None if there is no such heartbeat."""
@@ -497,6 +513,8 @@ class DisplayService:
             hanging=None if theme_id is None else themes[theme_id],
             display_state=self._display_state(wall),
             reads_feed=self._reads_feed(wall.id),
+            last_shown=self._store.latest_showing(wall.id),
+            upcoming=self._upcoming(wall.id),
         )
 
     def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
@@ -2143,6 +2161,10 @@ class DisplayService:
 #: a day away still finds a day in hand on every wall, and a live wall, which
 #: reports every few seconds, is extended about once a day.
 ROLL_WHEN_LEFT: Final[timedelta] = timedelta(days=2)
+
+#: How many of the wall's next works Walls shows: "the next three" (`ia-proposal.md`
+#: § Walls, ruled 2026-10-07).
+UPCOMING: Final[int] = 3
 
 #: How far back a reported screen size counts toward a wall's largest
 #: (`player-contract.md` § The heartbeat, minor 2: "the largest size reported

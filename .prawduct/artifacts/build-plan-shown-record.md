@@ -156,6 +156,14 @@ chunk 02 here serves. That chunk waits on this plan (the owner's ruling,
   - [DECISION, 01, from its review: `keep_showing(wall_id, reported, at=)` is
     the writer, and the heartbeat is one caller] So #309 adds a caller and
     changes no write path, as the architecture goal asks.
+  - [DECISION, 02: the field is `upcoming`, not the plan's `next`, and each
+    entry says `starts_at`] `next` shadows a Python builtin in both bindings,
+    and `from` is a keyword. The ia-proposal's words, "the next three", stay
+    the Walls page's copy.
+  - [DECISION, 02: `upcoming` reads the published feed, whatever hangs] The
+    feed is what the Player plays, so a wall taken down whose feed still
+    carries slots shows them. Settled by the plan's "from the published
+    schedule".
 - **Level: High.** The source exists and is parsed today
   (`display_state.reported_state`), the store has a precedent for
   heartbeat-derived rows (`reported_screens`), and the facet composition has a
@@ -293,5 +301,5 @@ Q53, read through the primary key.
 ## Status
 
 - [x] Chunk 01: the log of showings, written from the heartbeat
-- [ ] Chunk 02: Walls' read: the last-shown work and the next three
+- [x] Chunk 02: Walls' read: the last-shown work and the next three
 - [ ] Chunk 03: Artworks' *Last shown* facet, and MCP parity for the clean-up facets

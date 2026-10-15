@@ -89,6 +89,7 @@ from arrt.http.models import (
     InstanceOut,
     LabelAssignmentOut,
     LabelOutputOut,
+    LastShownOut,
     LookOut,
     LookPictureOut,
     LookSourceOut,
@@ -167,6 +168,7 @@ from arrt.http.models import (
     TopicWorkOut,
     TopicWorksOut,
     UnlinkedArtistOut,
+    UpcomingOut,
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
@@ -217,6 +219,7 @@ from arrt.persistence.records import (
     IdentitySetBy,
     MatColor,
     Original,
+    Showing,
     Source,
     Theme,
     Wall,
@@ -2267,6 +2270,18 @@ def _wall(services: Services, view: WallView) -> WallOut:
         shuffle=view.wall.shuffle,
         **_shape_fields(view.wall),
         **_size_fields(services.display.judge_sizes(view.wall.id)),
+        last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
+        upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
+    )
+
+
+def _last_shown(showing: Showing) -> LastShownOut:
+    until = showing.ended_at if showing.ended_at is not None else showing.last_seen_at
+    return LastShownOut(
+        work_id=showing.work_id,
+        started_at=showing.started_at.isoformat(),
+        until=until.isoformat(),
+        ended=showing.ended_at is not None,
     )
 
 

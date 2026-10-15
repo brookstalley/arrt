@@ -54,7 +54,7 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Display, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import Artist, Artwork, Client, Display, Showing, Source, Theme, VocabularyKind, Wall
 from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
@@ -1926,6 +1926,20 @@ def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
         "display_state": _display_state_fields(view.display_state),
         "reads_feed": view.reads_feed,
         "feed_notice": feed_notice(reads_feed=view.reads_feed),
+        # The work it showed last, whatever its screen does now, and what its
+        # schedule puts up next; in `GET /api/walls`' shape.
+        "last_shown": None if view.last_shown is None else _last_shown_fields(view.last_shown),
+        "upcoming": [{"work_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
+    }
+
+
+def _last_shown_fields(showing: Showing) -> dict[str, Any]:
+    """A wall's last showing, as `LastShownOut` carries it: `until` is the end, or the last sight while it has none."""
+    return {
+        "work_id": showing.work_id,
+        "started_at": _moment(showing.started_at),
+        "until": _moment(showing.ended_at if showing.ended_at is not None else showing.last_seen_at),
+        "ended": showing.ended_at is not None,
     }
 
 

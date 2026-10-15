@@ -6,6 +6,7 @@ one caller, against a real catalogue file and a published feed, because a rule
 the caller never reaches is a rule nothing keeps.
 """
 
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -17,6 +18,7 @@ from arrt.persistence.records import Showing
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming.display_state import ReportedState, ScreenState
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS
+from arrt.programming.manifest.v2 import read_published
 from arrt.programming.showings import advance
 from arrt.services.errors import ServiceError
 
@@ -365,3 +367,22 @@ def test_a_record_that_cannot_be_written_is_logged_and_the_heartbeat_still_kept(
 def test_last_showing_refuses_a_wall_that_does_not_exist(display):
     with pytest.raises(ServiceError):
         display.last_showing("no-such-wall")
+
+
+def test_a_record_that_cannot_be_written_still_lets_the_horizon_roll(display, hung, store, wall_id, wall_settings, monkeypatch):
+    """The roll runs after the record on the same heartbeat, and a wall whose horizon stopped rolling runs out of schedule."""
+    first, _ = hung
+    path = wall_settings.manifest_v2_path(wall_id)
+    document = json.loads(path.read_text(encoding="utf-8"))
+    for span in [document["schedule"]["horizon"], *document["schedule"]["slots"]]:
+        for key in ("from", "until"):
+            span[key] = (datetime.fromisoformat(span[key]) - timedelta(days=1, hours=1)).isoformat()
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    def broken(showing):
+        raise RuntimeError("anything at all")
+
+    monkeypatch.setattr(store, "save_showing", broken)
+    display.record_heartbeat(wall_id, _heartbeat(datetime.now(UTC), work_id=first.id))
+
+    assert read_published(path).horizon_until - datetime.now(UTC) > timedelta(days=2)
