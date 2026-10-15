@@ -66,6 +66,47 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-15: Walls shows the last-shown work and the next three (#354)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk, a wall's card on Walls listed ports and state
+but never showed the art. The owner ruled on 2026-10-14 that it should show the
+work the wall showed last, which waited on #316's log of showings.
+
+**What changed:**
+- **Walls.** With no work of ours on the screen, the card leads with its state,
+  said once. Then comes the work the wall showed last, large, from the log of
+  showings. The next three from the schedule follow, small.
+- Ports show only under `?debug`. *Change* is shaped like the page's other
+  actions, and *History* is a link.
+- **Tests.** The way back's topic test now waits on the topic's title, because
+  the previous page already satisfied what it waited on (#371). The *Last shown*
+  rail fixture spreads its showings so that every period counts differently.
+
+## 2026-10-15: What each wall has shown (#316)
+
+<!-- prawduct: scope=shown-record -->
+
+**Why:** Nothing recorded what a wall had actually shown. So Walls couldn't show
+the last work and Artworks couldn't find works no wall had shown. The owner chose
+a log over a first/last summary, and fixed periods for *Not shown since*, on
+2026-10-15.
+
+**What changed:**
+- **A log of showings.** A new `showings` table in Programming, with no foreign
+  keys. It holds one row per stretch of one work on one wall, written from each
+  heartbeat's display state against the wall's published feed. The write is a
+  bulkhead: whatever fails, the heartbeat is still answered and the horizon
+  still rolls.
+- **Walls' read.** `GET /api/walls` and `art_display(action='walls')` carry
+  `last_shown` and `upcoming` (the next three slots of the published schedule).
+  So does every write that answers with a wall.
+- **Artworks' *Last shown* facet.** It offers never, or not in the last month,
+  3 months or a year, counted like the other facets. The narrowing moved to
+  `services/works_filter.py`, which `art_catalogue(action='list')` now calls
+  too, so the tool surface gains the `fit` and `not_on_wall` filters it lacked.
+
 ## 2026-10-14: Each screen says one thing once (#359)
 
 <!-- prawduct: scope=ux-second-walk -->
