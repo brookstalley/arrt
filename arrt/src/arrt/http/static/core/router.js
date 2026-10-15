@@ -35,7 +35,7 @@
  */
 
 import { state } from "./state.js";
-import { el, guard } from "./render.js";
+import { el, guard, render } from "./render.js";
 import { formatRoute, parseRoute, resolveAlias } from "./route.js";
 import { installDrawer, lightSidebar, paintSidebar } from "./sidebar.js";
 
@@ -74,15 +74,20 @@ export function pageFor(view = state.view, params = state.params, detailId = sta
   return entry.page ? view : entry.opensFrom || null;
 }
 
-/* A contextual screen a curator can be returned to, named in `?from=` with its id.
+/* A screen about one thing that a curator can be returned to, named in `?from=`
+ * with its id.
  *
- * `information-architecture.md` § Navigation Structure: "a Work opened from
- * Review returns to Review". A sidebar page is returned to by its name alone; a
- * screen about one thing needs the thing too, so `from` carries `view/id`. Only a
- * screen whose table entry declares `returnLabel` is one, which keeps the
- * address from recording an opener for every hop between contextual screens —
- * and only for the screens its `returnFor` names, because Review also opens Run,
- * and Run has its own way back. */
+ * `information-architecture.md` § Direction: a back link "returns to the page it
+ * was opened from". A sidebar page is returned to by its name alone; a screen
+ * about one thing needs the thing too, so `from` carries `view/id` — a work
+ * opened from Dalí's page returns to Dalí, not to the Artists index. Only a
+ * screen whose table entry declares `returnLabel` is one, and only for the
+ * screens its `returnFor` names, because Review also opens Run, and Run has its
+ * own way back.
+ *
+ * **Search results are about a query rather than an id**, and declare
+ * `returnParam`: the query rides in `from` where an id would, and goes back
+ * into that parameter on the way back, so the results return as they were. */
 function returnTarget(from) {
   if (!from || !from.includes("/")) return null;
   const slash = from.indexOf("/");
@@ -91,6 +96,30 @@ function returnTarget(from) {
   const id = from.slice(slash + 1);
   return table[view] && table[view].returnLabel && id ? { view, id } : null;
 }
+
+/* What the screen showing would be recorded as, if it opened another: its id,
+ * or for search results its query. */
+function openerId(view, detailId, params) {
+  const entry = table[view];
+  if (!entry) return null;
+  if (entry.returnParam) return (params && params[entry.returnParam]) || null;
+  return detailId || null;
+}
+
+/* The address of an opener, from what `returnTarget` read. Its parameters are
+ * given rather than inherited: a way back is not an opening, and inheriting
+ * would record the page being left as the opener of the page it returns to. */
+function openerAddress(opener) {
+  const entry = table[opener.view];
+  return { view: opener.view, id: entry.returnParam ? null : opener.id, params: entry.returnParam ? { [entry.returnParam]: opener.id } : {} };
+}
+
+/* The names screens have given themselves this visit, by the `from` they would
+ * be recorded as, so a way back can say "← Salvador Dalí" rather than
+ * "← Artist". `setTitle` writes it, since a screen names itself there once it
+ * knows what it shows. A page reached from a bookmark has no such name yet, and
+ * says what kind of thing it returns to instead: the address still knows where. */
+const names = new Map();
 
 /* Where a screen returns to when nothing says otherwise. */
 function defaultReturn(view) {
@@ -108,12 +137,13 @@ function defaultReturn(view) {
  * way out is the sidebar. The exception is a page showing one of its things,
  * `#theme/<id>`, whose way back is its own index. */
 export function backLink() {
-  const opener = returnTarget(state.params && state.params.from);
-  if (opener) return returning(opener.view, opener.id, `← ${table[opener.view].returnLabel}`);
+  const from = state.params && state.params.from;
+  const opener = returnTarget(from);
+  if (opener) return returning(openerAddress(opener), `← ${names.get(`${opener.view}/${opener.id}`) || table[opener.view].returnLabel}`);
   const page = pageFor();
   if (!page) return null;
   if (page === state.view && !state.detailId) return null;
-  return returning(page, null, `← ${table[page].page}`);
+  return returning({ view: page, id: null }, `← ${table[page].page}`);
 }
 
 /* A way back that is the browser's Back when that is where it goes.
@@ -124,8 +154,9 @@ export function backLink() {
  * at the same address would start at the top. Otherwise — a bookmark, a link
  * from somewhere else — it is the plain link to the screen. Captured so it is
  * decided before `link`'s own click handler, which then stands aside. */
-function returning(view, id, text) {
-  const node = link({ view, id }, { class: "action quiet", text });
+function returning(target, text) {
+  const { view, id = null, params = null } = target;
+  const node = link(target, { class: "action quiet", text });
   node.addEventListener(
     "click",
     (event) => {
@@ -134,6 +165,9 @@ function returning(view, id, text) {
       if (!came) return;
       const before = parseRoute(came, table, { fallback: home });
       if (before.view !== view || (before.id || null) !== (id || null)) return;
+      // Search results are told apart by their query, which is where they keep it.
+      const key = table[view] && table[view].returnParam;
+      if (key && (before.params[key] || null) !== (params[key] || null)) return;
       event.preventDefault();
       window.history.back();
     },
@@ -166,8 +200,9 @@ function inherited(view, detailId) {
   const entry = table[view];
   if (!entry || (entry.page && !detailId)) return {};
   const here = table[state.view];
-  if (here && here.returnLabel && state.detailId && (here.returnFor || []).includes(view)) {
-    return { from: `${state.view}/${state.detailId}` };
+  const hereId = openerId(state.view, state.detailId, state.params);
+  if (here && here.returnLabel && hereId && (here.returnFor || []).includes(view)) {
+    return { from: `${state.view}/${hereId}` };
   }
   const from = pageFor();
   return from && from !== defaultReturn(view) ? { from } : {};
@@ -334,6 +369,8 @@ function routeTitle(entry) {
 export function setTitle(generation, name) {
   if (generation !== state.nav || !name) return;
   document.title = titled(name);
+  const id = openerId(state.view, state.detailId, state.params);
+  if (id) names.set(`${state.view}/${id}`, name);
 }
 
 export function refresh(moveFocus = false, { arrival = null } = {}) {
@@ -364,9 +401,29 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
   // a Tab sequence away from where the curator was. The control's key is what
   // finds it again in the new paint.
   const keep = moveFocus && !arrived ? focusKey(document.activeElement) : null;
-  const done = guard(
-    entry.detail ? () => entry.render(state.detailId, generation) : () => entry.render(generation),
-  );
+  const paint = entry.detail ? () => entry.render(state.detailId, generation) : () => entry.render(generation);
+  const done = guard(async () => {
+    try {
+      await paint();
+    } catch (failure) {
+      // An address that names nothing is a page of its own, not a fault, and
+      // the curator is owed what was asked for and a way on rather than the
+      // previous page under the new title or a load that never ends. The
+      // server refuses a read of one thing that is not there (400, its one
+      // refusal status), as the Artist and Topic screens have always read it;
+      // a fault is a 5xx and stays the banner's.
+      if ((failure.status === 400 || failure.status === 404) && state.detailId && entry.thing) {
+        render(generation, ...notFound());
+        return;
+      }
+      // Any other failure on arrival still leaves nothing of the page being
+      // left: the banner says what went wrong, and the view says only that this
+      // page could not be shown, which is not the page's own empty state. A
+      // failed repaint of the page already showing keeps it.
+      if (arrived) render(generation, backRow(), el("p", { class: "muted not-shown", text: "This page could not be shown. The message above says why." }));
+      throw failure;
+    }
+  });
   if (moveFocus) {
     // Navigating replaces the whole view, which destroys the control that was
     // focused — leaving focus on <body>, so the next Tab starts from the top of
@@ -383,6 +440,14 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
         kept.focus({ preventScroll: true });
         return;
       }
+      // A page asked for one of its things by address (a wall, a client) has
+      // marked it, and the reader came for that rather than the page's top.
+      const asked = arrived && !restoring ? document.querySelector("#view [data-arrive]") : null;
+      if (asked) {
+        asked.scrollIntoView({ block: "start" });
+        asked.focus({ preventScroll: true });
+        return;
+      }
       if (restoring) {
         window.scrollTo(0, arrival.scrollY);
         const opened = openedLink(arrival.opened);
@@ -393,8 +458,33 @@ export function refresh(moveFocus = false, { arrival = null } = {}) {
       }
       document.getElementById("view").focus({ preventScroll: true });
     });
+  } else {
+    // A fresh load of such an address scrolls to the thing asked for, and
+    // leaves the focus where a freshly loaded page has it.
+    done.then(() => {
+      const asked = generation === state.nav ? document.querySelector("#view [data-arrive]") : null;
+      if (asked) asked.scrollIntoView({ block: "start" });
+    });
   }
   return done;
+}
+
+/* The page for an address whose thing is not there: what was asked for, why
+ * it may be missing, then the index that lists what is. One shape for every
+ * screen about one thing, marked `not-found` so a test can find it whatever its
+ * words. A screen that knows more about why (a topic's address has a grammar)
+ * passes its own words. */
+export function notFound(lead = null, why = null) {
+  const entry = table[state.view];
+  const index = defaultReturn(state.view);
+  return [
+    backRow(),
+    el("div", { class: "not-found" }, [
+      el("h1", { text: lead || `That ${entry.thing} is not here` }),
+      el("p", { class: "note", text: why || "Nothing in the library has this address. It was most likely removed." }),
+      el("div", { class: "row" }, [link({ view: index }, { class: "action", text: table[index].page })]),
+    ]),
+  ];
 }
 
 /* A control that keeps the keyboard across a repaint of its own screen says so

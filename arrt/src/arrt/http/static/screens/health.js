@@ -19,6 +19,7 @@ import { facts } from "../core/badges.js";
 import { ago, dated } from "../core/dates.js";
 import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
 import { el, render } from "../core/render.js";
+import { wallLink } from "../core/places.js";
 import { backRow, link } from "../core/router.js";
 import { DEBUG } from "../core/debug.js";
 
@@ -110,11 +111,13 @@ async function showingTitles(walls) {
 }
 
 function heartbeatPanel(wall, titles) {
-  const name = wall.wall_name || "An unnamed wall";
+  // The wall's name opens it on Walls: this panel is what its Player says, and
+  // the wall itself is a page away.
+  const name = wall.wall_name ? wallLink(wall.wall_id, wall.wall_name) : "An unnamed wall";
   const reading = wall.heartbeat;
   if (!reading) {
     return el("div", { class: "panel wall-reading" }, [
-      el("h2", { text: name }),
+      el("h2", {}, [name]),
       el("p", { class: "note", text: "The health reading carries no heartbeat for this wall." }),
     ]);
   }
@@ -126,13 +129,15 @@ function heartbeatPanel(wall, titles) {
   return el("div", { class: "panel wall-reading" }, [
     // The wall's own name is the heading. "The display plane" was right while
     // there was one of it, and is a sentence that silently becomes wrong.
-    el("h2", { text: name }),
+    el("h2", {}, [name]),
     // An observation with its age, never a verdict. A green dot computed from
     // a file that may simply be young is how a health surface starts lying.
-    el("p", { class: "reading-sentence", text: reading.description }),
+    // Said once, in the curator's words: the server's own sentence names the
+    // file it read and "the display plane", and is debug's (ruling 1).
+    reading.reported_at ? el("p", { class: "reading-sentence", text: `Last heard from ${dated(reading.reported_at)}.` }) : null,
+    DEBUG ? el("p", { class: "muted raw-sentence", text: reading.description }) : null,
     facts([
       ["Showing", showingLine(showingOf(reading, titles))],
-      ["Last reported", reading.reported_at ? dated(reading.reported_at) : null],
       ["Problem", reading.problem],
       ...failureFacts(reading.reported),
     ]),
@@ -207,15 +212,16 @@ function heartbeatPanels(health, titles) {
  * edge goes first because the owner did not name it; Faults since startup goes
  * last, and when it does the count moves into the State cell, so a fault is on
  * screen at every width (owner, 2026-10-08). The class is what the stylesheet
- * and the width test both key on. */
+ * and the width test both key on. `num` marks a column of figures, set
+ * right-aligned (`app.css`, `.num`). */
 const SOURCE_COLUMNS = [
   { name: "source", heading: "Source" },
   { name: "state", heading: "State" },
-  { name: "offered", heading: "Offered" },
-  { name: "chosen", heading: "Chosen" },
-  { name: "only-here", heading: "Only here", drops: 3 },
-  { name: "median", heading: "Median long edge", drops: 1 },
-  { name: "faults", heading: "Faults since startup", drops: 4 },
+  { name: "offered", heading: "Offered", num: true },
+  { name: "chosen", heading: "Chosen", num: true },
+  { name: "only-here", heading: "Only here", drops: 3, num: true },
+  { name: "median", heading: "Median long edge", drops: 1, num: true },
+  { name: "faults", heading: "Faults since startup", drops: 4, num: true },
   { name: "last-fault", heading: "Last fault", drops: 2 },
 ];
 
@@ -257,10 +263,10 @@ function sourceRow(source, yielded) {
   };
   // `data-label` is the column's name over each cell once a phone stacks the
   // rows into cards (`app.css`); the Source cell leads its card and needs none.
-  return el("tr", {}, SOURCE_COLUMNS.map(({ name, heading }) => {
+  return el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => {
     const value = cells[name];
     const label = name === "source" ? {} : { "data-label": heading };
-    return el("td", { class: `col-${name}`, ...label }, Array.isArray(value) ? value.filter(Boolean) : [String(value)]);
+    return el("td", { class: `col-${name}${num ? " num" : ""}`, ...label }, Array.isArray(value) ? value.filter(Boolean) : [String(value)]);
   }));
 }
 
@@ -289,7 +295,7 @@ function sourcesPanel(health, yields) {
                 el("caption", {
                   text: "Most preferred first. Offered: the images a source has offered. Chosen: the works held by an image from it. Only here: those no other source offered an image for.",
                 }),
-                el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading }) => el("th", { scope: "col", class: `col-${name}`, text: heading })))]),
+                el("thead", {}, [el("tr", {}, SOURCE_COLUMNS.map(({ name, heading, num }) => el("th", { scope: "col", class: `col-${name}${num ? " num" : ""}`, text: heading })))]),
                 el("tbody", {}, sources.map((source) => sourceRow(source, byName.get(source.name)))),
               ]),
             ]),
@@ -346,7 +352,9 @@ export async function viewHealth(generation) {
     // used for nothing else: it applies no threshold and reaches no verdict, so
     // deriving a state from it here would be inventing a judgement the plane
     // deliberately declined to make.
-    health.description ? el("p", { class: "note", text: health.description }) : null,
+    // Only over more than one wall: over one it is the wall's own panel said a
+    // second time, a line above it.
+    health.description && (health.walls || []).length > 1 ? el("p", { class: "note", text: health.description }) : null,
     ...heartbeatPanels(health, titles),
     sourcesPanel(health, yields),
     picturesPanel(health),

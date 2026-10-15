@@ -24,7 +24,7 @@
  * built from a QID checked against `Q` and digits, never from a URL. */
 
 import { api, apiLines } from "../core/api.js";
-import { absentImage, facts, workName } from "../core/badges.js";
+import { facts, noPicture, workName } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { selectionMode } from "../core/selecting.js";
 import { toolbar } from "../core/toolbar.js";
@@ -47,7 +47,7 @@ import {
   yearCell,
 } from "../core/registry.js";
 import { el, emptyState, fill, render } from "../core/render.js";
-import { backLink, go, link, setTitle } from "../core/router.js";
+import { backLink, go, link, notFound, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 
 /* What a section says when its request failed outright, rather than answering
@@ -194,17 +194,16 @@ export async function viewTopic(qid, generation) {
     if (failure.status !== 400) throw failure;
     render(
       generation,
-      el("p", {}, [backLink()]),
-      el("h1", { text: "That is not a topic's address" }),
-      el("p", { class: "note", text: "A topic is addressed by its Wikidata item, a Q and digits. The topics your works are in are listed together." }),
-      el("div", { class: "row" }, [link({ view: "topics" }, { class: "action", text: "All topics" })]),
+      ...notFound("That is not a topic's address", "A topic is addressed by its Wikidata item, a Q and digits. The topics your works are in are listed together."),
     );
     return;
   }
   // The server's QID, which it has checked; checked again here because it is
   // about to become part of an address out.
   const item = isQid(page.qid) ? page.qid : null;
-  const title = page.label ? topicName(page.label, page.qid) : `Wikidata ${page.qid}`;
+  // Never the bare item: until a name arrives the page is "Topic", as its
+  // route is, and the name replaces it in the heading and the tab.
+  const title = page.label ? topicName(page.label, page.qid) : "Topic";
   setTitle(generation, title);
   const name = el("h1", { text: title });
   const kinds = el("div");
@@ -215,7 +214,7 @@ export async function viewTopic(qid, generation) {
     name,
     kinds,
     about,
-    item ? el("p", { class: "muted" }, [wikidataLink(item, `Wikidata ${item}`)]) : null,
+    item ? el("p", { class: "muted" }, [wikidataLink(item, "On Wikidata")]) : null,
   ]);
   const worksSection = asking("representative-works", "Representative works");
   const artistsSection = asking("topic-artists", "Artists");
@@ -263,6 +262,7 @@ export async function viewTopic(qid, generation) {
       if (!head.isConnected) return;
       if (known.state === "known") {
         name.textContent = topicName(known.label, page.qid);
+        setTitle(generation, name.textContent);
         showKinds(known.kinds);
         fill(about, known.description ? el("p", { text: known.description }) : null);
       } else {
@@ -309,7 +309,7 @@ function heldSection(works) {
 function heldCard(work) {
   const picture = work.image.available
     ? el("img", { src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`, alt: "", loading: "lazy" })
-    : absentImage(work.image.note);
+    : noPicture(work.image.note);
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
     el("div", { class: "card-image" }, [picture]),
     el("div", { class: "card-body" }, [

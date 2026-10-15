@@ -222,10 +222,14 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
-    assert "The total including every Get again could not be read" in shown
-    # The panel survives the failure: the two figures beside it are read off the
-    # run record and are still true, so losing the rollup must not cost them.
-    assert "Spent by this Get alone" in shown
+    assert "What it cost with the Gets that retried it could not be read" in shown
+    # The panel survives the failure: the Get's own cost is read off the run
+    # record and is still true, so losing the rollup must not cost it.
+    # *(Since 2026-10-14, #359: one Cost row where "Spent by this Get alone"
+    # was one of four.)*
+    cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
+    assert cost.locator("dt").all_inner_texts() == ["Cost"]
+    assert cost.locator("dd").inner_text() == "$0.01"
 
 
 def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
@@ -258,16 +262,73 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
 
 
 def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
-    """The paired negative — the notice appears on failure and not otherwise."""
+    """The paired negative — the notice appears on failure and not otherwise —
+    and a family total that differs from the Get's own is said beside it.
+
+    *(Since 2026-10-14, #359: in the Cost row, "$0.25 with the Gets that
+    retried it", where "Spent including every Get again" was a row of its own.)*
+    """
     ui = a_finished_run
-    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
 
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
     assert "could not be read" not in shown
-    assert "Spent including every Get again" in shown
+    assert "$0.01, $0.25 with the Gets that retried it" in shown
+
+
+@pytest.fixture
+def a_finished_run_with_nothing_of_its_own(ui):
+    """A Get that finished with no cost recorded of its own, as a cancelled one can."""
+    ui.serve("**/api/estimate?*", an_estimate())
+    ui.serve(
+        f"**/api/runs/{RUN_ID}",
+        a_run_view(
+            run=a_run(
+                status=RunStatus.CANCELLED.value,
+                is_terminal=True,
+                completed_at="2026-08-05T10:05:00+00:00",
+                actual_cost_usd=None,
+            ),
+            works=[a_candidate()],
+        ),
+    )
+    return ui
+
+
+def _cost(ui):
+    return ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts dd").inner_text()
+
+
+def test_a_finished_get_with_nothing_recorded_says_so(a_finished_run_with_nothing_of_its_own):
+    ui = a_finished_run_with_nothing_of_its_own
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0"))
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    assert _cost(ui) == "None recorded"
+
+
+def test_a_get_with_nothing_of_its_own_keeps_what_its_retries_cost(a_finished_run_with_nothing_of_its_own):
+    """The family total is the one figure with no second home; an empty own row must not take it away."""
+    ui = a_finished_run_with_nothing_of_its_own
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    assert _cost(ui) == "None recorded for this Get, $0.25 with the Gets that retried it"
+
+
+def test_a_family_total_equal_to_the_gets_own_is_not_said_twice(a_finished_run):
+    ui = a_finished_run
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.0134"))
+
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+
+    assert "retried" not in ui.text()
+    cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
+    assert cost.locator("dt").all_inner_texts() == ["Cost"]
 
 
 # -- which kind of nothing --------------------------------------------------
@@ -340,9 +401,13 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
 #: together rather than leaving two numbers to drift.
 MAX_FAILURES = 5
 
-#: What the service answers for a run id it does not know — the case that made
-#: this necessary. A bookmarked `#get/<id>` outlives its run.
+#: What the service answers for a run id it does not know. A bookmarked
+#: `#get/<id>` outlives its run; that is a page of its own, not a watch to retry.
 GONE = (400, {"error": "There is no run with that id."})
+
+#: A server that keeps failing in a way that could pass: the case the failure
+#: limit exists for, now that a refusal ends the watch at once.
+DOWN = (502, {"error": "The server answered 502."})
 
 
 def test_the_client_and_this_test_agree_on_the_limit(ui):
@@ -360,16 +425,21 @@ def test_the_client_and_this_test_agree_on_the_limit(ui):
 def test_a_run_that_will_never_answer_stops_being_watched(ui):
     """The loop proved to terminate, rather than read to.
 
-    Opening a stale bookmarked `#get/<id>` after the run is gone had the service
-    answer 400, the catch re-arm, and the tab request that run every two seconds
-    for as long as it stayed open — bounded only by navigation, with nothing on
-    screen saying the watch was still retrying.
+    A server failing over and over (a 502 that never passes) once had the catch
+    re-arm and the tab request that run every two seconds for as long as it
+    stayed open — bounded only by navigation, with nothing on screen saying the
+    watch was still retrying. The limit ends it.
 
     Asserted on the request count across a window several polls longer than the
     limit, because that is the only thing that distinguishes a loop that stopped
     from one that is between ticks.
+
+    *(This test held a 400 until 2026-10-14. A 400 is the service saying the
+    run does not exist, which now ends the watch at its first answer with the
+    not-found page (#361) — pinned by the test below — so the limit is held
+    here by the failure it was always for: one that might pass.)*
     """
-    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
+    ui.serve(f"**/api/runs/{RUN_ID}", DOWN)
 
     ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
@@ -379,17 +449,30 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
     ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 3))
     attempts = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
 
-    assert attempts == MAX_FAILURES, f"{attempts} requests for a run that will never exist — the watch did not stop"
+    assert attempts == MAX_FAILURES, f"{attempts} requests for a run that will never answer — the watch did not stop"
+
+
+def test_a_run_that_is_gone_is_a_page_saying_so_and_no_watch(ui):
+    """A bookmarked Get whose run is gone: one request, one page, no banner."""
+    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
+
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view .not-found")
+    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))
+
+    assert ui.page.locator("#view h1").inner_text() == "That Get is not here"
+    assert len(ui.requests_matching(f"/api/runs/{RUN_ID}")) == 1
+    assert ui.page.locator("#error").is_hidden()
 
 
 def test_a_watch_that_gave_up_says_so_rather_than_only_what_failed(ui):
-    """ "The server answered 400" leaves a live page indistinguishable from a dead one.
+    """ "The server answered 502" leaves a live page indistinguishable from a dead one.
 
     The curator needs two facts and the message used to carry one: what went
     wrong, and whether anything is still trying. Only the second tells them
     whether to keep looking at the screen.
     """
-    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
+    ui.serve(f"**/api/runs/{RUN_ID}", DOWN)
 
     ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
@@ -398,7 +481,7 @@ def test_a_watch_that_gave_up_says_so_rather_than_only_what_failed(ui):
     message = ui.page.inner_text("#error")
     assert "Gave up watching this Get" in message
     assert "reload" in message, "saying it stopped without saying how to resume leaves the curator stuck"
-    assert "There is no run with that id." in message, "the original fault must survive; it is the diagnosis"
+    assert "The server answered 502." in message, "the original fault must survive; it is the diagnosis"
 
 
 def test_one_blip_does_not_end_the_watch(ui):

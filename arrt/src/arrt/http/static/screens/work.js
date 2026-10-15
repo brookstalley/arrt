@@ -32,7 +32,7 @@
 import { acquisitionLine } from "../core/acquiring.js";
 import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
-import { absentImage, facts, fitBadge, pixelSize, statusBadge, table } from "../core/badges.js";
+import { absentImage, facts, fitBadge, noPicture, pixelSize, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
@@ -43,6 +43,7 @@ import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
 import { el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
+import { wallLinks } from "../core/places.js";
 import { backLink, link, redirect, setTitle } from "../core/router.js";
 import { hangSelection } from "../core/selection.js";
 import { DEBUG } from "../core/debug.js";
@@ -346,6 +347,26 @@ function lookPictureName(picture) {
   return `${who}, from ${museumName(picture.provider)}${size ? `, ${size}` : ""}`;
 }
 
+/* The work's own picture, which opens large over the page: a button, so a
+ * keyboard reaches it as a pointer does, and the dialog's Escape, Close and
+ * backdrop close it (`core/enlarge.js`). The column draws it at a size it can
+ * hold sharply; enlarged, the same picture fills the window. */
+function enlargeableHero(work) {
+  const alt = work.artist ? `${work.title}, by ${work.artist.name}` : work.title;
+  const src = `${workPath(work.artwork_id)}/wall-preview`;
+  const button = el(
+    "button",
+    {
+      class: "work-picture-button",
+      type: "button",
+      "aria-label": `Enlarge ${alt}`,
+      onclick: () => enlarge({ src, alt, trigger: button }),
+    },
+    [el("img", { class: "detail-image work-picture", src, alt })],
+  );
+  return button;
+}
+
 /* One find as a card: the picture, enlargeable in place as a review card's is,
  * then its pixels and fit, its source, and why a Get would keep it. */
 function lookPicture(picture, qid) {
@@ -477,15 +498,7 @@ async function paintTheirWork(section, maker, qid) {
 function paint(detail, generation, { where, focusAction = false }) {
   const work = detail.work;
   setTitle(generation, work.title);
-  const image = work.image.available
-    ? el("img", {
-        class: "detail-image work-picture",
-        // The work at a size this column draws sharply; a tile's thumbnail is a
-        // fraction of this width.
-        src: `${workPath(work.artwork_id)}/wall-preview`,
-        alt: work.artist ? `${work.title}, by ${work.artist.name}` : work.title,
-      })
-    : el("p", { class: "note", text: work.image.note || "No image held." });
+  const image = work.image.available ? enlargeableHero(work) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
   const action = circulationControl(work, generation, where);
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
   paintStrip(strip, work, where);
@@ -644,7 +657,12 @@ function facetValues(held) {
   const nodes = [];
   for (const facet of held) {
     if (nodes.length) nodes.push(", ");
-    nodes.push(el("span", { class: "facet-value", text: facet.value }));
+    // A value that names a Wikidata item is a topic, and opens its page.
+    nodes.push(
+      facet.value_qid
+        ? link({ view: "topic", id: facet.value_qid }, { class: "facet-value link", text: facet.value })
+        : el("span", { class: "facet-value", text: facet.value }),
+    );
     if (facet.derivation === "sourced") {
       nodes.push(
         el("span", { class: "sourced" }, [
@@ -713,7 +731,7 @@ function wallsHanging(placements) {
 function themeLine(placement) {
   const name = link({ view: "theme", id: placement.theme.theme_id }, { class: "link", text: placement.theme.name });
   if (!placement.hanging_on.length) return [name];
-  return [name, ` (on ${placement.hanging_on.map((wall) => wall.name).join(", ")})`];
+  return [name, " (on ", ...wallLinks(placement.hanging_on), ")"];
 }
 
 function joined(parts) {
@@ -734,7 +752,7 @@ function paintStrip(strip, work, where, { said = "", focusHang = false } = {}) {
   if (held && kept) {
     lines.push(["Walls", `Kept off every wall since ${dated(kept)}.`]);
   } else if (held) {
-    lines.push(["Walls", walls.length ? walls.map((wall) => wall.name).join(", ") : "Not hanging on any wall."]);
+    lines.push(["Walls", walls.length ? el("span", {}, wallLinks(walls)) : "Not hanging on any wall."]);
   }
   lines.push(["Themes", themes.length ? el("span", {}, joined(themes.map(themeLine))) : "In no theme."]);
 

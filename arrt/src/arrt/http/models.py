@@ -79,9 +79,9 @@ class HeldArtistOut(BaseModel):
     artist: ArtistOut
     held: int
     #: The work the Artists index pictures them by: their first accepted work in
-    #: circulation that holds a master image, else their first accepted work;
-    #: its thumbnail is `/api/works/{id}/thumbnail`. None only for an artist
-    #: with nothing in circulation.
+    #: circulation that holds a master image; its thumbnail is
+    #: `/api/works/{id}/thumbnail`. None when no work of theirs in circulation
+    #: holds one, so a client never asks for a thumbnail that cannot be made.
     pictured_artwork_id: str | None
 
 
@@ -601,6 +601,11 @@ class WorkPageOut(BaseModel):
     #: selection hanging on it, counted over every other filter. Null only on
     #: a page built before the facet existed.
     not_on_wall: FacetOptionOut | None = None
+    #: *Last shown*: one option per period, always in the order `never`,
+    #: `month`, `quarter`, `year`, each the works no wall has shown in it
+    #: (never-shown works in every one), counted over every other filter. A
+    #: single choice: at most one is selected.
+    shown: list[FacetOptionOut] = []
 
 
 class SourceOut(BaseModel):
@@ -1026,6 +1031,31 @@ class WallOut(BaseModel):
     #: Why no judgement was made (`no_display`, `no_screen_reported`, `no_feed`),
     #: or null when one was.
     sizes_unjudged: str | None = None
+    #: The work the wall showed last, whatever its screen does now, or null while
+    #: it has shown nothing. What Walls draws for a dark screen.
+    last_shown: LastShownOut | None = None
+    #: Up to three works the wall's published schedule puts up next, in order,
+    #: not counting the one on it now. Empty with no feed published.
+    upcoming: list[UpcomingOut] = []
+
+
+class LastShownOut(BaseModel):
+    """The work a wall showed last, and for how long, as its Player reported it."""
+
+    work_id: str
+    #: When the screen began showing it.
+    started_at: str
+    #: When it stopped, or while `ended` is false, the latest report still naming
+    #: it: a wall showing it now, or one that has stopped reporting.
+    until: str
+    ended: bool
+
+
+class UpcomingOut(BaseModel):
+    """One slot of a wall's published schedule still to come."""
+
+    work_id: str
+    starts_at: str
 
 
 class ClientWallOut(BaseModel):
@@ -2249,6 +2279,7 @@ class WorksFilter(BaseModel):
     palette: list[str] = []
     fit: list[str] = []
     not_on_wall: bool = False
+    shown: str | None = None
 
 
 class WorkSelection(BaseModel):

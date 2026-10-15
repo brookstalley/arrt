@@ -48,3 +48,30 @@ def test_the_magnifier_is_the_search_button_and_says_so(ui):
     ui.page.fill("#search", "chicago")
     button.click()
     ui.page.wait_for_url("**#search*")
+
+
+def test_a_search_pressed_while_the_client_starts_is_still_a_search(ui):
+    """The search box answers from the moment the client runs, not after its start-up reads.
+
+    The client reads the installed sources' names before its first paint. A
+    search pressed while that read was still out went to the browser, which
+    submitted the form as a page load (`/?q=…`) instead of opening the results.
+    Held here by answering that read only after the search is pressed.
+    """
+    held = []
+
+    def hold(route):
+        held.append(route)
+
+    ui.page.route("**/api/sources", hold)
+    ui.page.goto(f"{ui.base_url}/#collection")
+    # The client is running once it has asked for the sources.
+    while not held:
+        ui.page.wait_for_timeout(50)
+    ui.page.fill("#search", "chicago")
+    ui.page.locator("#search-form").get_by_role("button", name="Search").click()
+    for route in held:
+        route.continue_()
+    ui.page.unroute("**/api/sources")
+    ui.page.wait_for_url("**#search*")
+    assert "q=chicago" in ui.page.evaluate("() => window.location.hash")

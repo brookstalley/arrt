@@ -38,10 +38,10 @@ from arrt.library.facade import (
     WorkChange,
     WorkChanged,
 )
-from arrt.persistence.records import Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
-from arrt.programming import adequacy, shape
+from arrt.persistence.records import Showing, Theme, ThemeAssignment, ThemeMembership, Wall, WorkExclusion
+from arrt.programming import adequacy, shape, showings
 from arrt.programming.clients import Placements
-from arrt.programming.display_state import DisplayState
+from arrt.programming.display_state import DisplayState, ReportedState, reported_state
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
@@ -49,7 +49,7 @@ from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, manifest_v2_path_in, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
-from arrt.programming.schedule import Keep, Schedule, Start, StartFresh, movable_walls
+from arrt.programming.schedule import Keep, Schedule, Slot, Start, StartFresh, movable_walls
 from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -195,6 +195,12 @@ class WallView:
     #: 2), from its last readable heartbeat. None when there is no such
     #: heartbeat to read. `heartbeat.reads_major` says how silence is read.
     reads_feed: bool | None = None
+    #: The work the wall showed last, whatever its screen does now (`showings.py`);
+    #: None while it has shown nothing.
+    last_shown: Showing | None = None
+    #: Up to `UPCOMING` slots of the published schedule starting after now: what
+    #: the wall's Player will put up next, in order.
+    upcoming: Sequence[Slot] = ()
 
 
 def feed_notice(*, reads_feed: bool | None) -> str | None:
@@ -455,11 +461,21 @@ class DisplayService:
             hanging=self.hanging_on(wall_id),
             display_state=self._display_state(wall),
             reads_feed=self._reads_feed(wall.id),
+            last_shown=self._store.latest_showing(wall.id),
+            upcoming=self._upcoming(wall.id),
         )
 
     def _display_state(self, wall: Wall) -> DisplayState:
         """What the wall's screen is doing, read from its heartbeat file now, as every label reads it too."""
         return self._placements.wall_state(wall).state
+
+    def _upcoming(self, wall_id: str) -> Sequence[Slot]:
+        """The published schedule's next slots, starting after now: the one on the wall now is not among them."""
+        published = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        if published is None:
+            return ()
+        now = datetime.now(UTC)
+        return tuple(slot for slot in published.slots if slot.start > now)[:UPCOMING]
 
     def _reads_feed(self, wall_id: str) -> bool | None:
         """Whether the wall's last readable heartbeat lists major 2, or None if there is no such heartbeat."""
@@ -497,6 +513,8 @@ class DisplayService:
             hanging=None if theme_id is None else themes[theme_id],
             display_state=self._display_state(wall),
             reads_feed=self._reads_feed(wall.id),
+            last_shown=self._store.latest_showing(wall.id),
+            upcoming=self._upcoming(wall.id),
         )
 
     def theme_counts(self, work_ids: Iterable[str], *, selected: str | None = None) -> Sequence[ThemeCount]:
@@ -529,9 +547,8 @@ class DisplayService:
         What Artworks' *Not on any wall* facet leaves out (the owner's ruling of
         2026-10-08 on #288): a work is on a wall when a theme or selection
         hanging on one holds it and it is not kept off every wall. **Not what a
-        wall has shown**: which works a wall actually displayed is not
-        recorded, so "never hung" cannot be answered, and this does not pretend
-        to. Nor is it readiness: a held work a wall would skip for want of a
+        wall has shown**, which is `last_shown_by_work`'s, from the Players'
+        reports. Nor is it readiness: a held work a wall would skip for want of a
         render still counts as on it, since the curator's act — hanging the
         theme — is what this answers for.
 
@@ -1420,8 +1437,72 @@ class DisplayService:
         if problem is not None:
             raise ServiceError(f"That is not a heartbeat this plane can read: {problem}")
         write_atomically(self._settings.heartbeat_path(wall_id), document)
+        self._record_showing(wall_id, document)
         self._record_screen(wall_id, document)
         self._roll_v2(wall_id)
+
+    def _record_showing(self, wall_id: str, document: Mapping[str, Any]) -> None:
+        """Keep what a heartbeat says the wall is showing.
+
+        Before the roll, so the feed that vouches for the work is the one the
+        Player was showing from.
+        """
+        at = observations.instant(document[heartbeat.REPORTED_AT_KEY])
+        if at is not None:
+            self.keep_showing(wall_id, reported_state(dict(document)), at=at)
+
+    def keep_showing(self, wall_id: str, reported: ReportedState, *, at: datetime) -> None:
+        """Keep what one report made `at` says the wall's screen is doing (`showings.py`), against the feed it carries now.
+
+        Any source of a reported state feeds the record through here: the
+        heartbeat today, and display state reported on change when it arrives.
+        **A record that cannot be written is logged, never raised**: the report is
+        the Player's, and its heartbeat must not be refused for this plane's
+        bookkeeping.
+        """
+        published = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        playable = frozenset() if published is None else frozenset(published.works)
+        try:
+            with self._store.transaction():
+                latest = self._store.latest_showing(wall_id)
+                for showing in showings.advance(latest, reported, wall_id=wall_id, at=at, playable=playable):
+                    self._store.save_showing(showing)
+        # A bulkhead, not a filter: the store translates only a refused row into
+        # `StorageError`, and a full disk or a held lock arrives as the driver's
+        # own error, which this layer may not name. Whatever fails here, the
+        # heartbeat's later steps still run, and one of them rolls the wall's
+        # horizon forward.
+        except Exception:  # prawduct:allow prawduct/broad-except -- the shown record never stops a heartbeat
+            log.exception(
+                "a wall's report was not kept as a showing",
+                extra={"event": "showings.not_recorded", "wall_id": wall_id, "reported_at": at.isoformat()},
+            )
+            return
+        stranger = showings.unbelieved_work(reported, playable)
+        # Only against a feed that exists, and only for a report that is still
+        # news: a wall with nothing published, or a report a later one has
+        # superseded, says nothing about what the Player is showing from.
+        if stranger is not None and published is not None and not showings.superseded(latest, at):
+            log.info(
+                "a wall reported a work its feed does not carry, and it was not kept as a showing",
+                extra={"event": "showings.not_in_feed", "wall_id": wall_id, "work_id": stranger},
+            )
+
+    # -- what each wall has shown ---------------------------------------------
+
+    def last_showing(self, wall_id: str) -> Showing | None:
+        """The work this wall showed last and for how long, whatever its screen does now; None if it has shown nothing."""
+        self.get_wall(wall_id)
+        return self._store.latest_showing(wall_id)
+
+    def last_shown_by_work(self) -> Mapping[str, datetime]:
+        """Each work any wall has shown, with the latest report naming it; walls since removed count.
+
+        Ids, opaque to this plane, as `work_ids_on_walls` returns them, for the
+        composer to meet with the Library's (`services/works_filter.py`). Read
+        from the showings' last sight, so a work up now counts as shown now.
+        """
+        return self._store.last_shown_by_work()
 
     # -- too small for this wall ----------------------------------------------
 
@@ -2077,6 +2158,10 @@ class DisplayService:
 #: a day away still finds a day in hand on every wall, and a live wall, which
 #: reports every few seconds, is extended about once a day.
 ROLL_WHEN_LEFT: Final[timedelta] = timedelta(days=2)
+
+#: How many of the wall's next works Walls shows: "the next three" (`ia-proposal.md`
+#: § Walls, ruled 2026-10-07).
+UPCOMING: Final[int] = 3
 
 #: How far back a reported screen size counts toward a wall's largest
 #: (`player-contract.md` § The heartbeat, minor 2: "the largest size reported

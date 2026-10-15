@@ -20,6 +20,7 @@ import { attempt } from "../core/acting.js";
 import { stamp } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
+import { wallLink } from "../core/places.js";
 import { table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
 import { destinationOf, destinationWords, readThemes } from "../core/destination.js";
@@ -135,8 +136,10 @@ function acquisitionPanel(listing, causes, opened, generation) {
           ` Every fetch is paused: ${listing.pause.detail} ${listing.pause.remedy || "Nothing anticipated this error; the server's journal has it, as acquisition.queue_error."}`,
         ])
       : null,
+    // What the section holds, said under its name before its parts: two
+    // headings one under the other read as a section that lost its content.
     owed
-      ? null
+      ? el("p", { class: "muted acquisition-summary", text: [listing.failing ? `${counted(listing.failing, "work")} failed` : null, listing.total ? `${counted(listing.total, "work")} in line` : null].filter(Boolean).join(" · ") })
       : el("p", { class: "muted", text: "Every accepted work holds its image. A work you accept is fetched here, one at a time, then prepared for the wall." }),
     listing.failing ? failurePanel(listing, causes, opened, generation) : null,
     listing.total ? inLinePanel(listing, generation) : null,
@@ -351,8 +354,11 @@ export async function viewHistory(generation) {
     panels.push(
       el("p", { class: "muted" }, [
         "What was hung on it, and what was kept off from it. ",
+        // The heading names the wall as this page's subject; the way to the wall
+        // itself is here, beside the way to every wall's history.
+        wallNames.has(params.wall) ? [wallLink(params.wall, `${wallName} on Walls`), " · "] : null,
         link({ view: "history", params: { kind: params.kind || "" } }, { text: "Every wall's history" }),
-      ]),
+      ].flat()),
     );
   }
   panels.push(kindFilter(group, params));
@@ -375,7 +381,12 @@ export async function viewHistory(generation) {
       el(
         "ol",
         { class: "history-events", "aria-label": "What happened, newest first" },
-        page.events.map((event) => el("li", { "data-kind": event.kind }, [when(event.occurred_at), el("span", {}, sentence(event, wallNames, titles))])),
+        // A run too short to fold is every one of its events, each its own row.
+        runsOfVerdicts(page.events).flatMap((run) =>
+          run.length < VERDICT_RUN
+            ? run.map((event) => el("li", { "data-kind": event.kind }, [when(event.occurred_at), el("span", {}, sentence(event, wallNames, titles))]))
+            : [verdictRun(run, wallNames, titles)],
+        ),
       ),
     );
   }
@@ -442,6 +453,53 @@ async function titlesFor(events) {
   return new Map(answers);
 }
 
+/* Verdicts from one Get in a row of at least this many are one line: a review
+ * of forty works made forty near-identical rows and pushed every other event off
+ * the page (`ux-review-2026-10.md` finding E20). Fewer read fine one by one. */
+const VERDICT_RUN = 3;
+const VERDICT_WORDS = { "work.accepted": "Accepted", "work.rejected": "Turned down" };
+
+/* The events in order, consecutive verdicts of one kind from one Get together;
+ * every other event alone. */
+function runsOfVerdicts(events) {
+  const runs = [];
+  for (const event of events) {
+    const last = runs[runs.length - 1];
+    const joins =
+      last && event.kind in VERDICT_WORDS && event.run_id && last[0].kind === event.kind && last[0].run_id === event.run_id;
+    if (joins) last.push(event);
+    else runs.push([event]);
+  }
+  return runs;
+}
+
+/* A run of verdicts as one line, newest time first as the list is, with the
+ * works one disclosure away: the count is what the page is for, and which works
+ * is still a click from it. */
+function verdictRun(run, wallNames, titles) {
+  const first = run[0];
+  const getLink = link({ view: "get", id: first.run_id }, { class: "link", text: "its Get" });
+  return el("li", { "data-kind": first.kind, class: "verdict-run" }, [
+    when(first.occurred_at),
+    el("span", {}, [
+      `${VERDICT_WORDS[first.kind]} ${counted(run.length, "work")} from `,
+      getLink,
+      el("details", {}, [
+        el("summary", { text: "Which works" }),
+        // Each work by its title alone: the verb and the Get are the line's.
+        el("ul", { class: "verdict-run-works" }, run.map((event) => el("li", {}, [verdictWork(event, titles)]))),
+      ]),
+    ]),
+  ]);
+}
+
+/* A work in a run of verdicts: a link while the library holds it (an accepted
+ * work), else its title, as the event recorded it. */
+function verdictWork(event, titles) {
+  const title = (event.detail && event.detail.title) || titles.get(event.artwork_id) || "a work no longer in the library";
+  return event.kind === "work.accepted" && event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title;
+}
+
 /* How a Get ended, in words, by `RunStatus`. A status added there and not here
  * is shown as itself rather than guessed at. */
 const ENDINGS = {
@@ -458,7 +516,10 @@ function sentence(event, wallNames, titles) {
   const detail = event.detail || {};
   const title = detail.title || titles.get(event.artwork_id) || "a work no longer in the library";
   const work = () => (event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title);
-  const wall = detail.wall_name || wallNames.get(event.wall_id) || "a wall no longer recorded";
+  // A wall still recorded is a link to it; one since removed is its name, as
+  // the event recorded it.
+  const wallName = detail.wall_name || wallNames.get(event.wall_id) || "a wall no longer recorded";
+  const wall = event.wall_id && wallNames.has(event.wall_id) ? wallLink(event.wall_id, wallName) : wallName;
   const run = (text) => (event.run_id ? link({ view: "get", id: event.run_id }, { class: "link", text }) : text);
   switch (event.kind) {
     case "get.started":
@@ -485,17 +546,18 @@ function sentence(event, wallNames, titles) {
       return ["Restored ", work()];
     case "wall.hung":
       if (detail.selection) {
-        return [`Hung a selection${typeof detail.works === "number" ? ` of ${counted(detail.works, "work")}` : ""} on ${wall}`];
+        return [`Hung a selection${typeof detail.works === "number" ? ` of ${counted(detail.works, "work")}` : ""} on `, wall];
       }
       return [
         "Hung ",
         event.theme_id ? link({ view: "theme", id: event.theme_id }, { class: "link", text: detail.theme_name || "a theme" }) : detail.theme_name || "a theme",
-        ` on ${wall}`,
+        " on ",
+        wall,
       ];
     case "work.left_theme":
-      return ["Took ", work(), ` out of ${detail.selection ? "the selection" : detail.theme_name || "its theme"} on ${wall}`];
+      return ["Took ", work(), ` out of ${detail.selection ? "the selection" : detail.theme_name || "its theme"} on `, wall];
     case "work.excluded":
-      return ["Kept ", work(), " off every wall", event.wall_id ? ` (from ${wall})` : ""];
+      return ["Kept ", work(), " off every wall", ...(event.wall_id ? [" (from ", wall, ")"] : [])];
     case "work.allowed":
       return ["Let ", work(), " back on the walls"];
     default:

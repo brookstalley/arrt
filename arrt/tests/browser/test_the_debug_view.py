@@ -76,11 +76,17 @@ def test_status_keeps_its_raw_fields_for_debug(ui, a_health_reading):
 
     ui.open("#health")
     ui.page.wait_for_selector("h1")
-    ui.page.wait_for_selector("text=Every wall has reported.")
+    ui.page.wait_for_selector(".wall-reading")
     assert ui.page.locator(".raw-details").count() == 0
 
     ui.open("?debug#health")
     ui.page.wait_for_selector(".raw-details")
+    # The server's own sentence for the wall, which names the file it read, is
+    # debug's (#359): beside the curator's "Last heard from", not instead of it.
+    raw = ui.page.locator(".wall-reading .raw-sentence")
+    assert raw.count() == 1
+    assert "display plane" in raw.inner_text()
+    assert ui.page.locator(".wall-reading .reading-sentence").inner_text().startswith("Last heard from ")
 
 
 def test_sources_names_a_plugin_s_id_package_and_interface_only_in_debug(ui, a_source_reading):

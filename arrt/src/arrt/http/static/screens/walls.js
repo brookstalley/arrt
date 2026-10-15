@@ -10,7 +10,9 @@
  * carries as `display_state`. When it is showing art, that is the work on the
  * wall now (`ia-proposal.md` § Walls), large, with its label facts and a link to
  * its page; otherwise the state in plain words, because a screen somebody is
- * watching television on is not a wall with nothing hung. Below it, what the wall draws from and for
+ * watching television on is not a wall with nothing hung, and under it, while a
+ * screen is there, the work the wall showed last (ruling 3 of 2026-10-11).
+ * Then the next three works its schedule puts up. Below it, what the wall draws from and for
  * how long, then the three acts — **Skip**, **Not this one again** and
  * **Change** — and the way to the wall's history. What the theme holds in full
  * is the theme's page; this card is about the one work a person in the room is
@@ -51,7 +53,8 @@
  * would add load to a Pi without changing it. The one exception is bounded and
  * asked for: after Skip or *Not this one again*, the card watches the wall's
  * display state until it names the next work (`awaitNext`), and replaces only the
- * work it leads with, so the focus stays wherever the curator left it. Any other
+ * work it leads with and the next three under it, so the focus stays wherever
+ * the curator left it. Any other
  * repaint goes through `refresh()` with no argument: `refresh(true)` moves focus,
  * and a poll that moves focus is the recorded defect this client already shipped
  * once, on the one screen with a decision on it.
@@ -62,10 +65,12 @@ import { ago, inWords, readable } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { counted } from "../core/counting.js";
+import { DEBUG } from "../core/debug.js";
 import { hangTheme } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { screenState, STALE_AFTER_SECONDS, wallScreenLine } from "../core/outputs.js";
+import { screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
+import { clientLink } from "../core/places.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
 
@@ -180,12 +185,17 @@ function assignmentLine(wall, shownBy) {
     ]);
   }
   const client = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
-  return el("p", {
-    class: "muted wall-client",
-    text: client
-      ? wallScreenLine(client.name, wall.output, screenState(client.heartbeat, wall.output), client.heartbeat)
-      : `Assigned to ${wall.output} of a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`,
-  });
+  // A port is named only with `?debug` (the owner's ruling 1 of 2026-10-11),
+  // and a screen the lead already calls off is not called off again here.
+  const output = DEBUG ? wall.output : null;
+  const offSaid = Boolean(wall.display_state && wall.display_state.state === "dark");
+  return el(
+    "p",
+    { class: "muted wall-client" },
+    client
+      ? wallScreenParts(clientLink(client.client_id, client.name), client.name, output, screenState(client.heartbeat, wall.output), client.heartbeat, { offSaid })
+      : [`Assigned to ${output ? `${output} of ` : ""}a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
+  );
 }
 
 /* Which label outputs caption this wall, and on which client each is.
@@ -195,17 +205,23 @@ function assignmentLine(wall, shownBy) {
  * the client's other surfaces, and this line links there. */
 function labelsLine(wall) {
   if (!wall.labels || !wall.labels.length) return null;
-  const named = wall.labels.map((label) => `${label.output} on ${label.client_name}`);
+  // A client the server could not name is said as one rather than drawn as a
+  // link with no words in it.
+  const named = wall.labels.map((label) => [
+    // The panel's port only with `?debug`, as the wall's own is.
+    DEBUG ? `${label.output} on ` : "a label on ",
+    label.client_name ? clientLink(label.client_id, label.client_name) : "a client whose name could not be read",
+  ]);
   return el("p", { class: "muted wall-labels" }, [
-    el("span", { text: `Captioned by ${listed(named)}. ` }),
+    el("span", {}, ["Captioned by ", ...listedParts(named), ". "]),
     link({ view: "clients" }, { text: "Change in Settings › Clients" }),
   ]);
 }
 
-/* "a", "a and b", "a, b and c". */
-function listed(names) {
-  if (names.length < 2) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+/* "a", "a and b", "a, b and c", of items that are each a list of parts (text
+ * and links). */
+function listedParts(items) {
+  return items.flatMap((parts, at) => [at === 0 ? "" : at === items.length - 1 ? " and " : ", ", ...parts]);
 }
 
 /* Every wall's last observation, or the fact that the reading did not arrive.
@@ -246,16 +262,39 @@ function shownWork(shown) {
 /* What the wall's display state says is on it: the state, the work's id, and
  * the work itself — or why the work could not be read. A work the wall names
  * that the library can no longer answer for (archived since, or a fault) is
- * still what the wall reported, so the card says that rather than nothing. */
+ * still what the wall reported, so the card says that rather than nothing.
+ *
+ * With no work on the screen, the work the wall showed last (`last_shown`, the
+ * server's log of what each wall has shown), which a dark screen leads with
+ * (the owner's ruling 3 of 2026-10-11). And the next three the wall's schedule
+ * puts up (`upcoming`), whatever the screen is doing. */
 async function nowOn(wall) {
   const shown = wall.display_state || null;
   const workId = shownWork(shown);
-  if (!workId) return { shown, workId: null };
+  // A wall no screen shows says that alone: what it showed while it had one
+  // is its History's, and a lead must not read as a claim about a screen.
+  const lastShown = workId || (shown && shown.state === "unassigned") ? null : wall.last_shown || null;
+  const upcoming = wall.upcoming || [];
+  const [current, last, next] = await Promise.all([
+    workId ? workOf(workId) : {},
+    lastShown ? workOf(lastShown.work_id) : null,
+    Promise.all(upcoming.map((slot) => workOf(slot.work_id))),
+  ]);
+  return {
+    shown,
+    workId,
+    ...current,
+    last: lastShown ? { showing: lastShown, ...last } : null,
+    next: upcoming.map((slot, at) => ({ slot, ...next[at] })),
+  };
+}
+
+/* One work by id, or why it could not be read. */
+async function workOf(workId) {
   try {
-    const dossier = await api(`/api/works/${encodeURIComponent(workId)}`);
-    return { shown, workId, work: dossier.work };
+    return { work: (await api(`/api/works/${encodeURIComponent(workId)}`)).work };
   } catch (failure) {
-    return { shown, workId, failure: failure.message };
+    return { failure: failure.message };
   }
 }
 
@@ -300,13 +339,14 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
   // What the card's acts read the current work from. The lead can be replaced
   // after a Skip without repainting the controls, so they read it here rather
   // than from a value captured when they were drawn.
-  const card = { wall, now, lead: nowShowing(wall, now), said: el("p", { class: "wall-said", role: "status" }) };
+  const card = { wall, now, lead: nowShowing(wall, now), next: nextUp(wall, now), said: el("p", { class: "wall-said", role: "status" }) };
   return el("section", { class: "wall", "data-wall": wall.wall_id }, [
     // `h2` for the wall and `h3` for what is in it, so the nesting survives a
     // second wall: a reader navigating by heading gets each room with its own
     // work inside it.
-    el("h2", { class: "wall-title", text: wall.name }),
+    el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
     card.lead,
+    card.next,
     sourceLine(wall),
     assignmentLine(wall, shownBy),
     labelsLine(wall),
@@ -351,8 +391,9 @@ function stateWords(state) {
   return STATE_WORDS[state] || STATE_WORDS.unreachable;
 }
 
-/* The lead for a wall that names no work: the state, and since when. */
-function stateLead(wall, shown, said, silent) {
+/* The lead for a wall that names no work: the state, and since when, then the
+ * work it showed last, large, where the server has one. */
+function stateLead(wall, shown, said, silent, last) {
   const words = said.state === "showing_art" ? `A picture ${wall.name} did not put there` : stateWords(said.state);
   const lines = silent
     ? [el("p", { class: "wall-now-when", text: lastHeard(shown) }), el("p", { class: "muted", text: `When it last reported: ${words}.` })]
@@ -374,7 +415,22 @@ function stateLead(wall, shown, said, silent) {
             : null,
           shown.since ? el("p", { class: "muted", text: `Since ${readable(shown.since)}` }) : null,
         ];
-  return el("div", { class: "wall-now", "data-state": shown.state }, lines);
+  return el("div", { class: "wall-now", "data-state": shown.state }, [...lines, last ? lastShownFigure(wall, last) : null]);
+}
+
+/* The work the wall showed last, as large as the work on it would be, under
+ * how long it was up: until it ended, or for a wall that went quiet while
+ * showing it, until it was last seen. */
+function lastShownFigure(wall, last) {
+  const { showing } = last;
+  const when = showing.ended ? `Last on the wall, until ${readable(showing.until)}` : `Last seen on the wall ${readable(showing.until)}`;
+  if (!last.work) {
+    return el("div", { class: "wall-last" }, [
+      el("p", { class: "wall-now-when", text: when }),
+      el("p", { class: "note", text: `${wall.name} last showed a work that could not be read — ${last.failure}.` }),
+    ]);
+  }
+  return workFigure(wall, last.work, when, "wall-last");
 }
 
 /* When the wall was last heard from, from the server's own age of the report. */
@@ -397,10 +453,14 @@ function lastHeard(shown) {
  * work's page, so the card has one tab stop for the work rather than two. */
 function nowShowing(wall, now) {
   const shown = now ? now.shown : null;
-  if (!shown || (shown.state === "silent" && !shown.last)) return el("div", { class: "wall-now", hidden: true });
+  if (!shown || (shown.state === "silent" && !shown.last)) {
+    // Nothing readable to say about the screen; what it showed last still leads.
+    if (now && now.last) return el("div", { class: "wall-now" }, [lastShownFigure(wall, now.last)]);
+    return el("div", { class: "wall-now", hidden: true });
+  }
   const silent = shown.state === "silent";
   const said = silent ? shown.last : shown;
-  if (!now.workId) return stateLead(wall, shown, said, silent);
+  if (!now.workId) return stateLead(wall, shown, said, silent, now.last);
   const when = silent ? `${lastHeard(shown)}, so this may have changed since` : "On the wall now";
   if (now.failure) {
     return el("div", { class: "wall-now" }, [
@@ -408,7 +468,12 @@ function nowShowing(wall, now) {
       el("p", { class: "note", text: `${wall.name} reports showing a work that could not be read — ${now.failure}.` }),
     ]);
   }
-  const work = now.work;
+  return workFigure(wall, now.work, when, "wall-now");
+}
+
+/* A work drawn large with its label: the work on the wall now, or the one it
+ * showed last. */
+function workFigure(wall, work, when, kind) {
   const artist = work.artist ? work.artist.name : null;
   const image = el("img", {
     // The large size: this box is drawn up to 48rem wide, and the tile's 480 px
@@ -422,7 +487,7 @@ function nowShowing(wall, now) {
   image.addEventListener("error", () => {
     image.replaceWith(absentImage("Its image could not be loaded just now."));
   });
-  return el("figure", { class: "wall-now" }, [
+  return el("figure", { class: kind }, [
     el("p", { class: "wall-now-when", text: when }),
     el("div", { class: "wall-now-picture" }, [image]),
     el("figcaption", { class: "wall-now-label" }, [
@@ -438,6 +503,35 @@ function nowShowing(wall, now) {
         ? el("p", { class: "note wall-now-small", text: `Too small for ${wall.name}: it fills less than half of the space inside the mat. A larger scan would fix it.` })
         : null,
     ]),
+  ]);
+}
+
+/* The next three works the wall's schedule puts up, each small, with when it
+ * goes up. Nothing while the wall has no feed: there is nothing coming. */
+function nextUp(wall, now) {
+  const next = now ? now.next : [];
+  if (!next.length) return el("div", { class: "wall-next", hidden: true });
+  return el("div", { class: "wall-next" }, [
+    el("h3", { class: "wall-next-title", text: "Next" }),
+    el(
+      "ol",
+      { class: "wall-next-list" },
+      next.map(({ slot, work, failure }) =>
+        el("li", {}, [
+          work
+            ? el("img", {
+                src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`,
+                alt: "",
+                loading: "lazy",
+              })
+            : null,
+          el("span", { class: "wall-next-work" }, [
+            work ? link({ view: "work", id: work.artwork_id }, { text: work.title }) : el("span", { text: `A work that could not be read — ${failure}` }),
+            el("span", { class: "muted wall-next-when", text: `From ${readable(slot.starts_at)}` }),
+          ]),
+        ]),
+      ),
+    ),
   ]);
 }
 
@@ -590,7 +684,8 @@ function controls(card, themes, reason, manifest) {
       // the room is tired of. A wall that has not said what it shows has
       // nothing for this to be about.
       card.now && card.now.workId && wall.theme ? notAgain(card) : null,
-      wall.theme ? link({ view: "history", params: { wall: wall.wall_id } }, { class: "action quiet", text: "History", "aria-label": `History of ${wall.name}` }) : null,
+      // A link, shaped as one: it goes to another page, where Skip beside it acts.
+      wall.theme ? link({ view: "history", params: { wall: wall.wall_id } }, { class: "wall-history", text: "History", "aria-label": `History of ${wall.name}` }) : null,
     ]),
     change(wall, themes),
   ]);
@@ -753,8 +848,8 @@ function hang(control, wall, themes, themeId) {
  *
  * Bounded twice: by `STALE_AFTER_SECONDS`, past which a heartbeat that has not
  * moved is a display that has stopped, and by leaving the screen (`state.poll`
- * moves on every navigation, as the run view's chain reads it). Only the lead is
- * replaced, so focus stays where the curator left it. A walls read that fails
+ * moves on every navigation, as the run view's chain reads it). Only the lead and
+ * the next three are replaced, so focus stays where the curator left it. A walls read that fails
  * mid-watch is not the act failing; the watch stops and says so. */
 async function awaitNext(card, sentence, gone = null) {
   const { wall } = card;
@@ -779,6 +874,9 @@ async function awaitNext(card, sentence, gone = null) {
     const lead = nowShowing(wall, now);
     card.lead.replaceWith(lead);
     card.lead = lead;
+    const coming = nextUp(wall, now);
+    card.next.replaceWith(coming);
+    card.next = coming;
     card.now = now;
     card.said.textContent = now.work ? `${wall.name} now shows ${now.work.title}.` : `${wall.name} now shows another work.`;
     return;

@@ -13,8 +13,8 @@ the Library the result as the `within` restriction it already lists theme
 slices by.
 
 *Not on any wall* is the owner's ruling of 2026-10-08: works no wall plays now,
-through any hung theme or selection. Which works a wall has *shown* is not
-recorded, so "never hung" is not what it answers.
+through any hung theme or selection. What walls have *shown* is *Last
+shown*'s (`test_last_shown_facet.py`).
 """
 
 import httpx

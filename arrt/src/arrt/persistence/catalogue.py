@@ -227,16 +227,16 @@ class CatalogueStore(Protocol):
         """
         ...
 
-    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+    def held_artists(self) -> Sequence[tuple[Artist, int, str | None]]:
         """Every artist with at least one work in circulation, how many, and the work to picture them by, by name.
 
-        The picture is their first accepted work that holds a master image, or
-        their first accepted work when none does yet: no artist has a picture of
-        their own, and the earliest such work is a stable choice: it moves only
-        when the set of circulating works, or which of them hold a master,
-        changes. A work with no image is passed over,
-        because the Artists index asked for its thumbnail and was refused,
-        drawing "No picture" for an artist whose other works had pictures.
+        The picture is their first accepted work that holds a master image, and
+        None when none does yet: no artist has a picture of their own, and the
+        earliest such work is a stable choice: it moves only when the set of
+        circulating works, or which of them hold a master, changes. A work with
+        no image is never the picture, because the Artists index asks for its
+        thumbnail and is refused; with None it draws its placeholder and asks
+        nothing.
         """
         ...
 

@@ -125,14 +125,14 @@ const FOUND_WIDTH = 250;
  * it is a link, since a control inside an option is what ARIA forbids. Waiting
  * for review links to a page other than the row's own, so the row's `opens`
  * does not stand in for it. */
-export function workState(work, { noImage = null, opens = true, grouped = false, inOption = false } = {}) {
+export function workState(work, { noImage = null, opens = true, grouped = false, inOption = false, picture = true } = {}) {
   const held = work.held_artwork_ids || [];
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
     // not a mark that quietly picks one; it opens the first.
     const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
     const parts = [
-      workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`),
+      picture ? workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`) : null,
       el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
       el("span", { text: words }),
     ];
@@ -145,9 +145,23 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
   }
   if (work.in_review) return reviewMark(work.in_review, { inOption });
   const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
-  if (work.wanted) return stateBadge("badge-wanted", GLYPHS.wanted, "Wanted", found && workPicture("wanted", found));
-  if (found) return stateBadge("badge-image-found", GLYPHS.imageFound, grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
+  if (work.wanted) return stateBadge("badge-wanted", GLYPHS.wanted, "Wanted", picture && found && workPicture("wanted", found));
+  if (found) return stateBadge("badge-image-found", GLYPHS.imageFound, grouped ? "Image found" : "Not held · Image found", picture && workPicture("not-held", found));
   return stateBadge("badge-not-held", GLYPHS.none, noImage || (grouped ? "No image known" : "Not held"));
+}
+
+/* A listed work's picture on its own, in the image style of its state, for a
+ * row that leads with it rather than carrying it inside the state's badge (the
+ * search typeahead and results, where a picture in the badge was 48 px and read
+ * as part of the mark: `ux-review-2026-10.md` finding 38). `workState(…, {
+ * picture: false })` is the badge that goes with it. Null where the state has
+ * no picture; a held one that cannot be loaded takes its frame with it, as the
+ * badge's did. */
+export function statePicture(work) {
+  const held = work.held_artwork_ids || [];
+  if (held.length) return workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`);
+  if (work.in_review || !work.image) return null;
+  return workPicture(work.wanted ? "wanted" : "not-held", `${work.image}?width=${FOUND_WIDTH}`);
 }
 
 /* Whether a registry row can be ticked for a Get: not when the library holds
@@ -163,6 +177,13 @@ export function reviewMark(inReview, { inOption = false } = {}) {
   const parts = [el("span", { class: "glyph", text: GLYPHS.forReview, "aria-hidden": true }), el("span", { text: "Waiting for review" })];
   if (inOption) return el("span", { class: "badge badge-in-review state-mark" }, parts);
   return link({ view: "review", id: inReview.run_id }, { class: "badge badge-in-review state-mark" }, parts);
+}
+
+/* A library work's own picture for a list row: its thumbnail when it holds a
+ * master, else nothing, so no request goes out for one the server would
+ * refuse (`work.image.available`, as the listing reports it). */
+export function heldPicture(work) {
+  return work.image && work.image.available ? workPicture("held", `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`) : null;
 }
 
 /* A picture in the image style of a state. In a frame, which carries the

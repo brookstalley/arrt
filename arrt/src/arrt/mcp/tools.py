@@ -31,11 +31,13 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREACHABLE_KEPT_FOR
 from arrt.library.services.review import MAX_REVIEW_LIMIT
+from arrt.library.services.survey import FIT_BANDS
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
 from arrt.programming.display import DEFAULT_SHUFFLE, IN_ORDER, PLAYERS_OWN_MAT, SHUFFLED, MatMode
 from arrt.programming.shape import ANY as ANY_SHAPE
+from arrt.services.works_filter import SHOWN_PERIODS
 
 _STATUS = Param(
     name="status",
@@ -192,6 +194,29 @@ ART_CATALOGUE: Final = ToolRecord(
                         "Only this theme's works, by theme_id; every other filter and every facet count narrows within it."
                     ),
                 ),
+                Param(
+                    name="fit",
+                    type="array",
+                    items="string",
+                    description=(
+                        f"Only works whose size on the wall is in one of these bands: {', '.join(FIT_BANDS)} "
+                        "(unknown: no master yet). The result's fits counts each band."
+                    ),
+                ),
+                Param(
+                    name="not_on_wall",
+                    type="boolean",
+                    description="Only works no wall plays now, through the theme or selection hanging on it. Defaults to false.",
+                ),
+                Param(
+                    name="shown",
+                    type="string",
+                    choices=tuple(SHOWN_PERIODS),
+                    description=(
+                        "Only works no wall has shown: never, or not in the last month (30 days), quarter (90) or "
+                        "year (365). Each period includes the works never shown. The result's shown counts each."
+                    ),
+                ),
                 _SORT,
                 _LIMIT,
                 _OFFSET,
@@ -210,6 +235,10 @@ ART_CATALOGUE: Final = ToolRecord(
                 (
                     "Every result also lists each theme with the count it would select, counted the same way, so "
                     "theme=… can be chosen without a separate art_theme call."
+                ),
+                (
+                    "For clean-up: fits, not_on_wall and shown are counted the same way, so shown='year' with "
+                    "not_on_wall=true finds the works neither hung now nor shown in a year."
                 ),
             ),
         ),

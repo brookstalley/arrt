@@ -92,7 +92,7 @@ def test_the_title_is_the_one_h1_and_the_picture_is_the_largest_thing(ui, hangab
         const area = (node) => { const box = node.getBoundingClientRect(); return box.width * box.height; };
         const picture = area(document.querySelector('img.work-picture'));
         const others = [...document.querySelectorAll(
-            '#view h1, #view dl, #view table, #view p, #view button, #view img:not(.work-picture)')];
+            '#view h1, #view dl, #view table, #view p, #view button:not(.work-picture-button), #view img:not(.work-picture)')];
         return others.every((node) => area(node) < picture);
     }""")
     assert largest

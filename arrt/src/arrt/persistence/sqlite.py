@@ -58,6 +58,7 @@ from arrt.persistence.records import (
     Rendition,
     RenditionKind,
     RightsStatus,
+    Showing,
     Source,
     SourceClass,
     Theme,
@@ -410,6 +411,24 @@ CREATE TABLE IF NOT EXISTS work_exclusions (
     excluded_at  TEXT NOT NULL
 );
 
+-- What each wall has shown: one row per stretch of one work on one wall, kept
+-- from the Players' heartbeats. Programming's own. A wall shows one thing at a
+-- time, so the wall and the start identify a showing. Neither id is a foreign
+-- key: a wall removed keeps the fact that a work was shown on it, and
+-- `work_id` is Programming's opaque reference to a Library work. A new table,
+-- so `CREATE TABLE IF NOT EXISTS` reaches an older file unaided. Nothing
+-- prunes it: it is the only record of what was on a wall at an hour.
+CREATE TABLE IF NOT EXISTS showings (
+    wall_id       TEXT NOT NULL,
+    started_at    TEXT NOT NULL,
+    work_id       TEXT NOT NULL,
+    last_seen_at  TEXT NOT NULL,
+    ended_at      TEXT,
+    PRIMARY KEY (wall_id, started_at)
+);
+
+CREATE INDEX IF NOT EXISTS showings_by_work ON showings(work_id, last_seen_at);
+
 -- The history: one row per act, the Library's, written where each act happens
 -- and from the day this table arrived (nothing earlier is recovered). No
 -- foreign keys, deliberately: a history outlives what it names, and walls and
@@ -729,13 +748,13 @@ class SqliteCatalogue(TableAdapter):
         rows = self._store.select_rows(f"SELECT a.id AS id {selects.source} WHERE {selects.where}", selects.values)
         return frozenset(row["id"] for row in rows)
 
-    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+    def held_artists(self) -> Sequence[tuple[Artist, int, str | None]]:
         accepted = str(ArtworkStatus.ACCEPTED)
         rows = self._store.select_rows(
             'SELECT ar.*, COUNT(a."id") AS held, '
             '(SELECT a2."id" FROM artworks a2 WHERE a2."artist_id" = ar."id" AND a2."status" = ? '
-            'ORDER BY EXISTS (SELECT 1 FROM originals o WHERE o."artwork_id" = a2."id") DESC, '
-            'coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
+            'AND EXISTS (SELECT 1 FROM originals o WHERE o."artwork_id" = a2."id") '
+            'ORDER BY coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
             'FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
             'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
             (accepted, accepted),
@@ -1082,6 +1101,24 @@ class SqliteCatalogue(TableAdapter):
     def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
         self._store.delete("reported_screens", {"display_id": display_id, "width_px": width_px, "height_px": height_px})
 
+    # -- what each wall has shown ---------------------------------------------
+
+    def save_showing(self, showing: Showing) -> None:
+        self._store.upsert("showings", _showing_row(showing), pk=("wall_id", "started_at"))
+
+    def latest_showing(self, wall_id: str) -> Showing | None:
+        # `started_at` is stored as UTC ISO text (`to_iso`), whose order is the
+        # order of the instants, so the latest start is the largest string.
+        rows = self._store.select_rows(
+            "SELECT * FROM showings WHERE wall_id = ? ORDER BY started_at DESC LIMIT 1",
+            (wall_id,),
+        )
+        return _showing(rows[0]) if rows else None
+
+    def last_shown_by_work(self) -> Mapping[str, datetime]:
+        rows = self._store.select_rows("SELECT work_id, MAX(last_seen_at) AS last_seen_at FROM showings GROUP BY work_id", ())
+        return {row["work_id"]: require_datetime(row["last_seen_at"], "last_seen_at") for row in rows}
+
     # -- walls ----------------------------------------------------------------
 
     def add_wall(self, wall: Wall) -> None:
@@ -1215,6 +1252,26 @@ class SqliteCatalogue(TableAdapter):
 
 
 # -- record to row ------------------------------------------------------------
+
+
+def _showing_row(showing: Showing) -> dict[str, Any]:
+    return {
+        "wall_id": showing.wall_id,
+        "started_at": to_iso(showing.started_at),
+        "work_id": showing.work_id,
+        "last_seen_at": to_iso(showing.last_seen_at),
+        "ended_at": to_iso(showing.ended_at),
+    }
+
+
+def _showing(row: Mapping[str, Any]) -> Showing:
+    return Showing(
+        wall_id=row["wall_id"],
+        work_id=row["work_id"],
+        started_at=require_datetime(row["started_at"], "started_at"),
+        last_seen_at=require_datetime(row["last_seen_at"], "last_seen_at"),
+        ended_at=from_iso(row["ended_at"]),
+    )
 
 
 def _artist_row(artist: Artist) -> dict[str, Any]:

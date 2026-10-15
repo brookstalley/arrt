@@ -55,13 +55,15 @@ def measured(ui, *, at_least):
 
 
 def test_the_run_page_s_costs_break_between_words(ui):
+    """*(Since 2026-10-14, #359: a Get still running, since the estimate and the
+    lookups are shown only while one runs; a finished Get says only its cost.)*"""
     work = a_candidate(provenance=WorkProvenance.CHOSEN.value, wikidata_qid="Q3226397")
     run = a_run(
         run_id=GET_ID,
         kind="get",
         intent=None,
-        status=RunStatus.COMPLETED.value,
-        is_terminal=True,
+        status=RunStatus.RESOLVING_WORKS.value,
+        is_terminal=False,
         estimated_cost_usd="0.00",
         actual_cost_usd="0.00",
     )
@@ -72,7 +74,9 @@ def test_the_run_page_s_costs_break_between_words(ui):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view dd:has-text('of an allowance of')")
 
-    measured(ui, at_least=4)
+    # Three: the Cost row, the estimate and the lookups (four before the cost
+    # rows were folded into one); the floor is there to fail on measuring nothing.
+    measured(ui, at_least=3)
 
 
 def test_the_work_page_s_facts_break_between_words(ui, work_with_an_image):

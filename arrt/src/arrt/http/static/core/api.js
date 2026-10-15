@@ -100,7 +100,7 @@ function facetQuery(chosen) {
  * and only those in circulation, are the Artist page's *In your library*; one
  * theme's works are Artworks' Theme filter. All narrow on the server, which
  * composes them. */
-function worksFilter(query, chosen, sort, { artistId = null, status = null, theme = null, notOnWall = false } = {}) {
+function worksFilter(query, chosen, sort, { artistId = null, status = null, theme = null, notOnWall = false, shown = null } = {}) {
   return (
     (query ? `&q=${encodeURIComponent(query)}` : "") +
     facetQuery(chosen) +
@@ -108,7 +108,8 @@ function worksFilter(query, chosen, sort, { artistId = null, status = null, them
     (artistId ? `&artist_id=${encodeURIComponent(artistId)}` : "") +
     (status ? `&status=${encodeURIComponent(status)}` : "") +
     (theme ? `&theme=${encodeURIComponent(theme)}` : "") +
-    (notOnWall ? "&not_on_wall=true" : "")
+    (notOnWall ? "&not_on_wall=true" : "") +
+    (shown ? `&shown=${encodeURIComponent(shown)}` : "")
   );
 }
 
@@ -116,7 +117,7 @@ function worksFilter(query, chosen, sort, { artistId = null, status = null, them
  * `filter` the selection routes take (`POST /api/works/archive`, a theme's
  * `works/bulk` and `works/remove`). One function beside `worksFilter` so the
  * grid and *Select all* cannot come to mean different works. */
-export function worksFilterBody(query, chosen, sort, { artistId = null, status = null, theme = null, notOnWall = false } = {}) {
+export function worksFilterBody(query, chosen, sort, { artistId = null, status = null, theme = null, notOnWall = false, shown = null } = {}) {
   const body = {};
   if (query) body.q = query;
   for (const kind of Object.keys(chosen || {})) {
@@ -127,15 +128,23 @@ export function worksFilterBody(query, chosen, sort, { artistId = null, status =
   if (status) body.status = status;
   if (theme) body.theme = theme;
   if (notOnWall) body.not_on_wall = true;
+  if (shown) body.shown = shown;
   return body;
 }
 
 /* The facet and theme controls for a filter, without its works: one page of
  * one work, since the counts come with every page. For a screen that changed
  * the works under its rail in place and must recount it. */
-export async function fetchFilterCounts(query = "", chosen = null, { theme = null, notOnWall = false } = {}) {
-  const body = await api(`/api/works?limit=1${worksFilter(query, chosen, null, { theme, notOnWall })}`);
-  return { total: body.total, facets: body.facets || [], themes: body.themes || [], fits: body.fits || [], not_on_wall: body.not_on_wall || null };
+export async function fetchFilterCounts(query = "", chosen = null, { theme = null, notOnWall = false, shown = null } = {}) {
+  const body = await api(`/api/works?limit=1${worksFilter(query, chosen, null, { theme, notOnWall, shown })}`);
+  return {
+    total: body.total,
+    facets: body.facets || [],
+    themes: body.themes || [],
+    fits: body.fits || [],
+    not_on_wall: body.not_on_wall || null,
+    shown: body.shown || [],
+  };
 }
 
 /* One page of works at `offset`, with the counts that come with every page.
@@ -178,7 +187,7 @@ export async function fetchWorksFrom(query, chosen, sort, options, from, upTo, p
  * depends on how much there is, which nothing knows until this page lands, and a
  * placeholder painted before it can only guess. Optional, and the two other
  * callers pass nothing. */
-export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null, { artistId = null, status = null, theme = null, notOnWall = false } = {}) {
+export async function fetchAllWorks(query = "", chosen = null, onFirstPage = null, sort = null, { artistId = null, status = null, theme = null, notOnWall = false, shown = null } = {}) {
   const works = [];
   let total = 0;
   let truncated = false;
@@ -192,7 +201,8 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
   // The clean-up facets, from the first page for the same reason.
   let fits = [];
   let notOnWallOption = null;
-  const filter = worksFilter(query, chosen, sort, { artistId, status, theme, notOnWall });
+  let shownOptions = [];
+  const filter = worksFilter(query, chosen, sort, { artistId, status, theme, notOnWall, shown });
   for (let page = 0; page < PAGE_CEILING; page += 1) {
     const body = await api(`/api/works?offset=${works.length}${filter}`);
     total = body.total;
@@ -201,6 +211,7 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
       themes = body.themes || [];
       fits = body.fits || [];
       notOnWallOption = body.not_on_wall || null;
+      shownOptions = body.shown || [];
       if (onFirstPage) onFirstPage(body);
     }
     works.push(...body.works);
@@ -209,10 +220,12 @@ export async function fetchAllWorks(query = "", chosen = null, onFirstPage = nul
     // progress — the offset is derived from what came back, so asking again
     // sends the identical request. `PAGE_CEILING` would stop it either way, so
     // what this saves is forty-nine pointless round trips rather than a hang.
-    if (!body.truncated || body.works.length === 0) return { works, total, truncated, facets, themes, fits, not_on_wall: notOnWallOption };
+    if (!body.truncated || body.works.length === 0) {
+      return { works, total, truncated, facets, themes, fits, not_on_wall: notOnWallOption, shown: shownOptions };
+    }
     truncated = true;
   }
-  return { works, total, truncated: works.length < total, facets, themes, fits, not_on_wall: notOnWallOption };
+  return { works, total, truncated: works.length < total, facets, themes, fits, not_on_wall: notOnWallOption, shown: shownOptions };
 }
 
 /* Every work a run holds, paged through to the end.

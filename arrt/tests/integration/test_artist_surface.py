@@ -75,8 +75,16 @@ class TestTheIndex:
         assert list(names) == ["Salvador Dalí", "Charles Demuth", "Mark Rothko", "Zed Alpha"]
 
     def test_each_artist_is_pictured_by_their_first_accepted_work_in_circulation(self, http, held, service):
+        """Among works that hold a master: both here do, so the first is the picture.
+
+        *(Until 2026-10-14 neither work held one and the first was still the
+        picture. A work with no master is no longer one (#358): its thumbnail
+        answers 400. The order this test is for is held with both mastered.)*
+        """
         rothko, kept = held
         later = service.add_artwork(title="Untitled (Later)", artist_id=rothko.id)
+        _give_a_master(service, kept)
+        _give_a_master(service, later)
 
         listed = http.get("/api/artists").raise_for_status().json()["artists"]
         pictured = next(entry["pictured_artwork_id"] for entry in listed if entry["artist"]["name"] == "Mark Rothko")
@@ -119,6 +127,16 @@ class TestTheIndex:
 
         assert pictured == later.id, "the first accepted work has no image, so the later one with an image is shown"
         assert pictured != kept.id
+
+    def test_an_artist_with_no_work_holding_a_master_is_pictured_by_nothing(self, http, held):
+        """So the index draws its placeholder and asks for no thumbnail the server would refuse."""
+        rothko, _kept = held
+
+        listed = http.get("/api/artists").raise_for_status().json()["artists"]
+        pictured = next(entry["pictured_artwork_id"] for entry in listed if entry["artist"]["name"] == "Mark Rothko")
+
+        assert pictured is None
+        assert http.get(f"/api/artists/{rothko.id}").raise_for_status().json()["pictured_artwork_id"] is None
 
     def test_a_query_ignores_accents(self, http, held):
         found = http.get("/api/artists", params={"q": "dali"}).raise_for_status().json()["artists"]
@@ -229,3 +247,26 @@ class TestWithNoRegistryConfigured:
 
         assert view["state"] == "not_configured"
         assert "WIKIDATA_USER_AGENT" in view["note"]
+
+
+def _give_a_master(service, work):
+    """A work's master on record, as a finished fetch leaves it."""
+    source = service.add_source(
+        artwork_id=work.id,
+        url=f"https://museum.example/{work.id}",
+        provider="artic",
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DEZOOMIFY,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    service.record_original(
+        artwork_id=work.id,
+        source_id=source.id,
+        path=f"raw/{work.id}.tif",
+        width=6000,
+        height=4000,
+        byte_size=90_000_000,
+        content_hash=f"hash-{work.id}",
+        fetch_status=FetchStatus.OK,
+    )

@@ -21,7 +21,7 @@
 
 import { attempt } from "../core/acting.js";
 import { api, fetchAllWorks, worksFilterBody } from "../core/api.js";
-import { absentImage, facts, workName } from "../core/badges.js";
+import { absentImage, facts, noPicture, workName } from "../core/badges.js";
 import { identityControl, storeIdentity } from "../core/identity.js";
 import { el, emptyState, fill, render } from "../core/render.js";
 import { selectionMode } from "../core/selecting.js";
@@ -95,9 +95,14 @@ function artistPosters(artists, count) {
     el("p", { class: "muted", text: count }),
     el("ul", { class: "grid artist-posters" }, artists.map(({ artist, held, pictured_artwork_id: pictured }) => {
       const target = { view: "artist", id: artist.artist_id };
-      const img = el("img", { src: `/api/works/${encodeURIComponent(pictured)}/thumbnail`, alt: "", loading: "lazy" });
-      img.addEventListener("error", () => img.replaceWith(el("span", { class: "card-image-absent", text: "No picture" })));
-      const picture = link(target, { class: "card-image", tabindex: "-1", "aria-hidden": true }, [img]);
+      // No pictured work means none of theirs holds a master: the placeholder,
+      // and no request for a thumbnail the server would refuse.
+      let shown = noPicture();
+      if (pictured) {
+        shown = el("img", { src: `/api/works/${encodeURIComponent(pictured)}/thumbnail`, alt: "", loading: "lazy" });
+        shown.addEventListener("error", () => shown.replaceWith(absentImage("Its picture could not be loaded just now.")));
+      }
+      const picture = link(target, { class: "card-image", tabindex: "-1", "aria-hidden": true }, [shown]);
       return el("li", { class: "card", "data-artist": artist.artist_id }, [
         picture,
         el("div", { class: "card-body" }, [
@@ -128,23 +133,9 @@ function artistTable(artists, count) {
  * catalogue holds is an ordinary state, for the reason one theme's is: a link
  * outlives what it pointed at. */
 async function oneArtist(artistId, generation) {
-  let page;
-  try {
-    page = await api(`/api/artists/${encodeURIComponent(artistId)}`);
-  } catch (failure) {
-    // Only the refusal says nobody is here; a fault is the error banner's, and
-    // telling a curator an artist is gone because the server stumbled would
-    // send them looking for something that was never lost.
-    if (failure.status !== 400) throw failure;
-    render(
-      generation,
-      el("p", {}, [backLink()]),
-      el("h1", { text: "That artist is not here" }),
-      el("p", { class: "note", text: "Nothing in the library has this address. The artists the library holds are listed together." }),
-      el("div", { class: "row" }, [link({ view: "artist" }, { class: "action", text: "All artists" })]),
-    );
-    return;
-  }
+  // An address naming nobody the catalogue holds is refused, and the router
+  // turns the refusal into the page saying so (`core/router.js`, `notFound`).
+  const page = await api(`/api/artists/${encodeURIComponent(artistId)}`);
   const artist = page.artist;
   // Paged by the shared loop, which sends no limit of its own: the server's
   // default and cap govern, and the client holds no copy of either (`core/api.js`).
@@ -193,7 +184,7 @@ async function oneArtist(artistId, generation) {
         ["Life", lifeDates(artist)],
         ["Nationality", artist.display_nationality || artist.nationality],
       ]),
-      identityControl("artist", artist, () => refresh()),
+      identityControl("artist", artist, () => refresh(), { quietWhenUnmatched: true }),
       about,
       tasteControls(artist),
     ]),
@@ -368,7 +359,7 @@ function heldSection(works, grid, selection) {
 function heldCard(work, selection) {
   const picture = work.image.available
     ? el("img", { src: `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`, alt: "", loading: "lazy" })
-    : absentImage(work.image.note);
+    : noPicture(work.image.note);
   return el("li", { class: "card", "data-artwork": work.artwork_id }, [
     el("label", { class: "card-select" }, [selection.heldBox(work)]),
     el("div", { class: "card-image" }, [picture]),
@@ -385,13 +376,15 @@ function heldCard(work, selection) {
  * is drawn again: with an item, *Their work* lists what Wikidata does. */
 function candidateList(candidates, artistId) {
   return el("div", { class: "stack" }, [
-    el("p", { id: "candidates", text: "Wikidata knows these people by that name. If one is them, say so:" }),
+    el("p", { id: "candidates", text: "Is it one of these? Wikidata knows them by that name." }),
     el("ul", { class: "results-list", "aria-labelledby": "candidates" }, candidates.map((person) => {
       const life = lifeDates(person);
       return el("li", {}, [
         el("span", { text: named(person.name, person.qid) }),
         life ? el("span", { class: "muted", text: ` ${life}` }) : null,
-        el("span", { class: "muted" }, [" · ", wikidataLink(person.qid, person.qid)]),
+        // The item is the link's target, not words on the page: a curator
+        // reads who they are, and opens Wikidata to check.
+        el("span", { class: "muted" }, [" · ", wikidataLink(person.qid, "on Wikidata")]),
         person.years_agree ? el("span", { class: "muted", text: " · their years agree" }) : null,
         " ",
         el("button", {
@@ -430,9 +423,14 @@ function paintRegistry(section, about, view, { name = null, artistId = null, sel
   const heading = section.querySelector("h2");
   if (view.state !== "known") {
     const candidates = view.candidates || [];
+    // Said once: the server's note says why nothing is listed, and where
+    // people are offered instead, their list asks the question it would have
+    // answered. The line under the name does not repeat it on this page
+    // (`identityControl`'s `quietWhenUnmatched`).
+    const why = view.state === "no_identity" && candidates.length ? null : view.note;
     fill(section,
       heading,
-      el("p", { class: "note", text: view.note }),
+      why ? el("p", { class: "note", text: why }) : null,
       candidates.length && artistId ? candidateList(candidates, artistId) : null,
     );
     return;

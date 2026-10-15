@@ -257,6 +257,11 @@ to serve, elicited from the Product Brief's core flows:
 | Q50 | Which label outputs caption this wall? Asked by Walls and by `GET /client` (the labels a client renders). | Owner 2026-10-08 (`labels-and-surfaces.md` ruling 3) |
 | Q51 | Which client holds each label output? Asked by `GET /client` and by admission to `GET /labels/{label_id}`. | Owner 2026-10-08 (same) |
 | Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Clients, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
+| Q53 | Which work did this wall show last, and until when, whatever its screen does now? Asked by Walls for a dark screen, and by its MCP twin. | Owner 2026-10-11 (ruling 3) and 2026-10-14 (#316) |
+| Q54 | Has this work ever been shown on any wall? Asked by Artworks' *Never shown*. | Owner 2026-10-14 (#316) |
+| Q55 | Which works has no wall shown since this instant? Asked by Artworks' *Not in the last month / 3 months / a year*. | Owner 2026-10-15 (#316) |
+| Q56 | When, and on which walls, was this work last shown? Not asked yet: a work's page would. | Agent 2026-10-15 (`build-plan-shown-record.md`) |
+| Q57 | What was this wall showing at this instant? Not asked yet: a wall's History would, or "what was that painting at dinner?". The reason the record is a log and not a summary (the owner, 2026-10-15). | Owner 2026-10-15 (#316) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -899,6 +904,42 @@ takes additions as they happen, `build-plan-feed-follows-theme.md`.)*
 > held and in every theme. *Not this one again* **from this theme** is not a row
 > here: it removes the work's `ThemeMembership` in the theme hanging on that
 > wall, and patches it off the walls hanging that theme.
+
+### Showing
+
+> **Programming-owned.** Neither id is a foreign key: `work_id` is an opaque
+> work id (seam rule 3), and a wall removed keeps the fact that a work was shown
+> on it. Table `showings`. *Built 2026-10-15, `build-plan-shown-record.md`
+> Chunk 01 (#316).*
+
+One row per stretch of one work on one wall, kept from the Players' heartbeats
+(`programming/showings.py`, written through `DisplayService.keep_showing`). It answers Q53–Q57. **A log, not a summary**: the
+owner chose it on 2026-10-15, knowing it grows about 480 rows a day per wall at
+the 3-minute default, because a first-and-last summary can never say what was on
+a wall at an hour. Nothing prunes it.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `wall_id` | UUID | PK with `started_at`; not a foreign key | The wall. |
+| `started_at` | datetime | PK with `wall_id` | When the screen began showing the work: the controller's `display_state.since`, or the first report naming it from a Player before minor 3. Never before the wall's previous showing ended. |
+| `work_id` | UUID | required; not a foreign key; indexed with `last_seen_at` | The work. |
+| `last_seen_at` | datetime | required | The latest report still naming it. |
+| `ended_at` | datetime | nullable | When the wall reported something else: that report's `since`, or for `unreachable` the last sight. Null while it is up, or while its wall is silent. |
+
+> **What is believed.** A report names a work only with `showing_art`, and only
+> a work the wall's published feed carries when the report arrives is kept.
+> Anything else on screen (a work the wall was never sent, a picture it did not
+> put there, television) ends the open showing and starts none. A report older
+> than the latest sight changes nothing. A Player before minor 3 sends no
+> `since`, so its showing is the run of reports naming one work with no gap
+> longer than `STALE_AFTER_SECONDS`.
+>
+> **Accuracy.** As good as the heartbeat: an HDMI wall reports a change within
+> seconds, and a Frame can be up to 60 s late and wrong after a remote-control
+> change until #309's Frame half lands, which feeds this same record.
+>
+> **Not per-device state** (§ Direction): a showing names a place and a work,
+> never a display, client or screen, and survives replacing the television.
 
 ### Wall
 

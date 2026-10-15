@@ -10,6 +10,134 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walls with the screen off — added 2026-10-15
+
+**`build-plan-ux-second-walk.md` chunk 04, #354.** Deploy from this branch, let
+the HDMI wall show a few works, then switch its screen off and open Walls.
+
+- **The picture.** The card says "Its screen is off" once, then the work it
+  last showed, large, under "Last on the wall, until …". Judge whether the
+  work reads as past rather than present.
+- **Beyond off (the agent's inference, yours to veto).** The same picture
+  leads when somebody is using the screen ("Somebody is using the screen"),
+  when the display cannot tell ("Not known"), and when the wall has gone
+  quiet. A wall no screen shows says only that. Say if it should lead only
+  when the screen is off.
+- **Next.** Three small works under the lead, each with "From …". Judge the
+  size and whether "Next" is enough of a heading.
+- **No ports.** No `hdmi-a-1` or `epd-0` on the page. Add `?debug` before
+  the `#` and both come back.
+- **Acts and links.** *Change* looks like a button beside *Skip*; *History*
+  reads as a link.
+- **Not changed:** the server's sentence about works "not currently
+  displayable", which the walk also flagged, is about the theme's works and is
+  left for your next look.
+
+### What each wall has shown — added 2026-10-15
+
+**`build-plan-shown-record.md` chunk 03, #316.** Deploy from this branch to the
+NAS and leave the HDMI wall running for a day: the log fills from now on, so a
+fresh deploy has nothing to show.
+
+- **Artworks' rail.** A *Last shown* group appears once a wall has shown
+  something: *Never shown*, *Not in the last month*, *Not in 3 months*,
+  *Not in a year*, each with a count. After one day, the month, 3 months and
+  a year count the same works, and *Never shown* leaves out what the wall
+  played. Judge the four labels, and whether *Last shown* reads as the group's
+  name.
+- **One choice.** Choosing one presses it and releases the others. Choosing it
+  again clears it.
+- **Beside *Not on any wall*.** The two together find the works neither hung
+  now nor shown in the period.
+- **The journal.** No `showings.not_recorded` after a day. A
+  `showings.not_in_feed` is ordinary just after a work leaves a theme, and
+  worth a look if it repeats for one wall.
+
+### Copy that says one thing once — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 06, #359.** Run from this branch on the
+operator's library.
+
+- **Status.** Each wall says "Last heard from …" once. No "display plane",
+  and no file path unless `?debug`.
+- **An unmatched artist** (Charles Demuth in the walk): "not matched" is said
+  once. Where Wikidata offers people, their list asks "Is it one of these?",
+  and each links "on Wikidata" in place of its item.
+- **A Get's page.** *What it cost* is one row on a finished Get.
+- **History.** A review session's verdicts read as one line per Get, with the
+  works behind *Which works*.
+- **Artworks' rail.** No *Walls* heading over a lone "Not on any wall (0)".
+
+### The Theme page — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 05, #352.** Run from this branch on the
+operator's library: open the hung theme (61 works) and *All works*.
+
+- **Order.** Each work has one Position field. Type a place and press Enter,
+  or step it with the arrows and Tab away: the work moves once, and the
+  keyboard stays on it. Judge whether a number reads as "its place" without
+  the old arrows.
+- **Art and links.** Every row leads with its picture ("No picture" for the
+  two artic.edu refuses). Titles open the work, artists their page.
+- **Add.** On *All works*, the page says every work is already in it rather
+  than offering any. On the hung theme, the picker lists only works not in it.
+- **Phone.** At 390 px the rows are cards, and every field and *Remove* is
+  reachable without a sideways scroll.
+
+### Pictures where a person decides — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 03, #358.** Run from this branch on the
+operator's library, where *Crak!* and *In the Third Sleep* have no master.
+
+- **The placeholder.** Both read "No picture" on Artworks, on Aleksandra
+  Ekster's page and on the Artists index, and in the Work page's picture.
+  Nothing shows the server's exception text. Add `?debug` to the address to
+  see the server's reason under it.
+- **Search.** Type a title you hold: its row in the dropdown carries its
+  picture. On the results page each work leads with its picture, larger.
+  Judge the sizes (2.5rem in the dropdown, 4.5rem on the page).
+- **Enlarge.** On a work's page, click the picture, or Tab to it and press
+  Enter. It opens large, and Escape, Close or a click outside closes it.
+
+### Shared rules and the phone — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 02, #360 #357.** Run from this branch on the
+operator's library, at desktop width in both schemes and on a phone.
+
+- **Rows and type.** On Ask, Artist and Work, words beside a button sit level
+  with its label. In dark, quiet buttons are ink and only the filled one is gilt.
+  On a Theme page, the badges beside its name are in the sans.
+- **Gaps.** Every page's name has the same gap to what follows it. On Topics, a
+  kind with one held topic no longer touches the "Other …" heading under it.
+- **Tables.** On Status, the counts are right-aligned and the first column
+  starts under the headings.
+- **A Get's page (not seen by any walk: the synthetic library has no Get).**
+  Judge whether "Works", its act and "Asked for" still stand one on the other
+  (layout review L17). If they do, it is a finding for this plan.
+- **Phone.** The top bar shows "Well" or "Unwell" in whole. Menu stays visible
+  over the open drawer and closes it. Artworks' rail fades at its right edge.
+  Clients' outputs and labels are cards, and no output's name breaks.
+
+### The way back, a dead address, and names that link — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 01, #356 #361 #362.** Run the server from
+this branch (`cd arrt && uv run python -m arrt`) on the operator's library.
+
+- **The way back.** From an artist's page open one of their works: the link at the
+  top reads "← <the artist's name>" and returns to that artist. From that work,
+  open its artist, a theme or a topic; each says "← <the work's title>". Search
+  for something, open a result, and come back: the query is still there.
+  Judge whether a named way back reads better than the index's name did.
+- **A dead address.** Change a work's address in the bar to one that does not
+  exist, from a live page and on a fresh load: one page says "That work is not
+  here" with a way to Artworks, and nothing of the page before stays.
+- **Names that link.** On a work hanging on a wall, its *Walls* fact and its
+  theme's "(on …)" link to Walls with that wall's card in view and in focus.
+  A topic in *What this work is* opens its Topic page. History, Clients and
+  Status name walls as links; Walls names its client as a link to Clients at
+  that client. Judge whether so many links on Clients and History read as
+  clutter.
+
 ### A wall's shapes, and a wall they darken — added 2026-10-13
 
 **`build-plan-wall-shape-filter.md`, #370.** On Walls, open a wall's *How it is

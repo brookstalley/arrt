@@ -22,6 +22,7 @@ pytest.importorskip(
 from fakes import FakeRegistry
 
 from arrt.library.registry import ItemId, RegistryArtist, RegistryHolding, RegistryPerson, RegistryText, RegistryWorkEntry
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 ROTHKO = "Q160149"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Rothko%20chapel.jpg"
@@ -78,8 +79,28 @@ class TestTheIndex:
     # owner's ruling on #173). The table it was is the second view, so the old
     # "listed with counts" test is replaced by one per view rather than dropped.
 
-    def test_held_artists_are_posters_in_surname_order_and_open_their_page(self, ui, rothko, seeded_service):
+    def test_held_artists_are_posters_in_surname_order_and_open_their_page(self, ui, rothko, seeded_service, service):
         artist, work = rothko
+        # Only a work holding a master pictures its artist (2026-10-14, #358).
+        source = service.add_source(
+            artwork_id=work.id,
+            url=f"https://museum.example/{work.id}",
+            provider="artic",
+            source_class=SourceClass.INSTITUTIONAL,
+            acquisition_method=AcquisitionMethod.DEZOOMIFY,
+            rights_status=RightsStatus.PUBLIC_DOMAIN,
+            is_primary=True,
+        )
+        service.record_original(
+            artwork_id=work.id,
+            source_id=source.id,
+            path=f"raw/{work.id}.tif",
+            width=6000,
+            height=4000,
+            byte_size=90_000_000,
+            content_hash=f"hash-{work.id}",
+            fetch_status=FetchStatus.OK,
+        )
         ui.serve_image(f"**/api/works/{work.id}/thumbnail*")
         ui.open("#artist")
         ui.page.wait_for_selector("ul.artist-posters li.card")
@@ -412,9 +433,17 @@ class TestAnUnlinkedArtist:
 
         rows = [" ".join(text.split()) for text in _their_work(ui).locator("li").all_inner_texts()]
         assert rows == [
-            f"Mark Rothko 1903–1970 · {ROTHKO} · their years agree This is them",
-            "Mark Rothko 1850–1900 · Q900001 This is them",
+            # The item is each link's target, not words in the row (#359).
+            "Mark Rothko 1903–1970 · on Wikidata · their years agree This is them",
+            "Mark Rothko 1850–1900 · on Wikidata This is them",
         ]
+        targets = _their_work(ui).locator("li a:text-is('on Wikidata')").evaluate_all("(links) => links.map((a) => a.href)")
+        assert [target.rsplit("/", 1)[-1] for target in targets] == [ROTHKO, "Q900001"]
+        # Said once: where people are offered, their list asks the question and
+        # the server's "not matched" note is not said beside it (#359).
+        assert _their_work(ui).locator("p.note").count() == 0
+        assert "Is it one of these?" in _their_work(ui).inner_text()
+        assert "not matched" not in ui.page.locator("#view").inner_text()
         _their_work(ui).locator("li").first.locator("button").click()
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
 

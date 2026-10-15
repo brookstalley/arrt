@@ -90,6 +90,12 @@ const SECTIONS = [
  * to the page it was actually opened from, which travels in the address as
  * `?from=`. The default is what a bookmark or an agent's link gets, having no
  * opener to remember.
+ *
+ * **A screen about one thing is itself a place to return to**, and says so with
+ * `returnLabel` (what its way back calls it until it has named itself) and
+ * `returnFor` (the screens that, opened from it, come back to it rather than
+ * to its index). `thing` names what an address of it is the address of, for
+ * the page an address naming nothing gets (`core/router.js`, `notFound`).
  */
 const ROUTES = {
   collection: { render: viewCollection, section: "artworks", page: "Artworks" },
@@ -102,14 +108,14 @@ const ROUTES = {
   // requires every consequential state to be addressable and one theme is one —
   // it is what a wall's theme control points at and what a curator bookmarks.
   // Radarr's Collections: a named grouping of what the library holds.
-  theme: { render: viewTheme, detail: OPTIONAL_ID, section: "artworks", page: "Themes" },
+  theme: { render: viewTheme, detail: OPTIONAL_ID, section: "artworks", page: "Themes", thing: "theme", returnLabel: "Theme", returnFor: ["work", "search"] },
   // The periods, movements, subjects and media the library's works are in. No
   // *arr page is one; the nearest idea is a music app's genre (`ia-proposal.md`
   // § Objects), and ruling 9 put it under the library, after Themes.
   topics: { render: viewTopics, section: "artworks", page: "Topics" },
   // Lidarr's artist index, which is that app's library: every held artist, and
   // at `#artist/<id>` one of them as the hub (ruling 4).
-  artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists" },
+  artist: { render: viewArtists, detail: OPTIONAL_ID, section: "artworks", page: "Artists", thing: "artist", returnLabel: "Artist", returnFor: ["work", "artist", "topic", "search"] },
   walls: { render: viewWalls, section: "walls", page: "Walls" },
   // What waits for the curator's verdict, first under Activity because it is
   // the one queue that needs them (`ia-proposal.md` § The map), with its count.
@@ -134,17 +140,17 @@ const ROUTES = {
   // what the server works with, since it is what the server has come to believe.
   taste: { render: viewTaste, section: "settings", page: "Taste" },
   health: { render: viewHealth, section: "system", page: "Status" },
-  work: { render: viewWork, detail: true, opensFrom: "collection", title: "Work" },
+  work: { render: viewWork, detail: true, opensFrom: "collection", title: "Work", thing: "work", returnLabel: "Work", returnFor: ["artist", "theme", "topic", "search"] },
   // Everything a few words find, the library's and Wikidata's (ruling 2), as
   // Sonarr's search results are a page of their own. Reached by Enter in the
   // search box (the owner, 2026-10-06) and from the dropdown's last row; it
   // returns to Artworks by default.
-  search: { render: viewSearch, opensFrom: "collection", title: "Search results" },
+  search: { render: viewSearch, opensFrom: "collection", title: "Search results", returnLabel: "Search results", returnParam: "q", returnFor: ["work", "artist", "topic", "theme"] },
   // One topic, browsed like a genre, reached from Library › Topics, the top
   // bar's dropdown, or a search on the Topics page, and returned to Topics by a
   // bookmark. Its own route rather than an id on `topics`, as the plan
   // addresses it (`#topic/<qid>`).
-  topic: { render: viewTopic, detail: true, opensFrom: "topics", title: "Topic" },
+  topic: { render: viewTopic, detail: true, opensFrom: "topics", title: "Topic", thing: "topic", returnLabel: "Topic", returnFor: ["work", "artist", "topic", "search"] },
   // A Get is listed under Activity, so a bookmark to one returns to Queue. A
   // Get and its Review share that default because they are one Get's two
   // pages: each opens the other, and with different defaults every hop between
@@ -154,14 +160,21 @@ const ROUTES = {
   // opened from one of them returns to it, as one opened from Review returns
   // to Review. Addressed `#get/<id>`; `#run/<id>`, its address before every
   // spending request was called a Get, is an alias (`core/route.js`).
-  get: { render: viewRun, detail: true, opensFrom: "queue", title: "Get", returnLabel: "Get", returnFor: ["work"] },
+  get: { render: viewRun, detail: true, opensFrom: "queue", title: "Get", thing: "Get", returnLabel: "Get", returnFor: ["work"] },
   // Keyed by the run whose works are being judged, not by a work: a curator
   // reviews a run's output as a set, and a per-work address would make the grid
   // unreachable by URL.
   // `returnLabel` makes Review a place to come back to: a Work opened from a
   // review card returns to that review, not to the page the review sits under.
-  review: { render: viewReview, detail: true, opensFrom: "queue", title: "Review", returnLabel: "Review", returnFor: ["work"] },
+  review: { render: viewReview, detail: true, opensFrom: "queue", title: "Review", thing: "review", returnLabel: "Review", returnFor: ["work"] },
 };
+
+// The top bar answers from the moment the client runs. Installed before the
+// read below rather than after it: a search pressed while that read was out
+// went to the browser, which submitted the form as a page load.
+installStatus();
+installSearch();
+installScrollRegions();
 
 // The installed plugins' own museum names, before the first paint names a
 // source. Without them every page still paints, naming a plugin from elsewhere
@@ -172,9 +185,6 @@ try {
   // The built-in names still apply; the Sources page says why the route could not be read.
 }
 
-installStatus();
-installSearch();
-installScrollRegions();
 install(ROUTES, {
   sections: SECTIONS,
   onNavigate: () => {
@@ -184,6 +194,11 @@ install(ROUTES, {
     paintWanted();
   },
 });
+// Marked once the top bar and the router are installed and the first screen
+// has been asked for, so a test waits for the client rather than for the
+// placeholder the page is served with. Not when that screen has painted: a
+// test holding one of its reads open is waiting to see it part-way.
+document.documentElement.dataset.started = "true";
 
 /* The handful of internals the browser suite drives directly.
  *

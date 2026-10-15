@@ -323,6 +323,15 @@ between planes.
 > then says the store could not be read in full rather than "no pictures yet": an
 > unreadable store must never read as an empty one.
 
+> **What each wall has shown, added 2026-10-15** (`programming/display.py`,
+> `build-plan-shown-record.md`). Written on each heartbeat; neither refuses the
+> heartbeat, which is the Player's.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `showings.not_recorded` | ERROR | a wall's report could not be written as a showing, with `wall_id` and `reported_at`: the store refused it, or the disk did (full, failing, or locked). The heartbeat file is still written, so the health panel is unaffected; Walls' last-shown work and the Artworks *Last shown* facet fall behind until a later report is kept |
+> | `showings.not_in_feed` | INFO | a wall reported showing a work its published feed does not carry, with `wall_id` and `work_id`, and it was not kept. Only when the wall has a published feed and the report is newer than the last one kept: a wall with nothing hung, or a late report, is not this. A work taken out of a theme a moment before is ordinary; a steady stream for one wall is a Player showing from a feed this server did not send |
+
 > **The topic sweep's events, added 2026-10-02** (`library/services/topic_sweep.py`,
 > `build-plan-topics-and-destinations.md` Chunk 04). The sweep keeps the
 > library's works' topics as facet rows from Wikidata: at start, when a work is

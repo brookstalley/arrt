@@ -66,6 +66,240 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-15: Walls shows the last-shown work and the next three (#354)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk, a wall's card on Walls listed ports and state
+but never showed the art. The owner ruled on 2026-10-14 that it should show the
+work the wall showed last, which waited on #316's log of showings.
+
+**What changed:**
+- **Walls.** With no work of ours on the screen, the card leads with its state,
+  said once. Then comes the work the wall showed last, large, from the log of
+  showings. The next three from the schedule follow, small.
+- Ports show only under `?debug`. *Change* is shaped like the page's other
+  actions, and *History* is a link.
+- **Tests.** The way back's topic test now waits on the topic's title, because
+  the previous page already satisfied what it waited on (#371). The *Last shown*
+  rail fixture spreads its showings so that every period counts differently.
+
+## 2026-10-15: What each wall has shown (#316)
+
+<!-- prawduct: scope=shown-record -->
+
+**Why:** Nothing recorded what a wall had actually shown. So Walls couldn't show
+the last work and Artworks couldn't find works no wall had shown. The owner chose
+a log over a first/last summary, and fixed periods for *Not shown since*, on
+2026-10-15.
+
+**What changed:**
+- **A log of showings.** A new `showings` table in Programming, with no foreign
+  keys. It holds one row per stretch of one work on one wall, written from each
+  heartbeat's display state against the wall's published feed. The write is a
+  bulkhead: whatever fails, the heartbeat is still answered and the horizon
+  still rolls.
+- **Walls' read.** `GET /api/walls` and `art_display(action='walls')` carry
+  `last_shown` and `upcoming` (the next three slots of the published schedule).
+  So does every write that answers with a wall.
+- **Artworks' *Last shown* facet.** It offers never, or not in the last month,
+  3 months or a year, counted like the other facets. The narrowing moved to
+  `services/works_filter.py`, which `art_catalogue(action='list')` now calls
+  too, so the tool surface gains the `fit` and `not_on_wall` filters it lacked.
+
+## 2026-10-14: Each screen says one thing once (#359)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 39 and 44), copy explained the system
+rather than the art:
+- Status said one fact three times.
+- Topic pages were titled "Wikidata Q7049".
+- An unmatched artist was told so three times, with a QID.
+- A Get's cost took four rows.
+- History listed forty near-identical rows.
+- The rail drew a heading over one dead option.
+
+**What changed:**
+- **Status.** A wall's panel says "Last heard from …" once. The server's
+  sentence (the display plane, the file path) shows only under `?debug`. The
+  page summary shows only over more than one wall.
+- **Topic.** "Topic" until a name arrives, never the bare item, and the tab
+  follows the name. The link reads "On Wikidata".
+- **Artist.** An unmatched artist is told so once, by the server's note. Where
+  people are offered, their list asks "Is it one of these?". The identity line
+  there shows "Wikidata:" and *Edit*. A candidate's item is only the link's
+  target.
+- **Get.** One *Cost* row; the family total joins it only where it differs,
+  and is kept when the Get recorded nothing of its own. The estimate and the
+  lookups show only while the Get runs.
+- **History.** Three or more consecutive verdicts of one kind from one Get are
+  one row, with the works behind *Which works*.
+- **Artworks' rail.** A group whose every option counts zero is left out
+  while nothing narrows the counts.
+- **Clients and Taste.** Their leads are cut.
+- **Kept, with reasons in the plan:** Taste's list of ways (pinned), Wanted's
+  empty state (pinned), *Clients* as the page's name.
+- **Open for the owner:** one set of verbs for a taste judgment.
+- **Tests changed in meaning:** re-pointed to the new wording, each keeping
+  its check.
+  - In `test_the_run_view.py`, the cost rows became one.
+  - `test_fact_lists_on_a_phone.py` measures a running Get, and its floor of
+    facts is 3.
+  - `test_topics.py` and `test_the_artist_page.py`: no bare item. The
+    candidates test now checks link targets.
+  - `test_the_debug_view.py` waits on the wall's panel.
+  - `test_names_that_link.py`'s scroll allows a sub-pixel.
+
+## 2026-10-14: The Theme page shows its art, at two boxes a row (#352)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (finding 31), the Theme page was 61 rows of five
+acts: 305 boxes, no pictures, no links, an empty Size column. *Add a work* on
+*All works* offered only works already in it, and on a phone the acts were
+off-screen.
+
+**What changed:**
+- **One Position field a row** replaces ↑, ↓, *Move to top*, *Move to bottom*
+  and "#".
+  - It commits once, on Enter or leaving the field. It never commits on
+    `change`, which Chromium fires at every arrow step.
+  - It commits once per field, because removing a focused field fires
+    `blur`.
+  - A place past either end is clamped, and a move to where the work already
+    is sends nothing.
+  - The keyboard stays on the moved work's new field.
+  - A refused move puts the field back.
+- **Each member row** leads with its picture, or `noPicture`, and links its
+  title to Work and its artist to Artist.
+- **The Size column** appears only when some work has something to say in it.
+- **The table is stacked into cards on a phone.**
+- ***Add a work*** offers only works not in the theme, rebuilt with every
+  change of membership. With none left, it says so, and its row stays hidden
+  until the members have arrived.
+- **Tests changed:** `test_the_theme_screen.py` and `test_the_themes_index.py`
+  drive the Position field where they drove the buttons. Each test's intent
+  is kept: a move takes effect and survives a reload, a move reaches either
+  end, moves work from the keyboard, the ends send no non-move. The dated
+  docstrings say what changed. Their title helpers read
+  `td[data-label='Title']`.
+
+## 2026-10-14: Pictures where a person decides (#358)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 37, 38 and 34):
+- Works whose master the museum refuses read as the server's exception text,
+  in three wordings across four screens, and the Artists index asked for
+  thumbnails the server refused.
+- The search dropdown pictured Wikidata's works but not the library's own.
+- Result pictures sat small inside the state's badge.
+- The Work page's picture could not be enlarged.
+
+**What changed:**
+- **`noPicture` (`core/badges.js`).** One placeholder, "No picture", for a
+  held work with no master, on Artworks, Artists, a topic and the Work page.
+  The server's note shows only under `?debug`.
+- **An artist is pictured only by a work holding a master.**
+  `held_artists` in `persistence/sqlite.py` now does this, and
+  `pictured_artwork_id` is null when no such work exists. It fell back to a
+  work with no image, whose thumbnail answers 400. The model, the store
+  protocol, `api-contract.md` and the IA's Artists row say so.
+- **Search.** The dropdown and the results page lead each work's row with
+  its picture, out of the badge (`statePicture`, `heldPicture`), at 2.5rem
+  and 4.5rem. The library's own works are pictured when they hold a master.
+- **Work page.** The picture is a button that opens it large in
+  `core/enlarge.js`'s dialog.
+- **Tests changed in meaning:**
+  - `test_artist_surface.py`'s ordering test gives both its works a master,
+    and a new test pins null.
+  - `test_asking.py`'s and `test_the_artist_page.py`'s held-artist picture
+    tests give their work a master.
+  - `test_the_work_page.py`'s "the picture is the largest thing" passes over
+    the picture's own button.
+
+## 2026-10-14: Shared rules that hold every page, and the pages at a phone's width (#360, #357)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 36, 40, 41 and 45), rows, gaps and
+type drifted in a few shared rules, not page by page. At 390 px the status was
+cut to "● W…", the open drawer covered Menu, and Clients' tables broke output
+names.
+
+**What changed:**
+- **`app.css` shared rules:**
+  - Rows align on the baseline, and labelled fields on their boxes.
+  - One gap under a page's name.
+  - Tile titles take no panel heading margin, and a tile's badge follows its
+    label.
+  - Badges are set in the UI face, and quiet acts in ink in both schemes.
+  - Prose is held to 70ch.
+  - A table's first column sits on the page edge.
+  - An act in a line of words is spaced from it, and what follows a row is a
+    step below it.
+  - A sub-heading after content stands clear of it.
+  - The budget line sits on the nav's grid.
+- **`core/badges.js` `table()`:** marks a column of figures `.num` (right
+  aligned, tabular), decided from its values. Status's sources table marks
+  its own.
+- **Phone:**
+  - The status shows "Well" or "Unwell" and keeps the sentence for a screen
+    reader.
+  - Menu sits above the open drawer.
+  - The facet rail fades at its edge.
+  - Clients' outputs and labels are cards.
+  - Artist posters reserve their own shape.
+- **Ask:** *Start over* is offered once something has been said.
+- **Queue:** the fetching section says its counts before its parts.
+- **Rules recorded:** `design-direction.md` § Spacing & Layout and § Component
+  Patterns.
+- **Kept, with reasons in the plan:** E22, the ⚙ glyph, L22 (ten themes on a
+  screen) and the Artworks toolbar. E23 moves to chunk 06.
+- **Tests changed:** `test_the_status_sources_table.py` reads a column's
+  `col-` class rather than its whole class string, which now also carries
+  `num`.
+
+## 2026-10-14: The way back names where it goes, a dead address says so, and walls, clients and topics link (#356, #361, #362)
+
+<!-- prawduct: scope=ux-second-walk -->
+
+**Why:** In the second UX walk (findings 35, 42, 43 and 34), the back link on a
+detail page went to the sidebar index rather than to the page it was opened
+from. An address naming nothing left the previous page painted, or waited for
+ever on a fresh load. Walls, clients and a work's topics were named on six
+screens and linked from none.
+
+**What changed:**
+- **The way back.** Work, Artist, Topic, one Theme and Search results are each
+  a place to return to (`returnLabel`, `returnFor` in `app.js`). Search results
+  carry their query (`returnParam`). The back link names its opener from the
+  name that page gave itself this visit (`setTitle`), or its kind when reached
+  from a bookmark. A way back records no opener of its own.
+- **An address naming nothing** (a work, artist, topic, theme, Get or review)
+  is one not-found page (`core/router.js`, `notFound`). A refusal (400, the
+  server's one refusal status) or a 404 on a one-thing read reaches it. A 5xx
+  keeps the banner, and on arrival the view says only that the page could not
+  be shown. A failed repaint keeps the page that was showing. A gone Get stops
+  its watch at the first refusal.
+- **Names that link.** A wall is addressed `#walls?wall=<id>` and a client
+  `#clients?client=<id>`, and the page brings that card to the reader
+  (`data-arrive`). They are linked from Work, Theme, History, Clients and
+  Status, and from Walls for clients (`core/places.js`). A facet with a
+  `value_qid` links to its Topic page.
+- **Found and fixed:** a search pressed while the client started submitted the
+  form natively. The top bar now installs before the start-up read.
+  `tests/browser` `ui.open` waited on the served placeholder, so it returned
+  before the client ran; it now waits for `html[data-started]`.
+- **Tests changed in meaning:**
+  - `test_the_run_view.py`'s two give-up tests held a 400. They now hold a
+    502, because a refusal now ends the watch at once with the not-found page,
+    which a new test pins.
+  - The not-found link selectors in `test_the_theme_screen.py` and
+    `test_topics.py` follow the link's new name, the index's sidebar label.
+- Filed: #376, a feed test that passes only within one wall-clock second.
+
 ## 2026-10-13: Two walls sharing a few works no longer lock onto one each (#350)
 
 <!-- prawduct: scope=household-schedule-lock -->

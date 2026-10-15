@@ -13,7 +13,7 @@
  */
 
 import { api } from "./api.js";
-import { named, reviewMark, topicKinds, topicName, workState } from "./registry.js";
+import { heldPicture, named, reviewMark, statePicture, topicKinds, topicName, workState } from "./registry.js";
 import { el, fill } from "./render.js";
 import { go, goWithParams, openedFrom } from "./router.js";
 import { state } from "./state.js";
@@ -222,7 +222,7 @@ function installSuggestions(field) {
     ];
     const heldWorks = [
       ...works.map((work, at) =>
-        option(`suggestion-work-${at}`, work.artist ? `${work.title} — ${work.artist.name}` : work.title, () =>
+        option(`suggestion-work-${at}`, [heldPicture(work), work.artist ? `${work.title} — ${work.artist.name}` : work.title], () =>
           go("work", work.artwork_id),
         ),
       ),
@@ -490,5 +490,5 @@ function registryTopicRow(topic) {
  * carries one, glyph and word and colour (`accessibility-spec.md`). */
 function registryWorkRow(work) {
   const maker = work.creator ? ` — ${named(work.creator.name, work.creator.qid)}` : "";
-  return [`${named(work.title, work.qid)}${maker}`, workState(work, { opens: false, grouped: true, inOption: true })];
+  return [statePicture(work), `${named(work.title, work.qid)}${maker}`, workState(work, { opens: false, grouped: true, inOption: true, picture: false })];
 }
