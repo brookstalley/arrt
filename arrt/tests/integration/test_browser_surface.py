@@ -136,7 +136,10 @@ class TestTheClientIsServed:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "<title>Arrt</title>" in response.text
-        assert '<p class="brand">Arrt</p>' in response.text
+        # The product's name, inside the box that lines it up with the sidebar,
+        # as the link home every *arr app makes of it. Its address is the
+        # router's to set, so the shell names no page.
+        assert '<p class="brand"><a class="brand-link" href="#" id="brand">Arrt</a></p>' in response.text
         # Each screen's heading is its h1, so the shell itself carries none.
         assert "<h1" not in response.text
 

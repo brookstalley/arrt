@@ -26,7 +26,7 @@
 import { api, apiLines } from "../core/api.js";
 import { facts, noPicture, workName } from "../core/badges.js";
 import { counted } from "../core/counting.js";
-import { selectionMode } from "../core/selecting.js";
+import { selectionMode, themeChoices } from "../core/selecting.js";
 import { toolbar } from "../core/toolbar.js";
 import {
   gettable,
@@ -186,6 +186,10 @@ async function paintFound(section, query) {
 /* -- one topic -------------------------------------------------------------- */
 
 export async function viewTopic(qid, generation) {
+  // What a held selection can be added to, asked beside the topic. Without it
+  // the held half is not offered: a picker holding only *New theme…* would make
+  // a second theme of one the curator already has.
+  const themesAsked = api("/api/themes").catch(() => null);
   let page;
   try {
     page = await api(`/api/topics/${encodeURIComponent(qid)}`);
@@ -219,10 +223,11 @@ export async function viewTopic(qid, generation) {
   const worksSection = asking("representative-works", "Representative works");
   const artistsSection = asking("topic-artists", "Artists");
   // Where the selection's toggle and bar go once the works to tick have arrived
-  // (`paintWorks`), since a Get from them is named after the topic.
+  // (`showWorks`), since a Get from them is named after the topic.
   const toggleSlot = el("span");
   const barSlot = el("span");
-  render(generation, el("p", {}, [backLink()]), head, toggleSlot, heldSection(page.works), worksSection, artistsSection, barSlot);
+  const heldGrid = el("ul", { class: "grid" });
+  render(generation, el("p", {}, [backLink()]), head, toggleSlot, heldSection(page.works, heldGrid), worksSection, artistsSection, barSlot);
 
   // After the page is drawn, all three at once, each into its own section. The
   // works wait for the head as well: a period's are headed with its years, and
@@ -232,6 +237,9 @@ export async function viewTopic(qid, generation) {
   const base = `/api/topics/${encodeURIComponent(page.qid)}`;
   const headAsked = ask(`${base}/registry`, {});
   const artistsAsked = ask(`${base}/artists`, { artists: [] });
+  // Local and quick, and asked at the start; awaited here, after Wikidata has
+  // been asked, so the slow questions are not held behind it.
+  const themes = await themesAsked;
   // The works are streamed, a line as each of Wikidata's answers lands: the
   // ranked works first, their makers after (`get_topic_works`). Each line is
   // the whole section so far and is painted as it comes, once the head is
@@ -239,10 +247,24 @@ export async function viewTopic(qid, generation) {
   // is an outage, said as one.
   let known = null;
   let works = null;
+  // The page's one selection (`core/selecting.js`), made once the works to
+  // tick are whole, since a Get from them is named after the topic: held works
+  // to add to a theme or archive, the rest to get. Made on every ending,
+  // Wikidata's outage included, so the held half never waits on Wikidata to
+  // be offered.
+  let selection = null;
   const showWorks = () => {
-    if (known && works && worksSection.isConnected) {
-      paintWorks(worksSection, known, works, defaultName(page, known), { toggleSlot, barSlot });
+    if (!known || !works || !worksSection.isConnected) return;
+    if (works.state === "known" && !works.complete) {
+      paintWorks(worksSection, known, works, null);
+      return;
     }
+    if (!selection) {
+      selection = topicSelection(page.works, heldGrid, themes, defaultName(page, known));
+      if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ actions: [selection.toggle] }));
+      if (barSlot.isConnected) barSlot.replaceWith(selection.bar);
+    }
+    paintWorks(worksSection, known, works, selection);
   };
   const unavailable = { state: "unavailable", note: UNAVAILABLE, works: [], complete: true };
   const worksAsked = apiLines(`${base}/works`, (line) => {
@@ -296,14 +318,44 @@ function asking(id, title) {
   ]);
 }
 
-/* *In your library*: your works in circulation in the topic, each opening its page. */
-function heldSection(works) {
+/* *In your library*: your works in circulation in the topic, each opening its
+ * page. Drawn before the selection exists; `topicSelection` adds the ticks. */
+function heldSection(works, grid) {
+  fill(grid, ...works.map(heldCard));
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
     el("h2", { id: "in-your-library", text: `In your library (${works.length})` }),
-    works.length
-      ? el("ul", { class: "grid" }, works.map(heldCard))
-      : el("p", { class: "muted", text: "None of your works in circulation is in this topic." }),
+    works.length ? grid : el("p", { class: "muted", text: "None of your works in circulation is in this topic." }),
   ]);
+}
+
+/* The selection over both halves, and a tick on each held card already drawn.
+ * **No filter**: every held work in the topic is on the page, so *Select all*
+ * ticks what is there. */
+function topicSelection(heldWorks, grid, themes, name) {
+  const selection = selectionMode({
+    held:
+      themes && heldWorks.length
+        ? {
+            themes: themeChoices(themes),
+            filter: null,
+            total: 0,
+            // Archived works leave circulation, and so leave *In your library*.
+            onArchived: (ids) => {
+              for (const artworkId of ids) {
+                const card = grid.querySelector(`[data-artwork="${CSS.escape(artworkId)}"]`);
+                if (card) card.remove();
+              }
+            },
+          }
+        : null,
+    notHeld: { defaultName: name },
+  });
+  for (const work of heldWorks) {
+    const box = selection.heldBox(work);
+    const card = grid.querySelector(`[data-artwork="${CSS.escape(work.artwork_id)}"]`);
+    if (box && card) card.prepend(el("label", { class: "card-select" }, [box]));
+  }
+  return selection;
 }
 
 function heldCard(work) {
@@ -327,7 +379,7 @@ function heldCard(work) {
  * is a Dutch Golden Age work here, and the heading claims no more than that
  * (the owner's answer of 2026-10-02). Only when the period is the kind its works
  * were found by, which is the first the registry gives. */
-function paintWorks(section, known, view, name, { toggleSlot, barSlot }) {
+function paintWorks(section, known, view, selection) {
   const years = known.state === "known" && known.kinds[0] === "period" ? topicYears(known) : null;
   const heading = el("h2", { id: "representative-works", text: years ? `Works from ${years}` : "Representative works" });
   if (view.state !== "known") {
@@ -340,10 +392,6 @@ function paintWorks(section, known, view, name, { toggleSlot, barSlot }) {
   }
   // No ticks while the works are still arriving: a repaint would lose them.
   if (!view.complete) return paintArriving(section, heading, view);
-  // The page's one selection (`core/selecting.js`), its Get named after the topic.
-  const selection = selectionMode({ notHeld: { defaultName: name } });
-  if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ actions: [selection.toggle] }));
-  if (barSlot.isConnected) barSlot.replaceWith(selection.bar);
   const rows = view.works.map((work) =>
     el("tr", {}, [
       el("td", {}, [gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null]),

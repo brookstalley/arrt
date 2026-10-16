@@ -10,6 +10,56 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The mat control — added 2026-10-16
+
+**`build-plan-ui-mat-selection-labels.md` chunk 03, #91.** Open a work you
+know, then open *Mat* under the picture.
+
+- **The choices.** *Dark grey* (`#272727`), *Mid grey* (`#6b6b6b`) and, when
+  it would change the mat, *From the picture*. Pressing one shows it on the
+  picture above; nothing is recorded until *Use this mat*. Judge whether
+  "Showing … on the picture above" is enough to say nothing has changed yet.
+- **On the wall.** After *Use this mat*, the wall showing the work should
+  draw the new colour once its feed is pulled. Check one.
+- **Dark grey.** It is the darkest neutral your L* 15 floor allows. Judge it
+  on the wall, beside a work you know reads well in near-black.
+- **The words.** "Mat: Chosen by the vision model", "From the picture", "Set
+  by hand". Say if any reads as plumbing.
+
+### The Work page shows the work in its mat — added 2026-10-16
+
+**`build-plan-ui-mat-selection-labels.md` chunk 02, #346.** Run this branch
+against your library and open a few works you know on a wall, landscape and
+portrait.
+
+- **Beside the wall.** Hold the Work page up beside the same work on a
+  wall. The mat's colour should match, and so should its proportions: even
+  sides and top, a slightly deeper bottom. It is the HDMI rule (6% of the
+  shorter side), so a Frame with a known density draws a slightly different
+  width; judge whether it reads as the same object.
+- **The colour.** Judge it in both schemes. In dark mode the mat sits on a
+  dark page, the way a wall's mat sits inside black.
+- **A work not yet prepared** shows the bare picture and says it has no mat
+  yet. Judge whether that line is needed.
+- **Enlarge.** Pressing the picture still opens it large: the work alone,
+  without its mat.
+
+### The name goes home, and held works select on Search and Topic — added 2026-10-16
+
+**`build-plan-ui-mat-selection-labels.md` chunk 01, #317.** Run this branch
+against your library, at desktop width and on a phone, in both schemes.
+
+- **The name.** "Arrt" in the top bar keeps its own colour, not a link's
+  accent, and is underlined on hover. Judge whether it reads as pressable
+  without looking like one more link. Press it from a Work page: Artworks,
+  unfiltered. Press it on a filtered Artworks: the filter goes.
+- **On a phone.** The top bar is still one row, and the name is the way home.
+- **Search's held rows.** Search for words that match a work you hold, press
+  *Select*: the held rows get ticks, and the bar offers *Add to …* and
+  *Archive* beside *Get*. Judge whether the ticks sit well in the pictured rows.
+- **A topic's *In your library*.** The same, on the cards, once the page has
+  finished asking Wikidata.
+
 ### Walls with the screen off — added 2026-10-15
 
 **`build-plan-ux-second-walk.md` chunk 04, #354.** Deploy from this branch, let

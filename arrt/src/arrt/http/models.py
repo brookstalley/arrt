@@ -656,8 +656,9 @@ class MatColorOut(BaseModel):
     """A mat colour chosen for a work, and how it was chosen."""
 
     hex_rgb: str
-    #: `vision_model` or `dominant_color_fallback` — recorded because a
-    #: mechanical fallback and a considered choice are otherwise identical.
+    #: `vision_model`, `dominant_color_fallback`, `manual` or `derived` —
+    #: recorded because a mechanical fallback and a considered choice are
+    #: otherwise identical (`MatMethod`).
     method: str
     is_current: bool
     reason: str | None
@@ -2019,6 +2020,35 @@ class AssignWall(BaseModel):
 
     client_id: str
     output: str
+
+
+class MatPresetOut(BaseModel):
+    """A one-press mat: its key, the words a control shows, and its colour."""
+
+    key: str
+    label: str
+    hex_rgb: str
+
+
+class WorkMatOut(BaseModel):
+    """A work's mat and the choices a curator has for it, before and after a choice.
+
+    `derived_hex_rgb` is what *Re-derive* would record, worked out and not
+    recorded, so a control offers it only when it would change the mat; null when
+    the work has no readable original image to derive from.
+    """
+
+    current: MatColorOut | None
+    presets: list[MatPresetOut]
+    derived_hex_rgb: str | None
+
+
+class SetWorkMat(BaseModel):
+    """Choose a work's mat: one of the presets by its key, or `derive` for the
+    work's own dominant colour. Exactly one."""
+
+    preset: str | None = None
+    derive: bool = False
 
 
 class SetMatMode(BaseModel):

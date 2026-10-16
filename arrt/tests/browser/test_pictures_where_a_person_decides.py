@@ -115,9 +115,12 @@ def test_a_search_result_leads_with_its_picture_large_enough_to_judge(ui, work_w
     ui.open("#search?q=Nighthawks")
     row = ui.page.locator("#view li.row-pictured", has=ui.page.locator(f"a[href^='#work/{work.id}']")).first
     row.wait_for()
+    # First of what is drawn: the row's tick comes before it and is hidden
+    # outside Select mode, which takes it out of the layout as well.
     first, size, in_badge = row.evaluate("""(li) => {
           const pic = li.querySelector('.work-pic');
-          return [li.firstElementChild === pic, pic.getBoundingClientRect().width, !!pic.closest('.badge')];
+          const shown = [...li.children].find((child) => !child.hidden);
+          return [shown === pic, pic.getBoundingClientRect().width, !!pic.closest('.badge')];
         }""")
     assert first
     assert size >= 64

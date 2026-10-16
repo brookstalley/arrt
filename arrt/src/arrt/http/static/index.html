@@ -16,8 +16,12 @@
         <span class="glyph" aria-hidden="true">☰</span><span>Menu</span>
       </button>
       <!-- The product's name, and not a heading: each screen's own heading is the
-           page's `h1`, so a reader moving by heading lands on where they are. -->
-      <p class="brand">Arrt</p>
+           page's `h1`, so a reader moving by heading lands on where they are.
+           A link home, as the name is in every *arr app; the router gives it
+           the home page's address, because the route table is where the home
+           is decided (`core/router.js`). The paragraph keeps the box that lines
+           the name up with the sidebar, and only the name is the link. -->
+      <p class="brand"><a class="brand-link" href="#" id="brand">Arrt</a></p>
       <!-- Persistent, because at thousands of works search is the primary
            retrieval mechanism and one you must first navigate to is one more
            step on the most frequent action. -->

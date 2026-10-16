@@ -66,6 +66,49 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-16: The brand goes home, held works select everywhere, and the Work page shows and chooses the mat (#317, #346, #91)
+
+<!-- prawduct: scope=ui-mat-selection-labels -->
+
+**Why:** A backlog triage of the UI items, at the owner's request. The mat is
+the most visible thing on a wall, and since wave 4g the Work page showed the
+master bare, while only an agent could change a mat's colour. The owner also
+asked for the product's name to lead home, as it does in every *arr app.
+
+**What changed:**
+- **The brand.** "Arrt" in the top bar is a link to Artworks, its address read
+  from the route table. Pressed on Artworks itself it arrives afresh and clears
+  a filter.
+- **Held works select on Search and Topic** (#317). Their held rows and cards
+  get Add to theme, New theme… and Archive, as Artworks has. A topic makes its
+  selection even when Wikidata cannot be asked.
+- **The Work page shows the work in its mat** (#346). New `core/mat.js` ports
+  the Player's layout rule and is held to every vector in
+  `contract/vectors/mat-geometry.json`.
+- **The curator chooses the mat** (#91, without its AI picker, which is #379).
+  The *Mat* line under the picture opens on the presets `#272727` (replacing
+  `#222222`, which is under the L* 15 floor) and `#6b6b6b`, and on *From the
+  picture* when it would change the mat. Each is shown on the picture before
+  *Use this mat* records it. `GET`/`POST /api/works/{id}/mat` are new;
+  `art_catalogue set_mat_color` takes `preset`. A curator's re-derive is
+  recorded as the new `MatMethod.DERIVED`.
+- **Dropped from #91 by the owner:** the derived colour as the default mat
+  (the vision model stays first), and with it removing `NO_MAT_COLOR`.
+- **#267 closed.** It had shipped in v0.5.0 and its issue was left open.
+
+**Tests changed in what they assert, each with its reason beside it:** a held
+Search row now has a tick, and a held work is still never offered a Get; the
+picture leads what a Search row draws, its hidden tick aside; the Work page's
+width check measures the mat, which is what a wall shows; the shell test
+reads the brand as a link; and History's age test asserts a recent age in
+seconds under a minute rather than at most three, because a loaded parallel
+browser run opened the page more than three seconds after the event.
+
+**Rolling back:** a build before this one reads `mat_colors.method` through
+`MatMethod(...)` and fails on a `derived` row. Before rolling back, rewrite
+those rows to the older value for the same derivation:
+`UPDATE mat_colors SET method = 'dominant_color_fallback' WHERE method = 'derived'`.
+
 ## 2026-10-15: Walls shows the last-shown work and the next three (#354)
 
 <!-- prawduct: scope=ux-second-walk | release=v0.5.0 -->

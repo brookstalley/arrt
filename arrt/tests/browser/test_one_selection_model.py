@@ -103,13 +103,24 @@ def a_topic_held(services, service):
     services.topic_sweep.run()
 
 
-#: Each list, the address that opens it, and the acts its bar must offer.
+HELD_ACTS = ["button.selection-add", "button.selection-archive"]
+GET_ACTS = [".get-control button.action"]
+
+#: Each list, the address that opens it, and the acts its bar must offer. A
+#: list holding both kinds offers both halves' acts: one that wires only one
+#: half fails here by name (#317).
 LISTS = {
-    "artworks": ("#collection", ["button.selection-add", "button.selection-archive"]),
-    "artist": (f"#artist/{BRUEGEL}", [".get-control button.action"]),
-    "search": ("#search?q=harvest", [".get-control button.action"]),
-    "topic": (f"#topic/{SIXTEENTH}", [".get-control button.action"]),
+    "artworks": ("#collection", HELD_ACTS),
+    "artist": (f"#artist/{BRUEGEL}", GET_ACTS),
+    "search": ("#search?q=harvest", HELD_ACTS + GET_ACTS),
+    "topic": (f"#topic/{SIXTEENTH}", HELD_ACTS + GET_ACTS),
 }
+
+
+@pytest.fixture
+def a_search_held(service):
+    """A held work the search for "harvest" finds, beside Wikidata's two it does not hold."""
+    return service.add_artwork(title="Harvest at Dusk", date_created="1890")
 
 
 @pytest.fixture
@@ -117,7 +128,9 @@ def a_list(request, seeded_service):
     """The list named by the test's parameter, with what it needs to have works on it."""
     if request.param == "topic":
         request.getfixturevalue("a_topic_held")
-    if request.param == "artworks":
+    if request.param == "search":
+        request.getfixturevalue("a_search_held")
+    if HELD_ACTS[0] in LISTS[request.param][1]:
         # A theme to add to, so Add is live once works are ticked; with none,
         # it waits for *New theme…*'s name (`test_a_theme_is_made_…`).
         request.getfixturevalue("services").display.add_theme(name="Somewhere")
@@ -309,3 +322,94 @@ def test_archiving_asks_first_and_a_no_changes_nothing(ui, seeded_service):
 
     assert seeded_service.get_artwork(work.id).artwork.status is ArtworkStatus.ACCEPTED
     assert ui.page.locator(f"li.card[data-artwork='{work.id}'] input.tile-select").is_checked()
+
+
+# -- held works on Search and a Topic (#317) ------------------------------------
+
+#: The two lists that once offered only the not-held half, the address of each,
+#: and the fixture that puts a held work on it.
+HELD_ON = {
+    "search": ("#search?q=harvest", "a_search_held"),
+    "topic": (f"#topic/{SIXTEENTH}", "a_topic_held"),
+}
+
+
+@pytest.fixture
+def held_on(request, seeded_service):
+    """The list named by the parameter, and the held work on it."""
+    address, fixture = HELD_ON[request.param]
+    request.getfixturevalue(fixture)
+    titles = {"search": "Harvest at Dusk", "topic": "The Hunters in the Snow"}
+    work = next(entry.artwork for entry in seeded_service.list_artworks().entries if entry.artwork.title == titles[request.param])
+    return address, work
+
+
+def tick_held(ui, address, work):
+    open_list(ui, address)
+    ui.page.click("#view button.select-toggle")
+    ui.page.check(f"#view [data-artwork='{work.id}'] input[type='checkbox']")
+
+
+@pytest.mark.parametrize("held_on", list(HELD_ON), indirect=True)
+def test_a_held_work_is_added_to_a_theme_from_here(ui, services, held_on):
+    address, work = held_on
+    theme = services.display.add_theme(name="Somewhere")
+    tick_held(ui, address, work)
+
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("button.selection-add")
+    ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Somewhere.')")
+
+    assert services.display.theme_work_ids(theme.id) == [work.id]
+    assert ui.page.url.endswith(address)
+
+
+@pytest.mark.parametrize("held_on", list(HELD_ON), indirect=True)
+def test_a_held_work_makes_a_new_theme_from_here(ui, services, held_on):
+    address, work = held_on
+    tick_held(ui, address, work)
+
+    ui.page.select_option("#add-to-theme", "new")
+    ui.page.fill("#add-to-theme-name", "Harvests")
+    ui.page.click("button.selection-add")
+    ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Harvests.')")
+
+    theme = next(t for t in services.display.list_themes() if t.name == "Harvests")
+    assert services.display.theme_work_ids(theme.id) == [work.id]
+
+
+@pytest.mark.parametrize("held_on", list(HELD_ON), indirect=True)
+def test_a_held_work_is_archived_from_here(ui, seeded_service, held_on):
+    address, work = held_on
+    tick_held(ui, address, work)
+
+    ui.page.click("button.selection-archive")
+    ui.page.click("dialog.confirm button:has-text('Archive')")
+    ui.page.wait_for_selector(".selection-status:has-text('Archived 1 work.')")
+
+    assert seeded_service.get_artwork(work.id).artwork.status is ArtworkStatus.ARCHIVED
+    # Out of circulation, so off the held list, without a repaint.
+    assert ui.page.locator(f"#view [data-artwork='{work.id}']").count() == 0
+    # Only the held work: the works Wikidata lists are still there to get.
+    assert ui.page.locator("#view .get-control").count() == 1
+
+
+def test_a_topic_whose_works_wikidata_cannot_list_still_selects_its_held_works(
+    ui, services, registry, a_topic_held, seeded_service
+):
+    """The selection waits for Wikidata's works, so an outage must still make it.
+
+    Wikidata goes down after the sweep has filed the work under the topic, so
+    the page is the library's own and every question to Wikidata fails."""
+    registry.failing = True
+    theme = services.display.add_theme(name="Somewhere")
+    work = next(
+        entry.artwork for entry in seeded_service.list_artworks().entries if entry.artwork.title == "The Hunters in the Snow"
+    )
+
+    tick_held(ui, f"#topic/{SIXTEENTH}", work)
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("button.selection-add")
+    ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Somewhere.')")
+
+    assert services.display.theme_work_ids(theme.id) == [work.id]

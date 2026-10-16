@@ -42,6 +42,13 @@ function sameName(one, other) {
   return one.trim().toLowerCase() === other.trim().toLowerCase();
 }
 
+/* The themes a held selection can be added to, from `GET /api/themes`'s answer:
+ * one mapping for every list that offers the held half, so a change to that
+ * answer's shape is one edit. */
+export function themeChoices(response) {
+  return response.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name }));
+}
+
 /* `held`, for a list of works the library holds:
  *   - `themes`: `[{ theme_id, name }]` a selection can be added to;
  *   - `shownTheme`: the theme the list is filtered to, if any. It is not
@@ -390,8 +397,12 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
 
     /* The tick for one held work. `className` places it: Artworks' tiles lay it
      * over the picture. A work arriving on a later page while *Select all* is
-     * in force is born ticked. */
+     * in force is born ticked.
+     *
+     * None, on a page that offers no held half: a tick with no act to apply it
+     * to would show the toggle and a bar with nothing in it. */
     heldBox(work, { className = "select-box" } = {}) {
+      if (!held) return null;
       const box = el("input", { type: "checkbox", class: className, "aria-label": `Select ${workName(work)}` });
       box.hidden = !selecting;
       box.checked = isTicked(work.artwork_id);

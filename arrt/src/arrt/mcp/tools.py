@@ -27,7 +27,7 @@ service method answers it, and the service method does the work.
 from datetime import timedelta
 from typing import Final
 
-from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MAT_PRESETS
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREACHABLE_KEPT_FOR
 from arrt.library.services.review import MAX_REVIEW_LIMIT
@@ -146,6 +146,20 @@ _HEX_RGB = Param(
         "spends a fraction of a cent. (action='regenerate' also chooses one, and pays, for a work that has "
         "never had a mat; both actions report cost_usd.)"
     ),
+)
+
+#: The curator's one-press mats, and the derivation, as the Work page offers them.
+#: `derived` is not a preset but sits beside them, because like them it is free
+#: and decided by whoever asks, where omitting everything asks a model and pays.
+_MAT_PRESET = Param(
+    name="preset",
+    type="string",
+    description=(
+        "Instead of hex_rgb, one of the mats the Work page offers with one press: "
+        + ", ".join(f"'{preset.key}' ({preset.label.lower()}, {preset.hex_rgb})" for preset in MAT_PRESETS)
+        + ", or 'derived', the artwork's own dominant colour worked out mechanically. All are free."
+    ),
+    choices=(*(preset.key for preset in MAT_PRESETS), "derived"),
 )
 
 _FORCE = Param(
@@ -312,7 +326,7 @@ ART_CATALOGUE: Final = ToolRecord(
             name="set_mat_color",
             description="Set the mat colour a work is shown against, or ask the vision model to choose one again.",
             example="art_catalogue(action='set_mat_color', artwork_id='<an artwork_id from action=list>', hex_rgb='#27285b')",
-            params=(_ARTWORK_ID, _HEX_RGB),
+            params=(_ARTWORK_ID, _HEX_RGB, _MAT_PRESET),
             tips=(
                 (
                     "Give hex_rgb to set a colour yourself; omit it to have the vision model choose, which spends "
@@ -323,6 +337,10 @@ ART_CATALOGUE: Final = ToolRecord(
                     "by setting the old one again."
                 ),
                 "Every wall showing the work gets the new colour in its feed at once; there is nothing to regenerate.",
+                (
+                    "Give preset instead of hex_rgb for the Work page's one-press mats; a preset is recorded as "
+                    "method='manual', and preset='derived' as method='derived'. Give one of hex_rgb and preset, not both."
+                ),
                 (
                     "A colour recorded as method='dominant_color_fallback' was derived mechanically, not chosen for "
                     "this work: no vision model is configured, it could not be reached, its answer could not be used, "
