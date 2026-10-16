@@ -37,7 +37,13 @@ governed_by:
     dispositions:
       - "§ Direction (a work is distinct from an image of it; derived artifacts are regenerated, never transported) → conforms: a mat colour stays a per-work record, and 02 draws no stored rendition"
 last_validated: 2026-10-16
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.6.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan: the brand goes home, held works select everywhere, the mat on the Work page, and a rule for labels
 

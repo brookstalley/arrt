@@ -68,7 +68,7 @@
 
 ## 2026-10-16: The brand goes home, held works select everywhere, and the Work page shows and chooses the mat (#317, #346, #91)
 
-<!-- prawduct: scope=ui-mat-selection-labels -->
+<!-- prawduct: scope=ui-mat-selection-labels | release=v0.6.0 -->
 
 **Why:** A backlog triage of the UI items, at the owner's request. The mat is
 the most visible thing on a wall, and since wave 4g the Work page showed the
