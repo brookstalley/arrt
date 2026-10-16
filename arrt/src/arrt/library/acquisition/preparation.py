@@ -226,7 +226,7 @@ class PreparationService:
         Asked so a control can offer the derivation only when it would change the
         mat, and preview it before it is chosen. Free: no model is asked.
         """
-        return derive(self._source_for_a_mat(artwork_id)).hex_rgb
+        return derive(self._source_for_a_mat(artwork_id), recording=False).hex_rgb
 
     def derive_mat(self, artwork_id: str) -> PreparationResult:
         """Record the mechanical mat, the work's own dominant colour, at a person's request.

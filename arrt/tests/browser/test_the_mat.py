@@ -303,3 +303,78 @@ def test_the_derivation_is_not_offered_when_it_is_already_the_mat(ui, service, s
 
     assert option(ui, "From the picture").count() == 0
     assert ui.page.locator(".mat-control summary").inner_text() == "Mat: From the picture"
+
+
+def test_from_the_picture_is_recorded_as_derived_when_used(ui, service, settings, matted):
+    """The page's own request for the derivation, end to end: a typo in what it
+    sends would leave every other test green while the server refused it."""
+    work = matted(1600, 1200)
+    original = service.get_original(work.id)
+    derived = derive(settings.art_root / original.relative_path).hex_rgb
+    open_control(ui, work)
+
+    option(ui, "From the picture").click()
+    assert hero_colour(ui) == rgb(derived)
+    ui.page.click(".mat-confirm button.mat-use")
+    ui.page.wait_for_selector(".mat-status:has-text('The mat is now from the picture.')")
+
+    current = service.current_mat_color(work.id)
+    assert (current.hex_rgb, current.method) == (derived, MatMethod.DERIVED)
+    assert ui.page.locator(".mat-control summary").inner_text() == "Mat: From the picture"
+
+
+def test_a_works_first_mat_takes_away_the_line_saying_it_has_none(ui, service, work_with_an_image):
+    work = work_with_an_image("Not yet prepared")
+    ui.open(f"#work/{work.id}")
+    ui.page.wait_for_selector(".work-hero .no-mat")
+    ui.page.wait_for_selector(".mat-control summary:has-text('Mat: none chosen yet')")
+    ui.page.click(".mat-control summary")
+
+    option(ui, MAT_PRESETS[0].label).click()
+    ui.page.click(".mat-confirm button.mat-use")
+    ui.page.wait_for_selector(".mat-status:has-text('The mat is now')")
+
+    assert ui.page.locator(".work-hero .no-mat").count() == 0
+    assert ui.page.locator(".work-hero .mat-surround").is_visible()
+    assert service.current_mat_color(work.id).hex_rgb == MAT_PRESETS[0].hex_rgb
+
+
+def test_a_control_that_cannot_read_its_choices_says_so_in_place(ui, matted):
+    work = matted(1600, 1200)
+    ui.page.route(
+        f"**/api/works/{work.id}/mat",
+        lambda route: route.fulfill(status=500, json={"error": "boom"}) if route.request.method == "GET" else route.continue_(),
+    )
+    open_matted(ui, work)
+    ui.page.click(".mat-control summary")
+
+    ui.page.wait_for_selector(".mat-control .note:has-text('could not be read just now')")
+    assert ui.page.locator(".mat-control").inner_text().count("Reading the mat") == 0
+    assert ui.page.locator("#error").is_hidden(), "the page's banner is another act's"
+
+
+def test_a_mat_set_by_hand_is_named_so(ui, service, work_with_an_image):
+    work = work_with_an_image("Hand-matted")
+    service.record_mat_color(artwork_id=work.id, hex_rgb="#3a5f7d", method=MatMethod.MANUAL)
+    open_matted(ui, work)
+
+    ui.page.wait_for_selector(".mat-control summary:has-text('Mat:')")
+    assert ui.page.locator(".mat-control summary").inner_text() == "Mat: Set by hand"
+
+
+def test_a_method_the_client_does_not_know_is_not_passed_off_as_a_persons(ui, matted):
+    work = matted(1600, 1200)
+
+    def unknown(route):
+        response = route.fetch()
+        body = response.json()
+        body["current"]["method"] = "a_method_from_the_future"
+        route.fulfill(response=response, json=body)
+
+    ui.page.route(
+        f"**/api/works/{work.id}/mat", lambda route: unknown(route) if route.request.method == "GET" else route.continue_()
+    )
+    open_matted(ui, work)
+
+    ui.page.wait_for_selector(".mat-control summary:has-text('Mat:')")
+    assert ui.page.locator(".mat-control summary").inner_text() == "Mat: Chosen another way"

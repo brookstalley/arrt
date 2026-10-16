@@ -41,8 +41,8 @@ import { FETCH_WORDS, museumName, RIGHTS_WORDS } from "../core/providers.js";
 import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
-import { mattedPicture } from "../core/mat.js";
-import { el, emphasised, fill, guard, render } from "../core/render.js";
+import { isMatColour, mattedPicture } from "../core/mat.js";
+import { el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
 import { wallLinks } from "../core/places.js";
 import { backLink, link, redirect, setTitle } from "../core/router.js";
@@ -354,13 +354,9 @@ function lookPictureName(picture) {
  * backdrop close it (`core/enlarge.js`). The column draws it at a size it can
  * hold sharply; enlarged, the picture alone fills the window, since what is
  * enlarged to be looked at closely is the work. */
-function enlargeableHero(work, detail) {
+function enlargeableHero(work, picture) {
   const alt = work.artist ? `${work.title}, by ${work.artist.name}` : work.title;
   const src = `${workPath(work.artwork_id)}/wall-preview`;
-  const current = detail.mat_colors.find((mat) => mat.is_current);
-  const size = detail.original ? { width: detail.original.width, height: detail.original.height } : null;
-  const picture = mattedPicture(el("img", { class: "work-picture", src, alt }), { hex: current ? current.hex_rgb : null, size });
-  heroes.set(work.artwork_id, picture);
   const button = el(
     "button",
     {
@@ -374,9 +370,15 @@ function enlargeableHero(work, detail) {
   return button;
 }
 
-/* The matted picture the Work page last drew for each work, so the mat control
- * can preview a colour on it. A repaint replaces the entry. */
-const heroes = new Map();
+/* The work's own picture inside its current mat (`core/mat.js`), made once per
+ * paint and handed to both the hero and the mat control, which previews on it. */
+function heroPicture(work, detail) {
+  const src = `${workPath(work.artwork_id)}/wall-preview`;
+  const alt = work.artist ? `${work.title}, by ${work.artist.name}` : work.title;
+  const current = detail.mat_colors.find((mat) => mat.is_current);
+  const size = detail.original ? { width: detail.original.width, height: detail.original.height } : null;
+  return mattedPicture(el("img", { class: "work-picture", src, alt }), { hex: current ? current.hex_rgb : null, size });
+}
 
 /* What a mat is, in a curator's words: the preset's name when it is one, else
  * how it was arrived at. The hex is the store's, and stays behind `?debug`. */
@@ -385,7 +387,10 @@ function matName(mat, presets) {
   if (preset) return preset.label;
   if (mat.method === "derived" || mat.method === "dominant_color_fallback") return "From the picture";
   if (mat.method === "vision_model") return "Chosen by the vision model";
-  return "Set by hand";
+  if (mat.method === "manual") return "Set by hand";
+  // A method this client does not know yet: said as unknown rather than
+  // passed off as a person's choice.
+  return "Chosen another way";
 }
 
 /* The mat control: each one-press mat and the work's own derived colour, as a
@@ -401,14 +406,13 @@ function matName(mat, presets) {
  * rarely, and open it would stand between the picture and the work's title,
  * which on a phone pushes the page's heading a screen down. Open, it stays
  * beside the picture its preview is drawn on. */
-function matControl(work) {
+function matControl(work, picture, { onChosen = () => {} } = {}) {
   const summary = el("summary", {}, [el("span", { text: "Mat" })]);
   const body = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Reading the mat…" })]);
   const status = el("p", { class: "muted mat-status", "aria-live": "polite" });
   const section = el("details", { class: "mat-control" }, [summary, body, status]);
 
   const paintControl = (mat) => {
-    const picture = heroes.get(work.artwork_id);
     const current = mat.current;
     const options = mat.presets.map((preset) => ({ label: preset.label, hex: preset.hex_rgb, body: { preset: preset.key } }));
     if (mat.derived_hex_rgb && (!current || current.hex_rgb !== mat.derived_hex_rgb)) {
@@ -437,7 +441,7 @@ function matControl(work) {
           },
         },
         [
-          el("span", { class: "mat-swatch", style: `--swatch: ${option.hex}`, "aria-hidden": "true" }),
+          swatch(option.hex),
           el("span", { text: isCurrent ? `${option.label} (current)` : option.label }),
         ],
       );
@@ -457,23 +461,36 @@ function matControl(work) {
         then: (next) => {
           if (picture) picture.paint(next.current ? next.current.hex_rgb : null);
           paintControl(next);
+          onChosen(next);
           status.textContent = `The mat is now ${option.label.toLowerCase()}. The walls showing it are sent the new colour.`;
         },
       });
     });
     fill(
       summary,
-      current ? el("span", { class: "mat-swatch", style: `--swatch: ${current.hex_rgb}`, "aria-hidden": "true" }) : null,
+      current ? swatch(current.hex_rgb) : null,
       el("span", { text: current ? `Mat: ${matName(current, mat.presets)}` : "Mat: none chosen yet" }),
     );
     fill(body, el("div", { class: "row mat-options", role: "group", "aria-label": "Choose a mat" }, buttons), confirm);
   };
 
-  guard(async () => {
-    const mat = await api(`${workPath(work.artwork_id)}/mat`);
-    if (section.isConnected) paintControl(mat);
-  });
+  // Read here and said here when it fails: the page's banner is another
+  // act's to fill, and a control left on "Reading…" would never say it stopped.
+  api(`${workPath(work.artwork_id)}/mat`).then(
+    (mat) => {
+      if (section.isConnected) paintControl(mat);
+    },
+    () => {
+      fill(body, el("p", { class: "note", text: "The mat's choices could not be read just now. Reload the page to try again." }));
+    },
+  );
   return section;
+}
+
+/* A colour as a small square, drawn only for a colour the catalogue would hold,
+ * since it becomes a style value. */
+function swatch(hex) {
+  return isMatColour(hex) ? el("span", { class: "mat-swatch", style: `--swatch: ${hex}`, "aria-hidden": "true" }) : null;
 }
 
 /* Said only when the work has no mat to draw: a work not yet prepared has none,
@@ -615,7 +632,9 @@ async function paintTheirWork(section, maker, qid) {
 function paint(detail, generation, { where, focusAction = false }) {
   const work = detail.work;
   setTitle(generation, work.title);
-  const image = work.image.available ? enlargeableHero(work, detail) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
+  const picture = work.image.available ? heroPicture(work, detail) : null;
+  const image = picture ? enlargeableHero(work, picture) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
+  const missingMat = picture ? noMatNote(detail) : null;
   const action = circulationControl(work, generation, where);
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
   paintStrip(strip, work, where);
@@ -623,9 +642,9 @@ function paint(detail, generation, { where, focusAction = false }) {
   const head = [
     el("div", { class: "panel work-hero" }, [
       image,
-      work.image.available ? noMatNote(detail) : null,
+      missingMat,
       el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work)]),
-      work.image.available ? matControl(work) : null,
+      picture ? matControl(work, picture, { onChosen: (mat) => mat.current && missingMat && missingMat.remove() }) : null,
       work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
     ]),
     el("div", { class: "panel work-label" }, [

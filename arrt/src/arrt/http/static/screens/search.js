@@ -22,7 +22,7 @@
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
-import { selectionMode } from "../core/selecting.js";
+import { selectionMode, themeChoices } from "../core/selecting.js";
 import { gettable, heldPicture, lifeDates, named, reviewMark, stateMark, statePicture, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, link, setTitle } from "../core/router.js";
@@ -118,13 +118,14 @@ export async function viewSearch(generation) {
   const selection = selectionMode({
     held: themes
       ? {
-          themes: themes.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name })),
+          themes: themeChoices(themes),
           filter: null,
           total: 0,
           // An archived work leaves circulation, and so leaves the Held group.
           onArchived: (ids) => {
             for (const artworkId of ids) {
-              for (const row of document.querySelectorAll(`#view li[data-artwork="${CSS.escape(artworkId)}"]`)) row.remove();
+              const row = sections.held.works.querySelector(`li[data-artwork="${CSS.escape(artworkId)}"]`);
+              if (row) row.remove();
             }
           },
         }

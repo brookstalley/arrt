@@ -42,6 +42,13 @@ function sameName(one, other) {
   return one.trim().toLowerCase() === other.trim().toLowerCase();
 }
 
+/* The themes a held selection can be added to, from `GET /api/themes`'s answer:
+ * one mapping for every list that offers the held half, so a change to that
+ * answer's shape is one edit. */
+export function themeChoices(response) {
+  return response.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name }));
+}
+
 /* `held`, for a list of works the library holds:
  *   - `themes`: `[{ theme_id, name }]` a selection can be added to;
  *   - `shownTheme`: the theme the list is filtered to, if any. It is not

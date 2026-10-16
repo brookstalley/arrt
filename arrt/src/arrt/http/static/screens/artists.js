@@ -24,7 +24,7 @@ import { api, fetchAllWorks, worksFilterBody } from "../core/api.js";
 import { absentImage, facts, noPicture, workName } from "../core/badges.js";
 import { identityControl, storeIdentity } from "../core/identity.js";
 import { el, emptyState, fill, render } from "../core/render.js";
-import { selectionMode } from "../core/selecting.js";
+import { selectionMode, themeChoices } from "../core/selecting.js";
 import { gettable, isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
 import { backLink, backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -159,7 +159,7 @@ async function oneArtist(artistId, generation) {
   const selection = selectionMode({
     held: works.works.length
       ? {
-          themes: themes.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name })),
+          themes: themeChoices(themes),
           filter: worksFilterBody("", null, null, { artistId, status: "accepted" }),
           total: works.total,
           // Archived works leave circulation, and so leave *In your library*.

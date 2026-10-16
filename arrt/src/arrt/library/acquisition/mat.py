@@ -403,19 +403,21 @@ class MatEngine:
         )
 
 
-def derive(image_path: Path) -> MatChoice:
+def derive(image_path: Path, *, recording: bool = True) -> MatChoice:
     """The mechanical mat: the work's dominant colour, darkened, and kept between
     the floor and the corpus ceiling. Free and deterministic.
 
     Recorded as `derived`, a person's request; the engine's fallback takes the
-    same colour and records it as itself.
+    same colour and records it as itself. `recording=False` is for a preview,
+    worked out and shown but not kept, which logs nothing: the log lines below
+    explain a colour that was recorded.
     """
     rgb = reading(image_path, lambda: dominant_color(image_path))
     scaled = scale_lightness(rgb, _FALLBACK_LIGHTNESS)
     darkened = _under_the_corpus_bar(scaled)
     held = _over_the_floor(darkened)
     lab = rgb_to_lab(held)
-    if held != darkened:
+    if recording and held != darkened:
         # Logged for the reason the ceiling is, below: `method` cannot say a
         # derived colour was moved, and a curator asking why a black work has
         # a mat lighter than itself has nowhere else to look.
@@ -425,7 +427,7 @@ def derive(image_path: Path) -> MatChoice:
             rgb_to_lab(darkened).l,
             lab.l,
         )
-    if darkened != scaled:
+    if recording and darkened != scaled:
         # **The ceiling firing is the one thing about a derived colour that is
         # otherwise unrecoverable.** `method` records that the colour was
         # derived and not chosen, but not that it was then held back — so a

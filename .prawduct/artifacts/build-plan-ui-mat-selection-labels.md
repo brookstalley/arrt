@@ -149,14 +149,13 @@ question before writing the route.
 - [x] Chunk 01: the brand links home, and held works select on Search and Topic (#317)
 - [x] Chunk 02: the Work page shows the work in its mat (#346)
 - [x] Chunk 03: the curator chooses the mat (#91, presets and re-derive)
-- [ ] Chunk 04: labels are bare nouns, by rule and by test (#267; found already built)
-Context: Chunks 01 (`617830c4`), 02 (`a6a31c5a`) and 03 (`0a8fcef5`) are
-committed and reviewed, 0 blocking each. Chunk 03's review observations O-1 to
-O-4 are fixed in the working tree and ride Chunk 04's commit. #379 (the AI
-picker) is filed; #91 carries a comment recording what changed from its body.
-#317, #346 and #91 are closed at the PR's merge, not before: the backlog lives
-in GitHub Issues, and closing there is immediate. Next: Chunk 04, the label
-rule, which ends with the cumulative review.
+- [x] Chunk 04: labels are bare nouns, by rule and by test (#267; found already built)
+Context: All four chunks are committed and reviewed. The cumulative review of
+the branch (rev-20261016T191807Z-975f5c46) found 0 blocking; its warnings are
+fixed and verified (two verify-resolutions rounds, the last clean), and the
+rest are dispositioned on the record. #267 is closed (it had shipped in v0.5.0);
+#379 holds the AI picker. #317, #346 and #91 are closed at the PR's merge. The
+branch is PR-ready; a PR is opened when the owner asks.
 
 ## Verification Strategy
 
