@@ -99,8 +99,15 @@ asked for the product's name to lead home, as it does in every *arr app.
 **Tests changed in what they assert, each with its reason beside it:** a held
 Search row now has a tick, and a held work is still never offered a Get; the
 picture leads what a Search row draws, its hidden tick aside; the Work page's
-width check measures the mat, which is what a wall shows; and the shell test
-reads the brand as a link.
+width check measures the mat, which is what a wall shows; the shell test
+reads the brand as a link; and History's age test asserts a recent age in
+seconds under a minute rather than at most three, because a loaded parallel
+browser run opened the page more than three seconds after the event.
+
+**Rolling back:** a build before this one reads `mat_colors.method` through
+`MatMethod(...)` and fails on a `derived` row. Before rolling back, rewrite
+those rows to the older value for the same derivation:
+`UPDATE mat_colors SET method = 'dominant_color_fallback' WHERE method = 'derived'`.
 
 ## 2026-10-15: Walls shows the last-shown work and the next three (#354)
 

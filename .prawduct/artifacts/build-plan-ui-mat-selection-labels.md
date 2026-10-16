@@ -57,7 +57,7 @@ mat, and the Work page shows the master with no mat at all. This plan:
 - gives the curator mat control;
 - closes one inconsistency in selection;
 - makes the brand go home, as it does in every *arr app;
-- writes the label rule the owner asked for, so later screens don't drift.
+- confirms the label rule the owner asked for (#267) is in force; it had already shipped in v0.5.0.
 
 **Architecture:** The server composes no canvas since wave 4g. Each Player draws its
 own mat (`player-contract.md`). So the browser draws its mat the same way: from the
