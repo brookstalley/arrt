@@ -63,6 +63,9 @@ def test_the_name_goes_home_from_every_route(ui, seeded_service, route):
     ui.page.wait_for_function("(home) => window.location.hash === home", arg=f"#{HOME}")
     ui.page.wait_for_function("() => document.title === 'Artworks - Arrt'")
     ui.page.wait_for_selector("ul.grid li.card")
+    # Focus on the view, as for any route change: left on the name, the next
+    # Tab would start in the top bar rather than in the page arrived at.
+    ui.page.wait_for_function("() => document.activeElement && document.activeElement.id === 'view'")
 
 
 def test_pressed_on_a_filtered_artworks_it_clears_the_filter(ui, seeded_service):

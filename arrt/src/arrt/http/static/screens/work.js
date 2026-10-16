@@ -41,6 +41,7 @@ import { FETCH_WORDS, museumName, RIGHTS_WORDS } from "../core/providers.js";
 import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
+import { mattedPicture } from "../core/mat.js";
 import { el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
 import { wallLinks } from "../core/places.js";
@@ -347,13 +348,18 @@ function lookPictureName(picture) {
   return `${who}, from ${museumName(picture.provider)}${size ? `, ${size}` : ""}`;
 }
 
-/* The work's own picture, which opens large over the page: a button, so a
+/* The work's own picture, inside its mat in its current colour, as a wall
+ * shows it (`core/mat.js`), and opening large over the page: a button, so a
  * keyboard reaches it as a pointer does, and the dialog's Escape, Close and
  * backdrop close it (`core/enlarge.js`). The column draws it at a size it can
- * hold sharply; enlarged, the same picture fills the window. */
-function enlargeableHero(work) {
+ * hold sharply; enlarged, the picture alone fills the window, since what is
+ * enlarged to be looked at closely is the work. */
+function enlargeableHero(work, detail) {
   const alt = work.artist ? `${work.title}, by ${work.artist.name}` : work.title;
   const src = `${workPath(work.artwork_id)}/wall-preview`;
+  const current = detail.mat_colors.find((mat) => mat.is_current);
+  const size = detail.original ? { width: detail.original.width, height: detail.original.height } : null;
+  const picture = mattedPicture(el("img", { class: "work-picture", src, alt }), { hex: current ? current.hex_rgb : null, size });
   const button = el(
     "button",
     {
@@ -362,9 +368,17 @@ function enlargeableHero(work) {
       "aria-label": `Enlarge ${alt}`,
       onclick: () => enlarge({ src, alt, trigger: button }),
     },
-    [el("img", { class: "detail-image work-picture", src, alt })],
+    [picture.element],
   );
   return button;
+}
+
+/* Said only when the work has no mat to draw: a work not yet prepared has none,
+ * and a picture shown without one must not pass for the wall's. */
+function noMatNote(detail) {
+  return detail.mat_colors.some((mat) => mat.is_current)
+    ? null
+    : el("p", { class: "muted no-mat", text: "No mat has been chosen for it yet, so it is shown without one." });
 }
 
 /* One find as a card: the picture, enlargeable in place as a review card's is,
@@ -489,8 +503,8 @@ async function paintTheirWork(section, maker, qid) {
  * answer to a button they pressed.
  *
  * **The picture is the largest thing here**: on this page the subject is the
- * work. It is drawn from the master; the mat is drawn by the Player at each
- * wall, in the colour the mat panel below names. The title under
+ * work. It is drawn from the master, inside its mat as a wall draws it (a
+ * Player draws its own at each wall, by the same rule). The title under
  * it is the page's one `h1`, and the state strip under that says where the work
  * is and offers *Hang…*, the act a curator most often comes here for. Archive is
  * secondary, after the facts: it takes the work out of the whole library, and
@@ -498,7 +512,7 @@ async function paintTheirWork(section, maker, qid) {
 function paint(detail, generation, { where, focusAction = false }) {
   const work = detail.work;
   setTitle(generation, work.title);
-  const image = work.image.available ? enlargeableHero(work) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
+  const image = work.image.available ? enlargeableHero(work, detail) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
   const action = circulationControl(work, generation, where);
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
   paintStrip(strip, work, where);
@@ -506,6 +520,7 @@ function paint(detail, generation, { where, focusAction = false }) {
   const head = [
     el("div", { class: "panel work-hero" }, [
       image,
+      work.image.available ? noMatNote(detail) : null,
       el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work)]),
       work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
     ]),

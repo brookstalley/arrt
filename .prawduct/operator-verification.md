@@ -10,6 +10,24 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The Work page shows the work in its mat — added 2026-10-16
+
+**`build-plan-ui-mat-selection-labels.md` chunk 02, #346.** Run this branch
+against your library and open a few works you know on a wall, landscape and
+portrait.
+
+- **Beside the wall.** Hold the Work page up beside the same work on a
+  wall. The mat's colour should match, and so should its proportions: even
+  sides and top, a slightly deeper bottom. It is the HDMI rule (6% of the
+  shorter side), so a Frame with a known density draws a slightly different
+  width; judge whether it reads as the same object.
+- **The colour.** Judge it in both schemes. In dark mode the mat sits on a
+  dark page, the way a wall's mat sits inside black.
+- **A work not yet prepared** shows the bare picture and says it has no mat
+  yet. Judge whether that line is needed.
+- **Enlarge.** Pressing the picture still opens it large: the work alone,
+  without its mat.
+
 ### The name goes home, and held works select on Search and Topic — added 2026-10-16
 
 **`build-plan-ui-mat-selection-labels.md` chunk 01, #317.** Run this branch

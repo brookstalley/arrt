@@ -2725,6 +2725,39 @@ section.offered + section.offered {
   filter: drop-shadow(var(--shadow-art));
 }
 
+/* The work inside its mat, laid out by `core/mat.js` to the contract's rule:
+   the mat's colour is the work's own, set on the element as `--mat`, because it
+   is the catalogue's data and not a colour of the interface. The shadow falls
+   from the mat, which is the object on the wall; a work shown without one keeps
+   it on the picture. Until the layout has run (the picture not yet loaded, or
+   failing to), the picture is drawn as it was before there was a mat, so a
+   picture never sits in a box of no height. */
+.matted {
+  position: relative;
+  width: 100%;
+}
+
+.matted .mat-surround {
+  position: absolute;
+  top: 0;
+  background: var(--mat);
+  filter: drop-shadow(var(--shadow-art));
+}
+
+.matted.unmatted .mat-surround {
+  display: none;
+}
+
+.work-hero .matted[data-layout] .work-picture {
+  position: absolute;
+  max-height: none;
+  object-fit: fill;
+}
+
+.work-hero .matted:not(.unmatted) .work-picture {
+  filter: none;
+}
+
 /* Wall label: the picture and its label side by side, as on a gallery wall,
    then the record below. Neither is boxed: a bordered panel round every part
    of the page is what made it read as a form. Each part of the record is set
