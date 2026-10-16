@@ -176,36 +176,90 @@ async def test_removing_a_work_from_a_theme_leaves_the_work_in_the_catalogue(ser
     assert {work["title"] for work in catalogue["artworks"]} == set(seeded_titles)
 
 
-async def test_a_themes_rotation_settings_survive_the_round_trip(server_url):
+async def test_a_walls_rotation_survives_the_round_trip(server_url, wall):
     """Values no default could produce, so a field dropped in the binding would show."""
-    theme_id = await _a_theme(server_url)
-
     payload, errored = await call(
-        server_url,
-        "art_theme",
-        action="update",
-        theme_id=theme_id,
-        rotation_interval_seconds=931,
-        shuffle=False,
+        server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order"
     )
 
     assert errored is False
-    assert payload["theme"]["rotation_interval_seconds"] == 931
-    assert payload["theme"]["shuffle"] is False
-
-    listed, _ = await call(server_url, "art_theme", action="list")
-    assert listed["themes"][0]["rotation_interval_seconds"] == 931
+    assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (931, False)
+    listed, _ = await call(server_url, "art_display", action="walls")
+    assert (listed["walls"][0]["rotation_interval_seconds"], listed["walls"][0]["shuffle"]) == (931, False)
 
 
-async def test_updating_one_field_does_not_clear_the_others(server_url):
+async def test_choosing_one_rotation_setting_leaves_the_other(server_url, wall):
+    """The sentinel's whole reason: absent cannot mean "the default"."""
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931)
+
+    payload, _ = await call(server_url, "art_display", action="set_playback", wall_id=wall, shuffle="shuffled")
+
+    assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (931, True)
+
+
+async def test_the_deployment_default_is_said_in_words(server_url, wall):
+    """This surface drops a null argument, so "the default" has to be something a caller can send."""
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="shuffled")
+
+    payload, _ = await call(
+        server_url, "art_display", action="set_playback", wall_id=wall, default_interval=True, shuffle="default"
+    )
+
+    assert (payload["wall"]["rotation_interval_seconds"], payload["wall"]["shuffle"]) == (None, None)
+
+
+async def test_a_walls_shapes_survive_the_round_trip_and_any_removes_a_bound(server_url, wall):
+    """`any` is the word for no limit, because this surface drops a null argument."""
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931)
+
+    payload, errored = await call(server_url, "art_display", action="set_playback", wall_id=wall, tallest="4:5", widest="1:1")
+    reopened, _ = await call(server_url, "art_display", action="set_playback", wall_id=wall, widest="any")
+
+    assert errored is False
+    assert (payload["wall"]["tallest"], payload["wall"]["widest"], payload["wall"]["shapes"]) == (
+        "4:5",
+        "1:1",
+        "works from 4:5 to 1:1",
+    )
+    assert (reopened["wall"]["tallest"], reopened["wall"]["widest"]) == ("4:5", None)
+    # The pace was not named, so it stayed.
+    assert reopened["wall"]["rotation_interval_seconds"] == 931
+
+
+async def test_an_interval_and_the_default_interval_together_are_refused(server_url, wall):
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931)
+
+    payload, errored = await call(
+        server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=47, default_interval=True
+    )
+
+    assert errored is True
+    assert "not both" in payload["error"]
+    walls, _ = await call(server_url, "art_display", action="walls")
+    assert walls["walls"][0]["rotation_interval_seconds"] == 931
+
+
+async def test_a_theme_takes_no_pace(server_url):
+    """A theme has an order and is never shuffled; the refusal is what a caller still sending these meets."""
+    theme_id = await _a_theme(server_url)
+
+    payload, errored = await call(server_url, "art_theme", action="update", theme_id=theme_id, shuffle=False)
+
+    assert errored is True
+    assert "does not take 'shuffle'" in payload["error"]
+    theme, _ = await call(server_url, "art_theme", action="update", theme_id=theme_id, name="Precisionists")
+    assert not {"shuffle", "rotation_interval_seconds"} & set(theme["theme"])
+
+
+async def test_renaming_a_theme_does_not_clear_its_description(server_url):
     """The sentinel's whole reason: null is meaningful, so absent cannot mean null."""
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="update", theme_id=theme_id, rotation_interval_seconds=931)
+    await call(server_url, "art_theme", action="update", theme_id=theme_id, description="Hopper and after")
 
     payload, _ = await call(server_url, "art_theme", action="update", theme_id=theme_id, name="Precisionists")
 
     assert payload["theme"]["name"] == "Precisionists"
-    assert payload["theme"]["rotation_interval_seconds"] == 931
+    assert payload["theme"]["description"] == "Hopper and after"
 
 
 async def test_activating_a_theme_puts_it_on_the_wall_rather_than_arming_a_later_sync(server_url, wall_settings, wall):
@@ -224,14 +278,16 @@ async def test_activating_a_theme_puts_it_on_the_wall_rather_than_arming_a_later
     assert hung[second] == [wall]
     assert hung[first] == []
 
-    # The manifest is what the wall reads, so this is where "on the wall" is true.
-    assert json.loads(wall_settings.manifest_path(wall).read_text())["theme"]["id"] == second
+    # The feed is what the wall reads, so this is where "on the wall" is true.
+    assert json.loads(wall_settings.manifest_v2_path(wall).read_text())["playlist"]["id"] == second
 
 
-async def test_activating_publishes_exactly_the_readiness_filtered_theme(server_url, wall_settings, service, wall):
+async def test_activating_publishes_exactly_the_readiness_filtered_theme(
+    server_url, wall_settings, service, wall, decodable_jpeg
+):
     """The chunk's acceptance criterion, end to end: a switch is a filtered publish.
 
-    One work made displayable and two left short, so the manifest and the report
+    One work made displayable and two left short, so the feed and the report
     have to disagree with the membership list in exactly the way the design says.
     """
     theme_id = await _a_theme(server_url)
@@ -260,32 +316,32 @@ async def test_activating_publishes_exactly_the_readiness_filtered_theme(server_
         fetch_status=FetchStatus.OK,
     )
     service.record_mat_color(artwork_id=ready, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
+    decodable_jpeg(wall_settings.art_root / "masters/nighthawks.jpg", width=400, height=300)
     service.record_rendition(
         artwork_id=ready,
-        kind=RenditionKind.TV_DISPLAY,
-        target_width=3840,
-        target_height=2160,
-        path="ready/nighthawks.jpg",
+        kind=RenditionKind.PRESENTATION_MASTER,
+        target_width=7680,
+        target_height=7680,
+        path="masters/nighthawks.jpg",
     )
 
     payload, errored = await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
 
     assert errored is False
     assert [entry["artwork_id"] for entry in payload["on_the_wall"]] == [ready]
-    assert len(payload["not_displayable"]) == 2
+    assert len(payload["not_on_the_wall"]) == 2
     assert payload["considered"] == 3
     # Exact-match, not a substring: this sentence is the only place a caller is
     # told how much of the theme is missing, and a substring assertion is blind
     # to exactly the drift that matters — a clause added, dropped, or doubled.
     assert payload["notice"] == (
-        "1 of 3 works in this theme is on the wall; 2 are not currently displayable. See not_displayable for each one and why."
+        "1 of 3 works in this theme is on the wall; 2 are not currently displayable. See not_on_the_wall for each one and why."
     )
 
-    # And the file the display plane reads carries exactly that one work.
-    document = json.loads(wall_settings.manifest_path(wall).read_text())
-    assert [entry["work_id"] for entry in document["entries"]] == [ready]
-    assert document["entries"][0]["render_path"] == "ready/nighthawks.jpg"
-    assert document["entries"][0]["label"]["title"] == "Nighthawks"
+    # And the feed the wall reads carries exactly that one work.
+    document = json.loads(wall_settings.manifest_v2_path(wall).read_text())
+    assert list(document["works"]) == [ready]
+    assert document["works"][ready]["label"]["title"] == "Nighthawks"
 
 
 async def test_deleting_a_theme_that_is_hanging_somewhere_is_refused_and_names_the_wall(server_url, wall):
@@ -330,17 +386,15 @@ async def test_a_theme_taken_down_becomes_deletable(server_url, wall):
     assert listed["themes"] == []
 
 
-async def test_taking_down_does_not_republish_or_advance_the_wall(server_url, wall, wall_settings):
-    """Taking a theme down is not an instruction to the display plane.
+async def test_taking_down_does_not_republish_the_wall(server_url, wall, wall_settings):
+    """Taking a theme down is not an instruction to the wall.
 
-    The wall goes on showing what it was showing — publishing an empty manifest
-    would blank it as a side effect of tidying up — and the counter does not move,
-    because an advance here would fire a directive nobody issued.
+    The wall goes on showing what it was showing: publishing an empty feed
+    would blank it as a side effect of tidying up.
     """
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
-    published = wall_settings.manifest_path(wall).read_text()
-    before, _ = await call(server_url, "art_display", action="walls")
+    published = wall_settings.manifest_v2_path(wall).read_text()
 
     payload, errored = await call(server_url, "art_theme", action="unhang", wall_id=wall)
 
@@ -350,9 +404,8 @@ async def test_taking_down_does_not_republish_or_advance_the_wall(server_url, wa
     assert payload["notice"] == (
         "Nothing is hanging there now. The wall goes on showing what it was showing until a theme is hung."
     )
-    assert wall_settings.manifest_path(wall).read_text() == published
+    assert wall_settings.manifest_v2_path(wall).read_text() == published
     after, _ = await call(server_url, "art_display", action="walls")
-    assert after["walls"][0]["directive"]["sequence"] == before["walls"][0]["directive"]["sequence"]
     assert after["walls"][0]["hanging"] is None
 
 
@@ -363,23 +416,33 @@ async def test_taking_down_a_wall_holding_nothing_is_refused(server_url, wall):
     assert "nothing to take down" in payload["error"]
 
 
-async def test_a_step_on_one_wall_leaves_another_where_it_was(server_url, wall):
-    """The reason the directive stopped being a singleton.
+async def test_a_step_on_one_wall_leaves_another_where_it_was(server_url, ready_work, wall, wall_settings):
+    """A `next` aimed at the living room moves the living room's picture alone.
 
-    One counter cannot say which display an advance was meant for, so a `next`
-    aimed at the living room stepped every wall in the house.
+    The study hangs the same theme, so its slots to come are rebuilt beside the
+    living room's (the owner, 2026-10-13); the work on it now, and since when, stay.
     """
     added, errored = await call(server_url, "art_display", action="add_wall", name="Study")
     assert errored is False
     study = added["wall"]["wall_id"]
+    theme_id = await _a_theme(server_url)
+    for title in ("Automat", "Chop Suey"):
+        await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
+    for room in (wall, study):
+        await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=room)
+    on_the_study = _slot_now(wall_settings, study)
 
-    stepped, _ = await call(server_url, "art_display", action="next", wall_id=wall)
+    stepped, errored = await call(server_url, "art_display", action="next", wall_id=wall)
 
+    assert errored is False
     assert stepped["wall_id"] == wall
-    listed, _ = await call(server_url, "art_display", action="walls")
-    sequences = {entry["wall_id"]: entry["directive"]["sequence"] for entry in listed["walls"]}
-    assert sequences[wall] == 1
-    assert sequences[study] == 0
+    assert _slot_now(wall_settings, study) == on_the_study
+
+
+def _slot_now(wall_settings, wall_id):
+    """The work a wall's feed shows now and since when: its first slot, which a republish keeps."""
+    first = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())["schedule"]["slots"][0]
+    return first["work_id"], first["from"]
 
 
 async def test_two_walls_may_hang_the_same_theme(server_url, wall):
@@ -410,21 +473,21 @@ async def test_a_theme_that_is_not_on_the_wall_can_be_deleted(server_url):
 async def test_deleting_the_last_theme_leaves_the_wall_showing_what_it_had(server_url, wall_settings, wall):
     """Tidying the catalogue must not blank the wall as a side effect.
 
-    Same posture as curation being stopped entirely: the display plane runs off
-    the last manifest indefinitely, which is normal operation rather than
-    degradation. Publishing an empty manifest here would be this plane reaching
-    over and turning the art off.
+    Same posture as the server being stopped entirely: a Player runs off the
+    last feed it has, which is normal operation rather than degradation.
+    Publishing an empty feed here would be the server reaching over and
+    turning the art off.
     """
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
-    before = wall_settings.manifest_path(wall).read_text()
+    before = wall_settings.manifest_v2_path(wall).read_text()
 
     _payload, errored = await call(server_url, "art_theme", action="delete", theme_id=theme_id)
 
     assert errored is False
     listed, _ = await call(server_url, "art_theme", action="list")
     assert listed["themes"] == []
-    assert wall_settings.manifest_path(wall).read_text() == before
+    assert wall_settings.manifest_v2_path(wall).read_text() == before
 
 
 async def test_deleting_a_theme_with_works_in_it_leaves_the_works_alone(server_url, seeded_titles):
@@ -505,11 +568,11 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
     assert errored is False
     assert payload["on_the_wall"] == []
     assert payload["considered"] == 3
-    assert {entry["reason"] for entry in payload["not_displayable"]} == {"no_original"}
-    assert {entry["title"] for entry in payload["not_displayable"]} == set(works)
+    assert {entry["reason"] for entry in payload["not_on_the_wall"]} == {"no_original"}
+    assert {entry["title"] for entry in payload["not_on_the_wall"]} == set(works)
     assert payload["notice"] == (
-        "0 of 3 works in this theme are on the wall; 3 are not currently displayable. "
-        "See not_displayable for each one and why."
+        "0 of 3 works in this theme are on the wall; 3 are not currently displayable, so the wall is dark. "
+        "See not_on_the_wall for each one and why."
     )
 
 
@@ -520,69 +583,82 @@ async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, 
 
     assert errored is False
     assert payload["on_the_wall"] == []
-    assert payload["not_displayable"] == []
+    assert payload["not_on_the_wall"] == []
     assert payload["considered"] == 0
     # The sentence this test's own name promises. Without it the empty case is
     # the one branch of the notice nothing reads — and it is the branch that
     # used to say "All 0 works in this theme are on the wall."
     assert payload["notice"] == "This theme holds no works yet, so nothing is on the wall."
     # No pointer at a field that is empty: there is nothing to look at.
-    assert "not_displayable" not in payload["notice"]
+    assert "not_on_the_wall" not in payload["notice"]
 
 
 async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_theme", action="update", theme_id=theme_id, rotation_interval_seconds=931, shuffle=False)
+    await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order")
 
     payload, _ = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
 
     assert payload["rotation"] == {"interval_seconds": 931, "shuffle": False}
 
 
-async def test_sync_writes_the_manifest_the_display_plane_reads(server_url, wall_settings, wall):
+async def test_sync_writes_the_feed_a_player_reads(server_url, wall_settings, wall):
     theme_id = await _a_theme(server_url)
 
     await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
 
-    document = json.loads(wall_settings.manifest_path(wall).read_text())
-    assert document["theme"]["id"] == theme_id
-    assert document["schema"]["major"] == 1
+    document = json.loads(wall_settings.manifest_v2_path(wall).read_text())
+    assert document["playlist"]["id"] == theme_id
+    assert document["schema"]["major"] == 2
 
 
-async def test_next_writes_a_directive_and_does_not_claim_the_wall_changed(server_url, wall):
+async def test_next_republishes_and_does_not_claim_the_wall_changed(server_url, ready_work, wall, wall_settings):
+    theme_id = await _a_theme(server_url)
+    for title in ("Automat", "Chop Suey"):
+        await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+
     payload, errored = await call(server_url, "art_display", action="next", wall_id=wall)
 
     assert errored is False
-    assert payload["sequence"] == 1
-    assert payload["pinned_work_id"] is None
+    feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
+    assert payload["work_id"] == feed["schedule"]["slots"][0]["work_id"]
     assert "not a confirmation" in payload["notice"]
 
 
-async def test_show_now_pins_the_work_and_the_sequence_advances_once_per_call(server_url, ready_work, wall):
-    work = ready_work("Automat")
+async def test_next_on_a_wall_with_nothing_hung_is_refused_by_name(server_url, wall):
+    payload, errored = await call(server_url, "art_display", action="next", wall_id=wall)
+
+    assert errored is True
+    assert "Hang a theme there first" in payload["error"]
+
+
+async def test_show_now_starts_the_wall_with_the_work_and_next_moves_on_from_it(server_url, ready_work, wall):
+    theme_id = await _a_theme(server_url)
+    for title in ("Automat", "Chop Suey"):
+        await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work(title).id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    work = ready_work("Nighthawks")
 
     first, _ = await call(server_url, "art_display", action="show_now", wall_id=wall, artwork_id=work.id)
     second, _ = await call(server_url, "art_display", action="next", wall_id=wall)
 
-    assert first["pinned_work_id"] == work.id
-    assert first["sequence"] == 1
-    # A step supersedes the pin: an advance with the pin still set would read as
-    # "jump there again" rather than "move on".
-    assert second["sequence"] == 2
-    assert second["pinned_work_id"] is None
+    assert first["work_id"] == work.id
+    # A work from outside the theme is shown for one slot, so moving on leaves it.
+    assert second["work_id"] != work.id
 
 
-async def test_the_directive_reaches_the_manifest(server_url, wall_settings, ready_work, wall):
-    """The one hop that makes a directive real: it has to be in the file display polls."""
+async def test_show_now_reaches_the_feed(server_url, wall_settings, ready_work, wall):
+    """The one hop that makes it real: it has to be in the feed the Player polls."""
     theme_id = await _a_theme(server_url)
+    await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
+    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
     work = ready_work("Automat")
+
     await call(server_url, "art_display", action="show_now", wall_id=wall, artwork_id=work.id)
 
-    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
-
-    directive = json.loads(wall_settings.manifest_path(wall).read_text())["directive"]
-    assert directive["sequence"] == 1
-    assert directive["pinned_work_id"] == work.id
+    feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
+    assert feed["schedule"]["slots"][0]["work_id"] == work.id
 
 
 async def test_a_theme_with_nothing_missing_says_so_in_full(server_url, service, ready_work, wall):
@@ -601,25 +677,14 @@ async def test_a_theme_with_nothing_missing_says_so_in_full(server_url, service,
     payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
 
     assert errored is False
-    assert payload["not_displayable"] == []
+    assert payload["not_on_the_wall"] == []
     assert payload["considered"] == 2
     assert payload["notice"] == "All 2 works in this theme are on the wall."
-    assert "not_displayable" not in payload["notice"]
+    assert "not_on_the_wall" not in payload["notice"]
 
 
-async def test_syncing_twice_does_not_advance_the_sequence(server_url, wall_settings, wall):
-    """A rebuild that advanced would fire a jump nobody issued, on every sync."""
-    theme_id = await _a_theme(server_url)
-    await call(server_url, "art_display", action="next", wall_id=wall)
-
-    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
-    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
-
-    assert json.loads(wall_settings.manifest_path(wall).read_text())["directive"]["sequence"] == 1
-
-
-async def test_showing_an_archived_work_is_refused_rather_than_pinned(server_url, service, wall):
-    """An archived work is out of circulation, so a pin naming one can never be carried out."""
+async def test_showing_an_archived_work_is_refused_rather_than_shown(server_url, service, wall):
+    """An archived work is out of circulation, so a feed naming one would be wrong."""
     works = await _the_works(server_url)
     service.archive_artwork(works["Nighthawks"])
 

@@ -1,0 +1,248 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/10P1MS",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/1be00f73-b50d-482a-9a5a-569548f17ecd",
+ "items": [
+  {
+   "height": 600,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/c86c716e-9579-4950-83d2-7c58343830e4",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 600,
+        "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 150,
+            "width": 143
+           },
+           {
+            "height": 300,
+            "width": 286
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 573
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-c86c716e-9579-4950-83d2-7c58343830e4",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/c86c716e-9579-4950-83d2-7c58343830e4",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Front"
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "No"
+      ]
+     }
+    }
+   ],
+   "rights": "https://rightsstatements.org/vocab/InC/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4/full/!573,600/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 573
+  }
+ ],
+ "label": {
+  "en": [
+   "Nudist couple on a bench, Pa. 1965"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Diane Arbus (American, 1923 - 1971)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "Nudist couple on a bench, Pa. 1965"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Gelatin silver print"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Sheet: 35.6  27.9 cm (14  11 in.)",
+     "Image: 26.4  25.1 cm (10 3/8  9 7/8 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "2022.143.5"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": []
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-07-01T18:18:25.910754+00:00"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "rights": "https://rightsstatements.org/vocab/InC/1.0/",
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/937588d8-b051-422b-bb46-e562c797bcc7",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/1be00f73-b50d-482a-9a5a-569548f17ecd/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/c86c716e-9579-4950-83d2-7c58343830e4",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "summary": {
+  "en": [
+   "<p>A nude man and woman, wearing only shoes, sit on a park bench in front of a large tree.</p>"
+  ]
+ },
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4/full/!573,600/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/c86c716e-9579-4950-83d2-7c58343830e4",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}

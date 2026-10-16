@@ -3,12 +3,29 @@
  * TEXT IS SET WITH textContent, NEVER innerHTML. Titles, descriptions and
  * provider names come from museum sites this product does not control, and
  * `<img src=x onerror=...>` inside a work's title is the whole of that attack.
- * The one exception would be description markup, which the catalogue reduces to
- * <i>/<b> at ingest — and it is not taken here either, because a UI that starts
- * trusting one field is a UI someone extends to the next one.
+ *
+ * Description markup is the one field with emphasis in it, and it is still not
+ * parsed: the catalogue reduces it to <i>/<b> and escaped text at ingest, and
+ * `emphasised` below reads exactly those four tags and five escapes as tokens,
+ * building each element with `createElement`. Everything else in the string,
+ * a tag included, is text — so trusting this field extends to nothing.
  */
 
 import { state } from "./state.js";
+
+/* A page with nothing in it: what is missing, then why or what fills it, then
+ * the way on. One shape on every page (`design-direction.md` § Component
+ * Patterns, Empty states), so an empty page reads as a state rather than as
+ * a page that failed to load. The lead is a paragraph, not a heading: it is
+ * what the page says, and a reader moving by headings should not meet it as
+ * a section. `next` holds links and acts, the first the one most worth taking. */
+export function emptyState(lead, why = null, next = []) {
+  return el("div", { class: "empty" }, [
+    el("p", { class: "empty-lead", text: lead }),
+    why ? el("p", { class: "muted", text: why }) : null,
+    next.length ? el("div", { class: "row" }, next) : null,
+  ]);
+}
 
 export function showError(message) {
   const box = document.getElementById("error");
@@ -55,6 +72,21 @@ export function fill(node, ...children) {
   node.replaceChildren(...children.filter((child) => child !== null && child !== undefined && child !== false));
 }
 
+let captions = 0;
+
+/* An act with one line of words under it, tied to it for a screen reader.
+ *
+ * The words say something about pressing — what it costs, what it starts — so
+ * they sit under the act they belong to and are read with it
+ * (`aria-describedby`), and they are plain text: nothing about them looks or
+ * behaves like a second act. */
+export function captioned(act, words) {
+  captions += 1;
+  const id = `caption-${captions}`;
+  act.setAttribute("aria-describedby", id);
+  return el("div", { class: "captioned" }, [act, el("span", { class: "act-caption", id, text: words })]);
+}
+
 /* Write a view's nodes to the page, unless the curator has moved on.
  *
  * `generation` is `state.nav` as it stood when this paint began, and passing it
@@ -94,4 +126,48 @@ export async function guard(work) {
   } catch (failure) {
     showError(failure.message);
   }
+}
+
+/* A description's emphasis, from the markup the catalogue stores, without parsing HTML.
+ *
+ * The catalogue writes descriptions as escaped text with balanced `<i>` and `<b>`
+ * (`services/fields.py`, `description_markup`), so this reads only those four
+ * tags and the five escapes Python's `html.escape` produces. Anything else —
+ * another tag, an attribute, an entity it did not write — is shown as the text
+ * it is, so a row stored before the reduction, or written some other way, reads
+ * as its own characters rather than as markup. A closer that does not close the
+ * innermost open tag is text too (the reduction never crosses tags), and an
+ * opener left open closes at the end.
+ *
+ * Returns a `<span class="described">`, whose stylesheet keeps the blank lines
+ * the reduction leaves between paragraphs. */
+const EMPHASIS_TOKENS = /<\/?[ib]>|&(?:amp|lt|gt|quot|#x27);/g;
+const ESCAPES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" };
+
+export function emphasised(markup) {
+  const root = el("span", { class: "described" });
+  const open = [root];
+  const append = (text) => {
+    if (text) open[open.length - 1].append(document.createTextNode(text));
+  };
+  const text = String(markup);
+  let at = 0;
+  for (const match of text.matchAll(EMPHASIS_TOKENS)) {
+    append(text.slice(at, match.index));
+    at = match.index + match[0].length;
+    const token = match[0];
+    if (token in ESCAPES) {
+      append(ESCAPES[token]);
+    } else if (token[1] !== "/") {
+      const node = document.createElement(token[1]);
+      open[open.length - 1].append(node);
+      open.push(node);
+    } else if (open.length > 1 && open[open.length - 1].localName === token[2]) {
+      open.pop();
+    } else {
+      append(token);
+    }
+  }
+  append(text.slice(at));
+  return root;
 }

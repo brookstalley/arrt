@@ -50,9 +50,9 @@ def hang(services):
     return _hang
 
 
-def open_work(ui, work):
-    ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h2")
+def open_work(ui, work, *, debug=False):
+    ui.open(f"{'?debug' if debug else ''}#work/{work.id}")
+    ui.page.wait_for_selector("#view h1")
 
 
 def ask(ui, label):
@@ -64,13 +64,16 @@ def ask(ui, label):
 # -- the label -----------------------------------------------------------------
 
 
-def test_the_control_reads_archive_and_is_styled_as_an_ordinary_act(ui, service):
-    """Not `danger`, and there is no danger class in this stylesheet to reach for.
+def test_the_control_reads_archive_and_is_styled_as_a_secondary_act(ui, service):
+    """Quiet: not `danger`, and not the filled primary either.
 
     Archive's whole point is that Restore exists. Dressing a cheap reversible act
     as a destructive one produces exactly the hesitation the IA argues the word
     "Remove" produces — and teaches the operator that this dialog means danger,
-    which is the wrong lesson on the day one of them is not.
+    which is the wrong lesson on the day one of them is not. And it is not the
+    page's primary: a wall card opens this page, and the loudest button in reach
+    of a curator who wanted one picture off one wall must not take it out of the
+    whole library (`ux-review-2026-10.md` finding 3).
     """
     work = service.add_artwork(title="Chop Suey")
     open_work(ui, work)
@@ -79,7 +82,7 @@ def test_the_control_reads_archive_and_is_styled_as_an_ordinary_act(ui, service)
 
     assert control.count() == 1
     assert control.inner_text() == "Archive"
-    assert control.get_attribute("class") == "action"
+    assert control.get_attribute("class") == "action quiet"
 
 
 @pytest.mark.parametrize("word", ["Remove", "Delete"])
@@ -123,18 +126,15 @@ def test_the_confirmation_names_the_wall_that_is_showing_the_work(ui, ready_work
     assert wall.name in ui.page.inner_text(".confirm-consequence")
 
 
-def test_the_confirmation_says_how_to_make_the_room_catch_up(ui, ready_work, hang):
-    """When *and* how, because the ruling that allows the delay rests on the how.
+def test_the_confirmation_says_the_room_loses_it_now(ui, ready_work, hang):
+    """When the room loses the picture: now, as the archive lands.
 
-    Nothing in the archive path republishes a manifest, so the picture stays up
-    until something rebuilds that wall. The operator ruled that acceptable on
-    condition that a path exists to force one — which makes the remedy part of
-    the sentence rather than a nicety, since a curator told only *when* is being
-    handed a fact they cannot act on.
-
-    Asserted apart from the wall-naming test above because they fail for
-    different reasons: that one breaks when the evaluation is wrong, this one
-    when a tidying edit shortens the sentence.
+    Programming takes an archived work off every published manifest that
+    carries it as soon as the Library announces the archive (pinned by
+    `tests/unit/test_reconciliation.py`). This confirmation once said the room
+    would lose it "the next time its theme is hung" and offered re-hanging as
+    the way to make it catch up, which promised a delay and a remedy that no
+    longer exist.
     """
     work = ready_work(title="Nighthawks")
     hang(work)
@@ -143,8 +143,9 @@ def test_the_confirmation_says_how_to_make_the_room_catch_up(ui, ready_work, han
     ask(ui, "Archive")
 
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "next manifest build" in consequence
-    assert "Re-hanging" in consequence
+    assert "loses it now" in consequence
+    assert "next time" not in consequence
+    assert "Re-hanging" not in consequence
 
 
 def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):
@@ -194,7 +195,7 @@ def test_a_work_in_a_hung_theme_that_the_wall_cannot_show_is_not_a_consequence(u
     membership would name a wall that was never showing the picture — teaching
     the curator that these sentences are guesses.
     """
-    work = ready_work(title="Nighthawks", rendition=False)
+    work = ready_work(title="Nighthawks", master=False)
     hang(work)
 
     open_work(ui, work)
@@ -263,11 +264,7 @@ def test_confirming_archives_the_work_and_the_screen_becomes_its_own_undo(ui, re
 
 
 def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work, service):
-    """The undo asks too, and its sentence is about *when* the room changes.
-
-    Nothing here republishes a manifest, so a curator who restored a work and
-    watched an unchanged wall would reasonably conclude the restore had failed.
-    """
+    """The undo asks too, and its sentence says what the room does: take the work back by itself."""
     work = ready_work(title="Nighthawks")
     service.archive_artwork(work.id)
 
@@ -276,8 +273,7 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
     assert ui.page.inner_text(".confirm-title") == "Restore Nighthawks?"
     consequence = ui.page.inner_text(".confirm-consequence")
-    assert "next manifest build" in consequence
-    assert "Re-hanging" in consequence
+    assert consequence == "It goes back into the rotation of every wall hanging a theme that holds it."
 
     ui.page.click(".confirm-actions button:has-text('Restore')")
     ui.page.wait_for_selector("#view button:has-text('Archive')")
@@ -286,7 +282,7 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
 
 
 def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service):
-    """The catalogue's own sentence, in the surface's one failure channel.
+    """The catalogue's own sentence, said beside the button that was pressed.
 
     The work is archived out from under the open screen — which is what a second
     tab, or an agent over MCP, does — so the button the curator presses is
@@ -298,9 +294,10 @@ def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service
 
     ask(ui, "Archive")
     ui.page.click(".confirm-actions button:has-text('Archive')")
-    ui.page.wait_for_selector("#error:not([hidden])")
+    said = ui.said_beside(ui.page.locator("#view button:text-is('Archive')"))
 
-    assert "already archived" in ui.page.inner_text("#error")
+    assert said.startswith("Couldn't archive Chop Suey: ")
+    assert "already archived" in said
 
 
 # -- what the work is said to be -----------------------------------------------
@@ -389,7 +386,8 @@ def test_the_mat_shows_its_colour_and_nothing_else(ui, ready_work):
     """
     work = ready_work(title="Nighthawks")
 
-    open_work(ui, work)
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    open_work(ui, work, debug=True)
 
     swatch = ui.page.locator(".mat .mat-swatch")
     assert swatch.count() == 1

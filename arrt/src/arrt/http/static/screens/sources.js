@@ -20,7 +20,9 @@
 
 import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
-import { el, render } from "../core/render.js";
+import { museumName, PLUGIN_STATE_WORDS } from "../core/providers.js";
+import { el, emptyState, render } from "../core/render.js";
+import { DEBUG } from "../core/debug.js";
 
 /* What a plugin's parts provide, in the words a curator reads. */
 const PART_WORDS = {
@@ -36,7 +38,7 @@ export async function viewSources(generation) {
   const interfaceMajor = String(listing.interface_version).split(".")[0];
   render(
     generation,
-    el("h2", { text: "Sources" }),
+    el("h1", { text: "Sources" }),
     el("p", {
       class: "muted",
       text:
@@ -45,23 +47,26 @@ export async function viewSources(generation) {
         "a plugin is a change to the image Arrt runs from, and how each is doing since startup is on Status.",
     }),
     sources.length === 0
-      ? el("p", {
-          class: "muted",
-          text: "No source plugin is installed, so no image can be found for a work. Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
-        })
+      ? emptyState(
+          "No source plugin is installed, so no image can be found for a work.",
+          "Arrt ships with built-in plugins, so none listed means the package was installed without its entry points.",
+        )
       : el("ol", { class: "source-inventory" }, sources.map((source, index) => sourcePanel(source, index, sources.length, interfaceMajor))),
   );
 }
 
 function sourcePanel(source, index, count, interfaceMajor) {
   return el("li", { class: "panel source-entry" }, [
-    el("h3", { text: source.name }),
+    el("h2", { text: source.museum || museumName(source.name) }),
     el("p", { class: "reading-sentence", text: source.description }),
     facts([
-      ["Package", packageWords(source)],
-      ["State", source.state],
+      // The plugin's id, its package and the interface it was written for are
+      // how it is installed, not what it does: debug only (ruling 1 of 2026-10-11).
+      ["Plugin", DEBUG ? source.name : null],
+      ["Package", DEBUG ? packageWords(source) : null],
+      ["State", PLUGIN_STATE_WORDS[source.state] || source.state],
       ["Provides", providesWords(source)],
-      ["Interface", interfaceWords(source, interfaceMajor)],
+      ["Interface", DEBUG ? interfaceWords(source, interfaceMajor) : null],
       ["Order", `${index + 1} of ${count}`],
     ]),
   ]);

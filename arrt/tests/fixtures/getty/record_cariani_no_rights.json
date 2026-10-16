@@ -1,0 +1,402 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3",
+ "type": "HumanMadeObject",
+ "_label": "Portrait of a Man with a Sword (67.PA.4)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300033618",
+   "type": "Type",
+   "_label": "Paintings",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300079654",
+   "type": "Type",
+   "_label": "Deaccessioned"
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-whole",
+   "type": "Type",
+   "_label": "Object Record Structure: Whole",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/identifier/7b9efed7-1749-5225-b56a-47a052350a98",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "67.PA.4"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/name/8081a6a8-9472-56f6-b82c-1c08af3fe219",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "Portrait of a Man with a Sword",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/deaccession/group-name",
+   "type": "Identifier",
+   "_label": "Deaccession Group Name",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/deaccession-group-name",
+     "type": "Type",
+     "_label": "Deaccession Group Name"
+    }
+   ],
+   "content": "1992063077588"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/1JAXFV"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/name/8081a6a8-9472-56f6-b82c-1c08af3fe219",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Portrait of a Man with a Sword",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "546"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "bf2b5335-f677-41cb-9726-f6749e7611f3"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production",
+  "type": "Production",
+  "_label": "Production of Artwork by Giovanni Busi (Cariani)",
+  "referred_to_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production/25c087db-eb81-58b1-8e5a-50633336189f/producer-description",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Description",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+      "type": "Type",
+      "_label": "Producer Description",
+      "deprecated": {
+       "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+       "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+       "since": "2020-11-10"
+      }
+     },
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-description",
+      "type": "Type",
+      "_label": "Producer Description"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Giovanni Busi (Cariani) (Italian, (Venetian), about 1480 - after 1548)"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production/25c087db-eb81-58b1-8e5a-50633336189f/producer-name",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name",
+      "type": "Type",
+      "_label": "Producer Name"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Giovanni Busi (Cariani)"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production/25c087db-eb81-58b1-8e5a-50633336189f/producer-nationality-and-dates",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Nationality & Dates",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+      "type": "Type",
+      "_label": "Producer Nationality & Dates"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Italian, (Venetian), about 1480 - after 1548"
+   }
+  ],
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "about 1520s–1530s"
+    }
+   ],
+   "begin_of_the_begin": "1520-01-01T00:00:00",
+   "end_of_the_end": "1539-12-31T23:59:59"
+  },
+  "carried_out_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/person/a254ce10-d306-4164-8994-928811729560",
+    "type": "Person",
+    "_label": "Giovanni Busi (Cariani)",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/bf2b5335-f677-41cb-9726-f6749e7611f3/production/25c087db-eb81-58b1-8e5a-50633336189f/role-statement",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Role Statement",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Artist",
+      "close_match": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025103",
+        "type": "Type",
+        "_label": "Artist"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/1JAXFV",
+   "type": "LinguisticObject",
+   "_label": "Homepage for Portrait of a Man with a Sword (67.PA.4) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/10d352c8-2c6c-4cb5-b0ad-0e563dfed202",
+   "id": "https://media.getty.edu/iiif/manifest/2/10d352c8-2c6c-4cb5-b0ad-0e563dfed202",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/10d352c8-2c6c-4cb5-b0ad-0e563dfed202",
+   "id": "https://media.getty.edu/iiif/manifest/3/10d352c8-2c6c-4cb5-b0ad-0e563dfed202",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}

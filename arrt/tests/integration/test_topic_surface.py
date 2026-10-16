@@ -108,7 +108,8 @@ class TestTheLibrarysHalf:
         index = http.get("/api/topics").raise_for_status().json()
 
         assert (index["state"], index["note"]) == ("known", None)
-        assert index["kinds"] == [
+        # What each kind also offers from the fixed list is `test_topics_offered_surface.py`'s.
+        assert [{"kind": group["kind"], "topics": group["topics"]} for group in index["kinds"]] == [
             {"kind": "period", "topics": [{"qid": "Q6955", "label": "19th century", "works": 1}]},
             {"kind": "movement", "topics": [{"qid": IMPRESSIONISM, "label": "Impressionism", "works": 1}]},
             {"kind": "subject", "topics": []},

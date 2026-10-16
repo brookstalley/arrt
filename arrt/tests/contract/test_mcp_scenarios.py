@@ -12,16 +12,20 @@ complete on the day it is written and green forever afterwards — including the
 day a sixth tool or a new action arrives with nothing exercising it.
 """
 
+import json
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import pytest
-from fakes import a_museum_holding, a_roster, a_work, a_work_list, take_the_picture_away
+from fakes import a_museum_holding, a_roster, a_work, a_work_list, stored_awaiting_approval, take_the_picture_away
 from scenarios import ACCEPTANCE_ROUTE, DISCOVERY_ROUTE, REFERENCE_ROUTE, REVIEW_ROUTE, Call, Transcript, connect
 
 from arrt.library.discovery.engine import WorkList
 from arrt.mcp.registry import HELP_ACTION
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import RunStatus
+from arrt.persistence.records import RenditionKind
+from arrt.programming.display import feed_notice
 from arrt.services.container import Services
 
 #: Every tool, by name, as the registry holds them. Parametrising from this is
@@ -143,7 +147,7 @@ async def test_a_work_that_cannot_be_shown_is_reported_rather_than_dropped(serve
         published = await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=walls["walls"][0]["wall_id"])
 
     assert published["on_the_wall"] == []
-    excluded = {entry["title"]: entry for entry in published["not_displayable"]}
+    excluded = {entry["title"]: entry for entry in published["not_on_the_wall"]}
     assert set(excluded) == set(seeded_titles)
 
     for title, entry in excluded.items():
@@ -220,40 +224,59 @@ async def test_every_advertised_action_is_really_there(server_url, tool, action)
 
 
 async def test_a_curator_can_jump_the_wall_to_one_work_and_step_off_it(server_url, ready_work):
-    """`show_now` pins a work out of turn; `next` releases it back to rotation.
+    """`show_now` starts the wall with one work; `next` moves on to the one after it.
 
     Driven through the same threading rule as the flow above — the work reaches
     `show_now` as the id `add` echoed back, not as a fixture attribute.
     """
+    first = ready_work(title="Olympia")
     work = ready_work(title="A Bar at the Folies-Bergère")
 
     async with connect(server_url) as caller:
-        created = await caller.ok("art_theme", "create", name="One work, pinned")
+        created = await caller.ok("art_theme", "create", name="Two works, in order")
         theme_id = created["theme"]["theme_id"]
+        await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=first.id)
         added = await caller.ok("art_theme", "add", theme_id=theme_id, artwork_id=work.id)
         walls = await caller.ok("art_display", "walls")
         wall_id = walls["walls"][0]["wall_id"]
+        await caller.ok("art_display", "set_playback", wall_id=wall_id, shuffle="in_order")
         await caller.ok("art_theme", "activate", theme_id=theme_id, wall_id=wall_id)
 
-        pinned = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])
-        assert pinned["pinned_work_id"] == work.id
-        assert pinned["wall_id"] == wall_id
+        shown = await caller.ok("art_display", "show_now", wall_id=wall_id, artwork_id=added["artwork_id"])
+        assert shown["work_id"] == work.id
+        assert shown["wall_id"] == wall_id
 
         stepped = await caller.ok("art_display", "next", wall_id=wall_id)
 
-    assert stepped["pinned_work_id"] is None, "stepping on should release the pin"
-    # The sequence advances, which is how the display plane knows the directive
-    # it is holding is stale. Equal sequences would leave the wall on the pin.
-    assert stepped["sequence"] > pinned["sequence"]
+    # In the theme's order, the work after the one shown now is the first again.
+    assert stepped["work_id"] == first.id
 
 
-async def test_a_run_can_be_priced_started_watched_and_approved_through_the_tools_alone(server_url, engine):
+async def test_a_curator_can_choose_a_walls_mat_and_hand_it_back_to_the_player(server_url):
+    """The mode reaches the wall as `walls` reports it, and `players_own` clears it rather than naming a mode."""
+    async with connect(server_url) as caller:
+        wall_id = (await caller.ok("art_display", "walls"))["walls"][0]["wall_id"]
+
+        chosen = await caller.ok("art_display", "set_mat_mode", wall_id=wall_id, mode="full")
+        listed = await caller.ok("art_display", "walls")
+        cleared = await caller.ok("art_display", "set_mat_mode", wall_id=wall_id, mode="players_own")
+        refused = await caller.call("art_display", "set_mat_mode", wall_id=wall_id, mode="thick")
+
+    assert chosen["wall"]["mat_mode"] == "full"
+    assert listed["walls"][0]["mat_mode"] == "full"
+    assert cleared["wall"]["mat_mode"] is None
+    assert refused["success"] is False
+    assert "players_own" in json.dumps(refused)
+
+
+async def test_a_run_can_be_priced_started_and_watched_through_the_tools_alone(server_url, engine):
     """The money flow, start to finish, using nothing but what the surface returns.
 
-    Threaded like the flow above: the run id reaches `status` and `approve` as
-    the value `start` actually returned. That is what fails when one action names
-    it `run_id` and another expects `id` — a defect invisible from inside either
-    action's own tests.
+    Threaded like the flow above: the run id reaches `status` as the value
+    `start` actually returned. That is what fails when one action names it
+    `run_id` and another expects `id` — a defect invisible from inside either
+    action's own tests. Twenty-six works, where the retired gate stopped at
+    twenty-five: starting is the approval, so the run goes straight on.
     """
     engine.result = replace(a_work_list(26), strategy="Read as Surrealists with a strong blue palette.")
 
@@ -262,53 +285,45 @@ async def test_a_run_can_be_priced_started_watched_and_approved_through_the_tool
         # Priced before anything is committed to, which is the whole point of
         # the action leading this route.
         assert quoted["phase"] == "phase_1"
+        assert quoted["tier"] in {"$", "$$", "$$$"}
 
         started = await caller.ok("art_discovery", "start", intent="Surrealist paintings with strong blues")
         run_id = started["run_id"]
 
         watched = await caller.ok("art_discovery", "status", run_id=run_id)
-        assert watched["status"] == "awaiting_approval"
-        assert watched["works"]["total"] == 26
-        # How the intent was read, beside the wording of it. Asserted at this
-        # level because a curator decides at the gate below on the *reading* as
-        # much as on the count, so a field that quietly stopped being sent would
-        # take the grounds for that decision with it.
-        assert watched["strategy"] == engine.result.strategy
 
-        approved = await caller.ok("art_discovery", "approve", run_id=run_id)
-
-    assert approved["run_id"] == run_id
-    assert approved["status"] == "resolving_images"
+    assert watched["run_id"] == run_id
+    assert watched["status"] == "resolving_images"
+    assert watched["approval_required"] is False
+    assert watched["works"]["total"] == 26
+    # How the intent was read, beside the wording of it: what a curator reads
+    # the run's list by, so a field that quietly stopped being sent would take
+    # the grounds for judging it with it.
+    assert watched["strategy"] == engine.result.strategy
     assert tuple(caller.transcript.steps) == DISCOVERY_ROUTE
 
 
-async def test_the_price_a_run_is_approved_against_is_the_one_it_was_quoted(server_url, engine):
-    """A gate authorising against a figure nobody saw is not a gate.
-
-    The two `estimate` calls answer different questions — what asking costs, and
-    what resolving what was found costs — and the second is the number the
-    approval is actually about, so it has to be readable before approving rather
-    than reconstructible afterwards.
-    """
+async def test_the_phase_two_figure_a_run_reports_is_the_one_estimate_quotes(server_url, engine):
+    """The two `estimate` calls answer different questions, and the second is readable from the run itself."""
     engine.result = a_work_list(26)
 
     async with connect(server_url) as caller:
         started = await caller.ok("art_discovery", "start", intent="Surrealist paintings")
         run_id = started["run_id"]
-        waiting = await caller.ok("art_discovery", "status", run_id=run_id)
+        watched = await caller.ok("art_discovery", "status", run_id=run_id)
         quoted = await caller.ok("art_discovery", "estimate", run_id=run_id)
-        approved = await caller.ok("art_discovery", "approve", run_id=run_id)
 
     assert quoted["phase"] == "phase_2"
-    assert quoted["estimated_cost_usd"] == waiting["estimated_cost_usd"]
-    assert approved["estimated_cost_usd"] == quoted["estimated_cost_usd"]
+    assert quoted["estimated_cost_usd"] == watched["estimated_cost_usd"]
+    assert quoted["tier"] == "free", "phase 2 asks museum APIs, which are free"
 
 
-async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_url, engine):
+async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_url, engine, discovery_store):
     """Declining stops the spending that had not happened yet, and only that.
 
     What phase 1 already cost stays on the books: a run the curator refused
-    still made the model call that produced the list they refused.
+    still made the model call that produced the list they refused. The run is
+    one stored awaiting approval, as a file written before 2026-10-07 holds.
     """
     engine.result = a_work_list(26)
 
@@ -316,6 +331,7 @@ async def test_a_declined_run_leaves_the_month_where_phase_one_left_it(server_ur
         started = await caller.ok("art_discovery", "start", intent="Surrealist paintings")
         run_id = started["run_id"]
         await caller.ok("art_discovery", "status", run_id=run_id)
+        stored_awaiting_approval(discovery_store, run_id)
         before = await caller.ok("art_discovery", "spend")
 
         declined = await caller.ok("art_discovery", "decline", run_id=run_id)
@@ -377,7 +393,7 @@ class TestReviewingWhatDiscoveryFound:
             discovery=discovery_store,
             display_settings=wall_settings,
             thumbnails=thumbnail_settings,
-            artwork_box=settings.tv_artwork_box,
+            quality_profile=settings.quality_profile,
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum),
@@ -492,3 +508,74 @@ class TestReviewingWhatDiscoveryFound:
             f"  polls folded:    {' -> '.join(caller.transcript.route)}"
         )
         assert not caller.transcript.failures, f"a step failed: {caller.transcript}"
+
+
+async def test_walls_and_a_themes_page_say_which_works_are_too_small_for_a_wall(
+    server_url, services, ready_work, wall_settings, decodable_jpeg
+):
+    """The same judgement the Walls card and the theme page show, on the tool surface."""
+    small, large = ready_work(title="Small"), ready_work(title="Large")
+    for work, size in ((small, (1000, 700)), (large, (6000, 4000))):
+        path = f"masters/{work.id}.jpg"
+        decodable_jpeg(wall_settings.art_root / path, width=size[0], height=size[1])
+        services.catalogue.record_rendition(
+            artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=7680, target_height=7680, path=path
+        )
+    wall = services.display.survey_walls()[0].wall
+    client = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(wall.id, client_id=client.id, output="hdmi-a-1")
+    theme = services.display.add_theme(name="Sizes")
+    for work in (small, large):
+        services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    services.display.activate_theme(theme.id, wall_id=wall.id)
+    services.display.record_heartbeat(
+        wall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "current_work_id": None,
+            "schema": {"major": 1, "minor": 2},
+            "capabilities": {
+                "screen": {"width_px": 3840, "height_px": 2160},
+                "backend": "framebuffer",
+                "label_modes": ["none"],
+                "manifest_majors": [2, 1],
+            },
+        },
+    )
+
+    async with connect(server_url) as caller:
+        walls = await caller.ok("art_display", "walls")
+        page = await caller.ok("art_theme", "get", theme_id=theme.id)
+
+    assert walls["walls"][0]["too_small"] == [small.id]
+    assert walls["walls"][0]["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160, "shape": "16:9"}
+    assert walls["walls"][0]["sizes_unjudged"] is None
+    assert page["too_small_for"] == {small.id: [wall.name]}
+    assert page["sizes_unjudged"] == {}
+
+
+async def test_a_wall_that_judged_nothing_says_why_on_the_tool_surface(server_url):
+    async with connect(server_url) as caller:
+        walls = await caller.ok("art_display", "walls")
+
+    wall = walls["walls"][0]
+    assert (wall["too_small"], wall["sizes_judged_against"], wall["sizes_unjudged"]) == ([], None, "no_display")
+
+
+async def test_walls_says_when_a_walls_player_cannot_read_the_feed(server_url, wall_settings, wall_id):
+    """`art_display(action='walls')` carries the reading and the notice Walls shows, word for word."""
+    capabilities = {
+        "screen": {"width_px": 3840, "height_px": 2160},
+        "backend": "frame",
+        "label_modes": ["none"],
+        "manifest_majors": [1],
+    }
+    wall_settings.heartbeat_path(wall_id).write_text(
+        json.dumps({"reported_at": "2026-10-10T12:00:00+00:00", "capabilities": capabilities}), encoding="utf-8"
+    )
+
+    async with connect(server_url) as caller:
+        walls = await caller.ok("art_display", "walls")
+
+    assert walls["walls"][0]["reads_feed"] is False
+    assert walls["walls"][0]["feed_notice"] == feed_notice(reads_feed=False)

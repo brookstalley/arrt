@@ -17,6 +17,7 @@ file the server reads, at the path the server derives.
 """
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -31,8 +32,11 @@ pytest.importorskip(
 
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
+#: A report of two outputs. `reported_at` is stamped when `report` writes it,
+#: never at import: one older than three heartbeats says nothing about now, and
+#: a stamp taken when the module loaded is that old by the time a long serial
+#: run reaches a test that reads it.
 TWO_OUTPUTS = {
-    "reported_at": "2026-10-02T14:00:05+00:00",
     "outputs": [
         {"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]},
         {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None},
@@ -41,8 +45,9 @@ TWO_OUTPUTS = {
 
 
 def report(settings, client, document=TWO_OUTPUTS):
-    """What a running client's heartbeat leaves under the art root."""
-    client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(document), encoding="utf-8")
+    """What a running client's heartbeat leaves under the art root, stamped now unless the document says when."""
+    stamped = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")} | document
+    client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(stamped), encoding="utf-8")
 
 
 def admitted(server_url, token) -> int:
@@ -71,7 +76,7 @@ def panel(ui, client):
 
 def open_clients(ui):
     ui.open("#clients")
-    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    ui.page.wait_for_selector("#view h1:has-text('Clients')")
 
 
 # -- the page --------------------------------------------------------------------
@@ -80,7 +85,7 @@ def open_clients(ui):
 def test_the_page_is_under_settings_and_answers_its_own_path(ui, seeded_service):
     """A bookmark is a path as well as a fragment; `pages.py` has to serve it."""
     ui.page.goto(f"{ui.base_url}/clients")
-    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    ui.page.wait_for_selector("#view h1:has-text('Clients')")
 
     current = ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']")
     assert current.inner_text() == "Clients"
@@ -195,7 +200,7 @@ def test_a_client_that_has_not_reported_says_so_in_words(ui, hall):
     text = panel(ui, hall).inner_text()
     assert "It has not reported its outputs yet." in text
     assert "Hall Pi has not reported its outputs yet, so none can be listed." in text
-    assert "Hall Pi shows no wall yet." in text
+    assert "Hall Pi has no wall assigned yet." in text
 
 
 def test_a_report_is_listed_output_by_output_with_its_age(ui, settings, hall):
@@ -205,11 +210,60 @@ def test_a_report_is_listed_output_by_output_with_its_age(ui, settings, hall):
 
     rows = panel(ui, hall).locator("tbody tr").all_inner_texts()
     assert [row.split("\t")[0] for row in rows] == ["hdmi-a-1", "hdmi-a-2"]
-    assert "● connected" in rows[0]
+    assert "● detected" in rows[0]
     assert "1920 × 1080" in rows[0]
-    assert "○ not connected" in rows[1]
+    assert "○ none detected (off or unplugged)" in rows[1]
     assert "size unknown" in rows[1]
+    # "connected" read as a cable fault when the usual cause is a television
+    # switched off, which drops its hotplug line exactly as an unplugged one does.
+    assert "connected" not in panel(ui, hall).locator("table").inner_text()
+    # Text content, not inner text: the stylesheet sets headers in capitals.
+    headers = panel(ui, hall).locator("thead th").all_text_contents()
+    assert headers == ["Output", "Kind", "Screen", "Size"]
     assert "It last reported " in panel(ui, hall).inner_text()
+
+
+def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, services, settings, hall, the_wall):
+    """A client that stopped leaves its last report saying "connected" for ever.
+
+    So past the threshold Clients says the screen is not known now, and Walls,
+    reading the same threshold, never says "Shown by" for it: the two pages agree
+    on one report, in the same words for its age (#295).
+    """
+    old = datetime.now(UTC) - timedelta(days=5)
+    report(settings, hall, TWO_OUTPUTS | {"reported_at": old.isoformat(timespec="seconds")})
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    open_clients(ui)
+    ui.page.wait_for_selector("section.client table")
+
+    text = panel(ui, hall).inner_text()
+    assert "It last reported 5 days ago." in text
+    assert "Hall Pi's report is older than 3 minutes, three missed reports" in text
+    rows = panel(ui, hall).locator("tbody tr").all_inner_texts()
+    assert "◌ not known now (was detected)" in rows[0]
+    assert "● detected" not in text
+
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+    line = ui.page.locator("section.wall p.wall-client").inner_text()
+    assert line == "Assigned to Hall Pi. Hall Pi last reported 5 days ago, so whether a screen is there now is not known."
+    assert "Shown by" not in line
+
+
+def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, settings, hall, the_wall):
+    """The paired case: two minutes old is a report, not a stopped client."""
+    recent = datetime.now(UTC) - timedelta(minutes=2)
+    report(settings, hall, TWO_OUTPUTS | {"reported_at": recent.isoformat(timespec="seconds")})
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    open_clients(ui)
+    ui.page.wait_for_selector("section.client table")
+
+    assert "● detected" in panel(ui, hall).locator("tbody tr").first.inner_text()
+    assert "older than" not in panel(ui, hall).inner_text()
+
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+    assert ui.page.locator("section.wall p.wall-client").inner_text() == "Shown by Hall Pi"
 
 
 def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):
@@ -224,7 +278,7 @@ def test_a_report_that_cannot_be_read_is_said_to_be_one(ui, settings, hall):
 
 
 def test_a_report_of_no_outputs_says_so_and_lists_none(ui, settings, hall):
-    report(settings, hall, {"reported_at": "2026-10-02T14:00:05+00:00", "outputs": []})
+    report(settings, hall, {"outputs": []})
     open_clients(ui)
     ui.page.wait_for_selector("section.client")
 
@@ -249,10 +303,10 @@ def test_assigning_a_wall_to_a_reported_output(ui, services, settings, hall, the
     ui.page.get_by_role("button", name="Assign to Hall Pi").click()
     ui.page.wait_for_selector("section.client li:has-text('Study, on hdmi-a-2')")
 
-    wall = services.display.get_wall_view(study.id).wall
-    assert (wall.client_id, wall.output) == (hall.id, "hdmi-a-2")
+    placement = services.clients.placement_of(study.id)
+    assert (placement.client.id, placement.output) == (hall.id, "hdmi-a-2")
     said = panel(ui, hall).locator("[data-said]")
-    assert said.inner_text() == "Study is now shown by Hall Pi on hdmi-a-2."
+    assert said.inner_text() == "Study is now assigned to Hall Pi on hdmi-a-2."
     assert ui.page.evaluate("() => document.activeElement.hasAttribute('data-said')")
     # The picker offers only walls this client does not already show.
     assert ui.page.get_by_label("Wall for Hall Pi").locator("option").all_inner_texts() == [the_wall.name]
@@ -272,12 +326,12 @@ def test_assigning_to_a_typed_output_when_none_is_reported_shows_the_servers_not
     ui.page.wait_for_selector(f"section.client li:has-text('{the_wall.name}, on hdmi-a-1')")
 
     said = panel(ui, hall).locator("[data-said]").inner_text()
-    assert said.startswith(f"{the_wall.name} is now shown by Hall Pi on hdmi-a-1. ")
+    assert said.startswith(f"{the_wall.name} is now assigned to Hall Pi on hdmi-a-1. ")
     assert "Hall Pi has not reported its outputs yet, so whether it has one called 'hdmi-a-1' cannot be checked" in said
-    assert services.display.get_wall_view(the_wall.id).wall.client_id == hall.id
+    assert services.clients.placement_of(the_wall.id).client.id == hall.id
 
 
-def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_in_the_banner(
+def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_beside_assign(
     ui, services, settings, hall, the_wall, study
 ):
     report(settings, hall)
@@ -286,15 +340,15 @@ def test_an_output_already_showing_a_wall_is_named_and_a_second_is_refused_in_th
     ui.page.wait_for_selector("section.client")
 
     options = ui.page.get_by_label("Output of Hall Pi").locator("option").all_inner_texts()
-    assert options == [f"hdmi-a-1 (connected, shows {the_wall.name})", "hdmi-a-2 (not connected)"]
+    assert options == [f"hdmi-a-1 (screen detected, has {the_wall.name})", "hdmi-a-2 (no screen detected)"]
     # The output showing nothing is the one offered first.
     assert ui.page.get_by_label("Output of Hall Pi").input_value() == "hdmi-a-2"
     ui.page.get_by_label("Output of Hall Pi").select_option("hdmi-a-1")
-    ui.page.get_by_role("button", name="Assign to Hall Pi").click()
-    ui.page.wait_for_selector("#error:not([hidden])")
+    assign = ui.page.get_by_role("button", name="Assign to Hall Pi")
+    assign.click()
 
-    assert "already shows" in ui.page.inner_text("#error")
-    assert services.display.get_wall_view(study.id).wall.client_id is None
+    assert "already shows" in ui.said_beside(assign)
+    assert services.clients.placement_of(study.id).client is None
 
 
 def test_unassigning_a_wall_from_the_clients_list(ui, services, hall, the_wall):
@@ -303,11 +357,11 @@ def test_unassigning_a_wall_from_the_clients_list(ui, services, hall, the_wall):
     ui.page.wait_for_selector("section.client li")
 
     ui.page.get_by_role("button", name=f"Unassign {the_wall.name} from Hall Pi").click()
-    ui.page.wait_for_selector("section.client p:has-text('Hall Pi shows no wall yet.')")
+    ui.page.wait_for_selector("section.client p:has-text('Hall Pi has no wall assigned yet.')")
 
-    assert services.display.get_wall_view(the_wall.id).wall.client_id is None
+    assert services.clients.placement_of(the_wall.id).client is None
     said = panel(ui, hall).locator("[data-said]").inner_text()
-    assert said == f"{the_wall.name} is no longer shown by Hall Pi. It keeps its theme."
+    assert said == f"{the_wall.name} is no longer assigned to Hall Pi. It keeps its theme."
 
 
 def test_renaming_a_client_keeps_its_walls(ui, services, hall, the_wall):
@@ -317,7 +371,7 @@ def test_renaming_a_client_keeps_its_walls(ui, services, hall, the_wall):
 
     ui.page.get_by_label("Name of Hall Pi").fill("Study Pi")
     ui.page.get_by_role("button", name="Rename Hall Pi").click()
-    ui.page.wait_for_selector("section.client h3:has-text('Study Pi')")
+    ui.page.wait_for_selector("section.client h2:has-text('Study Pi')")
 
     assert services.clients.get_client(hall.id).name == "Study Pi"
     assert f"{the_wall.name}, on hdmi-a-1" in panel(ui, hall).inner_text()
@@ -348,7 +402,7 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_client(ui, servi
     said = ui.page.locator("[data-said]").inner_text()
     assert said == f"Hall Pi is removed. 2 walls now have no client: {both}."
     assert services.clients.list_clients() == []
-    assert services.display.get_wall_view(study.id).wall.client_id is None
+    assert services.clients.placement_of(study.id).client is None
     assert admitted(server_url, token) == 401
 
 
@@ -363,7 +417,7 @@ def test_declining_a_removal_keeps_the_client_and_its_walls(ui, services, hall, 
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert [view.client.id for view in services.clients.list_clients()] == [hall.id]
-    assert services.display.get_wall_view(the_wall.id).wall.client_id == hall.id
+    assert services.clients.placement_of(the_wall.id).client.id == hall.id
 
 
 def test_removing_a_client_that_shows_nothing_says_no_wall_is_affected(ui, hall):
@@ -374,5 +428,5 @@ def test_removing_a_client_that_shows_nothing_says_no_wall_is_affected(ui, hall)
     ui.page.wait_for_selector("dialog.confirm[open]")
 
     consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
-    assert "It shows no wall, so no wall is affected." in consequence
+    assert "No wall is assigned to it, so no wall is affected." in consequence
     assert "left without a client" not in consequence

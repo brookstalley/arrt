@@ -25,7 +25,6 @@ from arrt.persistence.records import (
     Artist,
     Artwork,
     ArtworkStatus,
-    Directive,
     FetchStatus,
     MatColor,
     MatMethod,
@@ -86,19 +85,45 @@ _EXPECTED_SCHEMA = {
     # named wall. It is the first column this schema has *removed*, which the
     # widening step cannot do — `migrations.py` does, and the test below watches
     # a legacy file lose it. Widened 2026-10-01 with `is_default`, the theme new
-    # works join, under the partial index that allows at most one.
-    "themes": {"id", "name", "description", "created_at", "rotation_interval_seconds", "shuffle", "is_default"},
+    # works join, under the partial index that allows at most one; and with
+    # `is_hidden`, which marks a selection hung on a wall rather than a theme.
+    # `rotation_interval_seconds` and `shuffle` went to `walls` on 2026-10-13
+    # (`migrations.carry_rotation_to_walls`): a theme has an order and no pace.
+    "themes": {"id", "name", "description", "created_at", "is_default", "is_hidden"},
     # Which works the default theme has been offered, so each is offered once.
     "default_theme_offers": {"artwork_id", "offered_at"},
+    # The works kept off every wall, and the history of every act: both new
+    # tables that `CREATE TABLE IF NOT EXISTS` brings to an older file.
+    "work_exclusions": {"artwork_id", "excluded_at"},
+    "history_events": {"id", "kind", "occurred_at", "work_id", "run_id", "wall_id", "theme_id", "detail"},
+    # What each wall has shown, one row per stretch of one work, kept from the
+    # heartbeats; also new, and brought to an older file the same way.
+    "showings": {"wall_id", "started_at", "work_id", "last_seen_at", "ended_at"},
     # The wall token columns went on 2026-10-02, when a Player became a client
     # admitted by the client's token (`migrations.retire_wall_tokens`); the
-    # client that shows the wall, and on which output, arrived in their place.
-    "walls": {"id", "name", "created_at", "client_id", "output"},
+    # client that shows the wall, and on which output, arrived in their place,
+    # and gave way on 2026-10-08 to the display the wall is on
+    # (`migrations.walls_name_displays`).
+    "walls": {
+        "id",
+        "name",
+        "created_at",
+        "display_id",
+        "mat_mode",
+        "rotation_interval_seconds",
+        "shuffle",
+        "min_aspect_ratio",
+        "max_aspect_ratio",
+    },
     # An installed Player: a name and the verifier of its one token, nothing
     # about the device.
     "clients": {"id", "name", "created_at", "token_verifier", "token_issued_at"},
+    # One screen, keyed by who the device says it is, and the client reporting
+    # it: nothing about the device beyond what it is and where it is plugged in.
+    "displays": {"id", "identity", "client_id", "output", "kind", "first_seen"},
+    # A surface that captions a wall, on the client that holds it.
+    "label_outputs": {"id", "client_id", "output", "wall_id"},
     "theme_assignments": {"wall_id", "theme_id", "assigned_at"},
-    "directives": {"wall_id", "sequence", "pinned_work_id"},
     "sources": {
         "id",
         "artwork_id",
@@ -139,7 +164,6 @@ _EXPECTED_SCHEMA = {
         "content_sha256",
         "byte_size",
         "layout",
-        "mat_hex",
     },
     "mat_colors": {
         "id",
@@ -423,20 +447,17 @@ def test_no_table_stores_the_resolution_verdict(tmp_path):
         connection.close()
 
 
-def test_a_fresh_catalogue_carries_one_wall_and_one_directive_for_it(tmp_path):
-    """Both are established when the file is opened, so no caller ever makes either.
+def test_a_fresh_catalogue_carries_one_wall(tmp_path):
+    """Established when the file is opened, so no caller ever makes one.
 
-    A directive that had to be created on first use would have a window in which
-    reading it fails, and the read happens on every manifest build. A wall that
-    had to be created on first use would leave a fresh deployment with nowhere to
-    hang anything and no operation able to name a wall.
+    A wall that had to be created on first use would leave a fresh deployment
+    with nowhere to hang anything and no operation able to name a wall.
     """
     path = tmp_path / "catalogue.sqlite"
     catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
     try:
         walls = catalogue.list_walls()
         assert [wall.name for wall in walls] == ["Living room"]
-        assert catalogue.get_directive(walls[0].id) == Directive(wall_id=walls[0].id, sequence=0, pinned_work_id=None)
         # Nothing is hanging on it: a theme is created globally and hung
         # deliberately, and there are no themes here to hang.
         assert catalogue.get_assignment(walls[0].id) is None
@@ -445,12 +466,33 @@ def test_a_fresh_catalogue_carries_one_wall_and_one_directive_for_it(tmp_path):
 
     connection = sqlite3.connect(path)
     try:
-        assert connection.execute("SELECT COUNT(*) FROM directives").fetchone()[0] == 1
-        # The singleton it replaced is gone rather than left beside it, so
-        # nothing can read a counter no code writes.
-        assert connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE name = 'directive'").fetchone()[0] == 0
+        # Neither the per-wall directives nor the singleton before them is
+        # created on a fresh file: nothing reads a counter or a pin.
+        found = connection.execute("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('directive', 'directives')").fetchone()
+        assert found[0] == 0
     finally:
         connection.close()
+
+
+@pytest.mark.parametrize(("interval", "shuffle"), [(None, None), (931, False), (47, True)])
+def test_a_walls_rotation_survives_a_reopen(tmp_path, interval, shuffle):
+    """Null stays null ("the deployment default"), and `False` stays `False`, not null.
+
+    `bool(None)` written as 0 would turn "the default" into "in order" silently,
+    and a dropped column would turn either into null; each case catches one.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    first = SqliteCatalogue(open_catalogue_file(path))
+    wall = first.list_walls()[0]
+    first.update_wall(replace(wall, rotation_interval_seconds=interval, shuffle=shuffle))
+    first.close()
+
+    reopened = SqliteCatalogue(open_catalogue_file(path))
+    try:
+        again = reopened.get_wall(wall.id)
+        assert (again.rotation_interval_seconds, again.shuffle) == (interval, shuffle)
+    finally:
+        reopened.close()
 
 
 def test_a_second_theme_on_a_wall_is_a_row_that_cannot_be_inserted(tmp_path):
@@ -515,7 +557,6 @@ def test_two_walls_may_hang_the_same_theme_with_nothing_duplicated(tmp_path):
         moment = datetime(2026, 8, 12, 9, 30, tzinfo=UTC)
         first = catalogue.list_walls()[0]
         catalogue.add_wall(Wall(id="w-study", name="Study", created_at=moment))
-        catalogue.add_directive(Directive(wall_id="w-study", sequence=0))
         catalogue.add_theme(Theme(id="t1", name="Late night", created_at=moment))
 
         catalogue.set_assignment(ThemeAssignment(wall_id=first.id, theme_id="t1", assigned_at=moment))
@@ -544,7 +585,7 @@ def test_an_earlier_catalogue_gains_the_tables_it_did_not_have(tmp_path):
         assert catalogue.get_artwork("w1").title == "Nighthawks"
         assert catalogue.get_theme("t1").name == "Late night"
         # And the entities it never knew about are addressable.
-        assert catalogue.get_directive(catalogue.list_walls()[0].id).sequence == 0
+        assert len(catalogue.list_walls()) == 1
         assert catalogue.list_sources("w1") == []
         assert catalogue.get_original("w1") is None
         assert catalogue.list_renditions("w1") == []
@@ -555,7 +596,7 @@ def test_an_earlier_catalogue_gains_the_tables_it_did_not_have(tmp_path):
 
 
 def test_an_earlier_catalogue_gains_columns_added_to_a_table_it_already_had(tmp_path):
-    """The rotation settings widened `themes`, which the frozen DDL above created.
+    """`is_hidden` widened `themes`, which the frozen DDL above created.
 
     `CREATE TABLE IF NOT EXISTS` does nothing at all to a table that exists, so
     without a widening step the new columns would never reach this file. The
@@ -568,19 +609,16 @@ def test_an_earlier_catalogue_gains_columns_added_to_a_table_it_already_had(tmp_
 
     catalogue = SqliteCatalogue(open_catalogue_file(path))
     try:
-        # The theme the older revision wrote reads back, and its rotation
-        # settings are null — "inherit the global default", which is the correct
-        # answer for a theme written before the fields existed.
+        # The theme the older revision wrote reads back, and is not hidden —
+        # the column's default, which is the correct answer for a theme written
+        # before selections existed.
         stored = catalogue.get_theme("t1")
-        assert stored.rotation_interval_seconds is None
-        assert stored.shuffle is None
+        assert stored.hidden is False
 
-        # And the file now accepts a write that names them. Values no default
-        # could produce, so a column silently dropped on the way down would show.
-        catalogue.update_theme(replace(stored, rotation_interval_seconds=930, shuffle=True))
-        reread = catalogue.get_theme("t1")
-        assert reread.rotation_interval_seconds == 930
-        assert reread.shuffle is True
+        # And the file now accepts a write that names it. A value the default
+        # could not produce, so a column silently dropped on the way down would show.
+        catalogue.update_theme(replace(stored, hidden=True))
+        assert catalogue.get_theme("t1").hidden is True
     finally:
         catalogue.close()
 
@@ -653,12 +691,12 @@ def test_widening_survives_the_process_that_did_it(tmp_path):
     _write_legacy_catalogue(path)
 
     first = SqliteCatalogue(open_catalogue_file(path))
-    first.update_theme(replace(first.get_theme("t1"), rotation_interval_seconds=930))
+    first.update_theme(replace(first.get_theme("t1"), hidden=True))
     first.close()
 
     reopened = SqliteCatalogue(open_catalogue_file(path))
     try:
-        assert reopened.get_theme("t1").rotation_interval_seconds == 930
+        assert reopened.get_theme("t1").hidden is True
     finally:
         reopened.close()
 

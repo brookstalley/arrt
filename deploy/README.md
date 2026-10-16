@@ -16,7 +16,7 @@
 >   restart or a NAS reboot then never blanks the wall, and the Pi needs no
 >   `ART_ROOT` shared with anything, only a cache directory of its own.
 > - **After the wave-5 repo split**, the Player's deployment docs move to the
->   player repository along with `postarr/`.
+>   player repository along with `arrt-player/`.
 >
 > Do not remove anything below before the wave that retires it has landed. The
 > cutover record, the power-key measurements and the e-paper pin are hardware
@@ -59,13 +59,14 @@ beside the house's other apps.
 
 **Two facts a deployment needs, found while building the image:**
 
-- **The art root must carry `ready/` and `thumbs/`, not only `raw/` and the
-  catalogue.** The catalogue records each render; until readiness checks that a
-  render's *file* exists (backlog #180), a catalogue without its
-  renders publishes works whose files are missing, and a Player on HTTP skips
-  every one of them (no file, no hash, no media).
-- **Renders recorded before the media route existed carry no content hash.**
-  They are hashed the first time a manifest names them, which needs the file.
+- **The art root must carry `presentation/` and `thumbs/`, not only `raw/` and
+  the catalogue.** A work is ready for a wall when its presentation master's
+  file can be read, so a catalogue without its masters keeps every work off
+  every wall, each named with why; the startup backfill makes them again from
+  `raw/`. *(Until wave 4g this named `ready/`, the server's composed canvases,
+  which nothing reads now.)*
+- **Masters recorded before the media route existed carry no content hash.**
+  They are hashed the first time a feed names them, which needs the file.
 
 ### A private source plugin
 
@@ -111,6 +112,10 @@ What installing a plugin trusts is `security-model.md` § Source plugins.
 
 ## The Player as a client of the NAS (2026-10-02, `build-plan-clients.md`)
 
+**To move a running Pi onto a newer revision**, follow
+`.prawduct/runbooks/moving-the-pi-player-to-a-new-revision.md`. The dated
+sections below are what each release added to that.
+
 **A Pi is a client of the server.** The server knows which walls each client
 shows and on which of its outputs. The Pi is configured with the server's
 address and its own token, and learns everything else from `GET /client`.
@@ -133,7 +138,7 @@ Then deploy (`bin/arrt-app.sh` in the homelab repo) and confirm `/healthz`.
 
     cd /opt/samsung-frame-art-loader
     sudo -u tvpi git fetch origin <branch or tag> && sudo -u tvpi git checkout -B <branch> FETCH_HEAD
-    cd postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     sudo cp -p ../.env ../.env.pre-clients-<date>      # the way back starts here
     # in .env: set SERVER_URL, CLIENT_TOKEN and CACHE_DIR; remove WALL_ID,
     # WALL_TOKEN and MANIFEST_SOURCE, which the client Player refuses by name
@@ -146,8 +151,8 @@ Clients or with `POST /api/walls/<wall_id>/client {client_id, output}`. The
 Player starts that wall within a poll (about 30 s).
 
 **The Frame is optional, and was left off on 2026-10-02.** `TV_ADDRESS` gives the
-client a `frame` output, and `EPD_DEVICE` (the label panel) is refused without
-it. Both are commented out in the Pi's `.env` while the set is being watched, so
+client a `frame` output, and `EPD_DEVICE` gives it a label output, `epd-0`, which
+needs no Frame: the server maps it to any wall. Both are commented out in the Pi's `.env` while the set is being watched, so
 the client reports only its HDMI connectors and nothing on the Pi can reach for
 the television.
 
@@ -178,6 +183,149 @@ the television.
    Pi ran before (`7e211f1`), `uv sync` as above, restore
    `.env.pre-clients-<date>`, install that revision's `deploy/display.service`,
    and start it again.
+
+## Displays and labels (2026-10-08, `build-plan-displays-and-label-outputs.md`)
+
+**Copy the catalogue before deploying this server.** Opening the catalogue
+gives every assigned wall a display record and drops `walls.client_id` and
+`walls.output`, so an older image cannot read it afterwards:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-displays-<timestamp>.sqlite"
+
+The way back is that copy and the previous image, together.
+
+**Either order works, and server first is the one to choose.** A new server
+reads an older Player's client heartbeat (the new keys are optional), and an
+older Player ignores the new keys in `GET /client`. A new Player against an old
+server is given no labels, so its panel draws nothing until the server is
+updated.
+
+**After the Player update, a panel draws nothing until it is mapped.** It is
+reported as the client's label output `epd-0`; caption a wall with it on
+Settings › Clients. `EPD_DEVICE` no longer needs `TV_ADDRESS`.
+
+## The Player renamed Arrt Player (2026-10-08, #311)
+
+**The Player's project moved from `postarr/` to `arrt-player/`, and its module
+from `postarr` to `arrt_player`.** The installed `display.service` names the old
+directory and module, so after pulling this it fails to start until it is
+replaced. The unit keeps its name. A virtualenv is not relocatable, so the old
+one is removed and the new directory gets a fresh one. That also clears the
+`jetson-gpio` overlap from #181 below, with no `--reinstall-package` needed.
+
+    sudo systemctl stop display.service
+    cd /opt/samsung-frame-art-loader
+    sudo -u tvpi git rev-parse HEAD    # write this down: "To go back" returns to it
+    # Both must start with / or ~. A relative one lives inside postarr/, so move
+    # it out and make it absolute in .env before going on; the Player now refuses
+    # to start on a relative one.
+    grep -nE '^(CACHE_DIR|TV_TOKEN_FILE)=' .env
+    grep -n postarr .env    # any hit names the old path: edit it
+    sudo -u tvpi git pull
+    # git moves the tracked files; postarr/ keeps only what was untracked.
+    # Lists every file left in it that is not a venv, a cache or bytecode.
+    # It must print nothing; stop if it prints anything:
+    find postarr -type f -not -path '*/.venv/*' -not -path '*/__pycache__/*' \
+        -not -path '*/.pytest_cache/*' -not -path '*/.ruff_cache/*' -not -path '*/.hypothesis/*'
+    sudo rm -rf postarr
+    cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader
+    sudo cp deploy/display.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl start display.service
+
+Logger names now start `arrt_player.`, so a saved journal filter on `postarr.`
+stops matching. **To go back**, stop the unit, check out the commit you wrote
+down, remove `arrt-player/`, run `uv sync --group raster --group epaper` in `postarr/`, copy that commit's
+`display.service` in, reload and start.
+
+## The panel's GPIO package (2026-10-08, #181)
+
+**On a Pi whose venv predates #181's fix, sync with `--reinstall-package
+rpi-gpio`.** `jetson-gpio` and `rpi-gpio` both installed `RPi/GPIO/__init__.py`;
+the sync removes `jetson-gpio`, and with it that file, so `rpi-gpio` has to be
+installed again to put the real one back:
+
+    cd arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper --reinstall-package rpi-gpio
+
+## Wave 4g: the walls move to manifest major 2 alone (2026-10-10)
+
+From wave 4g the server publishes each wall's feed (manifest major 2) and
+nothing else, and Arrt Player reads only that. The server runs on the NAS
+(§ The server on the NAS) and the Player on the Pi (§ The Player as a client of
+the NAS); every file named below is in the server's art root, not on the Pi.
+
+**Copy the catalogue before deploying this server.** Opening the catalogue
+drops the `directives` table, forgets every television canvas and the wall
+previews drawn from them, and drops `renditions.mat_hex`, so an older image
+cannot run on it afterwards:
+
+    sqlite3 <art root>/catalogue.sqlite ".backup <backups dir>/pre-4g-<timestamp>.sqlite"
+
+Deploy the server and the Player from the same revision; until both are up, a
+wall goes on showing the work it has. Then check, in this order:
+
+1. **The server forgot its canvases.** Its first start on a catalogue from
+   before wave 4g logs `Forgot N television canvases and previews drawn from
+   them, and dropped renditions.mat_hex; ART_ROOT/ready/ can be deleted.`, once
+   (N may be 0). A catalogue made after wave 4g never had them and says nothing.
+   `<art root>/ready/` and every `<art root>/theme-manifest-<wall>.json` without
+   `.v2` are now nothing's, and are yours to delete when you are satisfied.
+2. **The wall's Player reads the feed.** Its heartbeat lists major 2:
+
+       jq '.capabilities.manifest_majors' <art root>/display-heartbeat-"$WALL_ID".json
+
+   It should print `[2]`. Walls shows a line under the wall's name when a
+   Player cannot read the feed; there should be none.
+3. **The wall changes picture on its schedule.** The slot covering now names the
+   work up now (the feed writes every instant in UTC, so the strings compare):
+
+       now=$(date -u +%Y-%m-%dT%H:%M:%S+00:00)
+       jq --arg now "$now" '.schedule.slots[] | select(.from <= $now and $now < .until)' \
+           <art root>/theme-manifest-"$WALL_ID".v2.json
+
+**Settings.** The server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
+`MAT_BOTTOM_WEIGHT`; they are the Player's, under the same names, and stay in the
+Pi's `.env`. The Player no longer reads `ROTATION_INTERVAL_SECONDS` or
+`ROTATION_SHUFFLE`; they are the server's. Neither plane refuses the other's
+keys, so a shared `.env` needs no edit.
+
+**The way back** is the catalogue copy and the previous image together on the
+NAS, and the Pi's previous revision (`git rev-parse HEAD` before checking out
+the new one): a Player from before wave 4g reads major 1, which this server no
+longer writes, so the two go back as a pair.
+
+## Heartbeat minor 4, and the feed following its theme (2026-10-10)
+
+`build-plan-feed-follows-theme.md`. **Deploy the server first, then the
+Player.** The Player now sends `capabilities` without `screen` when its screen
+is unplugged, and a server from before this refuses that heartbeat, which would
+leave Walls reading the wall as silent until the server caught up. The other
+order is safe: the new server reads the old Player's heartbeats as before.
+
+On its first start the server publishes a feed for every wall that has a theme
+hung and none on disk, logging `Wall '<name>': published theme '<theme>', which
+had no feed on this wall (after startup).` The wave 4g deploy needed a re-hang
+by hand for this, and no longer does. Then check:
+
+1. **Walls shows no feed notice for a Player with its screen unplugged.** Its
+   heartbeat lists major 2 without a screen:
+
+       jq '.schema, .capabilities' <art root>/display-heartbeat-"$WALL_ID".json
+
+   It should print minor 4 and `manifest_majors: [2]`, with `screen` only while
+   the screen is connected.
+2. **A work added to the hung theme reaches the feed without a re-hang.** Add
+   one that can be shown, from Library › Works; the server logs `Wall '<name>':
+   published theme '<theme>' with <id> joining (after joining its theme).`, and
+   the feed carries it whenever its three days of slots name it:
+
+       jq --arg id "$WORK_ID" '.works | has($id)' <art root>/theme-manifest-"$WALL_ID".v2.json
+
+**The way back** is the previous image on the NAS and the Pi's previous
+revision. Nothing in the catalogue changed, so no copy is needed; a server from
+before this refuses the new Player's screenless heartbeats, so the Player goes
+back first.
 
 ## The two new units, and where everything they name now lives
 
@@ -245,7 +393,7 @@ of what was run, in order, and it is the procedure for doing it again.
     sudo chown -R tvpi:tvpi /srv/art
 
     # dependencies, as the account that will run them
-    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
+    cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi /usr/local/bin/uv sync --group raster --group epaper
     cd /opt/samsung-frame-art-loader/arrt && sudo -u tvpi /usr/local/bin/uv sync
 
     # the environment file: 0640, owned by tvpi, because it carries API keys
@@ -336,11 +484,11 @@ authority. Names the table does not carry are never touched.
 Then **check the manifest actually carries the new fields**, because a restart
 that republished nothing looks identical to one that did:
 
-    sudo -u tvpi jq '.schema, .entries[0].label' /srv/art/theme-manifest-"$WALL_ID".json
+    sudo -u tvpi jq '.schema, (.works | to_entries[0].value.label)' /srv/art/theme-manifest-"$WALL_ID".v2.json
 
-`WALL_ID` is the wall this device serves, out of `.env` — there is one manifest
-per wall, and the display stats only its own. `ls /srv/art/theme-manifest-*.json`
-lists every room the catalogue publishes for.
+`WALL_ID` is a wall's id — there is one feed per wall. `ls /srv/art/theme-manifest-*.v2.json`
+lists every room the catalogue publishes for. *(Wave 4g: the `.json` files
+without `.v2` are major 1's, which nothing writes or reads now.)*
 
 ### Moving a running deployment onto a newer revision
 
@@ -377,14 +525,14 @@ at it as though it were the activation. The activation is the `POST` in
 
 ### Looking at the label without the daemon
 
-`postarr/tools/label_preview.py` renders the chain the daemon runs — metadata,
+`arrt-player/tools/label_preview.py` renders the chain the daemon runs — metadata,
 layout, Pango — so the type can be judged against real ink rather than imagined.
 Its own docstring points here for this machine's paths, because a checkout, a
 service account and its home are facts about a deployment and do not belong in a
 source file:
 
     sudo systemctl stop display.service
-    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi env HOME=/var/lib/tvpi \
+    cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi env HOME=/var/lib/tvpi \
         /usr/local/bin/uv run --group raster --group epaper \
         python tools/label_preview.py --panel --record hokusai
     sudo systemctl start display.service
@@ -421,14 +569,14 @@ does things.)
 
 ### Measuring what the power keys do
 
-`postarr/tools/power_probe.py` is the only thing in this repo that presses power on
+`arrt-player/tools/power_probe.py` is the only thing in this repo that presses power on
 the television. It exists because the transitions were never measured — the
 documents describing them call themselves a sketch — and Chunks 25–27 are built on
 what it records. This machine's paths, in the same shape as the label instrument
 above:
 
     sudo systemctl stop display.service
-    cd /opt/samsung-frame-art-loader/postarr && sudo -u tvpi env HOME=/var/lib/tvpi \
+    cd /opt/samsung-frame-art-loader/arrt-player && sudo -u tvpi env HOME=/var/lib/tvpi \
         /usr/local/bin/uv run python tools/power_probe.py
     # then, with somebody watching the set:
     ... python tools/power_probe.py --click --i-am-at-the-set
@@ -517,11 +665,12 @@ differently from the others, which is the point of having four rather than one.
 **Read the heartbeat rather than the wall.** `television_reachable: false` is a
 network or pairing problem; `television_showing_art: false` with the set awake
 means somebody is watching television and the plane is correctly leaving it alone;
-`has_label_surface: true` with `label_surface_working: false` is a panel that was
-configured and would not open — which costs the label and nothing else, and is a
-different fault from `has_label_surface: false`, which is a device that never had
-one. `label_surface_working: null` means nothing has been drawn yet, not that
-something failed.
+the wall heartbeat says nothing about the label panel any more
+(`has_label_surface: false`, `label_surface_working: null` on every wall): the panel
+is a label output of the client, reported in the client heartbeat on the server's
+Settings › Clients. There, `connected: false` is a panel that was configured and
+would not open, or whose last draw failed — which costs the label and nothing
+else — and a client with no `label_outputs` never had one.
 
 **A `last_error` of `null` and a `reported_at` that is not advancing is worse than
 an error**, because it means the daemon is not looping. Read it twice, a minute
@@ -540,7 +689,7 @@ or wheel on any modern Linux), and `epaper` is the panel driver (`omni_epd`, whi
 compiles Cython against the Broadcom SPI and GPIO libraries and installs on a
 Raspberry Pi and nowhere else). On the Pi:
 
-    cd postarr && uv sync --group raster --group epaper
+    cd arrt-player && uv sync --group raster --group epaper
 
 **A device with a television and no panel installs neither, and that is a
 supported deployment** — leave `EPD_DEVICE` empty in `.env` and the wall rotates
@@ -751,7 +900,7 @@ measured from what was inferred.)*
 Findings in `.prawduct/artifacts/platform-and-dependency-findings.md` § The
 television. Run it yourself after any change to the pins or the set's firmware:
 
-    python tv_api_check.py --image "$ART_ROOT/ready/<a 4K composite>.jpg"
+    python tv_api_check.py --image "<any 3840x2160 JPEG>"
 
 That exercises upload, callback registration, and a confirmed delete against the
 live set, touching only the image it uploads itself, and exits non-zero if any
@@ -801,7 +950,7 @@ The pin is applied on both install paths, because they resolve independently:
 
 - `requirements.txt` (the 2024 plane) carries an explicit `IT8951[rpi] @ …@9f13613`
   line beside `omni_epd`.
-- `postarr/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
+- `arrt-player/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
   which is the only mechanism that reaches a requirement written inside another
   package's metadata. **Verified resolving on the Pi 2026-08-07** — `uv lock`
   lands `it8951` on `9f13613` from the override rather than from upstream's

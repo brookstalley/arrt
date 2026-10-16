@@ -30,7 +30,10 @@ from arrt.library.sources.reading import Reader
 #:
 #: 1.1 added `ImageQuery.pages`, the pages a run's web search read.
 #: 1.2 added `SourceContext.data_dir`, a directory of the plugin's own on disk.
-API_VERSION: Final[tuple[int, int]] = (1, 2)
+#: 1.3 added the IIIF parsers (`ImageService`, `CanvasImage`, `manifest_images`,
+#: `manifest_metadata`), which a plugin may use and none must.
+#: 1.4 added `SourcePlugin.museum`, the name a curator knows the source by.
+API_VERSION: Final[tuple[int, int]] = (1, 4)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,3 +124,9 @@ class SourcePlugin:
     #: configured, then reaches a deployment fault naming the plugin and its
     #: reason, rather than a fetch of a page no fetcher can read.
     claims: Callable[[str], bool] | None = None
+    #: The museum or archive this plugin answers for, as a curator knows it
+    #: ("Tate", not `tate`), shown wherever Arrt names the source (1.4). One
+    #: line of plain text; anything else is refused at load and the plugin is
+    #: named by its id, as one that declares nothing is. Static, like `claims`:
+    #: a plugin that declines is still named by it.
+    museum: str | None = None

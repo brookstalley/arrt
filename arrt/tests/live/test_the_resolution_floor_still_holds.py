@@ -31,11 +31,12 @@ from pathlib import Path
 
 import pytest
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.dedup import clean_name
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources.artic import build_image_search
 
 pytestmark = pytest.mark.live_museum
@@ -61,10 +62,10 @@ USER_AGENT = "arrt test suite (+https://github.com/brookstalley/arrt)"
 #: proposed across six realistic intents.
 RESOLUTION_FLOOR = 5
 
-#: A fixed 42" geometry, matching the sibling live suite: the floor verdict has to
-#: mean something against a known panel, and it must not move when a deployment's
-#: television changes.
-BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
+#: The default quality minimum, matching the sibling live suite: the verdict has
+#: to mean something against a known number, and it must not move when a
+#: deployment's setting changes.
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 CORPUS = Path(__file__).resolve().parents[1] / "fixtures" / "phase_one_proposals.json"
 
@@ -93,7 +94,7 @@ def test_the_pipeline_still_resolves_at_least_the_floor():
     """The measurement the success criterion names, over the corpus it names.
 
     Counted the way the pipeline counts: a work resolves when an instance
-    survives the identity comparison *and* clears the display floor, which is
+    survives the identity comparison *and* meets the quality minimum, which is
     exactly the condition under which a selection is made and the work becomes
     reviewable. Instances that are found and refused, or found and too small, are
     not resolutions — treating them as such would report a rate a curator cannot
@@ -103,7 +104,7 @@ def test_the_pipeline_still_resolves_at_least_the_floor():
     a network fault must not read as the pipeline getting worse, which is the
     same distinction phase 2 draws between `unresolved` and unreachable.
     """
-    engine = PhaseTwoEngine(ImageSourcePool([build_image_search(user_agent=USER_AGENT)]), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([build_image_search(user_agent=USER_AGENT)]), profile=PROFILE)
     works = distinct_works()
     resolved, unreachable = [], []
     for title, artist in works:
@@ -112,7 +113,7 @@ def test_the_pipeline_still_resolves_at_least_the_floor():
         except ImageSearchFailure:
             unreachable.append(title)
             continue
-        if any(not entry.below_floor for entry in instances):
+        if any(not entry.below_minimum for entry in instances):
             resolved.append(title)
 
     assert not unreachable, f"the museum could not be asked about {len(unreachable)}: {unreachable}"

@@ -83,25 +83,7 @@ it is that a state indicator with no word is a bug at every viewport.
 
 ## Colour
 
-> **BOTH REVISED PALETTES ARE PROPOSALS, AND NEITHER IS IN `app.css` YET
-> (2026-08-10).** The two sections below are written in the completed tense
-> because they describe finished design decisions — but the values live only in
-> `prototypes/curation-ia-prototype.html`. At the time of writing `app.css` still
-> holds `--surface-1: #ffffff`, the light `--accent: #2f5068`, the dark `--accent:
-> #9dc0da`, and no `--warn` at all.
->
-> **So `var(--accent)` in the product today is blue, not bistre or gilt.** A
-> builder styling the next screen from these sections would reach for a token that
-> does not exist or get the colour the section says was replaced. They land, and
-> this notice comes out, in the chunk that touches the stylesheet — at which point
-> `test_design_tokens.py` covers them and this artifact's own Direction ("the
-> stylesheet is the source of truth for token values") holds again rather than
-> being contradicted by the paragraphs under it.
->
-> Every value below was checked at AA by hand against the same formula the token
-> test uses. That is weaker than the test and is not a substitute for it.
-
-### The light scheme is a gallery wall, not a page *(revised 2026-08-10, proposed)*
+### The light scheme is a gallery wall, not a page *(revised 2026-08-10)*
 
 The first light palette read as software. The operator's verdict — "very tech,
 needs to be more museum; dark theme is good" — is recorded here with the diagnosis,
@@ -121,7 +103,7 @@ had:**
   printed label. Primary buttons read as letterpress rather than as calls to
   action.
 
-### The dark scheme is a wood-panelled study *(revised 2026-08-10, second pass, proposed)*
+### The dark scheme is a wood-panelled study *(revised 2026-08-10, second pass)*
 
 The dark scheme survived the first revision untouched and then failed the same
 test one round later: *"still a bit too trendy tech, suspiciously like Claude's
@@ -184,19 +166,43 @@ test.
 
 ## Typography
 
-Unchanged, and it is a considered pairing rather than a default:
+*Rewritten 2026-10-08, when the owner chose the "Wall label" direction
+(`build-plan-wall-label.md`) and ruled that the client may use webfonts. The
+serif/sans split is unchanged. What changed is that each side now has a face of
+its own instead of whatever the operator's machine supplies.*
 
-- `--font-label` — `ui-serif, Georgia` — for headings, work titles and anything in
-  the voice of a museum label.
-- `--font-ui` — `system-ui` — for chrome, controls and data.
+- `--font-label`: **Newsreader**, an optical-size serif, falling back to
+  `ui-serif, Georgia`. Used for page names, work titles, section headings, a
+  work's description, and anything else in the voice of a museum label.
+- `--font-ui`: **Instrument Sans**, falling back to `system-ui`. Used for
+  chrome, controls and data.
 
-**No webfont, and this is a decision.** The curation plane is a loopback service on
-a Pi with no build step; a font file is a payload to serve, a licence to track, and
-a silent fallback when it fails. The serif/sans split does the identity work
-without one, and a system serif on the operator's machines is a real serif.
+**Webfonts, self-hosted: the owner's ruling, 2026-10-08.** This section used
+to refuse webfonts, for three reasons. Each is answered here rather than
+deleted, so the ruling can be challenged on its merits:
 
-Scale is 1.25 from a 16px base, `--text-xs` through `--text-2xl`, plus `--text-3xl`
-added for the Walls screen's single large heading.
+- *A payload to serve.* Two variable families in Latin and Latin Extended come
+  to about 600 KB on disk, and a page usually fetches the two upright Latin
+  files, about 190 KB, which are then revalidated rather than re-sent. The
+  owner judged that the identity is worth that cost on a home network.
+- *A licence to track.* Both families are under the SIL Open Font License.
+  Each family's `OFL.txt` sits beside its files in
+  `arrt/src/arrt/http/static/fonts/`, and that directory's `README.md` names
+  the package and version each file came from.
+- *A silent fallback when it fails.* That risk is real: `font-display: swap`
+  draws a page that looks like it works in the fallback face. It is made loud
+  by `arrt/tests/browser/test_the_typefaces.py`, which reads the browser's own
+  record of each face, and by `test_every_font_the_stylesheet_names_is_served_as_a_font`
+  in `arrt/tests/integration/test_browser_surface.py`.
+
+**No font CDN.** The files are served by the app's own `/static` mount. A CDN
+would put an outside request in front of every page of a home-network service,
+and leave the fallback face in front of a curator whose internet is down.
+
+Scale is 1.25 from a 16px base, `--text-xs` through `--text-2xl`, plus
+`--text-3xl` (2.5rem) used only for a page's `h1`. *(An earlier `--text-3xl`
+was added for a large Walls heading and removed with it on 2026-10-08. The new
+one is the same size on every page, Walls included.)*
 
 ## Spacing & Layout
 
@@ -218,24 +224,109 @@ tabs overflowed a 375px viewport — and the prototype reproduced the same failu
 at *tablet* width the moment the status label grew. A top bar whose items cannot
 shrink will overflow again the next time a word gets longer.
 
+**The status indicator is the exception: it never shrinks below a whole word.**
+Below 40rem it shows its state in one word ("Well", "Unwell") and gives up no
+room; the search field shrinks first. The sentence naming what is wrong stays
+in it for a screen reader and is whole on Status. Ellipsized, it read "● W…",
+which is a state with no word (§ Visual Identity 3; #357, 2026-10-14).
+
 **Touch targets are keyed on the pointer, not the viewport.** `@media (pointer:
-coarse)` raises control heights to 2.75rem (44px). The 2.25rem default clears WCAG
-2.2 AA's 24px floor, but 44px is what every touch platform assumes, and a small
-window on a desktop still has a mouse — so viewport width is the wrong signal.
+coarse)` raises control heights to 2.75rem (44px). The 2.5rem default
+(`--control-h`) clears WCAG 2.2 AA's 24px floor, but 44px is what every touch
+platform assumes, and a small window on a desktop still has a mouse — so
+viewport width is the wrong signal.
 
 ## Component Patterns
 
-- **Buttons** — `.btn` default, `.primary` for the one committing action on a
-  screen, `.quiet` for dismissals, `.danger` for removal. At most one primary per
-  screen region: if two things are primary, neither is.
-- **Badges** — glyph + word + colour, never fewer than all three.
-- **Cards** — paper, not UI: 1px border, `--shadow-1`, 4px radius. The elevation is
-  barely there on purpose.
+*Rewritten 2026-10-08 (`build-plan-lists-settings-and-scale.md` Chunk 01, #287)
+to say what the stylesheet holds and to add the patterns the October review
+found ungoverned. The earlier text named `.btn`, `.primary` and `.danger`
+classes the client never had.*
+
+- **Headings** — one treatment per level. A page's `h1` is its name at
+  `--text-3xl` in the label serif, weight 500, on every page, Walls included.
+  *(Until 2026-10-08 it was `--text-lg`, because "the art on it is what is
+  large". Wall label takes the boxes away from a page's sections, and once they
+  are gone the page's name is what tells a curator where they are:
+  `build-plan-wall-label.md`, a DECISION the owner can veto.)* A section's `h2`
+  (`.panel h2`, a wall's title, an offered group) is `--text-xl` serif, weight
+  500. The confirmation's title is an `h2` and takes the same type. A filter rail's group names are small capitals in the UI
+  sans, a label rather than a section. Nothing else is a heading: an empty
+  page's lead sentence is a paragraph. **The first thing under a page's name
+  sits one gap below it** (the `h1`'s own margin), with no rule above it and
+  no padding of its own, whether it is a note, a section or an empty state. A
+  sub-heading inside a section that follows content of its own stands
+  `--space-5` clear of it *(2026-10-14, #360)*.
+- **Empty states** — one shape, `emptyState()` in `core/render.js`: the lead
+  (what is missing) in the label serif at `--text-md`, never larger than the page's `h1`, then a muted line saying
+  why or what fills it, then the way on as links or acts. No panel around it.
+  This is for a page whose list is empty. A section with nothing in it, on a
+  page that has other things, is one muted line under its heading.
+- **Buttons** — `.action` is an act, and a link offered at the same weight
+  wears its shape. Filled is the one committing act in a region: if two things
+  are filled, neither is. `.action.quiet` is every other act, set in the
+  text's ink in both schemes: the accent is the filled act's, focus's and the
+  lit page's, and quiet acts in it made every control in the dark scheme gilt
+  *(2026-10-14, #360)*. Hover tints toward
+  the act's own text colour. **A disabled act looks disabled**: no fill, muted
+  text, no hover, a not-allowed cursor. There is no destructive style:
+  removal is confirmed in words (`core/confirm.js`), and colour reaching the
+  reader before the label is the problem a red button would cause.
+- **Spacing** — a row of acts sits one step (`--space-4`) below whatever
+  precedes it, never flush: a paragraph, a facts list, another row. *(Until
+  2026-10-08 only `p + .row` was spaced, so the Artist page spaced its three
+  rows of acts three different ways.)* A row inside a flex column is spaced
+  by that column's gap. One line of words that says what pressing an act
+  costs or starts sits under that act, starting where it starts, small and muted
+  (`captioned`, `.act-caption`), and is read with it by a screen reader.
+  *(2026-10-14, #360:)* A row aligns its words on one baseline, so a sentence
+  sits level with a button's label and a bare act level with a captioned one;
+  a row of labelled fields aligns the boxes' edges instead. Whatever follows a
+  row sits one step below it too. An act set inside a line of words (a list
+  item, a sentence) keeps `--space-3` from them.
+- **Prose and tables** *(2026-10-14, #360)* — a paragraph is held to 70ch. A
+  table's first column starts on the page's left edge, where its headings and
+  prose start. A column of figures is right-aligned in tabular numerals
+  (`.num`), decided by `table()` from the values, so a table gains it the day a
+  count is added.
+- **Controls** *(2026-10-08)* — one height for every act and field,
+  `--control-h` (2.5rem), and a compact one, `--control-h-compact` (2rem),
+  for a menu's items. Under `@media (pointer: coarse)` both are 2.75rem.
+- **Cost** — a priced act's cost is never a boxed badge, because a box
+  beside a button reads as another button. It must plainly belong to its act
+  and plainly not be an act. A priced act carries "Cost: <tier>" as words
+  beside it. Ask's *Ask* spends without asking and says what each reply cost
+  after it ends, so it carries a caption saying that instead *(owner,
+  2026-10-08)*. The order-of-magnitude caption the owner asked for under a Get
+  from words ("About $0.01", "About $0.10", "About $1": the curator is
+  deciding between cents, dimes and dollars, not reading an exact bound) went
+  with that Get on 2026-10-09; it is the form to reach for if another act
+  wants one.
+- **Badges** — glyph + word + colour, never fewer than all three. **A glyph
+  has one meaning on every screen**, named in `core/glyphs.js`, where the word
+  carries the specifics and the glyph only the kind of state; a new meaning
+  gets a new glyph. **A badge appears only where its value varies**: a badge
+  every tile would carry ("native") is left off, and the exceptions show.
+- **Sections** *(Wall label, 2026-10-08)* — a part of a page (`.panel`) is set off
+  by a `--border-strong` rule above it and space below, never boxed. A bordered
+  panel on a tinted ground round every part of every page was what made the
+  client read as a form. Its heading is the second level (see Headings).
+- **Cards** — kept only where the card is a block of facts and acts about one
+  thing: a theme on the Themes index, a work under review. Paper, not UI: 1px
+  border, `--shadow-1`, 4px radius, elevation barely there on purpose. A work's
+  tile and an artist's poster are the thing itself and are not cards (Tiles).
 - **Tiles** — two densities (Posters, Overview; a Table view beside them) per `information-architecture.md`
   § Information Hierarchy. **Uniform row height in both**, which is a layout
   decision made for a behavioural reason: a grid of art that reflows as images
   arrive is the opposite of the identity, and the built client has already shipped
-  that bug.
+  that bug. *(Wall label, 2026-10-08.)* A work's tile and an artist's poster are
+  not cards: the picture sits on a `--surface-2` mat with `--shadow-art` under
+  it, and the label sits beneath on the page's ground. The label is at least
+  the height of its longest shape: its clamped lines (two of title, one of
+  artist, two of date and medium) and one badge row. That minimum is what makes
+  rows uniform; only a tile whose badges wrap is taller. Sizing rows to the tallest tile instead (`grid-auto-rows: 1fr`)
+  was tried and broke scroll restoration, because the page's length changed as
+  later pages arrived.
 - **Skeletons** occupy the final geometry rather than approximating it.
 
 ## Motion & Transitions
@@ -251,7 +342,7 @@ covers the skeleton pulse, which is the only ambient animation in the product.
 **The one motion rule that is about correctness rather than taste: a poll must
 never move focus.** The built surface shipped a two-second poll that stole focus on
 the single screen with a decision on it. Every live region added by the IA work —
-the run progress card, the status indicator, the conversation thread — updates
+the run progress card, the status indicator, Ask's thread — updates
 without touching focus.
 
 ## Platform Conventions

@@ -1,0 +1,343 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/200556187",
+ "type": "HumanMadeObject",
+ "identified_by": [
+  {
+   "type": "Identifier",
+   "content": "RP-T-1981-182-1",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type"
+    },
+    {
+     "id": "https://id.rijksmuseum.nl/22015218",
+     "type": "Type",
+     "notation": [
+      {
+       "@language": "nl",
+       "@value": "objectnummer"
+      },
+      {
+       "@language": "en",
+       "@value": "object number"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "Name",
+   "content": "Portret van Rembrandt",
+   "identified_by": [
+    {
+     "type": "Identifier",
+     "content": "1",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300456575",
+       "type": "Type"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417200",
+     "type": "Type"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type"
+    }
+   ],
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388256",
+     "type": "Language"
+    }
+   ]
+  },
+  {
+   "type": "Identifier",
+   "assigned_by": [
+    {
+     "type": "AttributeAssignment",
+     "assigned": [
+      {
+       "id": "https://id.rijksmuseum.nl/200377566",
+       "type": "HumanMadeObject"
+      }
+     ],
+     "assigned_property": "influenced_by"
+    }
+   ],
+   "content": "151",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300456575",
+     "type": "Type"
+    }
+   ]
+  }
+ ],
+ "produced_by": {
+  "type": "Production",
+  "technique": [
+   {
+    "id": "https://id.rijksmuseum.nl/2202942",
+    "type": "Type",
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "assigned_by": [
+       {
+        "type": "AttributeAssignment",
+        "assigned": [
+         "https://id.rijksmuseum.nl/200556187"
+        ],
+        "assigned_property": "influenced_by"
+       }
+      ],
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "notation": [
+     {
+      "@language": "en",
+      "@value": "etching"
+     },
+     {
+      "@language": "nl",
+      "@value": "etsen"
+     }
+    ],
+    "equivalent": [
+     {
+      "id": "http://vocab.getty.edu/aat/300053241",
+      "type": "Type"
+     }
+    ]
+   }
+  ],
+  "timespan": {
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "type": "Name",
+     "content": "1638",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388277",
+       "type": "Language"
+      }
+     ]
+    },
+    {
+     "type": "Name",
+     "content": "1638",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language"
+      }
+     ]
+    }
+   ],
+   "begin_of_the_begin": "1638-01-01T00:00:00Z",
+   "end_of_the_end": "1638-12-31T23:59:59Z"
+  },
+  "referred_to_by": [
+   {
+    "type": "LinguisticObject",
+    "content": "Rembrandt van Rijn",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388277",
+      "type": "Language"
+     }
+    ]
+   },
+   {
+    "type": "LinguisticObject",
+    "content": "Rembrandt van Rijn",
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300435416",
+      "type": "Type"
+     }
+    ],
+    "language": [
+     {
+      "id": "http://vocab.getty.edu/aat/300388256",
+      "type": "Language"
+     }
+    ]
+   }
+  ],
+  "part": [
+   {
+    "type": "Production",
+    "carried_out_by": [
+     {
+      "id": "https://id.rijksmuseum.nl/2103429",
+      "type": "Person",
+      "notation": [
+       {
+        "@language": "nl",
+        "@value": "Rembrandt van Rijn"
+       },
+       {
+        "@language": "en",
+        "@value": "Rembrandt van Rijn"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/ulan/500011051",
+        "type": "Person"
+       },
+       {
+        "id": "http://viaf.org/viaf/64013650",
+        "type": "Person"
+       },
+       {
+        "id": "https://rkd.nl/artists/66219",
+        "type": "Person"
+       },
+       {
+        "id": "http://www.wikidata.org/entity/Q5598",
+        "type": "Person"
+       }
+      ]
+     }
+    ],
+    "identified_by": [
+     {
+      "type": "Identifier",
+      "content": "1",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300456575",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "classified_as": [
+     {
+      "id": "http://vocab.getty.edu/aat/300404450",
+      "type": "Type"
+     }
+    ],
+    "technique": [
+     {
+      "id": "https://id.rijksmuseum.nl/2202348",
+      "type": "Type",
+      "notation": [
+       {
+        "@language": "nl",
+        "@value": "prentmaker"
+       },
+       {
+        "@language": "en",
+        "@value": "printmaker"
+       }
+      ],
+      "equivalent": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025164",
+        "type": "Type"
+       }
+      ]
+     }
+    ],
+    "referred_to_by": [
+     {
+      "type": "LinguisticObject",
+      "content": "Rembrandt van Rijn",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "printmaker: Rembrandt van Rijn",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "Rembrandt van Rijn",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435417",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388277",
+        "type": "Language"
+       }
+      ]
+     },
+     {
+      "type": "LinguisticObject",
+      "content": "prentmaker: Rembrandt van Rijn",
+      "classified_as": [
+       {
+        "id": "http://vocab.getty.edu/aat/300435416",
+        "type": "Type"
+       }
+      ],
+      "language": [
+       {
+        "id": "http://vocab.getty.edu/aat/300388256",
+        "type": "Language"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "shows": [
+  {
+   "id": "https://id.rijksmuseum.nl/202556187",
+   "type": "VisualItem"
+  }
+ ]
+}

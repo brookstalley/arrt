@@ -21,12 +21,6 @@ from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
-from arrt.library.discovery.conversation import (
-    ConversationFailure,
-    ConversationReply,
-    Suggestion,
-    ThreadTurn,
-)
 from arrt.library.discovery.engine import (
     EngineFailure,
     EngineSpend,
@@ -35,11 +29,11 @@ from arrt.library.discovery.engine import (
     WorkListRequest,
 )
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageSearchFailure
-from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryUnavailable
+from arrt.library.registry import RegistryArtist, RegistryTopicsOf, RegistryTopicWorksStage, RegistryUnavailable
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
 from arrt.library.sources.reading import FetchLocator
-from arrt.persistence.discovery_records import SpendCategory
+from arrt.persistence.discovery_records import RunStatus, SpendCategory
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 #: Titles that are actually distinct works by one artist, so a run built from
@@ -100,6 +94,13 @@ def a_work_list(count: int = 3, *, searches: int = 1, artist: str | None = "Salv
     return WorkList(works=works(count, artist=artist), spend=spent(searches=searches))
 
 
+#: How long `FakeEngine` waits at a closed gate before failing the run. A
+#: surface that blocked on phase 1 answers no sooner than this, so a test telling
+#: "answered" from "waited" bounds itself by a fraction of it, never by the
+#: wall-clock speed of a round trip, which is the machine's load (#365).
+GATE_SECONDS = 20.0
+
+
 @dataclass
 class FakeEngine:
     """Answers with whatever it was built to answer, and records what it was asked.
@@ -126,7 +127,7 @@ class FakeEngine:
         if self.gate is not None:
             # Bounded so a test that forgets to release the gate fails as a test
             # rather than hanging the suite.
-            assert self.gate.wait(timeout=20), "the fake engine was never released"
+            assert self.gate.wait(timeout=GATE_SECONDS), "the fake engine was never released"
         if self.error is not None:
             raise self.error
         return self.result
@@ -342,74 +343,6 @@ def a_collection_holding(**by_artist: Sequence[str]) -> FakeCollectionBrowse:
     return FakeCollectionBrowse(holdings=holdings)
 
 
-@dataclass
-class FakeConversationEngine:
-    """Answers whatever it was built to answer, and records the thread it was given.
-
-    Here for the same reason `FakeEngine` is: the interesting cases are a turn
-    that fails after being billed, a turn that fails before being billed, and a
-    deployment with no key at all — none of which can be provoked reliably or
-    cheaply against a live API, and two of which cost money to provoke at all.
-
-    `threads` is what makes the multi-turn claim testable at this level: an
-    engine that saw only the last question would answer identically, and the
-    whole point of a conversation is that it does not.
-    """
-
-    reply: str = "Rothko's colour fields would suit a calm wall."
-    suggested: Sequence[Suggestion] = ()
-    #: What a turn costs. A real measured figure rather than a round number: this
-    #: is what the `conversation_tokens` row is asserted against, and a fixture
-    #: priced at $1 would let an arithmetic error look right.
-    cost_usd: Decimal = Decimal("0.00001896")
-    error: ConversationFailure | None = None
-    reason: str | None = None
-    threads: list[Sequence[ThreadTurn]] = field(default_factory=list)
-
-    @property
-    def unavailable_reason(self) -> str | None:
-        return self.reason
-
-    def answer(self, thread: Sequence[ThreadTurn]) -> ConversationReply:
-        self.threads.append(tuple(thread))
-        if self.error is not None:
-            raise self.error
-        return ConversationReply(
-            text=self.reply,
-            spend=(
-                EngineSpend(
-                    category=SpendCategory.CONVERSATION_TOKENS,
-                    cost_usd=self.cost_usd,
-                    model_id="fake/deterministic-v1",
-                    input_tokens=528,
-                    output_tokens=24,
-                ),
-            ),
-            suggested=tuple(self.suggested),
-            model_id="fake/deterministic-v1",
-        )
-
-
-def a_billed_failure(message: str = "The model returned no usable answer.") -> ConversationFailure:
-    """A turn that reached the provider, was billed, and could not be read.
-
-    The case the ledger exists for: the month total must include what a failure
-    cost, or it under-reports by exactly the amount the failures cost.
-    """
-    return ConversationFailure(
-        message,
-        spend=(
-            EngineSpend(
-                category=SpendCategory.CONVERSATION_TOKENS,
-                cost_usd=Decimal("0.00011843"),
-                model_id="fake/deterministic-v1",
-                input_tokens=39,
-                output_tokens=902,
-            ),
-        ),
-    )
-
-
 class FakeRegistry:
     """A `Registry` answering from tables, which remembers what it was asked.
 
@@ -492,6 +425,10 @@ class FakeRegistry:
         #: Each `topics_of` call: the work QIDs and the artist QIDs asked about.
         self.topics_asked: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
         self.topic_sections_asked: list[tuple[str, str]] = []
+        #: Set to an Event to answer a topic's works in two stages, as Wikidata
+        #: does: the ranked works at once, and their makers only once it is set.
+        #: None answers in one complete stage.
+        self.makers_gate: threading.Event | None = None
 
     def _check(self):
         if self.failing:
@@ -559,6 +496,18 @@ class FakeRegistry:
         self.topic_sections_asked.append(("works", topic.qid))
         return self.topic_works_of.get(topic.qid, [])[:limit]
 
+    def topic_works_in_stages(self, topic, *, limit):
+        works = tuple(self.topic_works(topic, limit=limit))
+        gate = self.makers_gate
+        if gate is not None and works:
+            yield RegistryTopicWorksStage(
+                works=tuple(replace(work, creators=(), creator_unknown=False) for work in works), complete=False
+            )
+            # Bounded, so a test that fails before setting it cannot wedge a server worker.
+            gate.wait(timeout=10)
+            self._check()
+        yield RegistryTopicWorksStage(works=works, complete=True)
+
     def topic_artists(self, topic, *, limit):
         self._check()
         self.topic_sections_asked.append(("artists", topic.qid))
@@ -595,6 +544,13 @@ class NothingWanted:
         return frozenset()
 
 
+class NothingWaiting:
+    """An `AwaitingReview` for a test about something else: no proposed work waits for a verdict."""
+
+    def works_awaiting_review(self):
+        return ()
+
+
 def a_roster(*finders, collection=None) -> SourceRoster:
     """The plugins a test's services are built over: these finders, this collection,
     and the Art Institute's reader, as the shared `sources` fixture has it."""
@@ -614,3 +570,14 @@ def take_the_picture_away(art_root, preview_path: str) -> None:
     assert tiers, f"no kept picture at {preview_path}, so taking it away would test nothing"
     for tier in tiers:
         tier.unlink()
+
+
+def stored_awaiting_approval(store, run_id: str) -> str:
+    """Put a run where the retired approval gate left runs, as a file written before 2026-10-07 holds one.
+
+    Written to the store directly, because nothing in the service puts a run
+    there now; `approve` and `decline` still answer one.
+    """
+    run = store.get_run(run_id)
+    store.update_run(replace(run, status=RunStatus.AWAITING_APPROVAL, approval_required=True, completed_at=None))
+    return run_id

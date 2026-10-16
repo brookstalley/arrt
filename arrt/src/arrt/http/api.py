@@ -22,55 +22,72 @@ that safe.
 """
 
 import logging
-from typing import Annotated, Literal
+from collections.abc import Sequence
+from datetime import datetime
+from decimal import Decimal
+from pathlib import Path
+from typing import Annotated, Any, Final, Literal
 
 from fastapi import APIRouter, Query, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from arrt.http.models import (
     AcquisitionQueueOut,
     AcquisitionStateOut,
+    AddLabel,
     AddWork,
     AffinityListOut,
     AffinityOut,
+    ArchivedWorksOut,
     ArtistCandidateOut,
     ArtistListOut,
     ArtistOut,
     ArtistRegistryOut,
-    ArtworkBoxOut,
+    AssignDisplay,
     AssignWall,
     BackupOut,
+    BudgetOut,
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
+    CauseWorksOut,
     ClientHeartbeatOut,
     ClientListOut,
+    ClientNameOut,
     ClientOut,
     ClientTokenOut,
     ClientWallOut,
-    CommitDirection,
-    ConversationDeletionOut,
-    ConversationListOut,
-    ConversationOut,
-    ConversationTurnOut,
-    ConversationViewOut,
+    CostTiersOut,
     CreateTheme,
     CreateWall,
-    DirectiveOut,
+    DisplayFaultOut,
+    DisplayOut,
+    DisplayStateOut,
     EstimateOut,
+    ExcludedWorkListOut,
+    ExcludedWorkOut,
     ExclusionOut,
     FacetGroupOut,
     FacetOptionOut,
+    FailureCauseOut,
+    FailureCausesOut,
     FitOut,
     GetOut,
+    HangSelection,
     HangTheme,
     HealthOut,
     HeartbeatOut,
     HeldArtistOut,
     HeldTopicOut,
+    HistoryEventOut,
+    HistoryPageOut,
     ImageOut,
+    InReviewOut,
     InstanceListingOut,
     InstanceOut,
+    LabelAssignmentOut,
+    LabelOutputOut,
+    LastShownOut,
     LookOut,
     LookPictureOut,
     LookSourceOut,
@@ -79,11 +96,16 @@ from arrt.http.models import (
     MatColorOut,
     MoveWork,
     NameClient,
+    NextOut,
+    NotAgainOut,
+    NotAgainRequest,
+    OfferedTopicOut,
     OriginalOut,
     PickItem,
     PicturesOut,
     QueuedWorkOut,
     QueuePauseOut,
+    RefusedRetryOut,
     RegistryCreatorOut,
     RegistryHolderOut,
     RegistryHoldingOut,
@@ -94,17 +116,23 @@ from arrt.http.models import (
     RegistryWorkPageOut,
     RenameTheme,
     RenditionOut,
+    ReportedLabelOutputOut,
     ReportedOutputOut,
+    ReportedStateOut,
+    RetryCause,
+    RetryCauseOut,
     RunListOut,
     RunOut,
     RunTallyOut,
     RunViewOut,
-    SampleOut,
+    ScreenSizeOut,
     SearchUsageOut,
     SelectedImageOut,
     SelectImage,
     SetAffinity,
     SetIdentity,
+    SetMatMode,
+    SetPlayback,
     SetVerdict,
     SightingHostOut,
     SightingHostsOut,
@@ -114,18 +142,20 @@ from arrt.http.models import (
     SourceOut,
     SourcePluginOut,
     SourcesOut,
-    Speak,
+    SourceYieldOut,
+    SourceYieldsOut,
     SpendOut,
     StartGet,
     StartResolve,
     StartRun,
-    StepDisplay,
-    SuggestionOut,
+    ThemeAdditionOut,
     ThemeDetailOut,
     ThemeListOut,
     ThemeOptionOut,
     ThemeOut,
     ThemePlacementOut,
+    ThemeRemovalOut,
+    ThemeSummaryOut,
     TopicArtistsOut,
     TopicFoundOut,
     TopicKindOut,
@@ -136,9 +166,11 @@ from arrt.http.models import (
     TopicWorkOut,
     TopicWorksOut,
     UnlinkedArtistOut,
+    UpcomingOut,
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
+    WallLabelOut,
     WallListOut,
     WallOut,
     WallRefOut,
@@ -151,51 +183,65 @@ from arrt.http.models import (
     WorkMatchOut,
     WorkOut,
     WorkPageOut,
+    WorkPlacementsOut,
+    WorkSelection,
+    WorksFilter,
 )
-from arrt.library.acquisition.queue import AcquisitionState, QueueListing, QueuePause
+from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
-from arrt.library.services.catalogue import FacetGroup, RenditionView
-from arrt.library.services.conversation import ConversationDeletion, ConversationView, TurnView
+from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment
 from arrt.library.services.look import LookPicture, LookView, SourceLook
+from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
-from arrt.library.services.taste import AffinityView
-from arrt.library.services.topics import TopicIndex, TopicPage
+from arrt.library.services.thumbnails import ThumbnailUnavailable
+from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
+from arrt.library.services.twins import InReview
+from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
+    Affinity,
     CandidateImage,
     CandidateWork,
-    Conversation,
     DiscoveryRun,
     InitiatedBy,
 )
 from arrt.persistence.records import (
     Artist,
     BackupReading,
-    Directive,
+    Display,
+    HistoryEvent,
     IdentitySetBy,
     MatColor,
     Original,
+    Showing,
     Source,
     Theme,
+    Wall,
     WorkFacet,
 )
-from arrt.programming.clients import ClientView
-from arrt.programming.display import ThemeCount, ThemePlacement, WallView
+from arrt.programming import shape
+from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
+from arrt.programming.display import UNSET, SizeJudgement, ThemeCount, ThemePlacement, WallView, feed_notice
+from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.programming.manifest.heartbeat import HeartbeatReading
+from arrt.services import works_filter
 from arrt.services.container import Services
+from arrt.services.errors import ServiceError
 from arrt.services.health import HealthReading, PicturesReading, SourceHealth
+from arrt.services.works_filter import FilterOption
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
-#: Thumbnails are revalidated rather than held for a fixed window. A replaced
-#: master regenerates the file under the same name, so a cached copy is a
+#: Thumbnails and wall previews are revalidated rather than held for a fixed
+#: window. A replaced master, or a recomposed canvas, regenerates the file under
+#: the same name, so a cached copy is a
 #: *superseded acquisition* on screen — the exact thing the staleness rule
 #: refuses everywhere else. The cost of that correctness is one conditional
 #: request per card, answered below with a 304 rather than the bytes.
@@ -246,6 +292,9 @@ def list_works(
     sort: Annotated[str | None, Query()] = None,
     artist_id: Annotated[str | None, Query()] = None,
     theme: Annotated[str | None, Query()] = None,
+    fit: Annotated[list[str] | None, Query()] = None,
+    not_on_wall: Annotated[bool, Query()] = False,  # noqa: FBT002 -- a query parameter FastAPI passes by name
+    shown: Annotated[str | None, Query()] = None,
 ) -> WorkPageOut:
     """A page of works with the facet controls for exactly this filter.
 
@@ -266,11 +315,29 @@ def list_works(
     them: Programming names the theme's works, and the Library lists them. An
     unknown theme is refused by name rather than ignored, because ignoring it
     would answer with the whole catalogue labelled as the theme's.
+
+    `fit` narrows to works whose size is in one of the bands named
+    (`meets_minimum`, `below_minimum`, or `unknown` for a work with no
+    master), `not_on_wall` to works no wall plays now, and `shown` to works
+    no wall has shown in a period (`never`, `month`, `quarter`, `year`,
+    `works_filter.SHOWN_PERIODS`). Each is counted like a facet, ignoring its
+    own selection, and every other count narrows by them
+    (`services/works_filter.py`).
     """
     services = _services(request)
-    within = None if theme is None else services.display.theme_work_ids(theme)
     chosen = {"artist": artist, "movement": movement, "era": era, "subject": subject, "medium": medium, "palette": palette}
     facets = {kind: values for kind, values in chosen.items() if values}
+    narrowing = works_filter.narrowing(
+        services,
+        status=status,
+        q=q,
+        facets=facets,
+        artist_id=artist_id,
+        theme=theme,
+        fit=fit or [],
+        not_on_wall=not_on_wall,
+        shown=shown,
+    )
     page = services.survey.list_works(
         status=status,
         q=q,
@@ -279,12 +346,11 @@ def list_works(
         offset=offset,
         sort=sort,
         artist_id=artist_id,
-        within=within,
+        within=narrowing.within(),
     )
     # The theme options, counted as the facets are, with the theme's own
     # selection ignored: the Library names what the other filters select, and
     # Programming counts each theme's members among them.
-    others = services.catalogue.matching_ids(status=status, q=q, facets=facets, artist_id=artist_id)
     return WorkPageOut(
         works=[_work(entry) for entry in page.entries],
         total=page.total,
@@ -292,8 +358,75 @@ def list_works(
         offset=page.offset,
         truncated=page.truncated,
         facets=[_facet_group(group) for group in page.facets],
-        themes=[_theme_option(option) for option in services.display.theme_counts(others, selected=theme)],
+        themes=[_theme_option(option) for option in services.display.theme_counts(narrowing.among(but="theme"), selected=theme)],
+        fits=[_option(option) for option in narrowing.fit_options()],
+        not_on_wall=_option(narrowing.off_wall_option()),
+        shown=[_option(option) for option in narrowing.shown_options()],
     )
+
+
+def _option(option: FilterOption) -> FacetOptionOut:
+    return FacetOptionOut(value=option.value, count=option.count, selected=option.selected, disabled=option.disabled)
+
+
+def _filtered_ids(services: Services, narrowing: WorksFilter) -> Sequence[str]:
+    """Every work `narrowing` selects, in the order its listing shows them.
+
+    Composed exactly as `list_works` composes it (`works_filter.narrowing`), so *Select all*
+    acts on the works the grid beside it is counting.
+    """
+    chosen = {
+        "artist": narrowing.artist,
+        "movement": narrowing.movement,
+        "era": narrowing.era,
+        "subject": narrowing.subject,
+        "medium": narrowing.medium,
+        "palette": narrowing.palette,
+    }
+    facets = {kind: values for kind, values in chosen.items() if values}
+    composed = works_filter.narrowing(
+        services,
+        status=narrowing.status,
+        q=narrowing.q,
+        facets=facets,
+        artist_id=narrowing.artist_id,
+        theme=narrowing.theme,
+        fit=narrowing.fit,
+        not_on_wall=narrowing.not_on_wall,
+        shown=narrowing.shown,
+    )
+    return services.catalogue.matching_ids_in_order(
+        status=narrowing.status,
+        q=narrowing.q,
+        facets=facets,
+        artist_id=narrowing.artist_id,
+        within=composed.within(),
+        sort=narrowing.sort,
+    )
+
+
+def _selected_ids(services: Services, selection: WorkSelection) -> Sequence[str]:
+    """The works a selection means, by id, with the ones it leaves out taken away."""
+    if (selection.artwork_ids is None) == (selection.filter is None):
+        raise ServiceError("Name the works either by their ids or by a filter, and not both.")
+    named = selection.artwork_ids if selection.artwork_ids is not None else _filtered_ids(services, selection.filter)
+    leaving = set(selection.except_ids)
+    return [artwork_id for artwork_id in dict.fromkeys(named) if artwork_id not in leaving]
+
+
+@router.post("/works/archive")
+def archive_works(request: Request, body: WorkSelection) -> ArchivedWorksOut:
+    """Archive a selection: by id, or every work a filter matches.
+
+    *Select all* on Artworks means every work the filter matches, loaded or
+    not, so the filter travels rather than the ids the screen happens to hold.
+    One transaction: an id the catalogue does not hold refuses the whole act.
+    A work already archived is passed over and counted.
+    """
+    services = _services(request)
+    ids = _selected_ids(services, body)
+    archived = services.catalogue.archive_artworks(ids)
+    return ArchivedWorksOut(archived=list(archived), already=len(ids) - len(archived))
 
 
 @router.get("/works/{artwork_id}")
@@ -313,9 +446,80 @@ def retry_acquisition(request: Request, artwork_id: str) -> AcquisitionStateOut:
 
 
 @router.get("/acquisitions")
-def list_acquisitions(request: Request) -> AcquisitionQueueOut:
-    """Every work the acquisition queue owes something, in the order it will try them, and its pause if any."""
-    return _acquisition_queue(_services(request).acquisition_queue.listing())
+def list_acquisitions(
+    request: Request,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> AcquisitionQueueOut:
+    """The queue's pause if any, then one page of the works still in line, in the order it will try them.
+
+    A work that failed or was given up on is listed under its cause instead
+    (`/acquisitions/causes`), so thousands of works failing for one reason are
+    one row there rather than thousands here; this answer counts them.
+    """
+    listing = _services(request).acquisition_queue.listing()
+    in_line = listing.in_line
+    limit, page = _queue_page(in_line, limit, offset)
+    return AcquisitionQueueOut(
+        pause=None if listing.pause is None else _queue_pause(listing.pause),
+        works=[_queued_work(entry) for entry in page],
+        total=len(in_line),
+        limit=limit,
+        offset=offset,
+        failing=len(listing.entries) - len(in_line),
+        causes=len(listing.causes),
+    )
+
+
+@router.get("/acquisitions/causes")
+def list_failure_causes(
+    request: Request,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> FailureCausesOut:
+    """Every reason the queue's failed works failed for, one row each with how many, the largest first.
+
+    Grouped by the reason's words with the work's own name taken out, so works
+    that failed the same way share a row whatever they are called.
+    """
+    causes = _services(request).acquisition_queue.listing().causes
+    limit, page = _queue_page(causes, limit, offset)
+    return FailureCausesOut(causes=[_failure_cause(each) for each in page], total=len(causes), limit=limit, offset=offset)
+
+
+@router.get("/acquisitions/causes/works")
+def list_cause_works(
+    request: Request,
+    cause: Annotated[str, Query()],
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> CauseWorksOut:
+    """One page of the works that failed for `cause`, worded as `/acquisitions/causes` words it.
+
+    A cause no work holds any more answers with no works rather than a refusal:
+    the group emptied because the queue tried them again, which is not an error.
+    """
+    group = next((each for each in _services(request).acquisition_queue.listing().causes if each.cause == cause), None)
+    entries = () if group is None else group.entries
+    limit, page = _queue_page(entries, limit, offset)
+    return CauseWorksOut(
+        cause=cause, works=[_queued_work(entry) for entry in page], total=len(entries), limit=limit, offset=offset
+    )
+
+
+@router.post("/acquisitions/causes/retry")
+def retry_failure_cause(request: Request, body: RetryCause) -> RetryCauseOut:
+    """A cause's Retry (Queue's *Retry 3*): every work that failed for `cause`, in one request, fetching nothing in it.
+
+    Each is put back in line as its own Retry would put it; one the queue
+    refuses (no source, being fetched now) is counted under why, naming no work.
+    """
+    result = _services(request).acquisition_queue.retry_cause(body.cause)
+    return RetryCauseOut(
+        cause=result.cause,
+        retried=result.retried,
+        refused=[RefusedRetryOut(reason=reason, works=count) for reason, count in result.refused.items()],
+    )
 
 
 @router.post("/works/{artwork_id}/wikidata")
@@ -396,7 +600,14 @@ def search_registry(
         state=str(found.state),
         note=found.note,
         artists=[
-            RegistryPersonFoundOut(qid=p.qid, name=p.label, born=p.born, died=p.died, artist_id=held_artists.get(p.qid))
+            RegistryPersonFoundOut(
+                qid=p.qid,
+                name=p.label,
+                born=p.born,
+                died=p.died,
+                artist_id=held_artists.get(p.qid),
+                in_review=_in_review(found.waiting_artists.get(p.qid)),
+            )
             for p in found.artists
         ],
         works=[
@@ -412,6 +623,7 @@ def search_registry(
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
                 wanted=w.qid in found.wanted_works,
+                in_review=_in_review(found.waiting_works.get(w.qid)),
             )
             for w in found.works
         ],
@@ -583,17 +795,42 @@ def get_topic_registry(request: Request, qid: str) -> TopicRegistryOut:
     )
 
 
-@router.get("/topics/{qid}/works")
-def get_topic_works(request: Request, qid: str) -> TopicWorksOut:
+#: The media type of a topic's works asked for as they arrive: one
+#: `TopicWorksOut` per line.
+NDJSON: Final[str] = "application/x-ndjson"
+
+
+@router.get("/topics/{qid}/works", responses={200: {"content": {NDJSON: {}}}})
+def get_topic_works(request: Request, qid: str) -> Response:
     """*Representative works*: the topic's most renowned works, each with what marks it: held, wanted, its image.
 
     Asked after the page is drawn: a period's works took 7 to 26 seconds to
     ask for. Always a 200 for a well-formed QID; a malformed one is a 400.
+
+    **Streamed when asked for as `application/x-ndjson`**: one `TopicWorksOut`
+    per line as each of Wikidata's answers lands, the works when their ranking
+    does and again with their makers, the last line `complete`. Streamed rather
+    than paged or polled because the answers are one request's work on the
+    server: a page or a poll would hold the half-answer somewhere between
+    requests, and a stream holds it nowhere. A kept answer is one complete line
+    at once. Anything else asking gets the last line alone, as JSON.
     """
-    view = _services(request).topics.works(qid)
+    stages = _services(request).topics.works_in_stages(qid)
+    if NDJSON not in request.headers.get("accept", ""):
+        last = next(stages)
+        for view in stages:
+            last = view
+        return JSONResponse(_topic_works(last).model_dump(mode="json"))
+    # A sync generator, so Starlette runs each step in its thread pool: the
+    # registry's questions block, and the event loop must not wait on them.
+    return StreamingResponse((_topic_works(view).model_dump_json() + "\n" for view in stages), media_type=NDJSON)
+
+
+def _topic_works(view: TopicWorksView) -> TopicWorksOut:
     return TopicWorksOut(
         state=str(view.state),
         note=view.note,
+        complete=view.complete,
         works=[
             TopicWorkOut(
                 qid=entry.work.qid,
@@ -641,6 +878,7 @@ def _topics(index: TopicIndex) -> TopicsOut:
             TopicKindOut(
                 kind=group.kind.value,
                 topics=[HeldTopicOut(qid=topic.qid, label=topic.label, works=topic.works) for topic in group.topics],
+                offered=[OfferedTopicOut(qid=offer.qid, label=offer.label) for offer in group.offered],
             )
             for group in index.groups
         ],
@@ -656,6 +894,10 @@ def _topic_page(page: TopicPage, works: list[WorkOut]) -> TopicPageOut:
         kinds=[kind.value for kind in page.kinds],
         works=works,
     )
+
+
+def _in_review(waiting: InReview | None) -> InReviewOut | None:
+    return None if waiting is None else InReviewOut(run_id=waiting.run_id, candidate_work_id=waiting.candidate_work_id)
 
 
 def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> ArtistRegistryOut:
@@ -682,6 +924,7 @@ def _artist_registry(view: RegistryView, *, artist_id: str | None = None) -> Art
                     image=entry.image,
                     held_artwork_ids=list(view.held.get(entry.qid, ())),
                     wanted=entry.qid in view.wanted,
+                    in_review=_in_review(view.waiting.get(entry.qid)),
                 )
                 for entry in known.works
             ]
@@ -721,8 +964,8 @@ def archive_work(request: Request, artwork_id: str) -> WorkDetailOut:
     label follows the route, and the control this binds to reads *Archive*.
 
     The work stays in every theme that holds it — membership is curatorial and
-    readiness is technical — so what changes is what the next manifest build puts
-    on a wall. A standing pin naming this work is withdrawn in the same
+    readiness is technical — and every wall's feed loses it as the archive
+    lands. A standing pin naming this work is withdrawn in the same
     transaction, without advancing the sequence; both rules belong to the
     catalogue service and are not restated here.
 
@@ -742,9 +985,8 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
     """Return an archived work to circulation.
 
     The undo of the route above, and its existence is what makes archiving an
-    ordinary act rather than a destructive one. Nothing is republished: a theme
-    holding this work carries it again at the next manifest build, so the wall
-    goes on showing what it was showing until then.
+    ordinary act rather than a destructive one. Every wall hanging a theme that
+    holds the work takes it back as the restore lands, if it can be shown.
     """
     services = _services(request)
     services.catalogue.restore_artwork(artwork_id)
@@ -757,7 +999,7 @@ def restore_work(request: Request, artwork_id: str) -> WorkDetailOut:
 @router.get("/themes")
 def list_themes(request: Request) -> ThemeListOut:
     """Every theme, and the walls each is hanging on."""
-    return ThemeListOut(themes=[_placement(placement) for placement in _services(request).display.survey_themes()])
+    return _theme_list(_services(request))
 
 
 @router.get("/themes/{theme_id}")
@@ -804,7 +1046,7 @@ def delete_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.delete_theme(theme_id)
-    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+    return _theme_list(services)
 
 
 @router.post("/themes/{theme_id}/default")
@@ -816,7 +1058,7 @@ def make_default_theme(request: Request, theme_id: str) -> ThemeListOut:
     """
     services = _services(request)
     services.display.make_default(theme_id)
-    return ThemeListOut(themes=[_placement(placement) for placement in services.display.survey_themes()])
+    return _theme_list(services)
 
 
 @router.post("/themes/{theme_id}/works")
@@ -833,9 +1075,30 @@ def add_to_theme(request: Request, theme_id: str, body: AddWork) -> ThemeDetailO
     return _theme_detail(services, theme_id)
 
 
+@router.post("/themes/{theme_id}/works/bulk")
+def add_selection_to_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeAdditionOut:
+    """Put a selection at the end of a theme, in the order its listing shows it.
+
+    The selection is by id or by a filter, so *Select all* on Artworks reaches
+    every work the filter matches rather than the ones loaded. Works the theme
+    already holds are passed over and counted; one transaction.
+    """
+    services = _services(request)
+    added, already = services.display.add_works_to_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeAdditionOut(added=added, already=already)
+
+
+@router.post("/themes/{theme_id}/works/remove")
+def remove_selection_from_theme(request: Request, theme_id: str, body: WorkSelection) -> ThemeRemovalOut:
+    """Take a selection out of a theme, by id or by a filter, and say which works left."""
+    services = _services(request)
+    removed = services.display.remove_works_from_theme(theme_id=theme_id, artwork_ids=_selected_ids(services, body))
+    return ThemeRemovalOut(removed=list(removed))
+
+
 @router.delete("/themes/{theme_id}/works/{artwork_id}")
 def remove_from_theme(request: Request, theme_id: str, artwork_id: str) -> ThemeDetailOut:
-    """Take a work out of a theme, and return the order that results."""
+    """Take a work out of a theme, and every wall hanging it, and return the order that results."""
     services = _services(request)
     services.display.remove_from_theme(theme_id=theme_id, artwork_id=artwork_id)
     return _theme_detail(services, theme_id)
@@ -865,8 +1128,9 @@ def activate_theme(request: Request, theme_id: str, body: HangTheme) -> Manifest
 
 @router.get("/walls")
 def list_walls(request: Request) -> WallListOut:
-    """Every wall, and what is hanging on each."""
-    return WallListOut(walls=[_wall(view) for view in _services(request).display.survey_walls()])
+    """Every wall, what is hanging on each, and where each is shown."""
+    services = _services(request)
+    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
 
 
 @router.post("/walls")
@@ -881,7 +1145,7 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     a second wall overwrote it silently.
     """
     services = _services(request)
-    return _wall(services.display.get_wall_view(services.display.add_wall(name=body.name).id))
+    return _wall(services, services.display.get_wall_view(services.display.add_wall(name=body.name).id))
 
 
 @router.post("/walls/{wall_id}/client")
@@ -894,7 +1158,67 @@ def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignm
     """
     services = _services(request)
     assignment = services.clients.assign_wall(wall_id, client_id=body.client_id, output=body.output)
-    return WallAssignmentOut(wall=_wall(services.display.get_wall_view(wall_id)), notice=assignment.notice)
+    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.post("/walls/{wall_id}/display")
+def assign_display(request: Request, wall_id: str, body: AssignDisplay) -> WallAssignmentOut:
+    """Show this wall on a display, by the display's id: one a client reported, wherever it now is.
+
+    Read-back-after-mutate, for the reason `clear_wall` gives.
+    """
+    services = _services(request)
+    assignment = services.clients.assign_display(wall_id, display_id=body.display_id)
+    return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.put("/walls/{wall_id}/mat")
+def set_mat_mode(request: Request, wall_id: str, body: SetMatMode) -> WallOut:
+    """Choose how this wall's Player draws the mat, or with null leave it to the Player.
+
+    Read-back-after-mutate, for the reason `clear_wall` gives. The wall's feed is
+    republished with the setting and nothing else in it moves.
+    """
+    services = _services(request)
+    services.display.set_mat_mode(wall_id, body.mode)
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
+@router.put("/walls/{wall_id}/playback")
+def set_playback(request: Request, wall_id: str, body: SetPlayback) -> WallOut:
+    """Choose how this wall plays its theme: pace, order and shapes (`SetPlayback`).
+
+    Read-back-after-mutate, for the reason `clear_wall` gives. The wall's feed is
+    republished at once, keeping the work on the wall now.
+    """
+    services = _services(request)
+    # A field the body leaves out is left as it is, and null is "the default" or
+    # "no limit": so a page that sets the shapes cannot put back a pace another
+    # surface set since that page was drawn.
+    sent = body.model_fields_set
+    services.display.set_playback(
+        wall_id,
+        **{field: getattr(body, field) if field in sent else UNSET for field in SetPlayback.model_fields},
+    )
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
+@router.post("/walls/{wall_id}/labels")
+def add_label(request: Request, wall_id: str, body: AddLabel) -> LabelAssignmentOut:
+    """Caption this wall with a client's label output, by the name the client reports. A wall may have several."""
+    services = _services(request)
+    assignment = services.clients.add_label(wall_id, client_id=body.client_id, output=body.output)
+    return LabelAssignmentOut(
+        wall=_wall(services, services.display.get_wall_view(wall_id)), label_id=assignment.label.id, notice=assignment.notice
+    )
+
+
+@router.delete("/walls/{wall_id}/labels/{label_id}")
+def remove_label(request: Request, wall_id: str, label_id: str) -> WallOut:
+    """Stop a label output captioning this wall. The label output stays recorded, captioning nothing."""
+    services = _services(request)
+    services.clients.remove_label(wall_id, label_id=label_id)
+    return _wall(services, services.display.get_wall_view(wall_id))
 
 
 @router.delete("/walls/{wall_id}/client")
@@ -902,7 +1226,7 @@ def unassign_wall(request: Request, wall_id: str) -> WallOut:
     """Take the wall off whichever client showed it. Its theme stays hung."""
     services = _services(request)
     services.clients.unassign_wall(wall_id)
-    return _wall(services.display.get_wall_view(wall_id))
+    return _wall(services, services.display.get_wall_view(wall_id))
 
 
 @router.delete("/walls/{wall_id}/theme")
@@ -919,7 +1243,124 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
     """
     services = _services(request)
     services.display.clear_wall(wall_id)
-    return _wall(services.display.get_wall_view(wall_id))
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
+@router.post("/walls/{wall_id}/selection")
+def hang_selection(request: Request, wall_id: str, body: HangSelection) -> ManifestOut:
+    """Hang one or more chosen works on this wall, until something else is hung there.
+
+    Answers with the build, as hanging a theme does: what reached the wall, and
+    every work that did not, with why.
+    """
+    return _manifest(_services(request).display.hang_selection(body.artwork_ids, wall_id=wall_id))
+
+
+@router.post("/walls/{wall_id}/not-again")
+def not_this_one_again(request: Request, wall_id: str, body: NotAgainRequest) -> NotAgainOut:
+    """*Not this one again*, from this theme (`scope=theme`) or from every wall (`scope=every_wall`).
+
+    From this theme takes the work out of what hangs on this wall. From every
+    wall keeps it off every wall until allowed again, and the work stays held.
+    Either way the walls carrying it lose it now. Answers with the wall as it
+    now stands, read back after the act, for the reason `clear_wall` gives.
+    """
+    services = _services(request)
+    done = services.display.not_this_one_again(body.artwork_id, wall_id=wall_id, scope=body.scope)
+    return NotAgainOut(
+        scope=str(done.scope),
+        artwork_id=done.artwork_id,
+        wall=_wall(services, services.display.get_wall_view(wall_id)),
+        left_theme=None if done.left_theme is None else _theme(done.left_theme),
+        excluded_at=None if done.exclusion is None else done.exclusion.excluded_at.isoformat(),
+    )
+
+
+@router.get("/exclusions")
+def list_exclusions(request: Request) -> ExcludedWorkListOut:
+    """Every work kept off every wall, oldest first. Each is still held."""
+    return _exclusions(_services(request))
+
+
+@router.delete("/exclusions/{artwork_id}")
+def allow_again(request: Request, artwork_id: str) -> ExcludedWorkListOut:
+    """Let a work kept off every wall go on walls again: the undo, from the work's page.
+
+    Every wall hanging a theme that holds the work takes it back now, as with a
+    restored work. Answers with the exclusions that remain.
+    """
+    services = _services(request)
+    services.display.allow_work(artwork_id)
+    return _exclusions(services)
+
+
+def _exclusions(services: Services) -> ExcludedWorkListOut:
+    return ExcludedWorkListOut(
+        exclusions=[
+            ExcludedWorkOut(artwork_id=exclusion.artwork_id, excluded_at=exclusion.excluded_at.isoformat())
+            for exclusion in services.display.excluded_works()
+        ]
+    )
+
+
+@router.get("/works/{artwork_id}/placements")
+def work_placements(request: Request, artwork_id: str) -> WorkPlacementsOut:
+    """Where a held work is: every theme holding it with the walls hanging each, and whether it is kept off every wall.
+
+    Selections (hidden themes) are included, because a selection is how a work
+    hangs on a wall by itself. The Work page's state strip reads this, and an
+    agent reaches the same facts through `art_theme`'s `list`, `get` and
+    `kept_off`. Refused for a work the catalogue does not hold.
+    """
+    services = _services(request)
+    services.catalogue.get_artwork(artwork_id)
+    placements = services.display.placements_of(artwork_id)
+    return WorkPlacementsOut(
+        artwork_id=artwork_id,
+        themes=[_placement(placement) for placement in placements.themes],
+        excluded_at=None if placements.exclusion is None else placements.exclusion.excluded_at.isoformat(),
+    )
+
+
+# -- history ------------------------------------------------------------------
+
+
+@router.get("/history")
+def list_history(
+    request: Request,
+    kind: Annotated[list[str] | None, Query()] = None,
+    wall_id: Annotated[str | None, Query()] = None,
+    limit: Annotated[int | None, Query()] = None,
+    offset: Annotated[int, Query()] = 0,
+) -> HistoryPageOut:
+    """What happened, newest first: Gets started and finished, verdicts, archives, restores, hangs.
+
+    `kind` repeats, and any of those named matches (`?kind=work.accepted&kind=
+    work.rejected`); none named is every kind. `wall_id` narrows to one wall's
+    history: what was hung there, and what was kept off from there. Events are
+    recorded from the day the history arrived, and nothing earlier is recovered.
+    """
+    page = _services(request).catalogue.list_events(kinds=kind or (), wall_id=wall_id, limit=limit, offset=offset)
+    return HistoryPageOut(
+        events=[_history_event(event) for event in page.events],
+        total=page.total,
+        # The service's default, stated so a reader can page without guessing it.
+        limit=DEFAULT_LIST_LIMIT if limit is None else limit,
+        offset=offset,
+    )
+
+
+def _history_event(event: HistoryEvent) -> HistoryEventOut:
+    return HistoryEventOut(
+        event_id=event.id,
+        kind=str(event.kind),
+        occurred_at=event.occurred_at.isoformat(),
+        artwork_id=event.work_id,
+        run_id=event.run_id,
+        wall_id=event.wall_id,
+        theme_id=event.theme_id,
+        detail=dict(event.detail or {}),
+    )
 
 
 # -- clients ------------------------------------------------------------------
@@ -928,14 +1369,15 @@ def clear_wall(request: Request, wall_id: str) -> WallOut:
 @router.get("/clients")
 def list_clients(request: Request) -> ClientListOut:
     """Every client, with its walls and what it last reported about its outputs."""
-    return ClientListOut(clients=[_client(view) for view in _services(request).clients.list_clients()])
+    return _clients(_services(request))
 
 
 @router.post("/clients")
 def add_client(request: Request, body: NameClient) -> ClientOut:
     """Record a client. It has no token until one is issued."""
     services = _services(request)
-    return _client(services.clients.get_client_view(services.clients.add_client(name=body.name).id))
+    added = services.clients.add_client(name=body.name)
+    return _client(services.clients.get_client_view(added.id), services.clients.placements.survey())
 
 
 @router.post("/clients/{client_id}")
@@ -943,7 +1385,7 @@ def rename_client(request: Request, client_id: str, body: NameClient) -> ClientO
     """Rename a client. Its token and its walls are unchanged."""
     services = _services(request)
     services.clients.rename_client(client_id, name=body.name)
-    return _client(services.clients.get_client_view(client_id))
+    return _client(services.clients.get_client_view(client_id), services.clients.placements.survey())
 
 
 @router.delete("/clients/{client_id}")
@@ -951,7 +1393,7 @@ def remove_client(request: Request, client_id: str) -> ClientListOut:
     """Forget a client. Its token stops working and its walls become unassigned."""
     services = _services(request)
     services.clients.remove_client(client_id)
-    return ClientListOut(clients=[_client(view) for view in services.clients.list_clients()])
+    return _clients(services)
 
 
 @router.post("/clients/{client_id}/token")
@@ -965,25 +1407,15 @@ def issue_client_token(request: Request, client_id: str) -> ClientTokenOut:
     return ClientTokenOut(client_id=issued.client_id, token=issued.token, token_issued_at=issued.issued_at.isoformat())
 
 
-@router.post("/directives")
-def step_display(request: Request, body: StepDisplay) -> DirectiveOut:
-    """Tell the display serving one wall to move on to the next work.
+@router.post("/walls/{wall_id}/next")
+def step_wall(request: Request, wall_id: str) -> NextOut:
+    """Move one wall on to the next work: the Walls screen's Skip.
 
-    **The Walls screen's `next`, and until now the one screen action with an MCP
-    action and no HTTP route at all.** `art_display(action='next')` has stepped a
-    wall since the tool surface was built; the browser could only ever *read*
-    `directive_sequence` off a manifest, so a curator standing in front of the
-    television had no way to do the one thing they were most likely to want.
-
-    The shape was left open while a directive was still a singleton, on the
-    grounds that writing an installation-wide route would be writing the shape
-    that had to change. It is per wall now, so the wall is named here as it is
-    named in every other act that changes one.
-
-    It returns the directive rather than the wall: what a step changes is what
-    the wall was told to do, and nothing about what hangs there.
+    A republish of the wall's feed starting now, so its Player shows the work
+    when it next reads the feed. The answer names that work; it is what was
+    published, not a report from the screen.
     """
-    return _directive(_services(request).display.step_display(body.wall_id))
+    return NextOut(wall_id=wall_id, work_id=_services(request).display.step_display(wall_id))
 
 
 # -- the wall -----------------------------------------------------------------
@@ -1033,6 +1465,28 @@ def get_sources(request: Request) -> SourcesOut:
     )
 
 
+@router.get("/sources/yields")
+def get_source_yields(request: Request) -> SourceYieldsOut:
+    """What each installed source plugin has given the library: offered, chosen, only here, median size.
+
+    Status's sources table reads it beside `GET /api/health`'s `sources`. Its own
+    route rather than a field of the health reading, because the top bar reads
+    that on every page and these are counts across the whole library.
+    """
+    return SourceYieldsOut(
+        sources=[
+            SourceYieldOut(
+                name=each.provider,
+                offered=each.offered,
+                chosen=each.chosen,
+                only_here=each.only_here,
+                median_long_edge=each.median_long_edge,
+            )
+            for each in _services(request).health.observe_yields()
+        ]
+    )
+
+
 # -- discovery runs -----------------------------------------------------------
 
 
@@ -1042,10 +1496,34 @@ def get_estimate(request: Request, run_id: Annotated[str | None, Query()] = None
 
     Answered without a run id for "what does asking cost", and with one for "what
     does resolving what this run found cost". Estimating spends nothing, which is
-    what lets the intent screen show the price beside the field rather than after
-    the decision.
+    what lets a Get's approval gate, and an agent over MCP, show the price before
+    the decision rather than after it.
     """
     return _estimate(_services(request).runner.estimate(run_id))
+
+
+@router.get("/budget")
+def get_budget(request: Request) -> BudgetOut:
+    """What is left of this month's budget, for the sidebar, read from the provider's key.
+
+    Always a 200: `state` says how the figure is known, or why there is none.
+    Display only, and up to a minute old; the provider's own refusal at its
+    limit is what stops spending. The tier boundaries ride along so every
+    spending control words its estimate the same way.
+    """
+    view = _services(request).budget.view()
+    return BudgetOut(
+        state=str(view.state),
+        remaining_usd=_usd(view.remaining_usd),
+        budget_usd=_usd(view.budget_usd),
+        spent_usd=_usd(view.spent_usd),
+        note=view.note,
+        tiers=CostTiersOut(cents_below_usd=str(CENTS_BELOW), dimes_below_usd=str(DIMES_BELOW)),
+    )
+
+
+def _usd(amount: Decimal | None) -> str | None:
+    return None if amount is None else str(amount)
 
 
 @router.post("/runs")
@@ -1081,7 +1559,7 @@ def start_get(request: Request, body: StartGet) -> GetOut:
     starts), and the Library starts the Get.
     """
     services = _services(request)
-    destination = None if body.theme_id is None else services.display.get_theme(body.theme_id).id
+    destination = None if body.theme_id is None else services.display.get_listed_theme(body.theme_id).id
     outcome = services.get.start(body.qids, initiated_by=InitiatedBy.WEB_UI, destination_theme_id=destination)
     return GetOut(
         run=None if outcome.run is None else _run(outcome.run),
@@ -1339,8 +1817,31 @@ def get_candidate_preview(
 
 
 @router.get("/works/{artwork_id}/thumbnail", response_class=FileResponse)
-def get_thumbnail(request: Request, artwork_id: str) -> Response:
-    """A small copy of the work's held image, generated on first ask.
+def get_thumbnail(
+    request: Request,
+    artwork_id: str,
+    size: Annotated[Literal["tile", "large"], Query()] = "tile",
+) -> Response:
+    """A small copy of the work itself, drawn from its master, generated on first ask.
+
+    What a library tile shows: the work at its own aspect, never the wall
+    render's mat and bars, which are the wall's and appear only on the Work
+    page (`get_wall_preview`). `size=large` is the same bare work in a box sharp
+    across Walls' lead picture on a 2x screen (`LARGE_THUMBNAIL_MAX_EDGE_PX`).
+    Any other value is refused rather than read as the default, so a misspelt
+    request is not quietly answered small.
+    """
+    return _revalidated_file(request, _services(request).thumbnails.thumbnail(artwork_id, large=size == "large"))
+
+
+@router.get("/works/{artwork_id}/wall-preview", response_class=FileResponse)
+def get_wall_preview(request: Request, artwork_id: str) -> Response:
+    """The work at a size the Work page's column draws sharply, drawn from its master."""
+    return _revalidated_file(request, _services(request).thumbnails.wall_preview(artwork_id))
+
+
+def _revalidated_file(request: Request, path: Path) -> Response:
+    """A cached image, answered with a 304 when the client already holds it.
 
     **The conditional check is done here because nothing else does it.**
     `FileResponse` *sets* an `ETag` and never *reads* one — only Starlette's
@@ -1352,7 +1853,6 @@ def get_thumbnail(request: Request, artwork_id: str) -> Response:
     Starlette itself would have produced rather than a second implementation of
     its formula.
     """
-    path = _services(request).thumbnails.thumbnail(artwork_id)
     headers = {"Cache-Control": THUMBNAIL_CACHE_CONTROL}
     response = FileResponse(path, media_type="image/jpeg", headers=headers, stat_result=path.stat())
     etag = response.headers.get("etag")
@@ -1403,11 +1903,56 @@ def service_error_response(message: str) -> JSONResponse:
 
 def _theme_detail(services: Services, theme_id: str) -> ThemeDetailOut:
     """A theme with its works, in curated order."""
+    theme = services.display.get_theme(theme_id)
     return ThemeDetailOut(
-        theme=_theme(services.display.get_theme(theme_id)),
+        theme=_theme(theme),
         # Two calls composed, as the MCP binding composes them: Programming's
         # order, and the Library's account of each work.
         works=[_work(entry) for entry in services.survey.survey_works(services.display.theme_work_ids(theme_id))],
+        too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
+        sizes_unjudged={
+            name: judgement.unjudged.value
+            for name, judgement in services.display.size_judgements(theme_id).items()
+            if judgement.unjudged is not None
+        },
+    )
+
+
+#: How many pictures a Themes index card draws. Enough to say what a theme looks
+#: like at a glance, few enough that ten cards fit on one screen.
+THEME_CARD_PICTURES = 4
+
+
+def _theme_list(services: Services) -> ThemeListOut:
+    """Every theme the index lists, each with what its card shows.
+
+    Two planes composed, as `_theme_detail` composes them: Programming names
+    each theme's works in order, and the Library says which of them has a
+    picture. The pictures are looked for in curated order and the search stops
+    at the fourth. What bounds the cost is the membership read, one per theme,
+    plus one picture check per work until four are found: a few checks for a
+    theme whose works hold images, and one per work only for a theme where
+    almost none do. No work is surveyed in full, which is what reading every
+    theme's detail would cost.
+    """
+    return ThemeListOut(themes=[_summary(services, placement) for placement in services.display.survey_themes()])
+
+
+def _summary(services: Services, placement: ThemePlacement) -> ThemeSummaryOut:
+    work_ids = services.display.theme_work_ids(placement.theme.id)
+    pictured: list[str] = []
+    for work_id in work_ids:
+        if len(pictured) == THEME_CARD_PICTURES:
+            break
+        try:
+            services.thumbnails.tile_source(work_id)
+        except ThumbnailUnavailable:
+            continue
+        pictured.append(work_id)
+    return ThemeSummaryOut(
+        **_placement(placement).model_dump(),
+        work_count=len(work_ids),
+        picture_ids=pictured,
     )
 
 
@@ -1440,7 +1985,6 @@ def _work(survey: WorkSurvey) -> WorkOut:
         fit_note=survey.fit_note,
         image=ImageOut(
             available=survey.image.available,
-            source_kind=survey.image.source_kind,
             note=survey.image.note,
         ),
     )
@@ -1475,11 +2019,26 @@ def _queue_pause(pause: QueuePause) -> QueuePauseOut:
     return QueuePauseOut(condition=pause.condition, detail=pause.detail, since=pause.since.isoformat(), remedy=pause.remedy)
 
 
-def _acquisition_queue(listing: QueueListing) -> AcquisitionQueueOut:
-    return AcquisitionQueueOut(
-        pause=None if listing.pause is None else _queue_pause(listing.pause),
-        works=[QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state)) for entry in listing.entries],
-    )
+def _queued_work(entry: QueueEntry) -> QueuedWorkOut:
+    return QueuedWorkOut(title=entry.title, acquisition=_acquisition(entry.state))
+
+
+def _failure_cause(group: FailureCause) -> FailureCauseOut:
+    return FailureCauseOut(cause=group.cause, works=len(group.entries), failed=group.failed, gave_up=group.gave_up)
+
+
+def _queue_page[T](items: Sequence[T], limit: int | None, offset: int) -> tuple[int, Sequence[T]]:
+    """One page of a queue listing, at the service's default size and within its cap, as the other listings page.
+
+    The listing is built whole and sliced here: the queue owes a few thousand
+    works at most, and grouping by cause needs every one of them in hand.
+    """
+    resolved = DEFAULT_LIST_LIMIT if limit is None else limit
+    if not 1 <= resolved <= MAX_LIST_LIMIT:
+        raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved}.")
+    if offset < 0:
+        raise ServiceError(f"offset cannot be negative, got {offset}.")
+    return resolved, items[offset : offset + resolved]
 
 
 def _facet(facet: WorkFacet) -> WorkFacetOut:
@@ -1586,27 +2145,129 @@ def _theme(theme: Theme) -> ThemeOut:
         theme_id=theme.id,
         name=theme.name,
         description=theme.description,
-        rotation_interval_seconds=theme.rotation_interval_seconds,
-        shuffle=theme.shuffle,
         created_at=theme.created_at.isoformat(),
         is_default=theme.is_default,
+        hidden=theme.hidden,
     )
 
 
-def _wall(view: WallView) -> WallOut:
+def _wall(services: Services, view: WallView) -> WallOut:
+    survey = services.clients.placements.survey()
+    placement = survey.placement_of(view.wall)
     return WallOut(
         wall_id=view.wall.id,
         name=view.wall.name,
         created_at=view.wall.created_at.isoformat(),
         theme=None if view.hanging is None else _theme(view.hanging),
-        directive_sequence=view.directive.sequence,
-        pinned_work_id=view.directive.pinned_work_id,
-        client_id=view.wall.client_id,
-        output=view.wall.output,
+        reads_feed=view.reads_feed,
+        feed_notice=feed_notice(reads_feed=view.reads_feed),
+        client_id=None if placement.client is None else placement.client.id,
+        output=placement.output,
+        display_id=view.wall.display_id,
+        display=None if placement.display is None else _display(placement.display, survey),
+        labels=[
+            WallLabelOut(
+                label_id=label.id,
+                client_id=label.client_id,
+                client_name=survey.clients[label.client_id].name if label.client_id in survey.clients else "",
+                output=label.output,
+            )
+            for label in placement.labels
+        ],
+        display_state=_display_state(view.display_state),
+        mat_mode=view.wall.mat_mode,
+        rotation_interval_seconds=view.wall.rotation_interval_seconds,
+        shuffle=view.wall.shuffle,
+        **_shape_fields(view.wall),
+        **_size_fields(services.display.judge_sizes(view.wall.id)),
+        last_shown=None if view.last_shown is None else _last_shown(view.last_shown),
+        upcoming=[UpcomingOut(work_id=slot.work_id, starts_at=slot.start.isoformat()) for slot in view.upcoming],
     )
 
 
-def _client(view: ClientView) -> ClientOut:
+def _last_shown(showing: Showing) -> LastShownOut:
+    until = showing.ended_at if showing.ended_at is not None else showing.last_seen_at
+    return LastShownOut(
+        work_id=showing.work_id,
+        started_at=showing.started_at.isoformat(),
+        until=until.isoformat(),
+        ended=showing.ended_at is not None,
+    )
+
+
+def _shape_fields(wall: Wall) -> dict[str, Any]:
+    """The shapes a wall shows, as `WallOut` carries them: each bound spoken, and the range as a phrase."""
+    return {
+        "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
+        "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
+        "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
+    }
+
+
+def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
+    """A wall's size judgement as `WallOut` carries it: the works, and what they were judged against or why not."""
+    return {
+        "too_small": sorted(judgement.too_small),
+        "sizes_judged_against": (
+            None
+            if judgement.screen is None
+            else ScreenSizeOut(
+                width_px=judgement.screen[0],
+                height_px=judgement.screen[1],
+                shape=shape.spoken(judgement.screen[0] / judgement.screen[1]),
+            )
+        ),
+        "sizes_unjudged": None if judgement.unjudged is None else judgement.unjudged.value,
+    }
+
+
+def _display(display: Display, survey: PlacementSurvey) -> DisplayOut:
+    fault = survey.faults.get(display.identity)
+    wall = next((wall for wall in survey.walls if wall.display_id == display.id), None)
+    return DisplayOut(
+        display_id=display.id,
+        identity=display.identity,
+        kind=display.kind,
+        client_id=display.client_id,
+        output=display.output,
+        first_seen=display.first_seen.isoformat(),
+        wall_id=None if wall is None else wall.id,
+        fault=None if fault is None else _fault(fault),
+    )
+
+
+def _fault(fault: DisplayFault) -> DisplayFaultOut:
+    return DisplayFaultOut(
+        identity=fault.identity,
+        clients=[ClientNameOut(client_id=client.id, name=client.name) for client in fault.clients],
+        display_id=None if fault.display is None else fault.display.id,
+        wall_id=None if fault.wall is None else fault.wall.id,
+        description=fault.describe(),
+    )
+
+
+def _instant(moment: datetime | None) -> str | None:
+    return None if moment is None else moment.isoformat()
+
+
+def _display_state(shown: DisplayState) -> DisplayStateOut:
+    last = shown.last
+    return DisplayStateOut(
+        state=str(shown.state),
+        work_id=shown.work_id,
+        since=_instant(shown.since),
+        reported_at=_instant(shown.reported_at),
+        age_seconds=shown.age_seconds,
+        last=None if last is None else ReportedStateOut(state=str(last.state), work_id=last.work_id, since=_instant(last.since)),
+    )
+
+
+def _clients(services: Services) -> ClientListOut:
+    survey = services.clients.placements.survey()
+    return ClientListOut(clients=[_client(view, survey) for view in services.clients.list_clients()])
+
+
+def _client(view: ClientView, survey: PlacementSurvey) -> ClientOut:
     client = view.client
     reading = view.heartbeat
     return ClientOut(
@@ -1614,8 +2275,12 @@ def _client(view: ClientView) -> ClientOut:
         name=client.name,
         created_at=client.created_at.isoformat(),
         token_issued_at=None if client.token_issued_at is None else client.token_issued_at.isoformat(),
-        # Every wall a client listing holds is assigned, so it has an output.
-        walls=[ClientWallOut(wall_id=wall.id, name=wall.name, output=wall.output or "") for wall in view.walls],
+        walls=[ClientWallOut(wall_id=shown.wall.id, name=shown.wall.name, output=shown.display.output) for shown in view.walls],
+        displays=[_display(display, survey) for display in view.displays],
+        label_outputs=[
+            LabelOutputOut(label_id=label.id, output=label.output, wall_id=label.wall_id) for label in view.label_outputs
+        ],
+        faults=[_fault(fault) for fault in view.faults],
         heartbeat=ClientHeartbeatOut(
             reported_at=None if reading.reported_at is None else reading.reported_at.isoformat(),
             age_seconds=reading.age_seconds,
@@ -1628,18 +2293,20 @@ def _client(view: ClientView) -> ClientOut:
                     kind=output.kind,
                     connected=output.connected,
                     screen=None if output.screen is None else list(output.screen),
+                    identity=output.identity,
                 )
                 for output in reading.outputs
             ],
+            label_outputs=[
+                ReportedLabelOutputOut(
+                    name=label.name,
+                    kind=label.kind,
+                    connected=label.connected,
+                    size=None if label.size is None else list(label.size),
+                )
+                for label in reading.label_outputs
+            ],
         ),
-    )
-
-
-def _directive(directive: Directive) -> DirectiveOut:
-    return DirectiveOut(
-        wall_id=directive.wall_id,
-        sequence=directive.sequence,
-        pinned_work_id=directive.pinned_work_id,
     )
 
 
@@ -1660,7 +2327,6 @@ def _manifest(build: ManifestBuild) -> ManifestOut:
                 artwork_id=entry.work_id,
                 title=entry.label.get("title") or "",
                 artist=entry.label.get("artist"),
-                render_path=entry.render_path,
             )
             for entry in build.entries
         ],
@@ -1676,8 +2342,6 @@ def _manifest(build: ManifestBuild) -> ManifestOut:
         considered=build.considered,
         rotation_interval_seconds=build.rotation_interval_seconds,
         shuffle=build.shuffle,
-        directive_sequence=build.directive_sequence,
-        pinned_work_id=build.pinned_work_id,
         # The build's own sentence, not a second one written here: the tool
         # surface states the same fact, and two hand-written versions drift.
         summary=build.summarise(),
@@ -1746,11 +2410,13 @@ def _candidate_work(work: CandidateWork) -> CandidateWorkOut:
         provenance=str(work.provenance),
         offered_for_artist=work.offered_for_artist,
         offered_artist_matched=work.offered_artist_matched,
+        offered_by=work.offered_by,
         wikidata_qid=work.wikidata_qid,
         verdict=str(work.verdict),
         decided=work.verdict.is_terminal,
         resolution_status=str(work.resolution_status),
         unresolved_reason=None if work.unresolved_reason is None else str(work.unresolved_reason),
+        confirmation=str(work.confirmation),
     )
 
 
@@ -1896,6 +2562,7 @@ def _estimate(estimate: Estimate) -> EstimateOut:
         # it: a price through binary floating point comes back as
         # 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
     )
@@ -1919,7 +2586,6 @@ def _health(reading: HealthReading) -> HealthOut:
         ],
         description=reading.describe(),
         backup=_backup(reading.backup),
-        artwork_box=_artwork_box(reading.artwork_box),
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
     )
@@ -1939,6 +2605,7 @@ def _source_plugin(health: SourceHealth) -> SourcePluginOut:
     reading = health.reading
     return SourcePluginOut(
         name=reading.name,
+        museum=museum_name(reading.name, reading.identity.museum),
         state=reading.state.value,
         reason=reading.reason,
         faults=reading.faults,
@@ -2011,161 +2678,16 @@ def _look_picture(picture: LookPicture) -> LookPictureOut:
         width=found.estimated_width,
         height=found.estimated_height,
         fit=_fit(judged.fit),
-        below_floor=judged.below_floor,
+        below_minimum=judged.below_minimum,
         confidence=judged.confidence,
         rights_status=None if found.rights_status is None else str(found.rights_status),
         selection_rationale=judged.rationale,
     )
 
 
-def _fit(fit: FitAssessment) -> FitOut:
-    """A display-fit verdict as every surface that shows one carries it: the work, a scan, a registry picture."""
-    return FitOut(
-        verdict=str(fit.fit),
-        rendered_width=fit.rendered_width,
-        rendered_height=fit.rendered_height,
-        rendered_long_edge_inches=fit.rendered_long_edge_inches,
-    )
-
-
-def _artwork_box(box: ArtworkBox) -> ArtworkBoxOut:
-    return ArtworkBoxOut(
-        width=box.width,
-        height=box.height,
-        pixels_per_inch=box.pixels_per_inch,
-        floor_inches=box.floor_inches,
-    )
-
-
-# -- conversations ------------------------------------------------------------
-#
-# One block at the foot of the file rather than routes among the routes and
-# mappers among the mappers, and it is a merge decision rather than a taste one:
-# three chunks were appending to this module at once, and a block that touches no
-# existing line cannot conflict with the other two. Route registration is by
-# decorator at import, so position changes nothing about what is served.
-
-
-@router.get("/conversations")
-def list_conversations(request: Request) -> ConversationListOut:
-    conversations = _services(request).conversation.list_conversations()
-    return ConversationListOut(
-        conversations=[_conversation(conversation) for conversation in conversations],
-        count=len(conversations),
-    )
-
-
-@router.post("/conversations")
-def start_conversation(request: Request) -> ConversationViewOut:
-    """Open an empty thread.
-
-    No body, and nothing spent. A curator who opens a conversation and thinks
-    better of it has cost the household a row; the first question is a turn like
-    every other.
-    """
-    return _conversation_view(_services(request).conversation.start())
-
-
-@router.get("/conversations/{conversation_id}")
-def get_conversation(request: Request, conversation_id: str) -> ConversationViewOut:
-    return _conversation_view(_services(request).conversation.get(conversation_id))
-
-
-@router.post("/conversations/{conversation_id}/turns")
-def speak(request: Request, conversation_id: str, body: Speak) -> ConversationViewOut:
-    """Ask something, or — with no text — ask again for the last answer.
-
-    **A turn that could not be answered is a 200, not a 400.** The requirement is
-    that a failed turn stays in the thread and is retryable, and an error body
-    carries no thread: the client would show a sentence with the curator's
-    question nowhere on screen. So the refusal travels as `failure` on the view,
-    and only a request that recorded nothing at all — an unknown conversation,
-    empty text with nothing outstanding to retry — is a refusal.
-    """
-    return _conversation_view(_services(request).conversation.speak(conversation_id, body.text))
-
-
-@router.post("/conversations/{conversation_id}/commit")
-def commit_conversation(request: Request, conversation_id: str, body: CommitDirection) -> ConversationViewOut:
-    """Seed a discovery run from this thread, and stay in the thread.
-
-    Returns the conversation rather than the run, and the difference is the whole
-    seam: a response shaped like a run is a response a client navigates to. What
-    comes back is the transcript with a committed turn at the end of it, which is
-    what the commit card repaints itself from without going anywhere.
-    """
-    return _conversation_view(_services(request).conversation.commit(conversation_id, body.intent))
-
-
-def _conversation(conversation: Conversation) -> ConversationOut:
-    return ConversationOut(
-        conversation_id=conversation.id,
-        started_at=conversation.started_at.isoformat(),
-        last_turn_at=conversation.last_turn_at.isoformat(),
-        summary=conversation.summary,
-    )
-
-
-def _conversation_view(view: ConversationView) -> ConversationViewOut:
-    unanswered = view.unanswered
-    return ConversationViewOut(
-        conversation=_conversation(view.conversation),
-        turns=[_conversation_turn(turn) for turn in view.turns],
-        committed_run_id=view.committed_run_id,
-        failure=view.failure,
-        unanswered_turn_id=None if unanswered is None else unanswered.id,
-    )
-
-
-def _conversation_turn(view: TurnView) -> ConversationTurnOut:
-    return ConversationTurnOut(
-        turn_id=view.turn.id,
-        ordinal=view.turn.ordinal,
-        role=str(view.turn.role),
-        text=view.turn.text,
-        suggested=[
-            SuggestionOut(
-                kind=suggestion.kind,
-                value=suggestion.value,
-                samples=[SampleOut(title=sample.title, artist=sample.artist, image_url=sample.image_url) for sample in samples],
-            )
-            for suggestion, samples in view.suggested
-        ],
-        committed_run_id=view.turn.committed_run_id,
-        created_at=view.turn.created_at.isoformat(),
-    )
-
-
-@router.delete("/conversations/{conversation_id}")
-def delete_conversation(request: Request, conversation_id: str) -> ConversationDeletionOut:
-    """Destroy the thread and its turns, and detach everything derived from them.
-
-    **The one operation in this product that genuinely destroys a record**, which
-    is exactly why what stands on it is detached rather than destroyed with it:
-    `Affinity.source_turn_id` and `SpendRecord.conversation_turn_id` are nulled,
-    and nothing else is touched. An affinity is a judgment accumulated across
-    conversations and cannot be reconstructed from a thread that no longer exists;
-    a spend record is a ledger entry, and a month total that fell because somebody
-    tidied would be a number that lies about the past.
-
-    **The response names the consequence, not the row count.** What the curator
-    loses is the ability to rebuild those judgments when the derivation improves,
-    and `description` says so in those terms — the counts are there to qualify it.
-    """
-    return _conversation_deletion(_services(request).conversation.delete(conversation_id))
-
-
-def _conversation_deletion(deletion: ConversationDeletion) -> ConversationDeletionOut:
-    return ConversationDeletionOut(
-        conversation_id=deletion.conversation_id,
-        turns_deleted=deletion.turns_deleted,
-        affinities_detached=deletion.affinities_detached,
-        spend_records_detached=deletion.spend_records_detached,
-        runs_unattributed=deletion.runs_unattributed,
-        # Composed by the service so this surface and the tool one cannot come to
-        # describe the same destruction differently.
-        description=deletion.describe(),
-    )
+def _fit(fit: Fit) -> FitOut:
+    """A quality verdict as every surface that shows one carries it: the work, a scan, a registry picture."""
+    return FitOut(verdict=str(fit))
 
 
 # -- taste --------------------------------------------------------------------
@@ -2205,7 +2727,6 @@ def set_affinity(request: Request, body: SetAffinity) -> AffinityOut:
             open_to_more=body.open_to_more,
             derivation=body.derivation,
             rationale=body.rationale,
-            source_turn_id=body.source_turn_id,
         )
     )
 
@@ -2221,8 +2742,7 @@ def delete_affinity(request: Request, affinity_id: str) -> AffinityOut:
     return _affinity(_services(request).taste.delete_affinity(affinity_id))
 
 
-def _affinity(view: AffinityView) -> AffinityOut:
-    affinity = view.affinity
+def _affinity(affinity: Affinity) -> AffinityOut:
     return AffinityOut(
         affinity_id=affinity.id,
         kind=str(affinity.kind),
@@ -2231,12 +2751,6 @@ def _affinity(view: AffinityView) -> AffinityOut:
         open_to_more=affinity.open_to_more,
         derivation=str(affinity.derivation),
         rationale=affinity.rationale,
-        source_turn_id=affinity.source_turn_id,
-        # Resolved by the service from the cited turn rather than stored, so the
-        # link and the citation cannot come apart — and absent for a judgment
-        # whose conversation was deleted, which is what stops the screen offering
-        # a way through to a thread that is not there.
-        conversation_id=view.conversation_id,
         artist_id=affinity.artist_id,
         created_at=affinity.created_at.isoformat(),
         updated_at=affinity.updated_at.isoformat(),

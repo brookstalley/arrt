@@ -15,7 +15,7 @@ transaction as a clear-then-set pair, because a pair that can be interrupted
 between its halves leaves the catalogue in the state the rule forbids.
 
 Works, artists, sources, originals, renditions and mat colours live here. Themes,
-the standing directive and the manifest built from them live in `display.py`,
+walls and the feed built from them live in `display.py`,
 which holds this service; nothing here holds that one.
 
 Methods are synchronous. The store is a local file answering point lookups in
@@ -32,18 +32,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from PIL import Image, UnidentifiedImageError
+
 from arrt.library.acquisition.color import parse_hex, rgb_to_lab
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.events import LibraryEvents, WorkChange, WorkChanged, WorkChangedHandler
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import (
     AcquisitionMethod,
     Artist,
     Artwork,
     ArtworkStatus,
+    EventKind,
+    EventPage,
     FacetDerivation,
     FetchStatus,
+    HistoryEvent,
     IdentitySetBy,
     MatColor,
     MatMethod,
@@ -230,6 +235,10 @@ class CatalogueService:
         #: announces, to nobody. The container passes the one Programming is
         #: subscribed to.
         self._events = events if events is not None else LibraryEvents()
+        #: Each hashed picture's pixel size, by its content hash. The hash names
+        #: the bytes, so the size under it never changes, and a picture's header
+        #: is read once per process rather than on every manifest build.
+        self._sizes: dict[str, tuple[int, int]] = {}
         #: Where a render's relative path points, so its bytes can be hashed.
         #: None for a catalogue that never serves media, which records renders
         #: without a content hash and serves none.
@@ -355,6 +364,68 @@ class CatalogueService:
         )
         return self._store.artwork_ids_matching(query)
 
+    def matching_ids_in_order(
+        self,
+        *,
+        status: str | None = None,
+        q: str | None = None,
+        facets: Mapping[str, Sequence[str]] | None = None,
+        artist_id: str | None = None,
+        within: Sequence[str] | frozenset[str] | None = None,
+        sort: str | None = None,
+    ) -> Sequence[str]:
+        """Every work these narrowings select, by id, in the order a listing would show them.
+
+        For an act on a whole filter — *Select all* on Artworks, then Add to
+        theme — where the works join a theme in the order the curator saw
+        them, rather than in whatever order a set happens to iterate. The same
+        narrowings and the same `sort` as `list_artworks`, unpaged, because the
+        act is on every work the filter matches and not on the ones loaded.
+        """
+        resolved_order = WorkOrder.TITLE if sort is None else require_member(sort, enum=WorkOrder, field="sort")
+        query = WorkQuery(
+            status=self._parse_status(status),
+            terms=self._parse_terms(q),
+            facets=self._parse_facets(facets),
+            artist_id=artist_id,
+            within=None if within is None else frozenset(within),
+        )
+        with self._store.reading():
+            total = len(self._store.artwork_ids_matching(query))
+            if not total:
+                return []
+            page = self._store.list_artworks(query, limit=total, offset=0, order=resolved_order)
+        return [artwork.id for artwork in page.artworks]
+
+    def original_sizes(self, artwork_ids: Sequence[str] | frozenset[str]) -> Mapping[str, tuple[int, int]]:
+        """The held master's pixel width and height for each of these works that has one.
+
+        One read for the lot, so a facet over a few thousand works costs one
+        statement rather than one per work. A work with no master is absent from
+        the answer, which is how a caller tells "no size known" from a size.
+        """
+        wanted = set(artwork_ids)
+        return {work_id: size for work_id, size in self._store.original_sizes().items() if work_id in wanted}
+
+    def archive_artworks(self, artwork_ids: Sequence[str]) -> Sequence[str]:
+        """Archive each of these works that is in circulation, in one transaction.
+
+        Returns the ids archived now. A work already archived is passed over
+        rather than refused: a selection made by a filter can hold archived
+        works, and refusing the whole act for one of them would make *Archive*
+        on a selection unusable exactly when the curator is tidying. An id the
+        catalogue does not hold refuses the whole act, in `archive_artwork`'s
+        words, so nothing is half-done.
+        """
+        archived: list[str] = []
+        with self._store.transaction():
+            for artwork_id in dict.fromkeys(artwork_ids):
+                if self._require_artwork(artwork_id).status is ArtworkStatus.ARCHIVED:
+                    continue
+                self.archive_artwork(artwork_id)
+                archived.append(artwork_id)
+        return archived
+
     def _facet_groups(self, query: WorkQuery) -> Sequence[FacetGroup]:
         """Every facet kind, with each value's count and whether it is chosen.
 
@@ -442,12 +513,12 @@ class CatalogueService:
         self._require_artwork(artwork_id)
         return self._store.get_original(artwork_id)
 
-    def display_fit(self, artwork_id: str, *, box: ArtworkBox) -> FitAssessment:
-        """Judge the work's held original against the space it would be rendered into."""
+    def fit(self, artwork_id: str, *, profile: QualityProfile) -> Fit:
+        """Judge the work's held original against the quality profile."""
         original = self.get_original(artwork_id)
         if original is None:
             raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to judge.")
-        return assess_display_fit(width=original.width, height=original.height, box=box)
+        return profile.judge(width=original.width, height=original.height)
 
     # -- reads: what has been rendered ----------------------------------------
 
@@ -636,9 +707,13 @@ class CatalogueService:
         if artwork.status is ArtworkStatus.ARCHIVED:
             raise ServiceError(f"Artwork {artwork_id!r} is already archived.")
         archived = replace(artwork, status=ArtworkStatus.ARCHIVED)
-        store_write(self._store.update_artwork, archived)
-        # A pin naming a work out of circulation is withdrawn by Programming,
-        # which hears this and owns the directive. The Library writes no
+        # The event commits with the change it records, so the history never
+        # names an archive that was rolled back, nor misses one that landed.
+        with self._store.transaction():
+            store_write(self._store.update_artwork, archived)
+            self.record_event(EventKind.ARCHIVED, work_id=artwork_id, detail={"title": artwork.title})
+        # A work out of circulation is taken off every feed by Programming,
+        # which hears this and owns the feeds. The Library writes no
         # Programming table, and so needs to know nothing about walls.
         self._announce(WorkChange.ARCHIVED, artwork_id)
         return archived
@@ -654,9 +729,66 @@ class CatalogueService:
         if artwork.status is ArtworkStatus.ACCEPTED:
             raise ServiceError(f"Artwork {artwork_id!r} is not archived.")
         restored = replace(artwork, status=ArtworkStatus.ACCEPTED)
-        store_write(self._store.update_artwork, restored)
+        with self._store.transaction():
+            store_write(self._store.update_artwork, restored)
+            self.record_event(EventKind.RESTORED, work_id=artwork_id, detail={"title": artwork.title})
         self._announce(WorkChange.ACCEPTED, artwork_id)
         return restored
+
+    # -- the history ----------------------------------------------------------
+
+    def record_event(
+        self,
+        kind: EventKind | str,
+        *,
+        work_id: str | None = None,
+        run_id: str | None = None,
+        wall_id: str | None = None,
+        theme_id: str | None = None,
+        detail: Mapping[str, object] | None = None,
+    ) -> HistoryEvent:
+        """Write one act into the history, now.
+
+        **Called where the act happens, by the service that performs it**, inside
+        that act's transaction where it has one, so the history and the change
+        it records commit together. Nothing here checks the references: a wall or
+        a theme is Programming's, and the history keeps what it was told.
+        """
+        event = HistoryEvent(
+            id=str(uuid.uuid4()),
+            kind=require_member(kind, enum=EventKind, field="kind"),
+            occurred_at=datetime.now(UTC),
+            work_id=work_id,
+            run_id=run_id,
+            wall_id=wall_id,
+            theme_id=theme_id,
+            detail=None if detail is None else dict(detail),
+        )
+        store_write(self._store.add_event, event)
+        return event
+
+    def list_events(
+        self,
+        *,
+        kinds: Sequence[EventKind | str] = (),
+        wall_id: str | None = None,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> EventPage:
+        """What happened, newest first: every kind named (all of them when none is), on one wall if one is named.
+
+        A wall's history is every event naming it, which today is what was hung
+        there and what was kept off it from there. The wall is not checked: an
+        id no wall carries has no history, which is an answer rather than a
+        fault, and the Library cannot see Programming's walls to say otherwise.
+        """
+        resolved = tuple(dict.fromkeys(require_member(kind, enum=EventKind, field="kind") for kind in kinds))
+        resolved_limit = DEFAULT_LIST_LIMIT if limit is None else limit
+        if not 1 <= resolved_limit <= MAX_LIST_LIMIT:
+            raise ServiceError(f"limit must be between 1 and {MAX_LIST_LIMIT}, got {resolved_limit}.")
+        if offset < 0:
+            raise ServiceError(f"offset cannot be negative, got {offset}.")
+        return self._store.list_events(kinds=resolved, wall_id=wall_id, limit=resolved_limit, offset=offset)
 
     # -- what a work is -------------------------------------------------------
 
@@ -927,7 +1059,6 @@ class CatalogueService:
         target_height: int,
         path: str,
         layout: str | None = None,
-        mat_hex: str | None = None,
     ) -> Rendition:
         """Record a derived output, stamped with the image it was made from.
 
@@ -965,7 +1096,6 @@ class CatalogueService:
                 source_content_hash=original.content_hash,
                 generated_at=datetime.now(UTC),
                 layout=layout,
-                mat_hex=mat_hex,
             )
             # Hashed here from the file, never accepted from the caller, for the
             # reason the parent's hash is: the hash is what a Player checks the
@@ -999,6 +1129,33 @@ class CatalogueService:
         hashed = replace(rendition, content_sha256=content[0], byte_size=content[1])
         store_write(self._store.update_rendition, hashed)
         return hashed
+
+    def pixel_size(self, rendition: Rendition) -> tuple[int, int] | None:
+        """The width and height of a rendition's file, read from its header, or None if it cannot be read.
+
+        Only the header is decoded, so this costs a few kilobytes of the file, not
+        the megabytes of the picture. A master's recorded target is its cap, so
+        this is the only place its real size is known.
+        """
+        if self._art_root is None:
+            return None
+        if rendition.content_sha256 in self._sizes:
+            # A stat, not a decode: a file gone since must still read as no size,
+            # because nothing could serve those bytes any more.
+            if not (self._art_root / rendition.relative_path).is_file():
+                return None
+            return self._sizes[rendition.content_sha256]
+        try:
+            with Image.open(self._art_root / rendition.relative_path) as image:
+                size = image.size
+        except FileNotFoundError:
+            return None
+        except (OSError, UnidentifiedImageError) as exc:
+            log.warning("Could not read the size of %s: %s", rendition.relative_path, exc)
+            return None
+        if rendition.content_sha256 is not None:
+            self._sizes[rendition.content_sha256] = size
+        return size
 
     def read_media(self, content_sha256: str) -> tuple[Rendition, bytes] | None:
         """The bytes of the render with this hash, or None if none is held.

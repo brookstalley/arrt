@@ -1,37 +1,31 @@
-"""One rule for "is this render still current", and every surface following it.
+"""One rule for "is this rendition still current", and every surface following it.
 
-The rule decides three things that a curator sees side by side: whether the
-review grid badges a render current, which image a thumbnail is made from, and
-whether a work reaches the wall or is excluded as `stale_rendition`. It was
-written twice — once in `CatalogueService.list_renditions` and once inline in
-the manifest builder — so a change to what "current" means would have landed in
-one and not the other, and the grid would have shown a green badge on a work the
-wall silently dropped. That is the silent shortfall the exclusion report exists
-to break, arriving by the one path that did not consult the shared rule.
+The rule decides things a curator sees side by side: whether the catalogue calls
+a work's presentation master current, and whether the work reaches the wall or is
+excluded as `stale_rendition`. It was once written twice, so a change to what
+"current" means would have landed in one place and not the other, and a work
+would have read as current while the wall silently dropped it.
 
 So these tests do not assert the rule's *content*. They assert that the two
-surfaces cannot disagree about it, across every state a work can be in, and that
-where both must pick one of several renders they pick the same one.
+surfaces cannot disagree about it, across every state a work can be in.
 """
 
-import pytest
-
 from arrt.library.facade import PlayableWork, UnplayableReason
-from arrt.library.readiness import tv_rendition_of
-from arrt.persistence.records import FetchStatus, RenditionKind, is_current, tv_renditions_newest_first
+from arrt.library.readiness import master_rendition_of
+from arrt.persistence.records import FetchStatus, is_current
 
 
-def _grid_says_current(service, artwork_id) -> bool:
-    """What the review grid would badge: the newest TV render's own verdict."""
+def _catalogue_says_current(service, artwork_id) -> bool:
+    """The catalogue's own verdict on the master the wall would be sent."""
     views = {view.rendition.id: view for view in service.list_renditions(artwork_id)}
-    chosen = tv_rendition_of([view.rendition for view in views.values()])
+    chosen = master_rendition_of([view.rendition for view in views.values()], service.get_original(artwork_id))
     return chosen is not None and not views[chosen.id].stale
 
 
 def _wall_says_current(library, artwork_id) -> bool:
-    """What the manifest would decide: no exclusion, or one that is not staleness.
+    """What the feed's build would decide: no exclusion, or one that is not staleness.
 
-    Asked of the Library's facade, which is where the manifest build asks it.
+    Asked of the Library's facade, which is where the build asks it.
     """
     answer = library.playable([artwork_id])[artwork_id]
     return isinstance(answer, PlayableWork) or answer.reason is not UnplayableReason.STALE_RENDITION
@@ -40,14 +34,14 @@ def _wall_says_current(library, artwork_id) -> bool:
 class TestTheGridAndTheWallCannotDisagree:
     """The matrix, driven through both real surfaces rather than through the rule."""
 
-    def test_a_freshly_rendered_work_is_current_to_both(self, service, library, ready_work):
+    def test_a_freshly_prepared_work_is_current_to_both(self, service, library, ready_work):
         work = ready_work()
 
-        assert _grid_says_current(service, work.id) is True
+        assert _catalogue_says_current(service, work.id) is True
         assert _wall_says_current(library, work.id) is True
 
     def test_a_work_re_acquired_since_its_render_is_stale_to_both(self, service, library, ready_work):
-        """The case the rule exists for: the render describes an image no longer held."""
+        """The case the rule exists for: the master describes an image no longer held."""
         work = ready_work()
         source = service.list_sources(work.id)[0]
         service.record_original(
@@ -61,114 +55,44 @@ class TestTheGridAndTheWallCannotDisagree:
             fetch_status=FetchStatus.OK,
         )
 
-        assert _grid_says_current(service, work.id) is False
+        assert _catalogue_says_current(service, work.id) is False
         assert _wall_says_current(library, work.id) is False
 
-    def test_a_work_with_no_render_at_all_is_current_to_neither(self, service, library, ready_work):
+    def test_a_work_with_no_master_at_all_is_current_to_neither(self, service, library, ready_work):
         """The neighbouring exclusion, kept apart from staleness on both surfaces.
 
-        `no_rendition` and `stale_rendition` are acted on differently — render
-        it, versus render it again — so a surface that collapsed them would send
-        a curator after the wrong thing.
+        `no_rendition` and `stale_rendition` are acted on differently — make it,
+        versus make it again — so a surface that collapsed them would send a
+        curator after the wrong thing.
         """
-        work = ready_work(rendition=False)
+        work = ready_work(master=False)
 
-        assert _grid_says_current(service, work.id) is False
+        assert _catalogue_says_current(service, work.id) is False
         assert library.playable([work.id])[work.id].reason is UnplayableReason.NO_RENDITION
-
-
-class TestBothTieBreaksPickTheSameRender:
-    """Two television renders at different geometries, and one right answer.
-
-    The unique index is on `(artwork_id, kind, target_width, target_height)`, so
-    a work can hold more than one television render. The manifest took the most
-    recently generated; the thumbnail service took the first current one the
-    store happened to return. On a work with two, they would have shown
-    different pictures with nothing on screen saying which was right.
-    """
-
-    @pytest.fixture
-    def two_renders(self, service, settings, decodable_jpeg, ready_work):
-        """A work whose newest render is deliberately *not* the store's first.
-
-        The narrow geometry is recorded first and the wide one second, because
-        the store returns renditions ordered by `(kind, target_width,
-        target_height, id)` while the wall wants the most recently generated.
-        Recorded the other way round the two orders coincide, the old and new
-        code pick the same file, and the test below passes while proving
-        nothing — which is what the first draft of it did.
-
-        The fixture asserts the divergence rather than assuming it, so a change
-        to the store's `ORDER BY` makes this fail loudly instead of quietly
-        going vacuous.
-        """
-        work = ready_work()
-        for width, height in ((1920, 1080), (3840, 2160)):
-            relative = f"ready/{work.id}-{width}x{height}.jpg"
-            decodable_jpeg(settings.art_root / relative, width=width, height=height)
-            service.record_rendition(
-                artwork_id=work.id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=width,
-                target_height=height,
-                path=relative,
-            )
-
-        in_store_order = [view.rendition for view in service.list_renditions(work.id)]
-        newest_first = tv_renditions_newest_first(in_store_order)
-        assert newest_first[0].id != in_store_order[0].id, "this fixture no longer sets up the disagreement it exists to expose"
-        return work
-
-    def test_the_wall_and_a_thumbnail_choose_the_same_file(self, two_renders, service, display, thumbnails, settings, wall_id):
-        work = two_renders
-
-        entry_path = display.build_manifest(wall_id, self._theme_holding(display, work.id)).entries[0].render_path
-        thumbnail_source = thumbnails.source_for(work.id)
-
-        assert thumbnail_source.kind == RenditionKind.TV_DISPLAY.value
-        assert (
-            thumbnail_source.path == settings.art_root / entry_path
-        ), "the wall and the review card picked different renders of the same work"
-
-    def test_the_order_is_total_so_two_renders_of_one_instant_cannot_reshuffle(self, two_renders, service):
-        """Ties break on id, so the answer does not depend on store iteration order."""
-        work = two_renders
-        renditions = [view.rendition for view in service.list_renditions(work.id)]
-
-        forwards = tv_renditions_newest_first(renditions)
-        backwards = tv_renditions_newest_first(list(reversed(renditions)))
-
-        assert [rendition.id for rendition in forwards] == [rendition.id for rendition in backwards]
-
-    @staticmethod
-    def _theme_holding(display, artwork_id) -> str:
-        theme = display.add_theme(name="Under test")
-        display.add_to_theme(theme_id=theme.id, artwork_id=artwork_id)
-        return theme.id
 
 
 class TestTheRuleItself:
     """The predicate's own contract, so its callers are testing agreement and not it."""
 
-    def test_a_render_made_from_the_held_image_is_current(self, service, ready_work):
+    def test_a_master_made_from_the_held_image_is_current(self, service, ready_work):
         work = ready_work()
         rendition = service.list_renditions(work.id)[0].rendition
 
         assert is_current(rendition, service.get_original(work.id)) is True
 
-    def test_a_render_with_no_original_at_all_is_not_current(self, service, ready_work):
+    def test_a_master_with_no_original_at_all_is_not_current(self, service, ready_work):
         work = ready_work()
         rendition = service.list_renditions(work.id)[0].rendition
 
         assert is_current(rendition, None) is False
 
-    def test_a_stale_render_is_still_returned_by_the_ordering(self, service, ready_work):
-        """Currency is not filtered here, and that is load-bearing.
+    def test_a_stale_master_is_still_returned_when_no_current_one_is_held(self, service, ready_work):
+        """Currency is not a filter here, and that is load-bearing.
 
-        `assess` needs a stale render in hand to say "needs regenerating"
-        (`stale_rendition`) rather than "never rendered" (`no_rendition`) — two
-        exclusions a curator acts on differently. An ordering that dropped stale
-        rows would tell them to render a work that has been rendered.
+        `assess` needs a stale master in hand to say "needs making again"
+        (`stale_rendition`) rather than "never made" (`no_rendition`) — two
+        exclusions a curator acts on differently. A lookup that dropped stale
+        rows would tell them to make a master that has been made.
         """
         work = ready_work()
         source = service.list_sources(work.id)[0]
@@ -184,5 +108,4 @@ class TestTheRuleItself:
         )
         renditions = [view.rendition for view in service.list_renditions(work.id)]
 
-        assert tv_renditions_newest_first(renditions) != []
-        assert tv_rendition_of(renditions) is not None
+        assert master_rendition_of(renditions, service.get_original(work.id)) is not None

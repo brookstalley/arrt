@@ -117,6 +117,7 @@ async def test_help_works_without_arguments_and_without_the_catalogue(server_url
         "regenerate",
         "topics",
         "topic",
+        "history",
         "help",
     }
 
@@ -174,6 +175,7 @@ async def test_an_unknown_action_is_an_error_result_that_enumerates_the_valid_se
         "regenerate",
         "topics",
         "topic",
+        "history",
         "help",
     ]
     assert payload["example"] == "art_catalogue(action='help')"
@@ -545,7 +547,9 @@ def _a_work_with_an_original(services, settings, *, width=2400, height=1800):
     return work
 
 
-async def test_set_mat_color_records_a_curators_colour_and_re_renders(server_url, services, settings):
+async def test_set_mat_color_records_a_curators_colour_and_makes_nothing(server_url, services, settings):
+    """The colour rides each wall's feed, so there is nothing to draw: no master
+    is made for it, and a work never prepared still has none."""
     work = _a_work_with_an_original(services, settings)
 
     payload, errored = await call(server_url, "art_catalogue", action="set_mat_color", artwork_id=work.id, hex_rgb="#27285b")
@@ -554,7 +558,8 @@ async def test_set_mat_color_records_a_curators_colour_and_re_renders(server_url
     assert payload["success"] is True
     assert payload["hex_rgb"] == "#27285b"
     assert payload["method"] == "manual"
-    assert (settings.art_root / payload["relative_path"]).is_file()
+    assert payload["relative_path"] is None
+    assert services.catalogue.list_renditions(work.id) == []
 
 
 async def test_omitting_the_colour_asks_the_producer_and_says_which_one_answered(server_url, services, settings):
@@ -619,15 +624,14 @@ async def test_a_colour_a_person_spells_loosely_is_accepted_like_the_models_own(
 
 
 async def test_regenerate_composes_the_canvas_and_reports_where_it_went(server_url, services, settings):
-    # Larger than the artwork box both ways, so the fit is `native` whatever the
-    # configured mat leaves.
+    # Well over the quality minimum, so the fit is `meets_minimum`.
     work = _a_work_with_an_original(services, settings, width=3200, height=2400)
 
     payload, errored = await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id)
 
     assert errored is False
     assert payload["outcome"] == "prepared"
-    assert payload["fit"] == "native"
+    assert payload["fit"] == "meets_minimum"
     assert (settings.art_root / payload["relative_path"]).is_file()
 
 
@@ -641,7 +645,7 @@ async def test_regenerating_a_current_canvas_reports_unchanged_rather_than_redoi
 
     assert errored is False
     assert payload["outcome"] == "unchanged"
-    # No fresh assessment to report, and repeating a stored one would answer a
+    # No fresh canvas to report on, and repeating a verdict would answer a
     # question this call did not ask.
     assert payload["fit"] is None
 
@@ -655,7 +659,7 @@ async def test_force_re_renders_a_canvas_that_is_already_current(server_url, ser
     assert payload["outcome"] == "prepared"
 
 
-async def test_a_work_rendered_below_the_floor_says_so_without_refusing(server_url, services, settings):
+async def test_a_work_rendered_below_the_minimum_says_so_without_refusing(server_url, services, settings):
     # Not a refusal: the curator may have chosen this instance knowing it was
     # small, and the requirement is explicit that such a work is rendered rather
     # than hidden. But a canvas reported as composed with no mention of it would
@@ -666,8 +670,8 @@ async def test_a_work_rendered_below_the_floor_says_so_without_refusing(server_u
 
     assert errored is False
     assert payload["outcome"] == "prepared"
-    assert payload["fit"] == "below_floor"
-    assert "below the configured floor" in payload["notice"]
+    assert payload["fit"] == "below_minimum"
+    assert "below the quality minimum" in payload["notice"]
     assert (settings.art_root / payload["relative_path"]).is_file()
 
 
@@ -681,17 +685,17 @@ async def test_regenerating_a_work_with_no_original_is_an_error_result_naming_th
 
 
 async def test_a_prepared_work_enters_the_manifest(server_url, services, settings, wall_id):
-    # The acceptance criterion, end to end: an acquired work renders to 4K and
-    # enters the manifest. The manifest excludes a work with no rendition, so
-    # this is the one check that the two halves actually meet.
+    # The acceptance criterion, end to end: an acquired work gets its
+    # presentation master and enters the feed. The feed excludes a work with
+    # none, so this is the one check that the two halves actually meet.
     work = _a_work_with_an_original(services, settings)
     theme = services.display.add_theme(name="Everything")
     services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
     services.display.activate_theme(theme.id, wall_id=wall_id)
 
-    # Excluded before it is rendered, which is what makes the assertion after it
+    # Excluded before it is prepared, which is what makes the assertion after it
     # mean something: the work is in the theme throughout, so the only thing that
-    # changes between these two builds is the canvas.
+    # changes between these two builds is the master.
     before = services.display.build_manifest(wall_id)
     assert work.id in {excluded.work_id for excluded in before.exclusions}
 
@@ -701,7 +705,7 @@ async def test_a_prepared_work_enters_the_manifest(server_url, services, setting
     assert errored is False
     assert work.id in {entry.work_id for entry in build.entries}
     assert work.id not in {excluded.work_id for excluded in build.exclusions}
-    assert payload["relative_path"] in {entry.render_path for entry in build.entries}
+    assert payload["relative_path"] == f"presentation/{work.id}.jpg"
 
 
 async def test_regenerate_reports_what_it_spent_even_when_that_is_nothing(server_url, services, settings):
@@ -733,7 +737,7 @@ async def test_regenerate_says_when_it_chose_the_mat_mechanically(server_url, se
 
 async def test_a_second_regenerate_carries_no_fallback_notice(server_url, services, settings):
     """The discriminating half. Without it the assertion above would pass on a
-    notice that was always present, and the below-floor test's substring match
+    notice that was always present, and the below-minimum test's substring match
     would accept the fallback sentence silently prepended or silently gone."""
     work = _a_work_with_an_original(services, settings)
     await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id)
@@ -744,17 +748,17 @@ async def test_a_second_regenerate_carries_no_fallback_notice(server_url, servic
     assert payload["notice"] is None
 
 
-async def test_the_below_floor_notice_stands_alone_once_a_mat_is_already_chosen(server_url, services, settings):
-    """Pins which sentences a below-floor answer carries, rather than asserting a
+async def test_the_below_minimum_notice_stands_alone_once_a_mat_is_already_chosen(server_url, services, settings):
+    """Pins which sentences a below-minimum answer carries, rather than asserting a
     substring that a second sentence could appear beside unnoticed."""
     work = _a_work_with_an_original(services, settings, width=400, height=300)
     await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id)
 
     payload, _ = await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id, force=True)
 
-    assert payload["fit"] == "below_floor"
+    assert payload["fit"] == "below_minimum"
     assert "not by the vision model" not in payload["notice"]
-    assert payload["notice"].startswith("This work renders at about")
+    assert payload["notice"].startswith("This work's image is below the quality minimum")
 
 
 async def test_set_mat_color_reports_its_cost_too(server_url, services, settings):
@@ -765,9 +769,9 @@ async def test_set_mat_color_reports_its_cost_too(server_url, services, settings
     assert payload["cost_usd"] == "0"
 
 
-async def test_a_first_regenerate_of_a_below_floor_work_carries_both_sentences(server_url, services, settings):
+async def test_a_first_regenerate_of_a_below_minimum_work_carries_both_sentences(server_url, services, settings):
     """**The state the join exists for, and the only one that needed it.** A work
-    that is both below the floor and having its mat chosen for the first time
+    that is both below the minimum and having its mat chosen for the first time
     produces two notices, and `_regenerate_notice` joins them. Asserted together
     because either sentence alone passes the two tests beside this one — which is
     how a join can be written, shipped, and never exercised."""
@@ -776,15 +780,15 @@ async def test_a_first_regenerate_of_a_below_floor_work_carries_both_sentences(s
     payload, errored = await call(server_url, "art_catalogue", action="regenerate", artwork_id=work.id)
 
     assert errored is False
-    assert payload["fit"] == "below_floor"
+    assert payload["fit"] == "below_minimum"
     assert "not by the vision model" in payload["notice"]
-    assert "below the configured floor" in payload["notice"]
+    assert "below the quality minimum" in payload["notice"]
     # In that order: what happened to the mat, then what it means for the wall.
-    assert payload["notice"].index("not by the vision model") < payload["notice"].index("below the configured floor")
+    assert payload["notice"].index("not by the vision model") < payload["notice"].index("below the quality minimum")
     # And separated, which asserting each sentence and their order does not
     # cover: without the join's space the two run together mid-word, and every
     # other assertion here passes on the result.
-    assert " This work renders at about" in payload["notice"]
+    assert " This work's image is below" in payload["notice"]
 
 
 async def test_an_unchanged_regenerate_reports_a_cost_too(server_url, services, settings):

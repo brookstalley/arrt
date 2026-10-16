@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from arrt.http.pages import STATIC_DIR
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.quality import Fit
 from arrt.persistence.discovery_records import ResolutionStatus, Verdict, WorkProvenance
 from arrt.persistence.records import ArtworkStatus
 
@@ -178,16 +178,12 @@ def test_every_status_colour_clears_aa_on_its_own_quiet_ground(scheme, token):
 
 
 @pytest.mark.parametrize(("scheme", "token"), STATUS_PAIRS)
-def test_a_status_ground_keeps_its_control_boundary(scheme, token):
-    """The indicator is a button, and its border has to stay findable on it.
-
-    WCAG 1.4.11's floor, applied to the one control that changes its own
-    background: a boundary that disappears when the state goes wrong is a
-    boundary missing exactly when the control matters most.
-    """
+def test_every_status_colour_clears_aa_on_the_page_ground(scheme, token):
+    """The top bar's status is its words in the state's colour, straight on the
+    page's ground, with no tinted box of its own to lean on."""
     tokens = SCHEMES[scheme]
-    ratio = _ratio(tokens["border-strong"], tokens[f"{token}-quiet"])
-    assert ratio >= UI_CONTRAST_FLOOR, f"{scheme}: --border-strong on --{token}-quiet is {ratio:.2f}:1"
+    ratio = _ratio(tokens[token], tokens["surface-0"])
+    assert ratio >= TEXT_CONTRAST_FLOOR, f"{scheme}: --{token} on --surface-0 is {ratio:.2f}:1"
 
 
 def test_the_accent_is_legible_both_as_text_and_beneath_its_own_label():
@@ -228,7 +224,7 @@ def test_the_rules_that_check_was_run_against_are_most_of_the_stylesheet():
     """
     css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
     assert len(COMPONENT_RULES) > len(css) * 0.5, "the token-block cut removed most of the stylesheet"
-    for selector in (".card-image", ".badge", "button.action", "nav.sidebar a", ".skip-link", ":focus-visible"):
+    for selector in (".card-image", ".badge", ":is(button, a).action", "nav.sidebar a", ".skip-link", ":focus-visible"):
         assert selector in COMPONENT_RULES, f"{selector} is not in the text the colour check reads"
 
 
@@ -247,13 +243,12 @@ def test_the_rules_that_check_was_run_against_are_most_of_the_stylesheet():
 #: card makes the states that matter harder to pick out rather than easier.
 #:
 #: Grouped by axis rather than pooled, because "no two look alike" is only true
-#: *within* one. `.badge-native` and `.badge-resolved` are deliberately identical
-#: rules: they are the unremarkable state of two unrelated judgements, they never
-#: occupy the same slot, and the word inside each badge is what tells them apart.
+#: *within* one.
 BADGE_AXES = {
     #: `unknown` is the client's own state for a work with no fit verdict, and it
-    #: belongs to no enum — which is why it is a literal.
-    "display fit": [str(fit) for fit in DisplayFit] + ["unknown"],
+    #: belongs to no enum — which is why it is a literal. `meets_minimum` draws
+    #: no badge at all (the owner's ruling, 2026-10-08), so it has no rule to need.
+    "size": [str(fit) for fit in Fit if fit is not Fit.MEETS_MINIMUM] + ["unknown"],
     "catalogue status": [str(status) for status in ArtworkStatus if status is not ArtworkStatus.ACCEPTED],
     "provenance": [str(provenance) for provenance in WorkProvenance if provenance is not WorkProvenance.PROPOSED],
     #: `resolutionBadge` writes `badge-${resolution_status}`. Without this row a

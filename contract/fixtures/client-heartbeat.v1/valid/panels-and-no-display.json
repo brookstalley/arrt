@@ -1,0 +1,21 @@
+{
+  "reported_at": "2026-10-08T16:40:00-07:00",
+  "outputs": [],
+  "label_outputs": [
+    {
+      "name": "epd-0",
+      "kind": "epaper",
+      "connected": true,
+      "size": [
+        800,
+        480
+      ]
+    },
+    {
+      "name": "epd-1",
+      "kind": "epaper",
+      "connected": false,
+      "size": null
+    }
+  ]
+}

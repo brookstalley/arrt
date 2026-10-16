@@ -63,8 +63,15 @@ WORK_LIST_SCHEMA: Final[Mapping[str, Any]] = {
                     "title": {"type": "string", "description": "The work's title."},
                     "artist": {"type": "string", "description": "The artist's name, or an empty string if unknown."},
                     "rationale": {"type": "string", "description": "One sentence on why this work matches the request."},
+                    "source_found": {
+                        "type": "boolean",
+                        "description": (
+                            "True only if a search result you were given names this work by this artist. "
+                            "False if you are naming it from memory or no source confirms it."
+                        ),
+                    },
                 },
-                "required": ["title", "artist", "rationale"],
+                "required": ["title", "artist", "rationale", "source_found"],
                 "additionalProperties": False,
             },
         },
@@ -73,11 +80,10 @@ WORK_LIST_SCHEMA: Final[Mapping[str, Any]] = {
     "additionalProperties": False,
 }
 
-#: Deliberately not capped at a number of works. The approval gate exists to
-#: catch a run that read an intent far more broadly than intended — "you asked
-#: for Dalí and I found 200 works, really?" — and a prompt that quietly limited
-#: the list to twenty would mean the gate could never fire and the judgement it
-#: invites would never be asked for. The output reservation bounds the length
+#: Deliberately not capped at a number of works. A prompt that quietly limited
+#: the list to twenty would hide a run that read the intent far more broadly
+#: than intended — "you asked for Dalí and I found 200 works, really?" — where
+#: the review grid shows it whole. The output reservation bounds the length
 #: physically; the curator bounds it editorially.
 PROMPT: Final[str] = """\
 A curator is choosing art to show on a wall in their home. They have asked for:
@@ -268,7 +274,17 @@ def _read_works(raw: object) -> tuple[ProposedWork, ...]:
                 extra={"event": "engine.work_dropped", "work_title": title, "has_rationale": bool(rationale)},
             )
             continue
-        works.append(ProposedWork(title=title, rationale=rationale, artist=artist or None))
+        # Read only as a boolean: a missing or malformed answer is no word, which
+        # the card shows as unknown rather than as either verdict.
+        found = entry.get("source_found")
+        works.append(
+            ProposedWork(
+                title=title,
+                rationale=rationale,
+                artist=artist or None,
+                source_confirmed=found if isinstance(found, bool) else None,
+            )
+        )
     return tuple(works)
 
 

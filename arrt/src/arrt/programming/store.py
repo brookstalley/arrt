@@ -1,7 +1,8 @@
 """The persistence contract over Programming's tables.
 
-Themes, what each holds, walls, what hangs on each, each wall's directive, and
-the clients that show walls.
+Themes, what each holds, walls, what hangs on each, the
+clients that show walls, their displays and label outputs, the works kept
+off every wall, and what each wall has shown.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -14,12 +15,22 @@ contract gives: every rule about what a valid arrangement looks like belongs to
 the service, which is the only caller.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
 
-from arrt.persistence.records import Client, Directive, Theme, ThemeAssignment, ThemeMembership, Wall
+from arrt.persistence.records import (
+    Client,
+    Display,
+    LabelOutput,
+    Showing,
+    Theme,
+    ThemeAssignment,
+    ThemeMembership,
+    Wall,
+    WorkExclusion,
+)
 
 
 class ProgrammingStore(Protocol):
@@ -107,6 +118,32 @@ class ProgrammingStore(Protocol):
 
     # -- walls ----------------------------------------------------------------
 
+    def record_screen(self, display_id: str, width_px: int, height_px: int, reported_at: datetime) -> None:
+        """Note that this display's Player reported a screen of this size, now."""
+        ...
+
+    def reported_screens(self, display_id: str) -> Sequence[tuple[int, int, datetime]]:
+        """Each size this display reported, with when it last did. Unordered."""
+        ...
+
+    def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
+        """Drop one reported size, once it is too old to count."""
+        ...
+
+    # -- what each wall has shown ---------------------------------------------
+
+    def save_showing(self, showing: Showing) -> None:
+        """Write a showing, replacing the one with the same wall and start."""
+        ...
+
+    def latest_showing(self, wall_id: str) -> Showing | None:
+        """The wall's showing that started last, ended or not; None if it has shown nothing."""
+        ...
+
+    def last_shown_by_work(self) -> Mapping[str, datetime]:
+        """Each work any wall has shown, walls since removed included, with the latest report naming it."""
+        ...
+
     def add_wall(self, wall: Wall) -> None:
         """Persist a wall. Raises if the id or the name is already present."""
         ...
@@ -116,7 +153,12 @@ class ProgrammingStore(Protocol):
         ...
 
     def update_wall(self, wall: Wall) -> None:
-        """Overwrite a stored wall with this one. Raises if the id is absent."""
+        """Overwrite a stored wall with this one.
+
+        Raises if the id is absent, if `display_id` names no stored display, or
+        if another wall already names that display: at most one wall per
+        display, which is a partial unique index over the non-null ids.
+        """
         ...
 
     def list_walls(self) -> Sequence[Wall]:
@@ -145,7 +187,57 @@ class ProgrammingStore(Protocol):
         ...
 
     def remove_client(self, client_id: str) -> None:
-        """Delete a client. No wall may still name it; removing an absent one is not an error."""
+        """Delete a client. No display or label output may still name it; removing an absent one is not an error."""
+        ...
+
+    # -- displays -------------------------------------------------------------
+
+    def add_display(self, display: Display) -> None:
+        """Persist a display.
+
+        Raises if the id or the identity is already stored (one display per
+        identity), or if a display with a client already sits on that client's
+        output (one display per output of a client, among displays whose client
+        is not null).
+        """
+        ...
+
+    def get_display(self, display_id: str) -> Display | None:
+        """Return the display, or None if no such id is stored."""
+        ...
+
+    def update_display(self, display: Display) -> None:
+        """Overwrite a stored display. Raises if the id is absent, or on either uniqueness `add_display` states."""
+        ...
+
+    def list_displays(self) -> Sequence[Display]:
+        """Every display, in a stable order. Unpaged: a household has a few."""
+        ...
+
+    def remove_display(self, display_id: str) -> None:
+        """Delete a display. No wall may still name it; removing an absent one is not an error."""
+        ...
+
+    # -- label outputs --------------------------------------------------------
+
+    def add_label_output(self, label: LabelOutput) -> None:
+        """Persist a label output. Raises if the id is stored, or the client already has one by that name."""
+        ...
+
+    def get_label_output(self, label_id: str) -> LabelOutput | None:
+        """Return the label output, or None if no such id is stored."""
+        ...
+
+    def update_label_output(self, label: LabelOutput) -> None:
+        """Overwrite a stored label output. Raises if the id is absent or `wall_id` names no stored wall."""
+        ...
+
+    def list_label_outputs(self) -> Sequence[LabelOutput]:
+        """Every label output, in a stable order. Unpaged: a household has a few."""
+        ...
+
+    def remove_label_output(self, label_id: str) -> None:
+        """Delete a label output. Removing an absent one is not an error."""
         ...
 
     # -- what is hanging ------------------------------------------------------
@@ -174,20 +266,16 @@ class ProgrammingStore(Protocol):
         """
         ...
 
-    # -- the display directives -----------------------------------------------
+    # -- works kept off every wall --------------------------------------------
 
-    def add_directive(self, directive: Directive) -> None:
-        """Persist a wall's directive. Raises if that wall already has one."""
+    def add_exclusion(self, exclusion: WorkExclusion) -> None:
+        """Keep a work off every wall. Raises if it is already kept off."""
         ...
 
-    def get_directive(self, wall_id: str) -> Directive:
-        """Return this wall's standing directive. A wall has one from creation."""
+    def remove_exclusion(self, artwork_id: str) -> None:
+        """Let a work go on walls again. Removing an absent exclusion is not an error."""
         ...
 
-    def set_directive(self, directive: Directive) -> None:
-        """Replace a wall's standing directive. Raises if that wall has none."""
-        ...
-
-    def list_directives(self) -> Sequence[Directive]:
-        """Every wall's standing directive, in a stable order."""
+    def list_exclusions(self) -> Sequence[WorkExclusion]:
+        """Every work kept off every wall, oldest first."""
         ...

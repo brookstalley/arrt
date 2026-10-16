@@ -19,13 +19,14 @@ from datetime import datetime
 from typing import Any, Final
 
 from arrt.counting import agree, agree_partitive, counted
-from arrt.library.acquisition.preparation import PreparationResult
+from arrt.library.acquisition.preparation import PreparationOutcome, PreparationResult
 from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+from arrt.library.registry import RegistryCreator
 from arrt.library.services.catalogue import MAX_LIST_LIMIT, ArtworkDetail, ArtworkListing, FacetGroup
 from arrt.library.services.discovery import VerdictOutcome
-from arrt.library.services.display_fit import DisplayFit, FitAssessment
 from arrt.library.services.look import INLINED, Inlined, LookPicture, LookView, SourceLook
 from arrt.library.services.previews import InlinePreview
+from arrt.library.services.quality import Fit
 from arrt.library.services.review import (
     MAX_REVIEW_LIMIT,
     CandidatePage,
@@ -35,14 +36,17 @@ from arrt.library.services.review import (
     WantedView,
 )
 from arrt.library.services.runner import RunListing, RunView
-from arrt.library.services.taste import AffinityView
+from arrt.library.services.twins import InReview
 from arrt.library.services.wikidata_match import WorkMatch
+from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.mcp.envelope import ImageBlock, ok, with_images
 from arrt.mcp.registry import HELP_ACTION, RegistryError
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.discovery_records import (
+    Affinity,
     AffinityDerivation,
+    CandidateImage,
     CandidateWork,
     DiscoveryRun,
     InitiatedBy,
@@ -50,12 +54,17 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Directive, Source, Theme, VocabularyKind, Wall
-from arrt.programming.clients import ClientView
-from arrt.programming.display import UNSET, ThemePlacement, WallView
+from arrt.persistence.records import Artist, Artwork, Client, Display, Showing, Source, Theme, VocabularyKind, Wall
+from arrt.programming import shape
+from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
+from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
+from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
+from arrt.services import works_filter
 from arrt.services.container import Services
+from arrt.services.errors import ServiceError
 from arrt.services.health import PicturesReading, SourceHealth
+from arrt.services.works_filter import FilterOption
 
 #: A bound action: validated arguments in, a result payload out. Every binding
 #: takes the whole container rather than the one service it happens to need, so
@@ -69,7 +78,7 @@ Binding = Callable[[Services, Mapping[str, Any]], dict[str, Any]]
 #: model could see in the schema and never have applied.
 _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKind)
 
-#: What restoring a work does at the wall, and when, and how to make it sooner.
+#: What restoring a work does at the wall.
 #:
 #: **A module constant because the browser says the identical sentence.**
 #: `screens/work.js` holds this text verbatim, and two surfaces stating one fact
@@ -80,27 +89,40 @@ _FACET_KINDS: Final[tuple[str, ...]] = tuple(str(kind) for kind in VocabularyKin
 #: curator. Naming it here rather than inline is what gives that test something
 #: to import.
 #:
-#: **The second sentence exists because of a ruling.** The operator ruled on
-#: 2026-08-12 that a work archived while hanging may stay on the television, on
-#: condition that some path exists to push the update — so the surfaces owe the
-#: path, not merely the timing. It is worded for both audiences: a curator
-#: re-hangs from the Walls screen, an agent calls `activate`, and
-#: `DisplayService.activate_theme` writes the assignment and syncs
-#: unconditionally, so hanging what is already hanging republishes.
-RESTORE_NOTICE: Final[str] = (
-    "It is eligible for the wall again; a theme holding it will carry it at the "
-    "next manifest build. Re-hanging a wall's current theme builds one."
-)
+#: **It says the wall catches up by itself, and offers no remedy.** A hung
+#: theme's feed takes back a work that can be shown again as the restore lands
+#: (the owner, 2026-10-10). Until then this sentence named re-hanging as the way
+#: to make the wall catch up, which the 2026-08-12 ruling required while nothing
+#: republished an addition; a remedy for a delay that no longer exists would
+#: send the curator to do something pointless.
+RESTORE_NOTICE: Final[str] = "It goes back into the rotation of every wall hanging a theme that holds it."
+
+#: What `art_theme(action='allow_again')` and the Work page's *Allow on walls
+#: again* both say. Restoring an archived work and letting a kept-off work back
+#: reach the wall the same way, so they are said in the same words; the client
+#: holds this verbatim (`tests/unit/test_client_vocabulary.py`).
+ALLOW_AGAIN_NOTICE: Final[str] = RESTORE_NOTICE
 
 log = logging.getLogger(__name__)
 
 
 def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    # A theme's works are Programming's to name and the Library's to list: two
-    # calls composed, as `_get_theme` composes them.
+    # The theme, the fit bands, *Not on any wall* and *Last shown* are
+    # Programming's and the Library's composed, by the composer the browser's
+    # listing uses too, so one filter selects the same works on both surfaces.
     theme = arguments.get("theme")
-    within = None if theme is None else services.display.theme_work_ids(theme)
     facets = {kind: arguments[kind] for kind in _FACET_KINDS if arguments.get(kind)}
+    narrowing = works_filter.narrowing(
+        services,
+        status=arguments.get("status"),
+        q=arguments.get("q"),
+        facets=facets,
+        artist_id=arguments.get("artist_id"),
+        theme=theme,
+        fit=arguments.get("fit") or [],
+        not_on_wall=bool(arguments.get("not_on_wall")),
+        shown=arguments.get("shown"),
+    )
     listing = services.catalogue.list_artworks(
         status=arguments.get("status"),
         q=arguments.get("q"),
@@ -109,7 +131,7 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
         offset=arguments.get("offset", 0),
         sort=arguments.get("sort"),
         artist_id=arguments.get("artist_id"),
-        within=within,
+        within=narrowing.within(),
     )
     return ok(
         artworks=[_summary(entry) for entry in listing.entries],
@@ -137,18 +159,18 @@ def _list_artworks(services: Services, arguments: Mapping[str, Any]) -> dict[str
                 "selected": option.selected,
                 "disabled": option.disabled,
             }
-            for option in services.display.theme_counts(
-                services.catalogue.matching_ids(
-                    status=arguments.get("status"),
-                    q=arguments.get("q"),
-                    facets=facets,
-                    artist_id=arguments.get("artist_id"),
-                ),
-                selected=theme,
-            )
+            for option in services.display.theme_counts(narrowing.among(but="theme"), selected=theme)
         ],
+        # The clean-up filters, counted the same way, in `GET /api/works`' shape.
+        fits=[_filter_option(option) for option in narrowing.fit_options()],
+        not_on_wall=_filter_option(narrowing.off_wall_option()),
+        shown=[_filter_option(option) for option in narrowing.shown_options()],
         notice=_truncation_notice(listing),
     )
+
+
+def _filter_option(option: FilterOption) -> dict[str, Any]:
+    return {"value": option.value, "count": option.count, "selected": option.selected, "disabled": option.disabled}
 
 
 def _facet_group(group: FacetGroup) -> dict[str, Any]:
@@ -201,6 +223,7 @@ def _list_topics(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
             {
                 "kind": group.kind.value,
                 "topics": [{"qid": topic.qid, "label": topic.label, "works": topic.works} for topic in group.topics],
+                "offered": [{"qid": offer.qid, "label": offer.label} for offer in group.offered],
             }
             for group in index.groups
         ],
@@ -327,6 +350,10 @@ def _mat_notice(result: PreparationResult) -> str | None:
 
 def _regenerate(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     result = services.preparation.prepare(arguments["artwork_id"], force=bool(arguments.get("force")))
+    # Present only when something was actually made. On `unchanged` there is
+    # nothing fresh to report on, and repeating a verdict would be answering a
+    # question this call did not ask.
+    fit = services.survey.fit_of(result.artwork_id) if result.outcome is PreparationOutcome.PREPARED else None
     return ok(
         artwork_id=result.artwork_id,
         outcome=result.outcome.value,
@@ -334,28 +361,25 @@ def _regenerate(services: Services, arguments: Mapping[str, Any]) -> dict[str, A
         relative_path=result.relative_path,
         hex_rgb=result.mat_hex,
         method=result.mat_method,
-        # Present only when something was actually rendered. On `unchanged` there
-        # is no fresh assessment to report, and repeating a stored one would be
-        # answering a question this call did not ask.
-        fit=None if result.fit is None else result.fit.value,
-        rendered_long_edge_inches=result.rendered_long_edge_inches,
+        fit=None if fit is None else str(fit),
         # **Reported even though this action is usually free.** A work that has
         # never had a mat gets one chosen here, and that is a paid call — so a
         # field present only on the paying path would be indistinguishable from
         # one the caller forgot to look at. Always present, usually "0".
         cost_usd=str(result.cost_usd),
-        notice=_regenerate_notice(result),
+        notice=_regenerate_notice(result, fit),
     )
 
 
-def _regenerate_notice(result: PreparationResult) -> str | None:
-    """Said out loud when the work is on the wall smaller than the floor allows.
+def _regenerate_notice(result: PreparationResult, fit: Fit | None) -> str | None:
+    """Said out loud when the work is on the wall below the quality minimum, or
+    when its mat was not the vision model's choice.
 
     Not a refusal and not an error: the curator may have chosen this instance
     knowing it was small, and `nonfunctional-requirements.md` is explicit that
-    such a work is rendered rather than hidden. But a canvas reported as composed
-    with no mention of it would let a work quietly appear as a postage stamp in
-    an enormous mat, which is the gap the floor exists to close.
+    such a work is shown rather than hidden. But a work reported as ready with
+    no mention of it would let it quietly appear as a postage stamp in an
+    enormous mat, which is the gap the minimum exists to close.
     """
     notices = []
     if result.mat_fallback_detail is not None:
@@ -369,11 +393,11 @@ def _regenerate_notice(result: PreparationResult) -> str | None:
             f"by the vision model, because {result.mat_fallback_detail}. It was derived from the artwork's own "
             "dominant colour, kept between the mat floor and ceiling."
         )
-    if result.fit is DisplayFit.BELOW_FLOOR and result.rendered_long_edge_inches is not None:
+    if fit is Fit.BELOW_MINIMUM:
         notices.append(
-            f"This work renders at about {result.rendered_long_edge_inches:.1f} inches on the wall, below the "
-            "configured floor, so it will appear small in a wide mat. It is on the wall regardless; "
-            "art_review's re-search finds a larger scan if one exists."
+            "This work's image is below the quality minimum (QUALITY_MINIMUM_PX on its long edge), so it will "
+            "appear small in its mat. It is on the wall regardless; art_review's re-search finds a larger scan "
+            "if one exists."
         )
     return " ".join(notices) or None
 
@@ -398,7 +422,7 @@ def _list_themes(services: Services, _arguments: Mapping[str, Any]) -> dict[str,
     # theme would ask once and guess after. The pairing is the service's, not
     # this binding's: the browser surface states the same fact.
     placements = services.display.survey_themes()
-    return ok(themes=[_placement_fields(placement) for placement in placements], count=len(placements))
+    return ok(themes=[_placement_fields(services, placement) for placement in placements], count=len(placements))
 
 
 def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -408,6 +432,14 @@ def _get_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         # Two calls composed: Programming says which works and in what order, and
         # the Library says what each work is.
         works=[_summary(entry) for entry in services.catalogue.resolve_details(services.display.theme_work_ids(theme_id))],
+        # Which works are too small for a wall hanging the theme, by wall name, as
+        # `ThemeDetailOut.too_small_for` carries it.
+        too_small_for={work_id: list(walls) for work_id, walls in services.display.too_small_for_walls(theme_id).items()},
+        sizes_unjudged={
+            name: judgement.unjudged.value
+            for name, judgement in services.display.size_judgements(theme_id).items()
+            if judgement.unjudged is not None
+        },
     )
 
 
@@ -417,14 +449,12 @@ def _create_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str,
 
 
 def _update_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    # `UNSET` for anything the caller did not name, so updating one field does
-    # not clear the others — null is a meaningful value for all three.
+    # `UNSET` for a description the caller did not name, so renaming a theme
+    # does not clear it — null is a meaningful value there.
     theme = services.display.update_theme(
         arguments["theme_id"],
         name=arguments.get("name"),
         description=arguments.get("description", UNSET),
-        rotation_interval_seconds=arguments.get("rotation_interval_seconds", UNSET),
-        shuffle=arguments.get("shuffle", UNSET),
     )
     return ok(theme=_theme_fields(theme))
 
@@ -464,7 +494,68 @@ def _reorder_in_theme(services: Services, arguments: Mapping[str, Any]) -> dict[
 def _activate_theme(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     # Hanging publishes, so this answers with the same shape as `sync` — the
     # caller needs to know how much of the theme actually reached the wall.
-    return _built(services.display.activate_theme(arguments["theme_id"], wall_id=arguments["wall_id"]))
+    return _built(services, services.display.activate_theme(arguments["theme_id"], wall_id=arguments["wall_id"]))
+
+
+def _hang_selection(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # The answer `activate` gives, because it is the same question: what is on
+    # the wall now, and what is not.
+    return _built(services, services.display.hang_selection(arguments["artwork_ids"], wall_id=arguments["wall_id"]))
+
+
+def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    done = services.display.not_this_one_again(arguments["artwork_id"], wall_id=arguments["wall_id"], scope=arguments["scope"])
+    return ok(
+        scope=str(done.scope),
+        artwork_id=done.artwork_id,
+        wall=_wall_view_fields(services, services.display.get_wall_view(done.wall_id)),
+        left_theme=None if done.left_theme is None else _theme_fields(done.left_theme),
+        excluded_at=None if done.exclusion is None else _moment(done.exclusion.excluded_at),
+    )
+
+
+def _kept_off(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    exclusions = services.display.excluded_works()
+    return ok(
+        exclusions=[
+            {"artwork_id": exclusion.artwork_id, "excluded_at": _moment(exclusion.excluded_at)} for exclusion in exclusions
+        ],
+        count=len(exclusions),
+    )
+
+
+def _allow_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    services.display.allow_work(arguments["artwork_id"])
+    return ok(
+        allowed=arguments["artwork_id"],
+        notice=ALLOW_AGAIN_NOTICE,
+    )
+
+
+def _history(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    page = services.catalogue.list_events(
+        kinds=arguments.get("kinds") or (),
+        wall_id=arguments.get("wall_id"),
+        limit=arguments.get("limit"),
+        offset=arguments.get("offset", 0),
+    )
+    return ok(
+        events=[
+            {
+                "event_id": event.id,
+                "kind": str(event.kind),
+                "occurred_at": _moment(event.occurred_at),
+                "artwork_id": event.work_id,
+                "run_id": event.run_id,
+                "wall_id": event.wall_id,
+                "theme_id": event.theme_id,
+                "detail": dict(event.detail or {}),
+            }
+            for event in page.events
+        ],
+        total=page.total,
+        count=len(page.events),
+    )
 
 
 def _unhang(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -484,6 +575,7 @@ def _estimate(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
         # A string rather than a float: a price rendered through binary floating
         # point is a price that can come back as 0.12699999999999999.
         estimated_cost_usd=str(estimate.cost_usd),
+        tier=str(estimate.tier),
         basis=estimate.basis,
         run_id=estimate.run_id,
         notice="Estimating costs nothing. This is the only art_discovery action that does not spend.",
@@ -543,7 +635,7 @@ def _start_get(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     # the theme exists (refusing an unknown one, so nothing starts), and the
     # Library starts the Get.
     theme_id = arguments.get("theme_id")
-    destination = None if theme_id is None else services.display.get_theme(theme_id).id
+    destination = None if theme_id is None else services.display.get_listed_theme(theme_id).id
     outcome = services.get.start(arguments["qids"], initiated_by=InitiatedBy.MCP_CLIENT, destination_theme_id=destination)
     skipped = [{"qid": entry.qid, "reason": str(entry.reason)} for entry in outcome.skipped]
     if outcome.run is None:
@@ -640,7 +732,7 @@ def _look_picture_fields(picture: LookPicture, image_block_index: int | None) ->
         "width": found.estimated_width,
         "height": found.estimated_height,
         "fit": _fit_fields(judged.fit),
-        "below_floor": judged.below_floor,
+        "below_minimum": judged.below_minimum,
         "confidence": judged.confidence,
         "rights_status": None if found.rights_status is None else str(found.rights_status),
         "selection_rationale": judged.rationale,
@@ -648,14 +740,9 @@ def _look_picture_fields(picture: LookPicture, image_block_index: int | None) ->
     }
 
 
-def _fit_fields(fit: FitAssessment) -> dict[str, Any]:
-    """A display-fit verdict in `FitOut`'s names."""
-    return {
-        "verdict": str(fit.fit),
-        "rendered_width": fit.rendered_width,
-        "rendered_height": fit.rendered_height,
-        "rendered_long_edge_inches": fit.rendered_long_edge_inches,
-    }
+def _fit_fields(fit: Fit) -> dict[str, Any]:
+    """A quality verdict in `FitOut`'s names."""
+    return {"verdict": str(fit)}
 
 
 def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -675,6 +762,206 @@ def _list_runs(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     )
 
 
+# -- the registry's pages, for an agent ------------------------------------------
+#
+# The pages a curator browses beside the library: what a few words find, an
+# artist, a work and a topic as Wikidata knows them, each row marked with what
+# the library holds of it. They had no twins while the only agent was an MCP
+# client with the library to read; Ask's agent finds art with them, so each
+# carries its route's field names (`test_registry_tools.py` compares them whole).
+
+
+def _in_review_fields(waiting: InReview | None) -> dict[str, str] | None:
+    return None if waiting is None else {"run_id": waiting.run_id, "candidate_work_id": waiting.candidate_work_id}
+
+
+def _creator_fields(creator: RegistryCreator, held: Mapping[str, str]) -> dict[str, Any]:
+    return {"qid": creator.qid, "name": creator.name, "artist_id": held.get(creator.qid)}
+
+
+def _registry_search(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/search?wide=true`: the results page's lists, which is what an agent searching wants."""
+    found = services.registry_search.search(arguments["q"], prefix=False, wide=True)
+    return ok(
+        state=str(found.state),
+        note=found.note,
+        artists=[
+            {
+                "qid": person.qid,
+                "name": person.label,
+                "born": person.born,
+                "died": person.died,
+                "artist_id": found.held_artists.get(person.qid),
+                "in_review": _in_review_fields(found.waiting_artists.get(person.qid)),
+            }
+            for person in found.artists
+        ],
+        works=[
+            {
+                "qid": work.qid,
+                "title": work.title,
+                "sitelinks": work.sitelinks,
+                "image": work.image,
+                "creator": None if work.creator is None else _creator_fields(work.creator, found.held_artists),
+                "held_artwork_ids": list(found.held_works.get(work.qid, ())),
+                "wanted": work.qid in found.wanted_works,
+                "in_review": _in_review_fields(found.waiting_works.get(work.qid)),
+            }
+            for work in found.works
+        ],
+    )
+
+
+def _registry_topics(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/topics?q=`."""
+    found = services.topics.named(arguments["q"])
+    return ok(
+        state=str(found.state),
+        note=found.note,
+        topics=[
+            {
+                "qid": topic.qid,
+                "label": topic.label,
+                "kinds": [kind.value for kind in topic.kinds],
+                "description": topic.description,
+                "start": topic.start,
+                "end": topic.end,
+            }
+            for topic in found.topics
+        ],
+    )
+
+
+def _registry_artist(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/artists/{qid}`, or for a held artist their own `/api/artists/{id}/registry`."""
+    held, view = services.artists.works_by_qid(arguments["qid"])
+    known = view.known
+    return ok(
+        state=str(view.state),
+        note=view.note,
+        qid=None if known is None else known.qid,
+        name=None if known is None else known.name,
+        born=None if known is None else known.born,
+        died=None if known is None else known.died,
+        artist_id=held,
+        description=None if known is None else known.description,
+        movements=[] if known is None else list(known.movements),
+        works=[
+            {
+                "qid": entry.qid,
+                "title": entry.title,
+                "year": entry.year,
+                "sitelinks": entry.sitelinks,
+                "image": entry.image,
+                "held_artwork_ids": list(view.held.get(entry.qid, ())),
+                "wanted": entry.qid in view.wanted,
+                "in_review": _in_review_fields(view.waiting.get(entry.qid)),
+            }
+            for entry in (() if known is None else known.works)
+        ],
+        works_total=0 if known is None else known.works_total,
+        holdings=[] if known is None else [{"qid": h.qid, "name": h.name, "works": h.works} for h in known.holdings],
+        candidates=[
+            {
+                "qid": candidate.person.qid,
+                "name": candidate.person.label,
+                "born": candidate.person.born,
+                "died": candidate.person.died,
+                "years_agree": candidate.years_agree,
+            }
+            for candidate in view.candidates
+        ],
+        unlinked=[
+            {"artist_id": artist.id, "name": artist.name, "born": artist.born, "died": artist.died} for artist in view.unlinked
+        ],
+    )
+
+
+def _people_fields(people: Sequence[Any], held: Mapping[str, str]) -> list[dict[str, Any]]:
+    """*Similar artists* rows, which a topic's artists share."""
+    return [
+        {"qid": p.qid, "name": p.name, "born": p.born, "died": p.died, "images": p.images, "artist_id": held.get(p.qid)}
+        for p in people
+    ]
+
+
+def _similar_artists(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/artists/{qid}/similar`."""
+    view = services.artists.similar(arguments["qid"])
+    return ok(state=str(view.state), note=view.note, artists=_people_fields(view.people, view.held))
+
+
+def _registry_work(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """`GET /api/registry/works/{qid}`."""
+    qid = arguments["qid"]
+    view = services.registry_works.view(qid)
+    known = view.known
+    return ok(
+        state=str(view.state),
+        note=view.note,
+        qid=qid,
+        title=None if known is None else known.title,
+        year=None if known is None else known.year,
+        sitelinks=None if known is None else known.sitelinks,
+        image=None if known is None else known.image,
+        creators=[] if known is None else [_creator_fields(c, view.artists) for c in known.creators],
+        media=[] if known is None else list(known.media),
+        holders=[] if known is None else [{"qid": h.qid, "name": h.name, "inventory": h.inventory} for h in known.holders],
+        held_artwork_ids=list(view.held),
+        wanted=view.wanted,
+        height_cm=view.height_cm,
+        width_cm=view.width_cm,
+        image_width=None if view.image_size is None else view.image_size.width,
+        image_height=None if view.image_size is None else view.image_size.height,
+        fit=None if view.fit is None else _fit_fields(view.fit),
+    )
+
+
+def _registry_topic(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """A Topic page's registry half in one call: `/api/topics/{qid}/registry`, with `/works` and `/artists` inside.
+
+    Three calls composed, as the page makes them, each section keeping its own
+    `state`: a head Wikidata answered and works it could not list is an answer
+    worth having.
+    """
+    qid = arguments["qid"]
+    head = services.topics.topic(qid)
+    works = services.topics.works(qid)
+    artists = services.topics.artists(qid)
+    known = head.known
+    return ok(
+        state=str(head.state),
+        note=head.note,
+        qid=qid,
+        label=None if known is None else known.label,
+        kinds=[] if known is None else [kind.value for kind in known.kinds],
+        description=None if known is None else known.description,
+        start=None if known is None else known.start,
+        end=None if known is None else known.end,
+        works={
+            "state": str(works.state),
+            "note": works.note,
+            "complete": works.complete,
+            "works": [
+                {
+                    "qid": entry.work.qid,
+                    "title": entry.work.title,
+                    "sitelinks": entry.work.sitelinks,
+                    "year": entry.work.year,
+                    "image": entry.work.image,
+                    "creators": [_creator_fields(c, works.artists) for c in entry.work.creators],
+                    "creator_unknown": entry.work.creator_unknown,
+                    "state": str(entry.state),
+                    "held_artwork_ids": list(entry.held),
+                    "wanted": entry.wanted,
+                }
+                for entry in works.works
+            ],
+        },
+        artists={"state": str(artists.state), "note": artists.note, "artists": _people_fields(artists.people, artists.held)},
+    )
+
+
 def _image_sources(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     """Every installed source plugin, in `GET /api/sources`' field names (`test_surface_parity.py`)."""
     major, minor = API_VERSION
@@ -690,6 +977,7 @@ def _source_plugin_fields(health: SourceHealth) -> dict[str, Any]:
     reading = health.reading
     return {
         "name": reading.name,
+        "museum": museum_name(reading.name, reading.identity.museum),
         "state": reading.state.value,
         "reason": reading.reason,
         "faults": reading.faults,
@@ -819,7 +1107,7 @@ def _set_verdict(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
         # Both reported on every acceptance, empty included. A key present only
         # when an artist was minted would teach a caller to read its absence as
         # "nothing happened", which is the silence this pair exists to break —
-        # the same rule `not_displayable` follows on the display surface.
+        # the same rule `not_on_the_wall` follows on the display surface.
         #
         # **Uncapped, and what bounds it is worth naming rather than assuming.**
         # `possible_duplicate_artists` holds artists already in the catalogue that
@@ -976,7 +1264,6 @@ _STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
 #: The panel's readings this action leaves out, and why.
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
-    "artwork_box": "the deployment's geometry; every size a tool reports is already in inches on this wall",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
 }
 
@@ -1030,21 +1317,47 @@ def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
 
 
 def _sync(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _built(services.display.sync(arguments["wall_id"], arguments.get("theme_id")))
+    return _built(services, services.display.sync(arguments["wall_id"], arguments.get("theme_id")))
 
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.display.survey_walls()
-    return ok(walls=[_wall_view_fields(view) for view in views], count=len(views))
+    return ok(walls=[_wall_view_fields(services, view) for view in views], count=len(views))
 
 
 def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(wall=_wall_fields(services.display.add_wall(name=arguments["name"])))
+    return ok(wall=_wall_fields(services, services.display.add_wall(name=arguments["name"])))
+
+
+def _set_mat_mode(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    mode = arguments["mode"]
+    wall = services.display.set_mat_mode(arguments["wall_id"], None if mode == PLAYERS_OWN_MAT else mode)
+    return ok(wall=_wall_fields(services, wall))
+
+
+def _set_playback(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    # `UNSET` for a setting the caller did not name, so choosing one leaves the
+    # others. The deployment default and "no limit" are words rather than null,
+    # because this surface drops a null argument as though it had not been sent.
+    if arguments.get("default_interval") and "rotation_interval_seconds" in arguments:
+        raise ServiceError("Give rotation_interval_seconds or default_interval=true, not both.")
+    shuffle = arguments.get("shuffle")
+    wall = services.display.set_playback(
+        arguments["wall_id"],
+        rotation_interval_seconds=(
+            None if arguments.get("default_interval") else arguments.get("rotation_interval_seconds", UNSET)
+        ),
+        shuffle=UNSET if shuffle is None else SHUFFLE_CHOICES[shuffle],
+        tallest=arguments.get("tallest", UNSET),
+        widest=arguments.get("widest", UNSET),
+    )
+    return ok(wall=_wall_fields(services, wall))
 
 
 def _list_clients(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
     views = services.clients.list_clients()
-    return ok(clients=[_client_view_fields(view) for view in views], count=len(views))
+    survey = services.clients.placements.survey()
+    return ok(clients=[_client_view_fields(view, survey) for view in views], count=len(views))
 
 
 def _add_client(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1075,7 +1388,7 @@ def _remove_client(services: Services, arguments: Mapping[str, Any]) -> dict[str
         client_id=arguments["client_id"],
         # Never omitted when empty, so "no wall was affected" is stated rather
         # than left to be inferred from an absent key.
-        released_walls=[_wall_fields(wall) for wall in released],
+        released_walls=[_wall_fields(services, wall) for wall in released],
         notice=f"That client is forgotten and its token no longer works. {affected}",
     )
 
@@ -1097,16 +1410,41 @@ def _issue_client_token(services: Services, arguments: Mapping[str, Any]) -> dic
 def _assign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     assignment = services.clients.assign_wall(arguments["wall_id"], client_id=arguments["client_id"], output=arguments["output"])
     return ok(
-        wall=_wall_fields(assignment.wall),
-        client=_client_fields(assignment.client),
+        wall=_wall_fields(services, assignment.wall),
+        client=None if assignment.client is None else _client_fields(assignment.client),
         # The service's own sentence, or None when the client last reported an
         # output by that name and nothing about the assignment needs saying.
         notice=assignment.notice,
     )
 
 
+def _assign_display(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    assignment = services.clients.assign_display(arguments["wall_id"], display_id=arguments["display_id"])
+    return ok(
+        wall=_wall_fields(services, assignment.wall),
+        # Null when no client reports the display now; the notice then says so.
+        client=None if assignment.client is None else _client_fields(assignment.client),
+        notice=assignment.notice,
+    )
+
+
 def _unassign_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(wall=_wall_fields(services.clients.unassign_wall(arguments["wall_id"])))
+    return ok(wall=_wall_fields(services, services.clients.unassign_wall(arguments["wall_id"])))
+
+
+def _add_label(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    assignment = services.clients.add_label(arguments["wall_id"], client_id=arguments["client_id"], output=arguments["output"])
+    return ok(
+        wall=_wall_fields(services, assignment.wall),
+        label_id=assignment.label.id,
+        client=_client_fields(assignment.client),
+        notice=assignment.notice,
+    )
+
+
+def _remove_label(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    services.clients.remove_label(arguments["wall_id"], label_id=arguments["label_id"])
+    return ok(wall=_wall_fields(services, services.clients.placement_of(arguments["wall_id"]).wall))
 
 
 def _client_fields(client: Client) -> dict[str, Any]:
@@ -1124,12 +1462,17 @@ def _client_fields(client: Client) -> dict[str, Any]:
     }
 
 
-def _client_view_fields(view: ClientView) -> dict[str, Any]:
-    """A client with its walls and what it last reported, as `GET /api/clients` carries it."""
+def _client_view_fields(view: ClientView, survey: PlacementSurvey) -> dict[str, Any]:
+    """A client with what it shows, holds and last reported, as `GET /api/clients` carries it."""
     reading = view.heartbeat
     return {
         **_client_fields(view.client),
-        "walls": [{"wall_id": wall.id, "name": wall.name, "output": wall.output} for wall in view.walls],
+        "walls": [{"wall_id": shown.wall.id, "name": shown.wall.name, "output": shown.display.output} for shown in view.walls],
+        "displays": [_display_fields(display, survey) for display in view.displays],
+        "label_outputs": [
+            {"label_id": label.id, "output": label.output, "wall_id": label.wall_id} for label in view.label_outputs
+        ],
+        "faults": [_fault_fields(fault) for fault in view.faults],
         "heartbeat": {
             "reported_at": _moment(reading.reported_at),
             "age_seconds": reading.age_seconds,
@@ -1142,8 +1485,18 @@ def _client_view_fields(view: ClientView) -> dict[str, Any]:
                     "kind": output.kind,
                     "connected": output.connected,
                     "screen": None if output.screen is None else list(output.screen),
+                    "identity": output.identity,
                 }
                 for output in reading.outputs
+            ],
+            "label_outputs": [
+                {
+                    "name": label.name,
+                    "kind": label.kind,
+                    "connected": label.connected,
+                    "size": None if label.size is None else list(label.size),
+                }
+                for label in reading.label_outputs
             ],
         },
     }
@@ -1169,7 +1522,6 @@ def _set_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
         # of that default is a second thing to keep agreeing.
         derivation=arguments.get("derivation", str(AffinityDerivation.STATED)),
         rationale=arguments.get("rationale"),
-        source_turn_id=arguments.get("source_turn_id"),
     )
     return ok(affinity=_affinity_fields(affinity))
 
@@ -1180,19 +1532,18 @@ def _delete_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str,
         affinity=_affinity_fields(forgotten),
         notice=(
             "That judgment is gone and nothing restores it. The product now knows nothing about "
-            f"{forgotten.affinity.value!r} rather than knowing to leave it alone."
+            f"{forgotten.value!r} rather than knowing to leave it alone."
         ),
     )
 
 
-def _affinity_fields(view: AffinityView) -> dict[str, Any]:
+def _affinity_fields(affinity: Affinity) -> dict[str, Any]:
     """One judgment as the tool surface reports it.
 
     Field names match `AffinityOut` on the browser surface exactly, because the
     two carry the same fact and an agent and a click that call it two things is
     how they come to disagree about the same taste.
     """
-    affinity = view.affinity
     return {
         "affinity_id": affinity.id,
         "kind": str(affinity.kind),
@@ -1201,20 +1552,13 @@ def _affinity_fields(view: AffinityView) -> dict[str, Any]:
         "open_to_more": affinity.open_to_more,
         "derivation": str(affinity.derivation),
         "rationale": affinity.rationale,
-        # Null on an `inferred` row whose conversation was deleted, which is a
-        # legal state: the judgment stands and the citation is gone.
-        "source_turn_id": affinity.source_turn_id,
-        # Resolved from the cited turn by the service, so a model following a
-        # judgment back to its thread and a curator clicking through reach the
-        # same one. Null wherever `source_turn_id` is.
-        "conversation_id": view.conversation_id,
         "artist_id": affinity.artist_id,
         "created_at": affinity.created_at.isoformat(),
         "updated_at": affinity.updated_at.isoformat(),
     }
 
 
-def _built(build: ManifestBuild) -> dict[str, Any]:
+def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
     """What a manifest build looks like to a caller. Shared by `sync` and `activate`.
 
     One shape for both, because they answer the same question — what is on the
@@ -1225,13 +1569,16 @@ def _built(build: ManifestBuild) -> dict[str, Any]:
         # The wall by name, so a caller reporting back says "in the living room"
         # rather than "on the wall" — a sentence that reads correctly today only
         # because there is one wall is one that silently becomes wrong.
-        wall=_wall_fields(build.wall),
+        wall=_wall_fields(services, build.wall),
         theme=_theme_fields(build.theme),
         on_the_wall=[{"artwork_id": entry.work_id, "title": entry.label["title"]} for entry in build.entries],
         # Never omitted when empty: a caller that saw this key only sometimes
         # would learn to read its absence as "everything is fine", which is
         # exactly the silence the exclusion report exists to break.
-        not_displayable=[
+        # Named for what it holds: every work not on the wall, for any reason.
+        # The curator's reasons leave displayable works off, so a name saying
+        # "not displayable" would tell an agent those works need repair.
+        not_on_the_wall=[
             {
                 "artwork_id": exclusion.work_id,
                 "title": exclusion.title,
@@ -1247,12 +1594,12 @@ def _built(build: ManifestBuild) -> dict[str, Any]:
 
 
 def _show_now(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    directive = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
-    return ok(**_directive_fields(directive))
+    work_id = services.display.show_work_now(arguments["wall_id"], arguments["artwork_id"])
+    return ok(**_republished_fields(arguments["wall_id"], work_id))
 
 
 def _next(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return ok(**_directive_fields(services.display.step_display(arguments["wall_id"])))
+    return ok(**_republished_fields(arguments["wall_id"], services.display.step_display(arguments["wall_id"])))
 
 
 #: Every built action, keyed by tool and action name. A tool absent from here
@@ -1270,6 +1617,12 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_discovery", "list_runs"): _list_runs,
     ("art_discovery", "spend"): _spend,
     ("art_discovery", "source_plugins"): _image_sources,
+    ("art_discovery", "search"): _registry_search,
+    ("art_discovery", "find_topics"): _registry_topics,
+    ("art_discovery", "artist"): _registry_artist,
+    ("art_discovery", "similar_artists"): _similar_artists,
+    ("art_discovery", "work"): _registry_work,
+    ("art_discovery", "topic"): _registry_topic,
     ("art_review", "list_works"): _list_candidate_works,
     ("art_review", "get_work"): _get_candidate_work,
     ("art_review", "list_images"): _list_candidate_images,
@@ -1293,6 +1646,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_catalogue", "regenerate"): _regenerate,
     ("art_catalogue", "topics"): _list_topics,
     ("art_catalogue", "topic"): _get_topic,
+    ("art_catalogue", "history"): _history,
     ("art_theme", "list"): _list_themes,
     ("art_theme", "get"): _get_theme,
     ("art_theme", "create"): _create_theme,
@@ -1303,9 +1657,15 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "remove"): _remove_from_theme,
     ("art_theme", "reorder"): _reorder_in_theme,
     ("art_theme", "activate"): _activate_theme,
+    ("art_theme", "hang_selection"): _hang_selection,
+    ("art_theme", "not_again"): _not_again,
+    ("art_theme", "kept_off"): _kept_off,
+    ("art_theme", "allow_again"): _allow_again,
     ("art_theme", "unhang"): _unhang,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
+    ("art_display", "set_mat_mode"): _set_mat_mode,
+    ("art_display", "set_playback"): _set_playback,
     ("art_display", "status"): _wall_status,
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
@@ -1317,6 +1677,9 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "issue_client_token"): _issue_client_token,
     ("art_display", "assign_wall"): _assign_wall,
     ("art_display", "unassign_wall"): _unassign_wall,
+    ("art_display", "assign_display"): _assign_display,
+    ("art_display", "add_label"): _add_label,
+    ("art_display", "remove_label"): _remove_label,
     ("art_taste", "list"): _list_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
@@ -1474,55 +1837,151 @@ def _theme_fields(theme: Theme) -> dict[str, Any]:
         "theme_id": theme.id,
         "name": theme.name,
         "description": theme.description,
-        # Null means "inherit the deployment default" rather than "unset", so it
-        # is reported as it is stored rather than resolved to a number that would
-        # read as a choice the curator made.
-        "rotation_interval_seconds": theme.rotation_interval_seconds,
-        "shuffle": theme.shuffle,
         "created_at": _moment(theme.created_at),
         "is_default": theme.is_default,
+        "hidden": theme.hidden,
     }
 
 
-def _wall_fields(wall: Wall) -> dict[str, Any]:
-    """One wall as a caller sees it: a place and a name, never a device."""
+def _wall_fields(services: Services, wall: Wall) -> dict[str, Any]:
+    """One wall as a caller sees it: a place and a name, the display it is on and its labels.
+
+    Field names match `WallOut` on the browser surface.
+    """
+    survey = services.clients.placements.survey()
+    placement = survey.placement_of(wall)
     return {
         "wall_id": wall.id,
         "name": wall.name,
         "created_at": _moment(wall.created_at),
-        # The client that shows the wall and the name of its output, or None for
-        # both while no client does — an ordinary state, stated rather than omitted.
-        "client_id": wall.client_id,
-        "output": wall.output,
+        # The display's client and the name of its output, or None for both while
+        # it has none — an ordinary state, stated rather than omitted. Whether that
+        # client shows the wall now is the display's fault being None.
+        "client_id": None if placement.client is None else placement.client.id,
+        "output": placement.output,
+        "display_id": wall.display_id,
+        "mat_mode": wall.mat_mode,
+        # Null means "the deployment default" rather than "unset", so each is
+        # reported as it is stored rather than resolved to a value that would
+        # read as a choice the curator made.
+        "rotation_interval_seconds": wall.rotation_interval_seconds,
+        "shuffle": wall.shuffle,
+        # Each bound spoken as `W:H`, None for no limit on that side.
+        "tallest": None if wall.min_aspect_ratio is None else shape.spoken(wall.min_aspect_ratio),
+        "widest": None if wall.max_aspect_ratio is None else shape.spoken(wall.max_aspect_ratio),
+        "shapes": shape.described(wall.min_aspect_ratio, wall.max_aspect_ratio) or None,
+        **_size_fields(services.display.judge_sizes(wall.id)),
+        "display": None if placement.display is None else _display_fields(placement.display, survey),
+        "labels": [
+            {
+                "label_id": label.id,
+                "client_id": label.client_id,
+                "client_name": survey.clients[label.client_id].name if label.client_id in survey.clients else "",
+                "output": label.output,
+            }
+            for label in placement.labels
+        ],
     }
 
 
-def _wall_view_fields(view: WallView) -> dict[str, Any]:
-    """One wall, what hangs on it, and what it was last told to do."""
+def _size_fields(judgement: SizeJudgement) -> dict[str, Any]:
+    """A wall's size judgement, as `WallOut` carries it."""
     return {
-        **_wall_fields(view.wall),
+        "too_small": sorted(judgement.too_small),
+        "sizes_judged_against": (
+            None
+            if judgement.screen is None
+            else {
+                "width_px": judgement.screen[0],
+                "height_px": judgement.screen[1],
+                "shape": shape.spoken(judgement.screen[0] / judgement.screen[1]),
+            }
+        ),
+        "sizes_unjudged": None if judgement.unjudged is None else judgement.unjudged.value,
+    }
+
+
+def _display_fields(display: Display, survey: PlacementSurvey) -> dict[str, Any]:
+    """One display, as `DisplayOut` carries it."""
+    fault = survey.faults.get(display.identity)
+    wall = next((wall for wall in survey.walls if wall.display_id == display.id), None)
+    return {
+        "display_id": display.id,
+        "identity": display.identity,
+        "kind": display.kind,
+        "client_id": display.client_id,
+        "output": display.output,
+        "first_seen": _moment(display.first_seen),
+        "wall_id": None if wall is None else wall.id,
+        "fault": None if fault is None else _fault_fields(fault),
+    }
+
+
+def _fault_fields(fault: DisplayFault) -> dict[str, Any]:
+    """Two or more clients reporting one display, as `DisplayFaultOut` carries it."""
+    return {
+        "identity": fault.identity,
+        "clients": [{"client_id": client.id, "name": client.name} for client in fault.clients],
+        "display_id": None if fault.display is None else fault.display.id,
+        "wall_id": None if fault.wall is None else fault.wall.id,
+        "description": fault.describe(),
+    }
+
+
+def _wall_view_fields(services: Services, view: WallView) -> dict[str, Any]:
+    """One wall, what hangs on it, and whether its Player reads the feed."""
+    return {
+        **_wall_fields(services, view.wall),
         # Never omitted when nothing hangs: a key a caller saw only sometimes
         # would be read as "there is always something", and an empty wall is an
         # ordinary state this surface has to be able to state.
         "hanging": None if view.hanging is None else _theme_fields(view.hanging),
-        "directive": _directive_fields(view.directive),
+        "display_state": _display_state_fields(view.display_state),
+        "reads_feed": view.reads_feed,
+        "feed_notice": feed_notice(reads_feed=view.reads_feed),
+        # The work it showed last, whatever its screen does now, and what its
+        # schedule puts up next; in `GET /api/walls`' shape.
+        "last_shown": None if view.last_shown is None else _last_shown_fields(view.last_shown),
+        "upcoming": [{"work_id": slot.work_id, "starts_at": _moment(slot.start)} for slot in view.upcoming],
     }
 
 
-def _placement_fields(placement: ThemePlacement) -> dict[str, Any]:
-    """One theme and every wall showing it."""
-    return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(wall) for wall in placement.walls]}
-
-
-def _directive_fields(directive: Directive) -> dict[str, Any]:
+def _last_shown_fields(showing: Showing) -> dict[str, Any]:
+    """A wall's last showing, as `LastShownOut` carries it: `until` is the end, or the last sight while it has none."""
     return {
-        "wall_id": directive.wall_id,
-        "sequence": directive.sequence,
-        "pinned_work_id": directive.pinned_work_id,
-        # The contract's own words. This action cannot observe the television, so
-        # a result implying it had changed would be asserting something curation
-        # has no way to know.
-        "notice": "The directive is written. The wall converges within about a second; this is not a confirmation it has.",
+        "work_id": showing.work_id,
+        "started_at": _moment(showing.started_at),
+        "until": _moment(showing.ended_at if showing.ended_at is not None else showing.last_seen_at),
+        "ended": showing.ended_at is not None,
+    }
+
+
+def _display_state_fields(shown: DisplayState) -> dict[str, Any]:
+    """What the wall's screen is doing, in `GET /api/walls`' shape."""
+    last = shown.last
+    return {
+        "state": str(shown.state),
+        "work_id": shown.work_id,
+        "since": _moment(shown.since),
+        "reported_at": _moment(shown.reported_at),
+        "age_seconds": shown.age_seconds,
+        "last": None if last is None else {"state": str(last.state), "work_id": last.work_id, "since": _moment(last.since)},
+    }
+
+
+def _placement_fields(services: Services, placement: ThemePlacement) -> dict[str, Any]:
+    """One theme and every wall showing it."""
+    return {**_theme_fields(placement.theme), "hanging_on": [_wall_fields(services, wall) for wall in placement.walls]}
+
+
+def _republished_fields(wall_id: str, work_id: str) -> dict[str, Any]:
+    return {
+        "wall_id": wall_id,
+        "work_id": work_id,
+        # This action cannot observe the screen, so a result implying it had
+        # changed would assert something the server has no way to know.
+        "notice": "The wall's schedule is republished, starting with this work. "
+        "Its Player shows it when it next reads the feed, within seconds; this is not a confirmation it has.",
     }
 
 
@@ -1618,11 +2077,10 @@ def _runs_truncation_notice(listing: RunListing) -> str | None:
 
 
 #: How many of a run's works one result may carry. **The list this caps is not
-#: bounded by anything else**: phase 1 is deliberately uncapped — "you asked for
-#: Dalí and I found 200 works" is the case it is written for — and the approval
-#: gate is computed *after* the whole list is recorded, so it pauses the run
-#: without shortening it. The run that stops at the gate is therefore the broad
-#: one by construction, and a human decides it by reading exactly this payload.
+#: bounded by anything else** but one model answer's output reservation: phase 1
+#: is deliberately uncapped — "you asked for Dalí and I found 200 works" is the
+#: case it is written for — so the broad run is the long one, and this payload
+#: is how an agent sees how wide it read.
 #:
 #: 100 because a work here is five short fields, about sixty tokens, so a full
 #: page is ~6,000 — under the 10,000 at which a client warns, with room for the
@@ -1636,7 +2094,7 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
     """One proposed work, in the fields an action taking a work id needs.
 
     Enough to choose and to act, and no more. What an instance looks like — its
-    preview, its size on the wall, why it was selected — belongs to the review
+    preview, its size, why it was selected — belongs to the review
     surface, which returns images alongside it; duplicating a slice of that here
     would be a second review card that drifts from the real one. This exists so
     a caller can obtain a work id at all: every count-only listing left the
@@ -1687,11 +2145,16 @@ def _work_summary(work: CandidateWork) -> dict[str, Any]:
         # prose was carrying, which is most of why they are facts now.
         "offered_for_artist": work.offered_for_artist,
         "offered_artist_matched": work.offered_artist_matched,
+        "offered_by": work.offered_by,
         # The item a chosen work was asked for by; null on proposed and offered works.
         "wikidata_qid": work.wikidata_qid,
         "verdict": str(work.verdict),
         "resolution_status": str(work.resolution_status),
         "unresolved_reason": _reason(work),
+        # Whether a source confirms the work exists: `unconfirmed` or `unknown`
+        # is a title the model may have invented, which an agent weighs before
+        # accepting as a curator does before the card's Accept.
+        "confirmation": str(work.confirmation),
     }
 
 
@@ -1935,13 +2398,13 @@ def _shown_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, Any]
     """The pictured instance, as a listing row carries it.
 
     Carries the pair `api-contract.md` requires of a review surface — the fit
-    verdict and the size on the wall — because those are exactly what a picture
-    cannot say, and dropping them to save tokens would leave the rows looking
+    verdict and the scan's size in pixels — because those are exactly what a
+    picture cannot say, and dropping them to save tokens would leave the rows looking
     complete while removing the reason the gate works.
 
     `is_on_offer` is here rather than inferred, because it is false in two very
     different situations a curator must not confuse with each other: a work whose
-    only scans are below the floor, and one whose scans were all turned down.
+    only scans are below the quality minimum, and one whose scans were all turned down.
 
     **No `image_id`.** Nothing a caller does from a listing takes one — the row's
     `work_id` is what every action here accepts — and choosing among a work's
@@ -1952,14 +2415,24 @@ def _shown_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, Any]
     fit = instance.fit
     return {
         "is_on_offer": instance.image.is_selected,
-        "display_fit": None if fit is None else str(fit.fit),
-        "renders_at_inches": None if fit is None else round(fit.rendered_long_edge_inches, 1),
+        "display_fit": None if fit is None else str(fit),
+        # One short string rather than two numbers: a listing page is priced in
+        # tokens against the client's warning threshold, and this repeats on
+        # every row. `list_images` carries the numbers apart.
+        "size_px": _size_px(instance.image),
         "image_block_index": pictures.index_of(instance.preview),
         # Both omitted when there is nothing to say, which is the common case.
         # A null repeated on forty rows is pure cost.
         **({} if instance.fit_note is None else {"fit_note": instance.fit_note}),
         **({} if instance.preview_note is None else {"preview_note": instance.preview_note}),
     }
+
+
+def _size_px(image: CandidateImage) -> str | None:
+    """A scan's size as `WxH` pixels, or None when its provider did not report it."""
+    if image.estimated_width is None or image.estimated_height is None:
+        return None
+    return f"{image.estimated_width}x{image.estimated_height}"
 
 
 def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, Any]:
@@ -1970,7 +2443,6 @@ def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, A
     listing carries a subset of this; the split is `_candidate_summary`'s.
     """
     image = instance.image
-    fit = instance.fit
     return {
         # The id lives here and not on a listing row, because this is the level
         # at which a caller picks one scan out of several and needs to name it.
@@ -1983,7 +2455,6 @@ def _instance_fields(instance: InstanceView, pictures: _Pictures) -> dict[str, A
         # wanted, which is the whole reason instance suppression and work
         # suppression are different keys.
         "rejected_for_this_work": instance.rejected,
-        "renders_at_pixels": None if fit is None else f"{fit.rendered_width}x{fit.rendered_height}",
         "estimated_width": image.estimated_width,
         "estimated_height": image.estimated_height,
         # Provenance and source quality, returned alongside. It gates nothing.
@@ -2001,7 +2472,7 @@ def _run_view(view: RunView) -> dict[str, Any]:
         **_run_fields(view.run),
         works={
             "total": view.work_count,
-            # The curator approved a work list of a stated size, and a supplement
+            # The curator asked for a work list of a stated size, and a supplement
             # adds to it. Reported apart because a single total describes a run
             # as having found more of what was asked for than it did — with
             # twelve offered works behind one unresolved proposal, a merged
@@ -2079,9 +2550,9 @@ def _run_notice(view: RunView) -> str:  # noqa: C901, PLR0911, PLR0912 -- one no
         return "Phase 1 is working out which works match the intent. Call status again to keep watching."
     if status is RunStatus.AWAITING_APPROVAL:
         return (
-            f"This run proposed {counted(view.work_count, 'work')}, which is more than the configured threshold, so it "
-            "stopped to ask. Approve it to let it look for images, or decline it — nothing more is spent "
-            "until you do."
+            f"This run proposed {counted(view.work_count, 'work')} and stopped to ask, as runs did before "
+            "asking became the approval. Approve it to let it look for images, or decline it — nothing more "
+            "is spent until you do."
         )
     if status is RunStatus.RESOLVING_IMAGES:
         # Two different situations share this state, and which one it is comes
@@ -2220,10 +2691,10 @@ def _sync_notice(build: ManifestBuild) -> str:
 
     The counts come from the build itself, so this surface and the browser one
     cannot disagree about them. Only the field name is this surface's own — a
-    model reading a tool result has `not_displayable` in front of it, and naming
+    model reading a tool result has `not_on_the_wall` in front of it, and naming
     it is worth a clause that would be meaningless anywhere else.
     """
     summary = build.summarise()
     if not build.exclusions:
         return summary
-    return f"{summary} See not_displayable for each one and why."
+    return f"{summary} See not_on_the_wall for each one and why."

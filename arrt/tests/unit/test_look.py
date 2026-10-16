@@ -148,7 +148,7 @@ def build(services, settings, registry, clock):
             works=services.registry_works,
             discovery=services.discovery,
             pool=pool,
-            judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry),
+            judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry),
             # The plane's store directory, fetching from these finders, as the
             # plane's store fetches from the pool its looks ask.
             pictures=PictureStore(
@@ -512,7 +512,7 @@ def test_two_answers_judged_at_once_ask_the_registry_for_the_work_s_pages_once(s
 
     registry.pages_about = slowly
     pool = ImageSourcePool([Source()])
-    link = PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry).link(
+    link = PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry).link(
         ImageQuery(title="Tantra-Vision", qid=TANTRA)
     )
     answers: list[str | None] = []
@@ -675,7 +675,7 @@ def test_a_look_thread_that_never_starts_turns_its_row_unreachable(services, set
         works=services.registry_works,
         discovery=services.discovery,
         pool=pool,
-        judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=registry),
+        judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=registry),
         pictures=services.pictures,
         now=clock,
         spawn=cannot_start,
@@ -738,11 +738,11 @@ def test_no_registry_asks_nothing_and_says_why(services, store, settings, clock)
     pool = ImageSourcePool([smk])
     look = LookService(
         works=RegistryWorkService(
-            store, None, kept=KeptAnswers.in_memory(), wanted=services.discovery, box=settings.tv_artwork_box
+            store, None, kept=KeptAnswers.in_memory(), wanted=services.discovery, profile=settings.quality_profile
         ),
         discovery=services.discovery,
         pool=pool,
-        judge=PhaseTwoEngine(pool, box=settings.tv_artwork_box, registry=None),
+        judge=PhaseTwoEngine(pool, profile=settings.quality_profile, registry=None),
         pictures=services.pictures,
         now=clock,
     )
@@ -797,10 +797,12 @@ def test_a_served_picture_is_logged_with_its_key_size_and_qid(build, caplog):
 
 
 def test_the_model_s_look_stays_within_its_budget_and_says_what_it_left_for_later(build):
+    slow = 3.0
+
     class SlowPictures(Source):
         def fetch_preview(self, url):
             self.fetched.append(url)
-            time.sleep(3)
+            time.sleep(slow)
             return a_decodable_jpeg()
 
     smk = SlowPictures(holdings={"Tantra-Vision": [smk_image("Tantra-Vision"), smk_image("Tantra-Vision", width=3000)]})
@@ -811,7 +813,10 @@ def test_the_model_s_look_stays_within_its_budget_and_says_what_it_left_for_late
     took = time.monotonic() - started
 
     assert view.state is LookState.ANSWERED
-    assert took < 2.5, f"the call took {took:.1f}s against a 1s budget"
+    # Bounded by the fetch, not by the budget plus a guess at overhead: a call
+    # that waited for a picture took at least `slow`, so anything under it kept
+    # to the budget, with two seconds' room for a loaded machine.
+    assert took < slow, f"the call took {took:.1f}s against a 1s budget"
     assert inlined.previews == {}
     assert set(inlined.deferred) == {picture.key for picture in view.pictures}
 

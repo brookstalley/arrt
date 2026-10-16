@@ -13,15 +13,15 @@ and its artist should not wait on the network each time. A failure is not
 kept, so the next visit asks again.
 
 **Its picture's pixel size is asked of the registry too, and judged against
-the wall** by `assess_display_fit`, the function the review grid's verdict
-comes from, so the page and the review cannot disagree about one file. The
-size is kept per file, as the work is per QID. Only Commons knows it, and
-Commons can be down while the query service answers, so a failure to ask
-leaves the work known and its size unknown, and is not kept. The verdict is
-on the file as Commons holds it: a Get of a file wider than Commons' widest
-rendering fetches that rendering, which on a panel no wider than it judges
-the same. A work the library holds is not asked about: its page goes to the
-library's own, and should not wait on Commons first.
+the quality profile**, which the review grid's verdict comes from too, so the
+page and the review cannot disagree about one file. The size is kept per file,
+as the work is per QID. Only Commons knows it, and Commons can be down while
+the query service answers, so a failure to ask leaves the work known and its
+size unknown, and is not kept. The verdict is on the file as Commons holds it:
+a Get of a file wider than Commons' widest rendering fetches that rendering,
+which judges the same wherever that rendering itself meets the minimum. A work
+the library holds is not asked about: its page goes to the library's own, and
+should not wait on Commons first.
 
 **The work's size is checked for plausibility before the page shows it**
 (`plausible_size`), as the owner ruled for anything that reads a size from the
@@ -38,7 +38,7 @@ from typing import Final
 
 from arrt.library.registry import CommonsFile, Registry, RegistryImageSize, RegistryUnavailable, RegistryWork
 from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED, checked_qid
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
@@ -99,19 +99,19 @@ class RegistryWorkView:
     #: The pixel size of the work's picture, where it has one and Commons said.
     image_size: RegistryImageSize | None = None
     #: How that picture would meet this deployment's wall, beside its size.
-    fit: FitAssessment | None = None
+    fit: Fit | None = None
 
 
 class RegistryWorkService:
     """Ask the registry about one work, and say what the library holds of it."""
 
     def __init__(
-        self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems, box: ArtworkBox
+        self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems, profile: QualityProfile
     ) -> None:
         self._store = store
         self._registry = registry
         self._wanted = wanted
-        self._box = box
+        self._profile = profile
         self._kept: Kept[str, RegistryWork] = kept.namespace(
             "registry.work", codec=JsonCodec(RegistryWork), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -143,7 +143,7 @@ class RegistryWorkService:
             height_cm=height_cm,
             width_cm=width_cm,
             image_size=size,
-            fit=None if size is None else assess_display_fit(width=size.width, height=size.height, box=self._box),
+            fit=None if size is None else self._profile.judge(width=size.width, height=size.height),
         )
 
     def known(self, qid: str) -> RegistryWorkView:

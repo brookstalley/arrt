@@ -21,7 +21,6 @@ from arrt.http.api import _health
 from arrt.library.discovery.browse import CollectionBrowseFailure
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.pictures import PictureStore
 from arrt.library.sources import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.loading import (
@@ -374,7 +373,9 @@ def test_the_health_reading_states_each_plugin_with_the_age_of_its_last_fault():
     assert out["raising"].state == "failed"
     assert "was not loaded: its factory raised RuntimeError" in out["raising"].description
     assert out["configured"].state == "declined"
-    assert out["configured"].description == "configured is installed and not configured here: FAKE_SOURCE_KEY is unset."
+    assert (
+        out["configured"].description == "The configured plugin is installed and not configured here: FAKE_SOURCE_KEY is unset."
+    )
 
 
 def test_a_loaded_plugin_with_no_faults_says_so_and_carries_no_fault_age():
@@ -382,7 +383,7 @@ def test_a_loaded_plugin_with_no_faults_says_so_and_carries_no_fault_age():
 
     (good,) = _health(_health_of(roster)).sources
 
-    assert good.description == "good is loaded, with no faults since startup."
+    assert good.description == "The good plugin is loaded, with no faults since startup."
     assert (good.last_fault_at, good.last_fault_age_seconds, good.last_fault) == (None, None, None)
 
 
@@ -393,8 +394,8 @@ def test_this_distribution_registers_the_built_in_plugins_as_entry_points():
     """Read from the installed metadata: the injected tests above cannot see a typo in pyproject."""
     installed = {point.name: point for point in importlib.metadata.entry_points(group=ENTRY_POINT_GROUP)}
 
-    assert {"commons", "artic", "wikidata", "met", "smk", "navigart", "nga"} <= set(installed)
-    for name in ("commons", "artic", "wikidata", "met", "smk", "navigart", "nga"):
+    assert {"commons", "artic", "wikidata", "met", "smk", "navigart", "nga", "yale", "getty", "rijksmuseum"} <= set(installed)
+    for name in ("commons", "artic", "wikidata", "met", "smk", "navigart", "nga", "yale", "getty", "rijksmuseum"):
         assert isinstance(installed[name].load(), SourcePlugin), name
 
 
@@ -409,7 +410,7 @@ def test_the_built_in_plugins_load_through_the_real_entry_points():
     )
 
     # Named by the default order first, then the rest by name.
-    assert [finder.provider for finder in roster.finders][:3] == ["commons", "artic", "met"]
+    assert [finder.provider for finder in roster.finders][:3] == ["commons", "artic", "getty"]
     assert roster.collection is not None
     assert roster.collection.provider == "artic"
 
@@ -428,7 +429,7 @@ def test_each_installed_plugin_says_which_distribution_and_version_it_came_from(
     )
     identity = {reading.name: reading.identity for reading in roster.observe()}
 
-    for name in ("met", "smk", "navigart", "nga"):
+    for name in ("met", "smk", "navigart", "nga", "yale", "getty", "rijksmuseum"):
         assert identity[name] == PluginIdentity(
             distribution="arrt", version=version, api_major=1, provides=(PluginPart.FINDS_IMAGES, PluginPart.READS)
         ), name
@@ -517,7 +518,18 @@ def _built_in_modules() -> list[str]:
 
 def test_the_built_in_plugin_modules_are_read_from_the_entry_points():
     """An empty or short list would let the guard below pass over nothing."""
-    assert _built_in_modules() == ["artic.py", "commons.py", "met.py", "navigart.py", "nga.py", "smk.py", "wikidata.py"]
+    assert _built_in_modules() == [
+        "artic.py",
+        "commons.py",
+        "getty.py",
+        "met.py",
+        "navigart.py",
+        "nga.py",
+        "rijksmuseum.py",
+        "smk.py",
+        "wikidata.py",
+        "yale.py",
+    ]
 
 
 def test_the_built_in_plugins_import_nothing_from_arrt_but_the_interface():
@@ -571,8 +583,8 @@ def _health_of(roster, *, now: datetime | None = None) -> HealthReading:
     service = HealthService(
         _NoWalls(),
         backup_receipt_path=pathlib.Path("/nonexistent/backup-receipt.json"),
-        box=ArtworkBox(width=3000, height=2000, pixels_per_inch=88.0, floor_inches=12.0),
         sources=roster,
+        yields=dict,
         pictures=PictureStore(pathlib.Path("/nonexistent/art/pictures"), art_root=pathlib.Path("/nonexistent/art")),
         now=lambda: moment,
     )
@@ -667,3 +679,62 @@ def test_claimants_follow_the_order_the_loader_was_given():
 
     assert load_sources(context(), entry_points=points, order=("beta", "alpha")).route("https://example.org/1").plugin == "beta"
     assert load_sources(context(), entry_points=points, order=("alpha", "beta")).route("https://example.org/1").plugin == "alpha"
+
+
+# -- 1.4: a plugin names the museum it answers for ---------------------------------
+
+
+def test_a_plugin_that_names_its_museum_is_called_by_that_name():
+    from arrt.library.sources.names import museum_name
+
+    load_sources(context(), entry_points=[entry("good", "NAMED")])
+
+    assert museum_name("good") == "Tate"
+
+
+def test_a_plugin_that_declined_is_still_called_by_its_museum():
+    """Its rows outlive its configuration, and every sentence about them names it."""
+    from arrt.library.sources.names import museum_name
+
+    roster = load_sources(context(), entry_points=[entry("configured", "NAMED_DECLINING")])
+
+    assert states(roster)["configured"][0] is PluginState.DECLINED
+    assert museum_name("configured") == "The Whitney Museum of American Art"
+
+
+@pytest.mark.parametrize("target", ["BLANK_NAMED", "LONG_NAMED", "CONTROL_NAMED", "NOT_TEXT_NAMED"])
+def test_a_name_that_is_not_one_short_line_of_text_is_refused_and_the_id_stands(caplog, target):
+    from arrt.library.sources.names import museum_name
+
+    roster = load_sources(context(), entry_points=[entry("good", target)])
+
+    assert museum_name("good") == "good"
+    # Refusing the name costs the plugin nothing else.
+    assert states(roster) == {"good": (PluginState.LOADED, None)}
+    assert [r.plugin for r in caplog.records if getattr(r, "event", None) == "source.museum_refused"] == ["good"]
+
+
+def test_the_names_are_the_installed_plugins_of_the_latest_load():
+    """A plugin no longer installed is called by its id again, not by a name it once gave."""
+    from arrt.library.sources.names import museum_name
+
+    load_sources(context(), entry_points=[entry("good", "NAMED")])
+    load_sources(context(), entry_points=[entry("good", "GOOD")])
+
+    assert museum_name("good") == "good"
+
+
+def test_a_built_in_is_called_by_the_name_its_module_declares():
+    from arrt.library.sources.names import museum_name
+
+    load_sources(context(), entry_points=[entry("good", "NAMED")])
+
+    assert museum_name("met") == "Metropolitan Museum of Art"
+
+
+def test_a_plugin_s_reading_carries_the_museum_it_declared():
+    """The listing reads each plugin's name from its own reading, not from what the last load declared."""
+    roster = load_sources(context(), entry_points=[entry("good", "NAMED"), entry("other", "OTHER")])
+
+    identities = {reading.name: reading.identity.museum for reading in roster.observe()}
+    assert identities == {"good": "Tate", "other": None}

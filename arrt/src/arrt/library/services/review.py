@@ -10,11 +10,11 @@ about the same painting.
 **A thumbnail cannot convey resolution, and that is why this module exists at
 all.** A 900 px scan and a 6000 px scan look identical in a review grid, so a gate
 that showed only pictures would not protect against hanging a postage stamp. Every
-instance therefore travels with the size it would render at on *this* deployment's
-wall, in inches, beside the picture — the number a curator can actually judge.
+instance therefore travels with its size in pixels and its verdict against the
+quality profile, beside the picture — the facts a curator can actually judge.
 
 **Nothing is decided here that is decided elsewhere.** The fit verdict is
-`display_fit`'s, the ordering of a work's instances is the store's — the same
+the quality profile's, the ordering of a work's instances is the store's — the same
 order `selection.best` walks, so the instance leading a listing is the instance on
 offer — and whether a preview can be shown is `previews`'. This gathers them, and
 its only judgement of its own is `survey.py`'s: a missing answer is reported as a
@@ -30,7 +30,6 @@ from typing import Final
 
 from arrt.library.services import selection
 from arrt.library.services.discovery import DiscoveryService, WantedWork
-from arrt.library.services.display_fit import ArtworkBox, FitAssessment, assess_display_fit
 from arrt.library.services.pictures import PictureStore
 from arrt.library.services.previews import (
     BROWSER_MAX_EDGE_PX,
@@ -41,6 +40,7 @@ from arrt.library.services.previews import (
     inline_preview,
     kept_preview,
 )
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.persistence.discovery_records import CandidateImage, CandidateWork, DiscoveryRun
 from arrt.services.errors import ServiceError
 
@@ -132,7 +132,7 @@ def _fill(held: Sequence[CandidateImage]) -> Sequence[CandidateImage]:
     **Preserved, not established.** Where the work has a selection, that instance
     leads both this card and `selection.best`, since `is_selected` heads the
     store's order and a selected instance is never rejected. Where it has none —
-    every instance below the floor, or every one turned down, the two cases
+    every instance below the quality minimum, or every one turned down, the two cases
     `CandidateView` documents — the card leads with whatever the store ranks
     first, which may be a refused scan. That is unchanged by this function and was
     equally true of the slice it replaced; `shown_is_on_offer` is what tells a
@@ -175,7 +175,7 @@ class InstanceView:
     """
 
     image: CandidateImage
-    fit: FitAssessment | None
+    fit: Fit | None
     fit_note: str | None
     preview: InlinePreview | None
     preview_note: str | None
@@ -213,9 +213,9 @@ class CandidateView:
 
     **`shown` is not the same question as "what would a verdict accept this
     on".** The selected instance answers that, and a work can legitimately have
-    none — every instance below the floor, or every instance turned down. Such a
-    work still has to arrive with a picture: `api-contract.md` requires a
-    below-floor instance to be "shown, labelled, and selectable — never hidden",
+    none — every instance below the quality minimum, or every instance turned
+    down. Such a work still has to arrive with a picture: `api-contract.md`
+    requires a small instance to be "shown, labelled, and selectable — never hidden",
     and a listing row that carried no image because nothing was auto-selected
     would hide it one level above where that rule is written. The curator would
     see a title with no picture and no way to know a picture exists.
@@ -327,14 +327,14 @@ class InstanceListing:
 class ReviewService:
     """Read proposed works the way a surface that shows them to a human needs them."""
 
-    def __init__(self, discovery: DiscoveryService, *, box: ArtworkBox, pictures: PictureStore) -> None:
+    def __init__(self, discovery: DiscoveryService, *, profile: QualityProfile, pictures: PictureStore) -> None:
         self._discovery = discovery
-        #: The space a work is rendered into on this deployment. Required rather
+        #: The quality profile every instance is judged against. Required rather
         #: than optional: a review surface whose whole justification is showing
-        #: how large a work would appear cannot be assembled without it, and a
+        #: whether a scan is big enough cannot be assembled without it, and a
         #: caller with none should fail at wiring rather than serve cards with
-        #: every size reported as unknown.
-        self._box = box
+        #: every verdict missing.
+        self._profile = profile
         #: Where every picture shown here is kept. A row's `preview_path` names
         #: the store's larger tier, and the store answers each ask from the
         #: smallest tier that covers it.
@@ -346,7 +346,7 @@ class ReviewService:
     def list_works(self, run_id: str, *, limit: int | None = None, offset: int = 0, pictures: bool = True) -> CandidatePage:
         """A page of the works a run is responsible for, each with a picture.
 
-        Not "the image on offer": a work whose scans are all below the floor or
+        Not "the image on offer": a work whose scans are all below the minimum or
         all turned down has no selection, and still arrives pictured — see
         `CandidateView`, which spells out why. `shown_is_on_offer` separates the
         two cases.
@@ -369,18 +369,25 @@ class ReviewService:
         # Read whole and sliced here rather than paged in the store, because the
         # relation differs by run kind — a discovery run's works are the ones it
         # proposed, a re-search's are the ones it covers — and that branch already
-        # lives behind `run_results`. Bounded by phase 1's output, which is
-        # already held in memory to compute the approval gate.
+        # lives behind `run_results`. Bounded by phase 1's output, which one
+        # model answer's reservation bounds.
         #
         # **The page order is resolved works, then unresolved, then pending**,
-        # each group in the store's title order. That falls out of `run_results`
-        # rather than being imposed here, and it is the right way round for this
-        # surface: the works a curator can actually judge lead, and the ones
-        # nothing was found for — which they can do nothing about except
-        # re-search — sort behind them. It is a total order, so a page boundary
-        # lands in the same place on every call.
+        # and within each group confirmed works, then unknown, then unconfirmed,
+        # each in the store's title order. The groups fall out of `run_results`,
+        # and they are the right way round for this surface: the works a curator
+        # can actually judge lead, and the ones nothing was found for — which
+        # they can do nothing about except re-search — sort behind them. Within
+        # a group, a work no source confirms sorts after the ones a source does,
+        # so the card that may be an invented title is never the first one
+        # judged. A stable sort keeps the title order, so this is a total order
+        # and a page boundary lands in the same place on every call.
         results = self._discovery.run_results(run_id)
-        works = results.works
+        works = [
+            work
+            for group in (results.resolved, results.unresolved, results.pending)
+            for work in sorted(group, key=lambda work: work.confirmation.rank)
+        ]
         page = works[offset : offset + resolved_limit]
         return CandidatePage(
             run=results.run,
@@ -409,8 +416,8 @@ class ReviewService:
         """Every wanted work, in `DiscoveryService.list_wanted`'s order, each with its card's picture.
 
         A wanted work holds no scan the curator would accept, so the picture is
-        usually one below the floor: enough to recognise the work by, labelled
-        with the size it would hang at, as on the card.
+        usually one below the quality minimum: enough to recognise the work by,
+        labelled with its size, as on the card.
         """
         views = []
         for entry in self._discovery.list_wanted():
@@ -512,7 +519,7 @@ class ReviewService:
         # including one the curator had already rejected.
         chosen = next((image for image in images if image.is_selected), None)
         # Falling back through `selection.surviving` rather than a local sort, so
-        # this picture is the one `best` would choose if the floor were lifted. A
+        # this picture is the one `best` would choose if the minimum were lifted. A
         # second ordering here is how a curator's card and the automatic choice
         # come to disagree about which scan is the best of a bad set.
         #
@@ -548,14 +555,14 @@ class ReviewService:
             return None
         return self._absent_preview_note(image, work)
 
-    def _fit(self, image: CandidateImage) -> tuple[FitAssessment | None, str | None]:
-        """How large this instance would render, or why that is not knowable."""
+    def _fit(self, image: CandidateImage) -> tuple[Fit | None, str | None]:
+        """Whether this instance meets the quality minimum, or why that is not knowable."""
         if image.estimated_width is None or image.estimated_height is None:
             return None, (
-                "The provider did not report this image's dimensions, so how large it would appear on "
-                "the wall is unknown — which is not the same as knowing it is small."
+                "The provider did not report this image's dimensions, so whether it is big enough is "
+                "unknown — which is not the same as knowing it is small."
             )
-        return assess_display_fit(width=image.estimated_width, height=image.estimated_height, box=self._box), None
+        return self._profile.judge(width=image.estimated_width, height=image.estimated_height), None
 
     def _preview(self, image: CandidateImage, work: CandidateWork) -> tuple[InlinePreview | None, str | None]:
         """The picture this instance travels with, or why it travels without one."""

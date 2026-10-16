@@ -21,6 +21,96 @@
  * picture. `--border-strong` is the one controls use, and it does meet it.
  */
 
+/* The two typefaces, served from this directory rather than a font CDN: the
+ * curation surface runs on a home network, and a CDN would put an outside
+ * request in front of every page and a fallback face in front of every curator
+ * whose network is down. Newsreader is the museum's voice (page names, work
+ * titles, a work's description) and Instrument Sans is the chrome's. Both are
+ * variable fonts under the SIL Open Font License, which sits beside each
+ * family's files; `fonts/README.md` names the package and version they came
+ * from. Latin and Latin Extended only: a name in another script falls back to
+ * the system face, and the browser fetches a subset only when a page uses it.
+ *
+ * `font-display: swap` shows the fallback face while a font is loading, never
+ * blank text. That makes a font that fails to load look like a working page,
+ * so `tests/browser/test_the_typefaces.py` checks that both faces loaded. */
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-ext-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Newsreader";
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url("fonts/newsreader/latin-ext-italic.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-ext-normal.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: italic;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-italic.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: italic;
+  font-weight: 400 700;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url("fonts/instrument-sans/latin-ext-italic.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   color-scheme: light dark;
 
@@ -66,18 +156,9 @@
   --text-lg: 1.125rem;
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;
-  /* The one step above the 1.25 scale, added for the Walls screen's single large
-     heading and used nowhere else.
-
-     **2.25rem is derived, not chosen.** The scale is nominally 1.25 but is not
-     one in fact: rounded to whole pixels it runs 1.167, 1.143, 1.125, 1.222,
-     1.273 — the ratios widen towards the display end, which is what a type scale
-     rounded onto a pixel grid does. Continuing that widening from 1.75rem gives
-     roughly 1.29, and 2.25rem (36px) is where that lands on the same 4px base
-     the spacing scale is built on. The nominal ratio would give 2.1875rem, which
-     is 35px: half a pixel off the grid every other value in this block sits on,
-     for a difference no reader could see. */
-  --text-3xl: 2.25rem;
+  /* A page's name, and nothing else: with no box around a page's sections,
+     the name is what tells a curator where they are. */
+  --text-3xl: 2.5rem;
 
   /* Spacing, 4px base. */
   --space-1: 0.25rem;
@@ -88,6 +169,11 @@
   --space-6: 2rem;
   --space-8: 3rem;
 
+  /* Controls: one height for every act and field, and a compact one for a
+     menu's items and the menu button. A coarse pointer raises both below. */
+  --control-h: 2.5rem;
+  --control-h-compact: 2rem;
+
   /* Radius: crisp. A museum label is not a pill. */
   --radius-sm: 2px;
   --radius-md: 4px;
@@ -95,14 +181,30 @@
   /* Elevation: barely there, so a card reads as paper rather than as UI. */
   --shadow-1: 0 1px 2px rgb(28 26 23 / 6%);
   --shadow-2: 0 2px 8px rgb(28 26 23 / 10%);
+  /* Under a picture on its mat: enough to lift the work off the board, as a
+     hung print sits a hair proud of the wall. */
+  --shadow-art: 0 1px 3px rgb(28 26 23 / 22%);
 
-  --font-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-label: ui-serif, Georgia, "Times New Roman", serif;
+  --font-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-label: "Newsreader", ui-serif, Georgia, "Times New Roman", serif;
 
   /* Layout. */
   --rail: 13rem;
-  --masthead: 3.5rem;
+  /* The top bar's height: a search field of one control's height, the bar's
+     padding and its 1px rule. */
+  --masthead: calc(var(--control-h) + 2 * var(--space-3) + 1px);
   --sidebar: 14rem;
+}
+
+/* A finger is not a pointer: on a touch screen every control is at least
+   44px (2.75rem), what every touch platform assumes. Keyed on the pointer,
+   not the viewport, because a small window on a desktop still has a mouse
+   (§ Spacing & Layout). */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 2.75rem;
+    --control-h-compact: 2.75rem;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -131,6 +233,7 @@
     --scrim-text: #f6efe3;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 45%);
     --shadow-2: 0 2px 10px rgb(0 0 0 / 55%);
+    --shadow-art: 0 1px 4px rgb(0 0 0 / 50%);
   }
 }
 
@@ -194,7 +297,7 @@ a {
    be pushed off the page. */
 header.topbar {
   border-bottom: 1px solid var(--border);
-  background: var(--surface-1);
+  background: var(--surface-0);
   padding: var(--space-3) var(--space-5);
   display: flex;
   flex-wrap: wrap;
@@ -204,9 +307,12 @@ header.topbar {
 
 .topbar .brand {
   margin: 0;
-  font: 400 var(--text-xl) / 1.2 var(--font-label);
-  letter-spacing: 0.01em;
+  font: 500 var(--text-2xl) / 1.1 var(--font-label);
+  letter-spacing: -0.01em;
   color: var(--text-strong);
+  /* The name never shrinks: the elements after it do (§ Spacing & Layout). A
+     brand allowed to shrink is drawn past its own box, under the search. */
+  flex: none;
   /* Sits above the sidebar's own column, so the two read as one strip. */
   min-width: calc(var(--sidebar) - var(--space-5) - var(--space-4));
 }
@@ -230,8 +336,32 @@ header.topbar {
   display: flex;
   gap: var(--space-2);
   align-items: center;
-  flex: 0 1 auto;
+  flex: 0 1 32rem;
   min-width: 0;
+}
+
+/* The magnifier, laid over the field's left edge. It is the form's submit
+   button, so it carries a hover and a focus ring like any other control. */
+.search-submit {
+  position: absolute;
+  left: var(--space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-compact);
+  height: var(--control-h-compact);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.search-submit:hover {
+  color: var(--text-strong);
 }
 
 /* The dropdown under the search box: library matches, then the row that hands
@@ -316,6 +446,19 @@ header.topbar {
   cursor: pointer;
 }
 
+/* A work's option leads with its picture, the library's own as well as
+   Wikidata's, beside its name rather than inside its state's badge. */
+.search-suggestions [role="option"]:has(> .work-pic) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.search-suggestions .work-pic {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
 .search-suggestions [role="option"]:hover,
 .search-suggestions [role="option"][aria-selected="true"] {
   background: var(--surface-1);
@@ -325,12 +468,15 @@ header.topbar {
 
 .topbar .search input {
   font: var(--text-sm) / 1.4 var(--font-ui);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--control-h-compact) + var(--space-2));
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: var(--surface-0);
+  background: var(--surface-1);
   color: var(--text);
+  width: 100%;
   min-width: 12rem;
+  height: var(--control-h);
+  box-sizing: border-box;
 }
 
 /* Glyph, words and colour — three carriers, of which colour is the last. The
@@ -338,29 +484,39 @@ header.topbar {
    state is legible in the DOM to a reader who cannot see the hue. */
 .status-indicator {
   appearance: none;
+  text-decoration: none;
   margin-left: auto;
   flex: 0 1 auto;
   min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  border: none;
+  padding: var(--space-2) 0;
   font: var(--text-sm) / 1.2 var(--font-ui);
   cursor: pointer;
-  background: var(--surface-0);
+  background: none;
   color: var(--text);
   text-align: left;
 }
 
+/* No box: a box around the status is a button, and this is a link to a page.
+   Its glyph and its words still carry the state with the colour. */
+/* Shown only at a phone's width (below). */
+.status-short {
+  display: none;
+}
+
+.status-indicator:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .status-indicator[data-state="well"] {
-  background: var(--good-quiet);
   color: var(--good);
 }
 
 .status-indicator[data-state="unwell"] {
-  background: var(--warn-quiet);
   color: var(--warn);
 }
 
@@ -370,28 +526,40 @@ header.topbar {
   appearance: none;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--control-h);
+  box-sizing: border-box;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-3);
   font: var(--text-sm) / 1.2 var(--font-ui);
   background: var(--surface-0);
   color: var(--text);
   cursor: pointer;
 }
 
+/* The sidebar's edge is drawn by the shell, not the sidebar. The sidebar is
+   sticky, so it is only as tall as the viewport, and a rule drawn on it stopped
+   partway down any page longer than the window. The shell is as tall as the
+   page, so a one-pixel line painted on it at the sidebar's width runs the
+   whole way. */
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
   align-items: start;
+  min-height: calc(100vh - var(--masthead));
+  background-image: linear-gradient(var(--border), var(--border));
+  background-size: 1px 100%;
+  background-position: calc(var(--sidebar) - 1px) 0;
+  background-repeat: no-repeat;
 }
 
+/* No background of its own on a wide screen: it sits on the page's ground,
+   and a fill would cover the shell's rule beside it. The phone drawer gives it
+   one, since there it lies over the page. */
 nav.sidebar {
   position: sticky;
   top: 0;
-  min-height: calc(100vh - var(--masthead));
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
-  padding: var(--space-4) 0;
+  padding: var(--space-5) 0;
 }
 
 nav.sidebar ul {
@@ -404,11 +572,13 @@ nav.sidebar a {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: var(--control-h-compact);
+  box-sizing: border-box;
   padding: var(--space-2) var(--space-5);
-  color: var(--text-muted);
-  font: var(--text-sm) / 1.4 var(--font-ui);
+  color: var(--text);
+  font: var(--text-md) / 1.4 var(--font-ui);
   text-decoration: none;
-  border-left: 3px solid transparent;
+  border-left: 2px solid transparent;
 }
 
 nav.sidebar a:hover {
@@ -437,6 +607,7 @@ nav.sidebar li.section[data-open] > ul.pages {
 
 nav.sidebar ul.pages a {
   padding-left: calc(var(--space-5) + 1.25em + var(--space-3));
+  font-size: var(--text-sm);
 }
 
 /* The page you are on is marked three ways — weight, a rule down its left edge,
@@ -445,7 +616,6 @@ nav.sidebar ul.pages a {
 nav.sidebar a[aria-current="page"] {
   color: var(--text-strong);
   font-weight: 600;
-  background: var(--surface-0);
   border-left-color: var(--accent);
 }
 
@@ -466,7 +636,6 @@ nav.sidebar a[aria-current="page"] {
 .awaiting-count {
   display: inline-block;
   padding: 0 var(--space-2);
-  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-2);
   color: var(--text-strong);
@@ -502,8 +671,13 @@ nav.sidebar a[aria-current="page"] {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .shell {
+    background-image: none;
+  }
+
   nav.sidebar {
     display: none;
+    background: var(--surface-1);
     position: fixed;
     top: 0;
     bottom: 0;
@@ -516,6 +690,14 @@ nav.sidebar a[aria-current="page"] {
 
   nav.sidebar[data-open] {
     display: block;
+    /* Its links start under the top bar, which sits above it while it is open
+       (below), so Menu, the control that opened it, stays there to close it. */
+    padding-top: var(--masthead);
+  }
+
+  body:has(nav.sidebar[data-open]) header.topbar {
+    position: relative;
+    z-index: 21;
   }
 
   .drawer-backdrop[data-open] {
@@ -541,8 +723,42 @@ main {
   min-width: 0;
 }
 
-h2 {
-  font: 400 var(--text-lg) / 1.3 var(--font-label);
+/* The first thing under a page's name sits one gap below it, whatever it is:
+   a note's margin, an empty state's padding or a section's rule would each
+   make a page's head look put together differently (the name's own margin is
+   the gap). An empty slot the page fills later is passed over, and so is the
+   top margin of the first thing drawn inside that first block. */
+#view h1 + *,
+#view h1 + :empty + *,
+#view h1 + * > :first-child,
+#view h1 + * > :empty:first-child + * {
+  margin-top: 0;
+}
+
+#view h1 + :is(.empty, .panel, .note),
+#view h1 + :empty + :is(.empty, .panel, .note) {
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Prose is held to a readable measure; tables, grids and rows are not prose. */
+#view p {
+  max-width: 70ch;
+}
+
+/* A screen's own heading is its `h1`; the product's name in the top bar is not
+   a heading at all. One size on every page, Walls included. */
+h1 {
+  font: 500 var(--text-3xl) / 1.1 var(--font-label);
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
+  margin: 0 0 var(--space-5);
+}
+
+/* The confirmation's title is an `h2` beneath whichever page it opens over, so
+   it takes a section's type rather than a page's. */
+.confirm-title {
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
   margin: 0 0 var(--space-4);
 }
@@ -625,7 +841,10 @@ h2 {
   margin: 0;
 }
 
-.card-title button {
+/* A card's title opens its page, so it is a link (`information-architecture.md`
+   § Direction); a title that does something else here is still a button. Both
+   read as the title, underlined on hover. */
+.card-title :is(a, button) {
   appearance: none;
   background: none;
   border: none;
@@ -636,14 +855,19 @@ h2 {
   cursor: pointer;
 }
 
-.card-title button:hover {
+.card-title :is(a, button) {
+  text-decoration: none;
+}
+
+.card-title :is(a, button):hover {
   text-decoration: underline;
 }
 
 /* A name that leads to its own page: an artist's, wherever a work names one.
    Underlined, because unlike a card's title nothing else on its line says it
-   can be pressed. */
-button.link {
+   can be pressed. One treatment for every such name, so going to an artist
+   looks the same wherever it is offered. */
+.link {
   appearance: none;
   background: none;
   border: none;
@@ -669,6 +893,117 @@ button.link {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+/* -- a tile: the work on its mat, and its label beneath -------------------
+   A work's tile (Artworks, an artist's works, a topic's), an artist's poster
+   and an Ask reply's card are the thing itself, so they are not boxed: no border, no paper, no shadow
+   around the tile. The picture sits on a `--surface-2` mat with room round it,
+   and the label sits on the page's ground underneath, as a wall label sits
+   under a hung work. A theme's card and a work under review keep their card,
+   because each is a block of facts and acts about a thing, not the thing.
+   Matched by the data attribute each tile already carries, so no screen's
+   markup had to change to opt in. The Artworks skeleton's placeholder carries
+   `.tile-skeleton` instead, so it occupies the tile's final geometry rather
+   than a card's. */
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) .card-image,
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) .card-image:has(img) {
+  background: var(--surface-2);
+}
+
+.card:is([data-artwork], [data-artist], [data-ask-card], .tile-skeleton) .card-image img {
+  inset: var(--space-4);
+  width: calc(100% - 2 * var(--space-4));
+  height: calc(100% - 2 * var(--space-4));
+  /* The shadow follows the picture, not its box: `contain` leaves the box
+     wider or taller than the work, and a shadow on the box would outline
+     empty mat. A drop-shadow filter is drawn from the painted pixels. */
+  filter: drop-shadow(var(--shadow-art));
+}
+
+/* The label is at least the height of its longest shape: two lines of title,
+   one of artist, two of date and medium, and one row of the badges a tile
+   shows only when its value is unusual. The words are clamped to that, so a
+   tile's height does not depend on its words, and rows are uniform without
+   any row's height depending on another's (§ Component Patterns, Tiles). Only
+   a tile whose badges wrap to a second row is taller. Sizing rows to the tallest tile instead made the page's length
+   change as later pages arrived, and the scroll restored on the way back to
+   Artworks landed short. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-body {
+  --tile-line: 1.45;
+  padding: var(--space-3) 0 0;
+  gap: 2px;
+  min-height: calc(
+    var(--space-3) + 2 * 1.25 * var(--text-lg) + 3 * var(--tile-line) * var(--text-sm) + 3 * 2px + var(--space-3) +
+      1.75rem
+  );
+  box-sizing: border-box;
+}
+
+/* An artist's poster has no date or medium lines, so it reserves its own
+   longest shape: two lines of name, one of life and count, and the badge row.
+   Reserving a work's left a hand's width of empty ground under every row. */
+.card[data-artist] .card-body {
+  min-height: calc(
+    var(--space-3) + 2 * 1.25 * var(--text-lg) + var(--tile-line) * var(--text-sm) + 2px + var(--space-3) + 1.75rem
+  );
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) :is(.card-artist, .card-meta) {
+  line-height: var(--tile-line);
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-footer {
+  min-height: 1.75rem;
+  /* Under the label's last line, not at the floor of the block reserved for
+     the longest label: pinned there, a badge sat against the next row's
+     picture and read as that work's. */
+  margin-top: 0;
+}
+
+/* Clamped, so one long title cannot make its row taller than the rest: two
+   lines of title, one of artist, two of date and medium. The full text is the
+   link's accessible name and is on the work's own page. */
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-title {
+  /* A panel's headings take a margin and a weight that a tile's title, which
+     is one, must not: the tile is laid out the same on every page. */
+  margin: 0;
+  font-weight: 400;
+  font-size: var(--text-lg);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-artist {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card:is([data-artwork], [data-artist], .tile-skeleton) .card-meta {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* The row gap is small because each label already reserves its longest
+   shape (above), and the space it leaves usually separates the rows. */
+.grid:has(> .card:is([data-artwork], [data-artist])),
+.grid-skeleton:has(> .card.tile-skeleton) {
+  gap: var(--space-3) var(--space-5);
 }
 
 /* -- collection: the rails, the density control and the contact sheet -------
@@ -698,7 +1033,7 @@ button.link {
   overflow-y: auto;
 }
 
-.rail h3 {
+.rail h2 {
   margin: 0 0 var(--space-2);
   font: 600 var(--text-xs) / 1.2 var(--font-ui);
   letter-spacing: 0.08em;
@@ -735,6 +1070,9 @@ button.link {
 
 .facet-option {
   width: 100%;
+  min-height: var(--control-h-compact);
+  /* The counts line up down the rail as a column of figures would. */
+  font-variant-numeric: tabular-nums;
 }
 
 .facet-option:hover:enabled {
@@ -813,7 +1151,11 @@ button.link {
 }
 
 .toolbar-menu [role="menuitemradio"] {
-  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h-compact);
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-3);
   font: var(--text-sm) / 1.4 var(--font-ui);
   color: var(--text);
   cursor: pointer;
@@ -868,11 +1210,72 @@ button.link {
   text-underline-offset: 2px;
 }
 
+/* The selection's action bar (`core/selecting.js`), one shape on every list:
+   held at the foot of the window while *Select* is on, so its acts stay in
+   reach however far down the list the ticking went. Sticky rather than fixed,
+   so at the end of the list it settles under the last row instead of covering
+   it. */
 .selection {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: var(--surface-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+
+.selection-group {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* A theme's name can be longer than a phone is wide: the picker shrinks to the
+   bar rather than pushing the page sideways. */
+.selection .selection-field {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.selection select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Below Artworks' grid: how many are on screen, and *Show more*, the way to the
+   next page for a keyboard and a screen reader (the next page also arrives as
+   this row nears the window). Placeholders for the page on its way sit above
+   it, a step below the grid. */
+.show-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.show-more-row .muted {
+  margin: 0;
+}
+
+.collection-main > .grid-skeleton {
+  margin-top: var(--space-4);
+}
+
+/* Get's own control, inside the bar: no margin of its own there. */
+.selection .get-control {
+  margin-block: 0;
 }
 
 .selection-field {
@@ -887,13 +1290,6 @@ button.link {
 .collection:not(.selecting) .tile-select,
 .collection:not(.selecting) .row-select {
   display: none;
-}
-
-.select-toggle[aria-pressed="true"] {
-  border-color: var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text-strong);
-  font-weight: 600;
 }
 
 .selection-status {
@@ -1023,15 +1419,24 @@ button.link {
   }
 }
 
+/* A page with nothing in it (`core/render.js`, `emptyState`): the lead in the
+   label serif, what fills it beneath, then the way on. No panel around it, so
+   an empty page does not look like a page with one empty box on it. */
 .empty {
-  padding: var(--space-8) 0;
+  padding: var(--space-6) 0;
   max-width: 34rem;
 }
 
-.empty h3 {
-  margin: 0;
-  font: 400 var(--text-xl) / 1.3 var(--font-label);
+/* Below the page's `h1` in size, never above it: the lead says what the page
+   holds, and the page's name still outranks it. */
+.empty-lead {
+  margin: 0 0 var(--space-2);
+  font: 400 var(--text-md) / 1.4 var(--font-label);
   color: var(--text-strong);
+}
+
+.empty > .row {
+  margin-top: var(--space-4);
 }
 
 /* The IA's three shapes. The rail becomes a horizontal scroller rather than
@@ -1050,6 +1455,11 @@ button.link {
     max-height: none;
     overflow-x: auto;
     padding-bottom: var(--space-2);
+    /* The pills run on past the edge, and the edge says so by fading; the end
+       padding lets the last one scroll clear of the fade. A mask reads only
+       alpha, so any opaque token draws it. */
+    padding-inline-end: var(--space-6);
+    mask-image: linear-gradient(to right, var(--text) calc(100% - var(--space-6)), transparent);
   }
 
   .rail-options {
@@ -1160,7 +1570,9 @@ button.link {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  font-size: var(--text-xs);
+  /* Its own face and weight, so a badge beside a page's name is not set in the
+     name's serif. */
+  font: 400 var(--text-xs) / 1.2 var(--font-ui);
   padding: 0.15rem var(--space-2);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
@@ -1175,9 +1587,10 @@ button.link {
 }
 
 /* A registry work the library holds, and one Wikidata has a free image of. The
-   held one is a button to the work, so it reads as the stronger mark; both lead
+   held one is a link to the work, so it reads as the stronger mark; both lead
    with glyph and word, as every badge here does. */
 .badge-held {
+  text-decoration: none;
   background: var(--good-quiet);
   border-color: var(--good);
   color: var(--text-strong);
@@ -1206,9 +1619,10 @@ button.link {
    The owner's ruling on issue 172: held, wanted and not held are told apart first
    by how the picture is drawn, then by glyph and word (`workState` in
    `core/registry.js`). The three are defined together so they can be tuned
-   against one another, which is what the owner asked to iterate on. First
-   try: held plain, wanted with a dashed accent outline, not held under
-   diagonal hatching — recognisable, and never mistakable for held. */
+   against one another, which is what the owner asked to iterate on. Held has a
+   thin outline, wanted a dashed accent one, and not held is the picture plain:
+   the owner's ruling on tiles (2026-10-07) is that a preview of a work not held
+   is a real picture marked by its badge, not hatched over. */
 .work-pic {
   position: relative;
   display: inline-block;
@@ -1235,16 +1649,6 @@ button.link {
   outline-offset: -2px;
 }
 
-.work-pic-not-held::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--surface-1) 70%, transparent) 0 2px,
-    transparent 2px 5px
-  );
-}
 
 /* The theme new works join. Solid accent, because it is a standing role rather
    than a state a curator is warned about; the star and the word carry it first. */
@@ -1254,15 +1658,7 @@ button.link {
   border-color: var(--accent);
 }
 
-.badge-native {
-  border-style: solid;
-}
-
-.badge-matted_small {
-  border-style: dashed;
-}
-
-.badge-below_floor {
+.badge-below_minimum {
   border-style: double;
   border-width: 3px;
   font-weight: 600;
@@ -1274,7 +1670,7 @@ button.link {
 }
 
 /* Catalogue status is a different axis from display fit, and it gets its own
-   block rather than borrowing `below_floor`'s. Sharing one would have made an
+   block rather than borrowing `below_minimum`'s. Sharing one would have made an
    archived work and a too-small work paint identically, and would have made a
    later change to one of them silently change the other. */
 .badge-archived {
@@ -1346,8 +1742,9 @@ button.link {
   background: var(--surface-2);
 }
 
-/* Where a work stands in the acquisition queue. The glyph and the word carry
-   the phase; the border only separates the ones a curator acts on (failed,
+/* Where a work stands in the acquisition queue. The word carries the phase,
+   and the glyph its kind (failed and gave up are both a problem, ▲); the
+   border separates the ones a curator acts on (failed,
    gave up) and the one an operator does (paused) from the ones that need time. */
 .badge-acquisition-failed {
   border-style: solid;
@@ -1439,6 +1836,18 @@ button.card-image.enlargeable {
   cursor: zoom-in;
 }
 
+/* The Work page's own picture, as a button with nothing of a button's look:
+   the picture is what is seen, and the pointer says it opens. */
+.work-picture-button {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+
 /* -- the scans behind a card ------------------------------------------------
 
    A work's scans, revealed from the card rather than on a screen of their own:
@@ -1463,6 +1872,15 @@ button.card-image.enlargeable {
 .scans .scan-fact,
 .scans .scan-actions {
   white-space: nowrap;
+}
+
+/* The museum is a name, not a fact compared down the column, and museums'
+   names run from "SMK" to "The Metropolitan Museum of Art": it wraps at word
+   breaks within a bounded width, so the longest does not push the table past
+   its card. */
+.scans .scan-source {
+  min-width: 6rem;
+  max-width: 10rem;
 }
 
 /* The first row of a scan carries no rule beneath it: it and its sentences are
@@ -1553,6 +1971,23 @@ details > summary {
   padding: var(--space-2) 0;
 }
 
+/* Review's fold lines: the cards with no picture to judge, then the decided
+   ones, each behind one line at the end. A rule above each, as every section
+   has, so the line reads as the start of something rather than a stray link. */
+details.fold {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+
+details.fold > summary {
+  font-size: var(--text-base);
+}
+
+details.fold[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
 /* Things stacked inside one table cell, closer than `.stack` sets them: a
    scan's pixels and its fit, or its two actions. Each is one statement about
    one scan, not two sections. */
@@ -1615,6 +2050,18 @@ td {
   vertical-align: top;
 }
 
+/* A table's first column starts where the page's headings and prose do. */
+:is(th, td):first-child {
+  padding-left: 0;
+}
+
+/* A column of numbers, marked by `table` in core/badges.js, reads down its
+   units: right-aligned, in figures of one width. */
+:is(th, td).num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 th {
   color: var(--text-strong);
   font-weight: 600;
@@ -1625,25 +2072,43 @@ th {
 
 /* -- panels, forms, controls ----------------------------------------------- */
 
+/* A section of a page, set off by a rule above it rather than a box around
+   it. A bordered panel on a tinted ground round every part of every page is
+   what made the client read as a form; a rule and space is how a catalogue
+   separates its parts (`design-direction.md` § Component Patterns, Sections).
+   A card is kept only where it is a block of facts and acts about one thing:
+   a theme, a work under review. */
 .panel {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-  margin-bottom: var(--space-5);
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-4) 0 0;
+  margin-bottom: var(--space-6);
 }
 
-/* `h3`, `h4` or `h5`, one treatment. The rank of a panel's heading depends on
- * what it sits under — at the top of a view it is an `h3`, inside a wall's own
- * section on the walls view an `h4`, and inside one wall's heartbeat reading on
- * the health view an `h5`, so that neither two hung walls nor two reporting ones
+/* The section that holds a page's own name is the page's head, not one of its
+   parts, so no rule is drawn above the name. */
+.panel:has(> h1) {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* `h2`, `h3` or `h4`, one treatment. The rank of a panel's heading depends on
+ * what it sits under — at the top of a view it is an `h2`, inside a wall's own
+ * section on the walls view an `h3`, and inside one wall's heartbeat reading on
+ * the health view an `h4`, so that neither two hung walls nor two reporting ones
  * present a reader navigating by heading with a flat run of siblings. That is a
  * document-structure fact and not a typographic one: the panels look the same
  * whichever rank is used, which is what this selector says. */
-.panel :is(h3, h4, h5) {
+.panel :is(h2, h3, h4) {
   margin: 0 0 var(--space-3);
-  font: 400 var(--text-md) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
+}
+
+/* A heading inside a section that follows content of its own (a list, a
+   sentence) starts a new part, so it stands a step clear of what is above it
+   rather than glued to its last line. */
+.panel > * + :is(h3, h4) {
+  margin-top: var(--space-5);
 }
 
 /* One wall's heartbeat on the health view. Separated by a rule rather than by
@@ -1658,65 +2123,27 @@ th {
 }
 
 /* One wall's section heading on the walls view. A direct child of the view root,
- * so like `.offer-group > h3` above it would otherwise fall back to browser
+ * so like `.offer-group > h2` above it would otherwise fall back to browser
  * defaults — the failure the comment there names, and the one no browser test
  * can see, since the text and the attributes are correct either way. It takes
  * the same treatment because it is the same rank of thing: a titled block within
  * a view, of which the client has exactly two. */
 .wall-title {
   margin: 0 0 var(--space-1);
-  font: 400 var(--text-md) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
 }
 
 /* -- the walls -------------------------------------------------------------
 
-   The product's home, and the one screen whose primary content is the art
-   itself rather than a report about it. */
-
-/* The single large heading on this surface, and the only use of `--text-3xl`.
-   It is the product's home saying so — the one place the type is allowed to be
-   the size a gallery's own name is, and a size nothing else reaches so that it
-   stays that. Every other `h2` on this client keeps `--text-lg`. */
-.walls-heading {
-  font-size: var(--text-3xl);
-}
+   The one screen whose primary content is the art itself rather than a report
+   about it. */
 
 /* One wall's whole section. Separated by space rather than by a rule: with three
    walls a reader has to be able to see where one room's account ends, and a line
    between them would draw a border across a page of paintings. */
 section.wall {
   margin-bottom: var(--space-8);
-}
-
-/* What is hanging, at the size the IA asks for: the artwork is the primary
-   content on every screen that shows one, and this is the screen that shows the
-   most of them. A wider minimum than the collection grid's 15rem, because this
-   is a handful of works being looked at rather than a catalogue being scanned. */
-.hanging {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-  gap: var(--space-5);
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* No card, no border, no shadow. A work on this screen is hung, not filed, and
-   the fixed-aspect image box above it is doing the alignment a card would
-   otherwise be doing. */
-.hung {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-/* A work's own title inside the Showing panel. The panel's heading rule sets a
-   paragraph's worth of space under a heading, which is right for a section title
-   and wrong under a picture whose artist line belongs with it. */
-.hung .card-title {
-  margin: 0;
 }
 
 /* The wall's controls, held apart from the account of what is on it: hanging a
@@ -1752,15 +2179,16 @@ section.wall {
   min-width: 0;
 }
 
-/* A wall the client shows, with the control that takes it off, on one line
-   where there is room and wrapping beneath the name where there is not. */
-.client-wall-list {
+/* A wall the client shows, or a label output and the wall it captions, with
+   the control that takes it off, on one line where there is room and wrapping
+   beneath the name where there is not. */
+:is(.client-wall-list, .client-label-list) {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.client-wall-list li {
+:is(.client-wall-list, .client-label-list) li {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1789,11 +2217,11 @@ section.wall {
 
 /* One query's offered works, under the sentence that describes that query.
  *
- * The heading takes `.panel h3`'s type rather than a new size, because it is the
+ * The heading takes `.panel h2`'s type rather than a new size, because it is the
  * same rank of thing — a titled block within a view — and the client has exactly
  * two heading treatments on purpose. It is repeated rather than shared with the
  * rule above: a selector list would tie two blocks that are free to diverge, and
- * `.panel h3` sits inside a bordered surface this one deliberately has not got.
+ * `.panel h2` sits under a section's rule, which this one deliberately has not got.
  *
  * These sections are direct children of the view root, so without a rule here
  * they fall back to browser defaults — the one failure in this bundle that no
@@ -1804,12 +2232,12 @@ section.wall {
 }
 
 /* `>` and not a descendant selector: a card inside this group carries an
- * `h3.card-title`, which a bare `.offer-group h3` outranks and re-margins — so
+ * `h2.card-title`, which a bare `.offer-group h2` outranks and re-margins — so
  * offered works' titles would sit further from their artist line than the named
  * works' titles do, on the same page, for no reason a reader could find. */
-.offer-group > h3 {
+.offer-group > h2 {
   margin: 0 0 var(--space-1);
-  font: 400 var(--text-md) / 1.3 var(--font-label);
+  font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
 }
 
@@ -1835,6 +2263,8 @@ label {
 input[type="text"],
 textarea,
 select {
+  min-height: var(--control-h);
+  box-sizing: border-box;
   font: var(--text-md) / 1.4 var(--font-ui);
   color: var(--text);
   background: var(--surface-1);
@@ -1843,32 +2273,108 @@ select {
   padding: var(--space-2) var(--space-3);
 }
 
-button.action {
+/* An act, and a way to another page offered at the same weight — "All
+   themes", "Go to Ask", a way back. The second is a link, as every navigation
+   is, and wears the act's shape because it sits among acts. */
+:is(button, a, summary).action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  box-sizing: border-box;
+  text-decoration: none;
   appearance: none;
-  font: var(--text-sm) / 1 var(--font-ui);
+  font: var(--text-sm) / 1.2 var(--font-ui);
   color: var(--accent-text);
   background: var(--accent);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-1) var(--space-4);
   cursor: pointer;
 }
 
-button.action.quiet {
-  color: var(--accent);
+/* Ink, in both schemes: the accent belongs to the one filled act, focus and the
+   lit page. In dark it is gilt, and quiet acts in it made every control on a
+   page the same brass. */
+:is(button, a, summary).action.quiet {
+  color: var(--text);
   background: var(--surface-1);
   border-color: var(--border-strong);
 }
 
-button.action:hover {
-  filter: brightness(1.08);
+/* Hover tints the act toward its own text colour, which moves the fill toward
+   the label (lighter on a filled act, darker on a quiet one) in both schemes. A wash of inset shadow rather than a
+   `filter`: a filter makes the act the containing block of anything absolutely
+   positioned inside it, so a full-card link's cover shrank to the act under the
+   pointer and a press on the card missed. */
+:is(button, a, summary).action:hover {
+  box-shadow: inset 0 0 0 100vmax color-mix(in srgb, currentColor 10%, transparent);
 }
 
+/* Disabled looks disabled: no fill, muted text, no hover. A disabled act that
+   keeps the primary fill reads as one that is ready and silently refuses. */
+button.action:disabled,
+button.action:disabled:hover {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border-color: var(--border);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Acts, captioned acts and words on one line share a baseline: a captioned act
+   is taller than a bare one, and aligning bottom edges dropped the bare act to
+   the caption's foot and set a sentence level with a button's border rather
+   than its label. A row of labelled fields aligns their boxes instead (below). */
 .row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
+  align-items: baseline;
+}
+
+.row:has(> .field) {
   align-items: flex-end;
+}
+
+/* A row of acts sits one step below whatever precedes it, never flush: a
+   sentence, a list of facts, another row. Rows inside a flex column (`.stack`,
+   `.stack-tight`) are already spaced by its gap, and are left to it; a new
+   flex column of rows needs adding here, or its rows are spaced twice. */
+:not(.stack, .stack-tight, .row) > * + .row,
+:not(.stack, .stack-tight, .row) > * + .identity,
+:not(.stack, .stack-tight, .row) > .row + * {
+  margin-top: var(--space-4);
+}
+
+/* An act set in a line of words (a list item, a sentence) keeps a gap from the
+   words before it, so it reads as a thing to press and not as the sentence's
+   last word. A row spaces its own with its gap. */
+:is(li, p):not(.row) > :is(button, a).action:not(:first-child) {
+  margin-left: var(--space-3);
+}
+
+/* An act with one line under it that says what pressing costs or starts
+   (`captioned` in core/render.js). The line starts where its act starts, close
+   under it, small and muted, and kept whole, so it is read as that act's and
+   never as a second act beside it. A row of them is spaced wider than a row of
+   bare acts, so two captions never read as one sentence. */
+.captioned {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.row:has(> .captioned) {
+  column-gap: var(--space-6);
+}
+
+.act-caption {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 /* A labelled field beside its button: the field's own bottom margin would hold
@@ -1927,6 +2433,24 @@ button.action:hover {
   font-weight: 600;
 }
 
+/* A failed act, said beside the control that sent it (`core/acting.js`): on a
+   line of its own under the control, wherever that sits — a row, a cell, a
+   card — in the failure colour with a word to carry it, as the banner is. */
+.act-failure {
+  display: block;
+  flex-basis: 100%;
+  margin-top: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--crit);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.act-failure:empty {
+  display: none;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -1934,10 +2458,9 @@ button.action:hover {
 }
 
 /* The label column is as wide as its longest label up to two fifths of the
-   list, and wraps between words past that; the value takes the rest. A label
-   held to one line on a phone ("Spent including every re-search") left the
-   value a column too narrow for "allowance", and `overflow-wrap: anywhere`
-   below then broke the word itself. */
+   list, and wraps between words past that; the value takes the rest. A long
+   label held to one line on a phone left the value a column too narrow for one
+   of its words, and `overflow-wrap: anywhere` below then broke the word itself. */
 dl.facts {
   display: grid;
   grid-template-columns: fit-content(40%) 1fr;
@@ -2096,99 +2619,15 @@ dialog.confirm::backdrop {
   }
 }
 
-/* -- the conversation thread ------------------------------------------------
- *
- * A transcript, not a chat app: no bubbles, no tails, no alternating alignment.
- * The two speakers are told apart by a named label and a rule down the left of
- * the curator's own turns, because a layout that carried the distinction in
- * position alone loses it the moment the window is narrow — and because this is
- * a page of paintings, where a second visual language competing with them is the
- * thing the whole palette is arranged to avoid. */
-.turn + .turn {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border);
-}
+/* -- reactions -------------------------------------------------------------- */
 
-.turn-speaker {
-  margin: 0 0 var(--space-1);
-  font: 600 var(--text-sm) / 1.2 var(--font-label);
-  color: var(--text-muted);
-}
-
-/* The curator's own words, marked by a rule rather than by a fill: a tinted
-   block behind text is a second background for a reader to judge a picture
-   against. */
-.turn[data-role="curator"] {
-  border-left: 3px solid var(--border-strong);
-  padding-left: var(--space-3);
-}
-
-.turn p {
-  margin: 0 0 var(--space-2);
-}
-
-.suggestions {
-  margin-top: var(--space-3);
-}
-
-.suggestion + .suggestion {
-  margin-top: var(--space-3);
-}
-
-.suggestion-name {
-  display: flex;
-  gap: var(--space-1);
-  align-items: baseline;
-  font-size: var(--text-sm);
-}
-
-/* Wrapping rather than scrolling: three pictures fit on a laptop and stack on a
-   phone, and a horizontal scroller hides the third one behind a gesture nobody
-   is told about. */
-.samples {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin: var(--space-2) 0 0;
-}
-
-.sample {
-  margin: 0;
-  max-width: 12rem;
-}
-
-.sample img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-.sample figcaption {
-  margin-top: var(--space-1);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-/* The three reactions, under the picture that prompted them. Wrapping, because
-   three controls and a 12rem picture do not share a line on a phone. */
+/* The reactions, under the thing they judge. Wrapping, because they do not
+   always share a line with a card's other acts on a phone. */
 .reactions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
   margin-top: var(--space-1);
-}
-
-/* "Go to <artist>'s work", set apart from the reactions above it — a rule and a
-   gap, because it is the one control in a turn that leaves the thread and a
-   curator should be able to see that before pressing it rather than after. */
-.departure {
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--border);
 }
 
 /* -- taste ------------------------------------------------------------------ */
@@ -2236,4 +2675,901 @@ dialog.confirm::backdrop {
 .wanted .wanted-picture .card-image {
   width: 8rem;
   border-radius: var(--radius-sm);
+}
+
+/* A Get's works: a picture in each row, the size Wanted's rows use, at every
+   width, so a phone's stacked row stays a row and not a poster. Each section
+   after the first starts a step below the table it follows. */
+.row-picture,
+.row-picture .card-image {
+  width: 8rem;
+}
+
+.row-picture .card-image {
+  border-radius: var(--radius-sm);
+}
+
+section.asked-for + section.offered,
+section.offered + section.offered {
+  margin-top: var(--space-6);
+}
+
+/* -- the Work page ------------------------------------------------------------
+
+   The picture is the largest thing on the page: the work, drawn from its master,
+   across its column beside the label (above it below 60rem), up to most of
+   the screen's height, kept at its own aspect. The state strip sits under the
+   title, and the secondary acts after the facts. A description keeps the
+   blank lines between its paragraphs. */
+
+.work-hero .work-picture {
+  width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  filter: drop-shadow(var(--shadow-art));
+}
+
+/* Wall label: the picture and its label side by side, as on a gallery wall,
+   then the record below. Neither is boxed: a bordered panel round every part
+   of the page is what made it read as a form. Each part of the record is set
+   off by a rule above it instead. One column below 60rem, the breakpoint at
+   which the work detail stacks (§ Spacing & Layout). */
+.work-head {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+  align-items: start;
+  margin-bottom: var(--space-8);
+}
+
+/* The head's two halves are not sections, so they carry no rule. */
+.work-head > .panel {
+  border-top: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* The picture stays in view while a long label is read beside it. */
+.work-head > .work-hero {
+  position: sticky;
+  top: var(--space-4);
+}
+
+/* The description is a paragraph, not a value, so it takes the label's whole
+   width under its term rather than the narrow value column beside it. */
+.work-label dl.facts dd:has(> .described) {
+  grid-column: 1 / -1;
+}
+
+/* The description is the label's own voice, so it is set in the label serif,
+   larger, at a measure a paragraph reads well at. */
+.work-label dl.facts dd .described {
+  /* A block, because the cap does nothing to an inline span. The label's own
+     column is narrower than this on most screens; the cap is for the band
+     just under 60rem where the label spans the main column. */
+  display: block;
+  font: 400 var(--text-lg) / 1.6 var(--font-label);
+  color: var(--text-strong);
+  max-width: 68ch;
+}
+
+.work-record {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr));
+  gap: 0 var(--space-6);
+  align-items: start;
+}
+
+.work-record > .panel {
+  margin: 0;
+  padding-bottom: var(--space-6);
+}
+
+/* A table of sources or renditions needs the page's width: at half of it the
+   paths and URLs wrap a word to a line. */
+.work-record > .panel:has(table) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 60rem) {
+  .work-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .work-head > .work-hero {
+    position: static;
+  }
+}
+
+.state-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
+}
+
+.state-strip .wall-picker {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.state-strip .strip-said {
+  margin: 0;
+}
+
+.secondary-actions {
+  margin-top: var(--space-4);
+}
+
+.described {
+  white-space: pre-line;
+}
+
+/* -- Walls: the card that leads with the work on the wall --------------------
+
+   The work a wall's heartbeat names, large: the one thing on this card a
+   person in the room is looking at. Its own aspect, never cropped, inside a
+   height bound so a portrait work does not push the controls off a laptop
+   screen. */
+
+.wall-now {
+  margin: 0 0 var(--space-4);
+}
+
+.wall-now-when {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.wall-now-picture {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: center;
+  max-width: 48rem;
+}
+
+.wall-now-picture img {
+  display: block;
+  max-width: 100%;
+  max-height: 32rem;
+  height: auto;
+  object-fit: contain;
+}
+
+.wall-now-label {
+  margin-top: var(--space-3);
+}
+
+.wall-now-title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.wall-now-artist,
+.wall-now-facts {
+  margin: var(--space-1) 0 0;
+}
+
+/* The work a wall showed last, under the state that says why it is not on
+   now: drawn as the work on the wall is, a little below the state's words. */
+.wall-last {
+  margin: var(--space-3) 0 0;
+}
+
+/* The next three: small, in a row that wraps, each with its time. Smaller than
+   the lead on purpose: the lead is what the room is looking at. */
+.wall-next {
+  margin: 0 0 var(--space-4);
+}
+
+.wall-next-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.wall-next-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wall-next-list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 10rem;
+}
+
+.wall-next-list img {
+  display: block;
+  width: 10rem;
+  height: 7.5rem;
+  object-fit: contain;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.wall-next-work {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-sm);
+}
+
+/* History goes to another page, so it is a link beside the acts, not one of
+   them. */
+.wall-history {
+  align-self: center;
+  font-size: var(--text-sm);
+}
+
+.wall-source {
+  margin: 0 0 var(--space-2);
+}
+
+.wall-controls > * + * {
+  margin-top: var(--space-3);
+}
+
+.not-again {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.not-again-choice:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.not-again-choice p {
+  margin: 0;
+}
+
+/* The summary is Change's button, so it wears an act's shape (`.action`
+   above) and keeps the browser's disclosure triangle out of a row of buttons. */
+.wall-change > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.wall-change > summary::-webkit-details-marker {
+  display: none;
+}
+
+.wall-change[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.wall-said:empty {
+  display: none;
+}
+
+.wall-setup {
+  margin-top: var(--space-4);
+}
+
+.wall-setup > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+/* -- History: the event log --------------------------------------------------- */
+
+.history-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.history-kinds a[aria-current="page"] {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.history-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-events li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-events time {
+  min-width: 9rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* -- Clients: a report too old to speak for now -------------------------------- */
+
+.client-stale {
+  margin: 0 0 var(--space-2);
+}
+
+/* Search and the Artist page: a registry work or artist waiting for review. A
+   link to the review it waits on, so it reads as a mark to act on, between
+   held and not held; glyph and word carry the state. */
+.badge-in-review {
+  text-decoration: none;
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+  color: var(--text-strong);
+}
+
+/* Review: whether a source confirms the work, and a verdict waiting out its
+   hold. Not confirmed is the stronger mark, since it is the one that should
+   stop an Accept; Unchecked says only that nobody asked. */
+.badge-unconfirmed {
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.badge-unchecked {
+  border-style: dotted;
+}
+
+.note.not-confirmed {
+  border-left: 3px solid var(--warn);
+  padding-left: var(--space-2);
+}
+
+.verdict-held {
+  align-items: center;
+}
+
+/* Spend: the tier beside a spending control, and what is left of this month's
+   budget under the sidebar's sections. The tier is words, never colour alone;
+   a control that spends reads a shade stronger than one that is free. */
+/* A cost is read as words beside the act it prices, never as a box: a boxed
+   "$" beside a button reads as a second button. Its "Cost:" label is shown,
+   not only spoken, for the same reason. */
+.badge-tier {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  align-self: center;
+}
+
+.badge-tier.tier-spends > .tier-value {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+/* Inset as the nav's links are (their padding and their 2px marker), so the
+   budget's words start on the line the section glyphs start on. */
+.sidebar .budget {
+  padding: var(--space-3) var(--space-4) var(--space-3) calc(var(--space-5) + 2px);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.sidebar .budget p {
+  margin: 0;
+}
+
+.sidebar .budget .budget-note {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* -- tiles show the art ------------------------------------------------------
+   A library tile is the work itself at its own aspect (ruling 7 of 2026-10-07):
+   the thumbnail route now serves the bare work, so the tile's box is the wall
+   the work hangs on rather than a frame around a letterboxed television. The
+   box keeps its fixed shape, because a grid that reflows as pictures arrive is
+   the opposite of the identity (`design-direction.md` § Tiles); the picture
+   sits in it uncropped, on the card's own ground. */
+.card-image:has(img) {
+  background: transparent;
+}
+
+/* A listed work's picture, held or not, is drawn whole: cropping a work to a
+   square is the one thing an art tool must not do, and at the size a list draws
+   it the crop was most of what a curator could not see. */
+.work-pic img {
+  object-fit: contain;
+}
+
+/* Large enough to judge before spending, which is what a not-held preview is
+   for. 5rem stays sharp from the 250 px Commons rendering on a 3x screen
+   (`FOUND_WIDTH` in `core/registry.js`). The search typeahead keeps its small
+   mark, being a list of names to choose between. */
+.artist-works .work-pic {
+  width: 5rem;
+  height: 5rem;
+}
+
+/* On a phone the picture sits inside the State column's badge, so its size is
+   the column's floor; 4rem keeps it well over the 48 px a work is told apart
+   by and leaves the title its room. */
+@media (max-width: 40rem) {
+  .artist-works .work-pic {
+    width: 4rem;
+    height: 4rem;
+  }
+}
+
+/* A search result leads with its picture, large enough to tell one work from
+   another before opening it; the state's badge follows the title. */
+.results-list li.row-pictured {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.results-list .work-pic {
+  width: 4.5rem;
+  height: 4.5rem;
+}
+
+/* -- keyboard and phone ------------------------------------------------------
+   The focus ring on a card's picture is drawn inside it. The default ring sits
+   2px outside the control, and a picture fills its card edge to edge inside two
+   boxes that clip (`.card`, `.tile` and `.card-image` all hide overflow, for
+   the rounded corners and the caption), so on one Tab stop in three the ring
+   was clipped on three sides (`ux-review-2026-10.md` finding 15). Painted over
+   the picture by a layer above it, in the focus colour with a band of the
+   card's ground inside, so it reads against a dark painting and a light one. */
+.card-image:focus-visible {
+  outline: none;
+}
+
+.card-image:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 2px var(--focus),
+    inset 0 0 0 4px var(--surface-1);
+}
+
+/* A tick a finger and a tremor can land on; the browser's 13px box was the
+   smallest target on the page. */
+input[type="checkbox"] {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* The browser's placeholder grey measured 3.7:1; the muted text token is one
+   of the pairs the contrast test holds above 4.5:1. */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* A picker as wide as its longest option was what made Themes 497 px wide on a
+   390 px phone: *Add a work* lists every title in the library. A field and its
+   picker never outgrow the row they sit in; a long option is cut in the closed
+   picker and read whole in the open one. */
+.field {
+  min-width: 0;
+}
+
+.field select {
+  max-width: 100%;
+}
+
+@media (max-width: 40rem) {
+  /* The top bar on one row: the search field takes what the menu, the name
+     and the indicator leave, the Search button is Enter's (still there for a
+     screen reader), and an indicator naming a long trouble shows its start,
+     its glyph first, with the whole sentence a tap away on Status. */
+  header.topbar {
+    flex-wrap: nowrap;
+    padding: var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  .topbar .search {
+    flex: 1 1 auto;
+  }
+
+  .topbar .search input {
+    min-width: 0;
+    width: 100%;
+    /* The magnifier is hidden below, so the field's text starts at its edge. */
+    padding-left: var(--space-3);
+  }
+
+  .topbar .brand {
+    font-size: var(--text-xl);
+  }
+
+  .topbar .search button[type="submit"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The indicator keeps its whole word: the search field gives up room first.
+     A trouble's whole sentence is too long for the bar, so the bar shows its
+     state in a word and the sentence stays for a screen reader and on Status. */
+  .status-indicator {
+    flex: 0 0 auto;
+    margin-left: 0;
+  }
+
+  .status-indicator .status-words {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .status-indicator .status-short {
+    display: inline;
+    white-space: nowrap;
+  }
+
+  /* Activity's tables as stacked cards: a phone reads a run one row at a time,
+     each value under the heading that says what it is, and the row's own link
+     covers the card so the whole card opens it (`table(..., { stacked })` in
+     `core/badges.js`). */
+  table.stacked,
+  table.stacked caption,
+  table.stacked tbody,
+  table.stacked tr,
+  table.stacked td {
+    display: block;
+  }
+
+  table.stacked thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  table.stacked tr {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  table.stacked td {
+    border: none;
+    padding: var(--space-1) 0;
+    overflow-wrap: anywhere;
+  }
+
+  table.stacked td[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  table.stacked .row-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+}
+
+/* -- Status: the image sources table ------------------------------------------
+   One row per source (`screens/health.js`, `SOURCE_COLUMNS`). Keyed on the
+   table's own width rather than the viewport's, since the sidebar and the
+   panel's padding decide how much of the screen it gets. As it narrows the
+   columns leave in the owner's order: Median long edge, Last fault, Only here,
+   then Faults since startup, whose count then moves into the State cell so a
+   fault is on screen at every width. Source, State, Offered and Chosen stay,
+   and on a phone each row stacks into a card. Each width leaves the columns
+   still showing room at letter-spacing 0.25em on this Mac, because CI's fonts
+   are wider than this Mac's: 0.16em here reproduced the overflow CI saw at
+   the narrower widths first chosen;
+   `tests/browser/test_the_status_sources_table.py` holds the order, and that
+   the table never needs its sideways scroll. */
+
+.source-table {
+  container-type: inline-size;
+  container-name: source-table;
+}
+
+.source-table .source-reason {
+  display: block;
+  font-size: var(--text-xs);
+}
+
+/* A reason names a setting (`WIKIDATA_USER_AGENT`) and a fault an exception,
+   neither with a space to break at: without this either sets the table's width. */
+.source-table .source-reason,
+.source-table .col-last-fault {
+  overflow-wrap: anywhere;
+}
+
+.source-table .state-faults {
+  display: none;
+}
+
+@container source-table (max-width: 60rem) {
+  .source-table .col-median {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 52rem) {
+  .source-table .col-last-fault {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 45rem) {
+  .source-table .col-only-here {
+    display: none;
+  }
+}
+
+@container source-table (max-width: 38rem) {
+  .source-table .col-faults {
+    display: none;
+  }
+
+  .source-table .state-faults {
+    display: inline;
+  }
+}
+
+/* A phone: four columns of words do not fit across, so each source becomes a
+   card of its own, every cell under its column's name, as Activity's rows do
+   (`table.stacked`). The four kept columns are all still there. */
+@container source-table (max-width: 31rem) {
+  .source-table table,
+  .source-table caption,
+  .source-table tbody,
+  .source-table td {
+    display: block;
+  }
+
+  .source-table .col-source {
+    grid-column: 1 / -1;
+  }
+
+  .source-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* The source's name across the card, and its three figures side by side
+     beneath it, so ten sources stay ten short cards rather than a long column. */
+  .source-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-1);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  /* A word wider than its third of the card breaks rather than pushing the
+     card past the screen, on the narrowest phones and the widest fonts. */
+  .source-table td {
+    overflow-wrap: anywhere;
+    border: none;
+    padding: var(--space-1) 0;
+  }
+
+  .source-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+}
+
+/* -- Themes: the index's cards ---------------------------------------------
+   One card per theme, small enough that ten fit on a desktop screen: a strip of
+   four square slots for its first pictures, then its name, count and badges.
+   The strip keeps four slots whatever it holds, so every card in a row is one
+   height, and each picture is letterboxed in its slot rather than cropped. */
+.grid.theme-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(11rem, 100%), 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.theme-card-pictures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  aspect-ratio: 4 / 1;
+  background: var(--border);
+}
+
+.theme-card-slot {
+  position: relative;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.theme-card-slot img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.theme-card .card-body {
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+/* -- Settings: the index of its pages ----------------------------------------
+   One row per page, its name a link and one muted line on what it holds, as
+   Sonarr's /settings lists its pages. */
+.settings-index {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0 0;
+  display: grid;
+  gap: var(--space-4);
+  max-width: 40rem;
+}
+
+.settings-index li {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.settings-index-link {
+  font: 400 var(--text-md) / 1.3 var(--font-label);
+  color: var(--text-strong);
+}
+
+.settings-index li p {
+  margin: var(--space-1) 0 0;
+}
+
+/* -- Queue: failed fetches by cause -------------------------------------------
+   One row per cause, its count and its acts beneath the reason, and the
+   group's works under it when opened: thousands of works failing for one
+   reason read as one problem. */
+.failure-causes {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-3) 0 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.failure-cause {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-3);
+}
+
+.failure-cause-head p {
+  margin: 0;
+}
+
+/* A cause can quote a URL or a path with no space to break at. */
+.failure-cause-why {
+  overflow-wrap: anywhere;
+}
+
+.failure-cause-head .row {
+  margin-top: var(--space-2);
+}
+
+.failure-cause-works {
+  margin-top: var(--space-3);
+}
+
+/* A list whose first column holds the selection's ticks shows that column only
+   while some tick is shown, so outside Select mode, and while a topic's works
+   are still arriving, there is no "Get" heading over an empty column. */
+table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):first-child {
+  display: none;
+}
+
+/* Ask's thread (`core/asking.js`): each turn is what the curator said, then the
+ * reply — what the agent looked at, its answer, and the cards for what it
+ * offers, in a grid that is one column on a phone. */
+.ask-turns { display: grid; gap: var(--space-4); margin-bottom: var(--space-4); }
+/* Before anything is said the thread is empty, and its margin was a second gap
+   under the page's name. */
+.ask-turns:empty { margin-bottom: 0; }
+.ask-turn { border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.ask-turn:first-child { border-top: 0; padding-top: 0; }
+.ask-asked { margin: 0 0 var(--space-2); color: var(--text-strong); }
+.ask-steps { list-style: none; margin: 0 0 var(--space-2); padding: 0; font-size: var(--text-sm); color: var(--text-muted); }
+.ask-step .glyph { margin-right: var(--space-1); }
+.ask-answer p, .ask-answer ul { margin: 0 0 var(--space-2); }
+/* A reply's cards are posters, as Library › Artists draws an artist: the
+   picture leads, the name and one line under it. 11rem rather than the Artists
+   index's 9rem, because a card here also carries its acts, and two reactions
+   side by side fit at 11rem where they would wrap at 9. */
+.grid.ask-cards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: var(--space-4) var(--space-3); margin: var(--space-3) 0; }
+.ask-cards:empty { display: none; }
+.ask-card { min-width: 0; }
+.ask-card .card-body { padding: var(--space-2) 0 0; gap: 2px; }
+.ask-card .card-title { font-size: var(--text-md); }
+.ask-card .reactions { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
+.ask-card .reactions .action { padding: 2px var(--space-2); font-size: var(--text-sm); }
+/* A work's Get, its button and what it started stacked to the card's width. */
+.ask-card .get-control { flex-direction: column; align-items: stretch; gap: var(--space-1); margin-top: var(--space-1); }
+.ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }
+
+/* -- one theme's members --------------------------------------------------
+   Each row leads with the work on its mat, small enough that a theme of sixty
+   is still a list, large enough to tell one work from the next. The position
+   is a field of its own width, sized for three figures. */
+.member-picture {
+  width: 4rem;
+  height: 4rem;
+  aspect-ratio: auto;
+}
+
+.member-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.member-picture .card-image-absent {
+  font-size: var(--text-xs);
+}
+
+input.theme-position {
+  width: 4.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A raw sentence shown under `?debug` carries a path wider than a phone, and
+   breaks anywhere rather than pushing the page sideways. */
+.raw-sentence {
+  overflow-wrap: anywhere;
 }

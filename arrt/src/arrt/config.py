@@ -19,13 +19,14 @@ from typing import Final
 
 from dotenv import load_dotenv
 
+from arrt.library.dimensions import Units
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.services.runner import DiscoverySettings
 from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
-from arrt.programming.manifest.builder import MANIFEST_FILENAME_TEMPLATE, manifest_path_in
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
+from arrt.programming.manifest.v2 import MANIFEST_V2_FILENAME_TEMPLATE, manifest_v2_path_in
 
 #: The catalogue's filename under `ART_ROOT`. Not configurable: both planes
 #: and the backup path need to agree on where the catalogue is, and a setting
@@ -54,14 +55,6 @@ PICTURES_DIRNAME: Final[str] = "pictures"
 #: so it is never confused with the derived directories beside it.
 ORIGINALS_DIRNAME: Final[str] = "raw"
 
-#: Where composed television canvases are written under `ART_ROOT`. Derived and
-#: **specific to the television**: a canvas here is one panel's pixel dimensions
-#: with a mat drawn to that panel's physical size, so it is regenerated on the
-#: machine that will show it rather than carried to another. The geometry is not
-#: encoded in the filename — the 2024 tree's `_w648_h480` suffix is why a
-#: recovered catalogue pointed at a panel that no longer existed; a `Rendition`
-#: row carries the target size, and that row is what makes staleness detectable.
-READY_DIRNAME: Final[str] = "ready"
 
 #: The file answers from slow foreign sources are kept in under `ART_ROOT`
 #: (`persistence/kept.py`). **Disposable**: deleting it costs the next visit to
@@ -137,12 +130,16 @@ DEFAULT_MIN_FREE_BYTES: Final[int] = 2 * 1024 * 1024 * 1024
 DEFAULT_HOST: Final[str] = "127.0.0.1"
 DEFAULT_PORT: Final[int] = 8770
 
-#: What the wall does for a theme that has expressed no pace of its own. Carried
+#: What a wall that has chosen no pace of its own plays at. Carried
 #: forward from the 2024 plane, which ran the wall at three minutes on shuffle —
 #: this is the behaviour on the wall today, and changing it silently at cutover
 #: would be a regression nobody asked for.
 DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
 DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
+#: The system a label states a work's dimensions in. Imperial because the
+#: reference wall's household reads inches; a metric household sets
+#: `LABEL_UNITS=metric`.
+DEFAULT_LABEL_UNITS: Final[Units] = Units.IMPERIAL
 
 #: How often the catalogue is backed up when `BACKUP_DIR` is set: daily, as
 #: `operational-spec.md` § Backup and Restore plans, plus once at every start.
@@ -151,40 +148,40 @@ DEFAULT_BACKUP_INTERVAL_SECONDS: Final[int] = 24 * 60 * 60
 #: seen on the health panel long before the last good one ages out.
 DEFAULT_BACKUP_KEEP: Final[int] = 14
 
-#: These defaults describe a 42" Frame at 4K. That is a REFERENCE, not this
-#: deployment — the operator's set is 50", and a stale diagonal produces a running
-#: system that quietly mis-sizes every judgement rather than failing. Nothing may hardcode a
-#: panel: the mat is specified in physical units and the resolution floor is a
-#: minimum size on the wall, so both are wrong on a different television. These
-#: are defaults for the reference panel, overridable per deployment.
-DEFAULT_TV_PANEL_WIDTH_PX: Final[int] = 3840
-DEFAULT_TV_PANEL_HEIGHT_PX: Final[int] = 2160
-DEFAULT_TV_PANEL_DIAGONAL_INCHES: Final[float] = 42.0
+#: The quality profile's minimum: the shortest long edge, in pixels, a picture
+#: may have and still be chosen without a curator asking for it. Pictures below
+#: it are shown, labelled and selectable; the minimum withholds nothing from a
+#: curator. 1,000 px is the owner's figure (2026-10-06: "on a 1080p display with
+#: a mat that's about right for a minimum").
+DEFAULT_QUALITY_MINIMUM_PX: Final[int] = 1000
 
-#: The mat's width on the sides and top, in inches on the wall. Physical units
-#: rather than pixels or a ratio, so it means the same thing on any panel. The mat
-#: hugs the work, with black beyond it, so this is the whole of the mat a viewer
-#: sees on every side, not a minimum the screen's shape adds to.
-DEFAULT_MAT_WIDTH_INCHES: Final[float] = 1.5
+#: Settings this server no longer reads, and what replaced each. A deployment's
+#: `.env` outlives the code that read it, and a key that silently stops working
+#: looks exactly like one still in force, so startup names each one still set.
+RETIRED_SETTINGS: Final[dict[str, str]] = {
+    "RESOLUTION_FLOOR_INCHES": (
+        "the floor is a quality profile in pixels now, which names no screen; set QUALITY_MINIMUM_PX "
+        f"(default {DEFAULT_QUALITY_MINIMUM_PX}) and remove RESOLUTION_FLOOR_INCHES"
+    ),
+    # The intent-forming conversation was retired for Ask's agent, whose model is
+    # ASK_MODEL and whose cost is read off each reply rather than estimated.
+    **{
+        key: "the conversation was retired for Ask, whose model is ASK_MODEL; remove " + key
+        for key in (
+            "CONVERSATION_MODEL",
+            "CONVERSATION_MAX_OUTPUT_TOKENS",
+            "CONVERSATION_INPUT_COST_USD_PER_MTOK",
+            "CONVERSATION_OUTPUT_COST_USD_PER_MTOK",
+            "CONVERSATION_INPUT_TOKENS",
+        )
+    },
+}
 
-#: How much deeper the bottom margin is than the top. A true-centred image reads
-#: as sitting low, so conservators weight the bottom — the convention this
-#: product's mat is specified against.
-DEFAULT_MAT_BOTTOM_WEIGHT: Final[float] = 1.15
 
-#: The smallest a work may render along its long edge, in inches on the wall,
-#: before it is labelled as below the floor. Below-floor works are shown and
-#: remain selectable; the floor is a warning, never a filter.
-DEFAULT_RESOLUTION_FLOOR_INCHES: Final[float] = 12.0
+def retired_settings_in(environ: dict[str, str] | os._Environ[str]) -> list[str]:
+    """One sentence for each retired setting `environ` still sets, in the order they are listed."""
+    return [f"{key} is no longer read: {reason}." for key, reason in RETIRED_SETTINGS.items() if environ.get(key)]
 
-#: How many proposed works a discovery run may produce before it stops and asks.
-#: The gate is on the **work count**, not on the price: real runs cost well under
-#: a dollar, so a money threshold gates on the axis that does not discriminate,
-#: while the judgement the gate exists to invite is scope — "you asked for Dalí
-#: and I found 200 works — really?". A typical run lands near twenty, so this
-#: never fires on an ordinary one and does fire on a run that read the intent far
-#: more broadly than intended.
-DEFAULT_DISCOVERY_APPROVAL_THRESHOLD: Final[int] = 25
 
 #: How many works a run may offer from a wired collection, on top of the list it
 #: proposed. A bound rather than everything held, because the collection's supply
@@ -195,9 +192,9 @@ DEFAULT_DISCOVERY_APPROVAL_THRESHOLD: Final[int] = 25
 #: nothing else can be: the museum's relevance score survives a filter-only query
 #: and cannot order the candidates (`artic-api-findings.md`). So the works kept
 #: are taken round-robin across the artists the run named, and this number is how
-#: many rounds that gets. Twelve is about half the approval threshold, which keeps
-#: a supplement visibly secondary to the list a curator actually approved while
-#: still giving a four-artist run three works each.
+#: many rounds that gets. Twelve is about half a typical run's twenty-odd works,
+#: which keeps a supplement visibly secondary to the list the curator asked for
+#: while still giving a four-artist run three works each.
 DEFAULT_OFFERED_WORKS_PER_RUN: Final[int] = 12
 
 #: How many web searches phase 1 may make. Flat, because phase 1's entire job is
@@ -321,27 +318,17 @@ DEFAULT_MAT_MODEL: Final[str] = "qwen/qwen3.7-flash"
 #: failure with a different remedy.
 DEFAULT_MAT_MAX_OUTPUT_TOKENS: Final[int] = 8_000
 
-#: Which model answers a conversational turn. **Its own setting, and the reason
-#: is measured rather than symmetric**: `DEFAULT_DISCOVERY_MODEL` lists
-#: `input_modalities: ["text"]`, so a thread that ever carries a picture the
-#: curator points at cannot use it. The same argument `mat_model` records, and
-#: the same model answers it — vision-capable, cheapest of those that cleared the
-#: mat bar, and the one the 2026-08-12 multi-turn probe was measured against.
-DEFAULT_CONVERSATION_MODEL: Final[str] = DEFAULT_MAT_MODEL
+#: Which model answers in Ask. Chosen by measurement, not by price alone
+#: (`ask-agent-findings.md`): it passed every Ask-shaped request in at most three
+#: steps for about $0.003 a reply. The cheaper qwen was as reliable and three
+#: times slower, and deepseek ran away on open requests.
+DEFAULT_ASK_MODEL: Final[str] = "anthropic/claude-haiku-5.5"
 
-#: The conversational turn's output reservation, in tokens. **Deliberately small,
-#: and it is the one reservation in this file that is not sized for reasoning.**
-#:
-#: The other two are large because a reasoning model must be allowed to finish
-#: thinking before it answers. A conversational turn does the opposite: reasoning
-#: is switched off on the request, because on an open-ended prompt the routed
-#: model consumed its entire reservation on reasoning before emitting a character
-#: — measured at 16, 200 and 900 tokens alike, ten calls in a row, every one
-#: returning empty content and every one billed. With reasoning off the answers
-#: measured 19 to 28 completion tokens, so 2,000 is roughly seventy times a
-#: typical reply: room for a long answer, and small enough that the reservation
-#: the provider prices stays a rounding error against a monthly limit.
-DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS: Final[int] = 2_000
+#: How many times Ask's agent may ask its model in one reply before it is
+#: stopped. Set from the measured maxima, 3 for the default model and 7 for the
+#: slowest reliable one, with headroom for a harder request. A per-reply bound,
+#: not the spending ceiling: that is the provider key's limit.
+DEFAULT_ASK_STEP_LIMIT: Final[int] = 8
 
 #: The longest edge, in pixels, of the copy of the artwork the mat model sees.
 #: Images bill inside `prompt_tokens`, so this is the one dial on what a mat call
@@ -379,23 +366,17 @@ class Settings:
     wall_name: str
     rotation_interval_seconds: int
     rotation_shuffle: bool
+    #: Which system every label states a work's dimensions in, rounded to whole
+    #: units (`library/dimensions.py`).
+    label_units: Units
     #: Where the catalogue's backups go, or None when this deployment takes none
     #: (the health panel then says no backup has been recorded). A directory on
     #: storage other than the art root's, so losing one does not lose the other.
     backup_dir: Path | None
     backup_interval_seconds: int
     backup_keep: int
-    #: The **television's** panel, never the e-paper one. Curation composes the
-    #: mat and judges whether a source is large enough for the wall, so it needs
-    #: the TV's physical size; it must hold no fact about the label panel, which
-    #: belongs to the plane that owns it.
-    tv_panel_width_px: int
-    tv_panel_height_px: int
-    tv_panel_diagonal_inches: float
-    #: The mat's geometry, in inches on the wall, and the floor judged against it.
-    mat_width_inches: float
-    mat_bottom_weight: float
-    resolution_floor_inches: float
+    #: The quality profile's minimum, in pixels on the long edge.
+    quality_minimum_px: int
     #: What acquisition may fetch, how, and what it refuses to risk. The free
     #: space floor is the one that is not about images at all — see its default.
     acquisition_user_agent: str
@@ -411,7 +392,6 @@ class Settings:
     #: Prices move — one recorded model price drifted 28% in twelve days — and the
     #: allowances are policy a household sets, so none of these may be a literal
     #: in source.
-    approval_threshold: int
     phase1_search_allowance: int
     phase2_searches_per_work: int
     offered_works_per_run: int
@@ -440,17 +420,15 @@ class Settings:
     mat_model: str = DEFAULT_MAT_MODEL
     mat_max_output_tokens: int = DEFAULT_MAT_MAX_OUTPUT_TOKENS
     mat_image_max_edge: int = DEFAULT_MAT_IMAGE_MAX_EDGE
-    #: How intent-forming reaches its provider. A third model rather than either
-    #: of the two above: discovery's is text-only and cannot see a picture, and
-    #: the mat's reservation is sized for a reasoning budget this call switches
-    #: off. One setting for all three would make each choice a constraint on the
-    #: others.
-    conversation_model: str = DEFAULT_CONVERSATION_MODEL
-    conversation_max_output_tokens: int = DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
     #: The key everything paid runs through. Optional: a deployment without one
     #: serves the whole catalogue and refuses only to *start* a discovery run,
     #: which is a far better failure than refusing to boot.
     openrouter_api_key: str | None = None
+    #: The month's budget the sidebar measures spend against when the key has no
+    #: limit of its own (`MONTHLY_BUDGET_USD`). Display only and never enforced:
+    #: on a key with a monthly limit the provider's own figure is shown instead,
+    #: and the provider's limit is the only thing that stops spending.
+    monthly_budget_usd: Decimal | None = None
     #: Source plugins by name, most preferred first; plugins it does not name
     #: follow, by name. Order only breaks a tie between images ranked level,
     #: because every finder is asked at once. The default is the owner's ruling of
@@ -463,17 +441,23 @@ class Settings:
     #: runs this to a third party. Unset switches matching off, and the registry
     #: features say so.
     wikidata_user_agent: str | None = None
+    #: Which model Ask's agent runs on (`ASK_MODEL`).
+    ask_model: str = DEFAULT_ASK_MODEL
+    #: Model replies one Ask reply may take (`ASK_STEP_LIMIT`).
+    ask_step_limit: int = DEFAULT_ASK_STEP_LIMIT
+    #: A SearXNG instance for Ask's web search (`SEARXNG_URL`). Unset, Ask is
+    #: offered no web search and reads only the library and Wikidata.
+    searxng_url: str | None = None
 
     @property
     def discovery_settings(self) -> DiscoverySettings:
         """The discovery allowances and prices, as the service layer wants them.
 
-        Composed here for the same reason `tv_artwork_box` is: every input is a
-        deployment value, and the service that reads them should take one object
+        Composed here because every input is a deployment value, and the
+        service that reads them should take one object
         it can be handed in a test rather than eight it has to be given.
         """
         return DiscoverySettings(
-            approval_threshold=self.approval_threshold,
             phase1_search_allowance=self.phase1_search_allowance,
             phase2_searches_per_work=self.phase2_searches_per_work,
             offered_works_per_run=self.offered_works_per_run,
@@ -484,8 +468,8 @@ class Settings:
             phase1_output_tokens=self.phase1_output_tokens,
         )
 
-    def manifest_path(self, wall_id: str) -> Path:
-        """Where one wall's manifest is published.
+    def manifest_v2_path(self, wall_id: str) -> Path:
+        """Where one wall's feed is published, the name `DisplaySettings` gives it too.
 
         **A method taking a wall rather than a field**, because there is no such
         thing as "the manifest path" any more: the file set is indexed by wall,
@@ -497,28 +481,28 @@ class Settings:
         and they were briefly deleted — wrongly. The concern a callerless read
         usually names is a second answer that can drift from the first, and there
         is no second answer: this and `DisplaySettings` both delegate to
-        `manifest_path_in`, which is the one derivation. What is left is a
+        `manifest_v2_path_in`, which is the one derivation. What is left is a
         convenience on the object that owns `art_root`, which is where a reader
-        asking "where would this wall's manifest be" looks first.
+        asking "where would this wall's feed be" looks first.
         """
-        return manifest_path_in(self.art_root, wall_id)
+        return manifest_v2_path_in(self.art_root, wall_id)
 
     def heartbeat_path(self, wall_id: str) -> Path:
         """Where the display serving one wall reports. Read here, never written.
 
-        Kept for the reason recorded on `manifest_path` above.
+        Kept for the reason recorded on `manifest_v2_path` above.
         """
         return heartbeat_path_in(self.art_root, wall_id)
 
     @property
     def manifest_pattern(self) -> str:
-        """What the manifests are called, with the wall id left standing.
+        """What the walls' feeds are called, with the wall id left standing.
 
         For the startup line, which is read before any wall id is in anyone's
         hand. The resolved root with the placeholder still standing puts a wrong
         `ART_ROOT` one `journalctl` away without inventing a wall to name.
         """
-        return str(self.art_root / MANIFEST_FILENAME_TEMPLATE)
+        return str(self.art_root / MANIFEST_V2_FILENAME_TEMPLATE)
 
     @property
     def thumbnails_path(self) -> Path:
@@ -541,17 +525,6 @@ class Settings:
         (#180).
         """
         return self.art_root / ORIGINALS_DIRNAME
-
-    @property
-    def ready_path(self) -> Path:
-        """Where composed television canvases live.
-
-        Derived and regenerable by a re-render, but nothing re-renders a missing
-        file on its own today (#180), so a restore carries `ready/` with the
-        originals beside it; the backup itself carries neither. Specific to the television in a way `thumbs/` is
-        not: the mat is drawn to this panel's physical size.
-        """
-        return self.art_root / READY_DIRNAME
 
     @property
     def kept_answers_path(self) -> Path:
@@ -579,44 +552,9 @@ class Settings:
         return self.art_root / PICTURES_DIRNAME
 
     @property
-    def tv_pixels_per_inch(self) -> float:
-        """Canvas pixels to an inch on the wall, from the panel's own geometry.
-
-        Derived rather than configured: a diagonal and a pixel count already fix
-        it, and a third setting that could disagree with the other two is a way
-        for a deployment to be quietly wrong about how big anything is.
-        """
-        diagonal_px = (self.tv_panel_width_px**2 + self.tv_panel_height_px**2) ** 0.5
-        return diagonal_px / self.tv_panel_diagonal_inches
-
-    @property
-    def tv_artwork_box(self) -> ArtworkBox:
-        """The region of the television canvas an artwork is rendered into.
-
-        Composed here because every input is a deployment value: the panel, the
-        mat in inches, and the floor. The bottom margin is deeper than the top,
-        so the vertical mat is not twice the horizontal one — a work judged
-        against a four-equal-sides approximation would be reported as larger on
-        the wall than it will actually appear.
-
-        **The mat is rounded to whole pixels before anything is subtracted, and
-        the bottom margin is derived from that rounded top.** A mat is drawn in
-        pixels, so this is the arithmetic the compositor will do; carrying
-        fractions through and rounding at the end gives a box a pixel or two
-        different from the one that ends up on the panel. On the reference 42"
-        4K Frame it reproduces `nonfunctional-requirements.md`'s own worked
-        example exactly — 262 px of mat, a 3316 x 1597 box — which is the
-        strongest available evidence that the default bottom weighting matches
-        what that example was drawn from.
-        """
-        top_mat_px = round(self.mat_width_inches * self.tv_pixels_per_inch)
-        bottom_mat_px = round(top_mat_px * self.mat_bottom_weight)
-        return ArtworkBox(
-            width=max(1, self.tv_panel_width_px - 2 * top_mat_px),
-            height=max(1, self.tv_panel_height_px - top_mat_px - bottom_mat_px),
-            pixels_per_inch=self.tv_pixels_per_inch,
-            floor_inches=self.resolution_floor_inches,
-        )
+    def quality_profile(self) -> QualityProfile:
+        """What the Library chooses without being asked, judged in pixels and naming no screen."""
+        return QualityProfile(minimum_long_edge_px=self.quality_minimum_px)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -645,15 +583,11 @@ class Settings:
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
             rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
+            label_units=_units("LABEL_UNITS", DEFAULT_LABEL_UNITS),
             backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
             backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
             backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),
-            tv_panel_width_px=_positive_int("TV_PANEL_WIDTH_PX", DEFAULT_TV_PANEL_WIDTH_PX),
-            tv_panel_height_px=_positive_int("TV_PANEL_HEIGHT_PX", DEFAULT_TV_PANEL_HEIGHT_PX),
-            tv_panel_diagonal_inches=_positive_float("TV_PANEL_DIAGONAL_INCHES", DEFAULT_TV_PANEL_DIAGONAL_INCHES),
-            mat_width_inches=_positive_float("MAT_WIDTH_INCHES", DEFAULT_MAT_WIDTH_INCHES),
-            mat_bottom_weight=_positive_float("MAT_BOTTOM_WEIGHT", DEFAULT_MAT_BOTTOM_WEIGHT),
-            resolution_floor_inches=_positive_float("RESOLUTION_FLOOR_INCHES", DEFAULT_RESOLUTION_FLOOR_INCHES),
+            quality_minimum_px=_positive_int("QUALITY_MINIMUM_PX", DEFAULT_QUALITY_MINIMUM_PX),
             acquisition_user_agent=os.environ.get("ACQUISITION_USER_AGENT") or DEFAULT_ACQUISITION_USER_AGENT,
             # Resolved off `PATH` by name, and configurable because it is the one
             # dependency this plane does not install: a deployment that built it
@@ -668,11 +602,9 @@ class Settings:
             # guards is the one file in this product that cannot be re-derived.
             min_free_bytes=_positive_int("MIN_FREE_BYTES", DEFAULT_MIN_FREE_BYTES),
             preview_max_bytes=_positive_int("PREVIEW_MAX_BYTES", DEFAULT_PREVIEW_MAX_BYTES),
-            # Zero is allowed throughout rather than refused: a threshold of zero
-            # gates every run, and an allowance of zero forbids searching. Both
-            # are coherent settings for a cautious deployment, and refusing them
-            # would be this module inventing a policy nobody wrote.
-            approval_threshold=_counted("DISCOVERY_APPROVAL_THRESHOLD", DEFAULT_DISCOVERY_APPROVAL_THRESHOLD),
+            # Zero is allowed rather than refused: an allowance of zero forbids
+            # searching, a coherent setting for a cautious deployment, and
+            # refusing it would be this module inventing a policy nobody wrote.
             phase1_search_allowance=_counted("DISCOVERY_PHASE1_SEARCH_ALLOWANCE", DEFAULT_PHASE1_SEARCH_ALLOWANCE),
             phase2_searches_per_work=_counted("DISCOVERY_PHASE2_SEARCHES_PER_WORK", DEFAULT_PHASE2_SEARCHES_PER_WORK),
             # Zero is a coherent setting here too: a deployment that wants only
@@ -695,15 +627,14 @@ class Settings:
             # request reserving nothing is refused by the provider, not run free.
             mat_max_output_tokens=_positive_int("MAT_MAX_OUTPUT_TOKENS", DEFAULT_MAT_MAX_OUTPUT_TOKENS),
             mat_image_max_edge=_positive_int("MAT_IMAGE_MAX_EDGE", DEFAULT_MAT_IMAGE_MAX_EDGE),
-            conversation_model=os.environ.get("CONVERSATION_MODEL") or DEFAULT_CONVERSATION_MODEL,
-            # Positive for the same reason the other two reservations are: a
-            # request reserving nothing is refused by the provider, not run free.
-            conversation_max_output_tokens=_positive_int(
-                "CONVERSATION_MAX_OUTPUT_TOKENS", DEFAULT_CONVERSATION_MAX_OUTPUT_TOKENS
-            ),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
+            monthly_budget_usd=_priced("MONTHLY_BUDGET_USD", "0") if os.environ.get("MONTHLY_BUDGET_USD") else None,
             source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),
             wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
+            ask_model=os.environ.get("ASK_MODEL") or DEFAULT_ASK_MODEL,
+            # Positive: a limit of zero would refuse every reply after charging for nothing.
+            ask_step_limit=_positive_int("ASK_STEP_LIMIT", DEFAULT_ASK_STEP_LIMIT),
+            searxng_url=os.environ.get("SEARXNG_URL") or None,
         )
 
     def redacted(self) -> dict[str, object]:
@@ -808,6 +739,17 @@ def _priced(name: str, default: str) -> Decimal:
     if value < 0:
         raise ConfigError(f"{name} is a price and cannot be negative, got {value}. Check .env.")
     return value
+
+
+def _units(name: str, default: Units) -> Units:
+    """Read a system of units, refusing anything that is not one by name."""
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return Units(raw.strip().lower())
+    except ValueError as exc:
+        raise ConfigError(f"{name} must be imperial or metric, got {raw!r}. Check .env.") from exc
 
 
 def _flag(name: str, *, default: bool) -> bool:

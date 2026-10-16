@@ -1,0 +1,511 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e",
+ "type": "HumanMadeObject",
+ "_label": "Christ Washing the Apostles' Feet and The Last Supper (Ms. 25 (86.MN.730), fol. 16v)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300265483",
+   "type": "Type",
+   "_label": "Manuscripts",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300010292",
+   "type": "Type",
+   "_label": "Versos"
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-part",
+   "type": "Type",
+   "_label": "Object Record Structure: Part",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/d5a24a51-ab35-57c0-8016-b033b60a778b",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    }
+   ],
+   "content": "86.MN.730.16v"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/name/820e2d7f-0f07-5891-a8d0-ae7a9ca678be",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "Christ Washing the Apostles' Feet and The Last Supper",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/name/df3d8cce-c16a-501b-9deb-0dd4ddb91882",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary-group",
+     "type": "Type",
+     "_label": "Primary Group Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary-group",
+     "type": "Type",
+     "_label": "Primary Group Title"
+    }
+   ],
+   "content": "La Passion de nostre seigneur ihesus christ",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388306",
+     "type": "Language",
+     "_label": "French (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/9b22799f-3a7b-5c3a-9cc1-144c41b1d5cb",
+   "type": "Identifier",
+   "_label": "Display Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Ms. 25 (86.MN.730), fol. 16v"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/dor-id",
+   "type": "Identifier",
+   "_label": "Getty DOR ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR ID` (https://data.getty.edu/local/thesaurus/dor-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID"
+    }
+   ],
+   "content": "2232"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/105TGR"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/64a8feb2-b64c-5cea-89f6-925619f016af",
+   "type": "Identifier",
+   "_label": "Manuscript Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/number/manuscript",
+     "type": "Type",
+     "_label": "Getty Manuscript Number",
+     "deprecated": {
+      "reason": "Custom term no longer needed in lieu of suitable AAT term.",
+      "replacement": "Filter on `Manuscript Designations` (http://vocab.getty.edu/aat/300404013) instead.",
+      "since": "2020-10-29"
+     }
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404013",
+     "type": "Type",
+     "_label": "Manuscript Designations"
+    }
+   ],
+   "content": "Ms. 25, fol. 16v"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/name/820e2d7f-0f07-5891-a8d0-ae7a9ca678be",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Christ Washing the Apostles' Feet and The Last Supper",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "2511"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "385526f6-29f7-4423-9b1c-c723ccf55e8e"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production",
+  "type": "Production",
+  "_label": "Production of Artwork by Master of Guillaume Lambert",
+  "referred_to_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/1ecbbe7d-d8a9-576f-8357-caa1a3f4523b/producer-description",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Description",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+      "type": "Type",
+      "_label": "Producer Description",
+      "deprecated": {
+       "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+       "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+       "since": "2020-11-10"
+      }
+     },
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-description",
+      "type": "Type",
+      "_label": "Producer Description"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Master of Guillaume Lambert and workshop (French, active about 1475 - 1485)"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/1ecbbe7d-d8a9-576f-8357-caa1a3f4523b/producer-name",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name",
+      "type": "Type",
+      "_label": "Producer Name"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Master of Guillaume Lambert"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/1ecbbe7d-d8a9-576f-8357-caa1a3f4523b/producer-name-suffix",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name Suffix",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name-suffix",
+      "type": "Type",
+      "_label": "Producer Name Suffix"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "and workshop"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/1ecbbe7d-d8a9-576f-8357-caa1a3f4523b/producer-nationality-and-dates",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Nationality & Dates",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+      "type": "Type",
+      "_label": "Producer Nationality & Dates"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "French, active about 1475 - 1485"
+   }
+  ],
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "about 1480–1490"
+    }
+   ],
+   "begin_of_the_begin": "1480-01-01T00:00:00",
+   "end_of_the_end": "1490-12-31T23:59:59"
+  },
+  "carried_out_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/person/5b84d3f1-e532-41ca-a20c-4f41f5fa1d4a",
+    "type": "Person",
+    "_label": "Master of Guillaume Lambert",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/385526f6-29f7-4423-9b1c-c723ccf55e8e/production/1ecbbe7d-d8a9-576f-8357-caa1a3f4523b/role-statement",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Role Statement",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Illuminator",
+      "close_match": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025122",
+        "type": "Type",
+        "_label": "Illuminator"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/105TGR",
+   "type": "LinguisticObject",
+   "_label": "Homepage for Christ Washing the Apostles' Feet and The Last Supper (Ms. 25 (86.MN.730), fol. 16v) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/9cfa073f-e48b-4611-9e2d-3a17445bd869",
+   "id": "https://media.getty.edu/iiif/manifest/2/9cfa073f-e48b-4611-9e2d-3a17445bd869",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/9cfa073f-e48b-4611-9e2d-3a17445bd869",
+   "id": "https://media.getty.edu/iiif/manifest/3/9cfa073f-e48b-4611-9e2d-3a17445bd869",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}

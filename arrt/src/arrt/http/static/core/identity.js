@@ -22,6 +22,7 @@
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
 import { isQid, lifeDates, named, wikidataLink } from "./registry.js";
+import { attempt } from "./acting.js";
 import { el, guard } from "./render.js";
 
 /* Store which item a work or artist is (`qid`), or that there is none (null),
@@ -34,7 +35,10 @@ export function storeIdentity(kind, id, qid) {
 
 /* `kind` is "work" or "artist"; `record` the work or artist as the library
  * serves it; `onChanged` repaints from the route's answer. */
-export function identityControl(kind, record, onChanged) {
+/* `quietWhenUnmatched`, on a page that says elsewhere that the record has no
+ * item (the Artist page's *Their work*): the line then names no state, so the
+ * page says it once (`ux-review-2026-10.md` finding E16). */
+export function identityControl(kind, record, onChanged, { quietWhenUnmatched = false } = {}) {
   const id = kind === "work" ? record.artwork_id : record.artist_id;
   const said = el("p", { class: "muted", "aria-live": "polite" });
   const field = el("input", { id: `identity-${kind}`, type: "text", inputmode: "text", autocomplete: "off", placeholder: "Q…", spellcheck: "false" });
@@ -67,27 +71,28 @@ export function identityControl(kind, record, onChanged) {
     }
   };
 
-  use.addEventListener("click", () =>
-    guard(async () => {
-      if (!found) return;
-      onChanged(await storeIdentity(kind, id, found));
-    }),
-  );
+  use.addEventListener("click", () => {
+    if (!found) return;
+    const qid = found;
+    attempt(use, `use ${qid} for ${kind === "work" ? record.title : record.name}`, () => storeIdentity(kind, id, qid), { then: onChanged });
+  });
 
   const none = el("button", {
     class: "action quiet",
     type: "button",
     text: "There is none",
-    onclick: () =>
-      guard(async () => {
-        const agreed = await confirmAct({
-          title: `Say Wikidata has no item for ${kind === "work" ? record.title : record.name}?`,
-          consequence: "The matcher stops looking for one. You can set an item here later.",
-          confirmLabel: "There is none",
-        });
-        if (!agreed) return;
-        onChanged(await storeIdentity(kind, id, null));
-      }),
+    onclick: async (event) => {
+      const control = event.currentTarget;
+      const agreed = await confirmAct({
+        title: `Say Wikidata has no item for ${kind === "work" ? record.title : record.name}?`,
+        consequence: "The matcher stops looking for one. You can set an item here later.",
+        confirmLabel: "There is none",
+      });
+      if (!agreed) return;
+      attempt(control, `say Wikidata has no item for ${kind === "work" ? record.title : record.name}`, () => storeIdentity(kind, id, null), {
+        then: onChanged,
+      });
+    },
   });
 
   form.append(el("div", { class: "row" }, [none]));
@@ -106,19 +111,19 @@ export function identityControl(kind, record, onChanged) {
   });
 
   return el("div", { class: "stack identity" }, [
-    el("div", { class: "row identity-now" }, [el("p", { class: "muted" }, [currentWords(record)]), edit]),
+    el("div", { class: "row identity-now" }, [el("p", { class: "muted" }, [currentWords(record, { quietWhenUnmatched })]), edit]),
     form,
   ]);
 }
 
 /* What the record says now, and who said it. */
-function currentWords(record) {
+function currentWords(record, { quietWhenUnmatched = false } = {}) {
   if (record.wikidata_qid) {
     const by = record.wikidata_qid_set_by === "curator" ? "set by you" : "matched";
     return el("span", {}, ["Wikidata: ", wikidataLink(record.wikidata_qid, record.wikidata_qid), ` (${by})`]);
   }
   if (record.wikidata_qid_set_by === "curator") return el("span", { text: "Wikidata: none (you said there is none)" });
-  return el("span", { text: "Wikidata: not matched yet" });
+  return el("span", { text: quietWhenUnmatched ? "Wikidata:" : "Wikidata: not matched yet" });
 }
 
 /* With no registry configured the service stores an item unchecked, so the

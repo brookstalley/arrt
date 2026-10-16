@@ -20,7 +20,7 @@
     },
     "backend": "hdmi",
     "label_modes": [
-      "panel",
+      "caption",
       "none"
     ],
     "manifest_majors": [

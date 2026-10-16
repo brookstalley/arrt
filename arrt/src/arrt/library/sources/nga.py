@@ -75,6 +75,10 @@ log = logging.getLogger(__name__)
 #: The name these instances are recorded under.
 PROVIDER: Final[str] = "nga"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "National Gallery of Art, Washington"
+
 _SITE_HOST: Final[str] = "www.nga.gov"
 _IIIF_HOST: Final[str] = "api.nga.gov"
 _IIIF_PREFIX: Final[str] = f"https://{_IIIF_HOST}/iiif/"

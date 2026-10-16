@@ -308,7 +308,7 @@ def test_a_rendition_is_born_current(service):
     source = _source(service, work.id)
     _original(service, work.id, source.id)
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/w1.jpg"
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=3840, target_height=2160, path="renders/w1.jpg"
     )
 
     assert [view.stale for view in service.list_renditions(work.id)] == [False]
@@ -319,7 +319,7 @@ def test_re_acquiring_the_original_makes_every_existing_rendition_stale(service)
     source = _source(service, work.id)
     _original(service, work.id, source.id, content_hash="sha256:first")
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/w1.jpg"
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=3840, target_height=2160, path="renders/w1.jpg"
     )
     service.record_rendition(
         artwork_id=work.id, kind=RenditionKind.THUMBNAIL, target_width=400, target_height=300, path="thumbs/w1.jpg"
@@ -335,12 +335,12 @@ def test_regenerating_a_rendition_makes_it_current_again(service):
     source = _source(service, work.id)
     _original(service, work.id, source.id, content_hash="sha256:first")
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/w1.jpg"
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=3840, target_height=2160, path="renders/w1.jpg"
     )
     _original(service, work.id, source.id, content_hash="sha256:second")
 
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/w1.jpg"
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=3840, target_height=2160, path="renders/w1.jpg"
     )
 
     assert [view.stale for view in service.list_renditions(work.id)] == [False]
@@ -353,7 +353,11 @@ def test_a_rendition_cannot_be_recorded_before_an_original_exists(service):
     work = _work(service)
     with pytest.raises(ServiceError, match="no acquired original"):
         service.record_rendition(
-            artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="renders/w1.jpg"
+            artwork_id=work.id,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=3840,
+            target_height=2160,
+            path="renders/w1.jpg",
         )
 
 
@@ -362,7 +366,7 @@ def test_the_same_geometry_in_a_different_kind_is_a_different_rendition(service)
     source = _source(service, work.id)
     _original(service, work.id, source.id)
     service.record_rendition(
-        artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=400, target_height=300, path="renders/w1.jpg"
+        artwork_id=work.id, kind=RenditionKind.PRESENTATION_MASTER, target_width=400, target_height=300, path="renders/w1.jpg"
     )
     service.record_rendition(
         artwork_id=work.id, kind=RenditionKind.THUMBNAIL, target_width=400, target_height=300, path="thumbs/w1.jpg"
@@ -488,7 +492,11 @@ def test_an_absolute_rendition_path_is_refused_too(service):
 
     with pytest.raises(ServiceError, match="must be relative to ART_ROOT"):
         service.record_rendition(
-            artwork_id=work.id, kind=RenditionKind.TV_DISPLAY, target_width=3840, target_height=2160, path="/renders/w1.jpg"
+            artwork_id=work.id,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=3840,
+            target_height=2160,
+            path="/renders/w1.jpg",
         )
 
 

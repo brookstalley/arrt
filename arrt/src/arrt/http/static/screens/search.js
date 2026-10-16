@@ -22,12 +22,13 @@
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
-import { getSelection } from "../core/getting.js";
-import { lifeDates, named, stateMark, topicKinds, topicName, workState } from "../core/registry.js";
+import { selectionMode } from "../core/selecting.js";
+import { gettable, heldPicture, lifeDates, named, reviewMark, stateMark, statePicture, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
-import { backLink, go } from "../core/router.js";
+import { backLink, link, setTitle } from "../core/router.js";
 import { asksWikidata, fold } from "../core/search.js";
 import { state } from "../core/state.js";
+import { toolbar } from "../core/toolbar.js";
 
 /* How many of the library's works the page lists. Artworks, one click away,
  * holds the rest and the tools to act on them. */
@@ -47,7 +48,7 @@ const HALVES = { held: "Held", "not-held": "Not held" };
 export async function viewSearch(generation) {
   const query = (state.params.q || "").trim();
   if (!query) {
-    render(generation, el("p", {}, [backLink()]), el("h2", { text: "Search" }), el("p", { class: "note", text: "Type in the search box above to search." }));
+    render(generation, el("p", {}, [backLink()]), el("h1", { text: "Search" }), el("p", { class: "note", text: "Type in the search box above to search." }));
     return;
   }
   // Asked now, beside the library, and awaited after the Held group is drawn.
@@ -101,42 +102,40 @@ export async function viewSearch(generation) {
   // The Not held group's one line, whatever Wikidata did: asking, found,
   // nothing more, or why it could not be asked.
   const registryNote = el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" });
+  // One selection for the page (`core/selecting.js`), its toggle shown once a
+  // work the library does not hold is listed to tick. Painted once: the works
+  // are drawn when the artist and work search answers, and the topic search
+  // arriving later does not redraw them, so a box already ticked stays ticked.
+  const selection = selectionMode({ notHeld: {} });
+  setTitle(generation, `Results for “${query}”`);
   render(
     generation,
     el("p", {}, [backLink()]),
-    el("h2", { text: `Results for “${query}”` }),
+    el("h1", { text: `Results for “${query}”` }),
+    toolbar({ actions: [selection.toggle] }),
     top,
     el("section", { class: "panel", "aria-labelledby": "results-held" }, [
-      el("h3", { id: "results-held", text: "Held" }),
+      el("h2", { id: "results-held", text: "Held" }),
       nothingHeld,
       ours ? null : el("p", { class: "muted results-topics-failed", text: "Your topics could not be listed just now." }),
       ...KINDS.map(([kind]) => sections.held[kind]),
     ]),
     el("section", { class: "panel", "aria-labelledby": "results-not-held" }, [
-      el("h3", { id: "results-not-held", text: "Not held" }),
+      el("h2", { id: "results-not-held", text: "Not held" }),
       registryNote,
       ...KINDS.map(([kind]) => sections["not-held"][kind]),
     ]),
+    selection.bar,
   );
 
-  // One selection for the page, painted once: the works are drawn when the
-  // artist and work search answers, and the topic search arriving later does
-  // not redraw them, so a box already ticked stays ticked.
-  const getting = getSelection();
   const registry = { found: null, named: null };
   const paintFound = () => {
     const artists = artistRows(library, registry.found);
     paintKind(sections.held.artists, "held", "artists", artists.held.map(artistRow));
     paintKind(sections["not-held"].artists, "not-held", "artists", artists.notHeld.map(artistRow));
-    const works = workRows(library, registry.found, getting);
+    const works = workRows(library, registry.found, selection);
     paintKind(sections.held.works, "held", "works", works.held.map(workRow), artworksLink(query, library));
-    paintKind(
-      sections["not-held"].works,
-      "not-held",
-      "works",
-      works.notHeld.map(workRow),
-      works.notHeld.length ? getting.node : null,
-    );
+    paintKind(sections["not-held"].works, "not-held", "works", works.notHeld.map(workRow));
     paintTop(top, query, [...artists.held, ...artists.notHeld]);
   };
   const paintNamed = () => {
@@ -191,7 +190,7 @@ function sayWhatWikidataDid(note, query, { found, named }, notHeld) {
   note.textContent = `Wikidata has nothing for “${query}”.`;
   note.after(
     el("div", { class: "row" }, [
-      el("button", { class: "action", type: "button", text: `Ask about “${query}”`, onclick: () => go("discover", null, { term: query }) }),
+      link({ view: "discover", params: { term: query } }, { class: "action", text: `Ask about “${query}”` }),
     ]),
   );
 }
@@ -207,7 +206,7 @@ function paintKind(section, half, kind, rows, ...after) {
   const heading = KINDS.find(([key]) => key === kind)[1];
   fill(
     section,
-    el("h4", { id: `results-${half}-${kind}` }, [el("span", { class: "visually-hidden", text: `${HALVES[half]}: ` }), heading]),
+    el("h3", { id: `results-${half}-${kind}` }, [el("span", { class: "visually-hidden", text: `${HALVES[half]}: ` }), heading]),
     el("ul", { class: "results-list" }, rows),
     ...after,
   );
@@ -222,7 +221,7 @@ function artistRows(library, found) {
     name: artist.name,
     life: lifeDates(artist),
     held: true,
-    open: () => go("artist", artist.artist_id),
+    open: { view: "artist", id: artist.artist_id },
   }));
   const notHeld = [];
   if (found && found.state === "known") {
@@ -232,7 +231,8 @@ function artistRows(library, found) {
         name: named(person.name, person.qid),
         life: lifeDates(person),
         held: Boolean(person.artist_id),
-        open: () => go("artist", person.artist_id || person.qid),
+        open: { view: "artist", id: person.artist_id || person.qid },
+        inReview: person.artist_id ? null : person.in_review || null,
       };
       (row.held ? held : notHeld).push(row);
     }
@@ -240,25 +240,29 @@ function artistRows(library, found) {
   return { held, notHeld };
 }
 
-/* No mark: the group heading the row sits under says whether the library holds
- * them, and a mark beside it said it again (the owner, 2026-10-06). The top
- * result, which sits under no group, keeps its mark. */
+/* No held mark: the group heading the row sits under says whether the library
+ * holds them, and a mark beside it said it again (the owner, 2026-10-06). The
+ * top result, which sits under no group, keeps its mark. *Waiting for review*
+ * is a state no heading says, so a not-held artist a run proposed a work of
+ * carries it. */
 function artistRow(row) {
   return el("li", {}, [
-    el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
+    link(row.open, { class: "row-title", text: row.name }),
     row.life ? el("span", { class: "muted", text: ` ${row.life}` }) : null,
+    row.inReview ? reviewMark(row.inReview) : null,
   ]);
 }
 
 /* The works: the library's first, and Wikidata's split the same way. A work the
  * library does not hold can be ticked and got from here. */
-function workRows(library, found, getting) {
+function workRows(library, found, selection) {
   const shown = new Set(library.works.map((work) => work.artwork_id));
   const held = library.works.map((work) => ({
     title: work.title,
     by: work.artist ? work.artist.name : null,
-    mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false }),
-    open: () => go("work", work.artwork_id),
+    picture: heldPicture(work),
+    mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false, picture: false }),
+    open: { view: "work", id: work.artwork_id },
   }));
   const notHeld = [];
   if (found && found.state === "known") {
@@ -268,9 +272,10 @@ function workRows(library, found, getting) {
       const row = {
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
-        mark: workState(work, { opens: false, grouped: true }),
-        open: () => (isHeld ? go("work", work.held_artwork_ids[0]) : go("work", work.qid)),
-        box: isHeld ? null : getting.box(work.qid, named(work.title, work.qid)),
+        picture: statePicture(work),
+        mark: workState(work, { opens: false, grouped: true, picture: false }),
+        open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
+        box: gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null,
       };
       (isHeld ? held : notHeld).push(row);
     }
@@ -279,9 +284,10 @@ function workRows(library, found, getting) {
 }
 
 function workRow(row) {
-  return el("li", {}, [
+  return el("li", { class: "row-pictured" }, [
     row.box || null,
-    el("button", { class: "row-title", type: "button", text: row.title, onclick: row.open }),
+    row.picture,
+    link(row.open, { class: "row-title", text: row.title }),
     row.by ? el("span", { class: "muted", text: ` — ${row.by}` }) : null,
     row.mark,
   ]);
@@ -295,12 +301,7 @@ function artworksLink(query, library) {
   const more = library.total > library.works.length;
   return el("p", { class: "muted" }, [
     more ? `Your library has ${library.total} matching works; the first ${library.works.length} are here. ` : "",
-    el("button", {
-      class: "link",
-      type: "button",
-      text: library.total > 1 ? `All ${library.total} in Artworks` : "Open in Artworks",
-      onclick: () => go("collection", null, { q: query }),
-    }),
+    link({ view: "collection", params: { q: query } }, { class: "link", text: library.total > 1 ? `All ${library.total} in Artworks` : "Open in Artworks" }),
   ]);
 }
 
@@ -311,7 +312,7 @@ function topicRows(library, found) {
   const held = library.topics.map((topic) => ({
     name: `${topicName(topic.label, topic.qid)} — ${topicKinds([topic.kind])}`,
     description: null,
-    open: () => go("topic", topic.qid),
+    open: { view: "topic", id: topic.qid },
   }));
   const notHeld = [];
   if (found && found.state === "known") {
@@ -321,7 +322,7 @@ function topicRows(library, found) {
         name: `${topicName(topic.label, topic.qid)} — ${topicKinds(topic.kinds)}`,
         // What tells six *Impressionism*s apart.
         description: topic.description,
-        open: () => go("topic", topic.qid),
+        open: { view: "topic", id: topic.qid },
       };
       (library.topicIds.has(topic.qid) ? held : notHeld).push(row);
     }
@@ -331,7 +332,7 @@ function topicRows(library, found) {
 
 function topicRow(row) {
   return el("li", {}, [
-    el("button", { class: "row-title", type: "button", text: row.name, onclick: row.open }),
+    link(row.open, { class: "row-title", text: row.name }),
     row.description ? el("span", { class: "muted", text: ` · ${row.description}` }) : null,
   ]);
 }
@@ -348,9 +349,9 @@ function paintTop(section, query, artists) {
   const [artist] = naming;
   fill(section,
     el("section", { class: "panel", "aria-labelledby": "results-top" }, [
-      el("h3", { id: "results-top", text: "Top result" }),
+      el("h2", { id: "results-top", text: "Top result" }),
       el("p", {}, [
-        el("button", { class: "row-title", type: "button", text: artist.name, onclick: artist.open }),
+        link(artist.open, { class: "row-title", text: artist.name }),
         artist.life ? el("span", { class: "muted", text: ` ${artist.life}` }) : null,
         stateMark({ held: artist.held }),
       ]),

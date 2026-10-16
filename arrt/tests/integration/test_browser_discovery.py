@@ -23,12 +23,14 @@ from decimal import Decimal
 import httpx
 import pytest
 from fakes import (
+    GATE_SECONDS,
     FakeFinder,
     a_collection_holding,
     a_roster,
     a_work,
     a_work_list,
     an_image,
+    stored_awaiting_approval,
     works,
 )
 
@@ -42,6 +44,11 @@ def http(server_url):
     """A client pointed at the booted server, with the timeout a Pi deserves."""
     with httpx.Client(base_url=server_url, timeout=30.0) as client:
         yield client
+
+
+#: More works than the retired approval gate's twenty-five, so a gate that came
+#: back would stop the run.
+WIDE = 26
 
 
 def settled(http: httpx.Client, run_id: str, *, until=lambda status: status != RunStatus.RESOLVING_WORKS) -> dict:
@@ -90,10 +97,11 @@ class TestCommissioningARun:
         assert http.get("/api/runs").json()["count"] == 0
 
     def test_a_start_returns_a_handle_rather_than_a_result(self, http, engine):
-        """Well inside the two seconds the contract allows, and not by being fast.
+        """The handle comes back while phase 1 is still held open.
 
-        The gate holds phase 1 open, so a `start` that waited for the work could
-        not return at all — which is what makes this a test of the handle.
+        The gate holds phase 1 open, so a `start` that waited for the work would
+        sit out `GATE_SECONDS`; half of it is the bound, not the contract's two
+        seconds, which a busy machine misses.
         """
         engine.gate = threading.Event()
         try:
@@ -105,7 +113,7 @@ class TestCommissioningARun:
             run = response.json()
             assert run["run_id"]
             assert run["status"] == RunStatus.RESOLVING_WORKS
-            assert elapsed < 2.0, "a start must return its handle immediately"
+            assert elapsed < GATE_SECONDS / 2, "a start must return its handle without waiting on phase 1"
         finally:
             engine.gate.set()
 
@@ -139,7 +147,9 @@ class TestCommissioningARun:
 
             assert response.status_code == 200
             assert response.json()["run"]["status"] == RunStatus.RESOLVING_WORKS
-            assert elapsed < 2.0, "the browser surface held the request open instead of answering"
+            # A held request would wait on the run, which the gate keeps from
+            # changing for `GATE_SECONDS`.
+            assert elapsed < GATE_SECONDS / 2, "the browser surface held the request open instead of answering"
         finally:
             engine.gate.set()
 
@@ -170,27 +180,25 @@ class TestCommissioningARun:
         assert ended["status"] == RunStatus.CANCELLED
         assert ended["is_terminal"] is True
 
-    def test_a_work_list_over_the_threshold_stops_to_ask(self, http, engine, settings):
-        """The approval gate, which is the whole reason the run view has buttons."""
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+    def test_a_wide_work_list_goes_straight_on(self, http, engine):
+        """Asking is the approval (the owner's ruling 3 of 2026-10-07): 26 works, where the retired gate stopped at 25."""
+        engine.result = a_work_list(WIDE)
 
         run_id = http.post("/api/runs", json={"intent": "Everything Dalí ever painted"}).json()["run_id"]
         view = settled(http, run_id)
 
-        assert view["run"]["status"] == RunStatus.AWAITING_APPROVAL
-        assert view["run"]["approval_required"] is True
-        assert view["tally"]["proposed"] == settings.discovery_settings.approval_threshold + 1
+        assert view["run"]["status"] == RunStatus.RESOLVING_IMAGES
+        assert view["run"]["approval_required"] is False
+        assert view["tally"]["proposed"] == WIDE
 
-    def test_the_gate_can_be_told_what_approving_costs(self, http, engine, settings):
-        """The estimate at the *second* point of decision, which is the gate itself.
+    def test_a_run_can_be_told_what_resolving_its_list_costs(self, http, engine):
+        """The phase-2 figure, a different question from the phase-1 one, with its basis and its tier.
 
-        The figure and its basis are different questions from the phase-1 one:
-        this prices resolving the work list, and today it is zero because phase 2
-        asks museum APIs. A bare zero beside an approve button invites reading
-        the gate as being about money — it is about the size of the work list —
-        so the basis is what the screen shows and what this asserts is present.
+        It prices resolving the work list, and today it is zero because phase 2
+        asks museum APIs. A bare zero invites no reading at all, so the basis is
+        what the screen shows and what this asserts is present.
         """
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+        engine.result = a_work_list(WIDE)
         run_id = http.post("/api/runs", json={"intent": "Everything"}).json()["run_id"]
         settled(http, run_id)
 
@@ -199,7 +207,8 @@ class TestCommissioningARun:
         assert estimate["phase"] == "phase_2"
         assert estimate["run_id"] == run_id
         assert estimate["basis"], "a price with no basis is a number nobody can act on"
-        assert "work count" in estimate["basis"]
+        assert "costs nothing further" in estimate["basis"]
+        assert estimate["tier"] == "free"
 
     def test_pricing_a_run_that_has_not_settled_says_what_to_ask_instead(self, http, engine):
         """The gate's own fetch can fail, and the client shows this rather than nothing.
@@ -239,20 +248,22 @@ class TestCommissioningARun:
 
         assert view["run"]["strategy"] == "Took 'recent' to mean since 2020."
 
-    def test_approving_moves_the_run_on(self, http, engine, settings):
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+    def test_approving_a_run_stored_awaiting_approval_moves_it_on(self, http, engine, discovery_store):
+        engine.result = a_work_list(WIDE)
         run_id = http.post("/api/runs", json={"intent": "Everything"}).json()["run_id"]
         settled(http, run_id)
+        stored_awaiting_approval(discovery_store, run_id)
 
         response = http.post(f"/api/runs/{run_id}/approve")
 
         assert response.status_code == 200
         assert response.json()["run"]["status"] != RunStatus.AWAITING_APPROVAL
 
-    def test_declining_ends_the_run_without_spending_further(self, http, engine, settings):
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+    def test_declining_a_run_stored_awaiting_approval_ends_it_without_spending_further(self, http, engine, discovery_store):
+        engine.result = a_work_list(WIDE)
         run_id = http.post("/api/runs", json={"intent": "Everything"}).json()["run_id"]
         settled(http, run_id)
+        stored_awaiting_approval(discovery_store, run_id)
 
         view = http.post(f"/api/runs/{run_id}/decline").json()
 
@@ -361,10 +372,11 @@ class TestCommissioningARun:
         assert view["searches"]["allowance"] > 0
         assert view["searches"]["exhausted"] is False
 
-    def test_runs_are_listed_newest_first_and_can_be_narrowed(self, http, engine, settings):
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+    def test_runs_are_listed_newest_first_and_can_be_narrowed(self, http, engine, discovery_store):
+        engine.result = a_work_list(WIDE)
         waiting = http.post("/api/runs", json={"intent": "Surrealists"}).json()["run_id"]
         settled(http, waiting)
+        stored_awaiting_approval(discovery_store, waiting)
         engine.result = a_work_list(2)
         settled(http, http.post("/api/runs", json={"intent": "Dutch still life"}).json()["run_id"])
 
@@ -404,24 +416,22 @@ class TestCommissioningARun:
         assert response.status_code == 400
         assert "no-such-run" in response.json()["error"]
 
-    def test_the_run_half_runs_over_http(self, http, engine, settings):
+    def test_the_run_half_runs_over_http(self, http, engine):
         """The acceptance criterion, end to end, touching nothing but the surface.
 
-        Intent → estimate → approve → watch, with the gate genuinely engaged in
-        the middle. Everything a curator does here is a request to `/api/*`.
+        Intent → estimate → watch, with asking as the approval. Everything a
+        curator does here is a request to `/api/*`.
         """
-        engine.result = a_work_list(settings.discovery_settings.approval_threshold + 1)
+        engine.result = a_work_list(WIDE)
 
         before = http.get("/api/estimate").json()
         assert Decimal(before["estimated_cost_usd"]) > 0
+        assert before["tier"] != "free"
 
         run_id = http.post("/api/runs", json={"intent": "Everything Dalí ever painted"}).json()["run_id"]
-        waiting = settled(http, run_id)
-        assert waiting["run"]["status"] == RunStatus.AWAITING_APPROVAL
-        assert waiting["works"], "a gate with nothing to read is a gate nobody can answer"
-
-        approved = http.post(f"/api/runs/{run_id}/approve").json()
-        assert approved["run"]["status"] != RunStatus.AWAITING_APPROVAL
+        watched = settled(http, run_id)
+        assert watched["run"]["status"] == RunStatus.RESOLVING_IMAGES
+        assert watched["works"], "a run with nothing to read is a run nobody can judge"
 
         spend = http.get(f"/api/runs/{run_id}/spend").json()
         assert Decimal(spend["cost_usd"]) > 0
@@ -441,9 +451,7 @@ class TestWhatTheRunBroughtBack:
         return a_collection_holding(**{"Salvador Dalí": ("Soft Construction with Boiled Beans",)})
 
     @pytest.fixture
-    def services(
-        self, run_threads, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, collection
-    ):
+    def services(self, store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum, collection):
         engine.result = WorkList(
             works=(
                 a_work("The Elephants"),
@@ -459,11 +467,10 @@ class TestWhatTheRunBroughtBack:
             discovery=discovery_store,
             display_settings=wall_settings,
             thumbnails=thumbnail_settings,
-            artwork_box=settings.tv_artwork_box,
+            quality_profile=settings.quality_profile,
             engine=engine,
             discovery_settings=settings.discovery_settings,
             sources=a_roster(museum, collection=collection),
-            spawn=run_threads,
         )
 
     def finished(self, http, run_id: str) -> dict:
@@ -494,6 +501,22 @@ class TestWhatTheRunBroughtBack:
         assert view["tally"]["offered"] == len(offered)
         assert view["tally"]["proposed"] == 3
         assert view["tally"]["total"] == view["tally"]["proposed"] + view["tally"]["offered"]
+
+    def test_an_offered_work_arrives_saying_which_query_and_which_museum_offered_it(self, http):
+        """Through the route the Get page reads: the offer's facts, not just their keys.
+
+        A Get's page names the museum from `offered_by` and groups by
+        `offered_for_artist`; a route that dropped them would send every
+        offered work under "the collection" while each model test still passed.
+        """
+        run_id = http.post("/api/runs", json={"intent": "Dalí"}).json()["run_id"]
+        view = self.finished(http, run_id)
+
+        (offered,) = [work for work in view["works"] if work["provenance"] == "offered"]
+        assert offered["offered_by"] == "artic"
+        assert offered["offered_for_artist"] == "Salvador Dalí"
+        assert isinstance(offered["offered_artist_matched"], int)
+        assert all(work["offered_by"] is None for work in view["works"] if work["provenance"] != "offered")
 
     def test_the_resolution_numerator_counts_proposals_and_never_subtracts(self, http):
         """`resolved_proposals` is a direct count, and this is why it has to be.

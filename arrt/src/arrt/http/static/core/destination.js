@@ -56,21 +56,21 @@ export function destinationWords(destination) {
   if (destination.name) return destination.name;
   if (destination.state === "deleted") return "a theme that has been deleted";
   if (destination.state === "none") return "no theme";
-  if (destination.state === "parent") return "as the run it re-searches";
+  if (destination.state === "parent") return "the same theme as the earlier Get";
   return "a theme that could not be looked up just now";
 }
 
 /* The destination as a sentence, for the run page and Review. */
 export function destinationSentence(destination) {
-  if (destination.name) return `Works you accept from this run join ${destination.name}.`;
+  if (destination.name) return `Works you accept from this Get join ${destination.name}.`;
   if (destination.state === "deleted") {
-    return "Works you accept from this run were to join a theme that has been deleted, so they join no theme.";
+    return "Works you accept from this Get were to join a theme that has been deleted, so they join no theme.";
   }
   if (destination.state === "none") {
-    return "Works you accept from this run join no theme, because no theme is the default.";
+    return "Works you accept from this Get join no theme, because no theme is the default.";
   }
   if (destination.state === "parent") {
-    return "Works you accept from this re-search join the theme the run it re-searches sends its works to.";
+    return "Works you accept from this Get join the theme the earlier Get they came from sends its works to.";
   }
-  return "Which theme works you accept from this run join could not be looked up just now.";
+  return "Which theme works you accept from this Get join could not be looked up just now.";
 }

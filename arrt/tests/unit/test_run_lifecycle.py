@@ -13,6 +13,7 @@ import logging
 from decimal import Decimal
 
 import pytest
+from fakes import stored_awaiting_approval
 
 from arrt.library.discovery.dedup import work_dedup_key
 from arrt.persistence.discovery_records import InitiatedBy, RunKind, RunStatus, Verdict
@@ -38,58 +39,38 @@ def test_a_discovery_run_starts_in_phase_one_with_the_intent_recorded_verbatim(d
     assert run.parent_run_id is None
 
 
-def test_a_short_work_list_goes_straight_to_phase_two(discovery, run, propose):
-    propose("Nighthawks")
+@pytest.mark.parametrize("count", [1, 26])
+def test_a_work_list_goes_straight_to_phase_two_however_long(discovery, run, propose, count):
+    """Asking is the approval (the owner's ruling 3 of 2026-10-07, #290): no list stops for the curator."""
+    for index in range(count):
+        propose(f"Work {index}")
 
-    advanced = discovery.finish_work_list(run.id, approval_threshold=5)
+    advanced = discovery.finish_work_list(run.id)
 
     assert advanced.status is RunStatus.RESOLVING_IMAGES
     assert advanced.approval_required is False
 
 
-def test_more_works_than_the_threshold_stops_for_the_curator(discovery, run, propose):
-    """The gate is on scope: 'you asked for Dalí and I found 200 works — really?'"""
-    for index in range(3):
-        propose(f"Work {index}")
-
-    advanced = discovery.finish_work_list(run.id, approval_threshold=2)
-
-    assert advanced.status is RunStatus.AWAITING_APPROVAL
-    assert advanced.approval_required is True
-
-
-def test_whether_the_gate_fired_is_stored_rather_than_re_derived(discovery, run, propose):
-    """The threshold is configuration, and configuration changes.
-
-    A run that stopped for approval last month must still read that way under
-    today's setting, so the answer is a stored fact about the run rather than a
-    comparison redone at read time.
-    """
-    for index in range(3):
-        propose(f"Work {index}")
-    discovery.finish_work_list(run.id, approval_threshold=2)
-
-    assert discovery.get_run(run.id).approval_required is True
-
-
 def test_the_estimate_is_recorded_when_the_work_list_closes(discovery, run, propose):
     propose()
 
-    advanced = discovery.finish_work_list(run.id, approval_threshold=5, estimated_cost_usd=Decimal("0.42"))
+    advanced = discovery.finish_work_list(run.id, estimated_cost_usd=Decimal("0.42"))
 
     assert advanced.estimated_cost_usd == Decimal("0.42")
 
 
-def test_approving_releases_phase_two(discovery, run, propose):
+def test_approving_releases_phase_two(discovery, run, propose, discovery_store):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
 
     assert discovery.approve_run(run.id).status is RunStatus.RESOLVING_IMAGES
 
 
-def test_declining_ends_the_run_without_phase_two_ever_spending(discovery, run, propose):
+def test_declining_ends_the_run_without_phase_two_ever_spending(discovery, run, propose, discovery_store):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
 
     declined = discovery.decline_run(run.id)
 
@@ -107,7 +88,7 @@ def test_a_run_completes_even_when_some_works_resolved_and_others_did_not(discov
     discovery.record_resolution(found.id)
     lost = propose("A Work That Does Not Exist")
     discovery.record_resolution(lost.id)
-    discovery.finish_work_list(run.id, approval_threshold=5)
+    discovery.finish_work_list(run.id)
 
     completed = discovery.complete_run(run.id, actual_cost_usd=Decimal("0.31"))
 
@@ -145,9 +126,10 @@ def test_a_cancelled_run_keeps_what_it_already_spent(discovery, run):
     assert discovery.get_run(run.id).actual_cost_usd == Decimal("0.19")
 
 
-def test_a_run_can_be_cancelled_while_it_waits_for_the_curator(discovery, run, propose):
+def test_a_run_can_be_cancelled_while_it_waits_for_the_curator(discovery, run, propose, discovery_store):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
 
     assert discovery.cancel_run(run.id).status is RunStatus.CANCELLED
 
@@ -162,10 +144,11 @@ def test_a_finished_run_cannot_be_finished_again(discovery, run):
         discovery.fail_run(run.id, reason="The model call broke.")
 
 
-def test_a_finished_run_cannot_be_reopened_for_approval(discovery, run, propose):
+def test_a_finished_run_cannot_be_reopened_for_approval(discovery, run, propose, discovery_store):
     """A completed run never reopens, however a later re-search turns out."""
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
     discovery.decline_run(run.id)
 
     with pytest.raises(ServiceError, match="is declined"):
@@ -174,10 +157,10 @@ def test_a_finished_run_cannot_be_reopened_for_approval(discovery, run, propose)
 
 def test_phase_one_cannot_be_closed_twice(discovery, run, propose):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=5)
+    discovery.finish_work_list(run.id)
 
     with pytest.raises(ServiceError, match="is resolving_images"):
-        discovery.finish_work_list(run.id, approval_threshold=5)
+        discovery.finish_work_list(run.id)
 
 
 def test_a_run_still_in_phase_one_cannot_complete(discovery, run):
@@ -185,9 +168,10 @@ def test_a_run_still_in_phase_one_cannot_complete(discovery, run):
         discovery.complete_run(run.id)
 
 
-def test_a_run_awaiting_the_curator_cannot_complete_behind_their_back(discovery, run, propose):
+def test_a_run_awaiting_the_curator_cannot_complete_behind_their_back(discovery, run, propose, discovery_store):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
 
     with pytest.raises(ServiceError, match="is awaiting_approval"):
         discovery.complete_run(run.id)
@@ -212,7 +196,7 @@ def test_a_resolve_run_can_never_reach_the_phase_one_states_it_skipped(discovery
     resolve = _resolve_run(discovery, propose)
 
     with pytest.raises(ServiceError, match="is resolving_images"):
-        discovery.finish_work_list(resolve.id, approval_threshold=5)
+        discovery.finish_work_list(resolve.id)
     with pytest.raises(ServiceError, match="is resolving_images"):
         discovery.approve_run(resolve.id)
     with pytest.raises(ServiceError, match="is resolving_images"):
@@ -271,21 +255,22 @@ def test_a_run_left_running_by_a_dead_process_is_marked_interrupted(discovery, r
 
 def test_reconciliation_moves_a_run_stopped_during_phase_two(discovery, run, propose):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=5)
+    discovery.finish_work_list(run.id)
 
     discovery.reconcile()
 
     assert discovery.get_run(run.id).status is RunStatus.INTERRUPTED
 
 
-def test_a_run_waiting_for_the_curator_survives_a_restart(discovery, run, propose):
+def test_a_run_waiting_for_the_curator_survives_a_restart(discovery, run, propose, discovery_store):
     """`awaiting_approval` is human-held state, and curation restarts constantly.
 
     Reconciling it would let the documented deploy step destroy a pending
     decision along with the phase-1 spend already incurred to produce it.
     """
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
 
     discovery.reconcile()
 
@@ -555,7 +540,7 @@ def test_recleaning_a_stored_title_is_done_after_the_first_start(discovery, run,
 
 
 @pytest.mark.parametrize("ending", ["fail_run", "halt_run_for_budget"])
-def test_a_run_waiting_for_the_curator_cannot_break_or_be_halted(discovery, run, propose, ending):
+def test_a_run_waiting_for_the_curator_cannot_break_or_be_halted(discovery, run, propose, ending, discovery_store):
     """Nothing is executing there, so neither ending describes something that happened.
 
     Both are things that happen to a run *while it works*. Leaving them reachable
@@ -564,7 +549,8 @@ def test_a_run_waiting_for_the_curator_cannot_break_or_be_halted(discovery, run,
     the verdict machine's `wanted`.
     """
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
 
     with pytest.raises(ServiceError, match="nothing is running"):
         getattr(discovery, ending)(run.id, reason="Something happened.")
@@ -622,9 +608,10 @@ def test_a_cancelled_run_has_no_reason_but_the_curator_s_own(discovery, run):
     assert discovery.get_run(run.id).end_reason is None
 
 
-def test_a_declined_run_has_no_reason_but_the_curator_s_own(discovery, run, propose):
+def test_a_declined_run_has_no_reason_but_the_curator_s_own(discovery, run, propose, discovery_store):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=0)
+    discovery.finish_work_list(run.id)
+    stored_awaiting_approval(discovery_store, run.id)
     discovery.decline_run(run.id)
 
     assert discovery.get_run(run.id).end_reason is None
@@ -632,7 +619,7 @@ def test_a_declined_run_has_no_reason_but_the_curator_s_own(discovery, run, prop
 
 def test_a_completed_run_has_no_reason_to_give(discovery, run, propose):
     propose()
-    discovery.finish_work_list(run.id, approval_threshold=5)
+    discovery.finish_work_list(run.id)
     discovery.complete_run(run.id)
 
     assert discovery.get_run(run.id).end_reason is None

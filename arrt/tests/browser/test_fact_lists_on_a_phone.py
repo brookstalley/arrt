@@ -55,13 +55,15 @@ def measured(ui, *, at_least):
 
 
 def test_the_run_page_s_costs_break_between_words(ui):
+    """*(Since 2026-10-14, #359: a Get still running, since the estimate and the
+    lookups are shown only while one runs; a finished Get says only its cost.)*"""
     work = a_candidate(provenance=WorkProvenance.CHOSEN.value, wikidata_qid="Q3226397")
     run = a_run(
         run_id=GET_ID,
         kind="get",
         intent=None,
-        status=RunStatus.COMPLETED.value,
-        is_terminal=True,
+        status=RunStatus.RESOLVING_WORKS.value,
+        is_terminal=False,
         estimated_cost_usd="0.00",
         actual_cost_usd="0.00",
     )
@@ -69,26 +71,37 @@ def test_the_run_page_s_costs_break_between_words(ui):
     ui.serve(f"**/api/runs/{GET_ID}/spend", a_spend())
     ui.serve(f"**/api/runs/{GET_ID}/candidates*", a_candidate_page([a_card(work=work)], run=run))
     at_phone_width(ui)
-    ui.open(f"#run/{GET_ID}")
+    ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view dd:has-text('of an allowance of')")
 
-    measured(ui, at_least=4)
+    # Three: the Cost row, the estimate and the lookups (four before the cost
+    # rows were folded into one); the floor is there to fail on measuring nothing.
+    measured(ui, at_least=3)
 
 
 def test_the_work_page_s_facts_break_between_words(ui, work_with_an_image):
     """The work's own facts, and its master image's, which carry a path and a hash."""
     work = work_with_an_image("Untitled (Purple, White, and Red)")
     at_phone_width(ui)
-    ui.open(f"#work/{work.id}")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open(f"?debug#work/{work.id}")
     ui.page.wait_for_selector("#view dt:text-is('Content hash')")
 
     measured(ui, at_least=6)
 
 
 def test_the_health_page_s_facts_break_between_words(ui):
-    """Its sentences name the files it read, and a path is wider than a phone."""
+    """Its sentences name the files it read, and a path is wider than a phone.
+
+    The paths are raw fields, kept behind each panel's Details: opened here, so
+    what is measured is what a reader who opens them sees.
+    """
     at_phone_width(ui)
-    ui.open("#health")
+    # What this checks shows only in debug (ruling 1 of 2026-10-11).
+    ui.open("?debug#health")
+    ui.page.wait_for_selector("#view details.raw-details summary")
+    for summary in ui.page.locator("#view details.raw-details summary").all():
+        summary.click()
     ui.page.wait_for_selector("#view dl.facts dd")
 
     measured(ui, at_least=2)

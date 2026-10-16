@@ -23,13 +23,11 @@ from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_BACKUP_INTERVAL_SECONDS,
     DEFAULT_BACKUP_KEEP,
-    DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
-    DEFAULT_MAT_BOTTOM_WEIGHT,
-    DEFAULT_MAT_WIDTH_INCHES,
+    DEFAULT_LABEL_UNITS,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -39,18 +37,16 @@ from arrt.config import (
     DEFAULT_PHASE1_SEARCH_ALLOWANCE,
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_RESOLUTION_FLOOR_INCHES,
+    DEFAULT_QUALITY_MINIMUM_PX,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
     DEFAULT_SEARCH_COST_USD,
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
+from arrt.library.dimensions import Units
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import RegistrySimilar
@@ -95,16 +91,11 @@ def _defaults(art_root, **overrides) -> Settings:
             preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
+            label_units=DEFAULT_LABEL_UNITS,
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
-            tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
-            tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
-            tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-            mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
-            mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
-            resolution_floor_inches=DEFAULT_RESOLUTION_FLOOR_INCHES,
-            approval_threshold=DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
+            quality_minimum_px=DEFAULT_QUALITY_MINIMUM_PX,
             phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
             phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
             offered_works_per_run=DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -186,15 +177,12 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
             catalogue = CatalogueService(observer)
             display = DisplayService(
                 observer,
-                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue)),
+                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue), label_units=Units.IMPERIAL),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]
             hanging = display.hanging_on(wall.id)
             served.append("nothing" if hanging is None else hanging.name)
-            # The counter came across too, so the first advance after the upgrade
-            # is a step rather than a repeat of one already taken.
-            served.append(str(display.read_directive(wall.id).sequence))
         finally:
             observer.close()
 
@@ -202,7 +190,7 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
 
     entry_point.main()
 
-    assert served == ["Late night", "4"], "the catalogue had not been moved onto walls when the server started"
+    assert served == ["Late night"], "the catalogue had not been moved onto walls when the server started"
 
 
 def _a_moment():
@@ -211,14 +199,13 @@ def _a_moment():
     return datetime(2026, 7, 20, 9, 30, tzinfo=UTC)
 
 
-def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monkeypatch, caplog):
+def test_startup_logs_the_resolved_root_and_no_screens_geometry(tmp_path, monkeypatch, caplog):
     """A misconfiguration should be one journal line away rather than a mystery.
 
-    The operational spec requires each plane to log its resolved `ART_ROOT` and
-    its own panel geometry at startup. Asserted through `main()` because a log
-    line nothing emits reads exactly like one nobody looked for — and the derived
-    pixel density is what the mat and the resolution floor are computed from, so
-    a wrong panel is silent until the art comes out the wrong size.
+    The operational spec requires each plane to log its resolved `ART_ROOT` at
+    startup. Asserted through `main()` because a log line nothing emits reads
+    exactly like one nobody looked for. No screen's geometry is logged: each
+    Player knows its own and draws its own mat.
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
@@ -227,19 +214,12 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
         art_root,
         rotation_interval_seconds=931,
         rotation_shuffle=False,
-        # A panel no default could produce, so a line built from the constants
-        # rather than the resolved settings would show.
-        tv_panel_width_px=1920,
-        tv_panel_height_px=1080,
-        tv_panel_diagonal_inches=55.0,
-        # Likewise the mat and the floor, for the same reason.
-        mat_width_inches=3.0,
-        mat_bottom_weight=2.0,
-        resolution_floor_inches=7.5,
+        # A quality minimum no default could produce, so a line built from the
+        # constants rather than the resolved settings would show.
+        quality_minimum_px=1234,
         # And likewise every discovery value: the estimate below is arithmetic
         # over all of them, so a line built from the constants rather than the
         # resolved settings cannot reproduce it.
-        approval_threshold=7,
         phase1_search_allowance=3,
         phase2_searches_per_work=4,
         offered_works_per_run=9,
@@ -262,22 +242,17 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
 
     logged = caplog.text
     assert str(art_root) in logged
-    assert "1920x1080px/55.0" in logged
-    # 1920x1080 measures 2202.9 pixels corner to corner; over 55 inches that is
-    # 40.1 per inch. Derived, so this also pins that the derivation ran.
-    assert "40.1 px per inch" in logged
+    assert f"feeds={art_root}/theme-manifest-{{wall_id}}.v2.json" in logged
     assert "rotation=931s" in logged
     assert "shuffle=False" in logged
-    # The derived artwork box as well as its inputs. A wrong mat or floor is
-    # otherwise visible only as works being labelled oddly in the grid, which
-    # reads as a catalogue problem rather than a configuration one. 3" of mat at
-    # 40.05 px per inch is 120 px, taken twice horizontally and 1+2.0 times
-    # vertically: 1920-240 by 1080-360.
-    assert "artwork_box=1680x720px" in logged
-    assert 'mat=3.00" (bottom x2.00)' in logged
-    assert 'floor=7.5"' in logged
-    # The e-paper panel belongs to the display plane, and this one must hold no
-    # fact about it.
+    # A wrong minimum is otherwise visible only as scans labelled oddly in the
+    # grid, which reads as a catalogue problem rather than a configuration one.
+    assert "quality_minimum=1234px" in logged
+    # No screen's geometry: the television's and the mat's are the Player's now.
+    for gone in ("tv_panel=", "artwork_box=", "px per inch", "ready="):
+        assert gone not in logged, gone
+    # The e-paper panel belongs to the display plane too, and this one must hold
+    # no fact about it.
     #
     # **Matched on digit boundaries, because a bare substring search matches the
     # test's own scratch directory.** `caplog.text` carries `art_root=<tmp_path>`,
@@ -293,7 +268,7 @@ def test_startup_logs_the_resolved_root_and_this_planes_own_panel(tmp_path, monk
     # asked to authorise against that figure, so the numbers behind it are worth
     # a journal line — they are also the ones most likely to go stale, because
     # provider prices move underneath a deployment that never changes.
-    assert "gate=7 works" in logged
+    assert "gate=" not in logged, "no run stops for approval, so there is no gate to log"
     assert "phase1_searches=3" in logged
     assert "phase2_searches_per_work=4" in logged
     # The supplement's bound, and the one field here whose "off" is otherwise
@@ -613,7 +588,8 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
     with caplog.at_level("INFO"):
         entry_point.main()
 
-    assert f"phase2 image_sources=commons,artic,met,navigart,nga,smk pictures={art_root / 'pictures'} fetching=on" in caplog.text
+    sources = "commons,artic,getty,met,navigart,nga,rijksmuseum,smk,yale"
+    assert f"phase2 image_sources={sources} pictures={art_root / 'pictures'} fetching=on" in caplog.text
     assert data_roots == [art_root / "sources"], "each plugin's directory is under ART_ROOT/sources, never the art root"
     assert "source plugin wikidata loaded" in caplog.text
 
@@ -621,18 +597,20 @@ def test_startup_names_every_image_source_it_wires_in_order(tmp_path, monkeypatc
 def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path, monkeypatch, caplog):
     """A deployment where every installed plugin declined.
 
-    The built-ins `met` and `smk` need no setting, so they never decline; this
-    is a deployment without them, as one that uninstalled them is. Every other
-    built-in is installed and left unconfigured. `navigart` and `nga` need no
-    setting either, and find a work only through Wikidata, so with no registry
-    each loads as a reader alone and is named as one that finds no image.
+    The built-ins `met`, `smk`, `getty` and `rijksmuseum` need no setting and search without a
+    registry, so they never decline; this is a deployment without them, as one
+    that uninstalled them is. Every other
+    built-in is installed and left unconfigured. `navigart`, `nga` and `yale`
+    need no setting either, and find a work only through Wikidata, so with no
+    registry each loads as a reader alone and is named as one that finds no image.
     """
     art_root = tmp_path / "art"
     art_root.mkdir()
     _stub_settings(monkeypatch, art_root)
     installed = importlib.metadata.entry_points
+    searchers = {"met", "smk", "getty", "rijksmuseum"}
     monkeypatch.setattr(
-        importlib.metadata, "entry_points", lambda **kwargs: [p for p in installed(**kwargs) if p.name not in {"met", "smk"}]
+        importlib.metadata, "entry_points", lambda **kwargs: [p for p in installed(**kwargs) if p.name not in searchers]
     )
     monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
 
@@ -646,7 +624,8 @@ def test_startup_with_no_image_source_says_which_settings_would_add_one(tmp_path
         "work's Wikidata item; artic: ARTIC_USER_AGENT is unset, and the Art Institute is never asked anonymously; "
         "navigart: loaded, and finds no image; "
         "nga: loaded, and finds no image; "
-        "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item) "
+        "wikidata: no registry is configured (WIKIDATA_USER_AGENT is unset), and pages are read from a work's item; "
+        "yale: loaded, and finds no image) "
         f"pictures={art_root / 'pictures'} fetching=off"
     ) in caplog.text
 
@@ -758,7 +737,7 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
             health.reading.name for health in services.health.observe().sources if health.reading.state.value == "loaded"
         ]
         seen["route"] = services.acquisition._route("https://www.artic.edu/artworks/91194").plugin
-        seen["collection"] = services.conversation._collection.provider
+        seen["collection"] = services.runner._collection.provider
         return object()
 
     monkeypatch.setattr(entry_point, "load_sources", lambda context, **kw: contexts.append(context) or real(context, **kw))
@@ -770,4 +749,85 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
     assert seen["loaded"][:2] == ["artic", "commons"], "SOURCE_ORDER did not reach the loader"
     assert contexts[0].preview_max_bytes == 4321
     assert seen["route"] == "artic", "the roster did not reach acquisition"
-    assert seen["collection"] == "artic", "the roster's collection did not reach the conversation"
+    assert seen["collection"] == "artic", "the roster's collection did not reach the runner"
+
+
+def test_labels_state_dimensions_in_the_deployments_units(tmp_path, monkeypatch):
+    """Through `main`, at metric, which is not the default, so a dropped argument shows."""
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, label_units=Units.METRIC)
+    seen = {}
+
+    def capture(services, **kwargs):
+        seen["units"] = services.clients._library._label_units
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    entry_point.main()
+
+    assert seen["units"] is Units.METRIC, "LABEL_UNITS did not reach the labels"
+
+
+def _built_by_main(tmp_path, monkeypatch, **overrides) -> dict:
+    art_root = tmp_path / "art"
+    _stub_settings(monkeypatch, art_root, **overrides)
+    built: dict = {}
+
+    def capture(services, **kwargs):
+        built.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(entry_point, "create_app", capture)
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+    entry_point.main()
+    return built
+
+
+def test_the_entry_point_gives_ask_its_configured_model_limit_and_web_search(tmp_path, monkeypatch):
+    """Ask's settings reach the agent, each at a value no default would produce."""
+    built = _built_by_main(
+        tmp_path,
+        monkeypatch,
+        openrouter_api_key="sk-test",
+        ask_model="example/some-other-model",
+        ask_step_limit=3,
+        searxng_url="http://searxng.invalid:8080",
+    )
+
+    assert built["ask_model"].model_name == "example/some-other-model"
+    assert built["ask_step_limit"] == 3
+    assert [tool.name for tool in built["ask_tools"]] == ["threetears.web_search"]
+
+
+def test_with_no_key_ask_has_no_model_and_with_no_searxng_no_web_search(tmp_path, monkeypatch):
+    built = _built_by_main(tmp_path, monkeypatch)
+
+    assert built["ask_model"] is None
+    assert built["ask_tools"] == []
+
+
+@pytest.mark.parametrize("set_in_env", [True, False])
+def test_startup_names_a_retired_setting_still_set_and_says_nothing_otherwise(tmp_path, monkeypatch, caplog, set_in_env):
+    """`RESOLUTION_FLOOR_INCHES` is no longer read, and a `.env` outlives the code
+    that read it. Startup says so by name, once, at WARNING — and says nothing
+    when it is not set, so the line is never noise a reader learns to skip."""
+    if set_in_env:
+        monkeypatch.setenv("RESOLUTION_FLOOR_INCHES", "11.34")
+    else:
+        monkeypatch.delenv("RESOLUTION_FLOOR_INCHES", raising=False)
+    _stub_settings(monkeypatch, tmp_path / "art")
+    monkeypatch.setattr(entry_point.uvicorn, "run", lambda app, **kwargs: None)
+
+    with caplog.at_level("INFO"):
+        entry_point.main()
+
+    retired = [record for record in caplog.records if getattr(record, "event", None) == "config.retired_setting"]
+    if set_in_env:
+        [record] = retired
+        assert record.levelname == "WARNING"
+        assert record.getMessage().startswith("RESOLUTION_FLOOR_INCHES is no longer read")
+        assert "QUALITY_MINIMUM_PX" in record.getMessage()
+    else:
+        assert retired == []

@@ -140,6 +140,17 @@ _MAY_REACH_THE_NETWORK = {
     # The NGA's client, beside navigart's: it downloads the NGA's open data and reads
     # previews. `urllib.parse` comes with it, to read an object ID out of a page.
     "arrt.library.sources.nga",
+    # Yale's client, beside the NGA's: it reads manifests, image services and
+    # previews. `urllib.parse` comes with it, to read an object number out of a page.
+    "arrt.library.sources.yale",
+    # The Getty's client, beside Yale's: it asks the Getty's SPARQL endpoint and
+    # reads records, manifests, image services and previews. `urllib.parse` comes
+    # with it, to read a slug out of a page.
+    "arrt.library.sources.getty",
+    # The Rijksmuseum's client, beside the Getty's: it asks the museum's search and
+    # reads records, image services and previews. `urllib.parse` comes with it, to
+    # read an object number out of a record URL.
+    "arrt.library.sources.rijksmuseum",
     # The picture store. `urllib.parse` only, to normalise a source image URL into
     # the key a kept picture is filed under; the fetch goes through the source's
     # own `fetch_preview`, never through this module.

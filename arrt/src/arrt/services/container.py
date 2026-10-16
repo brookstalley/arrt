@@ -2,8 +2,8 @@
 
 Operation logic is split by concern rather than gathered into one class: the
 catalogue owns works already accepted, discovery owns everything before
-acceptance, and display owns what reaches the wall — themes, the standing
-directive, and the manifest built from them. A surface takes this container
+acceptance, and display owns what reaches the wall — themes, walls, and the
+feed built from them. A surface takes this container
 rather than any single service, so adding a concern changes the wiring here and
 nothing in `create_app` or in an MCP binding — which is what keeps a surface from
 quietly binding to one service and becoming the reason a second one is awkward to
@@ -20,6 +20,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from decimal import Decimal
 from functools import partial
 from pathlib import Path
 from typing import Protocol
@@ -27,25 +28,23 @@ from typing import Protocol
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
 # package to compose its settings objects". It does not. `arrt.config`
-# imports `manifest.builder`, `manifest.heartbeat`, `services.display_fit` and
+# imports `manifest.builder`, `manifest.heartbeat`, `services.quality` and
 # `services.runner`, and none of those reaches this module — `services/__init__`
 # is a docstring. The deferral hid container→config from anything reading the
 # import graph while teaching a pattern on a premise that was never true. If a
 # real cycle ever appears, the fix is to move the constants, not to hide the edge.
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
+    DEFAULT_LABEL_UNITS,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     ORIGINALS_DIRNAME,
     PICTURES_DIRNAME,
     PREVIEWS_DIRNAME,
-    READY_DIRNAME,
     TILE_CACHE_DIRNAME,
 )
 from arrt.library.acquisition.direct import StreamOpener
@@ -55,8 +54,9 @@ from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.transport import no_transport
 from arrt.library.acquisition.urls import Resolver, check_fetchable
-from arrt.library.discovery.conversation import NO_CONVERSATION_KEY, ConversationEngine, UnavailableConversation
+from arrt.library.dimensions import Units
 from arrt.library.discovery.engine import DiscoveryEngine
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.events import WorkChange
@@ -64,19 +64,19 @@ from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.artists import ArtistService
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.library.services.get import GetService
 from arrt.library.services.identity import IdentityService
 from arrt.library.services.look import LookService
 from arrt.library.services.pictures import PictureStore, import_previews
 from arrt.library.services.previews import PreviewCache
+from arrt.library.services.quality import QualityProfile
 from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
 from arrt.library.services.sightings import SightingService
+from arrt.library.services.spending import BudgetService
 from arrt.library.services.survey import SurveyService
 from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
@@ -154,8 +154,8 @@ class Services:
     #: outside the machine to do its job — a subprocess and an HTTP transport —
     #: and the record layer is deliberately free of both.
     acquisition: AcquisitionService
-    #: Turning a held original into a mat and a television canvas. Its own service
-    #: rather than the tail of acquisition: a work is prepared repeatedly over its
+    #: Turning a held original into a presentation master and a mat. Its own
+    #: service rather than the tail of acquisition: a work is prepared again over its
     #: life — whenever the panel changes, the mat is re-chosen, or a rendition
     #: goes stale — while it is acquired once. Folding the two together would make
     #: every re-render look like a re-fetch to whatever reads the journal.
@@ -164,18 +164,10 @@ class Services:
     #: background and one at a time. Built whatever the deployment;
     #: it runs only when the application is asked to start it.
     acquisition_queue: AcquisitionQueue
-    #: Intent-forming, upstream of every run. Beside `runner` rather than inside
-    #: it because a conversation is not a run and must never become one: it
-    #: acquires nothing, has no status to poll and nothing to approve. What it has
-    #: is one edge onto the runner, and that edge is the whole relationship.
-    conversation: ConversationService
-    #: The curator's standing judgments. Its own concern rather than a corner of
-    #: the conversation service, because taste outlives every thread that
-    #: contributed to it: an affinity is accumulated across conversations, is
-    #: correctable from a screen that has no conversation in front of it, and is
-    #: what discovery consults. Folding it into intent-forming would tie the
-    #: product's memory of its operator to the lifetime of a transcript, which is
-    #: precisely what deleting one must not do.
+    #: The curator's standing judgments. Its own concern because taste outlives
+    #: every thread that contributed to it: an affinity is accumulated over time,
+    #: is correctable from a screen with no thread in front of it, and is what
+    #: discovery consults.
     taste: TasteService
     #: Which registry item each held work and artist is (ruling 7). The
     #: curator's corrections work without a registry; matching needs one, and
@@ -210,6 +202,9 @@ class Services:
     #: The pages found for works that no installed plugin reads, by host. Over
     #: the same routing acquisition uses, so a page a plugin claims is not one.
     sightings: SightingService
+    #: What is left of the month's budget, read from the provider's key, for
+    #: the sidebar. Display only: nothing gates on it.
+    budget: BudgetService
 
     @classmethod
     def bind(
@@ -219,9 +214,12 @@ class Services:
         discovery: DiscoveryStore,
         display_settings: DisplaySettings,
         thumbnails: ThumbnailSettings,
-        artwork_box: ArtworkBox,
+        quality_profile: QualityProfile,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
+        #: The system every label states a work's dimensions in. Defaulted for the
+        #: suites, which set no deployment; `main` passes `LABEL_UNITS`.
+        label_units: Units = DEFAULT_LABEL_UNITS,
         acquisition: AcquisitionSettings | None = None,
         open_stream: StreamOpener | None = None,
         #: How a hostname becomes addresses for the fetch policy. Defaults to the
@@ -231,19 +229,8 @@ class Services:
         #: caller reaching past this to write `acquisition._resolve` gets no error
         #: when the attribute is renamed, it just silently resolves for real again.
         resolve: Resolver | None = None,
-        #: How a run's background work is started. None is the runner's own daemon
-        #: thread, which a deployment wants. A test suite passes one that records
-        #: its threads, so a test can wait for a run's last write before the store
-        #: it writes to is closed.
-        spawn: Callable[[Callable[[], None]], None] | None = None,
         preparation: PreparationSettings | None = None,
         mat_engine: MatEngine | None = None,
-        #: Defaults to an engine that refuses and says why, exactly as phase 1's
-        #: does — and for the same reason. A stand-in that answered would put
-        #: invented replies in a transcript, indistinguishable from real ones, so
-        #: the curator's evidence that the product works would be the product
-        #: fabricating it.
-        conversation_engine: ConversationEngine | None = None,
         #: Wikidata, or None while `WIKIDATA_USER_AGENT` is unset. Never a default
         #: client, for the reason `sources` has none: a test suite must not
         #: be able to reach a foreign API through a wiring default.
@@ -262,6 +249,12 @@ class Services:
         #: The clock a look's kept answers age by. Defaults to the system's; a
         #: suite moves it to expire a look without waiting six hours.
         look_now: Callable[[], datetime] | None = None,
+        #: How the provider's key is asked what is left of the month, or None
+        #: with no key: the budget then says nothing spends. Never a default
+        #: client, for the reason `registry` has none.
+        key_status: Callable[[], KeyStatus] | None = None,
+        #: The month's budget on a key with no limit (`MONTHLY_BUDGET_USD`).
+        monthly_budget_usd: Decimal | None = None,
     ) -> Services:
         """Assemble the services over an already-open file.
 
@@ -277,19 +270,16 @@ class Services:
         """
         catalogue_service = CatalogueService(catalogue, art_root=thumbnails.art_root)
         kept = kept or KeptAnswers.in_memory()
-        # The artwork box reaches discovery for one reason: automatic selection
-        # must withhold an instance that would render below the floor, and the
-        # floor is a size on the wall rather than a pixel count — so the rule
-        # cannot be evaluated without the panel geometry that converts one to the
-        # other.
+        # The quality profile reaches discovery for one reason: automatic
+        # selection must withhold an instance below its minimum.
         sources = SourceRoster.empty() if sources is None else sources
         pool = ImageSourcePool(sources.finders) if sources.finds_images else None
         discovery_service = DiscoveryService(
-            discovery, catalogue_service, artwork_box, precedence=None if pool is None else pool.precedence
+            discovery, catalogue_service, quality_profile, precedence=None if pool is None else pool.precedence
         )
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
-        library = LibraryFacade(catalogue_service, discovery_service)
+        library = LibraryFacade(catalogue_service, discovery_service, label_units=label_units)
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
         display_service = DisplayService(catalogue, library, display_settings)
@@ -298,7 +288,10 @@ class Services:
         # service that wired itself could not be built for a test without it.
         library.subscribe(display_service.on_work_changed)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
-        topic_sweep = TopicSweep(catalogue, catalogue_service, registry)
+        topic_service = TopicService(catalogue, registry, kept=kept, wanted=discovery_service)
+        # The sweep's thread is the one Wikidata thread the plane runs; it warms
+        # what Library › Topics offers after each pass, rather than a second one.
+        topic_sweep = TopicSweep(catalogue, catalogue_service, registry, warm=topic_service.warm_offered)
         # The Library's own announcement, heard by the Library's own sweep: an
         # accepted or restored work is asked about now rather than at the
         # interval. Identity changes reach it through `identity` below.
@@ -332,7 +325,7 @@ class Services:
             # mistake spend money from a test suite rather than failing where
             # it was made — the same reason `open_stream` defaults to refusing.
             mat_engine or _default_mat_engine(),
-            preparation or _default_preparation(thumbnails.art_root, artwork_box),
+            preparation or _default_preparation(thumbnails.art_root),
             # The ledger is discovery's today, reached through its one method.
             spend=discovery_service,
         )
@@ -343,7 +336,7 @@ class Services:
         catalogue_service.subscribe(lambda event: acquisition_queue.nudge() if event.change is WorkChange.ACCEPTED else None)
         sighting_service = SightingService(discovery, catalogue, route=sources.route)
         # One judge for a run and a look, so the two cannot judge a find apart.
-        judge = None if pool is None else PhaseTwoEngine(pool, box=artwork_box, registry=registry)
+        judge = None if pool is None else PhaseTwoEngine(pool, profile=quality_profile, registry=registry)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
@@ -359,19 +352,21 @@ class Services:
             # policy, resolving names the way acquisition does: a suite's stated
             # answers, or the system's.
             **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
-            **({} if spawn is None else {"spawn": spawn}),
         )
-        registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, box=artwork_box)
+        registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, profile=quality_profile)
+        clients = ClientService(catalogue, display_settings, library)
         return cls(
             catalogue=catalogue_service,
             library=library,
-            access=PlayerAccess(catalogue),
-            clients=ClientService(catalogue, display_settings),
+            # The access service asks the client service's placements who shows a
+            # wall, so admission and `GET /client` cannot disagree.
+            access=PlayerAccess(catalogue, clients.placements),
+            clients=clients,
             discovery=discovery_service,
             display=display_service,
             thumbnails=thumbnail_service,
-            survey=SurveyService(catalogue_service, thumbnail_service, artwork_box, acquisition=acquisition_queue),
-            review=ReviewService(discovery_service, box=artwork_box, pictures=pictures),
+            survey=SurveyService(catalogue_service, thumbnail_service, quality_profile, acquisition=acquisition_queue),
+            review=ReviewService(discovery_service, profile=quality_profile, pictures=pictures),
             pictures=pictures,
             # The receipt is located off the thumbnail settings' `art_root`, as
             # the picture store is above, and for the same reason. It is
@@ -382,34 +377,21 @@ class Services:
             health=HealthService(
                 display_service,
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
-                box=artwork_box,
                 sources=sources,
+                yields=discovery.source_yields,
                 pictures=pictures,
             ),
             runner=runner_service,
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
-            conversation=ConversationService(
-                discovery,
-                conversation_engine or _default_conversation_engine(),
-                # The two foreign services this one needs, each through the one
-                # method it needs. `record_spend` lives on the discovery service
-                # and `start` on the runner; taking either whole would deepen the
-                # coupling the accounting split is filed to remove.
-                discovery_service,
-                runner_service,
-                collection=sources.collection,
-            ),
-            # Over the same store the conversations live in, because a judgment's
-            # citation and the turn it cites have to be detachable in one
-            # transaction — the delete's whole correctness is that it commits or
-            # does not.
             taste=TasteService(discovery),
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
-            artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service),
+            artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
             registry_works=registry_works,
-            registry_search=RegistrySearchService(catalogue, registry, kept=kept, wanted=discovery_service),
+            registry_search=RegistrySearchService(
+                catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service
+            ),
             get=GetService(store=catalogue, discovery=discovery_service, runner=runner_service, registry=registry),
             look=LookService(
                 works=registry_works,
@@ -419,10 +401,11 @@ class Services:
                 pictures=pictures,
                 **({} if look_now is None else {"now": look_now}),
             ),
-            topics=TopicService(catalogue, registry, kept=kept, wanted=discovery_service),
+            topics=topic_service,
             topic_sweep=topic_sweep,
             wikidata_match=WikidataMatchService(discovery_service, registry),
             sightings=sighting_service,
+            budget=BudgetService(key_status, monthly_budget_usd=monthly_budget_usd),
         )
 
     def reconcile(self) -> None:
@@ -439,9 +422,11 @@ class Services:
         Library tells Programming when a work changes, after the change commits,
         and a crash between the two loses the announcement. So every start takes
         any work the Library now refuses off every published manifest and pin,
-        and offers any accepted work never offered its theme (the default, or
-        the one its Get named), so a lost announcement delays either until the
-        next start rather than leaving it undone.
+        offers any accepted work never offered its theme (the default, or the
+        one its Get named), and publishes the hung theme's feed for any wall
+        with a theme hung and none on disk, so a lost announcement delays a
+        correction until the next start rather than leaving it undone. A lost
+        addition reaches the wall at its next roll.
         """
         self.discovery.reconcile()
         # Before anything serves: a write the last process died in leaves a
@@ -450,12 +435,13 @@ class Services:
         # store from the first request.
         self.pictures.clean()
         import_previews(self.pictures, self.discovery, legacy=self.pictures.art_root / PREVIEWS_DIRNAME)
-        # Canvases drawn with another mat, panel or drawing rule are queued to be
-        # recomposed. Nothing is drawn here; the queue does it once serving.
-        self.acquisition_queue.owe_recomposition(self.preparation.layout)
         # Mats darker than the floor, all of them older than it, are chosen
-        # again the same way: a queue row each, the queue's `prepare` choosing.
+        # again: a queue row each, the queue's `prepare` choosing. Nothing is
+        # done here; the queue does it once serving.
         self.acquisition_queue.owe_mats_over_the_floor()
+        # And every work with no presentation master made from its Original,
+        # the same way: the queue's `prepare` makes it.
+        self.acquisition_queue.owe_presentation_masters()
         # Before the walls, and outside their `OSError` guard: it writes no
         # manifest, only the catalogue, and a failure here is one to see.
         self.display.catch_up_offers()
@@ -503,32 +489,6 @@ def _default_mat_engine() -> MatEngine:
     return MatEngine(None, image_max_edge=DEFAULT_MAT_IMAGE_MAX_EDGE)
 
 
-def _default_conversation_engine() -> ConversationEngine:
-    """The conversation engine a caller that wired no model client gets.
-
-    **Unlike the mat engine's keyless default, this one refuses.** A mat has an
-    honest mechanical producer — the work's own dominant colour — and a
-    conversation does not: there is no non-model way to answer a curator asking
-    what would suit a calm wall, and anything written here that tried would be
-    the product inventing a reply and putting it in a transcript beside real
-    ones. So the keyless deployment gets a thread that says what is missing.
-    """
-    return UnavailableConversation(NO_CONVERSATION_KEY)
-
-
-def _default_preparation(art_root: Path, artwork_box: ArtworkBox) -> PreparationSettings:
-    """Preparation settings for a caller that expressed no preference.
-
-    The panel comes from the reference defaults, as every other value in this
-    file's defaults does. **A caller passing its own `artwork_box` and letting
-    the panel default would get a mismatched pair**, which is why the entry point
-    passes both from one resolved `Settings` — the box is *derived from* the
-    panel there, so the two cannot disagree.
-    """
-    return PreparationSettings(
-        art_root=art_root,
-        ready_path=art_root / READY_DIRNAME,
-        panel_width=DEFAULT_TV_PANEL_WIDTH_PX,
-        panel_height=DEFAULT_TV_PANEL_HEIGHT_PX,
-        box=artwork_box,
-    )
+def _default_preparation(art_root: Path) -> PreparationSettings:
+    """Preparation settings for a caller that expressed no preference: the root, which is all there is."""
+    return PreparationSettings(art_root=art_root)

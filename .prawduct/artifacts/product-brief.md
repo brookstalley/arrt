@@ -67,11 +67,14 @@ reason to continue this project rather than adopt an existing one.
 > a monitor with no e-ink. It is a label the Player sets in the mat area under the
 > label typography rules (`accessibility-spec.md`), not an overlay on the work.
 
-**Names, from 2026-10-01:** **Arrt** is the server (the Library and
-Programming), and **Postarr** is the player at each wall. Both names are the
-operator's, given under a hard requirement. They replace the names of
-2026-09-30, Curatarr for the server and Arrt for the player. "Samsung Frame Art
-Loader" describes the product as built, and retires as the waves land. The *arr suffix is deliberate: the model is Radarr and
+**Names, from 2026-10-08:** **Arrt** is the server (the Library and
+Programming), and **Arrt Player** is the player at each wall. Both names are the
+operator's. The server's was given on 2026-10-01 under a hard requirement,
+replacing Curatarr. The player was Arrt on 2026-09-30, then Postarr, until the
+owner renamed it on 2026-10-08: it is a player in the manner of a Plex or
+Jellyfin client, not an *arr app, so it carries its server's name as theirs do.
+"Samsung Frame Art Loader" describes the product as built, and retires as the
+waves land. The server's *arr suffix is deliberate: the model is Radarr and
 Sonarr (`re-architecture.md`). No branding reaches a wall, so the names appear
 only on the curator's and operator's surfaces.
 
@@ -143,6 +146,21 @@ interprets it into a discovery strategy. Cost visibility at the point of decisio
 is what makes the spend ceiling feel like a guardrail rather than a surprise; flow
 2 explains where that estimate becomes a real number rather than a guess.
 
+> **Direction changed 2026-10-08 — the owner's ruling. Read this before the
+> 2026-08-10 amendment below.** Ask becomes one conversation with an agent that
+> has the product's tools and searches as it talks: "the app exists to help
+> people find art, artificial barriers around how people do that make no sense."
+> So *Conversation forms intent; it does not perform discovery* no longer holds,
+> and neither does the split between a direct intent box and a conversation:
+> there is one box, and what the curator types says which kind of request it is.
+> The agent spends without asking, and each reply shows what it cost after it
+> ends; the ceiling stays on the provider's key (`nonfunctional-requirements.md`
+> § Direction). **Built 2026-10-09** (`build-plan-ask-agent.md` Chunks 03 and
+> 04), so the amendment below is history: threads are held in memory and not
+> saved at first (old ones "are just gone"), which also retires the transcripts
+> it kept for rebuilding affinities, and the direct box and the commit seam are
+> gone.
+>
 > **Amended 2026-08-10: intent may be *arrived at* in conversation, not only
 > stated.** This flow assumed a curator who already knows what to ask for. The one
 > who says "I love Dalí and Delaunay — who else should I look at?" was not served
@@ -335,6 +353,14 @@ unwatched.
 > gated on the axis that does not matter. The estimate is still computed and still
 > shown — it is what makes phase 2 authorisable — it is simply not what opens the
 > gate.
+
+> **Retired 2026-10-07 by the owner** (`ia-proposal.md` § Rulings (2026-10-07),
+> ruling 3): *"Just doing the action is the approval."* No run stops for approval
+> now; spend is held in view by a monthly budget in the sidebar and a cost tier on
+> every spending action. The builder's push-back is recorded there: the gate
+> guarded attention as well as money, and if eighty-card To review lists bite, the
+> remedy is a bound on works per Ask, not a cost approval. A run stored awaiting
+> approval before the change can still be approved or declined.
 
 **Canonical selection trades two axes against each other.** *Confidence* asks
 whether this instance is genuinely that work — not a detail crop, a study, a
@@ -639,7 +665,9 @@ The separation therefore stands on its own merits:
 - It matches the data contract recorded in `boundary-patterns.md` § `ART_ROOT` filesystem contract — upstream
   artifacts (`raw/`) are expensive and device-independent; derived artifacts
   (`ready/`, `thumbs/`, `tv-thumbs/`) are cheap and device-specific and must
-  never be transported. (`label/` belonged to this list in the 2024 layout; it is
+  never be transported. (`presentation/`, the presentation masters added in
+  wave 4b, is derived but specific to no device, and is the one derived class a
+  Player receives, by hash; `boundary-patterns.md` records the ruling. `label/` belonged to this list in the 2024 layout; it is
   retired from the prospective contract — labels render on the display plane.
   `tile-cache/` was listed here as upstream until 2026-08-03, when acquisition
   was built and it turned out to be neither: it is transient working space

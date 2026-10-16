@@ -1,0 +1,72 @@
+{
+ "@context": "http://iiif.io/api/image/3/context.json",
+ "protocol": "http://iiif.io/api/image",
+ "width": 4748,
+ "height": 6073,
+ "sizes": [
+  {
+   "width": 148,
+   "height": 189
+  },
+  {
+   "width": 296,
+   "height": 379
+  },
+  {
+   "width": 593,
+   "height": 759
+  },
+  {
+   "width": 1187,
+   "height": 1518
+  },
+  {
+   "width": 2374,
+   "height": 3036
+  }
+ ],
+ "tiles": [
+  {
+   "width": 256,
+   "height": 256,
+   "scaleFactors": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+   ]
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+ "type": "ImageService3",
+ "profile": "level2",
+ "maxWidth": 30000,
+ "maxHeight": 30000,
+ "extraQualities": [
+  "color",
+  "gray",
+  "bitonal"
+ ],
+ "extraFormats": [
+  "tif",
+  "webp"
+ ],
+ "extraFeatures": [
+  "regionByPct",
+  "sizeByPct",
+  "sizeByConfinedWh",
+  "sizeUpscaling",
+  "rotationBy90s",
+  "mirroring"
+ ],
+ "service": [
+  {
+   "@context": "http://iiif.io/api/annex/services/physdim/1/context.json",
+   "profile": "http://iiif.io/api/annex/services/physdim",
+   "physicalScale": 0.00635,
+   "physicalUnits": "cm"
+  }
+ ]
+}

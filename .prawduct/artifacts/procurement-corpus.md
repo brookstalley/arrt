@@ -91,7 +91,10 @@ because they have separate fixes; "hard to get" is not one thing.
 geometry decision of 2026-07-20); an image smaller than its box renders smaller,
 inside a wider mat. The floor is a rendered size, 12 inches on the long edge by
 default (`RESOLUTION_FLOOR_INCHES`), which on the owner's 50-inch panel (about 88
-pixels per inch across 3840) is about 1,060 pixels. Each entry also carries a
+pixels per inch across 3840) is about 1,060 pixels. *(Since 2026-10-08 the floor
+is the quality minimum, 1,000 px on the long edge by default
+(`QUALITY_MINIMUM_PX`), and names no panel; the measurements below were taken
+against the inch floor.)* Each entry also carries a
 **tolerance**: whether a small image still reads as the work. A flat-colour Kelly
 does (*tolerant*); Agnes Martin's pencil grids, Twombly's graphite and
 Lichtenstein's Ben-Day dots do not (*critical*), because a small image of a large
@@ -277,8 +280,8 @@ wider mat?
 **The owner, 2026-10-03: yes, "because it's a placeholder for getting better
 versions".** So a small image is worth getting, and it is the start of a work's
 life in the library, not the end. This makes upgrade monitoring
-(`re-architecture.md`: the quality profile and its upgrade cutoff, Radarr's
-pattern) load-bearing rather than optional, because it is what turns the
+(`re-architecture.md`: the quality profile, Radarr's pattern; its cutoff became
+a search cadence by size on 2026-10-02, `upgrades.md` ruling 1) load-bearing rather than optional, because it is what turns the
 placeholder into the keeper.
 
 **"Museum-page" is not one source.** Its 30 rows name about 15 holders, one

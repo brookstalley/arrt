@@ -33,6 +33,14 @@ Seam 1 and brings the package split forward to wave 2. It also adds facet
 population to wave 6+ and re-sorts § Open questions. § Artifacts touched lists
 both passes.
 
+> **Amended 2026-10-08 (`feeds-and-players.md`).** The owner added a second use
+> case: public channels of public-domain art, read anonymously by any number of
+> Apple TV apps. Major 2 becomes a **feed** plus an optional **control** layer,
+> each major lives at its own URL, displays become server records configured on
+> exactly one client (never discovered), rendering stays on the client, and
+> Player logic is reused through a Player spec and conformance vectors. Read it
+> before wave 4.
+
 ## What changed, in one paragraph
 
 The product was **a curated-art appliance for a Samsung Frame TV**. It is
@@ -41,21 +49,22 @@ becoming **two products**:
 1. **Arrt, the server,** in the manner of Radarr/Sonarr. It finds,
    acquires, maintains, upgrades and enhances artwork, and decides what hangs on
    which wall.
-2. **Postarr, the player,** in the manner of a Plex client. It reads what the server
+2. **Arrt Player, the player,** in the manner of a Plex client. It reads what the server
    publishes and shows it on whatever screen it owns: a Samsung Frame, a plain
    LCD, a monitor on a Mac. An optional e-ink label is supported, and a caption
    drawn in the mat is the alternative.
 
 The server runs on the household NAS, next to the operator's existing *arr stack.
 Players run at the walls. Most of the code already exists: `arrt/` is most of
-the server and `postarr/` is most of the player. The change is mainly about
+the server and `arrt-player/` is most of the player. The change is mainly about
 **where the seams are drawn**, not a rewrite.
 
 **The names were given by the operator on 2026-09-30:** "The library/performance
 controller will be Curatarr, the device side playback will be Displayarr." The
 same day the operator renamed the player **Arrt**. On 2026-10-01, under a hard
 requirement, the operator renamed both: the server is now **Arrt** and the
-player **Postarr**. The Samsung name no longer fits a product that drives any screen. This file keeps
+player **Postarr**. On 2026-10-08 the owner renamed the player **Arrt Player**, following
+the Plex and Jellyfin convention that a client carries its server's name (#311). The Samsung name no longer fits a product that drives any screen. This file keeps
 saying "server" and "player" where the role matters more than the product.
 
 ## The owner's rulings (2026-09-30)
@@ -94,8 +103,8 @@ accepted the plan as a whole rather than deciding each point one by one.
 
 | Role | Owns | Deploys as |
 |---|---|---|
-| **Library** | What exists and what to go and get. Works, artists, sources, originals, image instances, verdicts, mat colour (a paid judgement about the work), label *text*, library facets (facts), discovery runs and conversations, taste, spend. New: **Watches** (standing searches), upgrade monitoring, a scheduler, a **quality profile** (the resolution floor and upgrade cutoff), and a device-independent *presentation master* per work. The Library has no concept of a wall. | **Server** (one process) |
-| **Programming** | What hangs where, and when. Themes (now *playlists*), membership, walls as logical targets, hanging (ThemeAssignment), directives (`next` / `show_now` pins), publishing the per-wall manifest, receiving player heartbeats, wall health. New: **the schedule** (rotation computed centrally, across walls), **scenes** (live overrides), **wall settings** (label mode, viewing distance), **programming tags** and **smart playlists**. | **Server** (the same process) |
+| **Library** | What exists and what to go and get. Works, artists, sources, originals, image instances, verdicts, mat colour (a paid judgement about the work), label *text*, library facets (facts), discovery runs, taste, spend. New: **Watches** (standing searches), upgrade monitoring, a scheduler, a **quality profile** (the resolution floor, in pixels; its cutoff became a search cadence, `upgrades.md` ruling 1), and a device-independent *presentation master* per work. The Library has no concept of a wall. | **Server** (one process) |
+| **Programming** | What hangs where, and when. Themes (now *playlists*), membership, walls as logical targets, hanging (ThemeAssignment), directives (`next` / `show_now` pins; retired in wave 4g, when both became republishes of the schedule), publishing the per-wall manifest, receiving player heartbeats, wall health. New: **the schedule** (rotation computed centrally, across walls), **scenes** (live overrides), **wall settings** (label mode, viewing distance), **programming tags** and **smart playlists**. | **Server** (the same process) |
 | **Player** | Making one wall's screen match its manifest. Screen geometry and backend, **compositing the mat**, drawing the label (e-ink panel, caption in the mat, or none), a local media cache, TV bindings and orphan removal, the guardrails that keep it from fighting the household for the screen, the heartbeat, which **reports its capabilities**. | **Player** (one process per wall, at the wall) |
 
 `[DECISION: Library and Programming ship as one server process, with seams that
@@ -142,7 +151,8 @@ a ruling under the existing thin-binding norm, not a norm of its own.
    migration. Programming holds work ids as opaque references and tolerates
    ones that no longer resolve. Today two foreign keys cross it:
    `theme_memberships.artwork_id` and `directives.pinned_work_id`, both pointing
-   at `artworks`.
+   at `artworks`. *(Wave 4g, 2026-10-10: the directives table is dropped; the
+   one left is `theme_memberships.artwork_id`, for #216.)*
 4. **The Library announces changes, and Programming never polls Library tables.**
    In-process events such as `work.accepted`, `work.archived`,
    `work.image_changed` and `work.mat_changed` drive manifest rebuilds and pin
@@ -189,7 +199,9 @@ back (`architecture.md` § Communication & Boundaries). The target is:
   schema major 2 it also carries the playlist entries, rotation settings and
   the directive sequence and pin, as today. From major 2 those become the
   **schedule**, any active **scene**, a **staging** list and the **wall
-  settings** (§ What is showing, and how it is shown).
+  settings** (§ What is showing, and how it is shown). *(Built as
+  `GET /walls/{wall_id}/manifest/v{major}` in wave 4e; since wave 4g only `v2` is
+  served, and the unversioned route answers 404.)*
 - `GET /media/{hash}`: immutable, cacheable forever. From wave 4 it serves the
   **presentation master**, a device-independent image derived from the Original:
   no mat, long edge capped (starting proposal about 8K, to be measured), so a
@@ -223,7 +235,7 @@ heartbeat file does today.
 
 **Each wall has a token.** The operator ruled on 2026-09-30: "each wall gets a
 token". Arrt issues one per wall from the UI, shows it once and keeps only a
-verifier. Postarr holds it as local configuration next to `WALL_ID` and sends
+verifier. Arrt Player holds it as local configuration next to `WALL_ID` and sends
 it on every request. Arrt checks it on every `/walls/{wall_id}/...` route,
 the manifest GET as well as the heartbeat POST, and a token only opens its own
 wall. `/media/{hash}` accepts any valid wall token. Rotation is: issue a new
@@ -287,10 +299,15 @@ the legibility norm (`accessibility-spec.md`).
 Today each Player shuffles its own list. Three walls therefore cannot avoid
 showing the same work at once, and cannot change together. From major 2,
 Programming publishes a **time-anchored schedule** for each wall: this work from
-14:00 until 14:30, then that one, covering a horizon of about a day. Programming
-computes all walls together, so "no work on two walls at once", "change the
-whole house together" and "spread this playlist across rooms" become central
-calculations. The Player follows the clock from its cache, so an unreachable
+14:00 until 14:30, then that one, covering a horizon of three days (the owner, 2026-10-08). Programming
+computes each wall against every other wall's published schedule, so "no work
+on two walls at once", "change the whole house together" and "spread this
+playlist across rooms" become central calculations. *(Wave 4e builds one wall
+at a time against the others' published slots. Direction changed 2026-10-13, the
+owner, #350: built that way, two walls sharing two works locked onto one each
+for a whole horizon, so a republish now rebuilds the slots to come of every wall
+sharing a work with it, keeping the work on each now:
+`build-plan-household-schedule-lock.md`.)* The Player follows the clock from its cache, so an unreachable
 server still never blanks a wall. It just runs to the end of the horizon.
 
 - **The dark hours are gaps in the schedule.** That settles who owns the
@@ -342,10 +359,17 @@ server, against the operator's split | user can veto/override]`
 
 ## Compositing moves to the Player
 
+*(Landed in wave 4g, 2026-10-10. The server composes nothing for a screen:
+the `tv_display` rendition, its compositor (`library/acquisition/compose.py`),
+`ART_ROOT/ready/` and `renditions.mat_hex` are gone, and the server reads no
+`TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`, which the Player reads
+under the same names. Readiness rests on the presentation master. The
+paragraph below is the state this section was written against.)*
+
 This is the biggest change to built code. Today curation composes a 3840×2160
 canvas with the mat in it (`Rendition.kind = tv_display`), sized from
 `TV_PANEL_*` and `MAT_*` configuration, and judges image adequacy
-(`library/services/display_fit.py`) against that panel. `data-model.md` defended this as
+(`library/services/display_fit.py`, until wave 4b) against that panel. `data-model.md` defended this as
 "a property of the artwork's presentation, not of a device". That stops being
 true the moment a second screen exists: a 1920×1200 LCD, a portrait monitor, or a
 caption drawn in the mat, which needs the mat *sized for the caption*.
@@ -467,7 +491,7 @@ work ids to discovery as examples. The Library never reads Programming's tags.
 Both belong to the Library.
 
 - **"Find art that's won awards recently"** is today's discovery pipeline,
-  unchanged: conversation, then run, then review. Phase 1 already searches the
+  unchanged in shape: asking, then a Get, then review (Ask since 2026-10-09). Phase 1 already searches the
   web for recency-bound intents (`product-brief.md`). Expect in-copyright,
   modest-resolution results; `Source.rights_status` records that, and review
   should show it.
@@ -570,9 +594,13 @@ are the panel and none, and today's `EPD_*` Player configuration decides which. 
 `accessibility-spec.md` (a type floor derived from geometry and reading distance)
 apply to a caption in the mat exactly as they apply to the panel.
 
-**One process per wall** drives both the picture and the label, so they can
-never disagree about what is showing. That keeps the Player on the Pi at walls
-with an e-ink panel, even though a Frame could be driven from anywhere on the LAN.
+~~**One process per wall** drives both the picture and the label, so they can
+never disagree about what is showing.~~ *Reversed by the owner 2026-10-08
+(`labels-and-surfaces.md` § Rulings): a label is its own output, on any client,
+mapped to any wall; it follows the wall controller's reported **display state**
+(showing art, in use, dark, no screen), never the schedule, and is blank whenever
+the screen is in use or dark. A caption in the image stays the wall controller's,
+since it is part of the image. Label mode as a wall setting, above, stands.*
 
 **Each new Player host needs its text stack re-verified.** The label is typeset
 with Pango through PyGObject (`platform-and-dependency-findings.md`). A Pi driving
@@ -605,6 +633,11 @@ it.
 
 ## Order of work
 
+> **Amended 2026-10-08:** `feeds-and-players.md` § What changes, in order
+> reshapes wave 4 (the feed, per-major URLs, layered presentation settings, the
+> Player's wall loop split) and gives wave 5 its repository shape (Arrt Player holds
+> every platform's Player).
+
 **The repo split comes last.** While server and player share one repo, every
 contract change is one atomic commit with both suites behind it. Across two repos
 it becomes two PRs and version skew. So the contract is settled here first, and
@@ -614,14 +647,14 @@ plan: each wave gets its own `build-plan-<scope>.md` when it starts, per
 
 | Wave | Scope | Notes |
 |---|---|---|
-| **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 is **parked, not abandoned**, on branch `curation-ui/rulings-and-plan`. It is curation-UI work that remains valid for the server; revisit after wave 2. **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Arrt. |
+| **0: clear the decks** *(closed 2026-09-30)* | Park round 2. ~~Reconcile the v1 plan's open chunks.~~ | Round 2 was parked on branch `curation-ui/rulings-and-plan`. *Retired 2026-10-07 (the owner): its operator-ruled amendment to `information-architecture.md` § Boundaries (mat override, 2026-08-18) was carried to `develop`, and its #89 chunk folded into `build-plan-walls-work-and-trust.md`; #91, #116 and #120 stay on the backlog, #91 behind wave 4's per-wall mat.* **The operator closed the rest of this wave: "wave 0 -- abandon. We'll rebuild with this new plan."** The v1 plan's open chunks (13A, 13B, 20, 24–27) are abandoned, not carried; § Where the v1 open chunks' requirements went records what each one served and where it is rebuilt. Retiring the 2024 root modules moves to wave 5, when this repo becomes Arrt. |
 | **1: plan** *(closed 2026-09-30)* | Amend the artifacts (this change started that). Write the Player contract artifact with a JSON Schema and fixtures. Write the wave-2 build plan. | Planned as doc-only; it shipped code as well. The contract's schemas and fixtures are tested from all three suites, which each declare `jsonschema` in their `dev` group. The amendments were drafted 2026-09-30; see § Artifacts touched. Wave 2 is two plans: `build-plan-wave-2a-rename.md`, then `build-plan-wave-2b-seams-and-http.md`. |
-| **2: seams and the HTTP channel, alongside the file** *(closed 2026-09-30)* | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbade any HTTP client in display. It was narrowed in the chunk that added the pull, and now allows one only in `postarr/src/postarr/pull.py`, whose routes must be ones `contract/routes.json` names. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
+| **2: seams and the HTTP channel, alongside the file** *(closed 2026-09-30)* | Split curation into Library and Programming packages with one-way imports and the `playable()` facade. Move the manifest's readiness logic behind the facade. Add the events, and Programming's reconciliation at startup (§ Seam 1). Then serve manifest, media and heartbeat over HTTP, with Programming's manifest endpoint as the facade's first consumer. Display gains a pull-to-local-cache mode behind configuration. Schema minor bump. | The package split comes first because the manifest endpoint is built on exactly the readiness logic rule 2 moves; building it before the split means building it twice. The static import guard for rule 1 lands here. The wall never goes dark: the file channel keeps working until wave 3 retires it. `tests/preferences/test_plane_isolation.py` forbade any HTTP client in display. It was narrowed in the chunk that added the pull, and now allows one only in `arrt-player/src/arrt_player/pull.py`, whose routes must be ones `contract/routes.json` names. **The per-wall tokens land with the routes** (§ Seam 2), because the server on the Pi is already reachable on the LAN. The cache claim gets a test that stops the server while the wall runs. |
 | *(2026-10-02, the owner's direction)* **Upgrades, pulled forward** | Manual upgrades of held works (`build-plan-upgrades.md`), then the scheduler that runs them, ahead of wave 3 and out of wave 6+. The presentation master stays in wave 4; Watches stay in wave 6+. | "let's move from UI to discovery, acquisition, retry and upgrade following the *arr and ../tacularr's patterns". Requirements: `upgrades.md`. *Parked the same day as a research spike (next row, and `upgrades.md` § Status).* |
 | *(2026-10-02, the owner's direction)* **Wave 3 now, without the store split** | "NAS now": the server goes to the NAS beside the owner's other apps (`build-plan-nas.md`) and the backup writer lands; the Pi was cut over to HTTP, then stood down when the owner skipped the Frame, and returns as a client of the server (`build-plan-clients.md`). The store split is skipped for now, accepting one more data migration when it lands. Upgrades were pulled forward the same day and then parked as a research spike (#177, #178). | The owner asked for "what's needed to really get the system usable day to day". |
 | **3: server to the NAS** | First, split the store: Programming's tables move to their own SQLite file, and the two cross-seam foreign keys become opaque references (rule 3), so the data moves once. Then containerize the server, deploy it on the NAS, point the Pi at HTTP and retire the file channel. Move the backup and restore exercise to NAS storage, with `VACUUM INTO` and the two catalogue files backed up as a pair. | The deployment side lives in the operator's homelab repo. The image needs what the Pi's install has today: a uv-managed Python 3.14, the `dezoomify-rs` binary, and a memory limit in place of `MemoryMax`. It does not need Pango unless the server ever typesets. The schema test for rule 3 lands here. *(2026-10-05: wave 3 shipped without the store split, so rule 3 and its schema test are tracked by #216 instead.)* |
-| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `arrt/tools/mat_masters.py`. Its compositing budget on a Pi 4 was measured 2026-10-04 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. |
-| **5: split the repos** | Extract the player with `git filter-repo` in **two passes**. Its history spans three paths: `display/` until wave 2a, `arrt/` until the rename of 2026-10-01, and `postarr/` since, and filter-repo does not follow renames. From the commit that renamed the server Curatarr to Arrt (`c1c31255a4e47e0116c088950325d62dd9b46d63`, landed on develop by the merge `1194e1e0ea546b8effc385e70794d782189b4d47`), `arrt/` holds the server instead. filter-repo rewrites every ref, so that commit and every commit descending from it on any branch are `c1c3125` plus `git rev-list --all --ancestry-path=c1c3125 ^c1c3125`. A set taken from one tip (`--ancestry-path c1c3125..<tip>`) misses a branch cut after the rename and not merged into that tip, which keeps the server under `arrt/` and collides in pass 2; either use the all-refs set or run both passes with `--refs <tip>`. Measured 2026-10-01: the all-refs set held 6 commits, the 4 on develop plus 2 on an unmerged branch. **Pass 1** works on the original paths: a `--commit-callback` turns every change under `arrt/` into a deletion in that commit and in every commit descending from it, the merge that landed it included (`FileChange(b"D", ch.filename)` for each `ch` whose filename starts `b"arrt/"`, when `commit.original_id` is in that set). **Pass 2** is `git filter-repo --path display/ --path arrt/ --path postarr/ --path-rename display/: --path-rename arrt/: --path-rename postarr/:`. It cannot be one pass: filter-repo applies the renames before the callback runs, so server and player files collide on shared names, and fast-import crashed on `uv.lock`. **Measured 2026-10-01** on a scratch clone, with the branch merged `--no-ff` into develop: the one-pass form crashed, and the two-pass form gave a tip tree identical to the original `postarr/`, and a tree at the player rename's parent identical to the original `arrt/` there. Rerun both checks on the real split. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **Postarr**, and this repo is renamed **Arrt**. Remove the 2024 root modules as this repo becomes Arrt. **Before the extraction, move the root's hand-run hardware tools that are not from 2024 (`tv_api_check.py`, `tv_delete.py`, `panel_check.py`, and the `config.py` they read) into `postarr/tools`**, so they leave with the Player whose hardware they exercise (the owner's ruling, 2026-10-05). The root then holds only the governance tests. | GitHub keeps redirects on rename. |
+| **4: schema major 2** | Add the presentation master and the quality profile. Remove the `tv_display` rendition and `TV_PANEL_*` from the server, and turn `MAT_*` into per-wall settings. Display composes, with the wall's mat proportions. The manifest becomes the schedule, with scenes, staging and wall settings. The heartbeat reports capabilities, and Programming judges per-wall adequacy from them. | The largest built-code change, and the only breaking one. Mat-colour regression corpus: `arrt/tools/mat_masters.py`. Its compositing budget on a Pi 4 was measured 2026-10-04 (§ Compositing moves to the Player). Rotation logic moves from the display plane to Programming, along with the wake/sleep window from the v1 plan's Chunk 26. *(2026-10-08, the owner: wave 4 is a program of seven plans, each one PR to `develop`, built in this order: **4a** the major 2 contract settled (`build-plan-wave-4a-contract.md`); **4b** the presentation master and quality profile in the Library; **4c** the Player's one wall loop with a driver per display and a reader for majors 1 and 2; **4d** compositing moves to the Player; **4e** Programming's schedule, wall settings and the major 2 feed beside major 1; **4g** the cutover and the removals (`tv_display`, `TV_PANEL_*`, `MAT_*`, the major 1 builder, the directive); then **4f** scenes, after the cutover, because `show_now` and `next` already become republishes in 4e and scenes have no place in the information architecture yet. Of the household-wide rules computing every wall together makes possible, wave 4 ships one: **no work on two walls at the same moment**. "Change the whole house together" and "spread a playlist across rooms" wait for demand. Today's per-wall interval and shuffle carry over as slot length and order. `MAT_*` does not become a wall setting as this row first said: `feeds-and-players.md` ruling 7 made the mat's width the client's, so `MAT_*` moves into the Player's configuration beside the panel's geometry, and a wall names only the mat's mode.)* *(2026-10-10: 4a to 4e and 4g are built. 4g retired manifest major 1, its builder and the unversioned route, the directive, the `tv_display` rendition and the server's compositor, and the server's reading of `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT`, which are the Player's settings now. 4f, scenes and staging, is next. The rotation logic and the dark hours: rotation moved to Programming's schedule in 4e; the dark hours were deferred to power control.)* |
+| **5: split the repos** | Extract the player with `git filter-repo` in **two passes**. Its history spans four paths: `display/` until wave 2a, `arrt/` until the rename of 2026-10-01, `postarr/` until the rename of 2026-10-08, and `arrt-player/` since, and filter-repo does not follow renames. From the commit that renamed the server Curatarr to Arrt (`c1c31255a4e47e0116c088950325d62dd9b46d63`, landed on develop by the merge `1194e1e0ea546b8effc385e70794d782189b4d47`), `arrt/` holds the server instead. filter-repo rewrites every ref, so that commit and every commit descending from it on any branch are `c1c3125` plus `git rev-list --all --ancestry-path=c1c3125 ^c1c3125`. A set taken from one tip (`--ancestry-path c1c3125..<tip>`) misses a branch cut after the rename and not merged into that tip, which keeps the server under `arrt/` and collides in pass 2; either use the all-refs set or run both passes with `--refs <tip>`. Measured 2026-10-01: the all-refs set held 6 commits, the 4 on develop plus 2 on an unmerged branch. **Pass 1** works on the original paths: a `--commit-callback` turns every change under `arrt/` into a deletion in that commit and in every commit descending from it, the merge that landed it included (`FileChange(b"D", ch.filename)` for each `ch` whose filename starts `b"arrt/"`, when `commit.original_id` is in that set). **Pass 2** is `git filter-repo --path display/ --path arrt/ --path postarr/ --path arrt-player/ --path-rename display/: --path-rename arrt/: --path-rename postarr/: --path-rename arrt-player/:`. It cannot be one pass: filter-repo applies the renames before the callback runs, so server and player files collide on shared names, and fast-import crashed on `uv.lock`. **Measured 2026-10-01** on a scratch clone, with the branch merged `--no-ff` into develop: the one-pass form crashed, and the two-pass form gave a tip tree identical to the original `postarr/` (then the player's directory; `arrt-player/` since 2026-10-08), and a tree at the player rename's parent identical to the original `arrt/` there. Rerun both checks on the real split. `/prawduct:onboard` there. Carry the player's artifacts. Pin `contract/` together with `player-contract.md` and the major 2 semantic validator (today in `tests/preferences/test_player_contract.py`), because the schemas alone do not carry the rules a schema cannot state. The new repo is **`arrt-player`**, and this repo is renamed **Arrt**. Pass 1's prefix `b"arrt/"` does not match `arrt-player/`, so the 2026-10-08 rename adds a path to pass 2 and changes nothing in pass 1. Remove the 2024 root modules as this repo becomes Arrt. **Before the extraction, move the root's hand-run hardware tools that are not from 2024 (`tv_api_check.py`, `tv_delete.py`, `panel_check.py`, and the `config.py` they read) into `arrt-player/tools`**, so they leave with the Player whose hardware they exercise (the owner's ruling, 2026-10-05). The root then holds only the governance tests. | GitHub keeps redirects on rename. |
 | **6+: in parallel** | Server: Watches, the scheduler and upgrades to the quality profile's cutoff; **facet population**, then Programming tags and smart playlists. Player: a framebuffer backend, caption in the mat, and **power control** (the television's power read, the guardrails, and acting on the schedule's dark hours). | Independent streams after the split. Watches carry the security and observability re-derivations above. Facet population needs its own requirements cycle (§ Two layers of tags), and smart playlists wait for it. |
 
 ### Where the v1 open chunks' requirements went
@@ -631,34 +664,49 @@ rebuilt in this program:
 
 | v1 chunk | The requirement it served | Rebuilt in |
 |---|---|---|
-| 13A, 13B | The label on the panel, and the wall surviving a television power-cycle unattended | Postarr. The label code is built and is carried as it stands. The unattended power-cycle check becomes an acceptance check on the Player once it pulls over HTTP (wave 3). |
-| 24 | Measure what the set's power keys do, before any code presses them | Postarr power control (wave 6+). `postarr/tools/power_probe.py` already exists and is the instrument. |
-| 25, 27 | A three-way power reading, a channel that can press, and a heartbeat that says why | Postarr power control (wave 6+). The heartbeat's reason travels in the HTTP heartbeat. |
-| 26 | When the wall may wake and must go dark, and the guardrails against fighting the household | Split: the dark hours are gaps in Programming's schedule (wave 4); the guardrails are Postarr power control (wave 6+). |
+| 13A, 13B | The label on the panel, and the wall surviving a television power-cycle unattended | Arrt Player. The label code is built and is carried as it stands. The unattended power-cycle check becomes an acceptance check on the Player once it pulls over HTTP (wave 3). |
+| 24 | Measure what the set's power keys do, before any code presses them | Arrt Player power control (wave 6+). `arrt-player/tools/power_probe.py` already exists and is the instrument. |
+| 25, 27 | A three-way power reading, a channel that can press, and a heartbeat that says why | Arrt Player power control (wave 6+). The heartbeat's reason travels in the HTTP heartbeat. |
+| 26 | When the wall may wake and must go dark, and the guardrails against fighting the household | Split: the dark hours are gaps in Programming's schedule (wave 4); the guardrails are Arrt Player power control (wave 6+). |
 | 20 | Backup and restore, and retiring legacy | Backup and restore: wave 3, on NAS storage. Legacy retirement: wave 5. |
 
 `nonfunctional-requirements.md`'s power norm (§ The television belongs to
 whoever is using it) keeps its interim rule until power control is built: no
 code that runs unattended sends a power key until the transitions are measured.
 
-**Agents.** Through wave 5, run one Claude session in this repo, so prawduct's
-hooks and gates apply. Parallel agents in worktrees are fine inside a wave. After
+**Agents.** Through wave 5, run one Claude session per plane in this repo, so
+prawduct's hooks and gates apply. Parallel agents in worktrees are fine inside a wave. After
 the split, run one session per repo, with the contract as their only shared
 ground: a player agent that needs a field files it against the server repo, not
 the other way round.
 
+*(Amended 2026-10-09 by the owner, in conversation. A second session had been
+running the server's Ask work in another worktree, which the owner called
+accidental, and asked for the "balance of work across the two sessions".)*
+**Until the split, two sessions may run, one per plane, each on its own plan's
+branch in its own worktree.** One builds the Player and the other the server.
+Each tells the other before touching a file outside its plane. Shared governance
+files (the change log, `project-state.yaml`, the artifacts both planes cite)
+conflict as ordinary merges, and the session that merges second rebases. Under
+the agreed allocation of 2026-10-09, the Player's session builds 4d, and the
+server's session finishes Ask and then builds 4e and 4g.
+
 ## Open questions
 
-- **The presentation master's size cap and encoding.** About 8K long edge is a
-  starting guess, to be measured against the corpus. The Pi needs no reduction
-  for its own sake (the compositing-budget question below, answered).
+- ~~**The presentation master's size cap and encoding.**~~ *Answered 2026-10-08
+  (wave 4b):* 7,680 px on the long edge, the size the Pi's compositing budget
+  was measured against, never enlarged; JPEG at quality 95, the compositor's
+  own, upright and in sRGB as read. Measured over 46 real originals: about
+  4.9 MB a master on average, 37% of the originals' bytes
+  (`operational-spec.md`).
 - **Directive latency:** an ETag poll at about 1 s, or server-sent events.
-  Polling matches today and is the default. Scenes are the test of whether it is
+  Polling matches today and is the default. *(Since wave 4g the directive is
+  gone; the question is now how fast a republished feed reaches the wall.)* Scenes are the test of whether it is
   fast enough (§ Scenes).
-- **The schedule's horizon and a scene's default preview lifetime.** About a day,
-  and about twenty minutes, are starting proposals. The wave 1 contract wrote
-  the fields that carry them (`player-contract.md` § Major 2). The values are
-  settled before wave 4 builds major 2.
+- ~~**The schedule's horizon and a scene's default preview lifetime.**~~
+  *Answered 2026-10-08 by the owner:* a three-day horizon (one day was proposed)
+  and a twenty-minute preview default. `player-contract.md` § Settled before
+  wave 4.
 - ~~**The compositing budget on a Pi 4.**~~ *Answered 2026-10-04:* measured and
   budgeted in `nonfunctional-requirements.md` § Performance. A 7680 cap needs no
   reduction for the Pi's sake, which bears on the master's size cap above.
@@ -669,7 +717,8 @@ the other way round.
   in § Compositing moves to the Player). Until wave 4 builds the profile, the server's inch floor
   carries it: a deployment sets `RESOLUTION_FLOOR_INCHES` to 1,000 divided by
   its panel's pixels per inch (11.34 on a 50" 4K Frame, which cuts at exactly
-  1,000 px).
+  1,000 px). *Built 2026-10-08 (wave 4b) as `QUALITY_MINIMUM_PX`, default 1,000,
+  with no cutoff; `RESOLUTION_FLOOR_INCHES` is retired.*
 - **The smart-playlist rule language:** how rich, and whether the facade's
   query needs anything beyond AND, OR and NOT over (kind, value) plus a date
   range.
@@ -759,7 +808,7 @@ moved the open questions into `project-state.yaml` and brought the Seam 1 norms'
 schedule in `architecture.md` into line with the new wave table.
 
 **Settled by the operator later the same day:** the names (then Curatarr and
-Arrt; since 2026-10-01 Arrt and Postarr), Player authentication (a token per wall, § Seam 2), and the v1 open
+Arrt; since 2026-10-01 Arrt and Postarr; since 2026-10-08 Arrt and Arrt Player), Player authentication (a token per wall, § Seam 2), and the v1 open
 chunks (abandoned; § Where the v1 open chunks' requirements went).
 
 **Settled by the second pass:** who owns the wake/sleep window (Programming, as

@@ -233,3 +233,6 @@ all.json.backup2
 .prawduct/.test-report.xml.scope.json
 .prawduct/.critic-review-dispatch.json
 .prawduct/.pr-review-dispatch.json
+
+# UX walkthrough output (docs/ux-walkthrough.md): screenshots are working material, and this repo is public
+/.ux-walk/

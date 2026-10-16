@@ -14,9 +14,9 @@ threads and long-polls would be untestable without both.
 denied.** Phase 2's provider work sits behind its own collaborator; the
 collection supplement's policy — which artists to ask about, how far to spread
 the answers, what bounds them, how a decline is handled — does not, so it shares
-a class with the worker threads, the wake protocol, the approval gate, pricing
-and view assembly. The seam is meant to widen when a facet compiled by a model
-arrives, and it would widen here. Extracting the supplement into a collaborator
+a class with the worker threads, the wake protocol, pricing and view assembly.
+The seam is meant to widen when a facet compiled by a model arrives, and it
+would widen here. Extracting the supplement into a collaborator
 of its own, taking `(discovery, collection, bound)` and exposing `offer(...)`,
 is tracked rather than done in passing, because it moves code no chunk in flight
 is changing and deserves its own review.
@@ -71,6 +71,7 @@ from arrt.library.registry import ItemId
 from arrt.library.services.discovery import ChosenWork, DiscoveryService
 from arrt.library.services.previews import PreviewCache
 from arrt.library.services.sightings import SightingService
+from arrt.library.services.spending import CostTier, cost_tier
 from arrt.logs import run_context
 from arrt.persistence.discovery_records import (
     CandidateWork,
@@ -183,13 +184,12 @@ class DiscoverySettings:
     cost before anything has run.
     """
 
-    approval_threshold: int
     phase1_search_allowance: int
     phase2_searches_per_work: int
     #: How many works a run may offer from a wired collection on top of what it
     #: proposed. Not a cost bound — browsing a museum API is free — but a bound on
     #: a curator's attention and on how far a supplement may outweigh the list
-    #: they approved. Zero switches the supplement off without unwiring it.
+    #: they asked for. Zero switches the supplement off without unwiring it.
     offered_works_per_run: int
     search_cost_usd: Decimal
     input_cost_usd_per_mtok: Decimal
@@ -255,6 +255,15 @@ class Estimate:
     basis: str
     run_id: str | None = None
 
+    @property
+    def tier(self) -> CostTier:
+        """The figure as the curator reads it before acting: free, `$`, `$$` or `$$$` (`spending.cost_tier`).
+
+        An Ask's figure is its bound, so an Ask shows the tier of what it may
+        spend at most rather than of a typical run.
+        """
+        return cost_tier(self.cost_usd)
+
 
 @dataclass(frozen=True, slots=True)
 class SpendReport:
@@ -315,7 +324,7 @@ class RunView:
     # the offered/proposed distinction exists to keep visible.
     @property
     def proposed_count(self) -> int:
-        """How many works the model named — the list the approval gate sized."""
+        """How many works the model named, apart from any a collection offered."""
         return sum(1 for work in self.works if work.provenance is WorkProvenance.PROPOSED)
 
     @property
@@ -406,7 +415,7 @@ def _round_robin(groups: Sequence[OfferedGroup]) -> Iterator[tuple[FoundImage, O
     same painting offered twice is two cards for one thing.
 
     Yields everything rather than stopping at a bound: the caller declines works
-    for reasons only it knows — below the floor, already in the run, suppressed —
+    for reasons only it knows — below the quality minimum, already in the run, suppressed —
     so a generator that counted its own yields would count the wrong thing.
     """
     queues = [list(group.works) for group in groups]
@@ -453,6 +462,11 @@ def image_query(title: str, artist: str | None, qid: str | None, *, pages: tuple
     return ImageQuery(title=title, artist=artist, qid=None if qid is None else ItemId(qid), pages=pages)
 
 
+#: The name every thread carrying a run's work is started under, so something
+#: outside the runner (a test closing the store it writes to) can find them.
+RUN_THREAD_NAME: Final = "discovery-run"
+
+
 def _daemon_thread(work: Callable[[], None]) -> None:
     """Run a run's phase-1 work behind the handle that was already returned.
 
@@ -463,7 +477,7 @@ def _daemon_thread(work: Callable[[], None]) -> None:
     its own death. Draining instead would hold a deploy restart open for the
     length of a run to reach the same place.
     """
-    threading.Thread(target=work, name="discovery-run", daemon=True).start()
+    threading.Thread(target=work, name=RUN_THREAD_NAME, daemon=True).start()
 
 
 class DiscoveryRunner:
@@ -547,7 +561,7 @@ class DiscoveryRunner:
                 cost_usd=self._settings.phase1_estimate_usd,
                 basis=(
                     f"One model call plus up to {self._settings.phase1_search_allowance} web searches, "
-                    "which is the most phase 1 may use. Bounded, not typical."
+                    "which is the most asking may use. Bounded, not typical."
                 ),
             )
         run = self._discovery.get_run(run_id)
@@ -562,13 +576,11 @@ class DiscoveryRunner:
     def _phase_two_basis(self, run: DiscoveryRun) -> str:
         """What the phase-2 figure prices, in the terms of the run being asked about.
 
-        A re-search has no work list of its own and no approval gate, so the
-        sentence written for a discovery run would tell a curator that this run
-        proposed nothing and that approving it spends no more — one false, the
-        other describing a decision they will never be offered.
+        A re-search has no work list of its own, so the sentence written for a
+        discovery run would tell a curator that this run proposed nothing.
         """
         held = self._discovery.run_results(run.id).works
-        free = "Phase 2 asks museum APIs, which are free, and identifies works locally"
+        free = "Finding the images asks museum APIs, which are free, and identifies works locally"
         if run.kind is RunKind.RESOLVE:
             return f"Re-searching the {counted(len(held), 'work')} this run covers. {free}, so this re-search costs nothing."
         if run.kind is RunKind.GET:
@@ -578,10 +590,7 @@ class DiscoveryRunner:
         # resolve. Counting it here described twelve works as proposed that the
         # model never named.
         proposed = sum(1 for work in held if work.provenance is WorkProvenance.PROPOSED)
-        return (
-            f"Resolving the {counted(proposed, 'work')} this run proposed. {free} — so approving this run spends "
-            "nothing further. The gate is on the work count, not the price."
-        )
+        return f"Resolving the {counted(proposed, 'work')} this run proposed. {free}, so this costs nothing further."
 
     def spend_report(self, *, run_id: str | None = None, year: int | None = None, month: int | None = None) -> SpendReport:
         """What a run cost, or what a calendar month cost.
@@ -700,6 +709,9 @@ class DiscoveryRunner:
     def approve(self, run_id: str) -> RunView:
         """Accept the work list and its price, and let phase 2 begin behind it.
 
+        Only a run stored `awaiting_approval` before the gate was removed can be
+        approved: no run stops for approval now (`finish_work_list`).
+
         Returns as soon as the decision is recorded, exactly as `start` does and
         for the same reason: resolving a work list takes minutes, and a call held
         open for it would be abandoned by the client long before it finished.
@@ -709,7 +721,7 @@ class DiscoveryRunner:
         return view
 
     def decline(self, run_id: str) -> RunView:
-        """Refuse the work list. The run ends without phase 2 ever spending."""
+        """Refuse the work list of a run stored awaiting approval. It ends without phase 2 ever spending."""
         return self._transition(self._discovery.decline_run, run_id, event="run.declined")
 
     def cancel(self, run_id: str) -> RunView:
@@ -872,9 +884,8 @@ class DiscoveryRunner:
         try:
             proposed, suppressed, duplicates = self._propose(run_id, produced)
             estimate = self._settings.phase2_estimate_usd(proposed)
-            run = self._discovery.finish_work_list(
+            self._discovery.finish_work_list(
                 run_id,
-                approval_threshold=self._settings.approval_threshold,
                 estimated_cost_usd=estimate,
                 strategy=produced.strategy,
                 citations=produced.citations,
@@ -892,18 +903,15 @@ class DiscoveryRunner:
                 "works_duplicate": duplicates,
                 "searches_used": produced.searches_used,
                 "search_allowance": allowance,
-                "approval_required": run.approval_required,
-                "approval_threshold": self._settings.approval_threshold,
                 "estimated_cost_usd": str(estimate),
             },
         )
-        if run.status is RunStatus.RESOLVING_IMAGES:
-            # Inline on this worker rather than spawned onto another. This thread
-            # is already registered as working on the run, and handing off would
-            # let `_enumerate`'s release run first — leaving a run whose phase 2
-            # is under way looking idle to every `status` call, which is the one
-            # thing the registration exists to prevent.
-            self._attempt_phase_two(run_id)
+        # Straight on: asking was the approval. Inline on this worker rather than
+        # spawned onto another. This thread is already registered as working on
+        # the run, and handing off would let `_enumerate`'s release run first —
+        # leaving a run whose phase 2 is under way looking idle to every `status`
+        # call, which is the one thing the registration exists to prevent.
+        self._attempt_phase_two(run_id)
 
     def _could_not_settle(self, run_id: str, exc: ServiceError) -> None:
         """Decide what a refusal during settling actually was, rather than assuming.
@@ -969,6 +977,7 @@ class DiscoveryRunner:
                 rationale=work.rationale,
                 work_dedup_key=key,
                 proposed_artist=work.artist,
+                source_confirmed=work.source_confirmed,
             )
             proposed += 1
         return proposed, suppressed, duplicates
@@ -1169,15 +1178,15 @@ class DiscoveryRunner:
 
     def _offer_one(self, run_id: str, found: FoundImage, group: OfferedGroup, previews: PreviewCache) -> bool:
         """Record one offered work and the instance that is it. `False` if it was declined."""
-        if not self._discovery.clears_display_floor(width=found.estimated_width, height=found.estimated_height):
+        if not self._discovery.meets_quality_minimum(width=found.estimated_width, height=found.estimated_height):
             # Journalled like the other two declines, and for a stronger reason
-            # than symmetry: this is the systemic one. A single wrong artwork-box
-            # setting makes every browse result fall below the floor, and the
+            # than symmetry: this is the systemic one. A single wrong minimum
+            # makes every browse result fall below it, and the
             # supplement then offers nothing for ever while reporting only
             # `works_offered: 0` — a silence indistinguishable from a collection
             # that holds nothing.
             log.info(
-                "not offering a work that would render below the display floor",
+                "not offering a work below the quality minimum",
                 extra={
                     "event": "browse.below_floor",
                     "work_title": found.title,
@@ -1199,6 +1208,7 @@ class DiscoveryRunner:
             # separately, verbatim, which `product-brief.md` requires.
             offered_for_artist=group.query.artist,
             offered_artist_matched=group.matched,
+            offered_by=found.provider,
         )
         if work is None:
             return False

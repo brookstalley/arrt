@@ -37,7 +37,7 @@ from decimal import Decimal
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
 from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.display_fit import ArtworkBox, DisplayFit, assess_display_fit
+from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.services.remembered import checked_qid
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
@@ -55,7 +55,7 @@ from arrt.persistence.discovery_records import (
     Verdict,
     WorkProvenance,
 )
-from arrt.persistence.records import AcquisitionMethod, Artist, RightsStatus, SourceClass
+from arrt.persistence.records import AcquisitionMethod, Artist, EventKind, RightsStatus, SourceClass
 from arrt.services.errors import ServiceError
 from arrt.services.fields import relative_path, require_member, require_text
 from arrt.services.store import store_write
@@ -186,19 +186,17 @@ class DiscoveryService:
         self,
         store: DiscoveryStore,
         catalogue: CatalogueService,
-        artwork_box: ArtworkBox | None = None,
+        profile: QualityProfile | None = None,
         *,
         precedence: selection.Precedence | None = None,
     ) -> None:
         self._store = store
         self._catalogue = catalogue
-        #: The space a work is rendered into, which is what turns an instance's
-        #: pixels into a size on the wall. Held because automatic selection has
-        #: to withhold an instance that would render below the floor, and the
-        #: floor is physical — so the rule cannot be evaluated from a row alone.
-        #: Optional so a caller with no deployment geometry gets the ranking
-        #: without a floor rather than a constructor it cannot satisfy.
-        self._artwork_box = artwork_box
+        #: The quality profile. Held because automatic selection has to withhold
+        #: an instance below its minimum. Optional so a caller with no deployment
+        #: profile gets the ranking without a minimum rather than a constructor
+        #: it cannot satisfy.
+        self._profile = profile
         #: The image sources' preference order, so a level tie between two
         #: sources is settled here as phase 2 settled it. None with no sources.
         self.precedence = precedence
@@ -245,30 +243,26 @@ class DiscoveryService:
             started_at=datetime.now(UTC),
             intent_text=require_text(intent_text, field="intent_text"),
         )
-        store_write(self._store.add_run, run)
+        with self._store.transaction():
+            store_write(self._store.add_run, run)
+            self._record_started(run, intent=run.intent_text)
         return run
 
     def finish_work_list(
         self,
         run_id: str,
         *,
-        approval_threshold: int,
         estimated_cost_usd: Decimal | None = None,
         strategy: str | None = None,
         citations: Sequence[str] = (),
     ) -> DiscoveryRun:
-        """Close phase 1 and either stop for approval or go straight to phase 2.
+        """Close phase 1 and go straight to phase 2.
 
-        The gate is on the **work count**, not on the estimate. A dollar
-        threshold gates on the axis that does not discriminate — real runs cost
-        well under a dollar — while the judgement the gate exists to invite is
-        scope: "you asked for Dalí and I found 200 works — really?". More works
-        than the threshold stops for approval; exactly the threshold does not,
-        because a limit a curator set is a number they already accepted.
-
-        Whether the gate fired is stored rather than left to be re-derived: the
-        threshold is configuration, and a run that stopped for approval last
-        month must still read that way under today's setting.
+        **No run stops for approval** (the owner's ruling 3 of 2026-10-07,
+        #290): asking is the approval, and the month's budget and each action's
+        tier are what keep spend in view. A run stored `awaiting_approval`
+        before the gate was removed can still be approved or declined
+        (`approve_run`, `decline_run`); nothing writes that state now.
 
         `strategy` lands here because this is the moment it becomes known — it is
         the engine's account of how the intent was read, and it explains the very
@@ -280,15 +274,12 @@ class DiscoveryService:
         same reason and with the same single writer. Phase 2 hands them to the
         finders (`run_citations`).
         """
-        if approval_threshold < 0:
-            raise ServiceError(f"An approval threshold cannot be negative, got {approval_threshold}.")
         with self._store.transaction():
             run = self._require_status(run_id, RunStatus.RESOLVING_WORKS, doing="finish its work list")
-            required = len(self._store.list_candidate_works(run_id)) > approval_threshold
             advanced = replace(
                 run,
-                status=RunStatus.AWAITING_APPROVAL if required else RunStatus.RESOLVING_IMAGES,
-                approval_required=required,
+                status=RunStatus.RESOLVING_IMAGES,
+                approval_required=False,
                 estimated_cost_usd=estimated_cost_usd,
                 strategy=strategy,
             )
@@ -301,7 +292,11 @@ class DiscoveryService:
         return self._store.list_run_citations(run_id)
 
     def approve_run(self, run_id: str) -> DiscoveryRun:
-        """Accept the work list and its price; phase 2 may proceed."""
+        """Accept the work list and its price; phase 2 may proceed.
+
+        Only for a run stored `awaiting_approval` before the gate was removed
+        (`finish_work_list`): nothing puts a run there now.
+        """
         with self._store.transaction():
             run = self._require_status(run_id, RunStatus.AWAITING_APPROVAL, doing="be approved")
             approved = replace(run, status=RunStatus.RESOLVING_IMAGES)
@@ -314,6 +309,7 @@ class DiscoveryService:
             run = self._require_status(run_id, RunStatus.AWAITING_APPROVAL, doing="be declined")
             declined = self._ended(run, RunStatus.DECLINED)
             store_write(self._store.update_run, declined)
+            self._record_ended(declined)
         return declined
 
     def complete_run(self, run_id: str, *, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -333,6 +329,7 @@ class DiscoveryService:
                 unresolved_work_count=len(unresolved),
             )
             store_write(self._store.update_run, completed)
+            self._record_ended(completed)
         return completed
 
     def fail_run(self, run_id: str, *, reason: str, actual_cost_usd: Decimal | None = None) -> DiscoveryRun:
@@ -444,6 +441,7 @@ class DiscoveryService:
             store_write(self._store.add_run, run)
             for work in works:
                 store_write(self._store.add_coverage, ResolveRunWork(resolve_run_id=run.id, candidate_work_id=work.id))
+            self._record_started(run, works=len(works))
         return run
 
     def start_get_run(
@@ -502,6 +500,7 @@ class DiscoveryService:
                         wikidata_qid=work.qid,
                     ),
                 )
+            self._record_started(run, works=len(chosen))
         return run
 
     def awaiting_verdict(self) -> Mapping[str, int]:
@@ -512,6 +511,14 @@ class DiscoveryService:
         waiting are absent.
         """
         return dict(Counter(work.discovery_run_id for work in self._store.list_works_awaiting_verdict()))
+
+    def works_awaiting_review(self) -> Sequence[CandidateWork]:
+        """Every work that found an image and awaits a verdict: the works *To review* counts, by title.
+
+        What Search and the Artist page mark *Waiting for review*, so a work a
+        run already found is not offered for another Get.
+        """
+        return self._store.list_works_awaiting_verdict()
 
     def destinations(self, artwork_ids: Iterable[str]) -> Mapping[str, str | None]:
         """Where each artwork's acceptance asked it to go: a theme id, or None for the default.
@@ -584,7 +591,9 @@ class DiscoveryService:
                     # Coverage is released by the run becoming terminal, not by
                     # deleting its rows: the join records what the run's scope
                     # was, and that stays true after the run has ended.
-                    store_write(self._store.update_run, self._ended(run, RunStatus.INTERRUPTED))
+                    interrupted = self._ended(run, RunStatus.INTERRUPTED)
+                    store_write(self._store.update_run, interrupted)
+                    self._record_ended(interrupted)
             self._reclean_proposed_titles()
 
     def _reclean_proposed_titles(self) -> None:
@@ -763,11 +772,14 @@ class DiscoveryService:
         work_dedup_key: str,
         proposed_artist: str | None = None,
         reconsider: bool = False,
+        source_confirmed: bool | None = None,
     ) -> CandidateWork:
         """Record a work phase 1 proposed, unless the curator has already declined it.
 
         `rationale` is required because a review card that cannot say *why* this
         work matched the intent asks the curator to judge a bare title.
+        `source_confirmed` is phase 1's word on whether a source confirms it, or
+        `None` for none (`CandidateWork.confirmation`).
 
         Suppression is refused rather than silently skipped, and `reconsider`
         exists because the rule is "unless the curator explicitly reconsiders it"
@@ -797,6 +809,7 @@ class DiscoveryService:
                 rationale=require_text(rationale, field="rationale"),
                 work_dedup_key=key,
                 proposed_artist=proposed_artist,
+                source_confirmed=source_confirmed,
             )
             store_write(self._store.add_candidate_work, work)
         return work
@@ -811,6 +824,7 @@ class DiscoveryService:
         work_dedup_key: str,
         offered_for_artist: str,
         offered_artist_matched: int,
+        offered_by: str,
     ) -> CandidateWork | None:
         """Record a work the collection offered, or `None` if it should not be shown.
 
@@ -867,6 +881,7 @@ class DiscoveryService:
                 # browse returned.
                 offered_for_artist=require_text(offered_for_artist, field="offered_for_artist"),
                 offered_artist_matched=offered_artist_matched,
+                offered_by=require_text(offered_by, field="offered_by"),
             )
             store_write(self._store.add_candidate_work, work)
         return work
@@ -898,9 +913,23 @@ class DiscoveryService:
             if work.verdict.is_terminal:
                 raise ServiceError(f"Candidate work {candidate_work_id!r} was already {work.verdict}, and that is final.")
             if target is Verdict.ACCEPTED:
-                return self._accept(work)
+                outcome = self._accept(work)
+                self._catalogue.record_event(
+                    EventKind.ACCEPTED,
+                    work_id=outcome.work.artwork_id,
+                    run_id=work.discovery_run_id,
+                    detail={"title": work.proposed_title, "candidate_work_id": work.id},
+                )
+                return outcome
             rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=datetime.now(UTC))
             store_write(self._store.update_candidate_work, rejected)
+            # A turned-down candidate never became a work, so the event names it
+            # by its candidate id and its title rather than by a work id.
+            self._catalogue.record_event(
+                EventKind.REJECTED,
+                run_id=work.discovery_run_id,
+                detail={"title": work.proposed_title, "candidate_work_id": work.id},
+            )
         return VerdictOutcome(work=rejected)
 
     # -- reads and writes: image instances ------------------------------------
@@ -913,7 +942,7 @@ class DiscoveryService:
         left out.
 
         The selected instance leads where one exists. A work whose scans are all
-        below the floor or all turned down has no selection, and then the leading
+        below the quality minimum or all turned down has no selection, and then the leading
         row is simply the highest-ranked, which may be a scan already refused.
         `is_selected` is what distinguishes them; position is not.
 
@@ -951,10 +980,10 @@ class DiscoveryService:
         with instances is never selectionless; a later choice moves the selection
         rather than adding a second one.
 
-        **Unless it would render below the floor**, which is never selected
+        **Unless it is below the quality minimum**, which is never selected
         without a curator asking for it by name. Such an instance is still
-        recorded, still offered as an alternate, and still carries the size it
-        would appear at — a work whose every instance is below floor simply holds
+        recorded, still offered as an alternate, and still carries its size — a
+        work whose every instance is below the minimum simply holds
         no selection, and is reported `unresolved` rather than putting a postage
         stamp on the wall on nobody's authority.
 
@@ -1014,8 +1043,8 @@ class DiscoveryService:
                 selection_rationale=selection_rationale,
             )
             # Decided from the built row rather than from the arguments, so the
-            # floor is evaluated against exactly the dimensions being stored.
-            claimed = not any(other.is_selected for other in held) and not self._below_floor(image)
+            # minimum is judged against exactly the dimensions being stored.
+            claimed = not any(other.is_selected for other in held) and not self._below_minimum(image)
             image = replace(image, is_selected=claimed)
             store_write(self._store.add_candidate_image, image)
         return image
@@ -1157,7 +1186,7 @@ class DiscoveryService:
         # would be silent.
         survivors = self._store.list_candidate_images(work.id)
         if not any(other.is_selected for other in survivors):
-            replacement = selection.best(survivors, box=self._artwork_box, precedence=self.precedence)
+            replacement = selection.best(survivors, profile=self._profile, precedence=self.precedence)
             if replacement is not None:
                 self._select(replacement, rationale=None)
 
@@ -1225,7 +1254,7 @@ class DiscoveryService:
         with self._store.transaction():
             work = self.get_candidate_work(candidate_work_id)
             held = self._store.list_candidate_images(work.id)
-            chosen = selection.best(held, box=self._artwork_box, precedence=self.precedence)
+            chosen = selection.best(held, profile=self._profile, precedence=self.precedence)
             status = ResolutionStatus.RESOLVED if chosen is not None else ResolutionStatus.UNRESOLVED
             reason = None if chosen is not None else self._unresolved_reason(held, refusals)
             if work.verdict.is_terminal:
@@ -1251,8 +1280,8 @@ class DiscoveryService:
         The rows the work already holds answer first, because a row on the card
         is further than a result that never became one. Those two cases are
         mutually exclusive rather than ordered: rejected instances are filtered
-        out before the floor applies, so surviving-but-unselectable means every
-        survivor is below the floor, and no survivors at all means the curator
+        out before the minimum applies, so surviving-but-unselectable means every
+        survivor is below the minimum, and no survivors at all means the curator
         turned down everything there was.
 
         Only when the work holds no rows does what the search discarded decide
@@ -1276,7 +1305,6 @@ class DiscoveryService:
         cost_usd: Decimal,
         discovery_run_id: str | None = None,
         artwork_id: str | None = None,
-        conversation_turn_id: str | None = None,
         model_id: str | None = None,
         input_tokens: int | None = None,
         output_tokens: int | None = None,
@@ -1290,13 +1318,8 @@ class DiscoveryService:
         once exhausted, and a run reaching `halted_by_budget` does so because the
         provider said so, not because a local sum crossed a number.
 
-        The three references are alternatives rather than a hierarchy: a run's
-        spend carries `discovery_run_id`, a work's mat carries `artwork_id`, and
-        intent-forming carries `conversation_turn_id`. **Conversation spend is
-        not attributed to the run the conversation eventually seeds**, even
-        though the seam between them exists — the two answer different questions,
-        and folding one into the other would make a run's estimate unfalsifiable
-        against its actuals.
+        The two references are alternatives rather than a hierarchy: a run's
+        spend carries `discovery_run_id`, and a work's mat carries `artwork_id`.
         """
         if cost_usd < 0:
             raise ServiceError(f"A cost cannot be negative, got {cost_usd}.")
@@ -1307,8 +1330,6 @@ class DiscoveryService:
             self.get_run(discovery_run_id)
         if artwork_id is not None:
             self._catalogue.get_artwork(artwork_id)
-        if conversation_turn_id is not None and self._store.get_conversation_turn(conversation_turn_id) is None:
-            raise ServiceError(f"No conversation turn with id {conversation_turn_id!r}.")
         record = SpendRecord(
             id=str(uuid.uuid4()),
             category=require_member(category, enum=SpendCategory, field="category"),
@@ -1316,7 +1337,6 @@ class DiscoveryService:
             occurred_at=at if at is not None else datetime.now(UTC),
             discovery_run_id=discovery_run_id,
             artwork_id=artwork_id,
-            conversation_turn_id=conversation_turn_id,
             model_id=model_id,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -1388,14 +1408,14 @@ class DiscoveryService:
         "can this be re-acquired from scratch".
 
         **A work with instances but no selection is refused too, and that is the
-        floor doing its job.** There are two ways to hold none: every instance
-        rejected, and every instance below the display floor — `selection.best`
-        declines the second, so nothing under the floor is ever chosen without
+        minimum doing its job.** There are two ways to hold none: every instance
+        rejected, and every instance below the quality minimum — `selection.best`
+        declines the second, so nothing under the minimum is ever chosen without
         being asked for. Promoting anyway would mint an artwork whose sources are
         every one `is_primary=False`: no record of which scan produced the
         original, and a postage stamp on the wall chosen by nobody. The remedy is
         for the curator to choose an instance explicitly, which is exactly the
-        decision the floor exists to force.
+        decision the minimum exists to force.
         """
         # Asked of the images rather than of `resolution_status`, which answers a
         # different question: only a resolution attempt recomputes that column, so
@@ -1412,7 +1432,7 @@ class DiscoveryService:
                 "Re-search it with resolve_images, or reject it."
             )
         # The second selectionless state, which the guard above does not cover:
-        # instances survive, and every one of them is below the display floor, so
+        # instances survive, and every one of them is below the quality minimum, so
         # `selection.best` declined them all. Constraint 8 in `data-model.md` names
         # both exceptions; this is the one that reaches acceptance with sources to
         # promote and nothing to make primary.
@@ -1426,7 +1446,7 @@ class DiscoveryService:
             # what they just did.
             cause = (
                 "every scan found for it is below the size this deployment will show without being asked"
-                if all(self._below_floor(image) for image in images)
+                if all(self._below_minimum(image) for image in images)
                 else "the scans you have not turned down are all below that size, and the ones that cleared "
                 "it you have already rejected"
             )
@@ -1476,38 +1496,37 @@ class DiscoveryService:
             duplicate_candidates=attributed.near_misses if minted is not None else (),
         )
 
-    def clears_display_floor(self, *, width: int | None, height: int | None) -> bool:
+    def meets_quality_minimum(self, *, width: int | None, height: int | None) -> bool:
         """Whether an image this size could be selected without a curator asking.
 
         Public because the supplement has to answer it *before* writing anything.
         A work phase 1 named is worth showing whatever size the collection holds
-        it at — it is the work that was asked for, and its below-floor instance is
+        it at — it is the work that was asked for, and its small instance is
         recorded, labelled and offered. A work the collection merely *volunteered*
         is not: there are hundreds more behind it, and one that cannot go on the
         wall is padding a curator has to read past.
 
-        The box is the only thing that can answer this, and it lives here, so the
-        question is asked here rather than a caller being handed the geometry and
-        trusted to apply the same rule. `False` for dimensions that are absent:
+        The profile is the only thing that can answer this, and it lives here, so
+        the question is asked here rather than a caller being handed the profile
+        and trusted to apply the same rule. `False` for dimensions that are absent:
         an unsizeable record cannot be shown to clear anything.
         """
         if width is None or height is None:
             return False
-        if self._artwork_box is None:
-            # No geometry configured is no floor stated — the same reading
+        if self._profile is None:
+            # No profile configured is no minimum stated — the same reading
             # `selection.best` takes, rather than this inventing one.
             return True
-        return assess_display_fit(width=width, height=height, box=self._artwork_box).fit is not DisplayFit.BELOW_FLOOR
+        return self._profile.judge(width=width, height=height) is Fit.MEETS_MINIMUM
 
-    def _below_floor(self, image: CandidateImage) -> bool:
+    def _below_minimum(self, image: CandidateImage) -> bool:
         """Whether this instance is too small to be selected without being asked for.
 
-        Answers `False` when no artwork box was configured, which is the same
-        thing `selection.best` does with no box: a deployment that has not said
-        how big its wall is has not stated a floor either, and inventing one here
-        would withhold instances against a rule nobody wrote.
+        Answers `False` when no profile was configured, which is the same thing
+        `selection.best` does with none: inventing a minimum here would withhold
+        instances against a rule nobody wrote.
         """
-        return self._artwork_box is not None and selection.below_floor(image, self._artwork_box)
+        return self._profile is not None and selection.below_minimum(image, self._profile)
 
     def _select(self, image: CandidateImage, *, rationale: str | None) -> CandidateImage:
         """Make one instance the selected one, standing every other one down."""
@@ -1567,6 +1586,22 @@ class DiscoveryService:
     def _spend_total(self, run_id: str) -> Decimal:
         return sum((record.cost_usd for record in self._store.list_spend_records(run_id=run_id)), Decimal(0))
 
+    def _record_started(self, run: DiscoveryRun, *, intent: str | None = None, works: int | None = None) -> None:
+        """Write the history's line for a Get beginning, inside the transaction that begins it."""
+        detail: dict[str, object] = {"run_kind": str(run.kind)}
+        if intent is not None:
+            detail["intent"] = intent
+        if works is not None:
+            detail["works"] = works
+        self._catalogue.record_event(EventKind.GET_STARTED, run_id=run.id, detail=detail)
+
+    def _record_ended(self, run: DiscoveryRun) -> None:
+        """Write the history's line for a Get ending, however it ended, inside the transaction that ends it."""
+        detail: dict[str, object] = {"run_kind": str(run.kind), "status": str(run.status)}
+        if run.end_reason is not None:
+            detail["reason"] = run.end_reason
+        self._catalogue.record_event(EventKind.GET_FINISHED, run_id=run.id, detail=detail)
+
     def _require_status(self, run_id: str, expected: RunStatus, *, doing: str) -> DiscoveryRun:
         """Refuse a transition the run is not standing on the edge of."""
         run = self.get_run(run_id)
@@ -1609,6 +1644,7 @@ class DiscoveryService:
                 )
             ended = replace(self._ended(run, ending, actual_cost_usd=actual_cost_usd), end_reason=reason)
             store_write(self._store.update_run, ended)
+            self._record_ended(ended)
         return ended
 
     @staticmethod

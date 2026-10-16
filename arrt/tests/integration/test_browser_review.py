@@ -20,6 +20,7 @@ comes back.
 """
 
 import json
+from dataclasses import replace
 from io import BytesIO
 
 import httpx
@@ -72,7 +73,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
@@ -113,6 +114,23 @@ class TestTheGrid:
         assert all(card["shown"] is not None for card in page["works"])
         assert all(card["shown"]["preview_available"] for card in page["works"])
 
+    def test_a_card_says_whether_a_source_confirms_its_work(self, http, engine):
+        """#276: the model's word on its source reaches the card; the order it sets is the review service's."""
+        engine.result = WorkList(
+            works=(
+                replace(a_work("The Elephants"), source_confirmed=False),
+                replace(a_work("Swans Reflecting Elephants"), source_confirmed=True),
+            )
+        )
+        run_id = a_finished_run(http)
+
+        page = http.get(f"/api/runs/{run_id}/candidates").json()
+
+        assert {card["work"]["title"]: card["work"]["confirmation"] for card in page["works"]} == {
+            "The Elephants": "unconfirmed",
+            "Swans Reflecting Elephants": "confirmed",
+        }
+
     def test_the_picture_a_card_points_at_is_a_real_image(self, http):
         """Asserted as decodable bytes, not as a 200.
 
@@ -142,23 +160,24 @@ class TestTheGrid:
         page = http.get(f"/api/runs/{run_id}/candidates").json()
         card = card_for(page, "Swans Reflecting Elephants")
 
-        assert card["shown"] is not None, "a below-floor instance was hidden rather than labelled"
+        assert card["shown"] is not None, "an instance below the minimum was hidden rather than labelled"
         assert card["shown"]["preview_available"] is True
         assert card["shown_is_on_offer"] is False
-        assert card["shown"]["fit"]["verdict"] == "below_floor"
+        assert card["shown"]["fit"]["verdict"] == "below_minimum"
 
-    def test_every_instance_carries_the_size_it_would_show_at_on_this_wall(self, http):
-        """The number a curator judges, since a thumbnail cannot convey resolution.
+    def test_every_instance_carries_its_verdict_against_the_quality_minimum(self, http):
+        """The verdict a curator judges by, since a thumbnail cannot convey resolution.
 
-        900 px and 6949 px are the same picture in a card, and the only thing that
-        separates them on screen is this figure.
+        900 px and 6949 px are the same picture in a card, and the verdict beside
+        the pixels is what says which one would be chosen unasked. No size on a
+        wall travels with it: that belongs to a screen the Library does not hold.
         """
         run_id = a_finished_run(http)
         page = http.get(f"/api/runs/{run_id}/candidates").json()
 
-        big = card_for(page, "The Elephants")["shown"]["fit"]["rendered_long_edge_inches"]
-        small = card_for(page, "Swans Reflecting Elephants")["shown"]["fit"]["rendered_long_edge_inches"]
-        assert big > small
+        big = card_for(page, "The Elephants")["shown"]["fit"]
+        small = card_for(page, "Swans Reflecting Elephants")["shown"]["fit"]
+        assert (big, small) == ({"verdict": "meets_minimum"}, {"verdict": "below_minimum"})
 
     def test_every_instance_carries_the_scan_s_own_pixels(self, http):
         """What the card states as the scan's resolution: its pixels, not inches on one panel.
@@ -471,7 +490,7 @@ class TestWanting:
             }
         ]
 
-    def test_a_wanted_work_whose_only_scan_is_below_the_floor_is_pictured_by_it(self, http):
+    def test_a_wanted_work_whose_only_scan_is_below_the_minimum_is_pictured_by_it(self, http):
         """The picture its card shows, labelled too small, so a curator recognises what they want."""
         run_id = a_finished_run(http)
         card = card_for(http.get(f"/api/runs/{run_id}/candidates").json(), "Swans Reflecting Elephants")
@@ -483,7 +502,7 @@ class TestWanting:
         listed = {entry["work_id"]: entry for entry in http.get("/api/wanted").json()["works"]}
         shown = listed[work_id]["shown"]
         assert shown["image_id"] == card["shown"]["image_id"]
-        assert (shown["width"], shown["height"], shown["fit"]["verdict"]) == (900, 700, "below_floor")
+        assert (shown["width"], shown["height"], shown["fit"]["verdict"]) == (900, 700, "below_minimum")
         assert shown["preview_available"] is True
         assert listed[work_id]["scans_turned_down"] == 0
         preview = http.get(f"/api/candidate-images/{shown['image_id']}/preview")
@@ -670,14 +689,14 @@ def hold_master(service, settings, decodable_jpeg, services):
             content_hash=f"hash-{artwork_id}",
             fetch_status=FetchStatus.OK,
         )
-        rendered = f"ready/{artwork_id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{artwork_id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=4000, height=3000)
         service.record_rendition(
             artwork_id=artwork_id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=7680,
+            target_height=7680,
+            path=presented,
         )
         service.record_mat_color(artwork_id=artwork_id, hex_rgb="#2b2b2b", method=MatMethod.VISION_MODEL)
 

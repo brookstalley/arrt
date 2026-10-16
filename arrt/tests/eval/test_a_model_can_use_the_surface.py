@@ -26,24 +26,6 @@ failing a call and never recovering.
 import os
 
 import pytest
-
-# Guarded on `threetears.models` alone, and only because the `model` fixture
-# below needs it. `langchain_core` is NOT the reason: it is declared in `dev`,
-# so `driver.py`'s import resolves under the plain `uv run pytest`.
-#
-# **Do not "clean up" that `dev` entry as redundant transitive noise.** It does
-# also arrive through 3tears, but the deterministic driver guards next door
-# import langchain by name and must run in the canonical suite; declaring it
-# only in `eval` is what left all five of them silently skipping in the suite CI
-# and the gates actually run.
-#
-# The guard still has to sit at import time rather than in the fixture, because
-# deselecting by marker still *collects* this module.
-pytest.importorskip(
-    "threetears.models",
-    reason="the model-driven evaluation needs the eval group — run `uv sync --group eval`",
-)
-
 from driver import REFERENCE_CALLS, drive
 
 pytestmark = pytest.mark.llm_eval

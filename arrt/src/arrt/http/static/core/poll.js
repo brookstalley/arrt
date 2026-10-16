@@ -1,30 +1,22 @@
-/* Watching something that is still working — the chain every polling screen carries.
+/* Watching something that is still working — the chain a polling screen carries.
  *
- * **In `core/` because two screens carry the identical chain.** The Run screen
- * watches a discovery run; the Conversation screen watches the run its commit
- * card started. Both claim a generation, re-check it after every await, and
- * schedule the next look only while the thing they are watching has not stopped —
- * and `screens/` modules may not import each other (`architecture.md`
- * § Components & Responsibilities), so shared mechanism lives here or it lives
- * twice. It lived twice, and the conversation screen said so in its own source:
- * *"Copied in shape from the run view rather than imported from it: a screen
- * never imports another screen"* — which names the rule and this module in one
- * sentence. `core/hanging.js` is the precedent, extracted for the same reason
- * after the same review finding.
+ * **In `core/` because it is mechanism, and a polling screen takes it from here
+ * rather than copying it.** Claim a generation, re-check it after every await,
+ * and schedule the next look only while the thing watched has not stopped.
+ * `screens/` modules may not import each other (`architecture.md` § Components &
+ * Responsibilities), so mechanism a second screen would need lives here.
+ * `screens/run.js` is its caller.
  *
  * **What is shared is the mechanism, not the policy.** Which view is being
  * watched, which id, how often, and what counts as stopped are all the screen's
- * own and are passed in: a run is stopped when the server says `is_terminal`, a
- * conversation's card is stopped when there is no committed run *or* that run is
- * terminal, and the two intervals are equal today without being the same fact.
- * A third caller that finds itself editing this file to hold its own predicate
- * has found the boundary in the wrong place.
+ * own and are passed in: a run is stopped when the server says `is_terminal`.
+ * A caller that finds itself editing this file to hold its own predicate has
+ * found the boundary in the wrong place.
  *
  * **Failure counting is deliberately not here.** The run screen ends a watch
  * after consecutive failures because a bookmarked run that no longer exists
- * answers 400 forever; a conversation has no such state and no designed answer
- * for one. Hoisting the count would invent a requirement for the second screen,
- * so it stays in `screens/run.js` with the reasoning that produced it.
+ * answers 400 forever. That is the run's own state, so the count stays in
+ * `screens/run.js` with the reasoning that produced it.
  *
  * **`core/router.js` bumps the same counter and does not call through here**, and
  * that is a cycle rather than an oversight: this module needs `refresh` to take

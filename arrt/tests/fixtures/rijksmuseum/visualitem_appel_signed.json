@@ -1,0 +1,47 @@
+{
+ "@context": "https://linked.art/ns/v1/linked-art.json",
+ "id": "https://id.rijksmuseum.nl/202496110",
+ "type": "VisualItem",
+ "subject_to": [
+  {
+   "type": "Right",
+   "identified_by": [
+    {
+     "type": "Name",
+     "content": "Auteursrecht",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388256",
+       "type": "Language",
+       "_label": "Dutch"
+      }
+     ]
+    },
+    {
+     "type": "Name",
+     "content": "Copyright",
+     "language": [
+      {
+       "id": "http://vocab.getty.edu/aat/300388277",
+       "type": "Language",
+       "_label": "English"
+      }
+     ]
+    }
+   ],
+   "classified_as": [
+    {
+     "id": "https://rightsstatements.org/vocab/InC/1.0/",
+     "type": "Type",
+     "_label": "Copyright"
+    }
+   ]
+  }
+ ],
+ "digitally_shown_by": [
+  {
+   "id": "https://id.rijksmuseum.nl/500721089790835111278",
+   "type": "DigitalObject"
+  }
+ ]
+}

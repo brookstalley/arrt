@@ -20,17 +20,18 @@ from pathlib import Path
 
 import pytest
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import FoundImage, ImageQuery
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
 
 CORPUS = Path(__file__).resolve().parents[1] / "fixtures" / "identity_pairs.json"
 
 #: The same 42" geometry the live floor test pins, so a pair's verdict here and
 #: its fate in a real run are the same judgement.
-BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 
 def pairs():
@@ -69,7 +70,7 @@ class OneRecord:
 
 def resolves(pair) -> bool:
     """Whether the pipeline would accept this museum record as the work asked for."""
-    engine = PhaseTwoEngine(ImageSourcePool([OneRecord(pair["found_title"], pair["found_artist"])]), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([OneRecord(pair["found_title"], pair["found_artist"])]), profile=PROFILE)
     resolution = engine.resolve(ImageQuery(title=pair["asked_title"], artist=pair["asked_artist"]))
     return bool(resolution.instances)
 

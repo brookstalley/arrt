@@ -51,7 +51,10 @@ def test_artworks_has_view_sort_and_filter_on_its_toolbar(ui, seeded_service):
     controls = ui.page.locator(".page-toolbar-controls")
     assert controls.locator("button", has_text="View:").count() == 1
     assert controls.locator("button", has_text="Sort:").count() == 1
-    assert controls.locator("button", has_text="Filter").get_attribute("aria-pressed") == "true"
+    # Named for what pressing it does (#288), where it was a *Filter* toggle
+    # read by its pressed state; with the rails out, it puts them away.
+    assert controls.locator("button", has_text="Hide filters").count() == 1
+    assert controls.locator("button", has_text="Show filters").count() == 0
 
 
 def test_the_table_view_lists_every_work_and_opens_one(ui, seeded_service):
@@ -65,7 +68,7 @@ def test_the_table_view_lists_every_work_and_opens_one(ui, seeded_service):
     assert sorted(table_titles(ui)) == sorted(BY_TITLE)
     assert ui.page.locator("ul.grid").count() == 0
     ui.page.click("table.work-table .row-title:has-text('Nighthawks')")
-    ui.page.wait_for_selector("#view h2:has-text('Nighthawks')")
+    ui.page.wait_for_selector("#view h1:has-text('Nighthawks')")
 
 
 def test_the_view_menu_names_its_choice_and_is_keyboard_driven(ui, seeded_service):
@@ -117,14 +120,14 @@ def test_filter_puts_the_rails_away_and_brings_them_back(ui, seeded_service):
     ui.open("#collection")
     ui.page.wait_for_selector("aside.rails")
 
-    ui.page.click(".page-toolbar-controls button:has-text('Filter')")
+    ui.page.click(".page-toolbar-controls button:has-text('Hide filters')")
     ui.page.wait_for_function("() => window.location.hash.includes('filters=hidden')")
     # The rails going is the repaint; waiting on the grid would find the old one.
     ui.page.wait_for_selector("aside.rails", state="detached")
     ui.page.wait_for_selector("ul.grid")
-    assert ui.page.locator(".page-toolbar-controls button:has-text('Filter')").get_attribute("aria-pressed") == "false"
+    assert ui.page.locator(".page-toolbar-controls button:has-text('Hide filters')").count() == 0
 
-    ui.page.click(".page-toolbar-controls button:has-text('Filter')")
+    ui.page.click(".page-toolbar-controls button:has-text('Show filters')")
     ui.page.wait_for_selector("aside.rails")
     assert "filters=" not in ui.page.evaluate("() => window.location.hash")
 
@@ -143,7 +146,7 @@ def test_showing_everything_keeps_how_the_page_is_shown(ui, seeded_service):
     ui.open("#collection?q=nothingmatchesthis&density=table&sort=artist&filters=hidden")
     ui.page.wait_for_selector("#view .empty")
 
-    ui.page.click("#view button:has-text('Show everything')")
+    ui.page.click("#view a:has-text('Show everything')")
     ui.page.wait_for_selector("table.work-table")
 
     hash_now = ui.page.evaluate("() => window.location.hash")
@@ -173,15 +176,12 @@ def test_a_theme_filtered_here_is_in_the_sort_menus_order(ui, services, seeded_s
     assert f"theme={theme.id}" in ui.page.evaluate("() => window.location.hash")
 
 
-def test_the_table_carries_the_tick_in_select_mode_only_when_there_is_a_theme_to_add_to(ui, services, seeded_service):
+def test_the_table_carries_the_tick_in_select_mode_only(ui, services, seeded_service):
+    """Was "…only when there is a theme to add to": a selection can now always
+    make a new theme or archive (`core/selecting.js`), so the tick is offered
+    with no theme at all, and the claim kept is that it is out of sight until
+    *Select* is pressed."""
     ui.open("#collection?density=table")
-    ui.page.wait_for_selector("table.work-table")
-    assert ui.page.locator("table.work-table input.tile-select").count() == 0
-    assert ui.page.locator("button.select-toggle").count() == 0
-
-    services.display.add_theme(name="Late night")
-    # A reload, because opening the address already showing is not a navigation.
-    ui.page.reload()
     ui.page.wait_for_selector("button.select-toggle")
     # Drawn, and out of sight until *Select* is pressed — the tick column too.
     assert ui.page.locator("table.work-table input.tile-select:visible").count() == 0

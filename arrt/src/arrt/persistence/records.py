@@ -6,12 +6,11 @@ accidentally reach the database through it. Reads that need more go back through
 the store, whose contract is `catalogue.py`.
 
 **Only stored facts live here.** A value the catalogue derives rather than keeps
-belongs with the function that derives it — `DisplayFit` is the worked example
-and it is deliberately in `library/services/display_fit.py`, because a verdict about
-whether an image is big enough depends on panel geometry and mat configuration,
-which are deployment values this plane does not own. Storing it would make the
-row a claim about one particular television that goes silently wrong the day the
-television changes.
+belongs with the function that derives it — the quality verdict is the worked
+example and it is deliberately in `library/services/quality.py`, because whether
+an image is big enough depends on the deployment's quality minimum. Storing it
+would make the row a claim about one configuration that goes silently wrong the
+day the minimum changes.
 """
 
 from collections.abc import Sequence
@@ -121,13 +120,21 @@ class RenditionKind(StrEnum):
     There is no `label` kind. A label is rendered on the display plane from the
     text fields the theme manifest carries, because its geometry is the e-paper
     panel's — a device this plane does not own and must not hold facts about.
-    Both kinds here are device-independent: `TV_DISPLAY` is a 4K presentation of
-    the artwork with its mat composed in, which any 4K display shows, and a
-    thumbnail is a thumbnail.
+    Every kind here is device-independent: a `THUMBNAIL` is the work itself,
+    small, for a library tile; and a `WALL_PREVIEW` is the work at a size a
+    browser column shows sharply, for the Work page. Both are drawn from the
+    original. No kind is composed for a screen: the Player that owns a screen
+    draws its mat.
+
+    A `PRESENTATION_MASTER` is the Original, upright and unmatted, capped at
+    7,680 px on its long edge: the device-independent image a Player composes
+    its own wall from (re-architecture wave 4). Its target size is the cap,
+    not the size it came out at.
     """
 
-    TV_DISPLAY = "tv_display"
     THUMBNAIL = "thumbnail"
+    WALL_PREVIEW = "wall_preview"
+    PRESENTATION_MASTER = "presentation_master"
 
 
 class MatMethod(StrEnum):
@@ -159,8 +166,8 @@ class VocabularyKind(StrEnum):
     what makes the agreement structural. Widening one without the other would
     silently break the join that makes taste useful, and the only way to stop
     that being a promise is for there to be one enum to widen. `Affinity` itself
-    lives in `discovery_records.py`, beside the conversations a judgment is
-    derived from and inside the transaction its detachment has to hold.
+    lives in `discovery_records.py`, with the rest of what the curator's
+    asking produces.
 
     Closed on purpose. A free-text kind turns a typo into a new dimension, and
     nothing downstream can tell `subject` from `subjcet`; a seventh kind is a
@@ -357,7 +364,7 @@ class Original:
     content_hash: str
     #: How the fetch that produced *these bytes* ended — `OK` or `PARTIAL_TILES`.
     #: A fact about a past event, not a verdict about a deployment, which is why
-    #: it is stored where `display_fit` deliberately is not.
+    #: it is stored where the quality verdict deliberately is not.
     #:
     #: It cannot be read off `Source.last_fetch_status` instead: that column holds
     #: the source's *most recent* attempt, and one failed re-fetch overwrites it to
@@ -428,19 +435,9 @@ class Rendition:
     content_sha256: str | None = None
     #: The file's size, recorded with the hash so a manifest can state it.
     byte_size: int | None = None
-    #: The geometry and drawing rule a television canvas was composed with
-    #: (`compose.layout`). A canvas whose layout is not the one this deployment
-    #: composes with now is recomposed, which is how a changed mat or panel
-    #: reaches canvases already drawn. None for a thumbnail, and for a canvas
-    #: recorded before this was, which counts as out of date.
+    #: The rule a presentation master was made by (`master.MASTER_RULE`). A
+    #: master made by another rule is made again. None for a thumbnail.
     layout: str | None = None
-    #: The mat colour a television canvas was painted in. A canvas painted in a
-    #: colour that is no longer the work's current mat is recomposed, so a mat
-    #: recorded before its canvas was redrawn (a crash between the two, or a
-    #: redraw that failed) cannot leave the old colour on the wall. None for a
-    #: thumbnail, and for a canvas recorded before this was, which counts as out
-    #: of date.
-    mat_hex: str | None = None
 
 
 def is_current(rendition: Rendition, original: Original | None) -> bool:
@@ -456,17 +453,6 @@ def is_current(rendition: Rendition, original: Original | None) -> bool:
     dropped it, which is exactly the shortfall the exclusion report exists to
     make visible, arriving by the one path that did not consult the shared rule.
 
-    **What it deliberately does not answer: whether a rendition drawn from
-    another rendition is current.** This compares against the *original*, which
-    is the right parent for every kind but one — a thumbnail of a work that has a
-    television canvas is a copy of the canvas, and composing or recomposing that
-    canvas leaves the original untouched. So this rule says "current" about a
-    cached thumbnail of an image that has since been redrawn, and it is right to:
-    the question it is asked is about the master. `ThumbnailService._drawn_from`
-    asks the other one. Do not fold it in here — three surfaces share this rule
-    precisely so they cannot disagree, and a term only one of them can evaluate
-    would break that.
-
     A work holding no original at all has nothing that could vouch for any
     rendition, so none of them may be served on the strength of having once been
     generated. That is not the same as a mismatch and it is deliberately not
@@ -479,31 +465,6 @@ def is_current(rendition: Rendition, original: Original | None) -> bool:
     if original is None:
         return False
     return rendition.source_content_hash == original.content_hash
-
-
-def tv_renditions_newest_first(renditions: Sequence[Rendition]) -> list[Rendition]:
-    """Every television render for a work, in the order any consumer prefers them.
-
-    **The one place that preference is expressed**, for the same reason
-    `is_current` is: the manifest builder took the most recently generated row
-    while the thumbnail service took the first current one the store happened to
-    return, and the unique index is on `(artwork_id, kind, target_width,
-    target_height)` — so two television renders at different geometries are
-    reachable, and on that work the wall and the card would have shown different
-    pictures with nothing saying which was right.
-
-    Newest first, tie broken by id so the order is total and a rebuild cannot
-    reshuffle two renders generated in the same instant. Currency is *not*
-    filtered here: the manifest has to be able to tell a work rendered from an
-    older acquisition (`STALE_RENDITION`, "needs regenerating") from one never
-    rendered at all (`NO_RENDITION`), and a filter would collapse the two into
-    the second and tell a curator the opposite of what happened.
-    """
-    return sorted(
-        (rendition for rendition in renditions if rendition.kind is RenditionKind.TV_DISPLAY),
-        key=lambda rendition: (rendition.generated_at, rendition.id),
-        reverse=True,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -552,24 +513,28 @@ class Theme:
     is hanging where is `ThemeAssignment`'s to say, so two walls may hang the
     same theme with nothing duplicated.
 
-    Rotation is host-driven — the TV's own slideshow can only be scoped to a
-    whole category, so timing is this product's data rather than the television's
-    setting. It is per-theme so that a contemplative theme can breathe while a
-    busy one moves; null on either field means "inherit the global default",
-    which is why neither is required.
+    **A theme has an order and is never shuffled, and sets no pace.** Like a
+    playlist, it is played: whether the works come shuffled and how long each
+    stays up are settings of the wall that plays it (`Wall.shuffle`,
+    `Wall.rotation_interval_seconds`; the owner's ruling 2 of 2026-10-11,
+    `ia-proposal.md`).
     """
 
     id: str
     name: str
     created_at: datetime
     description: str | None = None
-    rotation_interval_seconds: int | None = None
-    shuffle: bool | None = None
     #: Whether works the Library accepts join this theme. At most one theme
     #: carries it. Read from the store and written only by marking a theme the
     #: default, never by saving a theme, so a rename built from a stale copy
     #: cannot move or clear it.
     is_default: bool = False
+    #: A selection: the works a curator hung on one wall by choosing them, stored
+    #: as a theme so the feed and readiness work unchanged. Left
+    #: off the Themes index and every theme picker, because the curator never
+    #: made it as a theme and would not recognise it in a list of theirs. Set
+    #: when the theme is made and never changed.
+    hidden: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -600,22 +565,78 @@ class Client:
 
 
 @dataclass(frozen=True, slots=True)
+class Display:
+    """One physical screen a wall can be shown on, keyed by who the device says it is.
+
+    `feeds-and-players.md` § Displays are configured, never discovered. A wall
+    names a display, and the display names the client that drives it, so a Frame
+    moved from one client to another moves no wall: the new client reports the
+    same `identity`, and the record's client changes.
+
+    **Nothing about the device beyond what it is and where it is plugged in**, for
+    the reason the `Wall` record gives: no address, no geometry, no model. The
+    Frame's network address stays on the client's host (ruling 9).
+    """
+
+    id: str
+    #: Who the display is. A Frame's device id as its client read it from the set
+    #: (`device.duid`, a `uuid:...` string); for an output with no identity a
+    #: client can read, such as an HDMI connector, `{client_id}/{output}`. One per
+    #: display: the store refuses a second display with the same identity.
+    identity: str
+    #: The client that last reported this display, and so drives it. None while no
+    #: client does: another device has since been reported on the output it was
+    #: on. Together with `output`, unique among displays that have a client.
+    client_id: str | None
+    #: The client's name for the output the display is on (`frame`, `hdmi-a-1`).
+    output: str
+    #: `frame` or `framebuffer`, as the client reported it; None until it has —
+    #: a display a curator placed a wall on before its client first ran. A
+    #: category, not a measurement, so Walls and Settings can say what the
+    #: display is without asking the client.
+    kind: str | None
+    #: When the server first recorded it.
+    first_seen: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class LabelOutput:
+    """A surface that captions a wall rather than showing one: today an e-paper panel.
+
+    `labels-and-surfaces.md` § The model. Reported by the client that holds it
+    and mapped to a wall here, server-side, so a panel can caption any wall on any
+    client. **A label output captions at most one wall**, which is the shape of
+    the record rather than a rule anything checks: `wall_id` is one nullable
+    column. A wall may have many label outputs.
+    """
+
+    id: str
+    #: The client that holds the panel. A label output never moves between
+    #: clients: it is attached to its host.
+    client_id: str
+    #: The client's name for it (`epd-0`). Unique per client in the store.
+    output: str
+    #: The wall it captions, or None while it captions none.
+    wall_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Wall:
-    """A place where art hangs, and which client shows it on which output.
+    """A place where art hangs, and which display shows it.
 
     **Few fields, and the shortness is the design.** A wall is an identity, a
-    name, and its assignment: the client that drives it and the name of the
-    output that client shows it on. It is not a device. Geometry, network
-    address, panel model, TV content ids, upload state, reachability and
-    last-heartbeat are all per-device runtime state and are permanently
-    forbidden here — they belong to the client, which reports what it can drive
-    in its own heartbeat.
+    name, and its display: the server's record of the screen it is shown on.
+    It is not a device. Geometry, network address, panel model, TV content ids,
+    upload state, reachability and last-heartbeat are all per-device runtime
+    state and are permanently forbidden here — they belong to the client, which
+    reports what it can drive in its own heartbeat.
 
-    **The assignment is the one fact about the display the catalogue holds**,
-    by the owner's ruling of 2026-10-02 (`clients.md`): the server has to tell a
-    client its walls, and an output's *name* (`hdmi-a-1`, `frame`) is the
-    smallest fact that lets a curator place a wall on a screen without the
-    device's geometry or address entering the catalogue.
+    **The display is the one fact about the screen the catalogue holds**, by the
+    owner's rulings of 2026-10-02 (`clients.md`) and 2026-10-08
+    (`feeds-and-players.md` ruling 1): the server has to tell a client its walls,
+    and a display record keyed by the device's own identity lets a curator place
+    a wall on a screen without the device's geometry or address entering the
+    catalogue, and keeps the wall there when the screen moves to another client.
 
     That this record lives in the catalogue at all is a ruling against
     `data-model.md`'s "per-device runtime state never lives in the catalogue"
@@ -630,12 +651,30 @@ class Wall:
     id: str
     name: str
     created_at: datetime
-    #: The client that drives this wall, or None while none does — an ordinary
-    #: state, like a wall with nothing hanging. Set together with `output`.
-    client_id: str | None = None
-    #: The name of the client's output this wall is shown on, as the client
-    #: reported it. None exactly when `client_id` is.
-    output: str | None = None
+    #: The display this wall is shown on, or None while it has none — an
+    #: ordinary state, like a wall with nothing hanging. At most one wall per
+    #: display, which the store enforces.
+    display_id: str | None = None
+    #: How the wall's Player draws the mat (`none`, `proportional`, `full`;
+    #: `feeds-and-players.md` § Mat modes), or None when the curator has not
+    #: chosen, and the Player uses its own default. A curatorial choice about
+    #: the room, not a fact about its screen: the width stays the Player's.
+    mat_mode: str | None = None
+    #: How long each work stays up on this wall, or None for the deployment
+    #: default. The wall's rather than the theme's (ruling 2 of 2026-10-11), and
+    #: so kept when a different theme is hung or the wall is cleared.
+    rotation_interval_seconds: int | None = None
+    #: Whether this wall plays its theme shuffled, or None for the deployment
+    #: default. None is "inherit", never "off": a theme's own order is what
+    #: `False` plays.
+    shuffle: bool | None = None
+    #: The tallest shape this wall shows, as width over height, or None for no
+    #: limit. The curator's choice for the room, set by hand: a work narrower
+    #: than this is left off this wall's feed, by name.
+    min_aspect_ratio: float | None = None
+    #: The widest shape this wall shows, as width over height, or None for no
+    #: limit. A portrait wall showing "nothing wider than 1:1" holds 1.0 here.
+    max_aspect_ratio: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -660,30 +699,103 @@ class ThemeAssignment:
 
 
 @dataclass(frozen=True, slots=True)
-class Directive:
-    """One wall's standing instruction to the display plane, held catalogue-side.
+class Showing:
+    """One stretch of a wall showing one work, as its Player reported it.
 
-    The display plane is reached only through the theme manifest, so an
-    interactive command — "show this work now", "step to the next one" — travels
-    as state rather than as a message: a monotonically increasing sequence, plus
-    an optional work the sequence's advance points at. Display acts once each
-    time it observes the sequence advance.
-
-    **One row per wall, seeded when the wall is created so no caller ever has to
-    make it.** This was a singleton until 2026-08-12, and a `next` aimed at the
-    living room would otherwise have stepped every wall in the house: one counter
-    cannot say which display an advance was meant for.
-
-    The counter lives here, in the catalogue, because a manifest rebuild must
-    carry it forward unchanged. A counter derived from the manifest would reset
-    whenever the manifest was rewritten, and a reset reads to the display plane
-    as an advance — firing a directive nobody issued. It stays *per wall* rather
-    than per theme for the same reason: it has to survive theme switching.
+    Programming's, kept from each heartbeat that says `showing_art` with a work
+    the wall's feed carries. A wall shows one thing at a time, so `(wall_id,
+    started_at)` identifies it. A work shown, taken down and shown again is two
+    showings. **Neither id is a foreign key**: a wall removed keeps the fact that
+    a work was shown on it, and `work_id` is an opaque reference, as everywhere
+    Programming names a work.
     """
 
     wall_id: str
-    sequence: int
-    pinned_work_id: str | None = None
+    work_id: str
+    #: When the screen began showing the work: the controller's `since`, or the
+    #: first report naming it from a Player that does not send one.
+    started_at: datetime
+    #: The latest report still naming it. How far the showing is known to have
+    #: run while it has no end.
+    last_seen_at: datetime
+    #: When the wall reported something else, and null until it does: a wall
+    #: still showing it, or one that has stopped reporting.
+    ended_at: datetime | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class WorkExclusion:
+    """A work the curator said not to show again on any wall: *Not this one again*, from every wall.
+
+    Programming's, not the Library's: the work stays held, in its themes, and
+    every manifest leaves it out until the row is removed. **It is not Archive**,
+    which takes the work out of the Library, because the curator who says "not
+    this one again" has changed what the walls show and nothing else.
+    `artwork_id` is an opaque reference, as everywhere Programming names a work.
+    """
+
+    artwork_id: str
+    excluded_at: datetime
+
+
+class EventKind(StrEnum):
+    """What happened, in the history a curator reads. The values are what a filter names.
+
+    Each is an act a curator or a Get performed. A work's image or mat changing
+    is not here: those are the Library's announcements to Programming
+    (`library/events.py`), which is a different audience.
+    """
+
+    #: A Get began: an Ask, a Get chosen from the registry, or a look-again.
+    GET_STARTED = "get.started"
+    #: A Get ended, however it ended. Which way is in the event's detail.
+    GET_FINISHED = "get.finished"
+    #: A candidate was accepted, and became a work in the Library.
+    ACCEPTED = "work.accepted"
+    #: A candidate was turned down.
+    REJECTED = "work.rejected"
+    ARCHIVED = "work.archived"
+    RESTORED = "work.restored"
+    #: Something was hung on a wall: a theme, or a selection of works.
+    HUNG = "wall.hung"
+    #: *Not this one again*, from this theme: the work left the theme hanging on a wall.
+    LEFT_THEME = "work.left_theme"
+    #: *Not this one again*, from every wall.
+    EXCLUDED = "work.excluded"
+    #: The undo of the above: the work may go on a wall again.
+    ALLOWED = "work.allowed"
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryEvent:
+    """One act, as the history records it: what, when, and what it was about.
+
+    **Every reference is opaque.** A work, a run, a wall or a theme named here
+    may since have been archived, deleted or renamed, and the event still reads,
+    because what a curator needs to recognise it (a title, a theme's name, how a
+    Get ended) is copied into `detail` when the act happens. Walls and themes
+    are Programming's, and the Library holds their ids the way Programming
+    holds work ids: as references that may fail to resolve.
+    """
+
+    id: str
+    kind: EventKind
+    occurred_at: datetime
+    work_id: str | None = None
+    run_id: str | None = None
+    wall_id: str | None = None
+    theme_id: str | None = None
+    #: What the act was about, in words that outlive the records it names.
+    #: Plain values only, so the row can be written as JSON.
+    detail: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EventPage:
+    """One page of history, newest first, and how many events the filter holds."""
+
+    events: Sequence[HistoryEvent]
+    total: int
 
 
 @dataclass(frozen=True, slots=True)

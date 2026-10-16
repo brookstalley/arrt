@@ -1,24 +1,29 @@
-/* One run, watched while it works.
+/* One Get, watched while it works, at `#get/<id>`.
  *
  * Contextual: opened from Activity's Queue or History, from Ask as it
- * starts, or from a re-search started on the review grid — and it returns to
- * the page it was opened from.
+ * starts, or from a Get again started on the review grid or Wanted — and it
+ * returns to the page it was opened from. The server calls it a run; the
+ * curator reads a Get.
  *
  * **A Get's page is its review.** A Get's works were chosen by the curator, so
  * the review cards stand where a discovery run's work table stands, and there
  * is no second page to go to (the owner's ruling, 2026-10-02).
  */
 
+import { attempt } from "../core/acting.js";
 import { api, fetchAllCandidates } from "../core/api.js";
 import { facts, reasonBadge, resolutionBadge, table } from "../core/badges.js";
 import { agree, agreePartitive, counted } from "../core/counting.js";
 import { destinationOf, destinationSentence, readThemes } from "../core/destination.js";
 import { claimPoll, pollIsCurrent, schedulePollUnlessDone } from "../core/poll.js";
 import { el, guard, render } from "../core/render.js";
-import { reviewSection } from "../core/reviewing.js";
-import { backLink, go, refresh } from "../core/router.js";
+import { museumName } from "../core/providers.js";
+import { placeNow, reviewSection, rowPicture } from "../core/reviewing.js";
+import { backLink, link, refresh, setTitle } from "../core/router.js";
 import { runTitle } from "../core/runs.js";
+import { dollars, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
+import { DEBUG } from "../core/debug.js";
 
 /* What this run's state means, in a sentence.
  *
@@ -48,22 +53,24 @@ export function runSentence(view) {
     return "Working out which works match the intent.";
   }
   if (run.status === "awaiting_approval") {
-    return `This run proposed ${counted(tally.proposed, "work")}, which is more than the threshold, so it stopped to ask. Nothing further is spent until you decide.`;
+    // Only a run stored here before asking became the approval: no run stops
+    // to ask any more, and these are decided as they always were.
+    return `This Get proposed ${counted(tally.proposed, "work")} and stopped to ask, as a long list once did. Nothing further is spent until you decide.`;
   }
   if (run.status === "resolving_images") {
     if (!view.image_resolution_available) {
       // A discovery run's works to find are the ones it proposed; a re-search's
       // and a Get's are every work they hold.
       const waiting = run.kind === "discovery" ? tally.proposed : tally.total;
-      return `There ${agree(waiting, "is", "are")} ${counted(waiting, "work")} to find images for, but no image provider is configured in this deployment, so the run will stay here. Cancel it when you are done reading it.`;
+      return `There ${agree(waiting, "is", "are")} ${counted(waiting, "work")} to find images for, but no image provider is configured in this deployment, so the Get will stay here. Cancel it when you are done reading it.`;
     }
     if (run.kind === "resolve") {
-      return `Looking again for images of the ${counted(tally.total, "work")} this re-search covers.`;
+      return `Looking again for images of the ${counted(tally.total, "work")} this Get covers.`;
     }
     if (run.kind === "get") {
       return `Looking for images of the ${counted(tally.chosen, "work")} you chose.`;
     }
-    return `The work list of ${counted(tally.proposed, "work")} is settled, and the run is looking for an image of each.`;
+    return `The work list of ${counted(tally.proposed, "work")} is settled, and the Get is looking for an image of each.`;
   }
   if (run.status === "completed") {
     // Both figures are counted and only one of them is the subject: in "1 of the
@@ -74,20 +81,13 @@ export function runSentence(view) {
     // written for, moved from the trailing count to the leading one.
     let sentence =
       run.kind === "resolve"
-        ? `This re-search finished: ${tally.resolved} of the ${counted(tally.total, "work")} it covers ${agreePartitive(tally.resolved, tally.total, "has", "have")} an image.`
+        ? `This Get finished: ${tally.resolved} of the ${counted(tally.total, "work")} it covers ${agreePartitive(tally.resolved, tally.total, "has", "have")} an image.`
         : run.kind === "get"
           ? `This Get finished: ${tally.resolved} of the ${counted(tally.chosen, "work")} you chose ${agreePartitive(tally.resolved, tally.chosen, "has", "have")} an image.`
-          : `This run finished: ${tally.resolved_proposals} of ${counted(tally.proposed, "work")} it was asked for ${agreePartitive(tally.resolved_proposals, tally.proposed, "has", "have")} an image.`;
-    if (run.kind === "discovery" && tally.offered) {
-      // "found no image for" rather than "could not confirm". The run did name
-      // works for those artists — they are in the table directly below this
-      // sentence, badged `not held` — so a word that reads as "named nothing for"
-      // is denied by the screen it is printed on. That was issue #95 on the
-      // review grid, and it lived here too: the same claim, one surface over, on
-      // the page a curator lands on first.
-      sentence += ` Separately, the collection offered ${counted(tally.offered, "more work", "more works")} by artists this run found no image for. They are labelled below and are not what was asked for.`;
-    }
-    if (tally.unresolved) {
+          : // A Get from words says its figures as three counts under this line
+            // (`runCounts`), each named, so no two are read as one.
+            "This Get finished.";
+    if (tally.unresolved && run.kind !== "discovery") {
       sentence += ` ${tally.unresolved} could not be matched to any image and ${agree(tally.unresolved, "is", "are")} reported rather than dropped — each says which kind of nothing below.`;
     }
     if (tally.pending) {
@@ -100,25 +100,27 @@ export function runSentence(view) {
     return sentence;
   }
   if (run.status === "halted_by_budget") {
-    return "The provider refused further spend, so this run stopped where it was. Retrying will fail the same way until the credit limit resets or is raised.";
+    // The provider's refusal at the cap is the server's `end_reason`, said on
+    // the line beneath ("This month's budget is spent…").
+    return "The provider refused further spend, so this Get stopped where it was. Asking again will fail the same way until the month's budget resets or is raised.";
   }
   if (run.status === "interrupted") {
-    return "The process working on this run stopped underneath it — a restart or a crash, not a fault in the run. Start it again with the same intent.";
+    return "The process working on this Get stopped underneath it — a restart or a crash, not a fault in the Get. Start it again with the same intent.";
   }
   if (run.status === "failed") {
     // The reason itself is the line beneath this one. Only a run that failed
     // before reasons were kept has nothing but the log to send a curator to.
     return run.end_reason
-      ? "This run hit an error and stopped."
-      : "This run hit an error and stopped. The server log has the details.";
+      ? "This Get hit an error and stopped."
+      : "This Get hit an error and stopped. The server log has the details.";
   }
   if (run.status === "declined") {
     return "The work list was declined, so no images were looked for and nothing further was spent.";
   }
   if (run.status === "cancelled") {
-    return "This run was cancelled. Anything already spent is still recorded.";
+    return "This Get was cancelled. Anything already spent is still recorded.";
   }
-  return `This run is ${run.status}.`;
+  return `This Get is ${run.status}.`;
 }
 
 /* Slow enough not to hammer a Pi, fast enough that a curator watching a run does
@@ -145,6 +147,120 @@ export const RUN_POLL_MS = 2000;
  * that will never exist every two seconds for as long as the tab stays open. */
 export const RUN_POLL_MAX_FAILURES = 5;
 
+
+/* A run's works in sections: the ones it was asked for, then the ones a
+ * museum offered on top of them, under that museum's name, one section per
+ * museum. Every row carries the picture found for it.
+ *
+ * The asked-for rows say why the run named each work, which is what a curator
+ * judges a list by. The offered rows do not: the run named none of them, and
+ * their heading says so once. Which museum offered a work
+ * is the server's record of it (`offered_by`), never the museum of the scan it
+ * shows now, which can be another museum's once the first is turned down; an
+ * offer recorded before that was kept sits under "the collection". */
+function worksBySource(works, reviewPage) {
+  const cards = new Map((reviewPage ? reviewPage.works : []).map((card) => [card.work.work_id, card]));
+  const asked = works.filter((work) => work.provenance !== "offered");
+  const offeredBy = new Map();
+  for (const work of works.filter((each) => each.provenance === "offered")) {
+    const museum = work.offered_by ? museumName(work.offered_by) : "the collection";
+    if (!offeredBy.has(museum)) offeredBy.set(museum, []);
+    offeredBy.get(museum).push(work);
+  }
+  const rowOf = (work) => {
+    const card = cards.get(work.work_id);
+    return [
+      rowPicture(card, work, reviewPage !== null),
+      titleOf(work, card),
+      work.artist || "—",
+      el("div", { class: "stack-tight" }, [heldLink(work, card), resolutionBadge(work), reasonBadge(work)]),
+    ];
+  };
+  const sections = [];
+  if (asked.length) {
+    sections.push(
+      el("section", { class: "asked-for" }, [
+        el("h3", { text: `Asked for (${asked.length})` }),
+        table(
+          "The works this Get was asked for, each with the picture found for it and why the run named it.",
+          ["Picture", "Title", "Artist", "Image", "Why it is here"],
+          asked.map((work) => [...rowOf(work), work.rationale]),
+          { stacked: true },
+        ),
+      ]),
+    );
+  }
+  for (const [museum, offered] of offeredBy) {
+    sections.push(
+      el("section", { class: "offered" }, [
+        el("h3", { text: `Also offered by ${museum} (${offered.length})` }),
+        table(
+          `Works ${museum} offered on top of the ones asked for, each with its picture.`,
+          ["Picture", "Title", "Artist", "Image"],
+          offered.map(rowOf),
+          { stacked: true },
+        ),
+      ]),
+    );
+  }
+  return sections;
+}
+
+/* The page a Get's work opens: the work it was accepted as, else the
+ * library's own copy of it (a held twin, by Wikidata item), else its Wikidata
+ * item's page. A proposed work with none of these has no page, and its title
+ * stays text rather than a link onto nothing. */
+function workPageOf(work, card) {
+  return work.artwork_id || (card && card.held_artwork_id) || work.wikidata_qid || null;
+}
+
+function titleOf(work, card) {
+  const id = workPageOf(work, card);
+  return id ? link({ view: "work", id }, { text: work.title }) : work.title;
+}
+
+/* Said only when the library holds the work under another record, so a row
+ * whose run found nothing does not read as the library lacking it. An
+ * accepted work's title already opens its page. */
+function heldLink(work, card) {
+  if (work.artwork_id || !card || !card.held_artwork_id) return null;
+  return link({ view: "work", id: card.held_artwork_id }, { class: "badge badge-held", text: "In your library" });
+}
+
+/* The way from a Get to judging what it brought back, worded for what Review
+ * will offer, and absent when it would offer nothing. Review folds the works
+ * found with no image behind their own line, so when they are all that is left
+ * the link names them; when every card is decided there is no link at all.
+ * Unread cards (`reviewPage` null) still offer it: the page cannot tell, and
+ * Review will say for itself. */
+function reviewLink(runId, reviewPage) {
+  const target = { view: "review", id: runId };
+  if (reviewPage === null) return link(target, { class: "action", text: "Review these works" });
+  const places = reviewPage.works.map(placeNow);
+  if (places.includes("judge")) return link(target, { class: "action", text: "Review these works" });
+  const foundNone = places.filter((place) => place === "found-none").length;
+  if (foundNone) return link(target, { class: "action", text: `Want or forget the ${counted(foundNone, "work")} it found no image for` });
+  return null;
+}
+
+/* A finished Get from words, as three counts: how many works it was asked
+ * for, how many of those were found with an image, and how many could not be
+ * matched to one. Offered works are not among them; they are listed under the
+ * museum that offered them. Null for any other run, whose sentence carries its
+ * own figures. */
+function runCounts(view) {
+  if (view.run.kind !== "discovery" || view.run.status !== "completed") return null;
+  const list = facts([
+    ["Asked for", view.tally.proposed],
+    ["Found with an image", view.tally.resolved_proposals],
+    // Counted here over the works asked for: the tally's `unresolved` is over
+    // every work, and an offered work turned down and searched again in vain
+    // would otherwise make the three counts disagree.
+    ["Not matched", view.works.filter((work) => work.provenance === "proposed" && work.resolution_status === "unresolved").length],
+  ]);
+  list.classList.add("run-counts");
+  return list;
+}
 /* Consecutive failures for the run currently being watched.
  *
  * Keyed by run id rather than by poll generation, though the issue that produced
@@ -174,7 +290,23 @@ function noteWatchSuccess(runId) {
  * fourth call site that forgot the argument would get the silent failure this
  * whole chain exists to prevent, and would get it looking correct. */
 function scheduleRunPoll(runId, generation, { done }) {
-  schedulePollUnlessDone({ view: "run", detailId: runId, generation, intervalMs: RUN_POLL_MS, done });
+  schedulePollUnlessDone({ view: "get", detailId: runId, generation, intervalMs: RUN_POLL_MS, done });
+}
+
+/* The Cost row's words: this Get's own spend, and the family's where it
+ * differs. A finished Get with nothing recorded says so; one still running and
+ * not yet billed leaves the row out, its estimate standing below. */
+function costWords(own, family, finished) {
+  const retried = family && Number(family.cost_usd) > 0 ? dollars(family.cost_usd) : null;
+  if (own === null || own === undefined) {
+    // A cancelled Get can record nothing of its own while the Gets that retried
+    // it spent; that total must not vanish with the empty row.
+    if (retried) return `None recorded for this Get, ${retried} with the Gets that retried it`;
+    return finished ? "None recorded" : null;
+  }
+  const mine = dollars(own);
+  if (!family || dollars(family.cost_usd) === mine) return mine;
+  return `${mine}, ${dollars(family.cost_usd)} with the Gets that retried it`;
 }
 
 /* The Get's works section this screen last painted, and under which navigation.
@@ -210,12 +342,16 @@ export async function viewRun(runId, generation) {
     // re-arm, and the tab request that run every two seconds for as long as it
     // stayed open — bounded only by navigation, with nothing on screen saying
     // the watch was still retrying.
+    // A refusal is the server saying there is no such Get, not a blip: nothing
+    // is re-armed, and the router paints the page an address naming nothing
+    // gets (`core/router.js`, `notFound`), with no watch left behind it.
+    if (failure.status === 400 || failure.status === 404) throw failure;
     if (noteWatchFailure(runId) >= RUN_POLL_MAX_FAILURES) {
       // Say the watch stopped, not only what failed. The two are different
       // facts and only one of them tells the curator what to do next: a message
       // naming a 400 leaves a live page indistinguishable from a dead one.
       throw new Error(
-        `${failure.message} Gave up watching this run after ${RUN_POLL_MAX_FAILURES} attempts — ` +
+        `${failure.message} Gave up watching this Get after ${RUN_POLL_MAX_FAILURES} attempts — ` +
           "reload the page to start watching again."
       );
     }
@@ -288,22 +424,24 @@ export async function viewRun(runId, generation) {
       // Said, not swallowed — the same call the gate estimate makes above, for
       // the same reason. Losing the rollup must not cost the curator the costs
       // panel, and it must not do so in silence either: this is the only place
-      // the family total appears, so a panel that quietly drops the row leaves
-      // "Spent by this run alone" reading as what asking cost, which is the
-      // exact misreading that row was added to prevent.
-      familySpendProblem = `The total including every re-search could not be read: ${failure.message}`;
+      // the family total appears, so a panel that quietly drops it leaves this
+      // Get's own cost reading as what asking cost, which is the exact
+      // misreading the family total was added to prevent.
+      familySpendProblem = `What it cost with the Gets that retried it could not be read: ${failure.message}`;
     }
     if (!pollIsCurrent(pollGeneration)) return;
   }
 
-  /* A Get's works as review cards, read only when the page is about to be
-   * painted, like the themes above. A failure is said where the cards would be
+  /* The works as review cards, read only when the page is about to be
+   * painted, like the themes above: a Get of chosen works is judged here as
+   * cards, and every other run's rows take their pictures and the museum that
+   * offered them from the same cards. A failure is said where the works would be
    * rather than thrown: the watch, the sentence and the costs are still worth
    * having, and a Get page that went blank because one listing failed would
    * hide that the Get itself is fine. */
   let reviewPage = null;
   let reviewProblem = null;
-  if (run.kind === "get" && view.works.length) {
+  if (view.works.length) {
     try {
       reviewPage = await fetchAllCandidates(runId);
     } catch (failure) {
@@ -330,21 +468,22 @@ export async function viewRun(runId, generation) {
           class: "action",
           type: "button",
           text: "Approve the list",
-          onclick: () => guard(async () => {
-            await api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" });
-            await refresh();
-          }),
+          onclick: (event) =>
+            attempt(event.currentTarget, "approve the list", () => api(`/api/runs/${encodeURIComponent(runId)}/approve`, { method: "POST" }), {
+              then: () => refresh(),
+            }),
         })
       : null,
+    run.status === "awaiting_approval" && gateEstimate ? tierMark(gateEstimate.tier) : null,
     run.status === "awaiting_approval"
       ? el("button", {
           class: "action quiet",
           type: "button",
           text: "Decline it",
-          onclick: () => guard(async () => {
-            await api(`/api/runs/${encodeURIComponent(runId)}/decline`, { method: "POST" });
-            await refresh();
-          }),
+          onclick: (event) =>
+            attempt(event.currentTarget, "decline the list", () => api(`/api/runs/${encodeURIComponent(runId)}/decline`, { method: "POST" }), {
+              then: () => refresh(),
+            }),
         })
       : null,
     run.is_terminal
@@ -352,63 +491,60 @@ export async function viewRun(runId, generation) {
       : el("button", {
           class: "action quiet",
           type: "button",
-          text: "Cancel this run",
-          onclick: () => guard(async () => {
-            await api(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
-            await refresh();
-          }),
+          text: "Cancel",
+          "aria-label": "Cancel this Get",
+          onclick: (event) =>
+            attempt(event.currentTarget, "cancel this Get", () => api(`/api/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" }), {
+              then: () => refresh(),
+            }),
         }),
   ]);
 
+  setTitle(generation, runTitle(run));
   const panels = [
     el("p", {}, [backLink()]),
-    el("h2", { text: runTitle(run) }),
+    el("h1", { text: runTitle(run) }),
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
+      runCounts(view),
       // Why the worker ended it, in its own words, under the sentence saying
       // what that ending means. Text, never markup: a halt's reason quotes the
       // provider.
       run.end_reason ? el("p", { class: "muted run-end-reason", text: `Why it stopped: ${run.end_reason}` }) : null,
-      // The engine's own reading of the request, beside the request. A work list
-      // is judged against how the intent was read rather than against its
-      // wording, which is what makes a surprising list explicable.
-      run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
+      // The engine's own reading of the request, debug only: on one Get it is a
+      // fair paraphrase, on another the model's instructions echoed back, and
+      // nothing tells the two apart (ruling 1 of 2026-10-11).
+      DEBUG && run.strategy ? el("p", { class: "muted", text: `How it read the request: ${run.strategy}` }) : null,
       el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(run, themes)) }),
       // What approving commits to, in the place the commitment is made. The
-      // basis is the load-bearing half: the figure is currently zero because
-      // phase 2 asks museum APIs, and a bare "$0" beside an approve button
-      // invites the reading that the gate is about money. It is about the size
-      // of the work list, and the basis says so.
+      // second sentence is the load-bearing half: the figure is zero because
+      // finding images asks museum APIs, and a bare "$0" beside an approve
+      // button invites the reading that the gate is about money. It is about
+      // the size of the work list, and the sentence says so.
       gateEstimate
-        ? el("p", { class: "muted", text: `Approving costs $${gateEstimate.estimated_cost_usd}. ${gateEstimate.basis}` })
+        ? el("p", {
+            class: "muted",
+            text: `Approving costs ${dollars(gateEstimate.estimated_cost_usd)}. Finding the images asks museums, which is free, so what approving decides is the size of the list.`,
+          })
         : null,
       gateEstimateProblem ? el("p", { class: "note", text: gateEstimateProblem }) : null,
       decisions,
     ]),
     el("div", { class: "panel" }, [
-      el("h3", { text: "What it cost" }),
+      el("h2", { text: "What it cost" }),
       facts([
-        // Named for what it actually is. This figure is written when phase 1
-        // finishes and the work count is known, so it prices *resolving the work
-        // list* — labelling it as the estimate made before starting would put
-        // the phase-1 price under a heading describing phase 2.
-        ["Estimated to find the images", run.estimated_cost_usd === null ? null : `$${run.estimated_cost_usd}`],
-        // Labelled as this run's own, because that is what it is: the record
-        // carries `run_cost(run_id).direct`. Left unqualified it reads as the
-        // whole cost of having asked, which it is not the moment a re-search
-        // descends from it.
-        ["Spent by this run alone", run.actual_cost_usd === null ? null : `$${run.actual_cost_usd}`],
-        // The family total — what asking for this cost altogether, re-searches
-        // included. A run billed little whose re-searches cost ten times more is
-        // exactly the case the two figures exist to keep apart, and it is the
-        // only place this number appears.
-        [
-          "Spent including every re-search",
-          familySpend === null ? null : `$${familySpend.cost_usd}`,
-        ],
-        // Two numbers, never a verdict: the usage is this run's history and the
-        // allowance is the deployment's setting as it stands now.
-        ["Searches used", `${view.searches.used} of an allowance of ${view.searches.allowance}`],
+        // What this Get cost, in one row (`ux-review-2026-10.md` finding E12:
+        // four rows said "under a cent"). The family total — this Get and the
+        // Gets that retried it — joins the row only where it says something
+        // more: a Get billed little whose retries cost ten times as much is the
+        // case it exists for, and an equal one is the same number twice.
+        ["Cost", costWords(run.actual_cost_usd, familySpend, run.is_terminal)],
+        // Only while it runs: the estimate prices what is still to come, and
+        // the lookups are the model's own while it chooses, its allowance the
+        // deployment's setting. Once it has finished, the cost above is the
+        // answer and these are history the curator does not act on.
+        ["Estimated to find the images", run.is_terminal || run.estimated_cost_usd === null ? null : dollars(run.estimated_cost_usd)],
+        ["Web lookups used", run.is_terminal ? null : `${view.searches.used} of an allowance of ${view.searches.allowance}`],
       ]),
       // The row's absence, said out loud. `facts` drops a null pair entirely, so
       // without this the total simply is not there — and a panel showing only
@@ -423,72 +559,29 @@ export async function viewRun(runId, generation) {
   let section = null;
   if (run.kind === "get") {
     section = el("section", { class: "get-review", "aria-label": "This Get's works" }, [
-      el("h3", { text: `Works (${tally.total})` }),
+      el("h2", { text: `Works (${tally.total})` }),
       el("p", { class: "muted", text: `${counted(tally.chosen, "work")} you chose.` }),
       reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
       ...(reviewPage ? reviewSection(reviewPage, { keptFrom }) : []),
       view.works.length ? null : el("p", { class: "muted", text: "This Get holds no works." }),
     ]);
     panels.push(section);
-  } else panels.push(
-    el("div", { class: "panel" }, [
-      el("h3", { text: `Works (${tally.total})` }),
-      // The way from watching a run to judging what it brought back. Offered
-      // only once the run holds works: a button onto an empty grid is a promise
-      // the next screen cannot keep.
-      view.works.length
-        ? el("p", {}, [
-            el("button", {
-              class: "action",
-              type: "button",
-              text: "Review these works",
-              onclick: () => go("review", runId),
-            }),
-          ])
-        : null,
-      el("p", {
-        class: "muted",
-        // Both counts, always, including when the collection offered nothing —
-        // a line that appeared only when there was a supplement would train a
-        // reader to read its absence as "these are all what I asked for".
-        text: `${tally.proposed} asked for, ${tally.offered} offered by the collection on top of them.`,
-      }),
-      view.works.length
-        ? table(
-            "Every work this run holds, asked-for and offered together. The counts above say how many of each.",
-            // NO PROVENANCE COLUMN, and its removal is the fix rather than a
-            // simplification. It was headed "Where it came from" and meant *how
-            // this row entered the run* — named by the model, or volunteered by
-            // a wired collection. In an art catalogue that phrase reads as the
-            // work's own provenance: which museum holds it. On the one screen
-            // where a curator is scanning titles and artists, the heading
-            // pointed at the wrong fact entirely.
-            //
-            // Renaming it was the obvious repair and the wrong one. The
-            // distinction is real and load-bearing — a curator authorised a list
-            // of a stated size and the supplement adds to it — but this table is
-            // the fourth place it is stated, after the tally's separate counts,
-            // the run sentence, and the line directly above these rows. What it
-            // adds per row is which *particular* work was offered, and nothing
-            // on this screen is decided per work: the deciding happens on the
-            // review card, where the badge stays.
-            // "Why it is here", not "Why the run named it". This table is
-            // deliberately every work the run holds, asked-for and offered
-            // together — and the run named none of the offered ones, whose cell
-            // in this very column now says so in as many words. A heading that
-            // asserts naming above a cell that denies it is the defect this whole
-            // change exists to remove, one column apart instead of one page.
-            ["Title", "Artist", "Image", "Why it is here"],
-            view.works.map((work) => [
-              work.title,
-              work.artist || "—",
-              el("div", { class: "stack-tight" }, [resolutionBadge(work), reasonBadge(work)]),
-              work.rationale,
-            ]),
-          )
-        : el("p", { class: "muted", text: "This run has not settled on any works yet." }),
-    ]),
-  );
+  } else {
+    const toReview = view.works.length ? reviewLink(runId, reviewPage) : null;
+    panels.push(
+      el("div", { class: "panel" }, [
+        el("h2", { text: `Works (${tally.total})` }),
+        // The way from watching a run to judging what it brought back. Offered
+        // only once the run holds works: a button onto an empty grid is a promise
+        // the next screen cannot keep.
+        toReview ? el("p", {}, [toReview]) : null,
+        reviewProblem ? el("p", { class: "note", text: reviewProblem }) : null,
+        ...(view.works.length
+          ? worksBySource(view.works, reviewPage)
+          : [el("p", { class: "muted", text: "This Get has not settled on any works yet." })]),
+      ]),
+    );
+  }
 
   render(generation, ...panels);
   shownReview = { generation, section };

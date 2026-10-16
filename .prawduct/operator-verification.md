@@ -10,6 +10,470 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walls with the screen off — added 2026-10-15
+
+**`build-plan-ux-second-walk.md` chunk 04, #354.** Deploy from this branch, let
+the HDMI wall show a few works, then switch its screen off and open Walls.
+
+- **The picture.** The card says "Its screen is off" once, then the work it
+  last showed, large, under "Last on the wall, until …". Judge whether the
+  work reads as past rather than present.
+- **Beyond off (the agent's inference, yours to veto).** The same picture
+  leads when somebody is using the screen ("Somebody is using the screen"),
+  when the display cannot tell ("Not known"), and when the wall has gone
+  quiet. A wall no screen shows says only that. Say if it should lead only
+  when the screen is off.
+- **Next.** Three small works under the lead, each with "From …". Judge the
+  size and whether "Next" is enough of a heading.
+- **No ports.** No `hdmi-a-1` or `epd-0` on the page. Add `?debug` before
+  the `#` and both come back.
+- **Acts and links.** *Change* looks like a button beside *Skip*; *History*
+  reads as a link.
+- **Not changed:** the server's sentence about works "not currently
+  displayable", which the walk also flagged, is about the theme's works and is
+  left for your next look.
+
+### What each wall has shown — added 2026-10-15
+
+**`build-plan-shown-record.md` chunk 03, #316.** Deploy from this branch to the
+NAS and leave the HDMI wall running for a day: the log fills from now on, so a
+fresh deploy has nothing to show.
+
+- **Artworks' rail.** A *Last shown* group appears once a wall has shown
+  something: *Never shown*, *Not in the last month*, *Not in 3 months*,
+  *Not in a year*, each with a count. After one day, the month, 3 months and
+  a year count the same works, and *Never shown* leaves out what the wall
+  played. Judge the four labels, and whether *Last shown* reads as the group's
+  name.
+- **One choice.** Choosing one presses it and releases the others. Choosing it
+  again clears it.
+- **Beside *Not on any wall*.** The two together find the works neither hung
+  now nor shown in the period.
+- **The journal.** No `showings.not_recorded` after a day. A
+  `showings.not_in_feed` is ordinary just after a work leaves a theme, and
+  worth a look if it repeats for one wall.
+
+### Copy that says one thing once — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 06, #359.** Run from this branch on the
+operator's library.
+
+- **Status.** Each wall says "Last heard from …" once. No "display plane",
+  and no file path unless `?debug`.
+- **An unmatched artist** (Charles Demuth in the walk): "not matched" is said
+  once. Where Wikidata offers people, their list asks "Is it one of these?",
+  and each links "on Wikidata" in place of its item.
+- **A Get's page.** *What it cost* is one row on a finished Get.
+- **History.** A review session's verdicts read as one line per Get, with the
+  works behind *Which works*.
+- **Artworks' rail.** No *Walls* heading over a lone "Not on any wall (0)".
+
+### The Theme page — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 05, #352.** Run from this branch on the
+operator's library: open the hung theme (61 works) and *All works*.
+
+- **Order.** Each work has one Position field. Type a place and press Enter,
+  or step it with the arrows and Tab away: the work moves once, and the
+  keyboard stays on it. Judge whether a number reads as "its place" without
+  the old arrows.
+- **Art and links.** Every row leads with its picture ("No picture" for the
+  two artic.edu refuses). Titles open the work, artists their page.
+- **Add.** On *All works*, the page says every work is already in it rather
+  than offering any. On the hung theme, the picker lists only works not in it.
+- **Phone.** At 390 px the rows are cards, and every field and *Remove* is
+  reachable without a sideways scroll.
+
+### Pictures where a person decides — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 03, #358.** Run from this branch on the
+operator's library, where *Crak!* and *In the Third Sleep* have no master.
+
+- **The placeholder.** Both read "No picture" on Artworks, on Aleksandra
+  Ekster's page and on the Artists index, and in the Work page's picture.
+  Nothing shows the server's exception text. Add `?debug` to the address to
+  see the server's reason under it.
+- **Search.** Type a title you hold: its row in the dropdown carries its
+  picture. On the results page each work leads with its picture, larger.
+  Judge the sizes (2.5rem in the dropdown, 4.5rem on the page).
+- **Enlarge.** On a work's page, click the picture, or Tab to it and press
+  Enter. It opens large, and Escape, Close or a click outside closes it.
+
+### Shared rules and the phone — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 02, #360 #357.** Run from this branch on the
+operator's library, at desktop width in both schemes and on a phone.
+
+- **Rows and type.** On Ask, Artist and Work, words beside a button sit level
+  with its label. In dark, quiet buttons are ink and only the filled one is gilt.
+  On a Theme page, the badges beside its name are in the sans.
+- **Gaps.** Every page's name has the same gap to what follows it. On Topics, a
+  kind with one held topic no longer touches the "Other …" heading under it.
+- **Tables.** On Status, the counts are right-aligned and the first column
+  starts under the headings.
+- **A Get's page (not seen by any walk: the synthetic library has no Get).**
+  Judge whether "Works", its act and "Asked for" still stand one on the other
+  (layout review L17). If they do, it is a finding for this plan.
+- **Phone.** The top bar shows "Well" or "Unwell" in whole. Menu stays visible
+  over the open drawer and closes it. Artworks' rail fades at its right edge.
+  Clients' outputs and labels are cards, and no output's name breaks.
+
+### The way back, a dead address, and names that link — added 2026-10-14
+
+**`build-plan-ux-second-walk.md` chunk 01, #356 #361 #362.** Run the server from
+this branch (`cd arrt && uv run python -m arrt`) on the operator's library.
+
+- **The way back.** From an artist's page open one of their works: the link at the
+  top reads "← <the artist's name>" and returns to that artist. From that work,
+  open its artist, a theme or a topic; each says "← <the work's title>". Search
+  for something, open a result, and come back: the query is still there.
+  Judge whether a named way back reads better than the index's name did.
+- **A dead address.** Change a work's address in the bar to one that does not
+  exist, from a live page and on a fresh load: one page says "That work is not
+  here" with a way to Artworks, and nothing of the page before stays.
+- **Names that link.** On a work hanging on a wall, its *Walls* fact and its
+  theme's "(on …)" link to Walls with that wall's card in view and in focus.
+  A topic in *What this work is* opens its Topic page. History, Clients and
+  Status name walls as links; Walls names its client as a link to Clients at
+  that client. Judge whether so many links on Clients and History read as
+  clutter.
+
+### A wall's shapes, and a wall they darken — added 2026-10-13
+
+**`build-plan-wall-shape-filter.md`, #370.** On Walls, open a wall's *How it is
+set up* and find *Shapes it shows*, below the rotation.
+
+- **The panel.** Judge whether *Shapes*, *Tallest* and *Widest* read as one
+  control, whether "width:height" is clear enough on the field labels, and
+  whether the screen's own shape beside them reads as a hint rather than a
+  setting. On a wall hanging a theme of landscapes only, pick *Portrait and
+  square* and *Set the shapes*: the panel says the server's summary, ending
+  "so the wall is dark". (With any portrait or square work in the theme, the
+  wall keeps showing those instead.)
+- **The dark wall.** After that, reload Walls: the card says the same sentence
+  near the top with the ▲ glyph, and *Not showing* lists each work as *Outside
+  this wall's shapes* with its own shape. Judge whether a curator reading only
+  the top of the card would know what to change.
+- **The television.** Within a poll interval, the wall's screen goes dark. Set
+  *Any shape* again and the works return. Run the server from this branch:
+  `cd arrt && uv run python -m arrt`.
+
+### The cutover: walls on major 2 alone, and a missed Player named — added 2026-10-10
+
+**`build-plan-wave-4g-cutover.md`.** The server publishes each wall's feed
+(major 2) and nothing else; Arrt Player reads only major 2. Deploy both from the
+same revision (`deploy/README.md` § Wave 4g), then walk the 4e entry below,
+which this one changes in two places (noted there), and these:
+
+- **Each wall's heartbeat lists `[2]`**, not `[2, 1]`, and Walls shows no line
+  under any wall's name about its Player.
+- **A missed Player is named.** Every Player from wave 4c on reports that it
+  reads major 2, so to see this, write a heartbeat by hand that lists only
+  major 1 (or none): stop the wall's Player, then
+  `curl -X POST -H "Authorization: Bearer $CLIENT_TOKEN" -H 'Content-Type: application/json' -d "{\"reported_at\": \"$(date -u +%Y-%m-%dT%H:%M:%S+00:00)\", \"capabilities\": {\"screen\": {\"width_px\": 3840, \"height_px\": 2160}, \"backend\": \"frame\", \"label_modes\": [\"none\"], \"manifest_majors\": [1]}}" "$SERVER_URL/walls/$WALL_ID/heartbeat"`.
+  Walls then says, under that wall's name, "This wall's Player
+  can't read this server's feed, so it will show nothing new. Update Arrt Player
+  on the device that shows this wall." Judge whether that is the sentence you
+  would want to read there, and whether the remedy is one you could act on.
+- **Skip** on Walls answers with the wall's next work on the next poll, and on a
+  wall with nothing hung it says why rather than "Skipped".
+- **The Work page** shows the work itself with no mat (#346 draws one); judge
+  whether that reads as wrong or as fine for now.
+- **The server's first start** logs how many canvases it forgot; `ART_ROOT/ready/`
+  and the `theme-manifest-<wall>.json` files without `.v2` can then be deleted.
+
+### Walls on major 2: a schedule from Arrt, a mat drawn by the Player, a mat mode per wall — added 2026-10-09
+
+**`build-plan-wave-4e-schedule.md`.** Arrt publishes each wall's major 2 feed
+beside major 1, and a Player from 4d asks for it first. This is the walk 4d's
+entry deferred: a composed major 2 work on a real wall. Deploy the server from
+this branch and restart it. The Pi needs no change beyond 4d's. Then:
+
+- **Each wall moves to v2.** Arrt's request log shows each Player's `…/v2`
+  answering 200 and no longer falling to `v1`. Walls in Arrt: each heartbeat
+  lists `manifest_majors` `[2, 1]`. The journal on the Pi shows `compose.done`
+  for each work as it comes up. *(Wave 4g: `v1` answers 404 and each heartbeat
+  lists `[2]`.)*
+- **The Frame shows a work in a mat of the work's own shape**, black beyond,
+  bottom heavier than the top, in the work's colour. It should look as it did on
+  major 1. If it looks different, that difference is the finding.
+- **The HDMI screen** shows the same rule at its own size: the mat is 6% of the
+  shorter side, since it knows no density.
+- **Walls › a wall › How it is set up › Mat.** Set *Mat to the edges* and the
+  next work on that wall fills the screen with its colour. *No mat* puts it on
+  black. *Player's own choice* goes back to the work-shaped mat. The
+  confirmation reads "Mat on {wall}: …" and the panel stays open. Judge whether
+  the four choices are worded so you would know what each does without trying it.
+- **Two walls hanging one theme** never show the same work at the same moment.
+- **A work with no presentation master yet** stays off the feed and is named in
+  Arrt's journal. A theme where no work has one leaves its wall on `v1`.
+  *(Wave 4g: there is no `v1` now. Such a work is not playable, and Walls names
+  it under "Not showing"; a theme with none to send publishes an empty feed.)*
+- **Skip** on Walls moves the wall to the next work on the next poll, as it did.
+- **Too small for {wall}.** Once each Player has reported (a minute after its
+  restart), a small scan on the wall now carries the note under it on Walls,
+  and the theme's page marks it in *Size*. Judge whether "less than half of the
+  space inside the mat" matches what you see: it is the line, and it is an inference.
+
+### The Player asks for major 2 and still runs major 1 — added 2026-10-09
+
+**`build-plan-wave-4d-compositing.md`.** The Player composes major 2 works
+itself and asks for `…/manifest/v2` first. Arrt publishes no major 2 until
+wave 4e, so on the real server every wall falls back to major 1 and should look
+exactly as before. Live integration: the suite drives doubles of the set, the
+connector and the server. Before restarting, set the Frame's real panel in the
+Pi's `.env`: `TV_PANEL_WIDTH_PX`, `TV_PANEL_HEIGHT_PX` and
+`TV_PANEL_DIAGONAL_INCHES` (and `MAT_*` if the server's differ from the
+defaults). Then pull this branch and restart the unit (SIGTERM, never SIGKILL):
+
+- **The journal at start** names the Frame's panel (`tv_panel=…x… at … in`) and
+  the mat (`mat=1.5 in, bottom x1.15`), matching the set.
+- **Both walls** rotate on major 1 as before: `pull.adopted` for each, no
+  `pull.refused`, and the Frame steps on at its interval.
+- **Arrt's request log** shows each wall asking for `v2` about once a minute
+  (a 404) and `v1` on every poll, not `v2` every second.
+- **Walls in Arrt:** both walls' heartbeats carry `capabilities` with
+  `manifest_majors` `[2, 1]`, and the Frame's now has its panel's size.
+- **Not checkable until 4e:** a composed major 2 work on either wall. That walk
+  is 4e's operator entry, against a real feed.
+
+### Ask's cards are posters — added 2026-10-09
+
+**Visual change: yes.** Ask a question that names several artists (the
+Delaunays' circle did) and look at the grid:
+
+- Each card leads with a picture: a work its own, an artist one of their
+  works, a topic one of its works. They fill in after the reply, three
+  lookups at a time; an artist or topic Wikidata has not been asked about
+  before can take several seconds, a topic longest. Check the artist pictures
+  give an idea of the style, and how many say *No picture* (none exists)
+  against *Picture unavailable* (Wikidata or the picture could not be reached).
+- An Artist page now offers *Tell me more* beside *More like this* and
+  *Not this*.
+- Two small reactions per artist or topic; no *tell me more*, no "Not held".
+- A work card's *Get this work* fits the card.
+
+### Ask as an agent: one thread, its cards and what it cost — added 2026-10-09
+
+**`build-plan-ask-agent.md` Chunks 03 and 04.** Visual change: yes. Chunk 03's
+Done-when includes that you have used it.
+
+Built against a scripted model in the browser suite, and against the real
+model only in chunk 02's evals (`ask-agent-findings.md`). Not yet deployed.
+
+**Before deploying, copy the catalogue:** the first start drops the stored
+conversations (`retire_conversations`), and that copy is the only way back.
+
+- **Ask is one thread now.** The direct box, its *Get*, *Talk it through
+  first* and the conversations list are gone; the only act is *Ask*, with
+  "Searches as it answers; each reply says what it cost" under it, and the
+  quiet *Start over*.
+- **A reply:** a line for each thing it looked at (◌ then ✓ or ✗), its words,
+  then a card for each work, artist or topic it named that a tool returned.
+  Works carry *Get this work*; artists and topics the three reactions. Under
+  it, what it cost. Check whether the cards are the ones you would have
+  wanted from the words, since that choice (only items the answer names, and
+  only ones a tool returned) is the plan's and yours to overrule.
+- **At the cap:** a reply refused because the key's limit is spent says
+  "This month's budget is spent…", the sidebar's words.
+- **Taste:** its help says reactions come from "an artist or topic Ask
+  offers"; an inferred judgment shows its rationale and no way back to a
+  thread, since threads are not saved.
+- **An empty Ask offers three examples** under *Try:*, each filling the box
+  without sending. The wording is the builder's: change any you would not
+  ask.
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/ask-agent-deployed`.
+
+### Both walls rotate on the one wall loop — added 2026-10-09
+
+**`build-plan-wave-4c-wall-loop.md`.** The Frame's and the HDMI screen's loops
+are one loop now, and the Player asks for its manifest at `…/manifest/v1`.
+Live integration: the suite drives doubles of the set and the connector. On the
+Pi, after pulling this branch and restarting the unit (SIGTERM, never SIGKILL):
+
+- **The journal** logs `daemon.started` for the Frame wall and `screen.started`
+  for the HDMI wall, and `pull.adopted` for each, with no `pull.refused`.
+- **The Frame** steps on at its interval, a `next` from Arrt steps it once, and
+  switching the set to a programme leaves the wall alone
+  (`rotation.wall_not_ours`) until it is back in art mode.
+- **The HDMI wall** steps on at its interval, and a monitor unplugged and
+  plugged back in shows the wall's picture again.
+- **Walls in Arrt** shows both walls' display states as before; the HDMI wall's
+  heartbeat now carries `capabilities` with the screen's size.
+
+### Size badges and the *Size* facet read plainly — added 2026-10-08
+
+**`build-plan-wave-4b-master-quality.md`, Chunk 01.** Visual change: yes.
+
+The Library judges scans against the quality minimum (`QUALITY_MINIMUM_PX`,
+default 1,000 px on the long edge) instead of the panel. Built against the
+browser suite only; not yet deployed. Check, on the NAS after deploy:
+
+- **The journal at start** names `RESOLUTION_FLOOR_INCHES` as no longer read, if
+  the `.env` still sets it, and logs `quality_minimum=1000px`. Then remove the
+  old key (and set `QUALITY_MINIMUM_PX` only if you want another minimum).
+- **Artworks:** no badge on a tile whose scan meets the minimum; "▲ below
+  minimum" on one that does not. The rail's *Size* offers *Meets minimum*,
+  *Below minimum* and *No size known*, each counted.
+- **A review card and a Get's page:** a scan's pixels, with no badge when it
+  meets the minimum and "below minimum" when it does not; no inches anywhere.
+- **A theme's rows:** the *Size* column is empty for a work that meets the
+  minimum.
+
+### The Pi runs Arrt Player — added 2026-10-08
+
+**`build-plan-rename-arrt-player.md`.** Postarr is now Arrt Player: the project
+is `arrt-player/` and the module `arrt_player`. Until the Pi takes this, its
+`display.service` names a directory and module that no longer exist after a
+pull. The steps and the way back are in `deploy/README.md` § The Player renamed
+Arrt Player. Check: the unit is active, the journal's logger names start
+`arrt_player.`, and the next rotation logs `label.drawn` on `epd-0`.
+
+**Entries below this one are dated and keep the paths of their day.** Read
+`postarr/` as `arrt-player/` and `postarr.` as `arrt_player.` in any command
+you run from them.
+
+### Get and review clarity: do Ask, a Get's page and Review read plainly? — added 2026-10-08
+
+**`build-plan-get-and-review-clarity.md`, all chunks.** Visual change: yes.
+
+Built against stubbed pages in the browser suite. The walk on the 2,000-work
+synthetic corpus (`.ux-walk/clarity-synthetic`) gave 84 captures across 21
+screens with no accessibility violations, console errors or dead ends, the
+same as before; it holds no Gets, so a Get's page and Review were seen only
+from stubbed pages. Not yet deployed.
+
+- ~~**Ask:** Get is the one filled button, with "About $0.01" under it; *Talk it
+  through first* is quiet, with "Free to start; each reply shows its cost"
+  under it.~~ *Superseded 2026-10-09: the box, its Get and Talk it through first
+  are retired (the entry above).* No Taste link still holds.
+- **A finished Get's page:** three counts in place of the paragraph; works
+  under *Asked for* and *Also offered by <museum>*, each row with its
+  picture; no reason column on offered rows.
+- **Review:** cards with a picture first; *N found no image* and *N decided*
+  folded at the end. Check especially whether a wanted work with no scan
+  belongs under *found no image*, where it now sits.
+- **Queue:** a failed group's button says *Retry 3*, or *Retry* for one.
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/clarity-deployed`.
+
+### Wall label: does it still look amateur? — added 2026-10-08
+
+**`build-plan-wall-label.md`, all chunks.** Visual change: yes. This is the
+judgement the plan can't make for itself.
+
+Built against a copy of the local `~/samsung-art` library and the synthetic
+corpus. `arrt/tools/ux_walk.py` photographed every screen it reached at phone
+and desktop width in both schemes, on both libraries: the library copy gave
+100 captures, and the 2,000-work synthetic corpus gave 84 across the same 21
+screens as the walk before this plan (`.ux-walk/after-lists-settings`). Both
+had no accessibility violations, no console errors and no dead ends, the same
+as before. After chunk 06 the walk was re-run on the library copy
+(`.ux-walk/wall-label-06`): 104 captures across 26 screens, no
+accessibility violations, no dead ends, and one console error, a 400 on
+Artists. That is the thumbnail of an artist none of whose works has an image
+yet (the library copy gained a 32nd artist between walks), which the card
+answers with "No picture" (`screens/artists.js`). Not yet deployed.
+
+- **Look at, on the real library, in both schemes:** Artworks (tiles on a mat,
+  label beneath, rows even), a work's page (picture beside its label,
+  description in the serif, the record as ruled sections), Status, Walls,
+  Themes, Settings. Then the controls (chunk 06): buttons in a row the
+  same height, rows evenly spaced below what they follow, and on Ask the
+  cost shown as "Cost: $" beside Get rather than as a box. On a phone, every
+  control is big enough to tap. Then compare with the canvas the direction was chosen
+  from: https://claude.ai/artifact/KKGdo4ktsDS32t15yyUpCS.
+- **Check especially:** whether the space each tile reserves for its longest
+  label leaves too much air between rows when every title is short. (The
+  owner judged the colours of both schemes good on 2026-10-08 and asked for
+  attention on layout and flow instead.)
+- **Regenerate:** `cd arrt && uv run python tools/ux_walk.py --base-url
+  <the deployment> --out ../.ux-walk/wall-label-deployed`.
+
+### Displays and labels on Clients and Walls, and the panel on the wall — added 2026-10-08
+
+**`build-plan-displays-and-label-outputs.md` Chunks 04 and 07.** Visual change: yes; then live.
+
+Checked by the builder in the browser suite against seeded reports; not yet deployed.
+
+- **Look at:** Settings › Clients shows each client's *Labels* table (e-paper
+  panel, whether it is answering, its size, the wall it captions) and a *Caption a
+  wall* form. Walls says "Captioned by epd-0 on {client}" under a wall a label
+  captions, and nothing under one that has none.
+- **Deploying changes the panel:** after the Player update, the panel draws
+  nothing until a label is mapped. Map it on Settings › Clients first.
+- **Try on the wall (Chunk 07, after #181 and with the Frame on a client):** map
+  the panel to the HDMI wall, then the Frame wall, from Clients alone; see the
+  caption change within 15 s of a picture change; see it blank while the Frame
+  shows television; restart a client and see its display keep its walls.
+
+### Walk S7, S9 and S12 on the real library — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunk 11, deferred part.** Live walk.
+
+Walked by the builder with writes on a throwaway synthetic library only.
+
+- **Try, after the deploy, on the operator's library:** S7 (a theme from a
+  selection, without leaving Artworks); S9 (*Size on the wall › matted small*,
+  then *Not on any wall*; Select all; Archive — check the confirmation says the
+  wall loses them now, and that it does); S12 (Topics › 16th century opens at once
+  once the sweep has warmed it).
+- **Also:** re-run `arrt/tools/ux_walk.py --base-url <the deployment>` and Pass 4
+  (`docs/ux-walkthrough.md`).
+
+### Selection, clean-up, Artworks paging, Queue by cause, Topics — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunks 05–09.** Visual change: yes.
+
+Checked by the builders against seeded and synthetic libraries (Queue at 4,000
+works with `arrt/tools/ux_walk.py --synthetic 4000`); not yet deployed.
+
+- **Look at:** every list (Artworks, an artist, Search, a topic) has one Select
+  toggle and one bar at the foot of the window. Artworks' rail has *Size on the
+  wall* and *Walls › Not on any wall* once they would narrow anything. Topics
+  lists centuries and movements on its own.
+- **Try:** S7: on Artworks, Select, tick three, New theme…, name it, Add,
+  without leaving the page. S9: *Size on the wall › matted small* or *Not on any
+  wall*, Select all, Archive. S12: Topics › 16th century opens with works
+  already there (warmed), or fills as they arrive.
+- **Worth watching:** scrolling Artworks loads more without a jump; Back from a
+  work deep in the grid lands on it.
+
+### Themes as cards, Settings as an index, Status as a table — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunks 03, 04, 10.** Visual change: yes.
+
+Checked by the builders against seeded libraries and by the browser tests named
+in the change-log; not yet deployed.
+
+- **Look at:** Themes is a grid of cards with pictures; a card opens its theme.
+  Settings opens on a list of Clients, Sources, Taste. Status's Image sources is
+  one table, and no panel mentions "this television".
+- **Try:** on a theme page, Move to top on the last work, then check Walls shows
+  it first (with shuffle off). Narrow the window on Status: Median long edge,
+  Last fault, Only here, then Faults go in that order, and the fault count
+  reappears in State.
+- **Worth watching:** whether "Only here" and "Offered" read as the value of a
+  source on the real library (46 works).
+
+### One heading scale, one empty page, one glyph per meaning — added 2026-10-08
+
+**`build-plan-lists-settings-and-scale.md` Chunk 01.** Visual change: yes.
+
+Checked by the builder in both schemes at desktop width against a synthetic
+library (`arrt/tools/ux_walk.py --synthetic 30`), and by
+`tests/browser/test_component_rules.py`.
+
+- **Look at:** Walls' heading is the same size as every other page's. An empty
+  To review, Queue, History or Wanted says one sentence in the serif, a muted
+  line under it and, where there is one, the way on, with no box around it.
+- **Try:** a disabled button (Get with nothing chosen) looks unavailable, and
+  hovering it does nothing. In Wanted or History on a phone, a card's whole row
+  still opens it after the pointer has passed over its link.
+- **Worth watching:** the reassigned glyphs read as their words: ◎ *you chose*
+  on a review card, ☆ *likes* on Taste, ▤ *wall render* on a Work page.
+
 ### The NGA as a source — added 2026-10-06
 
 **`build-plan-nga-source.md` Chunk 01.** Visual change: no; live integration.
@@ -460,21 +924,25 @@ your catalogue. Regenerate with
 `cd arrt && uv run pytest -m browser -n0 tests/browser/test_the_clients.py tests/browser/test_the_walls.py -k client`
 and a `page.screenshot` of your own.
 
-- **Settings › Clients** is under Settings, after Taste. *Add a client* takes a
+- **Settings › Clients** is under Settings, first (Clients, Sources, Taste since 2026-10-08). *Add a client* takes a
   name and issues its token in the same act: the token appears once, selected in
   a read-only field, with a sentence saying it is the only time and to set
   `CLIENT_TOKEN` and `SERVER_URL` in the Player's settings (the address is the
   one your browser used — check it is the one the Pi reaches). Reload, and it is
   gone.
 - **Each client** says when its token was issued (or that it has none), its last
-  report's age, its outputs as a table (Output, Kind, Connected, Screen), the
-  walls it shows with **Unassign**, an **Assign a wall** row (a picker of reported
+  report's age, its outputs as a table (Output, Kind, Screen, Size: Screen reads
+  "● detected" or "○ none detected (off or unplugged)", since #274), the walls
+  assigned to it with **Unassign**, an **Assign a wall** row (a picker of reported
   outputs, the free one first; a text field with `hdmi-a-1` as placeholder when
   nothing is reported), and **Rename**, **Rotate the token** / **Issue a token**,
   **Remove**. Rotate and Remove ask first; Remove names the walls left without a
   client.
-- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1",
-  or "No client shows this wall." with a link to Settings › Clients.
+- **The Walls screen** says under each wall's title "Shown by pi4 on hdmi-a-1"
+  only while the client reports a screen detected there (the TV on). With the TV
+  off it says "Assigned to pi4 on hdmi-a-1, where no screen is detected (off or
+  unplugged)", and that is correct, not a regression (#274). With no client it says
+  "No client shows this wall." with a link to Settings › Clients.
 - **To look at:** whether the outputs table, which scrolls sideways inside its
   panel on a phone, reads well enough there; and whether adding a client and
   issuing its token in one act is what you want, rather than two steps.
@@ -652,10 +1120,11 @@ Artists; typing `seurat` in the search box offered *Ask about "seurat"*, which
 opened Ask with the words filled in and nothing started. The address is still
 `#discover`, as `#collection` is still Artworks, so bookmarks keep working. For you:
 
-1. **The name.** *Ask* for the intent box and the conversations, under Artworks.
-   Does it read as the place to ask for a direction?
-2. **The buttons.** They still say *Start the search* and *Talk it through first*;
-   the plan had proposed *Search now* and *Talk it through*. Keep or change?
+1. **The name.** *Ask*, under Artworks. Does it read as the place to ask for a
+   direction?
+2. ~~**The buttons.** They still say *Start the search* and *Talk it through first*;
+   the plan had proposed *Search now* and *Talk it through*. Keep or change?~~
+   *Superseded 2026-10-09: both buttons are retired with the box.*
 
 ### Get, from the Artist page, the results page and a work's page — added 2026-10-02
 
@@ -1258,7 +1727,7 @@ is on a different line from the name.
 
 **Chunk 11.** Run `cd arrt && uv run python -m arrt` and open Taste.
 
-1. **Reactions on a conversation sample are keyed on the artist, not the
+1. **Reactions (on a conversation sample then, on an Ask card now) are keyed on the artist, not the
    picture.** The three controls sit under each sample, but an affinity is one row
    per (kind, value) — so reacting to one Kandinsky and then to another writes the
    same row, and the second overwrites the first. Built as specified. **If you
@@ -1266,15 +1735,19 @@ is on a different line from the name.
 2. **"Tell me more" is cool *and* still open**, which is the pair the whole
    two-field design exists for. Check that the three controls read as three
    distinct things rather than as a warmth slider with gaps.
-3. **A stronger provenance is not overwritten by a weaker one** — `stated` beats
+3. *Superseded 2026-10-09: only `stated` can be written now, so the ranking below
+   has nothing to refuse and was removed (`build-plan-ask-agent.md` Chunk 04).*
+   ~~**A stronger provenance is not overwritten by a weaker one** — `stated` beats
    `observed` beats `inferred`, equal ranks permitted so a re-inference can correct
    an inference. *That ranking is the builder's ruling, not an artifact's, and they
    flagged it as the thing most worth challenging.* The visible effect: something
-   you said yourself cannot be silently replaced by something a model inferred.
-4. **Deleting a conversation detaches rather than cascades**, per your #118
-   ruling. The affinities it produced survive with their rationale and lose only
-   the citation; the spend stays on the books. The confirmation names what is lost
-   in those terms rather than reporting a row count — judge whether it does.
+   you said yourself cannot be silently replaced by something a model inferred.~~
+4. *Superseded 2026-10-09: conversations are no longer stored, and the migration
+   that dropped them applied your #118 rule to every one at once.* ~~**Deleting a
+   conversation detaches rather than cascades**, per your #118 ruling. The
+   affinities it produced survive with their rationale and lose only the
+   citation; the spend stays on the books. The confirmation names what is lost
+   in those terms rather than reporting a row count — judge whether it does.~~
 
 **Visual change: yes.**
 

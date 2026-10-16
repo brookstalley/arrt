@@ -42,6 +42,7 @@ from arrt.library.discovery.images import ImageSearchFailure
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.imaging import measure
 from arrt.library.sources.loading import Route
+from arrt.library.sources.names import museum_name
 from arrt.library.sources.reading import FetchLocator, LocatorKind
 from arrt.logs import scrub
 from arrt.persistence.records import AcquisitionMethod, FetchStatus, Source
@@ -338,18 +339,21 @@ class AcquisitionService:
         checked: gating a fetch on a provenance link nobody fetches recorded
         failures against sources that were never at fault.
         """
+        # The museum, not the plugin id: these sentences are recorded against
+        # the source and read by a curator.
+        museum = museum_name(plugin)
         try:
             locator = read(source.url)
         except ImageSearchFailure as exc:
             # The plugin *was* asked and could not answer. That is about this
             # source and this attempt, so it is recorded like any failed fetch.
-            return self._record_failure(source, f"the {plugin} plugin could not read this source: {exc}")
+            return self._record_failure(source, f"the {museum} plugin could not read this source: {exc}")
         if locator.kind is LocatorKind.NONE:
-            return self._record_failure(source, f"the {plugin} plugin found no image for this source: {locator.reason}")
+            return self._record_failure(source, f"the {museum} plugin found no image for this source: {locator.reason}")
         try:
             url = check_fetchable(locator.url or "", resolve=self._resolve)
         except UrlRefused as exc:
-            return self._record_failure(source, f"the address the {plugin} plugin read was refused: {exc}")
+            return self._record_failure(source, f"the address the {museum} plugin read was refused: {exc}")
         if url != source.url:
             # Logged because the fetch that follows is against an address no
             # record holds: without this line a failed fetch cannot be attributed

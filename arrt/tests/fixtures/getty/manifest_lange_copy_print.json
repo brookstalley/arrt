@@ -1,0 +1,275 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/104CF5",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/616b1132-6e8c-40ab-a50d-c765aa57f9b5",
+ "items": [
+  {
+   "height": 5103,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 5103,
+        "id": "https://media.getty.edu/iiif/image/6131fb7e-c4a6-4b7a-bf47-fa9064f52205/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 159,
+            "width": 127
+           },
+           {
+            "height": 318,
+            "width": 254
+           },
+           {
+            "height": 637,
+            "width": 508
+           },
+           {
+            "height": 1275,
+            "width": 1017
+           },
+           {
+            "height": 2551,
+            "width": 2034
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 4069
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Main View"
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "Yes"
+      ]
+     }
+    }
+   ],
+   "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/6131fb7e-c4a6-4b7a-bf47-fa9064f52205/full/!478,600/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 4069
+  }
+ ],
+ "label": {
+  "en": [
+   "[Copy print of Migrant Mother, Nipomo, California]"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Dorothea Lange (American, 1895 - 1965)",
+     "Print by Arthur Rothstein (American, 1915 - 1985)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "[Copy print of Migrant Mother, Nipomo, California]"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Gelatin silver print"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Sheet: 27.9  21.9 cm (11  8 5/8 in.)",
+     "Image: 24.2  19.4 cm (9 1/2  7 5/8 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "84.XP.1445.2"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": [
+     "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-09-11T08:30:47.957327Z"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "requiredStatement": {
+  "label": {
+   "en": [
+    "attribution"
+   ]
+  },
+  "value": {
+   "en": [
+    "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+   ]
+  }
+ },
+ "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/b68e003f-99d4-4d23-939a-acde02589f4b",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/616b1132-6e8c-40ab-a50d-c765aa57f9b5/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "summary": {
+  "en": [
+   "<p>Seated woman with two children leaning on her, heads turned away from the camera.</p>"
+  ]
+ },
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/6131fb7e-c4a6-4b7a-bf47-fa9064f52205/full/!478,600/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/6131fb7e-c4a6-4b7a-bf47-fa9064f52205",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}

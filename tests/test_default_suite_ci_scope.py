@@ -200,10 +200,10 @@ def test_the_display_leg_ignores_exactly_the_directories_that_cannot_import():
     CI**, which is what the job asserted below exists to prevent — a directory
     ignored by one leg and run by no other is coverage that has silently gone.
     """
-    needed = _directories_that_import_or_skip(REPO / "postarr" / "tests")
-    assert needed, "no module under postarr/tests uses importorskip — the display CI leg should carry no --ignore at all"
+    needed = _directories_that_import_or_skip(REPO / "arrt-player" / "tests")
+    assert needed, "no module under arrt-player/tests uses importorskip — the display CI leg should carry no --ignore at all"
 
-    check_ignores(_ignored_by("postarr"), needed)
+    check_ignores(_ignored_by("arrt-player"), needed)
 
 
 def test_every_directory_the_display_leg_ignores_is_run_by_another_job():
@@ -221,14 +221,14 @@ def test_every_directory_the_display_leg_ignores_is_run_by_another_job():
     elsewhere = {
         path
         for job, invocations in _pytest_invocations_by_job().items()
-        if job != "postarr"
+        if job != "arrt-player"
         for invocation in invocations
         # The `--ignore=` arguments come out first: a directory another job also
         # excludes is not a directory another job runs, and counting it would let
         # two legs cover for each other while neither collected a line of it.
         for path in re.findall(r"(?<![=\w/])tests/\S+", re.sub(r"--ignore=\S+", "", invocation))
     }
-    unrun = {f"tests/{name}" for name in _ignored_by("postarr")} - elsewhere
+    unrun = {f"tests/{name}" for name in _ignored_by("arrt-player")} - elsewhere
     assert not unrun, (
         f"the display leg ignores {sorted(unrun)} and no other job in suites.yml runs it, so those "
         "tests do not execute in CI at all — which is indistinguishable from their passing"

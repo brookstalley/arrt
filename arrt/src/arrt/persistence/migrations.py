@@ -40,20 +40,18 @@ _DROP_COLUMN_SINCE: Final[tuple[int, int, int]] = (3, 35, 0)
 
 
 def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> None:
-    """Move a single-wall catalogue onto `Wall`, `ThemeAssignment` and per-wall directives.
+    """Move a single-wall catalogue onto `Wall` and `ThemeAssignment`.
 
     Before 2026-08-12 a theme was hung by a boolean on the theme itself — one
-    that could only ever mean "active on the one television" — and the display
-    plane's standing directive was a single row for the whole installation. This
-    carries both onto a named wall: whichever theme was active is hung on it, and
-    the singleton directive's counter and pin become that wall's, so no
-    deployment loses its picture and no advance is fired by the migration itself.
+    that could only ever mean "active on the one television". This carries it
+    onto a named wall: whichever theme was active is hung on it, so no
+    deployment loses its picture.
 
     **It also seeds the wall on a fresh file**, which is not a separate concern
     wearing this one's clothes: a catalogue with no wall has nowhere to hang
-    anything, and every operation that changes a wall names one. The old schema
-    seeded its singleton directive row the same way, in the DDL; a wall cannot be
-    seeded there because its name is a deployment value and its id is a UUID.
+    anything, and every operation that changes a wall names one. A wall cannot
+    be seeded in the DDL because its name is a deployment value and its id is a
+    UUID.
 
     **The name is written once.** A wall that already exists keeps the name it
     has — it is the curator's word by then, and configuration must not overwrite
@@ -64,15 +62,10 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> Non
         return
 
     hung_theme_id = _theme_that_was_active(connection)
-    sequence, pinned_work_id = _directive_that_was_the_only_one(connection)
     now = datetime.now(UTC).isoformat()
     wall_id = str(uuid.uuid4())
 
     connection.execute("INSERT INTO walls (id, name, created_at) VALUES (?, ?, ?)", (wall_id, wall_name, now))
-    connection.execute(
-        "INSERT INTO directives (wall_id, sequence, pinned_work_id) VALUES (?, ?, ?)",
-        (wall_id, sequence, pinned_work_id),
-    )
     if hung_theme_id is not None:
         connection.execute(
             "INSERT INTO theme_assignments (wall_id, theme_id, assigned_at) VALUES (?, ?, ?)",
@@ -84,10 +77,9 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> Non
     connection.commit()
 
     log.info(
-        "Established wall %r (%s) carrying directive sequence %d; %s.",
+        "Established wall %r (%s); %s.",
         wall_name,
         wall_id,
-        sequence,
         f"hung theme {hung_theme_id}" if hung_theme_id else "nothing is hanging on it",
     )
     _drop_what_the_wall_replaced(connection)
@@ -125,23 +117,6 @@ def _theme_that_was_active(connection: sqlite3.Connection) -> str | None:
     return None if row is None else str(row["id"])
 
 
-def _directive_that_was_the_only_one(connection: sqlite3.Connection) -> tuple[int, str | None]:
-    """The singleton directive's counter and pin, or a fresh wall's zero.
-
-    The counter is carried rather than restarted because the display plane acts
-    once each time it observes the number go up: a wall whose counter dropped to
-    zero at migration would see the next ordinary advance as a step it had
-    already taken, or — worse, on a file whose counter was zero — see nothing at
-    all where an advance was issued.
-    """
-    if not _has_table(connection, "directive"):
-        return 0, None
-    row = connection.execute("SELECT sequence, pinned_work_id FROM directive WHERE id = 1").fetchone()
-    if row is None:
-        return 0, None
-    return int(row["sequence"]), row["pinned_work_id"]
-
-
 def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
     """Take away the single-wall shape, once nothing needs to read it.
 
@@ -158,7 +133,7 @@ def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
         log.info("Dropped themes.is_active and its partial index; hanging is now a row on theme_assignments.")
     if _has_table(connection, "directive"):
         connection.execute("DROP TABLE directive")
-        log.info("Dropped the singleton directive table; each wall now carries its own.")
+        log.info("Dropped the singleton directive table, which no wall reads.")
     connection.commit()
 
 
@@ -266,3 +241,219 @@ def retire_wall_tokens(connection: sqlite3.Connection) -> None:
         connection.execute(f'ALTER TABLE walls DROP COLUMN "{column}"')
     connection.commit()
     log.info("Dropped walls.%s: Players are admitted by their client's token now.", " and walls.".join(retired))
+
+
+#: The columns a wall named its screen by before displays were records.
+_WALL_PLACEMENT_COLUMNS: Final[tuple[str, ...]] = ("client_id", "output")
+
+
+def walls_name_displays(connection: sqlite3.Connection) -> None:
+    """Move each wall from a client and an output name onto a display record, keeping it where it hangs.
+
+    Before 2026-10-08 a wall named the client that showed it and the name of that
+    client's output. A wall now names a display, the server's record of the
+    screen, which names its client. Every assigned wall gets a display keyed
+    `{client_id}/{output}`, the identity a client-attached output has, on the
+    same client and output, so `GET /client` names the same walls on the same
+    outputs before and after. A Frame's display is re-keyed to the set's own
+    identity the first time its client reports one on that output
+    (`ClientService.record_heartbeat`), and keeps its walls.
+
+    Guarded by the file, and ordered so that any prefix is finished by the next
+    open: the rows are carried and committed before the columns that held them
+    are dropped, and a wall that already names a display is not carried again.
+    """
+    present = [column for column in _WALL_PLACEMENT_COLUMNS if _has_column(connection, "walls", column)]
+    if not present:
+        return
+    # Both or neither, except after an open interrupted between the two drops
+    # below, when only `output` is left and there is nothing to carry.
+    carried = (
+        connection.execute(
+            "SELECT id, client_id, output FROM walls WHERE client_id IS NOT NULL AND output IS NOT NULL AND display_id IS NULL"
+        ).fetchall()
+        if len(present) == len(_WALL_PLACEMENT_COLUMNS)
+        else []
+    )
+    now = datetime.now(UTC).isoformat()
+    for wall in carried:
+        identity = f"{wall['client_id']}/{wall['output']}"
+        found = connection.execute("SELECT id FROM displays WHERE identity = ?", (identity,)).fetchone()
+        if found is None:
+            display_id = str(uuid.uuid4())
+            # Kind is left unknown: the file never held it, and the client's next
+            # report states it. Guessed from the output's name, it would be a fact
+            # this server made up.
+            connection.execute(
+                "INSERT INTO displays (id, identity, client_id, output, kind, first_seen) VALUES (?, ?, ?, ?, NULL, ?)",
+                (display_id, identity, wall["client_id"], wall["output"], now),
+            )
+        else:
+            display_id = found["id"]
+        connection.execute("UPDATE walls SET display_id = ? WHERE id = ?", (display_id, wall["id"]))
+    connection.commit()
+
+    _require_drop_column(predates="displays")
+    # The index first: SQLite refuses to drop a column an index names.
+    connection.execute("DROP INDEX IF EXISTS walls_one_per_output")
+    for column in present:
+        connection.execute(f'ALTER TABLE walls DROP COLUMN "{column}"')
+    connection.commit()
+    log.info(
+        "Moved %d assigned wall(s) onto display records and dropped walls.client_id and walls.output.",
+        len(carried),
+    )
+
+
+#: The citing columns and the index over each, which has to go before its column.
+_TURN_CITATIONS: Final[tuple[tuple[str, str, str], ...]] = (
+    ("affinities", "source_turn_id", "affinities_by_turn"),
+    ("spend_records", "conversation_turn_id", "spend_records_by_turn"),
+)
+
+
+def retire_conversations(connection: sqlite3.Connection) -> None:
+    """Drop the stored conversations, and the two columns that cited a turn.
+
+    Before 2026-10-09 Ask kept its threads here. They are no longer stored: the
+    owner ruled that old ones may simply go (2026-10-08). Deleting a conversation
+    always nulled `affinities.source_turn_id` and `spend_records.conversation_turn_id`
+    and left the rows, because a judgment and a cent outlive the thread they came
+    from. So this keeps every row in both tables and only takes the citations away.
+
+    Guarded by the file, and ordered so that any prefix is finished by the next
+    open: the citing columns go before the tables they point at, and each step is
+    skipped where it is already done.
+    """
+    citing = [(table, column, index) for table, column, index in _TURN_CITATIONS if _has_column(connection, table, column)]
+    if citing:
+        _require_drop_column(predates="the retirement of stored conversations")
+    for table, column, index in citing:
+        # SQLite refuses to drop a column an index names.
+        connection.execute(f'DROP INDEX IF EXISTS "{index}"')
+        connection.execute(f'ALTER TABLE "{table}" DROP COLUMN "{column}"')
+        log.info("Dropped %s.%s: conversations are no longer stored, so there is no turn to cite.", table, column)
+    connection.commit()
+    for table in ("conversation_turns", "conversations"):
+        if _has_table(connection, table):
+            connection.execute(f'DROP TABLE "{table}"')
+            log.info("Dropped table %s: Ask's threads are not stored.", table)
+    connection.commit()
+
+
+def retire_directives(connection: sqlite3.Connection) -> None:
+    """Drop each wall's directive: its counter and the work it pinned.
+
+    A Player read the directive from manifest major 1, which is no longer
+    published. Show now and next republish the wall's schedule instead
+    (`player-contract.md` § What happens to `show_now` and `next`), so nothing
+    reads a counter or a pin, and nothing is carried. The table also held
+    `pinned_work_id`, a key across the Library/Programming seam
+    (`architecture.md` § Direction, rule 3), which goes with it.
+
+    Guarded by the file: a file without the table, or a fresh one, is left alone.
+    """
+    if not _has_table(connection, "directives"):
+        return
+    # Its index over the pin goes with it: SQLite drops a table's indexes with the table.
+    connection.execute("DROP TABLE directives")
+    log.info("Dropped table directives: show now and next republish the wall's schedule instead.")
+    connection.commit()
+
+
+def retire_television_canvases(connection: sqlite3.Connection) -> None:
+    """Forget every composed television canvas, and the previews drawn from them, once.
+
+    Each Player draws its own mat on the presentation master (`architecture.md`,
+    the label and the mat belong to the device). So the `tv_display` rows go, and
+    with them every `wall_preview` row, because a preview drawn from a canvas
+    passes the hash test against the original and would go on showing the old
+    matted picture; without its row it is drawn again from the master on next
+    view. Then the `mat_hex` column, which only a canvas filled.
+
+    **Keyed on that column, so it happens once.** Wall previews are still made,
+    from the master, after this; deleting them on every open would throw each one
+    away at each start. A file still carrying `mat_hex` is one this has not run
+    on, and the deletes and the drop are its single pass: the column goes last,
+    so an open interrupted before it repeats the pass rather than skipping it.
+
+    **The files are left where they are.** `ART_ROOT/ready/` holds the canvases,
+    and removing a directory of the operator's files is the operator's act;
+    `deploy/README.md` names it as safe to delete. The line says how many rows
+    went, 0 included, so the operator has one line to look for either way.
+    """
+    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
+        return
+    gone = connection.execute("DELETE FROM renditions WHERE kind IN ('tv_display', 'wall_preview')").rowcount
+    connection.commit()
+    _require_drop_column(predates="the retirement of television canvases")
+    connection.execute("ALTER TABLE renditions DROP COLUMN mat_hex")
+    connection.commit()
+    log.info(
+        "Forgot %d television canvases and previews drawn from them, and dropped renditions.mat_hex; "
+        "ART_ROOT/ready/ can be deleted.",
+        gone,
+    )
+
+
+#: The theme's two playing settings, which became the wall's: the order is the
+#: carry's, and both go in one pass.
+_THEME_ROTATION_COLUMNS: Final[tuple[str, ...]] = ("rotation_interval_seconds", "shuffle")
+
+
+def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
+    """Move how long a work stays up and whether it is shuffled from each theme to the walls hanging it.
+
+    A theme has an order and is never shuffled; shuffle and the interval are
+    settings of the wall that plays it (the owner's ruling 2 of 2026-10-11,
+    `ia-proposal.md`). So that no wall shows anything differently after, each
+    wall hanging a theme that set a value takes that value. A theme that set
+    nothing gives its walls nothing, which is the same deployment default. A
+    theme hanging nowhere has no wall to give its value to, and the value goes:
+    each is logged by theme and value, because it is a setting nobody took away.
+
+    Guarded by the file, and ordered so that any prefix is finished by the next
+    open: the values are carried and committed before the theme columns are
+    dropped, and a wall that already has a value of its own keeps it, so a
+    carry repeated after an interrupted drop changes nothing.
+    """
+    present = [column for column in _THEME_ROTATION_COLUMNS if _has_column(connection, "themes", column)]
+    if not present:
+        return
+    # Both or neither, except after an open interrupted between the two drops
+    # below, when only `shuffle` is left and has already been carried.
+    if len(present) == len(_THEME_ROTATION_COLUMNS):
+        themes = connection.execute(
+            "SELECT id, name, rotation_interval_seconds, shuffle FROM themes "
+            "WHERE rotation_interval_seconds IS NOT NULL OR shuffle IS NOT NULL"
+        ).fetchall()
+        carried = 0
+        hung = 0
+        for theme in themes:
+            walls = connection.execute("SELECT wall_id FROM theme_assignments WHERE theme_id = ?", (theme["id"],)).fetchall()
+            if not walls:
+                log.warning(
+                    "Theme %r set rotation_interval_seconds=%s, shuffle=%s and hangs on no wall; "
+                    "these are a wall's settings now, so they were not kept.",
+                    theme["name"],
+                    theme["rotation_interval_seconds"],
+                    None if theme["shuffle"] is None else bool(theme["shuffle"]),
+                )
+            else:
+                hung += 1
+            for wall in walls:
+                connection.execute(
+                    "UPDATE walls SET "
+                    "rotation_interval_seconds = COALESCE(rotation_interval_seconds, ?), "
+                    "shuffle = COALESCE(shuffle, ?) WHERE id = ?",
+                    (theme["rotation_interval_seconds"], theme["shuffle"], wall["wall_id"]),
+                )
+                carried += 1
+        connection.commit()
+        log.info("Carried the rotation settings of %d hung theme(s) onto %d wall(s).", hung, carried)
+
+    _require_drop_column(predates="rotation as a wall setting")
+    for column in present:
+        connection.execute(f'ALTER TABLE themes DROP COLUMN "{column}"')
+    connection.commit()
+    log.info("Dropped themes.rotation_interval_seconds and themes.shuffle; they are the wall's now.")

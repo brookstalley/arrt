@@ -97,7 +97,7 @@ def test_an_unknown_client_is_refused_by_id(clients, operation):
 # -- removing a client ------------------------------------------------------------------
 
 
-def test_removing_a_client_unassigns_its_walls_and_keeps_their_themes(services, clients, pi, wall_id):
+def test_removing_a_client_unassigns_its_walls_and_keeps_their_themes(services, store, clients, pi, wall_id):
     theme = services.display.add_theme(name="Late night")
     services.display.activate_theme(theme.id, wall_id=wall_id)
     clients.assign_wall(wall_id, client_id=pi.id, output="frame")
@@ -109,9 +109,10 @@ def test_removing_a_client_unassigns_its_walls_and_keeps_their_themes(services, 
 
     assert [wall.id for wall in released] == [wall_id]
     wall = services.display.get_wall(wall_id)
-    assert (wall.client_id, wall.output) == (None, None)
+    assert wall.display_id is None
     assert services.display.hanging_on(wall_id).id == theme.id
-    assert services.display.get_wall(study.id).client_id == other.id, "another client's wall is untouched"
+    assert clients.placement_of(study.id).client.id == other.id, "another client's wall is untouched"
+    assert [display.client_id for display in store.list_displays()] == [other.id], "its displays go with it"
     assert [view.client.name for view in clients.list_clients()] == ["The Pi in the study"]
 
 
@@ -194,7 +195,7 @@ def test_a_client_with_no_token_is_identified_by_no_presented_value(clients, acc
 
 def test_refusals_are_logged_once_per_subject_per_interval(store, clients, pi, wall_id, caplog):
     now = [0.0]
-    access = PlayerAccess(store, clock=lambda: now[0])
+    access = PlayerAccess(store, clients.placements, clock=lambda: now[0])
     clients.assign_wall(wall_id, client_id=pi.id, output="frame")
     other = clients.add_client(name="The Pi in the study")
     other_token = access.issue(other.id).token
@@ -215,12 +216,15 @@ def test_refusals_are_logged_once_per_subject_per_interval(store, clients, pi, w
 # -- assignment -------------------------------------------------------------------------
 
 
-def test_assigning_records_the_client_and_the_output_on_the_wall(services, clients, pi, wall_id):
+def test_assigning_places_the_wall_on_the_display_on_that_output(services, clients, pi, wall_id):
     assignment = clients.assign_wall(wall_id, client_id=pi.id, output="  hdmi-a-1 ")
 
     wall = services.display.get_wall(wall_id)
-    assert (wall.client_id, wall.output) == (pi.id, "hdmi-a-1")
+    placement = clients.placement_of(wall_id)
+    assert (placement.client.id, placement.output) == (pi.id, "hdmi-a-1")
+    assert placement.display.identity == f"{pi.id}/hdmi-a-1", "an output nothing has named is keyed by its place"
     assert assignment.wall == wall
+    assert assignment.display == placement.display
     assert assignment.client.id == pi.id
 
 
@@ -239,7 +243,7 @@ def test_an_output_is_checked_against_the_last_report_and_assigned_either_way(cl
 
     assignment = clients.assign_wall(wall_id, client_id=pi.id, output="hdmi-a-1")
 
-    assert assignment.wall.output == "hdmi-a-1"
+    assert assignment.display.output == "hdmi-a-1"
     if notice is None:
         assert assignment.notice is None
     else:
@@ -274,16 +278,16 @@ def test_one_output_of_one_client_shows_one_wall(services, clients, pi, wall_id)
     other = clients.add_client(name="The Pi in the study")
     clients.assign_wall(study.id, client_id=other.id, output="hdmi-a-1")
     clients.assign_wall(wall_id, client_id=pi.id, output="hdmi-a-1")
-    assert services.display.get_wall(study.id).client_id == other.id
+    assert clients.placement_of(study.id).client.id == other.id
 
 
-def test_the_store_refuses_a_second_wall_on_one_output_even_past_the_service(services, store, clients, pi, wall_id):
+def test_the_store_refuses_a_second_wall_on_one_display_even_past_the_service(services, store, clients, pi, wall_id):
     """The partial unique index is the weaker statement of the same rule, for a path that forgets it."""
     study = services.display.add_wall(name="Study")
     clients.assign_wall(wall_id, client_id=pi.id, output="frame")
 
     with pytest.raises(StorageError, match="already stored"):
-        store.update_wall(replace(store.get_wall(study.id), client_id=pi.id, output="frame"))
+        store.update_wall(replace(store.get_wall(study.id), display_id=store.get_wall(wall_id).display_id))
 
 
 def test_assigning_to_another_client_moves_the_wall(services, clients, pi, wall_id):
@@ -293,7 +297,8 @@ def test_assigning_to_another_client_moves_the_wall(services, clients, pi, wall_
     clients.assign_wall(wall_id, client_id=other.id, output="hdmi-a-1")
 
     assert clients.walls_of(pi.id) == []
-    assert [(wall.id, wall.output) for wall in clients.walls_of(other.id)] == [(wall_id, "hdmi-a-1")]
+    assert [wall.id for wall in clients.walls_of(other.id)] == [wall_id]
+    assert clients.placement_of(wall_id).output == "hdmi-a-1"
 
 
 def test_unassigning_clears_both_fields_and_is_idempotent(services, clients, pi, wall_id):
@@ -302,9 +307,9 @@ def test_unassigning_clears_both_fields_and_is_idempotent(services, clients, pi,
     clients.unassign_wall(wall_id)
     again = clients.unassign_wall(wall_id)
 
-    assert (again.client_id, again.output) == (None, None)
-    wall = services.display.get_wall(wall_id)
-    assert (wall.client_id, wall.output) == (None, None)
+    assert again.display_id is None
+    assert services.display.get_wall(wall_id).display_id is None
+    assert clients.placement_of(wall_id).client is None
     with pytest.raises(ServiceError, match="No wall with id 'nowhere'"):
         clients.unassign_wall("nowhere")
 
@@ -323,7 +328,15 @@ def test_the_client_document_lists_only_this_clients_walls_with_their_outputs(se
     assert document == {
         "client_id": pi.id,
         "name": "The Pi in the hall",
-        "walls": [{"wall_id": wall_id, "name": services.display.get_wall(wall_id).name, "output": "frame"}],
+        "walls": [
+            {
+                "wall_id": wall_id,
+                "name": services.display.get_wall(wall_id).name,
+                "output": "frame",
+                "display": services.display.get_wall(wall_id).display_id,
+            }
+        ],
+        "labels": [],
     }
 
 

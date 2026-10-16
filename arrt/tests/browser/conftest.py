@@ -28,13 +28,13 @@ Payload builders live in `payloads.py` beside this file, and the rule they follo
 stated there.
 
 **A wait must name something that is true only in the state being waited for.**
-`wait_for_selector("h2")` after a click that leaves a screen already carrying an
-`h2`, or `[role=alert]` on a screen whose first paint puts one there, matches
+`wait_for_selector("h1")` after a click that leaves a screen already carrying an
+`h1`, or `[role=alert]` on a screen whose first paint puts one there, matches
 instantly and waits for nothing — after which the assertions under it read the
 state that was there beforehand, and the test passes for exactly as long as the
 write happens to win a race nothing is holding open. Four have been found here:
 two heading waits that stopped meaning "the grid painted" once Collection grew a
-loading placeholder with an `h2` of its own, one over the live region the
+loading placeholder with an `h1` of its own, one over the live region the
 unanswered-turn panel puts up at first paint, and one over a heading the hang
 navigates away from. Every one passed alone and failed in the full suite, where a
 heavier test ran ahead of it and moved the timing. Wait for the *new* thing — the
@@ -49,7 +49,8 @@ import pathlib
 import pytest
 from PIL import Image
 
-from arrt.http.models import ArtworkBoxOut, BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
+from arrt.http.models import BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
+from arrt.library.sources.names import museum_name
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -163,18 +164,13 @@ def a_health_reading():
     observation is wrong.
     """
 
-    def _reading(
-        *, walls=None, backup=None, description="Every wall has reported.", artwork_box=None, sources=None, pictures=None
-    ):
+    def _reading(*, walls=None, backup=None, description="Every wall has reported.", sources=None, pictures=None):
         return HealthOut(
             pictures=PicturesOut(**(_some_pictures() if pictures is None else pictures)),
             sources=[SourcePluginOut(**source) for source in ([_a_source()] if sources is None else sources)],
             walls=[WallHeartbeatOut(**wall) for wall in ([_a_wall()] if walls is None else walls)],
             description=description,
             backup=BackupOut(**(_a_backup() if backup is None else backup)),
-            artwork_box=ArtworkBoxOut(
-                **(artwork_box or {"width": 3840, "height": 2160, "pixels_per_inch": 72.0, "floor_inches": 20.0})
-            ),
         ).model_dump()
 
     return _reading
@@ -190,7 +186,7 @@ def _some_pictures(*, files=2, size=48_000, age_seconds=12.0):
     }
 
 
-def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2):
+def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=None, age_seconds=41.2, reported=None):
     return {
         "wall_id": wall_id,
         "wall_name": name,
@@ -205,7 +201,7 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
                 if absent
                 else f"The display plane last reported {age_seconds:.0f} seconds ago."
             ),
-            "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"},
+            "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"} | (reported or {}),
         },
     }
 
@@ -232,17 +228,24 @@ def _a_source(
     version="0.3.0",
     api_major=1,
     provides=None,
+    museum=None,
 ):
+    # The server's own wording (`services/health.py`, `describe`): by the
+    # museum, never the plugin id. A plugin from elsewhere names its own (1.4).
+    museum = museum or museum_name(name)
     if state == "declined":
-        description = f"{name} is installed and not configured here: {reason}."
+        description = f"The {museum} plugin is installed and not configured here: {reason}."
     elif state == "failed":
-        description = f"{name} is installed and was not loaded: {reason}."
+        description = f"The {museum} plugin is installed and was not loaded: {reason}."
     elif faults:
-        description = f"{name} is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+        description = (
+            f"The {museum} plugin is loaded, with {faults} faults since startup, the last 12 seconds ago (KeyError: 'x')."
+        )
     else:
-        description = f"{name} is loaded, with no faults since startup."
+        description = f"The {museum} plugin is loaded, with no faults since startup."
     return {
         "name": name,
+        "museum": museum,
         "state": state,
         "reason": reason,
         "faults": faults,
@@ -289,8 +292,12 @@ class Ui:
     def open(self, fragment: str = "") -> None:
         """Load the shell and wait for the client's first paint to land."""
         self.page.goto(f"{self.base_url}/{fragment}")
-        # The view starts empty and every route fills it, so waiting on content
-        # is what distinguishes "painted" from "the script has not run yet".
+        # The client marks <html> once it has started (`app.js`). The view is
+        # served holding a "Loading the catalogue…" placeholder, so waiting on
+        # its content returned before the script had run, and a test could act
+        # on a top bar with nothing installed behind it. Then the first paint's
+        # content, as before: `data-started` is set before the paint begins.
+        self.page.wait_for_selector("html[data-started]", state="attached")
         self.page.wait_for_selector("#view *")
 
     def serve(self, pattern: str, payloads) -> None:
@@ -348,10 +355,77 @@ class Ui:
             "() => { const a = document.activeElement;" " return a ? (a.id || a.textContent || a.tagName) : 'none'; }"
         )
 
+    def said_beside(self, control) -> str:
+        """The failure `core/acting.js` put directly after `control`, once said.
+
+        Asserted to be the alert beside the control and not the page's banner,
+        which a failed act no longer uses: where the sentence is, is the claim.
+        """
+        # The element directly after the control, and only once it is the
+        # failure with words in it: the control's own neighbour (Reject beside
+        # Accept) has text too, and waiting on "the next sibling has text" would
+        # pass on that before the failure arrived.
+        beside = control.locator(
+            "xpath=following-sibling::*[1][contains(concat(' ', @class, ' '), ' act-failure ')]"
+            "[@role='alert'][normalize-space(.) != '']"
+        )
+        beside.wait_for(state="visible")
+        assert self.page.locator("#error").is_hidden(), "a failed act was reported in the banner as well"
+        return beside.inner_text()
+
+    def open_folds(self) -> None:
+        """Open Review's fold lines, for a test about a card that starts folded.
+
+        Review folds decided cards and found-none cards behind one line each
+        (`test_review_folds.py` holds that); a test about such a card's own
+        behaviour opens the lines first, as a curator would.
+        """
+        self.page.wait_for_selector("#view li.review-card", state="attached")
+        self.page.evaluate("() => document.querySelectorAll('#view details.fold').forEach((d) => { d.open = true; })")
+
     def requests_matching(self, needle: str) -> list[str]:
         return [url for url in self.requests if needle in url]
+
+    def show_more(self, *, until: int | None = None, presses: int = 400) -> None:
+        """Press Artworks' *Show more* until `until` tiles are on screen, or until it is gone.
+
+        As a keyboard user reaches the end of a grid that pages as it scrolls.
+        The scroll asks for pages too — pressing brings the row into view — so
+        a press can find the button moving under a page arriving, or gone once
+        the last one has; each is retried rather than read as a failure.
+        """
+        # Here rather than at the top: this module is collected without the
+        # browser group installed, and only a browser test reaches this line.
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+
+        tiles = self.page.locator("ul.grid > li")
+        for _ in range(presses):
+            if until is not None and tiles.count() >= until:
+                return
+            button = self.page.locator("#view button.show-more")
+            if button.count() == 0:
+                if until is not None:
+                    raise AssertionError(f"Show more ran out at {tiles.count()} tiles, short of {until}")
+                return
+            try:
+                button.click(timeout=2_000)
+            except PlaywrightTimeoutError:
+                continue
+        raise AssertionError(f"Show more was still offered after {presses} presses")
 
 
 @pytest.fixture
 def ui(page, server_url):
+    """The page, kept off every origin but the suite's own server.
+
+    The client asks Commons for the pictures a reply or a search names, and an
+    unguarded page fetched them from the live site: a test then read a picture
+    box that filled with "Picture unavailable" whenever the internet answered,
+    which is when it failed (#343). Aborted here, every outside request fails
+    the same way on every run, and a test that needs a picture to load says so
+    with `pictures_load` or a route of its own, which Playwright tries first
+    because it was registered later.
+    """
+    # With its slash, so a port that merely begins with this one's digits is outside.
+    page.route(lambda url: not url.startswith(f"{server_url}/"), lambda route: route.abort())
     return Ui(page, server_url)

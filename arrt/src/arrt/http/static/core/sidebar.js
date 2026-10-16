@@ -18,13 +18,15 @@
  */
 
 import { el, fill } from "./render.js";
+import { paintBudget } from "./spend.js";
 
 /* The page a section's own link opens, and which pages it lists beneath it.
  *
  * A section's link opens its first page in table order. A page whose label is
  * the section's own label *is* that link and is not listed again — Artworks
- * under Artworks, Walls under Walls. Every other page is listed, which is why
- * Status sits under System and Taste under Settings, as they do in Sonarr. */
+ * under Artworks, Walls under Walls, the Settings index under Settings. Every
+ * other page is listed, which is why Status sits under System and Clients,
+ * Sources and Taste under Settings, as they do in Sonarr. */
 function layout(table, sections) {
   const pages = Object.entries(table).filter(([, entry]) => entry.page);
   return sections.map((section) => {
@@ -74,10 +76,7 @@ export function paintSidebar(table, sectionList, pick) {
       "ul",
       {},
       sections.map(({ section, opens, listed }) =>
-        // `untilCounted`: hidden until its count arrives. Wanted's alone, and
-        // `paintWanted` (`core/awaiting.js`) is what shows it; a second section
-        // using the flag needs a painter of its own.
-        el("li", { class: "section", "data-section": section.key, hidden: Boolean(section.untilCounted) }, [
+        el("li", { class: "section", "data-section": section.key }, [
           link(
             opens,
             { class: "section-link" },
@@ -114,19 +113,26 @@ export function paintSidebar(table, sectionList, pick) {
         ]),
       ),
     ),
+    // What is left of this month's budget, under the sections as Sonarr puts
+    // its disk space: a standing fact, read on its own and never in the way.
+    el("div", { class: "budget", id: "budget" }),
   );
+  paintBudget({ force: true });
 }
 
 /* Mark where the curator is.
  *
- * **One link carries `aria-current`, and it is the page's own.** Settings' link
- * and Taste's point at the same address, and marking both would tell a screen
- * reader it is on two pages. So the listed page's link is marked when there is
- * one, and the section link only when the page is the section itself. The
+ * **One link carries `aria-current`, and it is the page's own.** On a listed
+ * page the section's link is lit too, as open, and marking both would tell a
+ * screen reader it is on two pages. So the listed page's link is marked when
+ * there is one, and the section link only when the page is the section itself. The
  * current section is shown open through `data-open`, which is styling, not
  * state a reader needs announced. */
 export function lightSidebar(page) {
   const nav = document.getElementById("sidebar");
+  // Read again on a navigation once the last read is a minute old, so a figure
+  // left on screen all afternoon does not stand for this month's.
+  paintBudget();
   for (const node of nav.querySelectorAll("[aria-current]")) node.removeAttribute("aria-current");
   for (const node of nav.querySelectorAll("li.section")) node.removeAttribute("data-open");
   const current = sections.find(({ opens, listed }) => opens === page || listed.some((entry) => entry.view === page));

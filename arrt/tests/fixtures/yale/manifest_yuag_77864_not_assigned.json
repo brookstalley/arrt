@@ -1,0 +1,314 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "https://manifests.collections.yale.edu/yuag/obj/77864",
+  "type": "Manifest",
+  "label": {
+    "en": [
+      "Yokoyama Taikan, Three Lantern Cherries (Ho'ozuki), 2nd quarter of the 20th century"
+    ]
+  },
+  "metadata": [
+    {
+      "label": {
+        "en": [
+          "Copyright Statement"
+        ]
+      },
+      "value": {
+        "en": [
+          "Copyright Artist/Estate/Foundation"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Title"
+        ]
+      },
+      "value": {
+        "en": [
+          "Three Lantern Cherries (Ho'ozuki)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Creator(s)"
+        ]
+      },
+      "value": {
+        "en": [
+          "Artist: Yokoyama Taikan (Japanese, 1868–1958)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Culture"
+        ]
+      },
+      "value": {
+        "en": [
+          "Japanese"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Date"
+        ]
+      },
+      "value": {
+        "en": [
+          "2nd quarter of the 20th century"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Medium"
+        ]
+      },
+      "value": {
+        "en": [
+          "Hanging scroll, cinnabar and gold on satin; with ivory rollers"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Dimensions"
+        ]
+      },
+      "value": {
+        "en": [
+          "without mounting: 9 7/16 × 10 5/8 in. (24 × 27 cm)\r\nwith mounting: 43 11/16 × 17 11/16 in. (111 × 45 cm)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Creditline"
+        ]
+      },
+      "value": {
+        "en": [
+          "The Henry Pearson, M.F.A. 1938, Collection, Gift of Dr. Lawrence Dubin, B.S. 1955, M.D. 1958, and Mrs. Regina Dubin"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Classification"
+        ]
+      },
+      "value": {
+        "en": [
+          "Paintings"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Department"
+        ]
+      },
+      "value": {
+        "en": [
+          "Asian Art"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Institution"
+        ]
+      },
+      "value": {
+        "en": [
+          "Yale University Art Gallery"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Object Number"
+        ]
+      },
+      "value": {
+        "en": [
+          "2000.51.2"
+        ]
+      }
+    }
+  ],
+  "rights": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "requiredStatement": {
+    "label": {
+      "en": [
+        "Rights Description"
+      ]
+    },
+    "value": {
+      "en": [
+        "Data Provided about Yale University Art Gallery collections are public domain. Rights restrictions may apply to cultural works or images of those works."
+      ]
+    }
+  },
+  "logo": [
+    {
+      "id": "https://artgallery.yale.edu/sites/default/files/2023-03/LUX_YUAG_logo.png",
+      "type": "Image"
+    }
+  ],
+  "homepage": [
+    {
+      "format": "text/html",
+      "id": "https://artgallery.yale.edu/collections/objects/77864",
+      "label": {
+        "en": [
+          "catalog entry at the Yale University Art Gallery"
+        ]
+      },
+      "language": "en",
+      "type": "Text"
+    }
+  ],
+  "items": [
+    {
+      "id": "https://manifests.collections.yale.edu/canvas/yuag/4987cdec-8d32-4d71-a662-269c5a860769",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Image from Yale University"
+        ]
+      },
+      "height": 424,
+      "width": 480,
+      "items": [
+        {
+          "id": "https://manifests.collections.yale.edu/annopage/yuag/4987cdec-8d32-4d71-a662-269c5a860769",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://manifests.collections.yale.edu/annotation/yuag/4987cdec-8d32-4d71-a662-269c5a860769",
+              "type": "Annotation",
+              "motivation": "painting",
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/yuag:4987cdec-8d32-4d71-a662-269c5a860769/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/yuag:4987cdec-8d32-4d71-a662-269c5a860769",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 424,
+                "width": 480
+              },
+              "target": "https://manifests.collections.yale.edu/canvas/yuag/4987cdec-8d32-4d71-a662-269c5a860769"
+            }
+          ]
+        }
+      ],
+      "thumbnail": [
+        {
+          "id": "https://media.collections.yale.edu/thumbnail/yuag/4987cdec-8d32-4d71-a662-269c5a860769",
+          "type": "Image",
+          "format": "image/jpeg",
+          "width": 480,
+          "height": 424
+        }
+      ],
+      "metadata": [
+        {
+          "label": {
+            "en": [
+              "Image Use Rights"
+            ]
+          },
+          "value": {
+            "en": [
+              "Not Assigned"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "https://manifests.collections.yale.edu/canvas/yuag/9077d6a4-4f92-4c17-a979-f335bb37b885",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Image from Yale University"
+        ]
+      },
+      "height": 480,
+      "width": 235,
+      "items": [
+        {
+          "id": "https://manifests.collections.yale.edu/annopage/yuag/9077d6a4-4f92-4c17-a979-f335bb37b885",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://manifests.collections.yale.edu/annotation/yuag/9077d6a4-4f92-4c17-a979-f335bb37b885",
+              "type": "Annotation",
+              "motivation": "painting",
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/yuag:9077d6a4-4f92-4c17-a979-f335bb37b885/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/yuag:9077d6a4-4f92-4c17-a979-f335bb37b885",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 480,
+                "width": 235
+              },
+              "target": "https://manifests.collections.yale.edu/canvas/yuag/9077d6a4-4f92-4c17-a979-f335bb37b885"
+            }
+          ]
+        }
+      ],
+      "thumbnail": [
+        {
+          "id": "https://media.collections.yale.edu/thumbnail/yuag/9077d6a4-4f92-4c17-a979-f335bb37b885",
+          "type": "Image",
+          "format": "image/jpeg",
+          "width": 235,
+          "height": 480
+        }
+      ],
+      "metadata": [
+        {
+          "label": {
+            "en": [
+              "Image Use Rights"
+            ]
+          },
+          "value": {
+            "en": [
+              "Not Assigned"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

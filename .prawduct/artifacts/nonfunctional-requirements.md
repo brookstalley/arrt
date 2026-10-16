@@ -70,6 +70,8 @@ unbounded bill.
 > `services/health.py` carries the same decision at the site that would hold the
 > field, and says not to add it back without reopening the decision.)*
 >
+> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown in the sidebar, read from the provider as this corollary says, and approvals give way to cost tiers. The inversion recorded here was weighed and accepted: it bites only at the edge of the cap, where the provider's refusal is authoritative and the screen must say so, and how the figure reads near zero is #290's to design (the builder's proposal, not part of the ruling: "under $1 left" below about $1, rather than a precise amount). **Server half built 2026-10-07** (`build-plan-walls-work-and-trust.md` Chunk 10): `GET /api/budget` reads `limit_remaining`, which on a key with a monthly reset is the month's (re-measured, `openrouter-api-findings.md`), or, on a key with no limit, the provider's own `usage_monthly` against `MONTHLY_BUDGET_USD`, never a ledger tally; the refusal at the cap now leads with "This month's budget is spent"; the approval gate is gone. The health panel still carries no balance, and its test says why. The sidebar shows the figure ("$12.40 left this month", built 2026-10-08, `core/spend.js`).)*
+>
 > **Scope note:** this norm governs *ceilings*, not *budgeting*. A per-run search
 > cap (below, under Cost) is application-enforced and does not depart from this —
 > it bounds one run's ambition, it is not the thing that stops the bill.
@@ -108,7 +110,7 @@ decision.
 >
 > **Status:** steady-state again since 2026-10-05 (the Norm Health sweep). The
 > transition ended when the Player retired the file channel on 2026-10-02 and
-> rendered only from its cache; `postarr/tests/test_pull.py` tests the cache
+> rendered only from its cache; `arrt-player/tests/test_pull.py` tests the cache
 > claim with the server stopped and with the Player restarted while it is down.
 > The transition's record follows. *(Was: in-transition, amended 2026-09-30.)*
 > **Interim rule, now discharged:** until wave 3 retires the file channel, the
@@ -312,6 +314,8 @@ own living room.
 picture up when the set is *already* showing art. If somebody is watching
 something, or the set is off, the wall waits — it does not select, it does not
 advance its place in the theme, and it does not consume a pending directive.
+*(Since wave 4g, 2026-10-10, there is no directive: a *show now* or Skip is a
+republished schedule, which waits in the Player's cache like any other.)*
 
 **And it never sends a power key to a set in the television state** — added
 2026-08-17 with the amendment below, which gave the plane a key to send. This is
@@ -397,7 +401,7 @@ restarted at noon — the behaviour the paragraph above forbids, arriving throug
 the schedule instead of around it. Forfeiting is the safe direction by this
 norm's own ranking: a wall that is dark until tomorrow morning is late, and late
 is the smaller failure. The bound is a configured value, commented and not
-pinned, as the abandoned v1 plan's power chunk specified and Postarr power
+pinned, as the abandoned v1 plan's power chunk specified and Arrt Player power
 control (`re-architecture.md`, wave 6+) inherits.)
 
 > **Why:** the household should need one remote at bedtime, not two. Sleeping the
@@ -417,10 +421,10 @@ control (`re-architecture.md`, wave 6+) inherits.)
 > holding the remote wins, always, and the plane's way of conceding is to stop
 > for the night rather than to wait a while and try again.
 >
-> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Postarr power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
+> **Status:** in-transition. The v1 plan's Chunks 24–27 that tracked it were abandoned on 2026-09-30. Its requirement is rebuilt as Arrt Player power control (`re-architecture.md` § Where the v1 open chunks' requirements went), and the dark hours move to Programming's schedule.
 > **Interim rule: no code that runs unattended sends a power key until the
 > power-transition measurement (formerly the v1 plan's Chunk 24, now part of
-> Postarr power control) has recorded what the keys do.** The transitions are a sketch today —
+> Arrt Player power control) has recorded what the keys do.** The transitions are a sketch today —
 > `platform-and-dependency-findings.md` observed two presses from one starting state
 > and never tested press-and-hold — and the state its map is missing is the
 > television one, where a press is the interruption the paragraphs above forbid.
@@ -429,20 +433,20 @@ control (`re-architecture.md`, wave 6+) inherits.)
 > written, because the measurement itself needs something that sends one. The
 > original wording forbade the instrument that satisfies its own precondition,
 > which is a rule that cannot be complied with. **What the narrowing turns on is
-> the operator, not the code**: `postarr/tools/power_probe.py` refuses to send
+> the operator, not the code**: `arrt-player/tools/power_probe.py` refuses to send
 > anything without `--i-am-at-the-set`, so every press it makes has somebody
 > standing in front of the set watching — which is the whole distinction this norm
 > draws. It is stated here rather than only in the build plan because a plan is
 > archived when it completes and this sentence outlives it.)*
 >
 > **Retroactivity:** migrate, no residual sites in the daemon. Nothing on the
-> unattended path holds a power verb: `postarr/src/postarr/tv/` opens the art
-> channel only and sends no key, and that is what Postarr power control (`re-architecture.md`,
+> unattended path holds a power verb: `arrt-player/src/arrt_player/tv/` opens the art
+> channel only and sends no key, and that is what Arrt Player power control (`re-architecture.md`,
 > wave 6+) changes.
 >
 > Two places a reader will find power code today, and neither is the plane running
 > on the wall. `tvart.py` has every `KEY_POWER` line commented out — inert, the 2024
-> plane, deleted at wave 5. `postarr/tools/power_probe.py` sends them for real, by
+> plane, deleted at wave 5. `arrt-player/tools/power_probe.py` sends them for real, by
 > hand, guarded as above; it is an instrument rather than a plane, and it is listed
 > here because a retroactivity claim that misses a live call site is worse than no
 > claim.
@@ -511,7 +515,7 @@ curator every judgement they have already made. So:
 - **The SQLite catalogue is backed up.** It is small (megabytes), it is the entire
   product's memory, and it is the only artefact whose loss cannot be repaired by
   spending time instead of money.
-- **The image tree is disposable.** `raw/`, `ready/`, `tv-thumbs/` and
+- **The image tree is disposable.** `raw/`, `ready/` (until wave 4g), `tv-thumbs/` and
   `tile-cache/` are all reconstructible, and so is `sources/`, a source plugin's
   copy of a holder's published data (since 2026-10-06). They are excluded from
   backup deliberately, not by oversight — this is the upstream/derived split
@@ -526,8 +530,8 @@ curator every judgement they have already made. So:
 > - **How many files it is.** Wave 3 splits the store, before it moves, into a Library file and a
 >   Programming file, with no foreign keys between them. Both hold curatorial
 >   judgement: the Library holds verdicts, suppression, mat colours, facets and
->   taste; Programming holds playlists, hanging, directive counters and
->   programming tags. Both must be backed up, and a restore must restore them as
+>   taste; Programming holds playlists, hanging, directive counters (until wave
+>   4g) and programming tags. Both must be backed up, and a restore must restore them as
 >   a pair or say what it does about a Programming reference to a work the
 >   restored Library does not hold.
 > - **The Player's cache and its TV bindings.** These are device state, and a
@@ -535,6 +539,8 @@ curator every judgement they have already made. So:
 > - **The server's composed renders.** They disappear in wave 4 when compositing
 >   moves to the Player. The presentation master is derived from the Original and
 >   is reproducible, so it stays out of backup like `ready/` today.
+>   *(Wave 4g, 2026-10-10: the composed renders are gone, and the masters under
+>   `presentation/` stay out of backup on the same reasoning.)*
 
 ## Cost Constraints
 
@@ -818,8 +824,8 @@ than a silent truncation of results.
 > holds far more than any run will show — one real run's four artists had 69
 > offerable works between them — and the museum's relevance score is unusable for
 > ordering them (`artic-api-findings.md`). So the works kept are taken one per
-> artist per pass, and this number is how many passes. Twelve is about half the
-> approval threshold, which keeps the supplement visibly secondary while still
+> artist per pass, and this number is how many passes. Twelve was about half the
+> approval threshold the gate used until 2026-10-07, which keeps the supplement visibly secondary while still
 > giving a four-artist run three works each. Zero turns it off.
 >
 > **Overrunning the allowance fails the run rather than trimming its results.**
@@ -842,6 +848,14 @@ than a silent truncation of results.
 > and a reader who assumed the cap bounded total re-search spend would be wrong.
 
 ### Cost visibility
+
+> **Direction changed 2026-10-08 (the owner): Ask spends without asking.** A
+> reply from Ask's agent is several model calls whose number is not known in
+> advance, and the owner ruled it may spend without an estimate first. It
+> reports what it actually cost when it ends. A cap on one reply is budgeting,
+> which § Direction's scope note allows in application code; the owner ruled it
+> belongs in 3tears, so each consuming app does not re-implement it. The ceiling
+> stays on the provider's key. `build-plan-ask-agent.md`.
 
 Every operation that spends money should report its estimated cost before it runs
 and its actual cost when it finishes, on every surface equally — the web UI and
@@ -1141,6 +1155,13 @@ is a *downscale* or a *native-size paste*.
 
 ### The mat is geometric, and the floor is physical (decided 2026-07-20)
 
+> **Direction changed 2026-10-08 (`feeds-and-players.md` § Mat modes).** The rule
+> below becomes one of three mat modes a client draws: `none` (black),
+> `proportional` (this rule) and `full` (mat colour to every edge, the rule before
+> 2026-10-02). The feed carries only the mat colour, and the mode and width are
+> the client's. A client that knows its pixel density keeps this rule; one that
+> does not uses a relative width that the wave 4 layout spec pins.
+
 **The mat is specified in physical units, not pixels or ratios.** A mat width in
 inches, with the bottom margin weighted larger than the top — the conservator's
 convention, because a true-centred image reads as sitting low. This is what
@@ -1196,6 +1217,10 @@ the numbers reproduce. Panel dimensions therefore join
 > The worked examples remain the specification the Player's compositor must
 > reproduce.
 >
+> *(Wave 4g, 2026-10-10: done. The server reads no `TV_PANEL_*`,
+> `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player reads all of them under
+> the same names, and its compositor is the only one.)*
+>
 > **The floor was the open problem this move created, and it is settled.** Today
 > the below-floor exclusion in automatic instance selection (`library/services/selection.py`)
 > reads the artwork box from server settings. After wave 4 the Library has no box
@@ -1207,6 +1232,14 @@ the numbers reproduce. Panel dimensions therefore join
 > must land it in the same change that removes the panel settings. Losing the
 > floor silently would let a below-floor scan be auto-selected, the exact silent
 > acceptance this section forbids.
+>
+> **Built 2026-10-08 in wave 4b, ahead of the change that removes the panel
+> settings (4g), not in it.** The sentence above exists so that no gap opens
+> between the box leaving and the profile arriving, and landing the profile
+> first leaves none; the departure is recorded as a decision in
+> `build-plan-wave-4b-master-quality.md`. The profile has a minimum and no
+> cutoff (`upgrades.md` ruling 1). From then the box is read only to compose
+> the canvas.
 
 Everything else follows arithmetically:
 
@@ -1238,7 +1271,8 @@ the long edge.
 > long edge**, the number the quality profile was waiting for
 > (`re-architecture.md` § Open questions). The inch floor stays the mechanism
 > until wave 4, and a deployment expresses the minimum in it as 1,000 px divided
-> by its panel's pixels per inch.
+> by its panel's pixels per inch. *(Wave 4b, 2026-10-08: the minimum is now
+> `QUALITY_MINIMUM_PX`, in pixels, and the inch floor is retired.)*
 
 **Below the floor, the work is not rejected and the image is not hidden.** Phase 2
 does not *auto-select* a below-floor instance; the review grid shows it labelled
@@ -1247,7 +1281,9 @@ select it anyway. *(Since 2026-10-02 the browser shows the scan's own pixels and
 the fit verdict's word instead of the inches — the owner's ruling,
 `build-plan-topics-and-destinations.md` Chunk 07: the inches are the long edge on
 the one panel this server is configured for, and read as a fact about the scan.
-The floor itself is unchanged, and still in inches.)* If every instance is below floor the work lands at
+The floor itself was unchanged, and still in inches, until wave 4b made it the
+quality minimum in pixels on 2026-10-08; "below the floor" in this section now
+reads "below the quality minimum".)* If every instance is below floor the work lands at
 `resolution_status = unresolved`, which is already a first-class outcome that may
 never be silently omitted (`data-model.md` constraint 9), and the work stays
 eligible for re-search. Nothing is silently dropped and nothing is silently

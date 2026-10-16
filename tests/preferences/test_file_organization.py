@@ -13,7 +13,7 @@ _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 #: The root plane's modules on 2026-10-05, when this guard was written. The rule is
 #: that nothing new is added at the root: new code goes in a plane package. So the
 #: set may lose members (the 2024 modules leave at wave 5, and the hand-run tools
-#: move to `postarr/tools` before the extraction) and may never gain one. A module
+#: move to `arrt-player/tools` before the extraction) and may never gain one. A module
 #: that leaves is deleted from this list in the same commit, which is the only edit
 #: this list should ever see.
 _ROOT_MODULES = frozenset(
@@ -39,7 +39,7 @@ _ROOT_MODULES = frozenset(
 #: Each plane's test tree. `testpaths = ["tests"]` in every plane's `pyproject.toml`
 #: means a `test_*.py` anywhere else is never collected, so it would look like a
 #: test and guard nothing.
-_TEST_TREES = ("tests/", "arrt/tests/", "postarr/tests/")
+_TEST_TREES = ("tests/", "arrt/tests/", "arrt-player/tests/")
 
 
 def _tracked() -> list[str]:
@@ -57,7 +57,7 @@ def test_nothing_new_is_added_at_the_root():
     assert present, "no root modules found; has the layout moved?"
     assert present <= _ROOT_MODULES, (
         f"new modules at the repository root: {sorted(present - _ROOT_MODULES)}. "
-        "New code goes in a plane package (arrt/src, postarr/src, or a plane's tools/)."
+        "New code goes in a plane package (arrt/src, arrt-player/src, or a plane's tools/)."
     )
 
 

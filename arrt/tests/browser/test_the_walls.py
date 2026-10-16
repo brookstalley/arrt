@@ -16,6 +16,9 @@ not. It is stubbed for that reason — a server cannot be asked to fail on purpo
 the state every deployment with no display attached is actually in.
 """
 
+import json
+from datetime import UTC, datetime
+
 import pytest
 
 # At import time, not in a fixture. A marker deselection still *collects* this
@@ -27,6 +30,7 @@ pytest.importorskip(
 )
 
 from arrt.persistence.records import MatMethod, RenditionKind
+from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 #: The phrase each reason states, keyed by the reason. Several for the silent
 #: one, because "nothing was ever written", "something was written and cannot be
@@ -69,14 +73,14 @@ def a_displayable_work(work_with_an_image, service, settings, decodable_jpeg):
     def _work(title="Nighthawks"):
         artwork = work_with_an_image(title=title)
         service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        rendered = f"ready/{artwork.id}.jpg"
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160)
+        presented = f"presentation/{artwork.id}.jpg"
+        decodable_jpeg(settings.art_root / presented, width=400, height=300)
         service.record_rendition(
             artwork_id=artwork.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
+            kind=RenditionKind.PRESENTATION_MASTER,
+            target_width=7680,
+            target_height=7680,
+            path=presented,
         )
         return artwork
 
@@ -160,7 +164,7 @@ def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, th
     ui.page.wait_for_selector("section.wall")
 
     assert "No theme has been created yet" in ui.text()
-    assert ui.page.locator("button", has_text="Create a theme").count() == 1
+    assert ui.page.locator("a", has_text="Create a theme").count() == 1
     assert ui.page.locator("select").count() == 0
 
 
@@ -181,7 +185,7 @@ def test_an_empty_theme_says_the_theme_is_empty_and_offers_to_fill_it(ui, servic
 
     assert _reasons_named(ui) == ["an empty theme"]
     assert f"{a_theme.name} holds no works yet, so nothing is on {the_wall.name}." in ui.text()
-    assert ui.page.locator("button", has_text=f"Add works to {a_theme.name}").count() == 1
+    assert ui.page.locator("a", has_text=f"Add works to {a_theme.name}").count() == 1
 
 
 def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, services, a_theme, the_wall):
@@ -199,15 +203,15 @@ def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, s
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
-    ui.page.click(f"button:has-text('Add works to {a_theme.name}')")
-    ui.page.wait_for_selector(f"h2:has-text('{a_theme.name}')")
+    ui.page.click(f"a:has-text('Add works to {a_theme.name}')")
+    ui.page.wait_for_selector(f"h1:has-text('{a_theme.name}')")
 
     # The id, and the opener beside it. Theme's default return is Collection, so
     # arriving from a wall is the case `?from=` exists for — without it the back
     # link would send a curator to the grid from a screen they reached by asking
     # about a wall.
     assert ui.page.evaluate("() => window.location.hash") == f"#theme/{a_theme.id}?from=walls"
-    assert ui.page.locator("button:has-text('← Walls')").count() == 1
+    assert ui.page.locator("a:has-text('← Walls')").count() == 1
     assert ui.page.locator("text=Winter").count() == 0
 
 
@@ -223,9 +227,13 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    # The manifest's three panels, and nothing else.
-    assert ui.page.locator("section.wall .panel h4").count() == 3
-    assert "Showing (0)" in ui.text()
+    # The setup's panels, behind their disclosure, and nothing else.
+    assert ui.page.locator("section.wall details.wall-setup .panel h3").all_text_contents() == [
+        "Not showing (0)",
+        "How it rotates",
+        "Shapes it shows",
+        "Mat",
+    ]
 
 
 # -- reason three: the display plane silent -----------------------------------
@@ -243,7 +251,7 @@ def test_a_wall_whose_display_has_never_reported_says_so_and_points_at_the_readi
 
     assert _reasons_named(ui) == ["the display plane silent"]
     assert f"No display has ever reported for {a_hung_wall.name}." in ui.text()
-    assert ui.page.locator("button", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
+    assert ui.page.locator("a", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
 
 
 def test_a_heartbeat_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_hung_wall, a_health_reading, a_wall_reading):
@@ -263,7 +271,7 @@ def test_a_heartbeat_that_cannot_be_read_is_the_same_reason_in_different_words(u
 
     assert _reasons_named(ui) == ["the display plane silent"]
     assert f"{a_hung_wall.name}'s heartbeat cannot be read: the file is not JSON." in ui.text()
-    assert ui.page.locator("button", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
+    assert ui.page.locator("a", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
 
 
 def test_a_reading_that_names_no_heartbeat_for_this_wall_is_never_read_as_well(ui, a_hung_wall, a_health_reading):
@@ -292,14 +300,9 @@ def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
     ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name)]))
 
     ui.open("#walls")
-    ui.page.wait_for_selector("ul.hanging")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     assert _reasons_named(ui) == []
-    # The artwork itself, carrying the work and its artist for anyone who cannot
-    # see it — on this screen the image is the content rather than a thumbnail
-    # beside it.
-    assert ui.page.locator("ul.hanging li.hung").count() == 1
-    assert ui.page.get_by_alt_text("Nighthawks").count() == 1
 
 
 # -- reason four: a plane this screen could not reach --------------------------
@@ -346,7 +349,7 @@ def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(
     ui.serve("**/api/walls", (500, {"error": "the catalogue is locked"}))
 
     ui.open("#walls")
-    ui.page.wait_for_selector("h2")
+    ui.page.wait_for_selector("h1")
 
     assert _reasons_named(ui) == ["a plane out of reach"]
     assert "The curation plane did not answer" in ui.text()
@@ -403,20 +406,25 @@ def test_confirming_hangs_it_and_the_wall_repaints_from_what_was_published(ui, s
     ui.page.click(f"button:has-text('Hang on {the_wall.name}')")
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
-    ui.page.wait_for_selector(f"h3.wall-title:has-text('{the_wall.name}: {a_full_theme.name}')")
+    ui.page.wait_for_selector(f".wall-source:has-text('Drawing from {a_full_theme.name}, until changed.')")
 
     assert services.display.hanging_on(the_wall.id).id == a_full_theme.id
     assert "All 1 work in this theme is on the wall." in ui.text()
 
 
-# -- next ----------------------------------------------------------------------
+# -- skip ----------------------------------------------------------------------
 
 
-def test_moving_a_wall_on_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall, a_health_reading, a_wall_reading):
-    """A `next` in the living room must not step the study.
+def _skip(ui, wall_name):
+    return ui.page.get_by_role("button", name=f"Skip the work on {wall_name}")
+
+
+def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall, a_health_reading, a_wall_reading):
+    """A Skip in the living room must not step the study.
 
     Two walls is the smallest arrangement that can tell the two behaviours apart;
-    with one, a route that stepped everything would look perfect.
+    with one, a route that stepped everything would look perfect. Skip replaces
+    "Move on".
     """
     study = services.display.add_wall(name="Study")
     ui.serve(
@@ -428,21 +436,26 @@ def test_moving_a_wall_on_names_that_wall_and_steps_only_that_wall(ui, services,
             ]
         ),
     )
-    before = services.display.read_directive(a_hung_wall.id).sequence
+    before = services.display.published_manifest_v2(a_hung_wall.id)
 
     ui.open("#walls")
-    ui.page.wait_for_selector("ul.hanging")
-    ui.page.click(f"button:has-text('Move {a_hung_wall.name} on to the next work')")
-    ui.page.wait_for_selector(f"dl.facts dd:text-is('{before + 1}')")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+    skip = _skip(ui, a_hung_wall.name)
+    assert skip.inner_text() == "Skip"
+    skip.click()
+    ui.page.wait_for_selector(f".wall-said:has-text('Skipped. {a_hung_wall.name} shows its next work')")
 
-    assert services.display.read_directive(a_hung_wall.id).sequence == before + 1
-    assert services.display.read_directive(study.id).sequence == 0
-    # And the wall with nothing on it is not offered a step at all: advancing a
-    # wall that is showing nothing writes a directive nobody can act on.
-    assert ui.page.locator("button", has_text="Move Study on to").count() == 0
+    assert services.display.published_manifest_v2(a_hung_wall.id) != before
+    assert services.display.published_manifest_v2(study.id) is None
+    # The wall with nothing on it is not offered a skip at all: it has no
+    # schedule to move on through.
+    assert _skip(ui, "Study").count() == 0
+    whole = ui.page.locator("#view").text_content()
+    assert "Move " not in whole
+    assert "Directive sequence" not in whole
 
 
-def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_step(
+def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
     ui, services, an_all_excluded_theme, the_wall, a_health_reading, a_wall_reading
 ):
     """The wall reads as hanging and has nothing on it, which is one state, not two.
@@ -450,90 +463,83 @@ def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_step(
     `considered` is entries plus exclusions, so a theme whose works were all
     excluded is not an empty theme and does not name one of the four reasons —
     the Not-showing panel answers it per work, which is the better answer. What
-    it must not do is offer a step: the rotation this would advance is empty, so
-    the directive lands on a wall that changes nothing and says nothing about
-    why.
+    it must not do is offer a skip: the rotation this would advance is empty.
     """
     services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
     ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=the_wall.id, name=the_wall.name)]))
 
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     assert _reasons_named(ui) == []
-    assert "Showing (0)" in ui.text()
-    assert "Nothing in this theme is currently displayable." in ui.text()
     # The panel that does answer it, naming the work and what it is missing.
+    ui.page.click(f"summary:has-text('How {the_wall.name} is set up')")
     assert "Not showing (1)" in ui.text()
     assert "No mat colour has been chosen" in ui.text()
-    assert ui.page.locator("button", has_text=f"Move {the_wall.name} on to").count() == 0
+    assert _skip(ui, the_wall.name).count() == 0
 
 
-def test_a_wall_with_a_work_on_it_is_offered_the_step(ui, a_hung_wall, a_health_reading, a_wall_reading):
-    """The paired positive: the gate must be a gate rather than an off switch.
-
-    This differs from the test above in one thing — whether the theme's one work
-    can actually be shown — so a gate widened until it never opened, or one that
-    read the reason and not the rotation, fails one of the two.
-    """
+def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_hung_wall, a_health_reading, a_wall_reading):
+    """The paired positive: the gate must be a gate rather than an off switch."""
     ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name)]))
 
     ui.open("#walls")
-    ui.page.wait_for_selector("ul.hanging")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert "Showing (1)" in ui.text()
-    assert ui.page.locator("button", has_text=f"Move {a_hung_wall.name} on to the next work").count() == 1
+    assert _skip(ui, a_hung_wall.name).count() == 1
 
 
-def test_a_wall_no_display_has_reported_for_is_not_offered_a_step_either(ui, a_hung_wall):
-    """The other half of the gate: something is published, and nothing is showing it.
-
-    The manifest here holds a work, so the rotation is not empty — and no display
-    has ever reported, so nothing can say the wall is showing it. A step here is
-    the same directive nobody can act on, arrived at from the other side.
-    """
+def test_a_wall_no_display_has_reported_for_is_not_offered_a_skip_either(ui, a_hung_wall):
+    """The other half of the gate: something is published, and nothing is showing it."""
     ui.open("#walls")
-    ui.page.wait_for_selector("ul.hanging")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     assert _reasons_named(ui) == ["the display plane silent"]
-    assert "Showing (1)" in ui.text()
-    assert ui.page.locator("button", has_text=f"Move {a_hung_wall.name} on to").count() == 0
+    assert _skip(ui, a_hung_wall.name).count() == 0
 
 
-# -- the pictures, when one of them will not load -------------------------------
-
-
-def test_a_hung_work_whose_image_cannot_be_loaded_says_so(ui, a_hung_wall):
-    """A file can go away between the manifest being built and this fetch.
-
-    Without the fallback the tile paints a blank box — silent, and on the one
-    screen whose entire content is the pictures, indistinguishable from a wall
-    that is working.
-    """
-    ui.page.route("**/thumbnail", lambda route: route.fulfill(status=404, body="gone"))
-
+def test_the_card_lists_no_theme_inventory(ui, a_hung_wall, a_health_reading, a_wall_reading):
+    """The card is about the work on the wall; the theme in full is the theme's page."""
+    ui.serve("**/api/health", a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name)]))
     ui.open("#walls")
-    ui.page.wait_for_selector(".card-image-absent")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert "Its image could not be loaded just now." in ui.text()
-    # The broken image must be gone, not merely covered: an <img> left in place
-    # is still announced, and still draws the browser's own broken-image glyph.
-    assert ui.page.locator("ul.hanging img").count() == 0
+    assert "Showing (" not in ui.page.locator("#view").text_content().replace("Not showing (", "")
+    assert ui.page.locator("ul.hanging").count() == 0
 
 
-def test_a_hung_work_whose_image_loads_keeps_its_picture(ui, a_hung_wall):
-    """The paired negative — the fallback fires on error and not otherwise."""
-    ui.open("#walls")
-    ui.page.wait_for_selector("ul.hanging img")
-    # Waited on the decode rather than on the element, so "the sentence is
-    # absent" is a statement about a picture that arrived rather than about one
-    # that had not failed yet.
-    ui.page.wait_for_function(
-        "() => [...document.querySelectorAll('ul.hanging img')].every((i) => i.complete && i.naturalWidth > 0)"
+def _reads(services, wall, majors):
+    """A heartbeat from a Player that reads these manifest majors."""
+    capabilities = {"screen": {"width_px": 3840, "height_px": 2160}, "backend": "frame", "label_modes": ["none"]}
+    services.display.record_heartbeat(
+        wall.id,
+        {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "capabilities": {**capabilities, "manifest_majors": majors},
+        },
     )
 
-    assert "Its image could not be loaded just now." not in ui.text()
-    assert ui.page.locator("ul.hanging img").count() == 1
+
+def test_a_wall_whose_player_cannot_read_the_feed_says_so_on_its_card(ui, services, a_hung_wall):
+    """The one sign of a Player missed in the upgrade: it asks for a feed that is no longer published."""
+    _reads(services, a_hung_wall, [1])
+
+    ui.open("#walls")
+    notice = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}'] .wall-feed")
+    notice.wait_for()
+
+    assert "can't read this server's feed" in notice.inner_text()
+    assert "Update Arrt Player" in notice.inner_text()
+
+
+def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, a_hung_wall):
+    _reads(services, a_hung_wall, [2, 1])
+
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    assert ui.page.locator(".wall-feed").count() == 0
+    assert "can't read this server's feed" not in ui.page.locator("#view").text_content()
 
 
 # -- one wall is the degenerate case of many -----------------------------------
@@ -550,7 +556,7 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
     ui.page.wait_for_selector("section.wall")
 
     assert ui.page.locator("section.wall").count() == 1
-    assert ui.page.locator("h3.wall-title").all_inner_texts() == [the_wall.name]
+    assert ui.page.locator("h2.wall-title").all_inner_texts() == [the_wall.name]
     assert ui.page.locator("button", has_text="Hang on ").all_inner_texts() == [f"Hang on {the_wall.name}"]
 
     services.display.add_wall(name="Study")
@@ -561,7 +567,7 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
     ui.page.wait_for_selector("section.wall")
 
     assert ui.page.locator("section.wall").count() == 2
-    assert ui.page.locator("h3.wall-title").all_inner_texts() == ["Study", the_wall.name]
+    assert ui.page.locator("h2.wall-title").all_inner_texts() == ["Study", the_wall.name]
     assert sorted(ui.page.locator("button", has_text="Hang on ").all_inner_texts()) == [
         "Hang on Study",
         f"Hang on {the_wall.name}",
@@ -666,21 +672,109 @@ def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_
 
 
 def _client_line(ui, wall_name):
-    section = ui.page.locator("section.wall", has=ui.page.locator(f"h3.wall-title:has-text('{wall_name}')"))
+    section = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{wall_name}')"))
     return section.locator("p.wall-client")
 
 
-def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, services, the_wall):
+#: Stamped when written (`_report`), so the report is young enough to speak for
+#: the screen: one older than three heartbeats says nothing about now, and has
+#: its own tests. Stamping it here, at import, made it stale for any test run
+#: more than three heartbeats after collection, which a full suite is.
+HALL_REPORT = {
+    "reported_at": None,
+    "outputs": [
+        {"name": "hdmi-a-1", "kind": "framebuffer", "connected": True, "screen": [1920, 1080]},
+        {"name": "hdmi-a-2", "kind": "framebuffer", "connected": False, "screen": None},
+    ],
+}
+
+
+def _report(settings, client, document=HALL_REPORT):
+    """What a running client's heartbeat leaves under the art root."""
+    path = client_heartbeat_path_in(settings.art_root, client.id)
+    if isinstance(document, dict):
+        document = document | {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    path.write_text(document if isinstance(document, str) else json.dumps(document), encoding="utf-8")
+
+
+def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, services, settings, the_wall):
+    """Shown, because the client reports a screen detected on that output.
+
+    Rewritten when "Shown by" stopped being said from the assignment alone: a
+    wall on an output with nothing detected is not shown by anything, and the
+    tests below say what it reads instead. This one keeps its claim, with the
+    report that makes it true.
+    """
     hall = services.clients.add_client(name="Hall Pi")
-    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
+    _report(settings, hall)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     services.display.add_wall(name="Study")
-    ui.open("#walls")
+    # The output by its port name is engineering detail, named with `?debug`
+    # (the owner's ruling 1 of 2026-10-11); without it the line ends at the client.
+    ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
 
-    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-2"
+    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-1"
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi"
     # The other wall's line is its own: an assignment painted under every wall
     # would read correctly with one wall and be wrong with two.
     assert _client_line(ui, "Study").inner_text().startswith("No client shows this wall.")
+
+
+def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui, services, settings, the_wall):
+    """A television switched off drops its hotplug line, and the client reports that.
+
+    Two walls on one client, one output each, so a line read from the wrong
+    output — or from the client rather than the output — reads wrong for one.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    _report(settings, hall)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-2")
+    study = services.display.add_wall(name="Study")
+    services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    dark = _client_line(ui, the_wall.name).inner_text()
+    assert dark == "Assigned to Hall Pi, where no screen is detected (off or unplugged)"
+    assert "Shown" not in dark
+    # Told apart by what each output reports, not by its name, which the line
+    # leaves out without `?debug`.
+    assert _client_line(ui, "Study").inner_text() == "Shown by Hall Pi"
+
+
+@pytest.mark.parametrize(
+    ("document", "words"),
+    [
+        (None, "Hall Pi has not reported its outputs yet, so whether a screen is there is not known."),
+        ("{not json", "Hall Pi's last report could not be read, so whether a screen is there is not known."),
+        (
+            HALL_REPORT | {"outputs": HALL_REPORT["outputs"][1:]},
+            "Hall Pi's last report does not list the output this wall is assigned to.",
+        ),
+    ],
+    ids=["never-reported", "unreadable", "output-not-reported"],
+)
+def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, services, settings, the_wall, document, words):
+    """Unknown is its own state: neither "Shown by" nor "no screen detected".
+
+    Each reason is its own sentence, because they send the curator to different
+    places: a client not yet running, a report on the client that is corrupt, and
+    an assignment naming an output the client does not have.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    if document is not None:
+        _report(settings, hall, document)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall p.wall-client")
+
+    line = _client_line(ui, the_wall.name).inner_text()
+    assert line == f"Assigned to Hall Pi. {words}"
+    assert "Shown" not in line
+    assert "no screen is detected" not in line
 
 
 def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_assigned(ui, services, the_wall):
@@ -694,7 +788,7 @@ def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_as
     assert link.get_attribute("href") == "#clients"
 
     link.click()
-    ui.page.wait_for_selector("#view h2:has-text('Clients')")
+    ui.page.wait_for_selector("#view h1:has-text('Clients')")
     assert ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']").count() == 1
 
 
@@ -707,10 +801,13 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     hall = services.clients.add_client(name="Hall Pi")
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     ui.serve("**/api/clients", (503, {"error": "the client listing is down"}))
-    ui.open("#walls")
+    # Which output is engineering detail, said with `?debug` (ruling 1 of 2026-10-11).
+    ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall p.wall-client")
 
     line = _client_line(ui, the_wall.name).inner_text()
-    assert line == "Shown on hdmi-a-1 by a client whose name could not be read — the client listing is down"
+    # The listing carries the client's report as well as its name, so without it
+    # whether a screen is there is unknown too, and "Shown" would claim it.
+    assert line == "Assigned to hdmi-a-1 of a client whose name and report could not be read — the client listing is down"
     assert ui.page.locator("#error").is_hidden()
     assert "Nothing is hanging on" in ui.text()

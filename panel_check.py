@@ -13,9 +13,10 @@ judgement about whether a work was large enough was silently mis-sized.
 change log then admitted that sentence advertised a capability nothing delivered.
 This is the check.
 
-**Where it lives, and why here rather than beside the value.** Curation owns the
-diagonal and derives every inch from it, and has no client for the television —
-no `samsungtvws` dependency, and it never talks to the set. The 2024 plane talks
+**Where it lives, and why here rather than beside the value.** Curation reads the
+diagonal for major 1's composed render, and since wave 4d the Player reads its own
+copy for the mats it composes; curation has no client for the television — no
+`samsungtvws` dependency, and it never talks to the set. The 2024 plane talks
 to the set and owns none of the geometry. Neither side holds both halves, so the
 comparison goes where the `modelName` already arrives, and the *decision* goes
 here: a module with no heavy imports, which the root suite can import and drive.
@@ -101,7 +102,7 @@ def not_compared(model_name: str | None, configured_inches: float | None) -> str
         reasons.append(f"{model_name} is not a model line this parse has been verified against")
     if configured_inches is None:
         reasons.append(
-            "TV_PANEL_DIAGONAL_INCHES is not set, so curation reasons at its built-in default "
+            "TV_PANEL_DIAGONAL_INCHES is not set, so the mat is drawn at its built-in default "
             "and nothing here has checked that against this set"
         )
     if not reasons:

@@ -10,7 +10,7 @@ questions and inherit the same judgement.
 """
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Final, NewType, Protocol
@@ -247,6 +247,17 @@ class RegistryTopicWork:
 
 
 @dataclass(frozen=True, slots=True)
+class RegistryTopicWorksStage:
+    """A topic's works as far as the registry has answered: ranked and named, and then with their makers."""
+
+    works: tuple[RegistryTopicWork, ...]
+    #: False while the makers are still being asked: every work's `creators` is
+    #: then empty and `creator_unknown` False because nobody has said yet, not
+    #: because nobody made it. The last stage is always complete.
+    complete: bool
+
+
+@dataclass(frozen=True, slots=True)
 class RegistryTopicRef:
     """A topic a held work or artist is in, as a facet names it."""
 
@@ -332,7 +343,14 @@ class Registry(Protocol):
         ...
 
     def topic_works(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistryTopicWork]:
-        """Works of visual art in the topic, by its kind, the most renowned first."""
+        """Works of visual art in the topic, by its kind, the most renowned first: the last of `topic_works_in_stages`."""
+        ...
+
+    def topic_works_in_stages(self, topic: RegistryTopic, *, limit: int) -> Iterator[RegistryTopicWorksStage]:
+        """The same works, yielded as each of the registry's answers lands, so a page can draw them before the last.
+
+        The last stage yielded is complete and is what `topic_works` returns.
+        """
         ...
 
     def topic_artists(self, topic: RegistryTopic, *, limit: int) -> Sequence[RegistrySimilar]:

@@ -1,0 +1,407 @@
+{
+ "@context": "https://static.getty.edu/contexts/linked.art/ns/v1.1.0/linked-art.json",
+ "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7",
+ "type": "HumanMadeObject",
+ "_label": "Portrait of J. Paul Getty (67.PA.2)",
+ "classified_as": [
+  {
+   "id": "http://vocab.getty.edu/aat/300133025",
+   "type": "Type",
+   "_label": "Artwork"
+  },
+  {
+   "id": "http://vocab.getty.edu/aat/300033618",
+   "type": "Type",
+   "_label": "Paintings",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300435444",
+     "type": "Type",
+     "_label": "Classification (Category)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/local/thesaurus/object-record-structure-whole",
+   "type": "Type",
+   "_label": "Object Record Structure: Whole",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-record-structure-type",
+     "type": "Type",
+     "_label": "Object Record Structure Type"
+    }
+   ]
+  }
+ ],
+ "identified_by": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/identifier/22f20b83-4349-5924-b1cb-8ed085bd6d5e",
+   "type": "Identifier",
+   "_label": "Accession Number",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300404626",
+     "type": "Type",
+     "_label": "Identification Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300312355",
+     "type": "Type",
+     "_label": "Accession Number"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "67.PA.2"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/name/2764b70c-c5a7-5502-9100-956865cf1a60",
+   "type": "Name",
+   "_label": "Alternate Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300417227",
+     "type": "Type",
+     "_label": "Alternate Title"
+    },
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/titles/primary",
+     "type": "Type",
+     "_label": "Primary Title",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on the `https://data.getty.edu/local/thesaurus/object-title-*` terms instead.",
+      "since": "2020-11-11"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/object-title-primary",
+     "type": "Type",
+     "_label": "Primary Title"
+    }
+   ],
+   "content": "Portrait of J. Paul Getty",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/identifier/dor-id",
+   "type": "Identifier",
+   "_label": "Getty DOR ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR ID` (https://data.getty.edu/local/thesaurus/dor-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-id",
+     "type": "Type",
+     "_label": "Getty DOR ID"
+    }
+   ],
+   "content": "523"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/identifier/slug-id",
+   "type": "Identifier",
+   "_label": "Slug Identifier",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/slug-identifier",
+     "type": "Type",
+     "_label": "Slug Identifier"
+    }
+   ],
+   "content": "urn:getty-local:idm:object:slug/103R9G"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/name/2764b70c-c5a7-5502-9100-956865cf1a60",
+   "type": "Name",
+   "_label": "Preferred Title",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300417193",
+     "type": "Type",
+     "_label": "Titles (General, Names)"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Preferred Term"
+    }
+   ],
+   "content": "Portrait of J. Paul Getty",
+   "language": [
+    {
+     "id": "http://vocab.getty.edu/aat/300388277",
+     "type": "Language",
+     "_label": "English (language)"
+    }
+   ]
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/identifier/tms-id",
+   "type": "Identifier",
+   "_label": "Gallery Systems' TMS ID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Gallery Systems' TMS ID` (https://data.getty.edu/local/thesaurus/tms-id) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/tms-id",
+     "type": "Type",
+     "_label": "Gallery Systems' TMS ID"
+    }
+   ],
+   "content": "544"
+  },
+  {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/identifier/dor-uuid",
+   "type": "Identifier",
+   "_label": "Getty DOR UUID",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/museum/ontology/linked-data/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID",
+     "deprecated": {
+      "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+      "replacement": "Filter on `Getty DOR UUID` (https://data.getty.edu/local/thesaurus/dor-uuid) instead.",
+      "since": "2021-01-05"
+     }
+    },
+    {
+     "id": "https://data.getty.edu/local/thesaurus/dor-uuid",
+     "type": "Type",
+     "_label": "Getty DOR UUID"
+    }
+   ],
+   "content": "908259ce-da9f-44c3-ad31-7938a6582fe7"
+  }
+ ],
+ "produced_by": {
+  "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production",
+  "type": "Production",
+  "_label": "Production of Artwork by Gerald L. Brockhurst",
+  "referred_to_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production/f05c8881-5f39-5fd8-ab8f-a1b046a12618/producer-description",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Description",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/museum/ontology/linked-data/tms/object/producer-description",
+      "type": "Type",
+      "_label": "Producer Description",
+      "deprecated": {
+       "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+       "replacement": "Filter on `Producer Description` (https://data.getty.edu/local/thesaurus/producer-description) instead.",
+       "since": "2020-11-10"
+      }
+     },
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-description",
+      "type": "Type",
+      "_label": "Producer Description"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Gerald L. Brockhurst (English, 1890 - 1978)"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production/f05c8881-5f39-5fd8-ab8f-a1b046a12618/producer-name",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Name",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/producer-name",
+      "type": "Type",
+      "_label": "Producer Name"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "Gerald L. Brockhurst"
+   },
+   {
+    "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production/f05c8881-5f39-5fd8-ab8f-a1b046a12618/producer-nationality-and-dates",
+    "type": "LinguisticObject",
+    "_label": "Artist/Maker (Producer) Nationality & Dates",
+    "classified_as": [
+     {
+      "id": "https://data.getty.edu/local/thesaurus/nationality-and-dates",
+      "type": "Type",
+      "_label": "Producer Nationality & Dates"
+     },
+     {
+      "id": "http://vocab.getty.edu/aat/300418049",
+      "type": "Type",
+      "_label": "Brief Text"
+     }
+    ],
+    "content": "English, 1890 - 1978"
+   }
+  ],
+  "timespan": {
+   "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production/timespan",
+   "type": "TimeSpan",
+   "identified_by": [
+    {
+     "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production/timespan/display",
+     "type": "Name",
+     "_label": "Dates",
+     "classified_as": [
+      {
+       "id": "http://vocab.getty.edu/aat/300458798",
+       "type": "Type",
+       "_label": "Display Names"
+      }
+     ],
+     "content": "1938"
+    }
+   ],
+   "begin_of_the_begin": "1938-01-01T00:00:00",
+   "end_of_the_end": "1938-12-31T23:59:59"
+  },
+  "carried_out_by": [
+   {
+    "id": "https://data.getty.edu/museum/collection/person/85f0d7b9-4629-4b4a-b77d-241fcdaa8e68",
+    "type": "Person",
+    "_label": "Gerald L. Brockhurst",
+    "referred_to_by": [
+     {
+      "id": "https://data.getty.edu/museum/collection/object/908259ce-da9f-44c3-ad31-7938a6582fe7/production/f05c8881-5f39-5fd8-ab8f-a1b046a12618/role-statement",
+      "type": "LinguisticObject",
+      "_label": "Artist/Maker (Producer) Role Statement",
+      "classified_as": [
+       {
+        "id": "https://data.getty.edu/museum/ontology/linked-data/object/artist-maker-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement",
+        "deprecated": {
+         "reason": "Migration to unified `data.getty.edu/local/thesaurus` URLs for custom terms.",
+         "replacement": "Filter on `Artist/Maker Role Statement` (https://data.getty.edu/local/thesaurus/artist-maker-role-statement) instead.",
+         "since": "2020-11-10"
+        }
+       },
+       {
+        "id": "https://data.getty.edu/local/thesaurus/producer-role-statement",
+        "type": "Type",
+        "_label": "Artist/Maker (Producer) Role Statement"
+       },
+       {
+        "id": "http://vocab.getty.edu/aat/300418049",
+        "type": "Type",
+        "_label": "Brief Text"
+       }
+      ],
+      "content": "Artist",
+      "close_match": [
+       {
+        "id": "http://vocab.getty.edu/aat/300025103",
+        "type": "Type",
+        "_label": "Artist"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "subject_of": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/103R9G",
+   "type": "LinguisticObject",
+   "_label": "Homepage for Portrait of J. Paul Getty (67.PA.2) (HumanMadeObject)",
+   "classified_as": [
+    {
+     "id": "http://vocab.getty.edu/aat/300264578",
+     "type": "Type",
+     "_label": "Web Page"
+    },
+    {
+     "id": "http://vocab.getty.edu/aat/300404670",
+     "type": "Type",
+     "_label": "Primary"
+    }
+   ],
+   "format": "text/html"
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/3/d2fd6497-54c7-4b63-84ca-27fdee85cb79",
+   "id": "https://media.getty.edu/iiif/manifest/2/d2fd6497-54c7-4b63-84ca-27fdee85cb79",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/2/context.json\""
+  },
+  {
+   "has_format": "https://media.getty.edu/iiif/manifest/2/d2fd6497-54c7-4b63-84ca-27fdee85cb79",
+   "id": "https://media.getty.edu/iiif/manifest/3/d2fd6497-54c7-4b63-84ca-27fdee85cb79",
+   "type": "InformationObject",
+   "_label": "IIIF Manifest URL",
+   "classified_as": [
+    {
+     "id": "https://data.getty.edu/local/thesaurus/iiif-manifest",
+     "type": "Type",
+     "_label": "IIIF Manifest"
+    }
+   ],
+   "conforms_to": [
+    {
+     "id": "http://iiif.io/api/presentation",
+     "type": "InformationObject",
+     "_label": "IIIF Presentation API"
+    }
+   ],
+   "format": "application/ld+json;profile=\"http://iiif.io/api/presentation/3/context.json\""
+  }
+ ]
+}

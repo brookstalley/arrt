@@ -26,7 +26,6 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from PIL import Image
 
-from arrt.config import DEFAULT_RESOLUTION_FLOOR_INCHES
 from arrt.library.discovery.engine import WorkList
 from arrt.library.services.review import DEFAULT_REVIEW_LIMIT, MAX_INSTANCES_LISTED, MAX_REVIEW_LIMIT
 from arrt.persistence.discovery_records import RunStatus
@@ -115,7 +114,7 @@ def services(store, discovery_store, wall_settings, thumbnail_settings, settings
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(museum),
@@ -268,8 +267,8 @@ async def test_one_work_in_full_carries_one_picture_and_the_record_behind_it(ser
     assert work["discovery_run_id"] == started["run_id"]
 
 
-async def test_the_size_a_work_would_render_at_reaches_the_caller(server_url):
-    """The number a thumbnail cannot convey, on the wire.
+async def test_the_size_of_a_scan_and_its_verdict_reach_the_caller(server_url):
+    """The numbers a thumbnail cannot convey, on the wire.
 
     Two works of very different resolution look the same in a grid. If this were
     absent the gate would still appear to work, and the wall would collect
@@ -282,21 +281,18 @@ async def test_the_size_a_work_would_render_at_reaches_the_caller(server_url):
     by_title = {work["title"]: work for work in payload["works"]}
 
     big = by_title["The Elephants"]["shown_image"]
-    assert big["display_fit"] == "native"
+    assert big["display_fit"] == "meets_minimum"
     assert big["is_on_offer"] is True
-    # A 6949x8400 scan is portrait, so the box's *height* is what binds and it
-    # renders well short of the panel's width — which is the whole reason the
-    # figure is computed against this deployment's geometry rather than guessed
-    # from a pixel count.
-    assert big["renders_at_inches"] > DEFAULT_RESOLUTION_FLOOR_INCHES, "a gallery scan clears the floor"
+    assert big["size_px"] == "6949x8400"
+    assert "renders_at_inches" not in big, "a size on one panel's wall is retired with the panel"
 
     # 900x700 is `api-contract.md`'s own worked example of the case the gate
     # exists to catch: shown and labelled, never chosen automatically, and never
     # hidden — so it is pictured in the listing while not being on offer.
     small = by_title["Swans Reflecting Elephants"]["shown_image"]
-    assert small["is_on_offer"] is False, "a below-floor instance is not selected for the curator"
-    assert small["display_fit"] == "below_floor"
-    assert small["renders_at_inches"] == 8.6
+    assert small["is_on_offer"] is False, "an instance below the minimum is not selected for the curator"
+    assert small["display_fit"] == "below_minimum"
+    assert small["size_px"] == "900x700"
     assert small["image_block_index"] is not None, "labelled, but still shown"
 
 
@@ -529,8 +525,9 @@ async def test_the_alternates_arrive_in_full_each_with_its_own_picture(server_ur
     assert leading["provider"] == "artic"
     assert leading["confidence"] == 0.9
     assert leading["rejected_for_this_work"] is False
-    assert leading["renders_at_pixels"]
-    assert leading["display_fit"] == "native"
+    assert leading["size_px"] == f"{leading['estimated_width']}x{leading['estimated_height']}"
+    assert "renders_at_pixels" not in leading
+    assert leading["display_fit"] == "meets_minimum"
 
 
 async def test_a_card_with_more_scans_than_it_can_carry_says_what_it_dropped(

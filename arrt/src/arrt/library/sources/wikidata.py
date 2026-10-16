@@ -39,6 +39,10 @@ from arrt.library.sources import (
 #: The name this finder answers under.
 PROVIDER: Final[str] = "wikidata"
 
+#: The name a curator knows this source by, for every sentence that names it
+#: (`names.museum_name`).
+MUSEUM: Final[str] = "Wikidata"
+
 
 class WikidataFinder:
     """The pages a work's Wikidata item records."""

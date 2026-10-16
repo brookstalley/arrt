@@ -43,10 +43,14 @@ from arrt.persistence.records import (
     ArtworkPage,
     ArtworkStatus,
     Client,
-    Directive,
+    Display,
+    EventKind,
+    EventPage,
     FacetDerivation,
     FetchStatus,
+    HistoryEvent,
     IdentitySetBy,
+    LabelOutput,
     MatColor,
     MatMethod,
     Original,
@@ -54,6 +58,7 @@ from arrt.persistence.records import (
     Rendition,
     RenditionKind,
     RightsStatus,
+    Showing,
     Source,
     SourceClass,
     Theme,
@@ -61,6 +66,7 @@ from arrt.persistence.records import (
     ThemeMembership,
     VocabularyKind,
     Wall,
+    WorkExclusion,
     WorkFacet,
     WorkOrder,
 )
@@ -164,9 +170,9 @@ CREATE INDEX IF NOT EXISTS work_facets_by_artwork ON work_facets(artwork_id);
 -- carry this item"; it enforces nothing.
 CREATE INDEX IF NOT EXISTS work_facets_by_item ON work_facets(value_qid);
 
--- `rotation_interval_seconds` and `shuffle` are nullable because null means
--- "inherit the global default" rather than "unset": a theme that has never
--- expressed a pace is a normal theme, not an incomplete one.
+-- A theme has an order and no pace: `rotation_interval_seconds` and `shuffle`
+-- moved to `walls` on 2026-10-13 (ruling 2 of 2026-10-11), and
+-- `migrations.carry_rotation_to_walls` carries a file that still has them.
 --
 -- A theme is global: nothing here says where it is hanging. `is_active` and its
 -- `themes_one_active` partial index were dropped on 2026-08-12, when hanging
@@ -177,9 +183,8 @@ CREATE TABLE IF NOT EXISTS themes (
     name                      TEXT NOT NULL UNIQUE,
     description               TEXT,
     created_at                TEXT NOT NULL,
-    rotation_interval_seconds INTEGER,
-    shuffle                   INTEGER,
-    is_default                INTEGER NOT NULL DEFAULT 0
+    is_default                INTEGER NOT NULL DEFAULT 0,
+    is_hidden                 INTEGER NOT NULL DEFAULT 0
 );
 
 -- New works join the default theme, and there is at most one. "At most", not
@@ -197,26 +202,72 @@ CREATE TABLE IF NOT EXISTS clients (
     token_issued_at  TEXT
 );
 
--- A place where art hangs, and which client shows it on which of its outputs,
--- by name. The forbidden columns are listed on the `Wall` record; the rule is
--- that this table must survive its television being replaced.
+-- One physical screen, keyed by the identity its client read from the device
+-- (a Frame's device id) or, for an output with none, `{client_id}/{output}`.
+-- `client_id` is the client that last reported it, null once another device has
+-- been reported on that output. Nothing about the device beyond what it is and
+-- where it is plugged in; the forbidden columns are listed on the `Wall` record.
+CREATE TABLE IF NOT EXISTS displays (
+    id               TEXT PRIMARY KEY,
+    identity         TEXT NOT NULL UNIQUE,
+    client_id        TEXT REFERENCES clients(id),
+    output           TEXT NOT NULL,
+    kind             TEXT,
+    first_seen       TEXT NOT NULL
+);
+
+-- One display per output of a client: what a client reports on one output is
+-- one device. The heartbeat's reconciliation keeps it so first; this is the
+-- weaker statement of the same rule. It also answers "which displays does this
+-- client drive", asked on every poll a client makes.
+CREATE UNIQUE INDEX IF NOT EXISTS displays_one_per_output ON displays(client_id, output) WHERE client_id IS NOT NULL;
+
+-- A surface that captions a wall: today an e-paper panel on some client.
+-- `wall_id` is one nullable column, so a label output captions at most one wall
+-- by the shape of the row; a wall may have many.
+CREATE TABLE IF NOT EXISTS label_outputs (
+    id               TEXT PRIMARY KEY,
+    client_id        TEXT NOT NULL REFERENCES clients(id),
+    output           TEXT NOT NULL,
+    wall_id          TEXT REFERENCES walls(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS label_outputs_one_per_output ON label_outputs(client_id, output);
+
+CREATE INDEX IF NOT EXISTS label_outputs_by_wall ON label_outputs(wall_id);
+
+-- A place where art hangs, and which display shows it. The forbidden columns
+-- are listed on the `Wall` record; the rule is that this table must survive its
+-- television being replaced.
 --
--- `client_id` and `output` arrived 2026-10-02 and reach an older file through
--- the widening step, which carries the reference. The wall token columns that
--- preceded them are dropped by `migrations.retire_wall_tokens`.
+-- `display_id` arrived 2026-10-08 and reaches an older file through the
+-- widening step. The `client_id` and `output` it replaced are carried onto
+-- displays and dropped by `migrations.walls_name_displays`.
 CREATE TABLE IF NOT EXISTS walls (
     id               TEXT PRIMARY KEY,
     name             TEXT NOT NULL UNIQUE,
     created_at       TEXT NOT NULL,
-    client_id        TEXT REFERENCES clients(id),
-    output           TEXT
+    display_id       TEXT REFERENCES displays(id),
+    -- How the wall's Player draws the mat, or NULL for its own default. The
+    -- values are checked by the service: a CHECK here would bind new files
+    -- only, since an added column cannot carry one onto an older file.
+    mat_mode         TEXT,
+    -- How the wall plays its theme: how long each work stays up, and whether in
+    -- shuffled order. NULL on either is the deployment default rather than
+    -- "unset", so a wall that has chosen nothing is an ordinary wall.
+    rotation_interval_seconds INTEGER,
+    shuffle          INTEGER,
+    -- The shapes the wall shows, as width over height: the tallest and the
+    -- widest. NULL on either is no limit on that side, which is every wall
+    -- that has chosen nothing.
+    min_aspect_ratio REAL,
+    max_aspect_ratio REAL
 );
 
--- One wall per output of a client, since one screen shows one picture. The
--- service refuses a second by name first; this is the weaker statement of the
--- same rule, for a path that forgets to. It also answers "which walls does this
--- client drive", asked on every poll a client makes.
-CREATE UNIQUE INDEX IF NOT EXISTS walls_one_per_output ON walls(client_id, output) WHERE client_id IS NOT NULL;
+-- One wall per display, since one screen shows one picture. The service refuses
+-- a second by name first; this is the weaker statement of the same rule, for a
+-- path that forgets to.
+CREATE UNIQUE INDEX IF NOT EXISTS walls_one_per_display ON walls(display_id) WHERE display_id IS NOT NULL;
 
 -- What is hanging on one wall. `wall_id` alone is the key, so "at most one theme
 -- per wall" is the key rather than a rule anything has to check: a second theme
@@ -279,13 +330,9 @@ CREATE TABLE IF NOT EXISTS renditions (
     generated_at         TEXT NOT NULL,
     content_sha256       TEXT,
     byte_size            INTEGER,
-    -- The geometry a television canvas was drawn with. Nullable because the
-    -- widening step can only add a column that allows NULL; null reads as out of
-    -- date, so a canvas drawn before this existed is recomposed.
-    layout               TEXT,
-    -- The mat colour a television canvas was painted in; null, like a null
-    -- layout, reads as out of date.
-    mat_hex              TEXT
+    -- The rule a presentation master was made by. Nullable because the
+    -- widening step can only add a column that allows NULL.
+    layout               TEXT
 );
 
 -- Media is fetched by content hash, so the hash is how a render is found.
@@ -326,6 +373,22 @@ CREATE TABLE IF NOT EXISTS theme_memberships (
 
 CREATE INDEX IF NOT EXISTS theme_memberships_by_artwork ON theme_memberships(artwork_id);
 
+-- Each screen size a display's Player reported, and when it last did, so
+-- Programming judges a work against the largest size reported recently and not
+-- the latest (`player-contract.md` § The heartbeat, minor 2: a window resized
+-- smaller must not make every work suddenly fine). Programming's own: the
+-- display is a Programming record, and no catalogue table is named. The sizes
+-- go with their display (removing a client, folding a place display into the
+-- Frame it turned out to be), so no path that deletes a display has to know
+-- they exist.
+CREATE TABLE IF NOT EXISTS reported_screens (
+    display_id        TEXT NOT NULL REFERENCES displays(id) ON DELETE CASCADE,
+    width_px          INTEGER NOT NULL,
+    height_px         INTEGER NOT NULL,
+    last_reported_at  TEXT NOT NULL,
+    PRIMARY KEY (display_id, width_px, height_px)
+);
+
 -- Every work that has been offered the theme it was accepted into (the default,
 -- or the theme its Get named), joined or not, so that a work is offered once:
 -- neither a restore, which the Library announces as an acceptance, nor startup
@@ -339,18 +402,53 @@ CREATE TABLE IF NOT EXISTS default_theme_offers (
     offered_at  TEXT NOT NULL
 );
 
--- One row per wall, seeded when the wall is created so no caller ever has to
--- make one. The standing directive is a property of the *wall* rather than of
--- any theme, because the sequence has to survive every manifest rebuild and
--- every theme switch to stay monotonic — and a singleton, which is what this
--- was until 2026-08-12, cannot say which display an advance was meant for.
-CREATE TABLE IF NOT EXISTS directives (
-    wall_id         TEXT PRIMARY KEY REFERENCES walls(id),
-    sequence        INTEGER NOT NULL,
-    pinned_work_id  TEXT REFERENCES artworks(id)
+-- The works a curator said not to show again on any wall. Filtered out of every
+-- manifest, and the work stays held and in its themes. `artwork_id` is not a
+-- foreign key: it is Programming's opaque reference to a Library work. A new
+-- table, so `CREATE TABLE IF NOT EXISTS` reaches an older file unaided.
+CREATE TABLE IF NOT EXISTS work_exclusions (
+    artwork_id   TEXT PRIMARY KEY,
+    excluded_at  TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS directives_by_pin ON directives(pinned_work_id);
+-- What each wall has shown: one row per stretch of one work on one wall, kept
+-- from the Players' heartbeats. Programming's own. A wall shows one thing at a
+-- time, so the wall and the start identify a showing. Neither id is a foreign
+-- key: a wall removed keeps the fact that a work was shown on it, and
+-- `work_id` is Programming's opaque reference to a Library work. A new table,
+-- so `CREATE TABLE IF NOT EXISTS` reaches an older file unaided. Nothing
+-- prunes it: it is the only record of what was on a wall at an hour.
+CREATE TABLE IF NOT EXISTS showings (
+    wall_id       TEXT NOT NULL,
+    started_at    TEXT NOT NULL,
+    work_id       TEXT NOT NULL,
+    last_seen_at  TEXT NOT NULL,
+    ended_at      TEXT,
+    PRIMARY KEY (wall_id, started_at)
+);
+
+CREATE INDEX IF NOT EXISTS showings_by_work ON showings(work_id, last_seen_at);
+
+-- The history: one row per act, the Library's, written where each act happens
+-- and from the day this table arrived (nothing earlier is recovered). No
+-- foreign keys, deliberately: a history outlives what it names, and walls and
+-- themes are Programming's, held here as opaque references. `detail` is JSON
+-- carrying the words the event is read by, copied at the time.
+CREATE TABLE IF NOT EXISTS history_events (
+    id           TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL,
+    occurred_at  TEXT NOT NULL,
+    work_id      TEXT,
+    run_id       TEXT,
+    wall_id      TEXT,
+    theme_id     TEXT,
+    detail       TEXT
+);
+
+-- Newest first is the only order the history is read in, and a wall's history
+-- is the one filter narrow enough to want its own index.
+CREATE INDEX IF NOT EXISTS history_events_by_time ON history_events(occurred_at);
+CREATE INDEX IF NOT EXISTS history_events_by_wall ON history_events(wall_id, occurred_at) WHERE wall_id IS NOT NULL;
 
 -- The acquisition queue's memory of each work it has started on and not
 -- finished: how many attempts failed in a row, when the next may be made, why the
@@ -375,13 +473,17 @@ _BY_ARTWORK: Final[tuple[str, ...]] = ("artwork_id",)
 #: The join's own key. A work appears at most once in a theme.
 _MEMBERSHIP_KEY: Final[tuple[str, ...]] = ("theme_id", "artwork_id")
 
-#: Both tables that hang off a wall are keyed by it alone, which is what makes
-#: "one theme per wall" and "one directive per wall" keys rather than claims.
+#: Tables that hang off a wall are keyed by it alone, which is what makes "one
+#: theme per wall" a key rather than a claim.
 _BY_WALL: Final[tuple[str, ...]] = ("wall_id",)
 
 #: What a curator scans by, then a tie-break that makes paging repeatable.
 _BY_TITLE: Final[tuple[OrderBy, ...]] = (OrderBy("title", ignore_case=True), OrderBy("id"))
 _BY_NAME: Final[tuple[OrderBy, ...]] = (OrderBy("name", ignore_case=True), OrderBy("id"))
+
+#: Displays and label outputs, by the client's name for them, then by id. Not by
+#: client: a listing groups them by client itself, and a null client sorts first.
+_BY_OUTPUT: Final[tuple[OrderBy, ...]] = (OrderBy("output"), OrderBy("id"))
 
 #: The source that produced the held original leads; the rest are alternates.
 _BY_PRIMARY: Final[tuple[OrderBy, ...]] = (
@@ -406,6 +508,9 @@ _BY_RECENCY: Final[tuple[OrderBy, ...]] = (OrderBy("chosen_at", descending=True)
 #: the file, because a listing with no ORDER BY is a different order on a
 #: different day and every caller here is comparing sets.
 _BY_WALL_ID: Final[tuple[OrderBy, ...]] = (OrderBy("wall_id"),)
+
+#: Oldest exclusion first, the work id breaking a tie, so the list is the same twice.
+_BY_EXCLUDED: Final[tuple[OrderBy, ...]] = (OrderBy("excluded_at"), OrderBy("artwork_id"))
 
 #: Grouped by kind so a work's facets read as a vocabulary rather than a list.
 _BY_KIND_VALUE: Final[tuple[OrderBy, ...]] = (OrderBy("kind"), OrderBy("value", ignore_case=True), OrderBy("id"))
@@ -643,11 +748,12 @@ class SqliteCatalogue(TableAdapter):
         rows = self._store.select_rows(f"SELECT a.id AS id {selects.source} WHERE {selects.where}", selects.values)
         return frozenset(row["id"] for row in rows)
 
-    def held_artists(self) -> Sequence[tuple[Artist, int, str]]:
+    def held_artists(self) -> Sequence[tuple[Artist, int, str | None]]:
         accepted = str(ArtworkStatus.ACCEPTED)
         rows = self._store.select_rows(
             'SELECT ar.*, COUNT(a."id") AS held, '
             '(SELECT a2."id" FROM artworks a2 WHERE a2."artist_id" = ar."id" AND a2."status" = ? '
+            'AND EXISTS (SELECT 1 FROM originals o WHERE o."artwork_id" = a2."id") '
             'ORDER BY coalesce(a2."accepted_at", a2."created_at"), a2.rowid LIMIT 1) AS pictured '
             'FROM artists ar JOIN artworks a ON a."artist_id" = ar."id" '
             'WHERE a."status" = ? GROUP BY ar."id" ORDER BY ar."name" COLLATE NOCASE, ar."id"',
@@ -665,6 +771,15 @@ class SqliteCatalogue(TableAdapter):
         for row in rows:
             found.setdefault(row["qid"], []).append(row["id"])
         return found
+
+    def circulating_without_qid(self) -> Sequence[tuple[str, str, str | None]]:
+        rows = self._store.select_rows(
+            'SELECT a."id" AS id, a."title" AS title, a."artist_id" AS artist_id FROM artworks a '
+            'WHERE a."wikidata_qid" IS NULL AND a."status" = ? '
+            'AND (a."wikidata_qid_set_by" IS NULL OR a."wikidata_qid_set_by" != ?) ORDER BY a."created_at", a.rowid',
+            (str(ArtworkStatus.ACCEPTED), str(IdentitySetBy.CURATOR)),
+        )
+        return [(row["id"], row["title"], row["artist_id"]) for row in rows]
 
     def accepted_artwork_ids(self) -> Sequence[str]:
         # Oldest first, `rowid` breaking a tie within one clock tick, so a catch-up
@@ -801,6 +916,10 @@ class SqliteCatalogue(TableAdapter):
     def update_original(self, original: Original) -> None:
         self._update("originals", BY_ID, _original_row(original), subject=f"original for artwork {original.artwork_id!r}")
 
+    def original_sizes(self) -> Mapping[str, tuple[int, int]]:
+        rows = self._store.select_rows('SELECT o."artwork_id" AS id, o."width" AS width, o."height" AS height FROM originals o')
+        return {row["id"]: (int(row["width"]), int(row["height"])) for row in rows}
+
     # -- renditions -----------------------------------------------------------
 
     def add_rendition(self, rendition: Rendition) -> None:
@@ -852,27 +971,28 @@ class SqliteCatalogue(TableAdapter):
             for row in rows
         ]
 
-    def works_with_canvas_outside_layout(self, layout: str) -> Sequence[str]:
-        # A work with a canvas at the current layout is left alone even if it
-        # also keeps an older one at another panel size: the old row is not what
-        # it shows, and queueing it would recompose nothing on every start.
+    def works_owing_a_presentation_master(self, rule: str) -> Sequence[str]:
+        # Recorded from the Original held now, which is what `is_current` means
+        # for every Rendition, and by the rule masters are made by now: a master
+        # made from a replaced Original, or the old way, is owed again, as a
+        # missing one is.
         rows = self._store.select_rows(
-            'SELECT a."id" AS work_id FROM artworks a WHERE a."status" = ? '
-            'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
-            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? AND r."layout" = ?) '
+            'SELECT a."id" AS work_id FROM artworks a JOIN originals o ON o."artwork_id" = a."id" WHERE a."status" = ? '
+            'AND NOT EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ? '
+            'AND r."source_content_hash" = o."content_hash" AND r."layout" = ?) '
             'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
-            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY), str(RenditionKind.TV_DISPLAY), layout),
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.PRESENTATION_MASTER), rule),
         )
         return [row["work_id"] for row in rows]
 
-    def current_mats_of_works_with_canvas(self) -> Sequence[tuple[str, str | None]]:
+    def current_mats_of_works_with_a_master(self) -> Sequence[tuple[str, str | None]]:
         rows = self._store.select_rows(
             'SELECT a."id" AS work_id, m."hex_rgb" AS hex_rgb FROM artworks a '
             'LEFT JOIN mat_colors m ON m."artwork_id" = a."id" AND m."is_current" = 1 '
             'WHERE a."status" = ? '
             'AND EXISTS (SELECT 1 FROM renditions r WHERE r."artwork_id" = a."id" AND r."kind" = ?) '
             'ORDER BY coalesce(a."accepted_at", a."created_at"), a.rowid',
-            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.TV_DISPLAY)),
+            (str(ArtworkStatus.ACCEPTED), str(RenditionKind.PRESENTATION_MASTER)),
         )
         return [(row["work_id"], row["hex_rgb"]) for row in rows]
 
@@ -963,6 +1083,42 @@ class SqliteCatalogue(TableAdapter):
     def offered_work_ids(self) -> set[str]:
         return {row["artwork_id"] for row in self._store.scan("default_theme_offers")}
 
+    # -- reported screens -----------------------------------------------------
+
+    def record_screen(self, display_id: str, width_px: int, height_px: int, reported_at: datetime) -> None:
+        self._store.upsert(
+            "reported_screens",
+            {"display_id": display_id, "width_px": width_px, "height_px": height_px, "last_reported_at": to_iso(reported_at)},
+            pk=("display_id", "width_px", "height_px"),
+        )
+
+    def reported_screens(self, display_id: str) -> Sequence[tuple[int, int, datetime]]:
+        return [
+            (row["width_px"], row["height_px"], require_datetime(row["last_reported_at"], "last_reported_at"))
+            for row in self._store.scan("reported_screens", {"display_id": display_id})
+        ]
+
+    def forget_screen(self, display_id: str, width_px: int, height_px: int) -> None:
+        self._store.delete("reported_screens", {"display_id": display_id, "width_px": width_px, "height_px": height_px})
+
+    # -- what each wall has shown ---------------------------------------------
+
+    def save_showing(self, showing: Showing) -> None:
+        self._store.upsert("showings", _showing_row(showing), pk=("wall_id", "started_at"))
+
+    def latest_showing(self, wall_id: str) -> Showing | None:
+        # `started_at` is stored as UTC ISO text (`to_iso`), whose order is the
+        # order of the instants, so the latest start is the largest string.
+        rows = self._store.select_rows(
+            "SELECT * FROM showings WHERE wall_id = ? ORDER BY started_at DESC LIMIT 1",
+            (wall_id,),
+        )
+        return _showing(rows[0]) if rows else None
+
+    def last_shown_by_work(self) -> Mapping[str, datetime]:
+        rows = self._store.select_rows("SELECT work_id, MAX(last_seen_at) AS last_seen_at FROM showings GROUP BY work_id", ())
+        return {row["work_id"]: require_datetime(row["last_seen_at"], "last_seen_at") for row in rows}
+
     # -- walls ----------------------------------------------------------------
 
     def add_wall(self, wall: Wall) -> None:
@@ -1001,6 +1157,40 @@ class SqliteCatalogue(TableAdapter):
     def remove_client(self, client_id: str) -> None:
         self._store.delete("clients", {"id": client_id})
 
+    # -- displays -------------------------------------------------------------
+
+    def add_display(self, display: Display) -> None:
+        self._add("displays", _display_row(display), subject=f"display {display.identity!r}")
+
+    def get_display(self, display_id: str) -> Display | None:
+        return self._get("displays", {"id": display_id}, _display)
+
+    def update_display(self, display: Display) -> None:
+        self._update("displays", BY_ID, _display_row(display), subject=f"display {display.identity!r}")
+
+    def list_displays(self) -> Sequence[Display]:
+        return self._list("displays", None, _BY_OUTPUT, _display)
+
+    def remove_display(self, display_id: str) -> None:
+        self._store.delete("displays", {"id": display_id})
+
+    # -- label outputs --------------------------------------------------------
+
+    def add_label_output(self, label: LabelOutput) -> None:
+        self._add("label_outputs", _label_output_row(label), subject=f"label output {label.output!r}")
+
+    def get_label_output(self, label_id: str) -> LabelOutput | None:
+        return self._get("label_outputs", {"id": label_id}, _label_output)
+
+    def update_label_output(self, label: LabelOutput) -> None:
+        self._update("label_outputs", BY_ID, _label_output_row(label), subject=f"label output {label.output!r}")
+
+    def list_label_outputs(self) -> Sequence[LabelOutput]:
+        return self._list("label_outputs", None, _BY_OUTPUT, _label_output)
+
+    def remove_label_output(self, label_id: str) -> None:
+        self._store.delete("label_outputs", {"id": label_id})
+
     # -- what is hanging ------------------------------------------------------
 
     def get_assignment(self, wall_id: str) -> ThemeAssignment | None:
@@ -1018,32 +1208,70 @@ class SqliteCatalogue(TableAdapter):
     def list_assignments(self) -> Sequence[ThemeAssignment]:
         return self._list("theme_assignments", None, _BY_WALL_ID, _assignment)
 
-    # -- the display directives -----------------------------------------------
+    # -- works kept off every wall --------------------------------------------
 
-    def add_directive(self, directive: Directive) -> None:
-        self._add("directives", _directive_row(directive), subject=f"directive for wall {directive.wall_id!r}", key=_BY_WALL)
-
-    def get_directive(self, wall_id: str) -> Directive:
-        row = self._store.fetch_one("directives", {"wall_id": wall_id})
-        if row is None:
-            # Seeded when the wall is created, so its absence means either an
-            # unknown wall or a file edited by something other than this code.
-            raise StorageError(f"Wall {wall_id!r} has no display directive row.")
-        return _directive(row)
-
-    def set_directive(self, directive: Directive) -> None:
-        self._update(
-            "directives",
-            _BY_WALL,
-            _directive_row(directive),
-            subject=f"the display directive for wall {directive.wall_id!r}",
+    def add_exclusion(self, exclusion: WorkExclusion) -> None:
+        self._add(
+            "work_exclusions",
+            {"artwork_id": exclusion.artwork_id, "excluded_at": to_iso(exclusion.excluded_at)},
+            subject=f"the exclusion of artwork {exclusion.artwork_id!r}",
+            key=_BY_ARTWORK,
         )
 
-    def list_directives(self) -> Sequence[Directive]:
-        return self._list("directives", None, _BY_WALL_ID, _directive)
+    def remove_exclusion(self, artwork_id: str) -> None:
+        self._delete("work_exclusions", {"artwork_id": artwork_id})
+
+    def list_exclusions(self) -> Sequence[WorkExclusion]:
+        return self._list("work_exclusions", None, _BY_EXCLUDED, _exclusion)
+
+    # -- the history ----------------------------------------------------------
+
+    def add_event(self, event: HistoryEvent) -> None:
+        self._add("history_events", _event_row(event), subject=f"the {event.kind} event {event.id!r}")
+
+    def list_events(self, *, kinds: Sequence[EventKind] = (), wall_id: str | None = None, limit: int, offset: int) -> EventPage:
+        clauses: list[str] = []
+        values: list[Any] = []
+        if kinds:
+            clauses.append(f"kind IN ({', '.join('?' for _ in kinds)})")
+            values.extend(str(kind) for kind in kinds)
+        if wall_id is not None:
+            clauses.append("wall_id = ?")
+            values.append(wall_id)
+        where = " AND ".join(clauses) if clauses else "1"
+        # Counted from the same clause as the page, so the total describes the
+        # rows beside it. `rowid` breaks a tie between two acts in one clock tick
+        # in the order they were written.
+        counted = f"SELECT COUNT(*) AS total FROM history_events WHERE {where}"  # noqa: S608 -- constants and ? placeholders only
+        total = int(self._store.select_rows(counted, values)[0]["total"])
+        rows = self._store.select_rows(
+            f"SELECT * FROM history_events WHERE {where} ORDER BY occurred_at DESC, rowid DESC LIMIT ? OFFSET ?",  # noqa: S608 -- constants and ? placeholders only
+            (*values, limit, offset),
+        )
+        return EventPage(events=[_event(row) for row in rows], total=total)
 
 
 # -- record to row ------------------------------------------------------------
+
+
+def _showing_row(showing: Showing) -> dict[str, Any]:
+    return {
+        "wall_id": showing.wall_id,
+        "started_at": to_iso(showing.started_at),
+        "work_id": showing.work_id,
+        "last_seen_at": to_iso(showing.last_seen_at),
+        "ended_at": to_iso(showing.ended_at),
+    }
+
+
+def _showing(row: Mapping[str, Any]) -> Showing:
+    return Showing(
+        wall_id=row["wall_id"],
+        work_id=row["work_id"],
+        started_at=require_datetime(row["started_at"], "started_at"),
+        last_seen_at=require_datetime(row["last_seen_at"], "last_seen_at"),
+        ended_at=from_iso(row["ended_at"]),
+    )
 
 
 def _artist_row(artist: Artist) -> dict[str, Any]:
@@ -1149,7 +1377,6 @@ def _rendition_row(rendition: Rendition) -> dict[str, Any]:
         "content_sha256": rendition.content_sha256,
         "byte_size": rendition.byte_size,
         "layout": rendition.layout,
-        "mat_hex": rendition.mat_hex,
     }
 
 
@@ -1175,13 +1402,9 @@ def _theme_row(theme: Theme) -> dict[str, Any]:
         "name": theme.name,
         "description": theme.description,
         "created_at": to_iso(theme.created_at),
-        "rotation_interval_seconds": theme.rotation_interval_seconds,
-        # None survives as null — "inherit the global default" — where int(None)
-        # would raise and bool(None) would silently write a decision the curator
-        # never made.
-        "shuffle": None if theme.shuffle is None else int(theme.shuffle),
         # `is_default` is not written from the record: only `mark_default_theme`
         # writes it, so saving a theme leaves the mark where it is.
+        "is_hidden": int(theme.hidden),
     }
 
 
@@ -1209,9 +1432,31 @@ def _wall_row(wall: Wall) -> dict[str, Any]:
         "id": wall.id,
         "name": wall.name,
         "created_at": to_iso(wall.created_at),
-        "client_id": wall.client_id,
-        "output": wall.output,
+        "display_id": wall.display_id,
+        "mat_mode": wall.mat_mode,
+        "rotation_interval_seconds": wall.rotation_interval_seconds,
+        # None survives as null — "the deployment default" — where int(None)
+        # would raise and bool(None) would silently write a decision the curator
+        # never made.
+        "shuffle": None if wall.shuffle is None else int(wall.shuffle),
+        "min_aspect_ratio": wall.min_aspect_ratio,
+        "max_aspect_ratio": wall.max_aspect_ratio,
     }
+
+
+def _display_row(display: Display) -> dict[str, Any]:
+    return {
+        "id": display.id,
+        "identity": display.identity,
+        "client_id": display.client_id,
+        "output": display.output,
+        "kind": display.kind,
+        "first_seen": to_iso(display.first_seen),
+    }
+
+
+def _label_output_row(label: LabelOutput) -> dict[str, Any]:
+    return {"id": label.id, "client_id": label.client_id, "output": label.output, "wall_id": label.wall_id}
 
 
 def _assignment_row(assignment: ThemeAssignment) -> dict[str, Any]:
@@ -1220,17 +1465,6 @@ def _assignment_row(assignment: ThemeAssignment) -> dict[str, Any]:
         "theme_id": assignment.theme_id,
         "assigned_at": to_iso(assignment.assigned_at),
     }
-
-
-def _directive_row(directive: Directive) -> dict[str, Any]:
-    return {
-        "wall_id": directive.wall_id,
-        "sequence": directive.sequence,
-        "pinned_work_id": directive.pinned_work_id,
-    }
-
-
-# -- row to record ------------------------------------------------------------
 
 
 def _artist(row: Mapping[str, Any]) -> Artist:
@@ -1345,7 +1579,6 @@ def _rendition(row: Mapping[str, Any]) -> Rendition:
         # `.get` for the reason `fetch_status` uses it: a row read through a
         # mapping built from an older file's columns has no such key.
         layout=row.get("layout"),
-        mat_hex=row.get("mat_hex"),
     )
 
 
@@ -1371,9 +1604,8 @@ def _theme(row: Mapping[str, Any]) -> Theme:
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),
         description=row["description"],
-        rotation_interval_seconds=row["rotation_interval_seconds"],
-        shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
         is_default=bool(row["is_default"]),
+        hidden=bool(row["is_hidden"]),
     )
 
 
@@ -1382,9 +1614,28 @@ def _wall(row: Mapping[str, Any]) -> Wall:
         id=row["id"],
         name=row["name"],
         created_at=require_datetime(row["created_at"], "created_at"),
+        display_id=row["display_id"],
+        mat_mode=row["mat_mode"],
+        rotation_interval_seconds=row["rotation_interval_seconds"],
+        shuffle=None if row["shuffle"] is None else bool(row["shuffle"]),
+        min_aspect_ratio=row["min_aspect_ratio"],
+        max_aspect_ratio=row["max_aspect_ratio"],
+    )
+
+
+def _display(row: Mapping[str, Any]) -> Display:
+    return Display(
+        id=row["id"],
+        identity=row["identity"],
         client_id=row["client_id"],
         output=row["output"],
+        kind=row["kind"],
+        first_seen=require_datetime(row["first_seen"], "first_seen"),
     )
+
+
+def _label_output(row: Mapping[str, Any]) -> LabelOutput:
+    return LabelOutput(id=row["id"], client_id=row["client_id"], output=row["output"], wall_id=row["wall_id"])
 
 
 def _client(row: Mapping[str, Any]) -> Client:
@@ -1405,8 +1656,34 @@ def _assignment(row: Mapping[str, Any]) -> ThemeAssignment:
     )
 
 
-def _directive(row: Mapping[str, Any]) -> Directive:
-    return Directive(wall_id=row["wall_id"], sequence=row["sequence"], pinned_work_id=row["pinned_work_id"])
+def _exclusion(row: Mapping[str, Any]) -> WorkExclusion:
+    return WorkExclusion(artwork_id=row["artwork_id"], excluded_at=require_datetime(row["excluded_at"], "excluded_at"))
+
+
+def _event_row(event: HistoryEvent) -> dict[str, Any]:
+    return {
+        "id": event.id,
+        "kind": str(event.kind),
+        "occurred_at": to_iso(event.occurred_at),
+        "work_id": event.work_id,
+        "run_id": event.run_id,
+        "wall_id": event.wall_id,
+        "theme_id": event.theme_id,
+        "detail": None if event.detail is None else json.dumps(event.detail, sort_keys=True),
+    }
+
+
+def _event(row: Mapping[str, Any]) -> HistoryEvent:
+    return HistoryEvent(
+        id=row["id"],
+        kind=EventKind(row["kind"]),
+        occurred_at=require_datetime(row["occurred_at"], "occurred_at"),
+        work_id=row["work_id"],
+        run_id=row["run_id"],
+        wall_id=row["wall_id"],
+        theme_id=row["theme_id"],
+        detail=None if row["detail"] is None else json.loads(row["detail"]),
+    )
 
 
 def _membership(row: Mapping[str, Any]) -> ThemeMembership:

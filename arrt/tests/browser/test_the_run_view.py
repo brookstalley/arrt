@@ -8,7 +8,7 @@ all.
 """
 
 import pytest
-from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend, an_estimate
+from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view, a_spend, an_estimate, an_instance
 
 from arrt.http.models import RunListOut
 from arrt.persistence.discovery_records import ResolutionStatus, RunStatus, UnresolvedReason, WorkProvenance
@@ -39,6 +39,8 @@ def at_the_gate(ui):
     repaint to cost them something.
     """
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate()]))
+    # The page reads the works' cards for their pictures, as it does for a real run.
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
     ui.serve("**/api/estimate?*", an_estimate())
     return ui
 
@@ -55,7 +57,7 @@ def test_a_poll_that_changes_nothing_leaves_the_focus_alone(at_the_gate):
     be decided on.
     """
     ui = at_the_gate
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
 
     ui.page.focus("button:has-text('Approve the list')")
@@ -91,7 +93,7 @@ def test_a_poll_that_changes_something_does_repaint(ui):
             ),
         ],
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("td:has-text('First')")
 
     assert "Second arrival" not in ui.text()
@@ -115,7 +117,7 @@ def test_two_concurrent_paints_leave_only_one_poll_chain(at_the_gate):
     is what pins it.
     """
     ui = at_the_gate
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
 
     before = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
@@ -153,7 +155,7 @@ def test_a_paint_superseded_in_flight_never_reaches_the_page(ui):
         a_run_view(run=a_run(run_id="left-behind", intent="A run left behind", status=RunStatus.RESOLVING_WORKS.value)),
     )
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
     # A paint begins, and something supersedes it before its answer lands — which
@@ -167,14 +169,14 @@ def test_a_paint_superseded_in_flight_never_reaches_the_page(ui):
 def test_leaving_the_run_view_stops_its_polling(at_the_gate):
     """A run page left behind must not keep repainting under what replaced it."""
     ui = at_the_gate
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("button:has-text('Approve the list')")
 
     # Health left the navigation in the reshape, so the way to it is the
     # masthead indicator that replaced the tab. What this test is about is
     # unchanged: navigating away from a run must stop its watch.
     ui.page.click("#status")
-    ui.page.wait_for_selector("h2:has-text('Status')")
+    ui.page.wait_for_selector("h1:has-text('Status')")
 
     settled = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
     ui.page.wait_for_timeout(POLL_MS * 2 + 500)
@@ -189,6 +191,7 @@ def test_leaving_the_run_view_stops_its_polling(at_the_gate):
 def a_finished_run(ui):
     """A run that has stopped, which is the only state that fetches the rollup."""
     ui.serve("**/api/estimate?*", an_estimate())
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card()]))
     ui.serve(
         f"**/api/runs/{RUN_ID}",
         a_run_view(
@@ -215,14 +218,18 @@ def test_a_family_total_that_cannot_be_read_says_so(a_finished_run):
     ui = a_finished_run
     ui.page.route(f"**/api/runs/{RUN_ID}/spend", lambda route: route.fulfill(status=503, body="{}"))
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
-    assert "The total including every re-search could not be read" in shown
-    # The panel survives the failure: the two figures beside it are read off the
-    # run record and are still true, so losing the rollup must not cost them.
-    assert "Spent by this run alone" in shown
+    assert "What it cost with the Gets that retried it could not be read" in shown
+    # The panel survives the failure: the Get's own cost is read off the run
+    # record and is still true, so losing the rollup must not cost it.
+    # *(Since 2026-10-14, #359: one Cost row where "Spent by this Get alone"
+    # was one of four.)*
+    cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
+    assert cost.locator("dt").all_inner_texts() == ["Cost"]
+    assert cost.locator("dd").inner_text() == "$0.01"
 
 
 def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
@@ -236,14 +243,13 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
     looking wrong.
 
     Deliberately paired with the two tests above rather than written as a
-    variant of them: what makes this the run view's own branch is that the
-    conversation screen has its own reading of "stopped", so a test over one
-    says nothing about the other.
+    variant of them: "stopped" is the run view's own reading, passed to the
+    shared poll chain, so a test of the chain alone says nothing about it.
     """
     ui = a_finished_run
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
     settled = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
     # Not decoration: a page that never asked at all would satisfy the equality
@@ -256,16 +262,73 @@ def test_a_run_that_has_stopped_is_not_polled_again(a_finished_run):
 
 
 def test_a_family_total_that_reads_fine_says_nothing(a_finished_run):
-    """The paired negative — the notice appears on failure and not otherwise."""
-    ui = a_finished_run
-    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    """The paired negative — the notice appears on failure and not otherwise —
+    and a family total that differs from the Get's own is said beside it.
 
-    ui.open(f"#run/{RUN_ID}")
+    *(Since 2026-10-14, #359: in the Cost row, "$0.25 with the Gets that
+    retried it", where "Spent including every Get again" was a row of its own.)*
+    """
+    ui = a_finished_run
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
+
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
 
     shown = ui.text()
     assert "could not be read" not in shown
-    assert "Spent including every re-search" in shown
+    assert "$0.01, $0.25 with the Gets that retried it" in shown
+
+
+@pytest.fixture
+def a_finished_run_with_nothing_of_its_own(ui):
+    """A Get that finished with no cost recorded of its own, as a cancelled one can."""
+    ui.serve("**/api/estimate?*", an_estimate())
+    ui.serve(
+        f"**/api/runs/{RUN_ID}",
+        a_run_view(
+            run=a_run(
+                status=RunStatus.CANCELLED.value,
+                is_terminal=True,
+                completed_at="2026-08-05T10:05:00+00:00",
+                actual_cost_usd=None,
+            ),
+            works=[a_candidate()],
+        ),
+    )
+    return ui
+
+
+def _cost(ui):
+    return ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts dd").inner_text()
+
+
+def test_a_finished_get_with_nothing_recorded_says_so(a_finished_run_with_nothing_of_its_own):
+    ui = a_finished_run_with_nothing_of_its_own
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0"))
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    assert _cost(ui) == "None recorded"
+
+
+def test_a_get_with_nothing_of_its_own_keeps_what_its_retries_cost(a_finished_run_with_nothing_of_its_own):
+    """The family total is the one figure with no second home; an empty own row must not take it away."""
+    ui = a_finished_run_with_nothing_of_its_own
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.25"))
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+    assert _cost(ui) == "None recorded for this Get, $0.25 with the Gets that retried it"
+
+
+def test_a_family_total_equal_to_the_gets_own_is_not_said_twice(a_finished_run):
+    ui = a_finished_run
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend(cost_usd="0.0134"))
+
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view dl.facts")
+
+    assert "retried" not in ui.text()
+    cost = ui.page.locator("#view .panel:has(h2:text-is('What it cost')) dl.facts")
+    assert cost.locator("dt").all_inner_texts() == ["Cost"]
 
 
 # -- which kind of nothing --------------------------------------------------
@@ -294,7 +357,7 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
             ],
         ),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -322,7 +385,7 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
     # Both halves, because only the pair says the reword happened: the new
     # wording present proves it renders, and the old wording absent proves it is
     # gone rather than sitting beside it.
-    assert "the run found none" in shown
+    assert "the Get found none" in shown
     assert "no image" not in shown, (
         "a present-tense claim about the work is what the reword removed — `resolution_status` "
         "records what the run found, and only a resolution attempt recomputes it"
@@ -338,9 +401,13 @@ def test_an_unresolved_work_says_which_kind_of_nothing(ui, reason):
 #: together rather than leaving two numbers to drift.
 MAX_FAILURES = 5
 
-#: What the service answers for a run id it does not know — the case that made
-#: this necessary. A bookmarked `#run/<id>` outlives its run.
+#: What the service answers for a run id it does not know. A bookmarked
+#: `#get/<id>` outlives its run; that is a page of its own, not a watch to retry.
 GONE = (400, {"error": "There is no run with that id."})
+
+#: A server that keeps failing in a way that could pass: the case the failure
+#: limit exists for, now that a refusal ends the watch at once.
+DOWN = (502, {"error": "The server answered 502."})
 
 
 def test_the_client_and_this_test_agree_on_the_limit(ui):
@@ -358,18 +425,23 @@ def test_the_client_and_this_test_agree_on_the_limit(ui):
 def test_a_run_that_will_never_answer_stops_being_watched(ui):
     """The loop proved to terminate, rather than read to.
 
-    Opening a stale bookmarked `#run/<id>` after the run is gone had the service
-    answer 400, the catch re-arm, and the tab request that run every two seconds
-    for as long as it stayed open — bounded only by navigation, with nothing on
-    screen saying the watch was still retrying.
+    A server failing over and over (a 502 that never passes) once had the catch
+    re-arm and the tab request that run every two seconds for as long as it
+    stayed open — bounded only by navigation, with nothing on screen saying the
+    watch was still retrying. The limit ends it.
 
     Asserted on the request count across a window several polls longer than the
     limit, because that is the only thing that distinguishes a loop that stopped
     from one that is between ticks.
-    """
-    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    *(This test held a 400 until 2026-10-14. A 400 is the service saying the
+    run does not exist, which now ends the watch at its first answer with the
+    not-found page (#361) — pinned by the test below — so the limit is held
+    here by the failure it was always for: one that might pass.)*
+    """
+    ui.serve(f"**/api/runs/{RUN_ID}", DOWN)
+
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
 
     # Long enough for several more polls than the limit allows, so a loop that
@@ -377,26 +449,39 @@ def test_a_run_that_will_never_answer_stops_being_watched(ui):
     ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 3))
     attempts = len(ui.requests_matching(f"/api/runs/{RUN_ID}"))
 
-    assert attempts == MAX_FAILURES, f"{attempts} requests for a run that will never exist — the watch did not stop"
+    assert attempts == MAX_FAILURES, f"{attempts} requests for a run that will never answer — the watch did not stop"
+
+
+def test_a_run_that_is_gone_is_a_page_saying_so_and_no_watch(ui):
+    """A bookmarked Get whose run is gone: one request, one page, no banner."""
+    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
+
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view .not-found")
+    ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))
+
+    assert ui.page.locator("#view h1").inner_text() == "That Get is not here"
+    assert len(ui.requests_matching(f"/api/runs/{RUN_ID}")) == 1
+    assert ui.page.locator("#error").is_hidden()
 
 
 def test_a_watch_that_gave_up_says_so_rather_than_only_what_failed(ui):
-    """ "The server answered 400" leaves a live page indistinguishable from a dead one.
+    """ "The server answered 502" leaves a live page indistinguishable from a dead one.
 
     The curator needs two facts and the message used to carry one: what went
     wrong, and whether anything is still trying. Only the second tells them
     whether to keep looking at the screen.
     """
-    ui.serve(f"**/api/runs/{RUN_ID}", GONE)
+    ui.serve(f"**/api/runs/{RUN_ID}", DOWN)
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#error:not([hidden])")
     ui.page.wait_for_timeout(POLL_MS * (MAX_FAILURES + 1))
 
     message = ui.page.inner_text("#error")
-    assert "Gave up watching this run" in message
+    assert "Gave up watching this Get" in message
     assert "reload" in message, "saying it stopped without saying how to resume leaves the curator stuck"
-    assert "There is no run with that id." in message, "the original fault must survive; it is the diagnosis"
+    assert "The server answered 502." in message, "the original fault must survive; it is the diagnosis"
 
 
 def test_one_blip_does_not_end_the_watch(ui):
@@ -416,7 +501,7 @@ def test_one_blip_does_not_end_the_watch(ui):
         ],
     )
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
 
     # The run's own content arriving is the recovery: it can only be painted by
     # a poll that the blip did not stop.
@@ -440,7 +525,7 @@ def test_a_success_clears_the_failure_count(ui):
     bad = (502, {"error": "The server answered 502."})
     ui.serve(f"**/api/runs/{RUN_ID}", [bad, bad, good])
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
     assert ui.page.evaluate("() => state.watch.failures") == 0, (
@@ -465,7 +550,7 @@ def test_failures_with_a_success_between_them_never_end_the_watch(ui):
     bad = (502, {"error": "The server answered 502."})
     ui.serve(f"**/api/runs/{RUN_ID}", [bad, bad, bad, bad, good, bad, bad, bad, bad, good])
 
-    ui.page.goto(f"{ui.base_url}/#run/{RUN_ID}")
+    ui.page.goto(f"{ui.base_url}/#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
     ui.page.wait_for_timeout(POLL_MS * 4 + 500)
 
@@ -504,7 +589,7 @@ def test_a_truncated_search_list_says_how_much_history_it_is_not_showing(ui):
     ui.serve("**/api/runs*", _a_run_list(count=50, total=407))
 
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('In flight')")
+    ui.page.wait_for_selector("h2:has-text('In flight')")
 
     text = ui.text()
     assert "50 most recent of 407" in text
@@ -516,7 +601,7 @@ def test_a_complete_search_list_says_nothing_about_truncation(ui):
     ui.serve("**/api/runs*", _a_run_list(count=4, total=4))
 
     ui.open("#queue")
-    ui.page.wait_for_selector("h3:has-text('In flight')")
+    ui.page.wait_for_selector("h2:has-text('In flight')")
 
     text = ui.text()
     assert "In flight (4)" in text
@@ -538,9 +623,16 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
     together would have removed the fact rather than the fourth copy of it.
     """
     ui.serve("**/api/estimate?*", an_estimate())
-    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate()]))
+    offered = a_candidate(
+        work_id="gift",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=2,
+    )
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(works=[a_candidate(), offered]))
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(), a_card(work=offered)]))
 
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     text = ui.text()
@@ -549,8 +641,9 @@ def test_the_run_table_does_not_head_a_column_with_the_works_own_provenance(ui):
         "the offered/asked-for distinction must survive its per-row copy being removed — "
         "it is what tells a curator the list is longer than the one they authorised"
     )
-    assert "asked for" in text, why
-    assert "offered by the collection" in text, why
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Asked for (1)" in headings, why
+    assert "Also offered by Art Institute of Chicago (1)" in headings, why
 
 
 def test_the_review_card_still_says_which_works_were_offered(ui):
@@ -593,16 +686,12 @@ def test_the_run_sentence_agrees_with_itself_at_a_count_of_one(ui):
         resolution_status=ResolutionStatus.UNRESOLVED.value,
         unresolved_reason=UnresolvedReason.NOT_HELD.value,
     )
-    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
-    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[named]))
-    ui.open(f"#run/{RUN_ID}")
-    ui.page.wait_for_selector("table")
+    _a_finished_discovery(ui, [named], [a_card(work=named, shown=None)])
 
+    # Said as counts now, which carry no agreement to get wrong; the plural
+    # spellings stay asserted absent so a sentence creeping back is caught.
+    assert _counts(ui) == {"Asked for": "1", "Found with an image": "0", "Not matched": "1"}
     shown = ui.text()
-    assert "0 of 1 work it was asked for has an image" in shown
-    assert "1 could not be matched to any image and is reported" in shown
-    # The plural spellings of the very same clauses, so this fails on a partial
-    # fix rather than on the absence of the sentence entirely.
     assert "1 works" not in shown
     assert "and are reported" not in shown
 
@@ -619,7 +708,7 @@ def test_a_settled_work_list_of_one_says_so_in_the_singular(ui):
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=run, works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=The work list of 1 work is settled")
     assert "1 works" not in ui.text()
@@ -628,7 +717,8 @@ def test_a_settled_work_list_of_one_says_so_in_the_singular(ui):
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [
-        ("discovery", "1 of 2 works it was asked for has an image"),
+        # A Get from words says counts, not this sentence
+        # (`test_a_finished_get_says_three_counts_rather_than_a_paragraph`).
         ("resolve", "1 of the 2 works it covers has an image"),
     ],
 )
@@ -657,7 +747,7 @@ def test_one_of_several_works_takes_the_singular_verb(ui, kind, expected):
     ]
     run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True, kind=kind)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -695,7 +785,7 @@ def test_a_run_that_cannot_look_for_images_says_so_in_the_singular(ui):
             image_resolution_available=False,
         ),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=There is 1 work to find images for")
     assert "1 works" not in ui.text()
@@ -720,7 +810,7 @@ def test_a_run_with_no_phase_one_that_cannot_look_counts_every_work_it_holds(ui,
         a_candidate(work_id=f"w{n}", provenance=provenance, resolution_status=ResolutionStatus.PENDING.value) for n in range(2)
     ]
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works, image_resolution_available=False))
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
     ui.page.wait_for_selector("text=There are 2 works to find images for")
 
@@ -737,9 +827,9 @@ def test_a_re_search_over_one_work_says_so_in_the_singular(ui):
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=run, works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
 
-    ui.page.wait_for_selector("text=Looking again for images of the 1 work this re-search covers")
+    ui.page.wait_for_selector("text=Looking again for images of the 1 work this Get covers")
     assert "1 works" not in ui.text()
 
 
@@ -756,7 +846,7 @@ def test_one_work_the_provider_could_not_be_asked_about_reads_in_the_singular(ui
         f"**/api/runs/{RUN_ID}",
         a_run_view(run=run, works=[a_candidate(resolution_status=ResolutionStatus.PENDING.value)]),
     )
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("table")
 
     shown = ui.text()
@@ -778,13 +868,10 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     the defect standing exactly where a curator meets it first, while the records
     said it was gone.
 
-    "found no image for" is what all three surfaces say now. The third is the MCP
-    run summary, pinned by its own assertion in
-    `tests/unit/test_offered_works.py` — **not** by `test_surface_parity.py`,
-    which an earlier version of this docstring claimed: that module pins field
-    *names* and `_verdict_notice`, says nothing about `_run_notice`, and cannot
-    reach `app.js` at all, so no parity test can ever cover this particular
-    trio.
+    This page now says the offered works by a section heading naming the museum,
+    which makes no claim about the works asked for. The review grid and the MCP
+    run summary still say "found no image for"; the MCP one is pinned in
+    `tests/unit/test_offered_works.py`.
     """
     named = a_candidate(
         work_id="named",
@@ -799,16 +886,12 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
         offered_for_artist="Salvador Dalí",
         offered_artist_matched=25,
     )
-    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
-    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[named, offered]))
-    ui.open(f"#run/{RUN_ID}")
-    ui.page.wait_for_selector("table")
+    _a_finished_discovery(ui, [named, offered], [a_card(work=named, shown=None), a_card(work=offered)])
 
     shown = ui.text()
-    # Singular at a count of one. The first version of this assertion pinned
-    # "1 more works" — a test can hold a grammatical bug still just as firmly as
-    # it holds a behaviour, and this one did until a reviewer read the string.
-    assert "the collection offered 1 more work by artists this run found no image for" in shown
+    # The offered work is said by its section's heading, which names the museum
+    # and denies nothing about the works asked for.
+    assert "Also offered by Art Institute of Chicago (1)" in shown
     assert "1 more works" not in shown
     assert "could not confirm" not in shown, "the run view still denies work it lists directly below"
 
@@ -818,9 +901,9 @@ def test_the_run_sentence_does_not_deny_the_works_listed_underneath_it(ui):
     # `all_text_contents`, not `all_inner_texts`: the header cells carry
     # `text-transform: uppercase`, and inner_text returns what the transform
     # renders rather than what the client wrote.
-    headings = ui.page.locator("table th").all_text_contents()
+    headings = ui.page.locator("#view section.asked-for table th").all_text_contents()
     assert "Why it is here" in headings, headings
-    assert "Why the run named it" not in headings
+    assert "Why the run named it" not in ui.page.locator("table th").all_text_contents()
 
 
 # -- why a run ended ----------------------------------------------------------------
@@ -831,7 +914,7 @@ def _ended(ui, *, status: RunStatus, end_reason: str | None):
     run = a_run(status=status.value, is_terminal=True, completed_at="2026-10-05T10:05:00+00:00", end_reason=end_reason)
     ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[]))
     ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
-    ui.open(f"#run/{RUN_ID}")
+    ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view dl.facts")
     return ui.text()
 
@@ -839,7 +922,7 @@ def _ended(ui, *, status: RunStatus, end_reason: str | None):
 @pytest.mark.parametrize(
     ("status", "sentence"),
     [
-        (RunStatus.FAILED, "This run hit an error and stopped."),
+        (RunStatus.FAILED, "This Get hit an error and stopped."),
         (RunStatus.HALTED_BY_BUDGET, "The provider refused further spend"),
     ],
 )
@@ -861,7 +944,7 @@ def test_a_run_that_ended_badly_says_why_beside_what_happened(ui, status, senten
 def test_a_failed_run_from_before_reasons_were_kept_still_points_at_the_log(ui):
     shown = _ended(ui, status=RunStatus.FAILED, end_reason=None)
 
-    assert "This run hit an error and stopped. The server log has the details." in shown
+    assert "This Get hit an error and stopped. The server log has the details." in shown
     assert "Why it stopped" not in shown
 
 
@@ -879,3 +962,316 @@ def test_a_reason_quoting_the_provider_reaches_the_page_as_text(ui):
 
     assert "Why it stopped: OpenRouter refused the call: <b>Key</b> limit exceeded." in shown
     assert ui.page.locator("#view b").count() == 0
+
+
+# -- a Get's page: asked for, and offered by whom ----------------------------------
+
+
+def _a_finished_discovery(ui, works, cards):
+    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=works))
+    ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page(cards, run=run))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.serve_image("**/api/candidate-images/**")
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view section.asked-for")
+
+
+def _counts(ui):
+    """The summary's counts, as label → figure."""
+    return ui.page.evaluate("""() => Object.fromEntries([...document.querySelectorAll('#view .run-counts dt')]
+              .map((dt) => [dt.textContent.trim(), dt.nextElementSibling.textContent.trim()]))""")
+
+
+def test_a_finished_get_says_three_counts_rather_than_a_paragraph(ui):
+    """Asked for, found with an image, not matched (`build-plan-get-and-review-clarity.md`)."""
+    found = a_candidate(work_id="found", title="The Persistence of Memory")
+    missing = [
+        a_candidate(
+            work_id=f"missing-{n}",
+            title=f"Lost {n}",
+            resolution_status=ResolutionStatus.UNRESOLVED.value,
+            unresolved_reason=UnresolvedReason.NOT_HELD.value,
+        )
+        for n in range(2)
+    ]
+    offered = a_candidate(
+        work_id="gift",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+    )
+    # An offered work turned down and searched again in vain: unresolved, but
+    # not one of the works asked for, so not among "Not matched".
+    offered_lost = a_candidate(
+        work_id="gift-lost",
+        title="Mae West Lips Sofa",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    works = [found, *missing, offered, offered_lost]
+    _a_finished_discovery(ui, works, [a_card(work=w) for w in works])
+
+    # Distinct figures, so a count read from the wrong tally field cannot pass.
+    assert _counts(ui) == {"Asked for": "3", "Found with an image": "1", "Not matched": "2"}
+    assert "it was asked for has an image" not in ui.text()
+    assert "Separately, the collection offered" not in ui.text()
+
+
+def test_offered_works_sit_under_the_museum_that_offered_them_without_a_reason(ui):
+    asked = a_candidate(work_id="asked", title="The Persistence of Memory", rationale="The intent names melting clocks.")
+    by_artic = a_candidate(
+        work_id="gift-1",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        rationale="Offered by the collection, not proposed by the model: one of 25 works …",
+    )
+    by_met = a_candidate(
+        work_id="gift-2",
+        title="Mae West Lips Sofa",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=3,
+        offered_by="met",
+        rationale="Offered by the collection, not proposed by the model: one of 3 works …",
+    )
+    cards = [
+        a_card(work=asked),
+        a_card(work=by_artic, shown=an_instance(work_id="gift-1", image_id="img-artic", provider="artic")),
+        a_card(work=by_met, shown=an_instance(work_id="gift-2", image_id="img-met", provider="met")),
+    ]
+    _a_finished_discovery(ui, [asked, by_artic, by_met], cards)
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert headings == [
+        "Asked for (1)",
+        "Also offered by Art Institute of Chicago (1)",
+        "Also offered by Metropolitan Museum of Art (1)",
+    ]
+    asked_section = ui.page.locator("#view section.asked-for")
+    assert "Why it is here" in asked_section.locator("th").all_text_contents()
+    assert "The intent names melting clocks." in asked_section.inner_text()
+    for offered_section in ui.page.locator("#view section.offered").all():
+        assert "Why it is here" not in offered_section.locator("th").all_text_contents()
+    # The stored per-row sentence is gone with its column: the heading says it once.
+    assert "not proposed by the model" not in ui.text()
+    met = ui.page.locator("#view section.offered", has_text="Metropolitan Museum of Art")
+    assert "Mae West Lips Sofa" in met.inner_text()
+    assert "Lobster Telephone" not in met.inner_text()
+
+
+def test_each_row_shows_the_picture_found_for_it(ui):
+    found = a_candidate(work_id="found", title="The Persistence of Memory")
+    none = a_candidate(
+        work_id="none",
+        title="Lost",
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    cards = [a_card(work=found, shown=an_instance(work_id="found", image_id="img-found")), a_card(work=none, shown=None)]
+    _a_finished_discovery(ui, [found, none], cards)
+
+    rows = ui.page.locator("#view section.asked-for tbody tr")
+    first = rows.filter(has_text="The Persistence of Memory")
+    first.locator("img").wait_for()
+    assert "/api/candidate-images/img-found/preview" in first.locator("img").get_attribute("src")
+    assert first.locator("img").evaluate("(i) => i.complete && i.naturalWidth") > 0
+    lost = rows.filter(has_text="Lost")
+    assert lost.locator("img").count() == 0
+    assert "No image found" in lost.inner_text()
+
+
+@pytest.mark.parametrize(
+    ("cards_answer", "status", "said"),
+    [
+        ("fails", ResolutionStatus.RESOLVED.value, "Its picture could not be read just now."),
+        ("reads", ResolutionStatus.PENDING.value, "Still being looked for."),
+    ],
+)
+def test_a_row_without_a_picture_says_which_kind_of_nothing(ui, cards_answer, status, said):
+    work = a_candidate(work_id="w", title="The Persistence of Memory", resolution_status=status)
+    run = a_run(status=RunStatus.COMPLETED.value, is_terminal=True)
+    ui.serve(f"**/api/runs/{RUN_ID}", a_run_view(run=run, works=[work]))
+    if cards_answer == "fails":
+        ui.serve(f"**/api/runs/{RUN_ID}/candidates*", [(500, {"detail": "down"})])
+    else:
+        ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page([a_card(work=work, shown=None)], run=run))
+    ui.serve(f"**/api/runs/{RUN_ID}/spend", a_spend())
+    ui.open(f"#get/{RUN_ID}")
+    ui.page.wait_for_selector("#view section.asked-for")
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    assert said in row.inner_text()
+    assert "No image found" not in row.inner_text()
+
+
+def test_a_row_s_picture_stays_small_on_a_phone(ui):
+    """Stacked into a card, a row's picture would otherwise fill the phone's width."""
+    found = a_candidate(work_id="found", title="The Persistence of Memory")
+    ui.page.set_viewport_size({"width": 390, "height": 844})
+    _a_finished_discovery(ui, [found], [a_card(work=found, shown=an_instance(work_id="found", image_id="img-found"))])
+
+    image = ui.page.locator("#view section.asked-for img")
+    image.wait_for()
+    width = image.evaluate("(i) => i.getBoundingClientRect().width")
+    rem = ui.page.evaluate("() => parseFloat(getComputedStyle(document.documentElement).fontSize)")
+    assert width <= 8 * rem + 0.5, f"{width}px wide on a 390px screen"
+
+
+def test_an_offered_work_stays_under_the_museum_that_offered_it_when_its_picture_changes(ui):
+    """Its scan turned down and another museum's found: the offer is still the first museum's."""
+    gift = a_candidate(
+        work_id="gift",
+        title="Lobster Telephone",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        offered_by="artic",
+    )
+    asked = a_candidate(work_id="asked")
+    cards = [a_card(work=asked), a_card(work=gift, shown=an_instance(work_id="gift", image_id="img-met", provider="met"))]
+    _a_finished_discovery(ui, [asked, gift], cards)
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Also offered by Art Institute of Chicago (1)" in headings
+    assert not any("Metropolitan" in heading for heading in headings)
+
+
+def test_an_offered_work_recorded_before_its_museum_was_kept_says_the_collection(ui):
+    gift = a_candidate(
+        work_id="gift",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Salvador Dalí",
+        offered_artist_matched=25,
+        offered_by=None,
+    )
+    asked = a_candidate(work_id="asked")
+    _a_finished_discovery(ui, [asked, gift], [a_card(work=asked), a_card(work=gift)])
+
+    headings = [h.strip() for h in ui.page.locator("#view section h3").all_text_contents()]
+    assert "Also offered by the collection (1)" in headings
+
+
+# -- the Get page shows pictures, links, and only acts that lead somewhere (#363) --
+
+
+#: What the server says of a picture it cannot show: a sentence for whoever asks
+#: why, which in a 128-px cell was cut off at both ends.
+_SERVER_NOTE = (
+    "No local copy of this image is on disk, so it cannot be shown here: the file its record names "
+    "is no longer there. Its source URL is reported beside it."
+)
+
+
+def test_a_row_whose_picture_is_not_kept_shows_a_placeholder_not_the_server_s_explanation(ui):
+    offered = a_candidate(
+        work_id="gift",
+        title="Homage to Blériot",
+        provenance=WorkProvenance.OFFERED.value,
+        offered_for_artist="Robert Delaunay",
+        offered_artist_matched=4,
+    )
+    gone = an_instance(work_id="gift", image_id="img-gone", preview_available=False, preview_note=_SERVER_NOTE)
+    asked = a_candidate(work_id="asked", title="Rhythm")
+    _a_finished_discovery(ui, [asked, offered], [a_card(work=asked), a_card(work=offered, shown=gone)])
+
+    cell = ui.page.locator("#view section.offered tbody tr .row-picture")
+    assert cell.inner_text().strip() == "No picture kept"
+    assert "cannot be shown here" not in ui.text()
+
+
+def _review_links(ui):
+    return ui.page.locator(f'#view a[href^="#review/{RUN_ID}"]')
+
+
+def test_review_these_works_is_offered_while_a_card_is_left_to_judge(ui):
+    waiting = a_candidate(work_id="waiting", title="Rhythm")
+    decided = a_candidate(work_id="decided", title="Saint-Séverin", verdict="accepted", artwork_id="art-9")
+    _a_finished_discovery(ui, [waiting, decided], [a_card(work=waiting), a_card(work=decided)])
+
+    assert _review_links(ui).all_inner_texts() == ["Review these works"]
+
+
+def test_nothing_left_to_judge_offers_no_way_into_an_empty_review(ui):
+    """The owner's walk: every card decided, and the one filled act opened onto "Nothing here is left to judge"."""
+    works = [a_candidate(work_id=f"d{n}", title=f"Decided {n}", verdict="rejected") for n in range(2)]
+    _a_finished_discovery(ui, works, [a_card(work=w) for w in works])
+
+    assert _review_links(ui).count() == 0
+    assert "Review these works" not in ui.text()
+
+
+def test_only_works_found_with_no_image_left_says_what_there_is_to_decide(ui):
+    """Their cards fold behind "found no image" on Review, where Want and Forget are; the link says so."""
+    lost = [
+        a_candidate(
+            work_id=f"lost-{n}",
+            title=f"Rhythm No. {n}",
+            resolution_status=ResolutionStatus.UNRESOLVED.value,
+            unresolved_reason=UnresolvedReason.NOT_HELD.value,
+        )
+        for n in range(2)
+    ]
+    _a_finished_discovery(ui, lost, [a_card(work=w, shown=None) for w in lost])
+
+    assert _review_links(ui).all_inner_texts() == ["Want or forget the 2 works it found no image for"]
+
+
+def test_each_work_s_title_links_to_the_page_it_has(ui):
+    """Accepted, held by the library under another record, chosen by its Wikidata item, or none of these."""
+    accepted = a_candidate(work_id="acc", title="Champs de Mars", verdict="accepted", artwork_id="art-accepted")
+    twin = a_candidate(work_id="twin", title="The Persistence of Memory")
+    chosen = a_candidate(work_id="chosen", title="Rhythm", provenance=WorkProvenance.CHOSEN.value, wikidata_qid="Q20166468")
+    plain = a_candidate(work_id="plain", title="Rhythm No. 2")
+    cards = [
+        a_card(work=accepted),
+        a_card(work=twin, held_artwork_id="art-held"),
+        a_card(work=chosen),
+        a_card(work=plain),
+    ]
+    _a_finished_discovery(ui, [accepted, twin, chosen, plain], cards)
+
+    def title_href(title):
+        row = ui.page.locator("#view section.asked-for tbody tr", has_text=title)
+        anchors = row.get_by_role("link", name=title, exact=True)
+        return anchors.first.get_attribute("href") if anchors.count() else None
+
+    assert title_href("Champs de Mars").startswith("#work/art-accepted")
+    assert title_href("The Persistence of Memory").startswith("#work/art-held")
+    assert title_href("Rhythm").startswith("#work/Q20166468")
+    # Nothing to open: proposed, never accepted, no copy in the library, no item.
+    assert title_href("Rhythm No. 2") is None
+
+
+def test_a_work_the_library_holds_says_so_rather_than_not_held(ui):
+    """P-6: The Persistence of Memory, held with a working picture, read "No image found / not held"."""
+    twin = a_candidate(
+        work_id="twin",
+        title="The Persistence of Memory",
+        resolution_status=ResolutionStatus.UNRESOLVED.value,
+        unresolved_reason=UnresolvedReason.NOT_HELD.value,
+    )
+    _a_finished_discovery(ui, [twin], [a_card(work=twin, shown=None, held_artwork_id="art-held")])
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    held = row.get_by_role("link", name="In your library")
+    assert held.get_attribute("href").startswith("#work/art-held")
+    assert "not held" not in row.inner_text()
+    # What the run found is still said, in words that cannot be read as the library's.
+    assert "in no collection" in row.inner_text()
+
+
+def test_an_accepted_work_with_a_library_copy_is_not_told_twice(ui):
+    """Its title already opens the work it became; "In your library" is for a work the run did not add."""
+    accepted = a_candidate(work_id="acc", title="Champs de Mars", verdict="accepted", artwork_id="art-accepted")
+    _a_finished_discovery(ui, [accepted], [a_card(work=accepted, held_artwork_id="art-held")])
+
+    row = ui.page.locator("#view section.asked-for tbody tr")
+    assert row.get_by_role("link", name="In your library").count() == 0
+    assert row.get_by_role("link", name="Champs de Mars").get_attribute("href").startswith("#work/art-accepted")

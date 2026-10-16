@@ -69,16 +69,16 @@ SCREEN_NAMES = {
     "discover": "Ask",
     "work": "Work",
     "search": "Search results",
-    "run": "Run",
-    "conversation": "Conversation",
+    "get": "Get",
     "review": "Review",
     "theme": "Themes",
     "artist": "Artists",
     "topics": "Topics",
     "topic": "Topic",
-    "taste": "Taste",
+    "settings": "Settings",
     "clients": "Clients",
     "sources": "Sources",
+    "taste": "Taste",
     "health": "Status",
 }
 
@@ -226,9 +226,10 @@ def test_the_route_table_parses():
         "queue",
         "history",
         "wanted",
-        "taste",
+        "settings",
         "clients",
         "sources",
+        "taste",
         "health",
     ], (
         f"the sidebar's pages are {pages}. § The *arr layout places each by its *arr precedent, "
@@ -352,6 +353,6 @@ class TestTheGuardCanFail:
         assert "Screen" not in screens_in_table("Screen Inventory")
 
     def test_the_row_parser_strips_emphasis_and_notes(self):
-        """§ Screen Inventory bolds every name and marks two of them `*(new)*`."""
+        """§ Screen Inventory bolds every name and marks some of them `*(new)*`."""
         inventory = screens_in_table("Screen Inventory")
-        assert "Conversation" in inventory, f"emphasis or a note survived normalisation: {inventory}"
+        assert "Taste" in inventory, f"emphasis or a note survived normalisation: {inventory}"

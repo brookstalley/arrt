@@ -49,6 +49,7 @@
  */
 
 import { api } from "./api.js";
+import { GLYPHS } from "./glyphs.js";
 import { el, fill } from "./render.js";
 import { go } from "./router.js";
 
@@ -107,10 +108,25 @@ export function statusReading(health) {
  * third carrier rather than the only one. */
 function paint(reading) {
   const indicator = document.getElementById("status");
-  indicator.dataset.state = reading.well ? "well" : "unwell";
+  const state = reading.well ? "well" : "unwell";
+  // The indicator is a live region, and every navigation reads the panel
+  // again: rewritten with the words it already holds, it re-announced "Well"
+  // on every page (`accessibility-spec.md`: a live region is not rewritten
+  // with content it already holds). Only a change is written.
+  if (indicator.dataset.state === state && indicator.dataset.words === reading.words) {
+    paintBadge(reading);
+    return;
+  }
+  indicator.dataset.state = state;
+  indicator.dataset.words = reading.words;
+  // Two wordings: the whole sentence, and its state in one word for a phone's
+  // top bar, which has room for a word and not for "The hall has not
+  // reported". The stylesheet shows one; a screen reader always reads the
+  // sentence (`app.css`, `.status-short`).
   fill(indicator,
-    el("span", { class: "glyph", text: reading.well ? "●" : "▲", "aria-hidden": true }),
-    el("span", { text: reading.words }),
+    el("span", { class: "glyph", text: reading.well ? GLYPHS.good : GLYPHS.problem, "aria-hidden": true }),
+    el("span", { class: "status-words", text: reading.words }),
+    el("span", { class: "status-short", text: reading.well ? "Well" : "Unwell", "aria-hidden": true }),
   );
   paintBadge(reading);
 }
@@ -144,6 +160,13 @@ export async function paintStatus() {
   paint(statusReading(health));
 }
 
+/* A plain click goes through the router, as the sidebar's links do, so the
+ * indicator still opens Status from Status itself; a click with a modifier is
+ * the browser's, a new tab. */
 export function installStatus() {
-  document.getElementById("status").addEventListener("click", () => go("health"));
+  document.getElementById("status").addEventListener("click", (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    go("health");
+  });
 }

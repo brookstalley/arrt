@@ -14,16 +14,17 @@ import pytest
 
 from arrt.config import (
     CATALOGUE_FILENAME,
+    DEFAULT_ASK_MODEL,
+    DEFAULT_ASK_STEP_LIMIT,
     DEFAULT_HOST,
     DEFAULT_PORT,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     ConfigError,
     Settings,
+    retired_settings_in,
 )
+from arrt.library.dimensions import Units
 
 
 @pytest.fixture(autouse=True)
@@ -50,12 +51,11 @@ def _clean_env(monkeypatch):
         "CURATION_PORT",
         "ROTATION_INTERVAL_SECONDS",
         "ROTATION_SHUFFLE",
-        "TV_PANEL_WIDTH_PX",
-        "TV_PANEL_HEIGHT_PX",
-        "TV_PANEL_DIAGONAL_INCHES",
+        "LABEL_UNITS",
         "BACKUP_DIR",
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
+        "MONTHLY_BUDGET_USD",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -200,10 +200,10 @@ def test_the_manifest_and_heartbeat_are_anchored_under_art_root_and_named_per_wa
 
     settings = Settings.from_env()
 
-    assert settings.manifest_path("living-room") == tmp_path / "theme-manifest-living-room.json"
+    assert settings.manifest_v2_path("living-room") == tmp_path / "theme-manifest-living-room.v2.json"
     assert settings.heartbeat_path("living-room") == tmp_path / "display-heartbeat-living-room.json"
     # Two walls, two files. The assertion the singular fields could not make.
-    assert settings.manifest_path("study") != settings.manifest_path("living-room")
+    assert settings.manifest_v2_path("study") != settings.manifest_v2_path("living-room")
 
 
 def test_the_shipped_rotation_defaults_are_what_the_wall_runs_today(monkeypatch, tmp_path):
@@ -214,9 +214,6 @@ def test_the_shipped_rotation_defaults_are_what_the_wall_runs_today(monkeypatch,
 
     assert settings.rotation_interval_seconds == DEFAULT_ROTATION_INTERVAL_SECONDS
     assert settings.rotation_shuffle == DEFAULT_ROTATION_SHUFFLE
-    assert settings.tv_panel_width_px == DEFAULT_TV_PANEL_WIDTH_PX
-    assert settings.tv_panel_height_px == DEFAULT_TV_PANEL_HEIGHT_PX
-    assert settings.tv_panel_diagonal_inches == DEFAULT_TV_PANEL_DIAGONAL_INCHES
 
 
 def test_a_deployment_can_override_every_wall_setting(monkeypatch, tmp_path):
@@ -224,17 +221,11 @@ def test_a_deployment_can_override_every_wall_setting(monkeypatch, tmp_path):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("ROTATION_INTERVAL_SECONDS", "931")
     monkeypatch.setenv("ROTATION_SHUFFLE", "false")
-    monkeypatch.setenv("TV_PANEL_WIDTH_PX", "1920")
-    monkeypatch.setenv("TV_PANEL_HEIGHT_PX", "1080")
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "55.5")
 
     settings = Settings.from_env()
 
     assert settings.rotation_interval_seconds == 931
     assert settings.rotation_shuffle is False
-    assert settings.tv_panel_width_px == 1920
-    assert settings.tv_panel_height_px == 1080
-    assert settings.tv_panel_diagonal_inches == 55.5
 
 
 @pytest.mark.parametrize("spelling", ["false", "False", "FALSE", "0", "no", "off", " off "])
@@ -269,7 +260,12 @@ def test_a_flag_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_
 
 @pytest.mark.parametrize(
     "name",
-    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "BACKUP_INTERVAL_SECONDS", "BACKUP_KEEP"],
+    [
+        "ROTATION_INTERVAL_SECONDS",
+        "BACKUP_INTERVAL_SECONDS",
+        "BACKUP_KEEP",
+        "QUALITY_MINIMUM_PX",
+    ],
 )
 def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -281,11 +277,17 @@ def test_a_non_numeric_whole_number_setting_is_refused_with_the_offending_value(
 
 @pytest.mark.parametrize(
     "name",
-    ["ROTATION_INTERVAL_SECONDS", "TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "BACKUP_INTERVAL_SECONDS", "BACKUP_KEEP"],
+    [
+        "ROTATION_INTERVAL_SECONDS",
+        "BACKUP_INTERVAL_SECONDS",
+        "BACKUP_KEEP",
+        "QUALITY_MINIMUM_PX",
+    ],
 )
 @pytest.mark.parametrize("value", ["0", "-1"])
 def test_a_setting_that_must_be_positive_refuses_zero_and_below(monkeypatch, tmp_path, name, value):
-    """Zero is the dangerous one: a zero interval spins, a zero panel divides by nothing."""
+    """Zero is the dangerous one: a zero interval spins, a zero panel divides by
+    nothing, and a zero minimum would let any scan at all be chosen unasked."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv(name, value)
 
@@ -293,124 +295,106 @@ def test_a_setting_that_must_be_positive_refuses_zero_and_below(monkeypatch, tmp
         Settings.from_env()
 
 
-def test_a_non_numeric_panel_diagonal_is_refused_with_the_offending_value(monkeypatch, tmp_path):
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "big")
+@pytest.mark.parametrize(
+    "name", ["TV_PANEL_WIDTH_PX", "TV_PANEL_HEIGHT_PX", "TV_PANEL_DIAGONAL_INCHES", "MAT_WIDTH_INCHES", "MAT_BOTTOM_WEIGHT"]
+)
+def test_the_players_screen_settings_are_neither_read_nor_retired(monkeypatch, tmp_path, name):
+    """The screen and the mat's width are the Player's (`feeds-and-players.md` ruling 7).
 
-    with pytest.raises(ConfigError, match="must be a number, got 'big'"):
-        Settings.from_env()
-
-
-def test_a_panel_with_no_size_is_refused_rather_than_dividing_by_zero(monkeypatch, tmp_path):
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "0")
-
-    with pytest.raises(ConfigError, match="must be greater than zero"):
-        Settings.from_env()
-
-
-def test_pixels_per_inch_is_derived_from_the_panels_own_geometry(monkeypatch, tmp_path):
-    """What the mat and the resolution floor are computed from.
-
-    A 3840x2160 panel measures 4405.8 pixels corner to corner; over 42 inches
-    that is 104.9 per inch. Derived rather than configured, so a deployment
-    cannot state a scale that disagrees with the size it also stated.
+    One `.env` serves both planes on a development checkout, so the server
+    must neither refuse them nor tell an operator to remove a key the Player
+    still reads. A value the server would refuse, if it read it, is what shows
+    that it does not.
     """
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv(name, "not a number")
 
-    assert Settings.from_env().tv_pixels_per_inch == pytest.approx(104.9, abs=0.01)
+    Settings.from_env()
+
+    assert retired_settings_in({name: "not a number"}) == []
 
 
-def test_a_larger_panel_of_the_same_resolution_has_fewer_pixels_per_inch(monkeypatch, tmp_path):
-    """The relationship the floor depends on: inches on the wall, not pixel counts."""
+def test_the_quality_minimum_reaches_the_profile_that_judges_against_it(monkeypatch, tmp_path):
+    """A configured minimum nothing carried would be a setting with no effect."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "84")
+    monkeypatch.setenv("QUALITY_MINIMUM_PX", "1500")
 
-    assert Settings.from_env().tv_pixels_per_inch == pytest.approx(52.45, abs=0.01)
+    assert Settings.from_env().quality_profile.minimum_long_edge_px == 1500
 
 
-def test_the_artwork_box_reproduces_the_reference_panels_worked_example(monkeypatch, tmp_path):
-    """The 42" 4K Frame, as `nonfunctional-requirements.md` works it out.
-
-    That artifact's table is the specification of this arithmetic, so the table
-    and the code are pinned to each other here — the alternative is two
-    statements of one rule, drifting. The table is worked at a 2.5" mat, so that
-    is set here rather than taken from the default, which is 1.5".
-    """
+def test_the_default_quality_minimum_is_a_thousand_pixels(monkeypatch, tmp_path):
+    """The owner's number, 2026-10-06: about right for a 1080p display with a mat."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("MAT_WIDTH_INCHES", "2.5")
-    box = Settings.from_env().tv_artwork_box
+    monkeypatch.delenv("QUALITY_MINIMUM_PX", raising=False)
 
-    assert (box.width, box.height) == (3316, 1597)
-    assert box.width / box.pixels_per_inch == pytest.approx(31.6, abs=0.05)
-    assert box.height / box.pixels_per_inch == pytest.approx(15.2, abs=0.05)
+    assert Settings.from_env().quality_profile.minimum_long_edge_px == 1000
 
 
-def test_the_same_mat_in_inches_gives_a_bigger_box_on_a_bigger_panel(monkeypatch, tmp_path):
-    """The whole point of specifying the mat physically: it scales with the panel.
+def test_a_retired_setting_still_set_is_named_with_what_replaced_it():
+    """A key nothing reads looks exactly like one in force, so it is said out loud."""
+    [sentence] = retired_settings_in({"RESOLUTION_FLOOR_INCHES": "11.34", "ART_ROOT": "/art"})
 
-    The 75" row of the same table. A pixel mat would take the same bite out of
-    both canvases and mean something different on each wall.
-    """
+    assert sentence.startswith("RESOLUTION_FLOOR_INCHES is no longer read")
+    assert "QUALITY_MINIMUM_PX" in sentence
+
+
+def test_nothing_is_said_when_no_retired_setting_is_set():
+    """The absence is asserted too: a notice that fires on every start is one a reader learns to skip."""
+    assert retired_settings_in({"ART_ROOT": "/art", "QUALITY_MINIMUM_PX": "1000"}) == []
+    assert retired_settings_in({"RESOLUTION_FLOOR_INCHES": ""}) == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "CONVERSATION_MODEL",
+        "CONVERSATION_MAX_OUTPUT_TOKENS",
+        "CONVERSATION_INPUT_COST_USD_PER_MTOK",
+        "CONVERSATION_OUTPUT_COST_USD_PER_MTOK",
+        "CONVERSATION_INPUT_TOKENS",
+    ],
+)
+def test_a_retired_conversation_setting_is_named_with_asks_model(key):
+    """A `.env` still choosing a conversation model would otherwise run Ask on its default, unsaid."""
+    [sentence] = retired_settings_in({key: "some-value", "ART_ROOT": "/art"})
+
+    assert sentence.startswith(f"{key} is no longer read")
+    assert "ASK_MODEL" in sentence
+
+
+def test_asks_model_step_limit_and_web_search_are_read_from_the_environment(monkeypatch, tmp_path):
+    """Each at a value no default produces, so a dropped read shows."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "75")
-    monkeypatch.setenv("MAT_WIDTH_INCHES", "2.5")
-    box = Settings.from_env().tv_artwork_box
+    monkeypatch.setenv("ASK_MODEL", "example/another-model")
+    monkeypatch.setenv("ASK_STEP_LIMIT", "3")
+    monkeypatch.setenv("SEARXNG_URL", "http://searxng.invalid:8080")
 
-    assert (box.width, box.height) == (3546, 1844)
-    assert box.width / box.pixels_per_inch == pytest.approx(60.4, abs=0.05)
-
-
-def test_the_default_mat_is_an_inch_and_a_half(monkeypatch, tmp_path):
-    """The owner's number, ruled 2026-10-02 when the mat began to take the work's
-    shape with black beyond it. On the operator's 50" 4K panel it is 132 px at the
-    top and sides and 152 px at the bottom."""
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("TV_PANEL_DIAGONAL_INCHES", "50")
-    box = Settings.from_env().tv_artwork_box
-
-    assert (box.width, box.height) == (3840 - 2 * 132, 2160 - 132 - 152)
-
-
-def test_the_bottom_margin_is_deeper_than_the_top(monkeypatch, tmp_path):
-    """A true-centred image reads as sitting low, so the vertical mat is not symmetric.
-
-    Asserted as the *relationship* rather than as two numbers: the box is
-    shorter than a four-equal-sides mat would leave it, by exactly the extra the
-    weighting adds.
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("MAT_BOTTOM_WEIGHT", "1.5")
     settings = Settings.from_env()
-    box = settings.tv_artwork_box
 
-    top = round(settings.mat_width_inches * settings.tv_pixels_per_inch)
-    assert box.width == 3840 - 2 * top
-    assert box.height == 2160 - top - round(top * 1.5)
-    assert box.height < 2160 - 2 * top, "the bottom margin is not deeper than the top"
+    assert settings.ask_model == "example/another-model"
+    assert settings.ask_step_limit == 3
+    assert settings.searxng_url == "http://searxng.invalid:8080"
 
 
-def test_a_mat_wider_than_the_panel_leaves_a_box_rather_than_a_negative_one(monkeypatch, tmp_path):
-    """A misconfiguration should not produce geometry that crashes the fit rule.
-
-    `assess_display_fit` refuses a box with a non-positive side, so an absurd mat
-    must clamp to something it can refuse *about* rather than something it
-    refuses to even describe.
-    """
+def test_asks_defaults_hold_when_nothing_is_set(monkeypatch, tmp_path):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("MAT_WIDTH_INCHES", "40")
-    box = Settings.from_env().tv_artwork_box
+    for key in ("ASK_MODEL", "ASK_STEP_LIMIT", "SEARXNG_URL"):
+        monkeypatch.delenv(key, raising=False)
 
-    assert box.width >= 1
-    assert box.height >= 1
+    settings = Settings.from_env()
+
+    assert settings.ask_model == DEFAULT_ASK_MODEL
+    assert settings.ask_step_limit == DEFAULT_ASK_STEP_LIMIT
+    assert settings.searxng_url is None
 
 
-def test_the_floor_reaches_the_box_that_is_judged_against_it(monkeypatch, tmp_path):
-    """A configured floor nothing carried would be a setting with no effect."""
+@pytest.mark.parametrize("limit", ["0", "-2"])
+def test_an_ask_step_limit_below_one_is_refused(monkeypatch, tmp_path, limit):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("RESOLUTION_FLOOR_INCHES", "18.5")
+    monkeypatch.setenv("ASK_STEP_LIMIT", limit)
 
-    assert Settings.from_env().tv_artwork_box.floor_inches == 18.5
+    with pytest.raises(ConfigError, match="ASK_STEP_LIMIT"):
+        Settings.from_env()
 
 
 def test_the_thumbnail_cache_sits_inside_the_art_root(monkeypatch, tmp_path):
@@ -526,23 +510,20 @@ def test_the_search_price_matches_the_engine_that_is_pinned(monkeypatch, tmp_pat
     )
 
 
-def test_the_gate_ships_at_the_value_a_typical_run_does_not_trip(monkeypatch, tmp_path):
-    """Twenty-five, against a typical run of about twenty.
-
-    Chosen so it never fires on an ordinary run and does fire on one that read
-    the intent far more broadly than intended. A gate that fires every time is
-    one a curator learns to approve without reading.
-    """
+def test_the_retired_approval_threshold_is_not_read(monkeypatch, tmp_path):
+    """No run stops for approval (the owner's ruling 3 of 2026-10-07, #290), so a
+    deployment's leftover `DISCOVERY_APPROVAL_THRESHOLD` is not read, even when
+    it would not parse."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("DISCOVERY_APPROVAL_THRESHOLD", "several")
 
-    assert Settings.from_env().discovery_settings.approval_threshold == 25
+    assert not hasattr(Settings.from_env().discovery_settings, "approval_threshold")
 
 
 def test_a_deployment_can_override_every_discovery_setting(monkeypatch, tmp_path):
     """None of these may be a literal in source: prices move and policy is local."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     for name, value in {
-        "DISCOVERY_APPROVAL_THRESHOLD": "40",
         "DISCOVERY_PHASE1_SEARCH_ALLOWANCE": "6",
         "DISCOVERY_PHASE2_SEARCHES_PER_WORK": "3",
         "DISCOVERY_SEARCH_COST_USD": "0.001",
@@ -555,7 +536,6 @@ def test_a_deployment_can_override_every_discovery_setting(monkeypatch, tmp_path
 
     discovery = Settings.from_env().discovery_settings
 
-    assert discovery.approval_threshold == 40
     assert discovery.phase1_search_allowance == 6
     assert discovery.phase2_searches_per_work == 3
     assert discovery.search_cost_usd == Decimal("0.001")
@@ -586,7 +566,7 @@ def test_a_price_is_read_as_a_decimal_rather_than_through_a_float(monkeypatch, t
 
 @pytest.mark.parametrize(
     "name",
-    ["DISCOVERY_APPROVAL_THRESHOLD", "DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE1_INPUT_TOKENS"],
+    ["DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE1_INPUT_TOKENS"],
 )
 def test_a_count_that_is_not_a_number_is_refused_with_the_offending_value(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -598,12 +578,12 @@ def test_a_count_that_is_not_a_number_is_refused_with_the_offending_value(monkey
 
 @pytest.mark.parametrize(
     "name",
-    ["DISCOVERY_APPROVAL_THRESHOLD", "DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE2_SEARCHES_PER_WORK"],
+    ["DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE2_SEARCHES_PER_WORK"],
 )
 def test_a_count_of_zero_is_allowed_rather_than_refused(monkeypatch, tmp_path, name):
-    """Zero gates every run, or forbids searching. Both are coherent settings for
-    a cautious deployment, and refusing them would be config inventing a policy
-    nobody wrote — which is the distinction from a zero rotation interval."""
+    """Zero forbids searching, a coherent setting for a cautious deployment, and
+    refusing it would be config inventing a policy nobody wrote — which is the
+    distinction from a zero rotation interval."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv(name, "0")
 
@@ -612,7 +592,7 @@ def test_a_count_of_zero_is_allowed_rather_than_refused(monkeypatch, tmp_path, n
 
 @pytest.mark.parametrize(
     "name",
-    ["DISCOVERY_APPROVAL_THRESHOLD", "DISCOVERY_PHASE1_SEARCH_ALLOWANCE"],
+    ["DISCOVERY_PHASE1_SEARCH_ALLOWANCE", "DISCOVERY_PHASE2_SEARCHES_PER_WORK"],
 )
 def test_a_negative_count_is_refused(monkeypatch, tmp_path, name):
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
@@ -706,39 +686,6 @@ def test_the_engine_settings_ship_at_the_values_the_analysis_chose(monkeypatch, 
     assert settings.discovery_search_results == 10
 
 
-def test_the_conversation_has_its_own_model_and_reservation(monkeypatch, tmp_path):
-    """A third model, and neither of the other two would do.
-
-    `DISCOVERY_MODEL` lists `input_modalities: ["text"]` and cannot see a
-    picture; the mat reservation is sized to let a reasoning model finish, and a
-    conversational turn switches reasoning off instead. One setting for all three
-    would make each choice a constraint on the others.
-    """
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-
-    settings = Settings.from_env()
-
-    assert settings.conversation_model == "qwen/qwen3.7-flash"
-    assert ":" not in settings.conversation_model, "a dated snapshot pin, not the floating alias"
-    assert settings.conversation_max_output_tokens == 2_000
-
-    monkeypatch.setenv("CONVERSATION_MODEL", "probe/model-under-test")
-    monkeypatch.setenv("CONVERSATION_MAX_OUTPUT_TOKENS", "512")
-    overridden = Settings.from_env()
-
-    assert overridden.conversation_model == "probe/model-under-test"
-    assert overridden.conversation_max_output_tokens == 512
-
-
-def test_the_conversation_reservation_must_be_positive(monkeypatch, tmp_path):
-    """Same reason as the other two: a request reserving nothing is refused."""
-    monkeypatch.setenv("ART_ROOT", str(tmp_path))
-    monkeypatch.setenv("CONVERSATION_MAX_OUTPUT_TOKENS", "0")
-
-    with pytest.raises(ConfigError, match="CONVERSATION_MAX_OUTPUT_TOKENS"):
-        Settings.from_env()
-
-
 def test_the_output_reservation_must_be_positive(monkeypatch, tmp_path):
     """There is no coherent request that reserves no output, and the provider
     refuses one rather than running it cheaply."""
@@ -811,3 +758,44 @@ def test_source_order_defaults_to_commons_then_the_art_institute(monkeypatch, tm
         monkeypatch.setenv("SOURCE_ORDER", raw)
 
     assert Settings.from_env().source_order == ("commons", "artic")
+
+
+def test_a_monthly_budget_is_read_as_exact_money_and_unset_is_none(monkeypatch, tmp_path):
+    """None, not zero, when unset: a budget of zero would read as a month already spent."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    assert Settings.from_env().monthly_budget_usd is None
+
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", "12.40")
+    assert Settings.from_env().monthly_budget_usd == Decimal("12.40")
+
+
+def test_a_monthly_budget_that_is_not_money_is_refused_by_name(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", "ten dollars")
+
+    with pytest.raises(ConfigError, match="MONTHLY_BUDGET_USD"):
+        Settings.from_env()
+
+
+def test_labels_are_imperial_unless_told_otherwise(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+
+    assert Settings.from_env().label_units is Units.IMPERIAL
+
+
+@pytest.mark.parametrize("spelling", ["metric", "METRIC", " Metric "])
+def test_labels_are_metric_however_metric_is_spelled(monkeypatch, tmp_path, spelling):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("LABEL_UNITS", spelling)
+
+    assert Settings.from_env().label_units is Units.METRIC
+
+
+def test_a_system_of_units_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_path):
+    """A typo falling back to imperial would leave a metric household's labels
+    unchanged with nothing said."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("LABEL_UNITS", "metirc")
+
+    with pytest.raises(ConfigError, match="LABEL_UNITS must be imperial or metric, got 'metirc'"):
+        Settings.from_env()

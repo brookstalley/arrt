@@ -124,6 +124,15 @@ table fifty lines above it, and was one of three surviving sites of the retired
 exemption.)* A blanket policy would either over-engineer the HTTP API or
 under-protect the other two.
 
+**Built 2026-10-08 as Ask's agent (`build-plan-ask-agent.md` Chunk 03), in
+process rather than as a client over HTTP.** It is offered the MCP surface's own
+tool definitions, whole, and each call goes to the same `dispatch` an MCP
+client's call reaches (`arrt/ask/agent.py`). That keeps the property argued
+for above, one definition of each tool, which the MCP layer owns, without a
+loopback HTTP hop or an MCP session per thread. Its scope is the read actions
+in `arrt.ask.prompt.ASK_SCOPE`; an action outside it is answered with a teaching
+error and never dispatched.
+
 Built on the **official `mcp` SDK** (`mcp>=1.28.1`), not `3tears-mcp` — that package
 would drag NATS in via `3tears-epoch`, and its RBAC-gated server has nothing to
 gate in a single-principal product. See `project-state.yaml` →
@@ -160,11 +169,11 @@ lesson from a different count, which is why this one is stated as a shape.*
 
 | Tool | Actions | Notes |
 |---|---|---|
-| `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `look`, `list_runs`, `spend`, `source_plugins`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. `source_plugins` (added 2026-10-06; not `sources`, which is `art_catalogue`'s provenance read) answers what `GET /api/sources` does, in its field names and values (`test_source_plugins_surface.py`, `test_surface_parity.py`). `look` (added 2026-10-06, `build-plan-look-before-get.md`) is `GET /api/registry/works/{qid}/look`, in its field names, and spends and records nothing; see that route's row. |
+| `art_discovery` | `estimate`, `start`, `status`, `approve`, `decline`, `cancel`, `resolve_images`, `get`, `look`, `search`, `find_topics`, `artist`, `similar_artists`, `work`, `topic`, `list_runs`, `spend`, `source_plugins`, `help` | **The only tool that spends money in amounts worth authorising** — see the correction below. `search`, `find_topics`, `artist`, `similar_artists`, `work` and `topic` (added 2026-10-08, `build-plan-ask-agent.md` Chunk 02) are the registry's pages, read-only and free, in their routes' field names, because Ask's agent finds art with them; see each route's row. `source_plugins` (added 2026-10-06; not `sources`, which is `art_catalogue`'s provenance read) answers what `GET /api/sources` does, in its field names and values (`test_source_plugins_surface.py`, `test_surface_parity.py`). `look` (added 2026-10-06, `build-plan-look-before-get.md`) is `GET /api/registry/works/{qid}/look`, in its field names, and spends and records nothing; see that route's row. |
 | `art_review` | `list_works`, `get_work`, `list_images`, `set_canonical`, `set_verdict`, `reject_image`, `want`, `list_wanted`, `sighting_hosts`, `wikidata_matches`, `set_wikidata_item`, `help` | Returns thumbnails; see Inputs & Outputs. Never spends. `want` and `list_wanted` (added 2026-10-02, `build-plan-after-review.md` Chunk 03) are the one way into `wanted` and Wanted's listing; see § `set_verdict` cannot set `wanted`. `wikidata_matches` offers Wikidata's items for a work's title and stores nothing; `set_wikidata_item` records the curator's pick, refused on a decided work (added 2026-10-02, `build-plan-after-review.md` Chunk 04). `sighting_hosts` counts, by host, the open works with a page there that no installed source plugin reads, and returns no address (added 2026-10-03, `build-plan-source-plugins.md` Chunk 03). |
-| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. |
-| `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. |
-| `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `unassign_wall`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone. |
+| `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `history`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. `history` (added 2026-10-07) is `GET /api/history`: `kinds` (array) and `wall_id` narrow it. *(Wave 4g, 2026-10-10: `regenerate` makes the work's presentation master and chooses a mat if it has none, composing nothing, and `force=true` makes the master again; `set_mat_color` records the colour and makes nothing, because the colour rides each wall's feed.)* |
+| `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `hang_selection`, `not_again`, `kept_off`, `allow_again`, `unhang`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. `hang_selection`, `not_again`, `kept_off` and `allow_again` (added 2026-10-07) are § History, selections and *Not this one again*'s routes on this surface; `list` leaves selections out, and every theme carries `hidden`. |
+| `art_display` | `walls`, `add_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `assign_display`, `add_label`, `remove_label`, `unassign_wall`, `set_mat_mode`, `set_playback`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone. |
 | `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
 
 **This table is the surface as designed, and no row states what is built.** That
@@ -214,6 +223,11 @@ computed by the service layer rather than stored (`data-model.md` → Original):
 >   what a review card shows before any wall has hung the work.
 >
 > Until then, these two fields describe the code as built.
+>
+> *(Wave 4g, 2026-10-10: the server reads no `TV_PANEL_*`, `MAT_WIDTH_INCHES` or
+> `MAT_BOTTOM_WEIGHT` now; those are the Player's settings under the same names.
+> The fit is judged against `QUALITY_MINIMUM_PX` (wave 4b) and each wall's
+> reported screens (wave 4e).)*
 
 > **The browser stopped showing the inches, 2026-10-02** (the owner's ruling,
 > `build-plan-topics-and-destinations.md` Chunk 07). A review card states the
@@ -225,7 +239,26 @@ computed by the service layer rather than stored (`data-model.md` → Original):
 > the picture. The selection sentence phase 2 writes names pixels for runs from
 > then on; a sentence already stored is a record and stays as written.
 
-A `below_floor` image is **shown, labelled, and selectable** — never auto-selected
+> **Built 2026-10-08 (wave 4b): the verdict is judged against the quality
+> profile, and both inch fields are retired.** `display_fit` (MCP) and
+> `fit.verdict` (HTTP) are `meets_minimum` or `below_minimum`, against
+> `QUALITY_MINIMUM_PX` on the scan's long edge, or null when no size was
+> recorded. The size a curator judges by is the scan's own pixels: `width` and
+> `height` on HTTP; `size_px` (`WxH`) on an MCP listing row, and
+> `estimated_width` and `estimated_height` on `list_images`. Retired, with the
+> panel they described: `native`, `matted_small`, `below_floor` as fit values;
+> `FitOut.rendered_width`, `rendered_height` and `rendered_long_edge_inches`;
+> MCP's `renders_at_inches`, `renders_at_pixels` and `regenerate`'s
+> `rendered_long_edge_inches`. A look picture's `below_floor` became
+> `below_minimum`. A breaking change to result fields that
+> `api_versioning_approach` calls additive-only, announced as its deprecation
+> policy says: in the tool tips and the change-log, with no shim (the decision
+> is `build-plan-wave-4b-master-quality.md`'s). The fields above this note
+> describe the code before that date. The open question in the direction note
+> above is answered: before any wall hangs a work, a review card shows its
+> pixels and its verdict against the minimum; per-wall adequacy is wave 4e.
+
+A `below_minimum` image (`below_floor` before 2026-10-08) is **shown, labelled, and selectable** — never auto-selected
 by phase 2, and never hidden. The curator may take it anyway; that judgement is the
 product.
 
@@ -283,13 +316,26 @@ display plane a command; it writes desired state, and display converges on it.**
 > A directive issued while a Player is unreachable is still just state, waiting
 > to be read. After the internal split, these actions belong to **Programming**.
 > The tool names are frozen and stay as they are.
+>
+> **Wave 4g, 2026-10-10: the directive is retired.** Manifest major 1, the only
+> document that carried it, is no longer published, and the `directives` table
+> is dropped. `sync` writes the wall's major 2 feed only
+> (`theme-manifest-{wall_id}.v2.json`, served at `/walls/{wall_id}/manifest/v2`).
+> `show_now` and `next` republish the wall's schedule starting now, with the
+> named work or with the one after the work on the wall, and answer
+> `{wall_id, work_id, notice}`: the work the feed now starts with, and a sentence
+> saying this is what was published, not a confirmation the screen changed. Both
+> are refused by name on a wall with no published feed (nothing hung yet) and, for
+> `next`, on one whose feed holds no work. The principle is unchanged: desired
+> state, never a command. The table below is current; the paragraphs after it
+> that speak of a directive, its sequence or its pin are its history.
 
 | Action | What curation does | What display does |
 |---|---|---|
 | `status` | Reads the display plane's heartbeat file | Nothing — it wrote the heartbeat already |
-| `sync` | Rebuilds and rewrites **that wall's** manifest from the theme hanging on it — `theme-manifest-{wall_id}.json` | Picks up the new manifest on its next poll and reconciles. Each display plane reads the one file its `WALL_ID` names, so syncing one wall cannot disturb another |
-| `show_now(wall_id, artwork_id)` | Increments **that wall's** directive `sequence` and sets its `pinned_work_id`, and writes that directive into the wall's published manifest | Jumps to that work, then continues rotating from there |
-| `next(wall_id)` | Increments **that wall's** directive `sequence` with no pin, and writes that directive into the wall's published manifest | Steps to the next work in the list |
+| `sync` | Rebuilds and rewrites **that wall's** feed from the theme hanging on it: its major 2 document, `theme-manifest-{wall_id}.v2.json`. *(Until wave 4g it also wrote major 1, `theme-manifest-{wall_id}.json`.)* | Picks up the new feed on its next poll and reconciles. Each Player pulls only the walls `GET /client` names, so syncing one wall cannot disturb another |
+| `show_now(wall_id, artwork_id)` | Republishes **that wall's** feed starting now with that work, and answers `{wall_id, work_id, notice}`. Refused by name if the work could not reach the wall, is kept off every wall, or the wall has no feed. *(Until wave 4g it also advanced the wall's directive `sequence` and set its `pinned_work_id`.)* | Shows that work, then follows the schedule from there |
+| `next(wall_id)` | Republishes **that wall's** feed starting now with the work after the one on it, and answers `{wall_id, work_id, notice}`. Refused by name on a wall with no feed or an empty one. *(Until wave 4g it also advanced the wall's directive `sequence` with no pin.)* | Shows that work, then follows the schedule from there |
 
 > **Built 2026-09-30 (wave 2b Chunk 02): the directive reaches the manifest.**
 > Until then `show_now` and `next` advanced the stored directive and nothing
@@ -301,7 +347,8 @@ display plane a command; it writes desired state, and display converges on it.**
 > is never recorded as issued when it never reached the wall.
 
 **Every action but `status` takes a required `wall_id`**, built 2026-08-12. The
-directive is a row per wall rather than a singleton, so a `next` in the living
+directive is a row per wall rather than a singleton *(since wave 4g, each wall's
+feed is its own document)*, so a `next` in the living
 room does not step the study — which is the whole point of naming a wall, and
 which the earlier form of this table could not express. `status` is the exception
 and takes none, but for the opposite reason to the one it used to give: the
@@ -366,11 +413,13 @@ the implementation, because a caller can observe both:
 Two consequences worth stating because they surprise:
 
 - **These actions are not synchronous confirmations.** They return "the directive
-  is written", not "the wall changed". Actual latency is bounded by display's poll
+  is written", not "the wall changed". *(Since wave 4g they return the work the
+  republished feed starts with, and a `notice` saying so.)* Actual latency is bounded by display's poll
   interval (~1 s). A result claiming the TV has changed would be asserting
   something curation cannot observe — the same false-success pattern this contract
   already refuses elsewhere.
-- **If the display plane is down, the directives queue harmlessly.** The manifest
+- **If the display plane is down, the directives queue harmlessly.** *(Since
+  wave 4g, the republished feed waits the same way.)* The manifest
   holds the latest desired state; display converges whenever it comes back. There
   is no command to be lost, because there is no command — only state.
 
@@ -518,35 +567,28 @@ is the curator saying it, `inferred` is a model reading it out of what they said
 Only the review path can assert the third truthfully, and an `observed` row written
 by a caller is a fabricated observation — indistinguishable afterwards from one the
 product earned. That matters beyond tidiness because `data-model.md` makes
-derivation load-bearing: affinities are rebuilt from the retained turns when the
-derivation improves (Q14), and a row claiming behaviour that never happened has
-nothing to rebuild from and cannot be audited.
+derivation load-bearing (Q14), and a row claiming behaviour that never happened
+cannot be audited.
 
-**`inferred` requires a `source_turn_id`; `stated` does not.** Both are writable —
-the in-UI agent is an MCP client, so the tool is a path a model takes while the
-curator is talking to it — but that justification is about *one* caller, and the
-tool cannot check which caller it has. Any other client (Claude Code at a terminal
-is the stated consumer) could otherwise write "the model read this out of what they
-said" citing nothing, which is the same unrebuildable, unauditable row the
-`observed` refusal exists to refuse, arriving through the door left open beside it.
-`stated` needs no turn because the curator saying a thing is the whole provenance —
-`data-model.md` already makes `rationale` normally null for it. *(Added 2026-08-11,
-Critic R-11: the first draft guarded one derivation and left its neighbour able to
-break the identical invariant.)*
+**`set` may not write `derivation='inferred'` either, since 2026-10-09.** An
+inferred judgment had to cite the conversation turn it was read out of (Critic
+R-11, 2026-08-11: guarding `observed` alone left any client able to write "the
+model read this out of what they said" citing nothing). Conversations are no
+longer stored, so there is nothing to cite, and the refusal names `stated`,
+which needs no citation because the curator saying a thing is the whole
+provenance. The `inferred` rows already held stay readable with their
+`rationale`. The wave that saves Ask's threads decides how a judgment cites one,
+and this paragraph changes with it.
 
-**An upsert may not overwrite a row's provenance with a weaker one.** `set` lands on
-(`kind`, `value`), and that row may already carry `derivation='observed'` and a
-`source_turn_id` — the sample-reaction path writes exactly that pair. So the rule the
-building chunk must not violate: a `set` **replaces the judgment** (`sentiment`,
-`open_to_more`, `rationale`) and **replaces the provenance with its own** —
-`derivation` becomes what the caller wrote, and `source_turn_id` becomes the turn the
-caller cited or null if it cited none. What it may never do is keep the old
-`source_turn_id` under the new judgment. That is the cheap default — write the fields
-given, leave the rest — and it produces a row whose turn did not produce the judgment
-stored on it, indistinguishable afterwards from real provenance, from which Q14's
-rebuild then either resurrects a superseded judgment or overwrites the curator's
-correction. A correction is a new judgment with its own provenance or it is not
-auditable at all. *(Added 2026-08-11, Critic R-17.)*
+**An upsert replaces the row's provenance with its own.** `set` lands on
+(`kind`, `value`), and that row may already carry `derivation='inferred'` and a
+`rationale`. A `set` **replaces the judgment** (`sentiment`, `open_to_more`) and
+**replaces the provenance with its own**: `derivation` becomes what the caller
+wrote and `rationale` what it sent, or null. Keeping the old rationale under the
+new judgment is the cheap default, and it produces a row explained by an
+account that did not produce it (Critic R-17, 2026-08-11). With only `stated`
+writable, a write can never weaken a row's provenance, so the earlier rule
+against that has nothing left to refuse.
 
 **Sentiment and openness are both required, because the pair is the entity's
 point.** `data-model.md` keeps `sentiment` and `open_to_more` apart so that "meh on
@@ -650,8 +692,8 @@ real constraint on how far consolidation can go.
 > confirmation.
 >
 > **A mat call does not need one, and the difference is four orders of
-> magnitude.** A discovery run is the operation with an approval gate, a run
-> handle, a stored estimate and a monthly ceiling behind it; a mat call is a
+> magnitude.** A discovery run is the operation with a priced estimate and
+> its tier, a run handle, a stored estimate and a monthly ceiling behind it; a mat call is a
 > fraction of a cent spent on one work at the curator's explicit request, and
 > re-preparing an entire collection spends nothing at all because a work that
 > already has a mat keeps it. Splitting `set_mat_color` onto its own tool to
@@ -766,6 +808,14 @@ warning. The remaining 2% overshoot at the ceiling is deliberate: closing it mea
 dropping `resolution_status` or `instances_held` from the row, and both carry the
 distinction between "nothing was found" and "we could not look".
 
+**The row gains `confirmation` (2026-10-07, #276)**: `confirmed`, `unconfirmed`
+or `unknown`, whether a source confirms the work exists (`data-model.md`
+§ CandidateWork, `source_confirmed`). On every candidate work, in the browser's
+`CandidateWorkOut` and in the MCP work summary alike. **Within each resolution
+group the listing now orders confirmed, then unknown, then unconfirmed**, each by
+title, so a title the model may have invented is never the first card judged.
+Not re-measured against the token budget: one short enum per row.
+
 **The row gains `unresolved_reason` beside `resolution_status`** — which kind of
 nothing, null unless the work is unresolved, **with the one exception
 `data-model.md` § CandidateWork records: a row whose attempt predates the
@@ -810,6 +860,12 @@ two keys on every row**. An earlier draft of this paragraph claimed they were
 paid for by shortening `rationale`; that was wrong on its own terms, since
 `rationale` is not in this row at all (`_work_summary`'s docstring says so), so no
 deletion here funded anything.
+
+**`offered_by` was added 2026-10-08** (on the HTTP work and this row alike): the
+source that offered an offered work, by provider id, recorded at the offer and
+null on every other work. A Get's page names the offering museum from it, which
+it cannot take from the work's scans once the first is turned down. One more
+key, null on most rows, so the same order of cost as the pair above.
 
 **What that costs, by the rate this section already establishes rather than by a
 fresh count.** The two additions above measured ~8 tokens a row each. These two
@@ -1240,6 +1296,15 @@ value additively** — give it the companion first.
 > unchanged; by the table a description change is breaking, and it is made because
 > the old wording would steer an agent away from re-searching a work that never
 > had a scan. Annotated at the action in `mcp/tools.py`.
+>
+> **`look` and `source_plugins` shortened, 2026-10-08** (`build-plan-ask-agent.md`
+> Chunk 02, recorded after the cumulative review of 2026-10-09). To fit six new
+> `art_discovery` actions inside the description budget, `look` no longer says
+> "of a work you do not hold", and `source_plugins`' package, version and what
+> it provides moved from the description into a tip. Behaviour is unchanged: a
+> `look` at a held work answers `held`, as it always has. Breaking by the table,
+> and announced here and in the change-log's chunks 01 and 02 entry; no
+> annotation at the actions.
 
 **Tool names never change.** hallucinote states the rule as *"stable surface — never
 rename, only alias"* and enforces it at import time; cordyceps pins its seven tool
@@ -1317,27 +1382,32 @@ the client with them.
 |---|---|
 | `GET /` and every page path in `UI_PATHS` (`arrt/src/arrt/http/pages.py`) | The client shell. Listed rather than globbed, so a mistyped `/api/...` 404s instead of returning HTML a client parses as JSON. `UI_PATHS` is the list, rather than a copy here, because it grew with every sidebar page and a copy was six paths behind it. |
 | `GET /static/…` | The client: a stylesheet and a tree of ES modules under `app.js`, no build step. Every file, and the shell on every UI path, carries `Cache-Control: no-cache` (`pages.CLIENT_CACHE_CONTROL`, which says why): the modules import names from one another, so a browser holding any of them across a deploy can stop the client from starting. A `/static` file answers a conditional request with 304. **Added 2026-10-05.** |
-| `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. |
+| `GET /api/works` | A page of works, each with its fit verdict and image state. `sort` is `title` (the default), `artist` (unattributed last) or `newest`, and orders the page only: the total and the facet counts describe the same set whatever the order. An unknown value is refused by name. **Two clean-up facets, added 2026-10-08** (`build-plan-lists-settings-and-scale.md` Chunk 06, #288): `fit`, repeatable, narrows to the works whose size is in a band named (`meets_minimum`, `below_minimum`, or `unknown` for a work with no master; anything else, a band retired on 2026-10-08 included, is a 400 naming it), and `not_on_wall=true` to the works no wall plays now, through the theme or selection hanging on it, less any kept off every wall. Every page carries `fits`, one `{value, count, selected, disabled}` per band in that order, and `not_on_wall`, one such option; each counted over every other filter but its own, as a facet is, and every other count (facets, themes, total) narrows by them. The binding composes them across the seam: the Library's `fit_bands` and Programming's `work_ids_on_walls` meet as id sets and the Library lists `within` the result (`architecture.md` seam rule 1). Additive. **A third, *Last shown*, added 2026-10-15** (`build-plan-shown-record.md` Chunk 03, #316): `shown`, one of `never`, `month`, `quarter`, `year` (30, 90, 365 days; anything else is a 400 naming them), narrows to the works no wall has shown in that period, the never-shown included in each; every page carries `shown`, one option per period in that order, counted the same way. Read from Programming's `last_shown_by_work` (`data-model.md` § Showing). The composition is `services/works_filter.py`, which `art_catalogue(action='list')` calls too: from the same date it takes `fit`, `not_on_wall` and `shown` and returns `fits`, `not_on_wall` and `shown`, closing a gap in which the tool surface had neither of the first two. Additive. |
 | `GET /api/works/{id}` | One work with sources, renditions and mat history. |
-| `GET /api/works/{id}/thumbnail` | A downscaled copy, generated on first ask and revalidated thereafter. |
-| `GET /api/themes`, `GET /api/themes/{id}` | Themes, and one theme's works in curated order. |
+| `GET /api/works/{id}/thumbnail` | The work itself, downscaled from its master to fit 480 px, for a library tile: its own aspect, never with a mat or bars. Generated on first ask and revalidated thereafter. **Drawn from the master since 2026-10-07** (ruling 7, `ia-proposal.md`); until then it was the wall render when one existed. **`?size=large`, added 2026-10-08** (#303): the same bare work fitted to 1,536 px, for Walls' lead picture, which is drawn up to 48rem wide and is soft from a tile on a 2x screen; its own cached file and rendition row. `size` is `tile` (the default) or `large`; anything else is a 422. Additive. |
+| `GET /api/works/{id}/wall-preview` | The work itself, drawn from its original with no mat, downscaled to fit 1920 px, for the Work page, where it is the subject. Generated on first ask and revalidated thereafter. **Added 2026-10-07**, as the wall render, mat and all, with `image.source_kind` on the work saying whether it was the render or the master. *(Wave 4g, 2026-10-10: the server composes no render now, so the preview is the bare work and `image.source_kind` is gone; drawing the mat around it in the browser is #346.)* |
+| `GET /api/themes`, `GET /api/themes/{id}` | Themes, and one theme's works in curated order. **Each listed theme also carries `work_count` and `picture_ids`** (added 2026-10-08, `build-plan-lists-settings-and-scale.md` Chunk 03): how many works it holds, and up to four of its works that have a picture, in curated order, for the Themes index's cards; the delete and make-default answers list the themes in the same shape. *(One theme carried `shuffled`, and every theme `shuffle` and `rotation_interval_seconds`, until 2026-10-13, #353: a theme has an order and is never shuffled, and both settings are the wall's, `PUT /api/walls/{wall_id}/playback`.)* |
 | `POST /api/themes` | Record a theme. |
 | `POST`/`DELETE /api/themes/{id}/works[/{work_id}]`, `POST .../position` | Membership and order. Each returns the resulting order, so the surface repaints from the response. |
+| `POST /api/themes/{id}/works/bulk`, `POST /api/themes/{id}/works/remove` | A selection into or out of a theme, for *Select all* on a list (`build-plan-lists-settings-and-scale.md` Chunk 05, #285). Body `{artwork_ids}` or `{filter, except_ids}`, exactly one of the two: `filter` is `GET /api/works`' narrowing as an object (`q`, `status`, `artist_id`, `theme`, `sort`, a list per facet kind, and since Chunk 06 `fit` and `not_on_wall`), resolved by the server as that route resolves it, so *Select all* reaches every work the filter matches, loaded or not; `except_ids` are the works unticked since. `bulk` appends in the listing's order and answers `{added, already}`, passing over works the theme holds; `remove` answers `{removed}`, the ids that left. One transaction each; an id the catalogue does not hold refuses the whole addition. A hung selection cannot be added to. **Built 2026-10-08.** |
+| `POST /api/works/archive` | Archive a selection, by `{artwork_ids}` or `{filter, except_ids}` as above, in one transaction. Answers `{archived, already}`: the ids archived now, and how many were archived already and passed over. An id the catalogue does not hold refuses the whole act. **Built 2026-10-08.** |
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
 | `GET /api/sources` | Every installed source plugin, most preferred first, as `GET /api/health`'s `sources` reads it, with `interface_version` (`major.minor`, the plugin interface this Arrt provides). Settings › Sources reads it; `art_discovery(action='source_plugins')` answers the same. Added 2026-10-06. |
-| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, this deployment's resolved artwork box, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06). There is deliberately no budget balance, settled 2026-08-04. Shape below. |
+| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06). There is deliberately no budget balance, settled 2026-08-04. **No `artwork_box`** since 2026-10-08 (#266): the geometry was one television's, and Status was its only reader (`art_display(action='status')` had left it off by name); a wall's own geometry returns per wall in wave 4. Shape below. |
+| `GET /api/sources/yields` | What each installed source plugin has given the library, one row per plugin in `GET /api/health`'s `sources` order: `name`, `offered` (distinct image addresses it has offered to a search or as a held work's source; a turned-down image still counts), `chosen` (works whose primary source is it), `only_here` (of those, works no other provider offered any image for, across the work's catalogue sources and every proposal of the same work), `median_long_edge` (pixels, over its offered images whose size is known; null when none is). A plugin with nothing recorded reads as zeros; a provider no longer installed has no row. Counted from the records on each read in one SQL statement, so it survives a restart; its own route rather than a field of the health reading because the top bar reads that on every page. Status's sources table reads it; no tool carries it. Added 2026-10-08 (#265). |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
 `arrt/tests/integration/test_browser_discovery.py`:
 
 | Route | What it is |
 |---|---|
-| `GET /api/estimate` | What asking would cost, before anything is committed. Optional `run_id` asks the phase-2 question instead. Spends nothing. |
+| `GET /api/estimate` | What asking would cost, before anything is committed. Optional `run_id` asks the phase-2 question instead. Spends nothing. **`tier`** (added 2026-10-07, #290): `free` \| `$` \| `$$` \| `$$$`, the estimate as a spending control shows it before the action is taken: free only at zero, `$` under $0.05, `$$` under $0.50, `$$$` otherwise (`spending.cost_tier`, its boundaries `CENTS_BELOW` and `DIMES_BELOW`). Asking's is the tier of its bound. A Get is free by construction (its run is priced at nothing). The MCP twin `art_discovery(action='estimate')` carries the same `tier`. |
+| `GET /api/budget` | **What is left of this month's budget**, for the sidebar (#290, the owner's ruling 3 of 2026-10-07). Always a 200: `{state, remaining_usd, budget_usd, spent_usd, note, tiers: {cents_below_usd, dimes_below_usd}}`, money as decimal strings. `state` is `known` (the key has a monthly limit: `remaining_usd` is the provider's `limit_remaining`, never below zero, `budget_usd` its `limit`), `configured` (the key has no limit: `MONTHLY_BUDGET_USD` less the provider's own `usage_monthly`, with a `note` that nothing enforces it), `uncapped` (no limit, no budget: `spent_usd` alone), `not_configured` (no key; nothing spends) or `unavailable` (the provider could not be asked, or did not say the month's spend). Read from `GET /api/v1/key`, never tallied from the ledger (`nonfunctional-requirements.md` § Direction), and kept for a minute; a failure is not kept. **Display only**: `/key` lags by minutes and nothing gates on it. When the provider refuses at the cap, a halted run's `end_reason` and an Ask reply refused at the cap (`stream_error` code `BUDGET_SPENT`) lead with "This month's budget is spent". **Built 2026-10-07** (server half, `spending.BudgetService`); no MCP twin, as the sidebar is the browser's. |
 | `POST /api/runs` | Begin a run. Returns a handle at once; phase 1 proceeds on a worker behind it. Records `initiated_by: web_ui`. |
 | `GET /api/runs` | The newest runs, newest first, capped at `MAX_RUNS_LISTED` in the service so this route and its MCP twin report the same history (#54). `total` and `truncated` say what the cap left out, and there is no paging: optional `status` and `kind` filters are how a caller reaches older runs. Activity's Queue and History split this one capped listing on `is_terminal`, and each says when the cap left runs out. `awaiting_works` counts every work, across all runs, that found an image and has no verdict, and `awaiting` gives the same by listed run (a run with none is absent); `awaiting=true` narrows the listing to such runs before the cap, which is what Activity › To review reads. `art_discovery(action='list_runs', awaiting=true)` carries the same. |
 | `GET /api/runs/{id}` | The run, its works, its tallies and its search usage. |
-| `POST /api/runs/{id}/approve`, `/decline`, `/cancel` | The approval gate and the stop. Each returns the whole resulting view, as the MCP surface does, so the client repaints from the response. |
+| `POST /api/runs/{id}/approve`, `/decline`, `/cancel` | The stop, and the decision on a run stored awaiting approval. Each returns the whole resulting view, as the MCP surface does, so the client repaints from the response. **No run stops for approval since 2026-10-07** (the owner's ruling 3, #290: asking is the approval; `DISCOVERY_APPROVAL_THRESHOLD` is no longer read): `approve` and `decline` answer only a run stored `awaiting_approval` before then, and refuse any other naming where it is. |
 | `GET /api/runs/{id}/spend` | What the run actually cost, including every re-search descended from it. Read by the run view's costs panel once the run is terminal — it is the only place the **family total** appears, since the run record carries only the run's own direct spend. |
 
 Added 2026-08-05 with the review half, and exercised by
@@ -1357,10 +1427,13 @@ Added 2026-08-05 with the review half, and exercised by
 | `POST /api/candidate-images/{id}/select`, `/reject` | Choose a scan, or turn one down. Rejecting returns the *work*, because turning down the scan on offer moves it to `wanted`; turning down an alternate leaves its verdict where it was. |
 | `GET /api/candidate-images/{id}/preview` | The picture, re-encoded to JPEG. **Not the cached file served directly:** a preview's name on disk is derived from a URL and falls back to `.jpg` for anything unrecognised, so the suffix is not evidence of what the bytes are. Held rather than revalidated — the bytes behind an image id are written once and only ever deleted. **`size=large`** (added 2026-10-02, Chunk 07) is the picture a card enlarges in place: the largest preview the server holds, at its own size (843 px wide from ARTIC, 960 from Commons), bounded at 2048 px for decode memory; the default `card` fits 480 px. Any other value is refused (422). |
 | `POST /api/runs/resolve` | Look again for images of wanted works. A re-search is a run, so `GET /api/runs/{id}` follows it with nothing special to know. Records `initiated_by: web_ui`. |
-| `POST /api/gets` | Get works chosen by their Wikidata items, `{qids}`: one run of kind `get`, phase 2 only, spending nothing. Returns `{run, skipped}`: items the library holds, items a Get under way is already looking for, and items Wikidata has no work for are skipped with their reason (`held`, `being_got`, `not_found`), never refused; when every item is skipped `run` is null. At most 50 items, because each is a Wikidata lookup inside the request. Refused with no registry or no image source. **Optional `theme_id`** (added 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 01): the theme the accepted works join instead of the default. The binding asks Programming for the theme and then starts the Get, two calls with no branch, so an unknown id is the theme's not-found refusal and nothing starts; a new theme is the client's earlier `POST /api/themes`. The run carries it back as `destination_theme_id` (null for the default) on every run shape, here and in MCP. Twin: `art_discovery(action='get', qids=[...], theme_id=...)`. Records `initiated_by: web_ui`. |
+| `POST /api/gets` | Get works chosen by their Wikidata items, `{qids}`: one run of kind `get`, phase 2 only, spending nothing. Returns `{run, skipped}`: items the library holds, items a Get under way is already looking for, items a run already found that wait in To review (matched as the registry rows' `in_review` is, by item or by title and artist), and items Wikidata has no work for are skipped with their reason (`held`, `being_got`, `in_review`, `not_found`), never refused; when every item is skipped `run` is null. At most 50 items, because each is a Wikidata lookup inside the request. Refused with no registry or no image source. **Optional `theme_id`** (added 2026-10-02, `build-plan-topics-and-destinations.md` Chunk 01): the theme the accepted works join instead of the default. The binding asks Programming for the theme and then starts the Get, two calls with no branch, so an unknown id is the theme's not-found refusal and nothing starts; a new theme is the client's earlier `POST /api/themes`. The run carries it back as `destination_theme_id` (null for the default) on every run shape, here and in MCP. Twin: `art_discovery(action='get', qids=[...], theme_id=...)`. Records `initiated_by: web_ui`. |
 | `GET /api/works/{id}` gains `acquisition` | Where the work stands in the acquisition queue — `phase` (`queued`, `fetching`, `failed`, `gave_up`, `paused`), `failures`, `detail`, `next_try_at`, `since`, `condition`, `remedy` — or null when the queue owes it nothing (added 2026-10-02, Chunk 02). `art_catalogue(action='get')` carries the same object. |
-| `POST /api/works/{id}/acquisition/retry` | Forget the work's failures and put it first in the acquisition queue; fetches nothing in the request. Returns the work's new state. Refused for an archived work, or one with no source (added 2026-10-02, Chunk 02). |
-| `GET /api/acquisitions` | Activity › Queue's images: `pause` (`condition`, `detail`, `since`, `remedy`) or null, then every work owed, `{title, acquisition}`, in the order the queue tries them (added 2026-10-02, Chunk 02). Uncapped: it is bounded by the accepted works that hold no image, which the queue drains. |
+| `POST /api/works/{id}/acquisition/retry` | Forget the work's failures and put it first in the acquisition queue; fetches nothing in the request. Returns the work's new state. Refused for an archived work, or one with no source, naming the work by its title (added 2026-10-02, Chunk 02; refusals by title 2026-10-08, `build-plan-lists-settings-and-scale.md` Chunk 08). |
+| `GET /api/acquisitions` | Activity › Queue's images: `pause` (`condition`, `detail`, `since`, `remedy`) or null, then one page of the works still in line (queued, fetching, paused), `{title, acquisition}`, in the order the queue tries them, with `total`, `limit`, `offset`; `failing` counts the works that failed or were given up on, which are listed under their cause instead, and `causes` how many causes there are. `?limit=` (default 25, at most 100) and `?offset=`. Each `acquisition.detail` names the work by its title, never its id (added 2026-10-02, Chunk 02; paged and split from the failures 2026-10-08, `build-plan-lists-settings-and-scale.md` Chunk 08). |
+| `GET /api/acquisitions/causes` | The causes the queue's failed and given-up works share, largest first, one page: `causes` of `{cause, works, failed, gave_up}`, with `total`, `limit`, `offset`. A cause is the last try's reason with the work's own id or title taken out ("The work has no source to acquire from."), so works that failed the same way share one (added 2026-10-08, Chunk 08). |
+| `GET /api/acquisitions/causes/works?cause=` | One page of the works that failed for `cause`, worded exactly as the listing above words it, in queue order: `{cause, works, total, limit, offset}`, each work `{title, acquisition}`. A cause no work holds any more answers with no works (added 2026-10-08, Chunk 08). |
+| `POST /api/acquisitions/causes/retry` | A cause's Retry (*Retry 3* on Queue): body `{cause}`. Retries every work of the cause in one request, as its own Retry would, fetching nothing. Answers `{cause, retried, refused}`, `refused` a list of `{reason, works}` naming no work, for those Retry refuses (no source, being fetched). Refused when no work holds the cause any more (added 2026-10-08, Chunk 08). |
 
 **The review listing does not inline its pictures, and the MCP twin does.** Both
 call the same service method; the browser passes `pictures=False` and fetches each
@@ -1436,28 +1509,28 @@ spellings for "change this" costs more than the orthodoxy is worth here.
 | `GET /api/works` — facet counts in the same response | The counts the IA's disabled-not-hidden rule needs. **Not a second route** — see below. **Built 2026-08-12**, with the latency measured. | `WorkFacet`, built | as above |
 | `POST /api/works/{id}/archive`, `/restore` | Take a work out of circulation, and put it back. **Not a delete** — see below. **Built 2026-08-12**; both read back the full `WorkDetailOut` dossier, because the screen that archives is the screen that shows the work and a slimmer body would only send it straight back for the rest. | `Artwork.status`, built | `art_catalogue(action='archive'\|'restore')`, already designed |
 | `POST /api/themes/{id}` | Rename. **Built 2026-08-12**; answers with `ThemeOut`, so the screen repaints the name the service *normalised* rather than the one it typed. Its body carries a name and **nothing else** — see below. | `Theme`, built | `art_theme(action='update')`, already designed |
-| `GET /api/artists`, `GET /api/artists/{id}`, `GET /api/artists/{id}/registry` | Library › Artists and the Artist page (ruling 4). The index lists every artist with a work in circulation, by surname (the stored family name, else the last word once a generational suffix is set aside; `surname_key`), with `held` (how many) and `pictured_artwork_id`, their first accepted work in circulation, whose thumbnail the Artists index pictures them by (added 2026-10-02, #173; null only on `/{id}` for an artist with nothing in circulation); `?q=` narrows names, ignoring case and accents, for the top-bar search's Artists group. `/{id}` is the library half and always answers for a held artist. `/registry` is Wikidata's half, asked separately so it delays nothing: always a 200 for a held artist, with `state` `known` \| `no_identity` \| `not_configured` \| `unavailable` and a `note` sentence for every state but `known`; `works` are the 50 most renowned (by sitelinks) plus every work the library holds of theirs, with `works_total` beside them, each with `held_artwork_ids`, the works in circulation that are it **by QID** (several where held works share a QID, a duplicate shown rather than hidden) and `image` only ever a Commons file URL; `holdings` the 10 largest collections; `name`, `born` and `died` are the registry's (added 2026-10-01), and `artist_id` is always null here. Kept per artist for a week, across restarts (`kept-answers.sqlite`, since 2026-10-02); a failure is not kept. Every registry string is untrusted text. **Built 2026-10-01.** **`candidates`, added 2026-10-06**: in state `no_identity`, who Wikidata's name search (the matcher's `people_named`) says the artist might be, each `qid`, `name`, `born`, `died` and `years_agree` (the matcher's year test), those agreeing first, at most 5, leaving out any item another library artist carries; empty when the curator said there is none (the `note` says so, and nothing is asked), when no registry is configured, or when Wikidata could not be asked (the `note` says so). Proposed, never stored: `POST /api/artists/{id}/wikidata` stores the one chosen. The name search is kept per name for a week (`registry.people`); a failure is not. Additive. | `Artist`, registry identity | none: the page is the browser's, and an agent has `art_catalogue(action='list', artist_id=…)` for the held half |
-| `GET /api/registry/artists/{qid}`, `GET /api/registry/works/{qid}` | The pages of an artist and a work reached by QID, which the library may not hold (ruling 2). A malformed QID is a 400 naming it; otherwise always a 200. `/registry/artists/{qid}` is the artist `/registry` shape with the same states except `no_identity`, plus `held`: when the library holds an artist with that QID, `artist_id` names them, the page goes there instead, and Wikidata is not asked. With state `known` it also carries **`unlinked`** (added 2026-10-06): the library's artists whose name, accents and case folded, is the registry's for this item, who carry no QID and of whom the curator has not said there is none, each `artist_id`, `name`, `born`, `died`, so the page can offer to link them; `candidates` is always empty here. `/registry/works/{qid}` has `state` `known` \| `not_found` (Wikidata has no such item) \| `not_configured` \| `unavailable` and a `note` for every state but `known`; `title`, `year`, `sitelinks`, `image` (a Commons file URL or null), `creators` (each with the library's `artist_id` where held), `media`, and `holders` (each with the collection's own `inventory` number where Wikidata pairs one with it); `height_cm` and `width_cm`, the work's own size, each null unless Wikidata's best-ranked measurements not of a frame or mount give exactly one value (**added 2026-10-05**); `image_width` and `image_height`, the picture's pixels as Commons holds the file, and `fit`, the `FitOut` the review grid gives a scan, judged against this deployment's box, all three null with no picture, a non-raster file, or Commons not answering (**added 2026-10-05**, kept per file for a week; a failure is not); `held_artwork_ids` is the library's works in circulation with that QID, filled whatever the registry did, and a non-empty one sends the page to the library's own work. A known work is kept per QID for a week, across restarts; a missing item and a failure are not. Every registry string is untrusted text. **Built 2026-10-01.** | Registry identity | none: the pages are the browser's, as the Artist page's registry half is |
-| `GET /api/registry/works/{qid}/look`, `GET /api/registry/works/{qid}/look/pictures/{key}?size=card\|large` | **A look**: what every image source holds of a work the library does not, asked before any Get (`build-plan-look-before-get.md`, the owner's request of 2026-10-06). `/look` starts the asking or joins it and answers at once: `{qid, state, note, held_artwork_ids, sources, pictures}`. `state` is `asking` (the page polls) \| `answered`, or why nothing is asked: `held` (with `held_artwork_ids`; the page goes to the library's own), `being_got` (a Get is asking already), `no_sources`, `not_configured`, `not_found`, `unavailable`, each with a `note`. `sources` has one row per image source, `{provider, state, found, refusals, answered_at, retry_at}` (`refusals` names why phase 2's judge turned finds away: `not_held`, `identity_refused`, `size_unknown`; the Work page words a source whose only finds were `size_unknown` as holding the work without giving its size), `state` `asking` \| `found` \| `holds_none` \| `refused` (it holds a work by this title, or on the item's page, by another artist; not shown) \| `unreachable` (asked again at `retry_at`) \| `cannot`; a finder of pages only is not asked. `pictures` are every source's finds, best first by phase 2's own order, each `{key, provider, url, title, artist, width, height, fit, below_floor, confidence, rights_status, selection_rationale}`. `note` says "No image source holds a picture of this work now." once every source answered with none, or "No image source that answered holds a picture of this work now." when one could not be asked. Every configured source has a row, answered or `asking`, so a look never reads as finished while one has not answered; a source whose asking thread stopped or never started reads `unreachable`. A source that found nothing while Wikidata could not be asked which pages describe the work, or its creators' names, is kept 10 min, as an outage is, and every new fan-out builds its question and Wikidata link afresh. **Asked and judged as a Get asks and judges** (the same query builders, `ImageSourcePool.ask`, `PhaseTwoEngine.judge` and `rank`); **writes nothing to the catalogue**. Kept in memory per work and source: an answer for 6 h, "holds nothing" and "can't look this up" included; "could not be asked" for 10 min, never as holding nothing; at most 256 works. One look at a time asks each source; a queued ask for a work nobody has polled for 20 s is dropped before it starts; a run using a source goes first. `/pictures/{key}` is a picture from the picture store, fetched into it on first ask: `key` is the store's key, computed on the server from the source's answer, and valid only while this work's kept look names it; any other key is a **404** ("Look again"), and a named key whose picture could not be kept is a 400. A refused find has no key. `immutable`, as a candidate preview is. A malformed QID is a 400. Every source string is untrusted text. **Built 2026-10-06.** | Image sources, phase 2, the picture store | `art_discovery(action='look', qid=…)`, the same fields, plus each picture's `image_block_index`: the best six travel as image blocks. **The one registry page with a twin**, because a look answers a question an agent asks before a Get ("what would I get?"), where the rest of the registry pages are the browser's layout of facts an agent reaches otherwise. It holds up to `LOOK_HOLD_SECONDS` (30 s) until no source is still asking, then sends the pictures the store keeps and fetches the rest together, the whole call within `MODEL_LOOK_BUDGET_SECONDS` (40 s) of the client's 60; a picture not arrived by then is listed with a null `image_block_index` and said in `notice` to come with the next call, since its fetch goes on into the store. The notice is the look's own: it says why a picture did not come (not arrived in time, or nothing keepable). A picture's `width`, `height`, `fit` and `selection_rationale` are the browser's names; the action's tips map them onto `list_images`' |
-| `GET /api/registry/search?q=&prefix=&wide=` | The registry's half of the top-bar search and of the results page (ruling 2). `q` is cut into words, and nothing but words reaches the registry, so search syntax typed by a curator is dropped; `prefix=true` reads the last word as the start of one. `state` is `known` \| `too_short` (under three letters: nothing asked) \| `not_configured` \| `unavailable`, with a `note` for the last two. `wide=true` returns the results page's longer lists (up to 10 artists and 20 works) and is kept apart. `artists` (up to 3, from Wikidata's name search: `qid`, `name`, `born`, `died`, and the library's `artist_id` where held) and `works` (up to 5 works of visual art, by sitelinks: `qid`, `title`, `sitelinks`, `image` only ever a Commons file URL, `creator` with its library `artist_id`, and `held_artwork_ids`). Kept per folded query, `prefix` and `wide` for a week, across restarts; a failure is not. Every registry string is untrusted text. **Built 2026-10-01.** | Registry identity | none: the typeahead is the browser's, as the Artist page's registry half is |
-| `GET /api/registry/artists/{qid}/similar` | *Similar artists* on the Artist page, held or not (ruling 4). Up to 12 visual artists sharing a movement (`P135`), by sitelinks, each with `qid`, `name`, `born`, `died`, `images` (their works with a free image, so a curator sees who cannot be supplied) and the library's `artist_id` where held. `state` `known` \| `not_configured` \| `unavailable`, with a `note` for the last two. A malformed QID is a 400. Kept per artist for a week, across restarts; a failure is not. Every registry string is untrusted text. **Built 2026-10-01.** | Registry identity | none: the page is the browser's, as its registry half is |
-| `GET /api/topics`, `GET /api/topics/{qid}` | Library › Topics and the library's half of a Topic page (`build-plan-topics-and-destinations.md` Chunk 04), **read from the facet rows alone, so neither waits on Wikidata**. `/api/topics` is `{state, note, kinds: [{kind, topics: [{qid, label, works}]}]}`: one group per kind, always all four in the order `period`, `movement`, `subject`, `medium`, each topic by label with `works` the library's works in circulation carrying it. `/api/topics/{qid}` is `{state, note, qid, label, kinds, works}`: `label` and `kinds` are what the library's works carry the topic as (null and empty for a topic none is in, which is not an error: a Topic page reached by search is ordinary), and `works` are those works in circulation as grid cards (`WorkOut`), by title. `state` is `known`, or `not_configured` with a `note` saying topics need `WIKIDATA_USER_AGENT`, when the rows are whatever an earlier configuration recorded. A malformed QID is a 400. Labels are registry text. Each facet on `GET /api/works/{id}` gains `value_qid`, the Topic page it opens or null, an added field. **Built 2026-10-02.** | `WorkFacet.value_qid` (`data-model.md` Q25-Q28) | `art_catalogue(action='topics')`, the same fields; `art_catalogue(action='topic', qid=…)`, the same fields with `works` as the tool's work summaries |
-| `GET /api/topics/{qid}/registry`, `GET /api/topics/{qid}/works`, `GET /api/topics/{qid}/artists` | The registry's half of a Topic page, each asked separately after the page draws, as the Artist page's `/registry` and *Similar artists* are: a period's works took 7 to 26 seconds (`wikidata-findings.md` § Topics). `/registry` is the head, `{state, note, qid, label, kinds, description, start, end}` (`kinds` every kind Wikidata's classes give it, the one its works are found by first; `start`/`end` a period's years). `/works` is *Representative works*, `{state, note, works: [{qid, title, sitelinks, year, image, creators: [{qid, name, artist_id}], creator_unknown, state, held_artwork_ids}]}`: up to 50 by sitelinks, `state` `held` (the library holds it in circulation, **matched by QID**, with `held_artwork_ids`), `image_found` or `no_image`; `image` only ever a Commons file URL; `creator_unknown` a maker recorded as unknown. `/artists` is `{state, note, artists: [...]}`, up to 12, each as *Similar artists* lists one. Section `state` is `known` \| `not_found` \| `not_configured` \| `unavailable`, with a `note` for every state but `known`. Always a 200 for a well-formed QID; a malformed one is a 400. `/works` and `/artists` wait up to Wikidata's own 60 s, since a named period's took 26-60 s; the head keeps the pages' 20 s. Kept per topic for a week, across restarts (`kept-answers.sqlite`); a missing item and a failure are not; *Held* is read fresh. Every registry string is untrusted text. **Built 2026-10-02.** | `TopicService` (Chunk 03) | none: the sections are the browser's, as the Artist page's registry half is |
-| `GET /api/registry/topics?q=` | Topics Wikidata's own search finds for a typed name, filtered to the four kinds, for Library › Topics' search and the top bar's Topics group: `{state, note, topics: [{qid, label, kinds, description, start, end}]}`, `state` `known` \| `not_configured` \| `unavailable`. An empty `q` asks nothing. Kept for a week by the text typed, ignoring case, across restarts; a failure is not. **Built 2026-10-02.** | `TopicService.named` (Chunk 03) | none, as `/api/registry/search` has none |
+| `GET /api/artists`, `GET /api/artists/{id}`, `GET /api/artists/{id}/registry` | Library › Artists and the Artist page (ruling 4). The index lists every artist with a work in circulation, by surname (the stored family name, else the last word once a generational suffix is set aside; `surname_key`), with `held` (how many) and `pictured_artwork_id`, their first accepted work in circulation that holds a master image (the image preference added 2026-10-08), whose thumbnail the Artists index pictures them by (added 2026-10-02, #173); null when no work of theirs in circulation holds one *(2026-10-14, #358; it fell back to a work with no image, whose thumbnail answers 400)*, and on `/{id}` for an artist with nothing in circulation; `?q=` narrows names, ignoring case and accents, for the top-bar search's Artists group. `/{id}` is the library half and always answers for a held artist. `/registry` is Wikidata's half, asked separately so it delays nothing: always a 200 for a held artist, with `state` `known` \| `no_identity` \| `not_configured` \| `unavailable` and a `note` sentence for every state but `known`; `works` are the 50 most renowned (by sitelinks) plus every work the library holds of theirs, with `works_total` beside them, each with `held_artwork_ids`, the works in circulation that are it **by QID** (several where held works share a QID, a duplicate shown rather than hidden) and `image` only ever a Commons file URL; `holdings` the 10 largest collections; `name`, `born` and `died` are the registry's (added 2026-10-01), and `artist_id` is always null here. Kept per artist for a week, across restarts (`kept-answers.sqlite`, since 2026-10-02); a failure is not kept. Every registry string is untrusted text. **Built 2026-10-01.** **`candidates`, added 2026-10-06**: in state `no_identity`, who Wikidata's name search (the matcher's `people_named`) says the artist might be, each `qid`, `name`, `born`, `died` and `years_agree` (the matcher's year test), those agreeing first, at most 5, leaving out any item another library artist carries; empty when the curator said there is none (the `note` says so, and nothing is asked), when no registry is configured, or when Wikidata could not be asked (the `note` says so). Proposed, never stored: `POST /api/artists/{id}/wikidata` stores the one chosen. The name search is kept per name for a week (`registry.people`); a failure is not. Additive. | `Artist`, registry identity | The held half: `art_catalogue(action='list', artist_id=…)`. `/registry` for an artist with a QID: `art_discovery(action='artist', qid=…)` on that QID answers in its fields with `artist_id` set (added 2026-10-08). An artist with no QID has no twin: `candidates` is the browser's linking control |
+| `GET /api/registry/artists/{qid}`, `GET /api/registry/works/{qid}` | The pages of an artist and a work reached by QID, which the library may not hold (ruling 2). A malformed QID is a 400 naming it; otherwise always a 200. `/registry/artists/{qid}` is the artist `/registry` shape with the same states except `no_identity`, plus `held`: when the library holds an artist with that QID, `artist_id` names them, the page goes there instead, and Wikidata is not asked. With state `known` it also carries **`unlinked`** (added 2026-10-06): the library's artists whose name, accents and case folded, is the registry's for this item, who carry no QID and of whom the curator has not said there is none, each `artist_id`, `name`, `born`, `died`, so the page can offer to link them; `candidates` is always empty here. `/registry/works/{qid}` has `state` `known` \| `not_found` (Wikidata has no such item) \| `not_configured` \| `unavailable` and a `note` for every state but `known`; `title`, `year`, `sitelinks`, `image` (a Commons file URL or null), `creators` (each with the library's `artist_id` where held), `media`, and `holders` (each with the collection's own `inventory` number where Wikidata pairs one with it); `height_cm` and `width_cm`, the work's own size, each null unless Wikidata's best-ranked measurements not of a frame or mount give exactly one value (**added 2026-10-05**); `image_width` and `image_height`, the picture's pixels as Commons holds the file, and `fit`, the `FitOut` the review grid gives a scan, judged against the quality minimum, all three null with no picture, a non-raster file, or Commons not answering (**added 2026-10-05**, kept per file for a week; a failure is not); `held_artwork_ids` is the library's works in circulation with that QID, filled whatever the registry did, and a non-empty one sends the page to the library's own work. A known work is kept per QID for a week, across restarts; a missing item and a failure are not. Every registry string is untrusted text. **Built 2026-10-01.** | Registry identity | `art_discovery(action='artist', qid=…)` and `art_discovery(action='work', qid=…)`, the same fields (added 2026-10-08, as `search`'s twin was). **`artist` differs on a held artist**: where the route answers `held` and asks nothing, the tool answers as that artist's own `/api/artists/{id}/registry` does, with `artist_id` naming them, because an agent's question is what else there is of theirs (`ArtistService.works_by_qid`) |
+| `GET /api/registry/works/{qid}/look`, `GET /api/registry/works/{qid}/look/pictures/{key}?size=card\|large` | **A look**: what every image source holds of a work the library does not, asked before any Get (`build-plan-look-before-get.md`, the owner's request of 2026-10-06). `/look` starts the asking or joins it and answers at once: `{qid, state, note, held_artwork_ids, sources, pictures}`. `state` is `asking` (the page polls) \| `answered`, or why nothing is asked: `held` (with `held_artwork_ids`; the page goes to the library's own), `being_got` (a Get is asking already), `no_sources`, `not_configured`, `not_found`, `unavailable`, each with a `note`. `sources` has one row per image source, `{provider, state, found, refusals, answered_at, retry_at}` (`refusals` names why phase 2's judge turned finds away: `not_held`, `identity_refused`, `size_unknown`; the Work page words a source whose only finds were `size_unknown` as holding the work without giving its size), `state` `asking` \| `found` \| `holds_none` \| `refused` (it holds a work by this title, or on the item's page, by another artist; not shown) \| `unreachable` (asked again at `retry_at`) \| `cannot`; a finder of pages only is not asked. `pictures` are every source's finds, best first by phase 2's own order, each `{key, provider, url, title, artist, width, height, fit, below_minimum, confidence, rights_status, selection_rationale}`. `note` says "No image source holds a picture of this work now." once every source answered with none, or "No image source that answered holds a picture of this work now." when one could not be asked. Every configured source has a row, answered or `asking`, so a look never reads as finished while one has not answered; a source whose asking thread stopped or never started reads `unreachable`. A source that found nothing while Wikidata could not be asked which pages describe the work, or its creators' names, is kept 10 min, as an outage is, and every new fan-out builds its question and Wikidata link afresh. **Asked and judged as a Get asks and judges** (the same query builders, `ImageSourcePool.ask`, `PhaseTwoEngine.judge` and `rank`); **writes nothing to the catalogue**. Kept in memory per work and source: an answer for 6 h, "holds nothing" and "can't look this up" included; "could not be asked" for 10 min, never as holding nothing; at most 256 works. One look at a time asks each source; a queued ask for a work nobody has polled for 20 s is dropped before it starts; a run using a source goes first. `/pictures/{key}` is a picture from the picture store, fetched into it on first ask: `key` is the store's key, computed on the server from the source's answer, and valid only while this work's kept look names it; any other key is a **404** ("Look again"), and a named key whose picture could not be kept is a 400. A refused find has no key. `immutable`, as a candidate preview is. A malformed QID is a 400. Every source string is untrusted text. **Built 2026-10-06.** | Image sources, phase 2, the picture store | `art_discovery(action='look', qid=…)`, the same fields, plus each picture's `image_block_index`: the best six travel as image blocks. **The first registry page with a twin**, because a look answers a question an agent asks before a Get ("what would I get?"). The rest were the browser's until 2026-10-08, when Ask's agent needed them to find art (`search`, `find_topics`, `artist`, `similar_artists`, `work`, `topic`; `build-plan-ask-agent.md` Chunk 02). It holds up to `LOOK_HOLD_SECONDS` (30 s) until no source is still asking, then sends the pictures the store keeps and fetches the rest together, the whole call within `MODEL_LOOK_BUDGET_SECONDS` (40 s) of the client's 60; a picture not arrived by then is listed with a null `image_block_index` and said in `notice` to come with the next call, since its fetch goes on into the store. The notice is the look's own: it says why a picture did not come (not arrived in time, or nothing keepable). A picture's `width`, `height`, `fit` and `selection_rationale` are the browser's names; the action's tips map them onto `list_images`' |
+| `GET /api/registry/search?q=&prefix=&wide=` | The registry's half of the top-bar search and of the results page (ruling 2). `q` is cut into words, and nothing but words reaches the registry, so search syntax typed by a curator is dropped; `prefix=true` reads the last word as the start of one. `state` is `known` \| `too_short` (under three letters: nothing asked) \| `not_configured` \| `unavailable`, with a `note` for the last two. `wide=true` returns the results page's longer lists (up to 10 artists and 20 works) and is kept apart. `artists` (up to 3, from Wikidata's name search: `qid`, `name`, `born`, `died`, and the library's `artist_id` where held) and `works` (up to 5 works of visual art, by sitelinks: `qid`, `title`, `sitelinks`, `image` only ever a Commons file URL, `creator` with its library `artist_id`, and `held_artwork_ids`). Kept per folded query, `prefix` and `wide` for a week, across restarts; a failure is not. Every registry string is untrusted text. **Built 2026-10-01.** | Registry identity | `art_discovery(action='search', q=…)`, as `wide=true` answers, in the same fields (added 2026-10-08 for Ask's agent, `build-plan-ask-agent.md` Chunk 02; `test_registry_tools.py`). Until then: none, the typeahead being the browser's |
+| `GET /api/registry/artists/{qid}/similar` | *Similar artists* on the Artist page, held or not (ruling 4). Up to 12 visual artists sharing a movement (`P135`), by sitelinks, each with `qid`, `name`, `born`, `died`, `images` (their works with a free image, so a curator sees who cannot be supplied) and the library's `artist_id` where held. `state` `known` \| `not_configured` \| `unavailable`, with a `note` for the last two. A malformed QID is a 400. Kept per artist for a week, across restarts; a failure is not. Every registry string is untrusted text. **Built 2026-10-01.** | Registry identity | `art_discovery(action='similar_artists', qid=…)`, the same fields (added 2026-10-08, as `search`'s twin was) |
+| `GET /api/topics`, `GET /api/topics/{qid}` | Library › Topics and the library's half of a Topic page (`build-plan-topics-and-destinations.md` Chunk 04), **read from the facet rows alone, so neither waits on Wikidata**. `/api/topics` is `{state, note, kinds: [{kind, topics: [{qid, label, works}], offered: [{qid, label}]}]}`: one group per kind, always all four in the order `period`, `movement`, `subject`, `medium`, each topic by label with `works` the library's works in circulation carrying it. `offered` (added 2026-10-08, `build-plan-lists-settings-and-scale.md` Chunk 09, additive) is the server's fixed list `OFFERED_TOPICS` of that kind in its order (the centuries from the 13th to the 21st under `period`, at most twelve movements under `movement`), without any topic a held work is in under any kind, so none is listed twice; empty when `state` is `not_configured`. `/api/topics/{qid}` is `{state, note, qid, label, kinds, works}`: `label` and `kinds` are what the library's works carry the topic as (null and empty for a topic none is in, which is not an error: a Topic page reached by search is ordinary), and `works` are those works in circulation as grid cards (`WorkOut`), by title. `state` is `known`, or `not_configured` with a `note` saying topics need `WIKIDATA_USER_AGENT`, when the rows are whatever an earlier configuration recorded. A malformed QID is a 400. Labels are registry text. Each facet on `GET /api/works/{id}` gains `value_qid`, the Topic page it opens or null, an added field. **Built 2026-10-02.** | `WorkFacet.value_qid` (`data-model.md` Q25-Q28) | `art_catalogue(action='topics')`, the same fields; `art_catalogue(action='topic', qid=…)`, the same fields with `works` as the tool's work summaries |
+| `GET /api/topics/{qid}/registry`, `GET /api/topics/{qid}/works`, `GET /api/topics/{qid}/artists` | The registry's half of a Topic page, each asked separately after the page draws, as the Artist page's `/registry` and *Similar artists* are: a period's works took 7 to 26 seconds (`wikidata-findings.md` § Topics). `/registry` is the head, `{state, note, qid, label, kinds, description, start, end}` (`kinds` every kind Wikidata's classes give it, the one its works are found by first; `start`/`end` a period's years). `/works` is *Representative works*, `{state, note, works: [{qid, title, sitelinks, year, image, creators: [{qid, name, artist_id}], creator_unknown, state, held_artwork_ids}]}`: up to 50 by sitelinks, `state` `held` (the library holds it in circulation, **matched by QID**, with `held_artwork_ids`), `image_found` or `no_image`; `image` only ever a Commons file URL; `creator_unknown` a maker recorded as unknown. `/artists` is `{state, note, artists: [...]}`, up to 12, each as *Similar artists* lists one. Section `state` is `known` \| `not_found` \| `not_configured` \| `unavailable`, with a `note` for every state but `known`. Always a 200 for a well-formed QID; a malformed one is a 400. `/works` and `/artists` wait up to Wikidata's own 60 s, since a named period's took 26-60 s; the head keeps the pages' 20 s. Kept per topic for a week, across restarts (`kept-answers.sqlite`); a missing item and a failure are not; *Held* is read fresh. Every registry string is untrusted text. **Built 2026-10-02.** **`/works` streams when asked with `Accept: application/x-ndjson`** (added 2026-10-08, `build-plan-lists-settings-and-scale.md` Chunk 09, additive): one `/works` object per line as each of Wikidata's answers lands, each carrying `complete`; the ranked works first with `complete: false` (`creators` empty and `creator_unknown` false because not yet said), then the same works with their makers and `complete: true`. A kept answer, an outage and every non-`known` state are one complete line. Asked any other way it answers the last line alone as JSON, as before, with `complete: true`. The topic sweep's thread warms the kept head and works of every `offered` topic whose answers are missing or a week old, a topic at a time, stopping at the first refusal: at most three queries per topic a week. | `TopicService` (Chunk 03) | `art_discovery(action='topic', qid=…)`: `/registry`'s fields, with `/works` (as its complete answer) and `/artists` under `works` and `artists`, each keeping its own `state` (added 2026-10-08, as `search`'s twin was) |
+| `GET /api/registry/topics?q=` | Topics Wikidata's own search finds for a typed name, filtered to the four kinds, for Library › Topics' search and the top bar's Topics group: `{state, note, topics: [{qid, label, kinds, description, start, end}]}`, `state` `known` \| `not_configured` \| `unavailable`. An empty `q` asks nothing. Kept for a week by the text typed, ignoring case, across restarts; a failure is not. **Built 2026-10-02.** | `TopicService.named` (Chunk 03) | `art_discovery(action='find_topics', q=…)`, the same fields (added 2026-10-08, as `search`'s twin was) |
 | `GET /api/works?artist_id=` | One artist's works, by the work's own link to its artist rather than by the `artist` facet, which a catalogue may not carry (the owner's held no facet rows on 2026-10-01, and the topic sweep writes none of kind `artist`). Narrows the page, the total and every facet count alike. **Built 2026-10-01.** | `Artwork.artist_id` | `art_catalogue(action='list', artist_id=…)`, an added optional parameter |
-| `wanted` on registry works | Every answer that lists registry works with `held_artwork_ids` — `GET /api/registry/search` (`works`), `GET /api/registry/works/{qid}`, `GET /api/registry/artists/{qid}` and `/api/artists/{id}/registry` (`works`), and `GET /api/topics/{qid}/works` — also carries `wanted`: true when a wanted work (Wanted) is matched to that item. Reported beside `held_artwork_ids`, and beside the Topic works' `state` rather than as a fourth value of it, so a reader branching on `held` / `image_found` / `no_image` is unchanged; the page decides that held wins. Read fresh on every request, as *Held* is. Additive. **Built 2026-10-02** (`build-plan-library-screens.md` Chunk 03, #172). | `CandidateWork.wikidata_qid` with verdict `wanted` | none: these pages are the browser's |
+| `wanted` on registry works | Every answer that lists registry works with `held_artwork_ids` — `GET /api/registry/search` (`works`), `GET /api/registry/works/{qid}`, `GET /api/registry/artists/{qid}` and `/api/artists/{id}/registry` (`works`), and `GET /api/topics/{qid}/works` — also carries `wanted`: true when a wanted work (Wanted) is matched to that item. Reported beside `held_artwork_ids`, and beside the Topic works' `state` rather than as a fourth value of it, so a reader branching on `held` / `image_found` / `no_image` is unchanged; the page decides that held wins. Read fresh on every request, as *Held* is. Additive. **Built 2026-10-02** (`build-plan-library-screens.md` Chunk 03, #172). | `CandidateWork.wikidata_qid` with verdict `wanted` | Carried by the `art_discovery` registry twins (`search`, `artist`, `work`, `topic`), since 2026-10-08 |
+| Held twins and `in_review` on registry rows | **A registry row is folded into its held twin** (ruling 7 of 2026-10-01, #275): in `GET /api/registry/search` and the Artist page's `works` (`GET /api/registry/artists/{qid}` and `/api/artists/{id}/registry`), `held_artwork_ids` names the library's works in circulation with the row's QID, or, for a held work carrying none, the ones whose title and artist match it (`work_dedup_key`, asked by the registry's name for the maker and by the library's name for a maker it holds by QID). A held work carrying a different QID is never folded by title. A search's `artists[].artist_id` likewise names a held artist with no QID whose folded name matches and whose life dates agree (`identity.years_agree`); never one the curator said has no item. So a held work or artist is one row. **`in_review`** (`{run_id, candidate_work_id}` or null) on each such work, and on each search artist, names a proposed work awaiting a verdict, the works To review counts: matched by the item it was chosen by, or by title and artist for one proposed by name; on an artist, a proposed work naming them as its artist. Null whenever the row is held. The page shows *Waiting for review*, links `#review/{run_id}`, and offers no Get. Read fresh on every request. Additive. **Built 2026-10-07** (`build-plan-walls-work-and-trust.md` Chunk 07, server half). `POST /api/gets` skips an item in review with the reason `in_review`, so a caller that did not read the row cannot pay for it twice. | `twins.py`; `DiscoveryService.works_awaiting_review` | Carried by the `art_discovery` registry twins (`search`, `artist`), since 2026-10-08 |
 | `GET /api/works?theme=` | One theme's works, filtered and counted like the rest of the catalogue: Artworks' *Filter* rail offers a theme beside the facets (the owner's ruling on #169, Radarr's filters). Narrows the page, the total and every facet count, and composes with `q`, every facet and `sort`. The binding composes two calls, as `GET /api/themes/{id}` does: Programming names the theme's work ids, and the Library lists within them as opaque ids, so it learns nothing about themes (`architecture.md` seam rule 1). An unknown theme is the surface's one refusal (400, naming it) rather than ignored, since ignoring it would answer with the whole catalogue labelled as the theme's; an empty theme is an empty page. **Built 2026-10-02.** **Every page also carries `themes`** (Chunk 02 of the Library screens plan): every theme by name as a filter option, `{theme_id, name, count, selected, disabled}`, its count the works it would select given every other filter but the theme, as a facet's count ignores its own kind, and `disabled` at zero unless selected. Two calls again, one per plane: the Library's `matching_ids` names what the other filters select, and Programming's `theme_counts` counts each theme's members among them. `art_catalogue(action='list')` carries the same list. | `ThemeMembership` (Programming), `Artwork` | `art_catalogue(action='list', theme=…)`, an added optional parameter |
 | `POST /api/works/{id}/wikidata`, `POST /api/artists/{id}/wikidata` | The curator's word on which Wikidata item a work or artist is: body `{"qid": "Q160149"}`, or `{"qid": null}` for "there is none". A QID is trimmed and upper-cased; anything else (a URL included) is refused naming the shape. Since 2026-10-01 two more refusals, on both surfaces: an artist's QID another catalogue artist already carries (naming that artist), and, when a registry is configured, a QID Wikidata has no item for, or one it could not be asked about. With no registry configured, a well-formed QID is stored unchecked. The work route answers with the dossier, the artist route with `ArtistOut`. `WorkOut` and `ArtistOut` gain `wikidata_qid` and `wikidata_qid_set_by` (`matched` \| `curator` \| null), added fields. **Built 2026-10-01**; the Artist and Work pages call them from a control that looks a new item up first (`build-plan-one-world-search.md` Chunk 05). | `Artwork`/`Artist` registry identity (`data-model.md`) | `art_catalogue(action='set_work_qid'\|'set_artist_qid')`, new actions, where `qid='none'` says there is none; both fields added to every work and artist the tools return |
 | `POST /api/themes/{id}/default` | Make this the theme newly accepted works join, taking the mark off whichever had it (`data-model.md` § Theme, `is_default`). Answers with `ThemeListOut`, because the act changes two themes. `ThemeOut` gains `is_default`, an added field. **Built 2026-10-01.** | `Theme.is_default`, `DefaultThemeOffer` | `art_theme(action='make_default')`, a new action; `is_default` added to every theme the tool returns |
 | `DELETE /api/themes/{id}` | Delete. **The refusal it must reuse is already built** — see below. **Built 2026-08-12**; answers with `ThemeListOut`, the themes that remain, so the list repaints from the response like every other membership act. | `Theme`, built, and `DisplayService.delete_theme`'s guard with it | `art_theme(action='delete')`, built and wired to that guard |
-| `GET`/`POST /api/conversations` | The thread list, ordered by `last_turn_at`; and starting one. **Built 2026-08-12.** | `Conversation`, built | none proposed — see below |
-| `GET /api/conversations/{id}` | One thread with its turns. **Built 2026-08-12.** | `ConversationTurn`, built | none proposed |
-| `POST /api/conversations/{id}/turns` | One exchange. **Spends** — `SpendRecord` category `conversation_tokens`. **Built 2026-08-12**; a retry sends no new text, so the transcript is the idempotency key and asking again spends nothing twice. | `ConversationTurn`, built | none proposed |
-| `POST /api/conversations/{id}/commit` | Commit a direction: starts a `DiscoveryRun` and sets the turn's `committed_run_id`. **Built 2026-08-12.** | `ConversationTurn`, built | none proposed |
-| `DELETE /api/conversations/{id}` | Deletes the thread and its turns. **Detaches rather than cascades** — see below. **Built 2026-08-12.** The detach is a loop over the citing rows rather than a schema rule, so its atomicity rests on the transaction it runs in and on reading the code — it is the one behaviour in this chunk no mutation could express. | `ConversationTurn`, built | none proposed |
-| `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every sample reaction in a conversation. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and refuses to overwrite a stronger provenance with a weaker one. | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
+| `/api/conversations`, every route | **Retired 2026-10-09** with the stored conversations (`build-plan-ask-agent.md` Chunk 04); each answers 404. Ask's thread is `/api/ask` below. | none | none |
+| `GET /api/ask` | Whether Ask can answer here: `{"available": bool}`, false with no key. Read by the page before a thread is open, so opening Ask writes nothing. **Built 2026-10-08** (`build-plan-ask-agent.md` Chunk 03). | none | none (Ask is the agent; it is not offered as a tool) |
+| `POST /api/ask/threads`, `GET /api/ask/threads/{id}` | Open an empty thread (201; spends nothing), and read one back: `thread_id`, `available`, `replying`, and `turns`, each `{asked, events}` with the events exactly as its reply sent them. 404 for a thread the server does not hold: threads live in memory, at most 20, each keeping its last 10 turns (`TURNS_REMEMBERED`; the oldest go first, whole turns, and the model is sent no more), and a restart forgets them (the owner, 2026-10-08). The page answers a 404 on a send by opening a new thread and sending the words there. **Built 2026-10-08.** | in memory, not stored | none |
+| `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `BUDGET_SPENT` for OpenRouter's 403 naming the key's limit, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. | none written; spend is the provider's | none |
+| `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every reaction on a card Ask offers or an Artist page. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and writes only `stated` (§ `art_taste`). | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
 | `POST /api/works/{id}/mat` | Re-derive a work's mat. **Owned by issue #91, not by this set** — see below. | `MatColor`, built | `art_catalogue(action='set_mat_color')`, built |
-| `POST /api/directives` | The Walls screen's `next`. **Shape settled and built 2026-08-12** — see below. | `Directive`, built | `art_display(action='next')`, built |
+| `POST /api/walls/{wall_id}/next` | The Walls screen's Skip. Answers `{wall_id, work_id}`: the work the wall's republished feed now starts with, which is what was published, not what the screen shows. Refused by name (400) on a wall with no feed or an empty one. **Built in wave 4g, 2026-10-10**, replacing `POST /api/directives` (shape settled and built 2026-08-12, see below), which is gone with the directive. | the wall's feed | `art_display(action='next')`, built |
 | `GET /api/spend` | The Health screen's spend history, across runs. | `SpendRecord`, built | `art_discovery(action='spend')` already answers the cross-run question by calendar month — see below |
 
 **Facet counts ride on the works response rather than getting a route.** They are
@@ -1549,7 +1622,7 @@ makes three of the routes above singular where the product is not:
 |---|---|---|
 | `POST /api/themes/{id}/activate` | Changes *the* wall | Names which wall it hangs on. The wall is a required part of the request, **even while there is one and the answer is obvious** — the IA's rule that every act naming a wall keeps a confirmation from silently becoming wrong. |
 | `GET /api/manifest` | What a theme would put on *the* wall | Takes the wall as well as the theme: exclusions are per-wall once two walls can hang different themes, and this route's whole job is to state a consequence before it happens. |
-| `POST /api/directives` (built above) | An advance | Names the wall. `Directive` stops being a singleton and becomes one row per wall, so a `next` in the living room does not step the study. |
+| `POST /api/directives` (built above) | An advance | Names the wall. `Directive` stops being a singleton and becomes one row per wall, so a `next` in the living room does not step the study. *(Since wave 4g, `POST /api/walls/{wall_id}/next`; the wall is in the path.)* |
 
 **`art_theme(action='activate')` and `art_display` take the same parameter**, by
 the parity requirement in `product-brief.md` item 8 — a model that can hang a
@@ -1590,10 +1663,10 @@ response is:
   ],
   "description": "Every wall has reported; the least recent is 'The study', 4 minutes ago.",
   "backup": { "…": "unchanged" },
-  "artwork_box": { "…": "unchanged" },
   "sources": [
     {
       "name": "artic",
+      "museum": "Art Institute of Chicago",
       "state": "loaded",
       "reason": null,
       "faults": 0,
@@ -1638,6 +1711,10 @@ for one registered by hand, or a name two packages register); `api_major` is the
 interface major the plugin was written for (null when it failed before saying);
 `provides` is what its parts provide, `finds_images`, `finds_pages`, `reads` and
 `browses`, and is empty for a plugin that did not load.
+*Added 2026-10-11 (interface 1.4, #355):* `museum` is the name a curator knows the
+plugin by, its module's `MUSEUM` or its `SourcePlugin.museum`, else its `name`;
+never null. `GET /api/sources` and `art_discovery(action='source_plugins')` carry it
+too.
 
 **`heartbeat` is gone from the top level and is not coming back**: one reading for
 an installation with two rooms is a reading that cannot name the room, which is
@@ -1674,8 +1751,8 @@ had designed:
 
 | Route | Tool | What it is for |
 |---|---|---|
-| `POST /api/walls` | `art_display(action='add_wall')` | Nothing else creates a wall. The migration makes the first one; a second room needs an operation. **Create only** — no delete and no rename, because deleting a wall raises consequences for its assignment, its directive row and any display configured to serve it that nothing has ruled on. |
-| `GET /api/walls` | `art_display(action='walls')` | What rooms exist, and what hangs in each. |
+| `POST /api/walls` | `art_display(action='add_wall')` | Nothing else creates a wall. The migration makes the first one; a second room needs an operation. **Create only** — no delete and no rename, because deleting a wall raises consequences for its assignment, its directive row (until wave 4g) and any display configured to serve it that nothing has ruled on. |
+| `GET /api/walls` | `art_display(action='walls')` | What rooms exist, what hangs in each, and what each wall's screen is doing (`display_state`, from 2026-10-08; § Clients). **From 2026-10-15** (`build-plan-shown-record.md` Chunk 02, #316): `last_shown`, the work the wall showed last whatever its screen does now, as `{work_id, started_at, until, ended}` (`until` is its end, or while `ended` is false its latest report), or null while it has shown nothing (`data-model.md` § Showing); and `upcoming`, up to three `{work_id, starts_at}` from the published schedule starting after now, the slot on the wall now not among them, empty with no feed. Every write that answers with a wall carries both. Additive. |
 | `DELETE /api/walls/{wall_id}/theme` | `art_theme(action='unhang')` | Takes the picture down. See § Deleting a theme for why this had to exist before the delete refusal could be made absolute. |
 | — | — | `GET /api/themes` reshaped to `{theme, hanging_on[]}` per entry, because `ThemeOut.is_active` had nothing to become: "is it active" is now "which walls is it on". The MCP listing stays flat with a `hanging_on` key added, since a model reads a list better than a nesting. |
 
@@ -1731,11 +1808,13 @@ is written only by `make_default`, never by saving a theme.
 
 **The rename body carries a name and nothing else, and that is a decision.**
 `update_theme` distinguishes "leave this alone" from "clear this" with a sentinel, so
-a request model whose other fields defaulted to `None` would reset a theme's rotation
-pace every time somebody fixed a typo in its name — silently, and on the surface
-least likely to be looking at pace. A route that can only rename cannot do that. The
-day a screen genuinely edits pace, it earns a model that says so explicitly rather
-than inheriting one that can.
+a request model whose other fields defaulted to `None` would clear a theme's
+description every time somebody fixed a typo in its name — silently, and on the
+surface least likely to be looking at it. *(Until 2026-10-13 the rotation pace was
+the theme's too, and the worse loss; it is the wall's now, #353.)* A route that can only rename cannot do that. The
+screen that edits pace got its own model on the wall, `SetPlayback`, whose
+fields are all required, so it cannot say "the default" or "no limit" by leaving
+one out.
 
 **`position` is an index on both `add` and `POST .../position`, never a sort key —
 settled 2026-08-12, and it was a defect until then.** The work lands *at* that place
@@ -1885,34 +1964,12 @@ that, the deferral had its own cost — item
 8's parity claim would have read as met while the surface knowingly withheld an
 operation the web UI has, and a "revisit trigger" is a promise nothing enforces.
 
-**Conversation keeps its deferral, and the ruling strengthens it rather than
-weakening it.** The reasons were never the Frozen-tier argument: the in-UI agent
-*is* an MCP client, so a model conducting a conversation would be reading its own
-thread back through a tool; and the operation a model actually wants is the taste,
-not the transcript. Granting the first while withholding the second is precisely
-what that reasoning asked for. `DELETE /api/conversations/{id}` keeps its
-deferral on the *tool* side for the same reasons; what it no longer lacks is a
-shape.
-
-**`DELETE /api/conversations/{id}` has one now — ruled by the operator 2026-08-12,
-closing issue #118.** The rule and its reasoning live in `security-model.md`
-§ Deleting a conversation, which is the authority; what this section owes is the
-route's own obligations:
-
-- **It deletes the thread and its turns, and detaches everything derived from
-  them.** `Affinity.source_turn_id` and `SpendRecord.conversation_turn_id` are
-  nulled. Nothing else is touched.
-- **The response names what was detached**, because the confirmation has to state
-  a consequence rather than a row count: how many affinities keep their judgment
-  and lose their derivation, and that those can no longer be rebuilt when the
-  derivation improves. The IA's rule for archive and for activation — a
-  confirmation names the consequence in the curator's terms — binds here, and this
-  is the one operation in the product that genuinely destroys a record.
-- **It must not enforce `inferred ⇒ source_turn_id` as a stored constraint.** That
-  rule, stated in § `art_taste` above, is an invariant on the write path only;
-  built into the schema it makes this route impossible. This is the sentence a
-  builder needs, and it is why the constraint's *site* is named rather than left
-  to reading.
+**Conversation never got a tool, and is retired.** The reasons were that the
+in-UI agent would be reading its own thread back through a tool, and that the
+operation a model wants is the taste, not the transcript. Stored conversations
+and their routes, `DELETE /api/conversations/{id}` among them (ruled by the
+operator 2026-08-12, issue #118), were retired on 2026-10-09; Ask is not offered
+as a tool either.
 
 **Spend history needs no new tool, and its row no longer borrows taste's reasoning.**
 Item 8 reaches content management, and a read of what was spent is not that under
@@ -1925,13 +1982,13 @@ deferral as taste" until 2026-08-11, which was two claims stapled together: one
 died with this ruling and the other was never true, since the month report shipped
 with `art_discovery`.)*
 
-**Sample reactions write through `/api/affinities`, not through a conversation
-route.** The IA's flow 1 gives each sample "more like this" / "not this" / "tell
-me more", and each writes an `Affinity` with `derivation='stated'` and
-`source_turn_id` set. That is the same operation the Taste screen performs when a
-curator corrects one, so it is one service method with one route and two callers —
-`architecture.md` § Direction reduced to its simplest case. A reaction route on
-the conversation would have been a second way to write one entity.
+**Reactions write through `/api/affinities`, not through an Ask route.** Each
+card Ask offers for an artist or topic carries "more like this" / "not this"
+("tell me more" too until 2026-10-09; it is on the Artist page and Taste's rows
+since), and each writes an `Affinity` with `derivation='stated'`. That is
+the same operation the Taste screen performs when a curator corrects one, so it
+is one service method with one route and several callers — `architecture.md`
+§ Direction reduced to its simplest case.
 
 **What each of these owes the chunk that builds it.** Field-level request and
 response shapes are deliberately not here. `architecture.md` § Direction binds
@@ -1942,26 +1999,6 @@ operations exist, what they stand on, and the rules above that a shape must not
 violate. Everything else in this artifact still binds them, in particular the
 `limit`-and-report-the-total rule under § Conditional Patterns and the single
 `400` error shape.
-
-**The two conversation reads are unpaged, and by the same reasoning `art_taste`
-gives.** `GET /api/conversations` returns every thread and `GET
-/api/conversations/{id}` returns every turn with its frozen samples, with no
-`limit` and no total — because a household's threads and one thread's exchanges
-are tens of rows, on the same scale as its taste, and a page control over ten
-items is a control with nothing behind it. Recorded 2026-08-12 after Critic
-review observed that every other collection in the surface names what bounds it —
-`history_turns`, `SAMPLES_PER_SUGGESTION`, `PAGE_CEILING` with its shortfall note
-— and these two named nothing, which reads as an oversight rather than as the
-judgement it is.
-
-**What would change it, so the next reader can check rather than re-argue.** The
-threads accumulate on the curator's own rate and are deleted by hand, which is
-the ruled lifecycle rather than a retention policy; the turns within one thread
-are bounded by the conversation ending. If either stops being tens — a thread
-that runs for months, or a household that never deletes — the
-`limit`-and-report-the-total rule under § Conditional Patterns is what they take,
-and `POST /turns` answering with the whole thread is the call that will feel it
-first, since each exchange re-sends everything said before it.
 
 **The last three rows came from the screens, not from the debt list, and that is a
 correction worth recording.** The set above was first taken from
@@ -1982,6 +2019,11 @@ than to bound a surface.
 > Work screen's builder finds it rather than inventing a route outside this set;
 > its shape is #91's.
 
+> **Retired in wave 4g, 2026-10-10.** `POST /api/directives` and `DirectiveOut`
+> are gone with the directive. Skip is `POST /api/walls/{wall_id}/next`, which
+> republishes the wall's feed and answers the work it now starts with (the row
+> above). What follows is the 2026-08-12 reasoning, kept as history.
+>
 > **`next` was the one screen action with an MCP action and no HTTP route, and
 > the shape it was waiting on arrived. Settled and built 2026-08-12.**
 >
@@ -2032,7 +2074,7 @@ plus honest `readOnlyHint` / `destructiveHint`.
 > health panel can read and answers `400` otherwise, in the error shape `/api`
 > already uses. Tokens were issued per wall from `POST /api/walls/{wall_id}/token`
 > and `art_display(action='issue_token')` until 2026-10-02, when clients replaced
-> them (below). The Player's side is `postarr/src/postarr/pull.py` (Chunk 04):
+> them (below). The Player's side is `arrt-player/src/arrt_player/pull.py` (Chunk 04):
 > `MANIFEST_SOURCE=http` pulls into `CACHE_DIR` and renders only from there. What follows is the design as recorded before the build, and where it
 > disagrees with the code or with `player-contract.md`, those win.
 
@@ -2051,18 +2093,70 @@ two services: until then these routes were HTTP-only, a recorded gap in parity.
 
 | Route | Tool | What it is for |
 |---|---|---|
-| `GET /client` *(Player)* | — | The presenting client and its walls with their outputs, `ETag`/`304`. `401` without a valid client token |
-| `POST /client/heartbeat` *(Player)* | — | The client's outputs (name, kind, connected, screen), kept as `client-heartbeat-{client_id}.json` under `ART_ROOT` beside the wall heartbeats. `204`; `400` naming the problem |
-| `GET /api/clients` | `art_display(action='clients')` | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs, age and `description` (the reading as one sentence, the same on both surfaces; added Chunk 02) |
+| `GET /client` *(Player)* | — | The presenting client, the walls it shows now with each one's output and display, and its label outputs that caption a wall, `ETag`/`304`. `401` without a valid client token |
+| `POST /client/heartbeat` *(Player)* | — | The client's outputs (name, kind, connected, screen, identity) and label outputs, kept as `client-heartbeat-{client_id}.json` under `ART_ROOT` beside the wall heartbeats, and the displays and label outputs it reports recorded or refreshed (`data-model.md` § Display). `204`; `400` naming the problem |
+| `GET /labels/{label_id}` *(Player)* | — | The label document for a label output this client holds (`contract/schemas/label.v1.schema.json`), `ETag`/`304`. `401` without a valid client token; `403` for another client's label output or an unknown id; `404` for its own label output that captions no wall |
+| `GET /api/clients` | `art_display(action='clients')` | Every client, with `token_issued_at` (never the token), its walls and outputs, and its last heartbeat's outputs, age and `description` (the reading as one sentence, the same on both surfaces; added Chunk 02). From 2026-10-08, additively: `displays` (each display whose client it is, with `fault`), `label_outputs`, `faults` (each display it and another client both report now, naming both, with a `description`), and `identity` and `label_outputs` in the heartbeat |
 | `POST /api/clients` `{name}` | `art_display(action='add_client', name)` | Record a client. No token, no walls |
 | `POST /api/clients/{client_id}` `{name}` | `art_display(action='rename_client', client_id, name)` | Rename. Token and walls unchanged |
-| `DELETE /api/clients/{client_id}` | `art_display(action='remove_client', client_id)` | Forget a client: its token stops working, its walls become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list; the tool answers the walls released (`released_walls`), named in its notice |
+| `DELETE /api/clients/{client_id}` | `art_display(action='remove_client', client_id)` | Forget a client: its token stops working, its displays and label outputs go, the walls on its displays become unassigned and keep their themes, its heartbeat file goes. Answers the remaining list; the tool answers the walls released (`released_walls`), named in its notice |
 | `POST /api/clients/{client_id}/token` | `art_display(action='issue_client_token', client_id)` | Issue or rotate; answers `{client_id, token, token_issued_at}` once. The tool adds a notice naming `CLIENT_TOKEN` and `SERVER_URL` |
-| `POST /api/walls/{wall_id}/client` `{client_id, output}` | `art_display(action='assign_wall', wall_id, client_id, output)` | Show the wall on that client's output. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that output already shows another wall |
-| `DELETE /api/walls/{wall_id}/client` | `art_display(action='unassign_wall', wall_id)` | Unassign. Idempotent |
+| `POST /api/walls/{wall_id}/client` `{client_id, output}` | `art_display(action='assign_wall', wall_id, client_id, output)` | Show the wall on the display on that client's output, recording one keyed by place where the client has reported none. Answers `{wall, notice}`: `notice` says when the output is not among the client's last reported outputs, or it has not reported; the assignment is made either way. Refused when that display already shows another wall |
+| `POST /api/walls/{wall_id}/display` `{display_id}` *(2026-10-08)* | `art_display(action='assign_display', wall_id, display_id)` | Show the wall on a display by its id, wherever it now is. Answers `{wall, notice}`; `notice` says when no client reports the display or two do. Refused when it already shows another wall |
+| `POST /api/walls/{wall_id}/labels` `{client_id, output}` *(2026-10-08)* | `art_display(action='add_label', wall_id, client_id, output)` | Caption the wall with a client's label output, by name. Answers `{wall, label_id, notice}`; `notice` says when the client has not reported a label output by that name. Refused when it captions another wall |
+| `DELETE /api/walls/{wall_id}/labels/{label_id}` *(2026-10-08)* | `art_display(action='remove_label', wall_id, label_id)` | Stop it captioning the wall; it stays recorded. Idempotent; refused for one captioning another wall |
+| `DELETE /api/walls/{wall_id}/client` | `art_display(action='unassign_wall', wall_id)` | Take the wall off its display. Idempotent |
+| `PUT /api/walls/{wall_id}/mat` `{mode}` *(2026-10-09, wave 4e)* | `art_display(action='set_mat_mode', wall_id, mode)` | How the wall's Player draws the mat: `none`, `proportional` or `full`, or `null` (the tool's `players_own`) to leave it to the Player. Republishes the wall's major 2 feed with `settings.mat.mode` and moves no slot. Answers the wall. An unknown mode is refused, `400`, naming the allowed ones |
+| `PUT /api/walls/{wall_id}/playback` `{rotation_interval_seconds, shuffle, tallest, widest}` *(2026-10-13, #353 and #370)* | `art_display(action='set_playback', wall_id, rotation_interval_seconds?, default_interval?, shuffle?, tallest?, widest?)` | How the wall plays its theme: how long each work stays up, whether shuffled, and which shapes it shows. Null on the interval or shuffle is the deployment default. `tallest` and `widest` bound the work's width ÷ height, spelled `W:H`, a decimal, or `any`; null on either is no limit (§ The wall's shapes, `data-model.md`). Both surfaces leave an omitted setting as it is, never reading it as the default, so a page that sets the shapes cannot put back a pace set elsewhere since it was drawn; the tool says the default and "no limit" in words (`shuffle='default'`, `default_interval=true`, `widest='any'`), because it drops a null argument. Republishes the wall's feed at once, keeping the slot on the wall now; on a wall with nothing hung the shapes wait for the next hanging. Answers the wall, which carries the settings as stored, each bound spoken (`tallest`, `widest`) and the range as a phrase (`shapes`, null for every shape). Refused, `400`: an interval of zero or less, a bound that is not a shape, and a tallest wider than the widest. `art_theme(action='update')` no longer takes the interval or shuffle. *(Until #370 the route was `/rotation` and the action `set_rotation`, with the interval and shuffle only, and the body required both fields; none of it was ever released.)* |
 
 `WallOut` and the MCP wall shape lose `token_issued_at` and gain `client_id` and
-`output` (both null while no client shows the wall).
+`output` (both null while no client shows the wall). From 2026-10-08 both are read
+from the wall's display (its client, and its output while it has one), and the
+shapes gain, additively, `display_id`, `display` (`{display_id, identity, kind,
+client_id, output, first_seen, wall_id, fault}`, `fault` naming every client that
+reports the display while two do) and `labels` (`[{label_id, client_id,
+client_name, output}]`).
+
+From 2026-10-09 (wave 4e) both wall shapes also carry `mat_mode` (null when
+left to the Player) and the wall's size judgement (`programming/adequacy.py`):
+`too_small` (the works on the wall's feed too small for the largest screen
+its Player reported in the last week), `sizes_judged_against` (that screen,
+`{width_px, height_px}`, or null) and `sizes_unjudged` (`no_display`,
+`no_screen_reported`, `no_feed`, or null when a judgement was made). An empty
+`too_small` means "every work is big enough" only beside a non-null
+`sizes_judged_against`. `GET /api/themes/{theme_id}` and `art_theme(action='get')`
+carry `too_small_for` (work id to the names of walls hanging the theme that it
+is too small for) and `sizes_unjudged` (wall name to why it judged nothing).
+
+**Each wall's display state — built 2026-10-08** (`build-plan-display-state.md`
+Chunk 04; `labels-and-surfaces.md` § Display state). `WallOut` and the MCP wall
+shape (`art_display(action='walls')`, and every answer carrying a wall) gain
+`display_state`, additive:
+`{state, work_id, since, reported_at, age_seconds, last}`. `state` is the
+controller's (`showing_art`, `in_use`, `dark`, `no_screen`, `unreachable`) read
+from the wall's heartbeat, or the server's own: **`unassigned`** when no client
+output shows the wall, whatever its heartbeat file says, and **`silent`** when
+there is no readable heartbeat or it is older than `STALE_AFTER_SECONDS` (three
+heartbeat intervals, `programming/manifest/heartbeat.py`; held to the Player's
+and the browser's by `tests/preferences/test_staleness_threshold.py`). `work_id`
+only with `showing_art`, null there for a picture the wall did not put there.
+`since` is the controller's, null from a Player before minor 3 and for
+`unassigned`; for `silent` it is the last report's instant. `last` is set only
+for `silent`: `{state, work_id, since}` from the last readable report, null when
+there never was one. A heartbeat before minor 3 reads as `showing_art` with its
+`current_work_id`, and as `unreachable` when it names no work. Derived in one
+function (`programming/display_state.py`) for both surfaces.
+
+**Whether a wall's Player reads this server's feed — built 2026-10-10**
+(wave 4g, `build-plan-wave-4g-cutover.md` Chunk 02). `WallOut` and the MCP wall
+shape gain `reads_feed` and `feed_notice`, additive. `reads_feed` is whether the
+wall's last readable heartbeat lists major 2 in `capabilities.manifest_majors`;
+a heartbeat with no capabilities counts as `[1]` (`player-contract.md` § The
+cutover), so it reads `false`. It is null when there is no readable heartbeat,
+because the display state already says the wall is silent. `feed_notice` is one
+sentence (`programming/display.py` `feed_notice`, shared by both surfaces) when
+`reads_feed` is `false`, and null otherwise.
+On `POST /walls/{wall_id}/heartbeat`, a `display_state` that is malformed (not exactly `state`, `work_id` and `since`, a work beside a known state other than `showing_art`, a `since` without an offset) is refused with a 400 and nothing written. **A state name the server does not know is accepted** and read as `unreachable` with no work, because minors only add and Players upgrade first (`player-contract.md`); refusing it would make an upgraded Player's wall silent. A heartbeat file that fails the same test reads as unreadable on every screen alike (`heartbeat.read` applies it).
 
 **Retired 2026-10-02:** `POST /api/walls/{wall_id}/token` and
 `art_display(action='issue_token')`, with the Walls screen's Player token panel.
@@ -2085,8 +2179,9 @@ recorded in `architecture.md` § Direction.
 
 | Route | Direction | Shape | Obligation |
 |---|---|---|---|
-| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
-| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
+| `GET /walls/{wall_id}/manifest` | Player → server, polled at about 1 s | *(Retired in wave 4g, 2026-10-10: answers 404, as does `/manifest/v1`; the feed is the next row.)* Today's manifest document with `ETag`, answered `304` when unchanged. Carries the playlist entries, rotation settings, the directive block (`sequence`, `pinned_work_id`), the label text and, per entry, a **content-addressed media URL and hash**. From major 2 it also carries the current mat colour, and the playlist, rotation and directive become the **schedule**, any active **scene**, a **staging** list and the **wall settings** (`re-architecture.md` § What is showing, and how it is shown). | **Bounded.** The same major/minor rule as the file channel, described below. |
+| `GET /walls/{wall_id}/manifest/v{major}` | Player → server, polled like the above | The manifest at one major, so a Player asks for the highest it reads and steps down on `404` (`feeds-and-players.md` ruling 4). Only major 1 is built until wave 4e; `player-contract.md` § The cutover holds the rules. *(Since wave 4g, 2026-10-10, only `v2` is served; any other major is 404.)* | **Bounded**, like the manifest. |
+| `GET /media/{hash}` | Player → server | From wave 4, the **presentation master**: device-independent, unmatted, long edge capped (starting proposal about 8K, to be measured). In waves 2 and 3, before any master exists, today's composed `tv_display` rendition *(served to major 1 until wave 4g, 2026-10-10; only masters now)*. Immutable. `Cache-Control: immutable` and a long max-age, because the name *is* the content. | **Frozen per hash.** A hash never serves different bytes. |
 | `POST /walls/{wall_id}/heartbeat` | Player → server | Today's heartbeat document (`reported_at` and the rest; see `observability-strategy.md`). From wave 4 it also carries the Player's **capabilities** (geometry, backend, label hardware) **as observations**. | **Bounded**, like the manifest. Programming reads the capabilities and judges per-wall adequacy from them; the Library never sees them. |
 
 **Every route carries the wall's token** (decided 2026-09-30,
@@ -2109,7 +2204,9 @@ has.
   colour, and the playlist and directive become the schedule and scenes. A
   major-1 Player cannot draw a wall from either. The refusal rule is
   what makes the cutover safe: an un-upgraded Player keeps showing yesterday's
-  wall instead of misreading today's.
+  wall instead of misreading today's. *(Wave 4g, 2026-10-10: the cutover is
+  done. Major 2 is the only major served, and a wall whose Player does not list
+  2 in its heartbeat carries `feed_notice`, above.)*
 
 **The error model follows the manifest's existing posture, not the MCP
 envelope.** The consumer is a daemon, not a model, so errors do not need to
@@ -2128,14 +2225,47 @@ this whole surface is judged by.
 - **Authentication** is settled: a bearer token per wall, on every route
   (`player-contract.md` § Transport).
 - **ETag polling or server-sent events** for directive latency. Polling matches
-  today's roughly 1 s behaviour and is the default.
-- **The presentation master's encoding and cap.**
+  today's roughly 1 s behaviour and is the default. *(Since wave 4g the question
+  is the latency of a republished feed after *show now* or Skip; the directive is
+  gone.)*
+- ~~**The presentation master's encoding and cap.**~~ Settled 2026-10-08: 7,680 px
+  on the long edge, JPEG at quality 95 (`re-architecture.md` § Open questions).
+  Served by `GET /media/{hash}` like any rendition; no manifest names one yet (4e).
+  *(Major 2 names one per work since wave 4e, and since wave 4g it is the only
+  picture a Player is sent.)*
+
+### History, selections and *Not this one again* — BUILT 2026-10-07 (`build-plan-walls-work-and-trust.md` Chunks 03, 04)
+
+The server halves of the owner's rulings 1 and 6 of 2026-10-07 (`ia-proposal.md`
+§ Rulings). Exercised against a booted server by
+`arrt/tests/integration/test_history_surface.py` and
+`arrt/tests/integration/test_selections_and_exclusions.py`, both surfaces.
+
+| Route | What it is |
+|---|---|
+| `GET /api/history` | What happened, newest first: `events` of `{event_id, kind, occurred_at, artwork_id, run_id, wall_id, theme_id, detail}`, with `total`, `limit`, `offset`. `kind` repeats and any named matches (`EventKind`'s values; an unknown one is refused by name); `wall_id` is one wall's history, what was hung there and what was kept off from there. `limit` 1–100, default 25. Every id may no longer resolve, so `detail` carries the words: `title`, `theme_name`, `wall_name`, `selection`, `works`, `run_kind`, `intent`, `status`, `reason`, `candidate_work_id`. Recorded from 2026-10-07 on; nothing earlier. Twin: `art_catalogue(action='history', kinds=[...], wall_id=...)`. |
+| `POST /api/walls/{wall_id}/selection` | Hang `{artwork_ids}` (one or more, in order) on the wall until something else is hung there. Stored as a theme with `hidden: true`. Returns the manifest build, as `activate` does. Refused, with nothing hung, for an empty list or an id the Library does not hold. Twin: `art_theme(action='hang_selection')`. |
+| `POST /api/walls/{wall_id}/not-again` | *Not this one again*, `{artwork_id, scope}`: `theme` takes the work out of the theme hanging on that wall; `every_wall` keeps it off every wall (a `WorkExclusion`), and it stays held and in its themes. The walls carrying it lose it from their published manifests at once, and a pin naming it is withdrawn without advancing; nothing else on any wall changes. Returns `{scope, artwork_id, wall, left_theme, excluded_at}`, the wall read back. Twin: `art_theme(action='not_again')`. |
+| `GET /api/exclusions` | Every work kept off every wall, `{artwork_id, excluded_at}`, oldest first. Twin: `art_theme(action='kept_off')`. |
+| `DELETE /api/exclusions/{artwork_id}` | The undo: the work may go on walls again. Every wall hanging a theme that holds it takes it back now, if it can be shown *(until 2026-10-10 it republished nothing, and the next hang carried it)*. Returns the exclusions that remain. Refused for a work not kept off. Twin: `art_theme(action='allow_again')`. |
+| `ThemeOut.hidden`, and `theme_fields`' `hidden` | Every theme shape carries it. `GET /api/themes`, `art_theme(action='list')` and the works grid's theme options leave hidden themes out (the grid keeps one only while it is the filter in force); a wall's `theme` may be one. A selection is deleted once no wall hangs it, and `POST /api/gets`, `art_discovery(action='get')` and `POST /api/themes/{id}/default` refuse one with a 400 naming it a selection. |
+| `GET /api/works/{artwork_id}/placements` | Where a held work is, for the Work page's state strip: `{artwork_id, themes, excluded_at}`. `themes` is every theme holding the work as `ThemePlacementOut` (`theme`, `hanging_on`), **selections (`hidden`) included**, since a selection is how one work hangs by itself; the page says a selection as its wall. A selection that no wall hangs is deleted, so none is listed hanging nowhere. `excluded_at` is when it was kept off every wall, or null. One read scope. Refused for a work the catalogue does not hold. No twin: an agent reaches the same facts through `art_theme`'s `list`, `get` and `kept_off`, and this is the page's layout of them. Exercised by `arrt/tests/integration/test_work_placements.py`. **Built 2026-10-07** (Chunk 06). |
+| `ExclusionOut.reason` gains `kept_off_every_wall` | A manifest build names an excluded work with this reason, ahead of any reason the Library would give. |
+| `ExclusionOut.reason` gains `outside_wall_shape` *(2026-10-13, #370)* | A playable work outside the wall's shapes. It comes after `kept_off_every_wall` and is given only to a work the Library would show, so it never hides a work that needs repair. The build's summary counts each of the curator's reasons (this and `kept_off_every_wall`) apart from the works that are not currently displayable, and ends "so the wall is dark" when nothing is left. The tool's list of them is `not_on_the_wall` (it was `not_displayable`, which called the curator's choices broken). `show_now` still puts up a work outside the wall's shapes: it is the curator naming that work for that moment. `sizes_judged_against` gains `shape`, the screen's own `W:H`, which Walls shows as a hint beside the wall's shapes. |
+
+Each act writes one `HistoryEvent` (`data-model.md`), and a refused act writes
+none. *Not this one again*'s two answers are one service method,
+`DisplayService.not_this_one_again`, so the HTTP route and the tool do not each
+decide which act a scope means.
 
 **The Library facade is a second, internal interface, drawn now to be
 network-ready later.** `re-architecture.md` § Seam 1 has Programming calling the
 Library only through a small facade, centred on
 `playable(work_ids) -> {id: PlayableWork | Unplayable(reason)}`. It is
-coarse-grained, id-based, returns plain data and is idempotent. It is **not an
+coarse-grained, id-based, returns plain data and is idempotent. Since
+2026-10-07 it also takes `record(ProgrammingAct)`, Programming's acts on the walls
+for the history, written after Programming's own change commits. That one call is
+a write and is not idempotent: a retried call records a second line. It is **not an
 exposed API** today and carries no versioning obligation, because both sides ship
 in one process. It is recorded here because it is written *as if* it were
 remote. If the Library and Programming ever split, this facade becomes a network
@@ -2254,18 +2384,21 @@ multi-tenancy and no payment surface.
 
 > **The "no PII" half of that sentence was retired on 2026-08-12** and is struck
 > rather than quietly deleted, because the threat assessment above rests on it.
-> `security-model.md` § The one exception designates `ConversationTurn.text` as
-> the product's only retained free-text record of a person. **It does not change
-> this section's conclusion**: the vector reasoned about here is content coming
-> *inward* from a museum or search page into the candidate pipeline, and nothing
-> an injected page can reach reads a conversation turn back out. What it does
+> From then until 2026-10-09 `ConversationTurn.text` was the product's only
+> retained free-text record of a person; the curator's words now live only in
+> the server's memory for a thread's life (`security-model.md` § The curator's
+> own words). **Neither changes this section's conclusion**: the vector reasoned
+> about here is content coming *inward* from a museum or search page into the
+> candidate pipeline, and nothing an injected page can reach reads the curator's
+> words back out. What it does
 > change is that "not a breach" can no longer be argued from the product holding
 > nothing personal — it is argued from what this particular vector reaches. That
 > is a narrower claim, and it is the true one.
 >
-> **The outward direction is real and is not this paragraph's**: `commit` passes
-> the curator's own committed sentence to `DiscoveryRunner.start(intent_text=…)`,
-> which is what a search provider is asked. That is by design — a run cannot be
+> **The outward direction is real and is not this paragraph's**: a Get from words
+> passes the curator's sentence to `DiscoveryRunner.start(intent_text=…)`, and
+> Ask passes their words to OpenRouter and its queries to SearXNG; that is what a
+> search provider is asked. That is by design — a run cannot be
 > explained without it — and it is why `observability-strategy.md` names the
 > words the one thing here whose logging is a decision rather than a freedom.
 >
@@ -2337,8 +2470,9 @@ is self-contained:
 - **Opened 2026-09-30, and owned by `re-architecture.md` § Open questions:**
   - authentication on the Server↔Player surface;
   - ETag polling versus server-sent events;
-  - the presentation master's cap and encoding;
-  - how a review card shows fit once no single panel exists.
+  - the presentation master's cap and encoding (settled 2026-10-08, wave 4b);
+  - how a review card shows fit once no single panel exists (settled
+    2026-10-08, wave 4b: against the quality profile, two states).
 
   New MCP actions will be needed for Watches, programming tags and smart
   playlists. Each is an additive action on an existing tool, or a new tool

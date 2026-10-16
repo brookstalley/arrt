@@ -11,8 +11,7 @@ last_validated: null
 > **Direction changed 2026-09-30. Read `re-architecture.md`.** The entities below
 > are as built. The target assigns each to one of three roles:
 > - **Library:** Artwork, Artist, Source, Original, MatColor, WorkFacet, Affinity,
->   Conversation and ConversationTurn, DiscoveryRun, CandidateWork,
->   CandidateImage, SpendRecord and ResolveRunWork.
+>   DiscoveryRun, CandidateWork, CandidateImage, SpendRecord and ResolveRunWork.
 > - **Programming:** Theme (now a playlist), ThemeMembership, Wall,
 >   ThemeAssignment and Directive.
 > - **Player:** TvBinding (already display-only).
@@ -25,6 +24,12 @@ last_validated: null
 > - The entities in § Planned entities are added.
 > - The two foreign keys that cross the seam today are dropped:
 >   `theme_memberships.artwork_id` and `directives.pinned_work_id`.
+>
+> *(Wave 4g, 2026-10-10: the first and the half of the third are built. The
+> `tv_display` Rendition and its `mat_hex` column are gone, and the presentation
+> master is what readiness rests on (§ Rendition). The Directive entity and its
+> table are gone (§ Directive), taking `directives.pinned_work_id` with them;
+> `theme_memberships.artwork_id` is the one cross-seam key left, for #216.)*
 
 ## Direction
 
@@ -85,6 +90,17 @@ entities owned by the plane that talks to that device.
 > `re-architecture.md` § Order of work, wave 4, which moves compositing to the
 > Player. **Interim rule:** no new per-device column or table in the catalogue.
 >
+> **Status 2026-10-10 (wave 4g): steady-state.** The departure is discharged.
+> The `tv_display` rows are deleted and `renditions.mat_hex` dropped by a startup
+> migration (`retire_television_canvases`, `persistence/migrations.py`), and the
+> server no longer reads `TV_PANEL_*`, `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`,
+> which are the Player's settings under the same names. Every Rendition kind left
+> is device-independent; `layout` survives as the presentation master's rule
+> (`MASTER_RULE`), which names no screen. The one device fact the server still
+> keeps is a wall's last heartbeat (the screens and majors its Player reports),
+> one file per wall under `ART_ROOT`, outside the catalogue, and read as a fact
+> about a place under the ruling below.
+>
 > **Rulings:** the Wall entity, and which client drives it on which named output,
 > conform — a wall is a place and its assignment a curatorial act (§ Wall, ruled
 > 2026-10-02 and amended by `clients.md`).
@@ -115,6 +131,13 @@ synced between machines.
 > `http/player.py` serves the matted, geometry-specific `tv_display` canvas and the
 > Player caches it. Tracking ref: `re-architecture.md` § Order of work, wave 4.
 > **Interim rule:** no new geometry-specific render is served to a Player.
+>
+> **Status 2026-10-10 (wave 4g): steady-state.** The departure is discharged.
+> Manifest major 1, which carried the canvas, is no longer published, and the
+> server composes nothing for a screen: what it serves a Player is the
+> presentation master (by hash, conforming under the ruling above) and the
+> schedule. The matted canvas is made on the Player that owns the screen and
+> never leaves it.
 
 **A picture Arrt fetches from outside is kept forever under `ART_ROOT/pictures/`,
 re-encoded as JPEG and keyed by its source; an ask of 2,048 px or less is answered
@@ -223,12 +246,22 @@ to serve, elicited from the Product Brief's core flows:
 | Q39 | Which walls does this client drive? The client's own question, asked over HTTP about every 30 seconds (`GET /client`). | Owner 2026-10-02 (clients) |
 | Q40 | Is this request from a client allowed this wall? Asked by every per-wall Player route. | Owner 2026-10-02 (clients) |
 | Q41 | What outputs did this client last report, and when? Asked by the curator choosing an output for a wall. | Owner 2026-10-02 (clients) |
-| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. | Owner 2026-10-02 (#189, #74) |
+| Q42 | Was this television canvas drawn with the mat, panel and drawing rule this deployment composes with now? Asked by preparation before it calls a canvas current, and at startup to queue the ones that are not. *(Retired with the canvas in wave 4g, 2026-10-10. Its successor on the server is whether a presentation master was made by today's `MASTER_RULE`; the canvas question is now the Player's.)* | Owner 2026-10-02 (#189, #74) |
 | Q43 | Which hosts have pages for works still open (wanted, or unresolved with no verdict) that no installed source plugin reads, and for how many works each? Asked by `GET /api/sightings/hosts` and `art_review(action='sighting_hosts')`, to choose the next reader. | Agent 2026-10-03, in the owner's sources-are-plugins plan (`source-plugins.md` § Sightings) |
 | Q44 | When a source plugin is installed, which works' pages can it read now? Not asked yet: the upgrade loop will. | Agent 2026-10-03 (same) |
 | Q45 | Where else has this work been seen? Not asked yet: a work's page will. | Agent 2026-10-03 (same) |
 | Q46 | Which pages did this run's web search read, in its order? Asked by phase 2 whenever it searches a work the run proposed: on approval, on a re-search, and after a restart. | Owner 2026-10-05 (gallery works found through Ask's search, `build-plan-ask-pages.md`) |
 | Q47 | Which hosts do the citations of runs with unresolved works name? Not asked yet: sightings for works with no Wikidata item would. | Agent 2026-10-05 (same) |
+| Q48 | Which display does this wall use? Asked by Walls, by every listing of walls, and by the wall's own state. | Owner 2026-10-08 (`feeds-and-players.md` ruling 1, `build-plan-displays-and-label-outputs.md`) |
+| Q49 | Which client drives that display? Asked by `GET /client` (the client's own walls), by admission to the per-wall routes, and by Walls. | Owner 2026-10-08 (same) |
+| Q50 | Which label outputs caption this wall? Asked by Walls and by `GET /client` (the labels a client renders). | Owner 2026-10-08 (`labels-and-surfaces.md` ruling 3) |
+| Q51 | Which client holds each label output? Asked by `GET /client` and by admission to `GET /labels/{label_id}`. | Owner 2026-10-08 (same) |
+| Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Clients, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
+| Q53 | Which work did this wall show last, and until when, whatever its screen does now? Asked by Walls for a dark screen, and by its MCP twin. | Owner 2026-10-11 (ruling 3) and 2026-10-14 (#316) |
+| Q54 | Has this work ever been shown on any wall? Asked by Artworks' *Never shown*. | Owner 2026-10-14 (#316) |
+| Q55 | Which works has no wall shown since this instant? Asked by Artworks' *Not in the last month / 3 months / a year*. | Owner 2026-10-15 (#316) |
+| Q56 | When, and on which walls, was this work last shown? Not asked yet: a work's page would. | Agent 2026-10-15 (`build-plan-shown-record.md`) |
+| Q57 | What was this wall showing at this instant? Not asked yet: a wall's History would, or "what was that painting at dinner?". The reason the record is a log and not a summary (the owner, 2026-10-15). | Owner 2026-10-15 (#316) |
 
 **Q22 to Q24 are answered by one column, `DiscoveryRun.destination_theme_id`**
 (`build-plan-topics-and-destinations.md` Chunk 01). A work reaches its run
@@ -275,18 +308,33 @@ own. Q37 is whether a wanted work holds any instance with `rejected_at` set — 
 count read at the listing, so it cannot disagree with the rows it counts. Storing
 the reason beside the verdict would be a second truth about the same instances.
 
-**Q38 to Q41 are answered by `Client` and two columns on `Wall`, `client_id` and
-`output`** (`build-plan-clients.md` Chunk 01, `clients.md`). Q38 is the two
-columns read directly. Q39 is the walls whose `client_id` is the client's, served
+**Q38 to Q41 were answered by `Client` and two columns on `Wall`, `client_id` and
+`output`, until 2026-10-08** (`build-plan-clients.md` Chunk 01, `clients.md`),
+when displays replaced the columns (the next paragraph). Q38 was the two
+columns read directly. Q39 was the walls whose `client_id` is the client's, served
 by the partial unique index `walls_one_per_output (client_id, output)`, which also
-holds that one output of one client shows at most one wall. Q40 is the client the
+held that one output of one client shows at most one wall. Q40 was the client the
 presented token's verifier matches (`Client.token_verifier`) compared with the
-wall's `client_id`. **Q41 is deliberately not in the catalogue**: what outputs a
+wall's `client_id`. **Q41 is deliberately not in the catalogue**, still: what outputs a
 client has, whether each is connected and its size are the device's runtime
 state, reported in `client-heartbeat-{client_id}.json` under `ART_ROOT` beside
 the wall heartbeats and read as an observation with an age. The server stores
-only the output's *name* on the wall, the one device fact the owner's ruling
-needs it to hold.
+of the device only what § Display holds: who it is, where it is plugged in, and
+its kind.
+
+**Q38 to Q40 and Q48 to Q52 are answered by `Display` and `LabelOutput`, and
+`Wall.display_id`, from 2026-10-08** (`build-plan-displays-and-label-outputs.md`
+Chunk 02), which replaced the two columns above. Q48 is `Wall.display_id`. Q49
+is `Display.client_id`, written by the client's heartbeat. Q50 is the label
+outputs whose `wall_id` is the wall's; Q51 is `LabelOutput.client_id`. **Q52 is
+deliberately not stored**: it is read from the client heartbeat files, as every
+identity two or more clients report in a current report (readable, and no older
+than the stale threshold Walls uses), so a host switched off stops claiming its
+display without anything being cleared. Q38 is Q48 then Q49; Q39 is the walls on
+the client's displays, less any display in Q52; Q40 is the same answer compared
+with the presented token's client. The question `clients.Placements` answers once
+for all three, so `GET /client`, admission and every display state cannot
+disagree.
 
 **Q15 is what makes the collection navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
@@ -347,7 +395,7 @@ only entity the curator thinks of as "a piece of art".
 | `artist_id` | UUID | FK → Artist, nullable | Null for anonymous or unattributed works. |
 | `date_created` | string | nullable | Free text — sources give "1931", "c. 1650", "1888–89". Not a date type; normalising would destroy information. |
 | `medium` | string | nullable | e.g. "Oil and graphite on fiber board". |
-| `dimensions` | string | nullable | Physical dimensions as the source states them. |
+| `dimensions` | string | nullable | Physical dimensions as the source states them. Never rewritten: a label states the first measurement in the deployment's `LABEL_UNITS`, rounded to whole units, when its text is set (`arrt/src/arrt/library/dimensions.py`; accessibility-spec.md § Dimensions on the label). |
 | `description` | text | nullable | May contain limited markup; see Constraints. The **holding institution's own paragraph**, at whatever length it was written. |
 | `commentary` | text | nullable | A line written **for a wall label**, to be read at standing distance. Not `description`, and neither substitutes for the other. |
 | `rights` | string | nullable | Rights statement as given. Display-only — rights gate nothing (decided 2026-07-20; constraint 13). |
@@ -572,6 +620,13 @@ the art tree that rsync carries and git does not.
 > card judge against the Library's quality profile, which is stated in pixels
 > and names no device. The Library keeps only `width` and `height`, as this
 > section already requires.
+>
+> **Built 2026-10-08 (wave 4b).** The verdict is now judged against the quality
+> profile (§ Quality profile), by `library/services/quality.py`: `meets_minimum`
+> or `below_minimum`, and none when a size is unknown. `native` and
+> `matted_small` are retired with the box they were judged against; the
+> paragraphs above stay as the record of why the verdict is derived, which is
+> unchanged. Programming's per-wall judgement is wave 4e.
 
 ### AcquisitionQueue
 
@@ -608,22 +663,24 @@ prepared. So the table holds only the works still owing something:
 
 ### Rendition
 
-A derived, device-specific output. **Regenerated, never transported.**
+A derived output. **Regenerated, never transported.** *(Wave 4g, 2026-10-10:
+this read "a derived, device-specific output" while the server composed the
+`tv_display` canvas. Every kind left is device-independent.)*
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `kind` | enum | required | `tv_display` \| `thumbnail`. **`label` was removed 2026-07-20** — see below. |
+| `kind` | enum | required | `thumbnail` \| `wall_preview` \| `presentation_master` (`tv_display` until wave 4g, 2026-10-10; a startup migration deleted its rows, and the `wall_preview` rows with them). A `presentation_master` is the Original, upright and unmatted, capped at 7,680 px on its long edge, JPEG at quality 95: the device-independent image a Player composes from (re-architecture wave 4). Its target is the cap, so a work keeps one row however its Original changes; it records the rule it was made by (`MASTER_RULE`: cap and quality) in `layout`, so a changed rule makes it owed again; it is made by `prepare()` and backfilled at startup for every accepted work with none recorded from its Original by today's rule (**added 2026-10-08, wave 4b**). Since wave 4g it is what readiness rests on: a work with no master, or one whose file cannot be read, is `no_rendition`, and one made from an earlier acquisition is `stale_rendition`. Transported to Players by hash, which conforms under the 2026-09-30 ruling in § Direction. A `thumbnail` is the work itself, drawn from the Original, for a library tile; a `wall_preview` is the work at the size the Work page draws, drawn from the Original with no mat (until wave 4g it was the `tv_display` canvas, downscaled). **`wall_preview` was added and `thumbnail` stopped being drawn from the canvas 2026-10-07** (ruling 7, `ia-proposal.md`: tiles show the work at its own aspect). **`label` was removed 2026-07-20** — see below. |
 | `target_width` | integer | required | e.g. 3840 for the TV canvas. |
 | `target_height` | integer | required | e.g. 2160. |
 | `relative_path` | string | required | Relative to `ART_ROOT`. |
-| `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Note it is the *Original's* hash on every row, including a `thumbnail` actually drawn from a `tv_display` canvas — see invariant 4. |
-| `generated_at` | datetime | auto | Refreshed on upsert, so a recomposed canvas is newer than it was. Load-bearing rather than bookkeeping: it is the only column that moves when a canvas is redrawn at the same path from the same Original, which is what makes a stale `thumbnail` of it detectable (invariant 4). |
+| `source_content_hash` | string | required | The `Original.content_hash` this was rendered from. Mismatch ⇒ stale ⇒ regenerate. Since wave 4g every row is drawn from the Original, so this answers whether any row is current; until then a `wall_preview` drawn from a `tv_display` canvas also carried the Original's hash (invariant 4). |
+| `generated_at` | datetime | auto | Refreshed on upsert. Until wave 4g it was load-bearing: the only column that moved when a `tv_display` canvas was redrawn at the same path from the same Original, which made a stale `wall_preview` of it detectable (invariant 4). No row is drawn from another row now. |
 | `content_sha256` | string | optional, indexed | *(Added 2026-09-30, wave 2b.)* The SHA-256 of the file's bytes: the render's identity once it is served, at `/media/sha256-<hex>`. The catalogue service hashes the file itself when the rendition is recorded, never taking it from the caller, for the reason `source_content_hash` is read rather than accepted. Null for a render recorded before the column existed, or whose file was not there to read, and filled in the first time the Library is asked to offer it as media. |
 | `byte_size` | integer | optional | *(Added 2026-09-30.)* The file's size, recorded with the hash so a manifest can state it. |
-| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
-| `mat_hex` | string | optional | *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| `layout` | string | optional | *(Added 2026-10-02, #189.)* For a `presentation_master`, the rule it was made by (`MASTER_RULE`), as above. *(Wave 4g, 2026-10-10: what follows described the `tv_display` canvas, which is gone; the column stays for the master.)* For a `tv_display` canvas, the geometry and drawing rule it was composed with: the panel and artwork box in pixels and the compositor's rule name (`compose.layout`). Answers Q42. A canvas whose layout is not the one this deployment composes with now is recomposed, and at startup the acquisition queue is given a preparation for each such work; the old canvas stays on the wall until the new one is recorded. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
+| ~~`mat_hex`~~ | string | dropped | *(Dropped in wave 4g, 2026-10-10, by `retire_television_canvases`; the colour rides each wall's feed.)* *(Added 2026-10-03, #183.)* For a `tv_display` canvas, the mat colour it was painted in. A canvas whose `mat_hex` is not the work's current mat is not current and is recomposed by the next preparation, so a mat recorded before its canvas was redrawn (a crash or failed redraw between the two) cannot leave the old colour on the wall. Null for a thumbnail or wall preview, and for a canvas recorded before the column existed, which counts as out of date. Goes with `tv_display` in wave 4. |
 
 > **Q8.** Geometry is *columns*, not a filename suffix. The 2024 design encoded
 > it as `_w648_h480` in the filename, which is why the recovered catalogue points
@@ -646,7 +703,7 @@ A derived, device-specific output. **Regenerated, never transported.**
 >
 > What remains here is correct: `tv_display` at 3840×2160 is a property of the
 > *artwork's presentation*, not of a device — any 4K display shows it, and the mat
-> is composed against that canvas. `thumbnail` is device-independent by definition.
+> is composed against that canvas. `thumbnail` is device-independent by definition. `wall_preview` is a copy of whatever `tv_display` is, so it is exactly as device-specific as that.
 >
 > **Reversed 2026-09-30 (effective at wave 4; `re-architecture.md` § Compositing
 > moves to the Player).** The paragraph above held only while there was one
@@ -657,7 +714,14 @@ A derived, device-specific output. **Regenerated, never transported.**
 > device-independent, capped, unmatted, and served by hash to Players.
 > `tv_display` is removed, and its producers (`library/acquisition/compose.py`, the
 > `TV_PANEL_*` and `MAT_*` settings on the server) move to or are rebuilt on the
-> Player. `thumbnail` is unchanged.
+> Player. `thumbnail` is unchanged; `wall_preview` goes with `tv_display`, since what a wall shows is then the Player's to compose.
+>
+> *(Landed in wave 4g, 2026-10-10, with one difference: `wall_preview` stayed,
+> drawn from the Original with no mat, because the Work page still needs a
+> sharp picture of the work. `compose.py` is deleted, and the server's
+> `TV_PANEL_*`, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT` are no longer read;
+> the Player reads them under the same names. The mat-colour engine's own
+> `MAT_*` settings stay the server's.)*
 
 ### MatColor
 
@@ -668,7 +732,7 @@ regenerating it costs money.
 |---|---|---|---|
 | `id` | UUID | PK | |
 | `artwork_id` | UUID | FK → Artwork, required | |
-| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again and redraws the canvas, and at startup the acquisition queue gets a preparation for each accepted work holding a canvas with such a mat, or with none. |
+| `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again, and at startup the acquisition queue gets a preparation for each work holding a presentation master with such a mat, or with none. *(Wave 4g, 2026-10-10: this read "redraws the canvas" and "holding a canvas"; nothing is drawn on the server now, and a mat change rides each wall's feed.)* |
 | `lab_l`, `lab_a`, `lab_b` | float | nullable | Preserved when the model returns them. |
 | `reason` | text | nullable | The model's stated rationale. |
 | `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual`. |
@@ -704,6 +768,21 @@ naming and grouping concept, not an accounts concept.
 | `description` | text | nullable | |
 | `created_at` | datetime | auto | |
 | `is_default` | boolean | not null, default false; at most one true (partial unique index `themes_one_default`) | Whether new works join this theme (Q16). Written only by *make default*, which moves the mark in one transaction, so a rename or any other update cannot clear it. A theme carrying it cannot be deleted; renaming it keeps it. *Built 2026-10-01.* |
+| `is_hidden` | boolean | not null, default false; set at creation, never changed | A **selection**: works the curator hung on one wall by choosing them (`DisplayService.hang_selection`). Left off the Themes index and every theme picker (`survey_themes`, `theme_counts`); a wall hanging one reads as *a selection*. Its name is made up (`Selection for <wall> (<id head>)`) because names are unique. *Built 2026-10-07, `build-plan-walls-work-and-trust.md` Chunk 04.* |
+
+> **A selection is a theme with a flag, not a new kind of source** *(the owner
+> confirmed the decision, 2026-10-07)*. The manifest, the readiness facade, the
+> directive and `ThemeAssignment` already work through themes, so a hidden theme
+> changes two listing filters where a new source would change every reader of
+> `theme_assignments`. It hangs "until changed": hanging anything else on the wall
+> replaces it. **A selection lives only while it hangs**: when a wall stops
+> hanging it (another theme or selection hung there, or the wall taken down) and
+> no other wall hangs it, it and its memberships are deleted
+> (`DisplayService._retire_selection`), in the same transaction as the change. Nothing
+> can name one afterwards, so it is refused as a Get's destination and as the
+> default theme (`get_listed_theme`). History needs no row: a hang event carries the
+> selection's id and name itself. *(Until 2026-10-08 a selection that hung nowhere
+> was kept, one hidden row per hang for good; the wave-1 review found it.)*
 
 > **The default theme** *(the owner's ruling 8, 2026-10-01: "There should be a
 > default 'all works' theme")*. Every work the Library announces as accepted joins
@@ -799,6 +878,69 @@ restore or restart.
 > default and were placed by hand. The guard is what the file holds, as for every
 > migration here: works present and no offers at all.
 
+### WorkExclusion
+
+> **Programming-owned.** `artwork_id` is an opaque work id with no foreign key
+> (seam rule 3). Table `work_exclusions`. *Built 2026-10-07,
+> `build-plan-walls-work-and-trust.md` Chunk 04.*
+
+*Not this one again*, **from every wall**: one row per work the curator said not
+to show on any wall. Every manifest build leaves it out and names it among the
+exclusions with reason `kept_off_every_wall` (`KeptOff`,
+`programming/manifest/builder.py`); every published manifest and pin naming it is
+patched off when the row is written, adding nothing. Removing the row is the undo
+(from the Work page), and puts the work back on every wall hanging a theme that
+holds it, if it can be shown. *(Until 2026-10-10 the undo republished nothing and
+the next hang carried the work; the owner ruled then that a hung theme's feed
+takes additions as they happen, `build-plan-feed-follows-theme.md`.)*
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `artwork_id` | UUID | PK; not a foreign key | The work kept off. |
+| `excluded_at` | datetime | auto | When. |
+
+> **Not Archive.** Archive takes the work out of the Library; this changes only
+> what the walls show, because S8 says "nothing else changed". The work stays
+> held and in every theme. *Not this one again* **from this theme** is not a row
+> here: it removes the work's `ThemeMembership` in the theme hanging on that
+> wall, and patches it off the walls hanging that theme.
+
+### Showing
+
+> **Programming-owned.** Neither id is a foreign key: `work_id` is an opaque
+> work id (seam rule 3), and a wall removed keeps the fact that a work was shown
+> on it. Table `showings`. *Built 2026-10-15, `build-plan-shown-record.md`
+> Chunk 01 (#316).*
+
+One row per stretch of one work on one wall, kept from the Players' heartbeats
+(`programming/showings.py`, written through `DisplayService.keep_showing`). It answers Q53–Q57. **A log, not a summary**: the
+owner chose it on 2026-10-15, knowing it grows about 480 rows a day per wall at
+the 3-minute default, because a first-and-last summary can never say what was on
+a wall at an hour. Nothing prunes it.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `wall_id` | UUID | PK with `started_at`; not a foreign key | The wall. |
+| `started_at` | datetime | PK with `wall_id` | When the screen began showing the work: the controller's `display_state.since`, or the first report naming it from a Player before minor 3. Never before the wall's previous showing ended. |
+| `work_id` | UUID | required; not a foreign key; indexed with `last_seen_at` | The work. |
+| `last_seen_at` | datetime | required | The latest report still naming it. |
+| `ended_at` | datetime | nullable | When the wall reported something else: that report's `since`, or for `unreachable` the last sight. Null while it is up, or while its wall is silent. |
+
+> **What is believed.** A report names a work only with `showing_art`, and only
+> a work the wall's published feed carries when the report arrives is kept.
+> Anything else on screen (a work the wall was never sent, a picture it did not
+> put there, television) ends the open showing and starts none. A report older
+> than the latest sight changes nothing. A Player before minor 3 sends no
+> `since`, so its showing is the run of reports naming one work with no gap
+> longer than `STALE_AFTER_SECONDS`.
+>
+> **Accuracy.** As good as the heartbeat: an HDMI wall reports a change within
+> seconds, and a Frame can be up to 60 s late and wrong after a remote-control
+> change until #309's Frame half lands, which feeds this same record.
+>
+> **Not per-device state** (§ Direction): a showing names a place and a work,
+> never a display, client or screen, and survives replacing the television.
+
 ### Wall
 
 > **Programming-owned from 2026-09-30** (`re-architecture.md`). The forbidden list below holds harder in the target. A Player may report its geometry as a heartbeat *observation*, held by Programming. The Library never sees it, and a Wall row still never stores it.
@@ -811,17 +953,29 @@ operator's ruling that themes are created globally and assigned per wall.)*
 | `id` | UUID | PK | Stable identity, referenced across the plane boundary **by id only**, exactly as `TvBinding` already references an Artwork. |
 | `name` | string | required, unique | "Living room". The curator's own word, and the noun every confirmation names — "Hang Winter in the living room". |
 | `created_at` | datetime | auto | |
-| `client_id` | UUID | optional, FK → Client | *(Added 2026-10-02, `clients.md`.)* The client that shows this wall. Null while none does, which is an ordinary state. Set together with `output`. |
-| `output` | string | optional | *(Added 2026-10-02.)* The name of that client's output the wall is shown on, as the client reported it (`hdmi-a-1`, `frame`). Null exactly when `client_id` is. At most one wall per (`client_id`, `output`), held by a partial unique index. |
+| `display_id` | UUID | optional, FK → Display | *(Added 2026-10-08, `build-plan-displays-and-label-outputs.md`.)* The display the wall is shown on. Null while it has none, which is an ordinary state. At most one wall per display, held by the partial unique index `walls_one_per_display` over the non-null ids. |
+| `mat_mode` | enum? | optional: `none`, `proportional`, `full` | *(Added 2026-10-09, wave 4e.)* How the wall's Player draws the mat, sent as its feed's `settings.mat.mode` (§ Wall settings). Null leaves it to the Player. The values are checked by the service, because a `CHECK` on an added column would bind new files only. A curatorial choice about the room, not a fact about its screen. |
+| `rotation_interval_seconds` | integer? | optional, > 0 (checked by the service) | *(Added 2026-10-13, #353; § Rotation.)* How long each work stays up on this wall: the slot length of its schedule. Null ⇒ the deployment default. |
+| `shuffle` | boolean? | optional | *(Added 2026-10-13, #353; § Rotation.)* Whether the wall plays its theme in a fresh random order each cycle rather than in `ThemeMembership.position` order. Null ⇒ the deployment default. |
+| `min_aspect_ratio` | real? | optional, > 0, ≤ `max_aspect_ratio` (checked by the service) | *(Added 2026-10-13, #370; § The wall's shapes.)* The tallest shape the wall shows, as width ÷ height. Null ⇒ no limit. |
+| `max_aspect_ratio` | real? | optional, > 0 (checked by the service) | *(Added 2026-10-13, #370; § The wall's shapes.)* The widest shape the wall shows, as width ÷ height. Null ⇒ no limit. |
+
+*Removed 2026-10-08:* `client_id` and `output` (added 2026-10-02), which named the
+client showing the wall and its output. A wall names a display now, and the
+display names its client (§ Display). `migrations.walls_name_displays` carries
+each assigned wall onto a display keyed `{client_id}/{output}` on the same client
+and output, so every wall stays on its screen, then drops both columns and the
+`walls_one_per_output` index.
 
 *Removed 2026-10-02:* `token_verifier` and `token_issued_at`, the per-wall Player
 token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
 drops both columns from a catalogue that has them.
 
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
-and its assignment: which client shows it, on which output by name. It is not a
-device. The credential now belongs to the client (§ Client), and the output's
-name is the one device fact the wall holds, by the owner's ruling of 2026-10-02.
+the display it is shown on, and the presentation choices the curator made for
+the room (§ Wall settings). It is not a device. The credential belongs to the
+client (§ Client), and the display is a record of its own (§ Display), so a
+screen moved to another client takes its wall with it.
 
 > **This entity sits inside the catalogue, and that is a ruling against the third
 > Direction norm rather than an oversight.** "Per-device runtime state never lives
@@ -878,8 +1032,51 @@ client's token and nothing else.
 
 **Nothing about the device**: no address, no geometry, no model. What outputs a
 client has is what it reports in `client-heartbeat-{client_id}.json` (Q41).
-Removing a client unassigns its walls (they keep their themes) and drops its
-heartbeat file.
+Removing a client removes its displays and label outputs, unassigns the walls
+on those displays (they keep their themes) and drops its heartbeat file.
+
+### Display
+
+> **Programming-owned, added 2026-10-08** (`feeds-and-players.md` § Displays are configured, never discovered; `build-plan-displays-and-label-outputs.md` Chunk 02).
+
+One physical screen a wall can be shown on, keyed by the identity its client read
+from the device, so a Frame moved from one client to another keeps its walls.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | What `Wall.display_id` and `GET /client`'s `display` name. |
+| `identity` | string | required, unique | Who the display is: a Frame's device id as its client read it (`device.duid`), or `{client_id}/{output}` for an output with no identity a client can read (an HDMI connector), and for a display placed before its client reported it. One display per identity. |
+| `client_id` | UUID | optional, FK → Client | The client that last reported it, and so drives it. Null once another device has been reported on the output it was on: its wall then stays on it, shown by nobody. |
+| `output` | string | required | The client's name for the output (`frame`, `hdmi-a-1`). At most one display per (`client_id`, `output`) among displays with a client, held by the partial unique index `displays_one_per_output`. |
+| `kind` | string | optional | `frame` or `framebuffer`, as the client reported it; null until it has. A category, not a measurement. |
+| `first_seen` | datetime | auto | When the server first recorded it. |
+
+**Kept by the client's heartbeat** (`ClientService.record_heartbeat`): an output
+reported with an identity is matched on it, one without on the client and the
+output's name. A display recorded by place takes the identity when its output
+first reports one, with its wall; an identity recorded on another client moves to
+the reporting one with its wall, unless that client still reports it (Q52), which
+is a fault left for the curator. Nothing about the device beyond what it is and
+where it is plugged in: the forbidden list on § Wall holds here too, and the
+Frame's network address stays on the client's host.
+`[DECISION: the Display record carries kind (frame, framebuffer) | Walls and Settings must say what a display is without asking the client, and kind is a category, not a measurement | builder's call, owner can veto]`
+
+### LabelOutput
+
+> **Programming-owned, added 2026-10-08** (`labels-and-surfaces.md` § The model; `build-plan-displays-and-label-outputs.md` Chunk 02).
+
+A surface that captions a wall rather than showing one: today an e-paper panel,
+on any client, mapped to a wall here.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | What `GET /labels/{label_id}` takes. |
+| `client_id` | UUID | required, FK → Client | The client that holds it. A label output never moves between clients. |
+| `output` | string | required | The client's name for it (`epd-0`). Unique per client (`label_outputs_one_per_output`). |
+| `wall_id` | UUID | optional, FK → Wall | The wall it captions, or null. **A label output captions at most one wall** because this is one column; a wall may have many. |
+
+Recorded when its client first reports it, or when a curator maps one the client
+has not reported yet.
 
 ### ThemeAssignment
 
@@ -922,7 +1119,9 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > way out — the deadlock the 2026-08-11 last-theme ruling was written to avoid. Taking
 > a theme down does **not** advance the wall's directive sequence, for the reason
 > recorded at **Directive**: it is not an instruction to the display plane, and an
-> advance would fire a directive nobody issued.
+> advance would fire a directive nobody issued. *(Wave 4g, 2026-10-10: there is no
+> directive now; taking a theme down writes no feed, and the wall goes on showing
+> what it was showing.)*
 >
 > `[DECISION: automatic promotion is dropped rather than made per-wall | with N
 > walls there is no defensible answer to "which theme should appear on a wall the
@@ -931,6 +1130,16 @@ What is hanging on one wall. The act `information-architecture.md` flow 6 calls
 > existing wall so no deployment loses its picture | MED impact | user can veto/override]`
 
 ### Directive
+
+> **Retired in wave 4g, 2026-10-10.** The directive reached a Player only in
+> manifest major 1, which is no longer published, so a startup migration
+> (`retire_directives`, `persistence/migrations.py`) drops the `directives`
+> table and its index, and no wall is seeded with one. *Show now* and *next*
+> republish the wall's schedule starting with the work they name
+> (`DisplayService.show_work_now` and `step_display`; `player-contract.md`
+> § What happens to `show_now` and `next`). The pin's foreign key across the
+> seam went with the table. What follows is the entity as it was, kept because
+> the reasoning about phantom advances is cited elsewhere.
 
 > **Programming-owned from 2026-09-30** (`re-architecture.md`). `pinned_work_id` is a foreign key across the seam today. Its target is an opaque id, and pin withdrawal on archive is driven by the Library's `work.archived` event.
 
@@ -1118,8 +1327,8 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 
 ### Affinity
 
-What the curator has reacted to, and how. Answers Q13; retained across
-conversations, and the thing a new conversation opens knowing.
+What the curator has reacted to, and how. Answers Q13; retained, and what
+discovery consults.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
@@ -1129,14 +1338,21 @@ conversations, and the thing a new conversation opens knowing.
 | `sentiment` | enum | required | `loves` \| `likes` \| `cool` \| `declines`. |
 | `open_to_more` | boolean | required | Whether to keep offering this. **Independent of `sentiment`** — Q13's two-facts rule. |
 | `derivation` | enum | required | `stated` (the curator said it) \| `inferred` (the model read it from what they said) \| `observed` (read from accept/reject behaviour in review). Answers Q14. |
-| `rationale` | text | **required when `derivation` is `inferred` or `observed`**, nullable otherwise | The model's own account of the judgment, in the curator's terms. Null is normal for `stated`, where the curator's own words are the account. Required for the other two since 2026-08-12: deleting a conversation nulls `source_turn_id`, so this is the only evidence an inferred judgment can be left with. |
-| `source_turn_id` | UUID | FK → ConversationTurn, nullable | The turn this was derived from. Null for `observed` — **and null for an `inferred` row whose conversation was deleted**, which is a legal state and not a corruption. See the Conversation entity. |
+| `rationale` | text | **required when `derivation` is `inferred` or `observed`**, nullable otherwise | The model's own account of the judgment, in the curator's terms. Null is normal for `stated`, where the curator's own words are the account. Required for the other two since 2026-08-12, and since 2026-10-09 the only evidence either has: the turn an inferred judgment cited is no longer stored. |
 | `artist_id` | UUID | FK → Artist, nullable | Set only where `kind='artist'` **and** the name resolves to a catalogue artist. Derived and re-derivable; never the identity. |
 | `created_at`, `updated_at` | datetime | auto | |
 
 **Unique on (`kind`, `value`).** One live judgment per thing, corrected in place
 rather than accumulating a history of contradictions the product would then have
-to arbitrate between. The history that matters is the turns, which are retained.
+to arbitrate between.
+
+> **An `inferred` judgment cannot be written since 2026-10-09**, and the ones
+> stored keep their derivation and rationale. One cited the conversation turn it
+> was read out of, and conversations are no longer stored (§ Conversations,
+> retired). The wave that saves Ask's threads decides how a judgment cites one.
+> Until then only `stated` is writable by a caller, so the rule that a weaker
+> provenance may not overwrite a stronger one has nothing to refuse, and its
+> code went with the citation.
 
 > **`value` is a string and not a foreign key, and this is the entity's central
 > decision.** The product exists to surface artists the curator could not have
@@ -1178,6 +1394,10 @@ to arbitrate between. The history that matters is the turns, which are retained.
 > an earlier inference and a second statement can correct a first. *This is the
 > builder's ruling rather than an artifact's, named by them as the thing most worth
 > challenging — and they were right to. It is a norm born mid-build.*
+> *Removed 2026-10-09 with the ability to write `inferred`: with only `stated`
+> writable, the strongest rank, the ranking had nothing to refuse (§ Affinity).
+> The wave that lets a weaker derivation be written again restores it, ranks and
+> all.*
 >
 > **`observed` is refused at runtime by `art_taste`, while all three values are
 > published on `set`.** The registry permits one declaration of a parameter across
@@ -1192,72 +1412,25 @@ to arbitrate between. The history that matters is the turns, which are retained.
 > to be discovered: **if per-picture judgments are wanted, this entity changes, not
 > the screen.**
 
-### Conversation
+### Conversations, retired 2026-10-09
 
-One intent-forming session. **Not a run, and never confused with one:** it
-acquires nothing, writes no `Artwork`, and reaches no museum API. It ends by
-seeding a `DiscoveryRun` or by ending.
+`Conversation` and `ConversationTurn` held Ask's threads from 2026-08-10: each
+turn verbatim, what it offered, and `committed_run_id`, the seam to the run a
+direction started. Ask became one thread with an agent on 2026-10-09
+(`build-plan-ask-agent.md`), held in memory and not saved, by the owner's ruling
+of 2026-10-08 that old threads "are just gone" until saving earns its place. The
+catalogue migration `retire_conversations` dropped both tables and the two
+columns that cited a turn, `Affinity.source_turn_id` and
+`SpendRecord.conversation_turn_id`. Deleting a conversation had always nulled
+those two and kept the rows (the operator's ruling of 2026-08-12, issue #118),
+so the migration did to every row what a delete did to some: every judgment and
+every cent stands.
 
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | UUID | PK | |
-| `started_at` | datetime | auto | |
-| `last_turn_at` | datetime | auto, indexed | Orders the conversation list, which is the only place a curator finds an old thread. |
-| `summary` | text | nullable | A short model-written account of where the conversation got to. Written at rest, for the list — **never read back as taste**; `Affinity` is the only thing the product consults. |
-
-### ConversationTurn
-
-One exchange. Retained in full so affinities can be rebuilt when their derivation
-changes — the second half of Q14.
-
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `id` | UUID | PK | |
-| `conversation_id` | UUID | FK → Conversation, required | |
-| `ordinal` | integer | required, unique per conversation | Order within the thread. Not a timestamp: two turns can share a second. |
-| `role` | enum | required | `curator` \| `system`. |
-| `text` | text | required | Verbatim. |
-| `suggested` | JSON | nullable | What this turn offered, as `[{kind, value, samples}]` — the artists, movements or subjects named, each with the sample pictures shown beside it. Denormalised on purpose: it is a record of *what was said*, not a live index, and normalising it would let a later edit rewrite history. **`samples` was added 2026-08-12, on building the thread**: the flow requires samples inline in the turn and no other structure gives them anywhere to live, and freezing them here is the same argument the rest of this row already makes — a sample re-fetched later is not the picture the curator reacted to. |
-| `committed_run_id` | UUID | FK → DiscoveryRun, nullable | Set on the turn where the curator committed a direction. **This is the seam** — it is what lets a run say which conversation produced it, and a conversation show what came of it. |
-| `created_at` | datetime | auto | |
-
-> **Transcripts are retained by the operator's decision (2026-08-10), reversing
-> this artifact's own "agent conversation history is deliberately not modelled".**
-> The reason is Q14: affinities are *derived*, the derivation will improve, and
-> without the turns an improvement can only apply going forward while every
-> existing judgment stays frozen at the quality of the prompt that produced it.
->
-> **This is the product's first retained free-text record of the operator's own
-> words.** The retention and deletion rule for one is now written, in
-> `security-model.md` § Deleting a conversation; the summary is below and that
-> section is the authority.
-
-> **Deleting a conversation deletes its turns and nothing else** *(ruled by the
-> operator 2026-08-12, closing issue #118)*. Every row that cites a turn keeps its
-> own record and loses only the citation: `Affinity.source_turn_id` and
-> `SpendRecord.conversation_turn_id` are set null, and
-> `ConversationTurn.committed_run_id` goes with the turn.
->
-> Three things follow, and each is a real consequence rather than a restatement:
->
-> - **An `inferred` affinity may legally have no source turn.** `api-contract.md`
->   § `art_taste` states that `inferred` requires a `source_turn_id`; that is an
->   invariant on the **write**, not on the row. Built as a stored constraint it
->   would make the delete impossible, which is the opposite of the ruling.
-> - **`rationale` therefore becomes required for `inferred` and `observed`** — see
->   the Affinity table, where the constraint now says so. It is the only evidence
->   that survives a deleted thread, and an inferred judgment with neither turn nor
->   rationale is one the product can neither explain nor revisit.
-> - **A run committed by a deleted turn becomes indistinguishable from one started
->   directly**, because the seam is `committed_run_id` and the turn carried it.
->   Nothing is orphaned — the Relationships section already makes a run with no
->   committing turn ordinary — but the provenance is gone rather than degraded, and
->   the confirmation says so.
->
-> **What the curator loses is Q14's second half**: affinities can no longer be
-> rebuilt from this thread when the derivation improves. That is the cost of the
-> delete, it is not recoverable, and the confirmation names it in those terms
-> rather than reporting a row count.
+**What went with them is Q14's second half.** Transcripts were retained
+(the operator, 2026-08-10) so affinities could be rebuilt when their derivation
+improved. With no stored turns, no judgment can be rebuilt from its words, and
+no `inferred` one can be written (§ Affinity). Saving threads is the later wave
+that returns it.
 
 ### DiscoveryRun
 
@@ -1275,7 +1448,7 @@ candidates provenance.
 | `status` | enum | required | `resolving_works` \| `awaiting_approval` \| `resolving_images` \| `completed` \| `failed` \| `declined` \| `cancelled` \| `halted_by_budget` \| `interrupted`. See State Machines. |
 | `estimated_cost_usd` | decimal | nullable | Phase-2 estimate, computed from the phase-1 work count. |
 | `actual_cost_usd` | decimal | nullable | Reconciled after. |
-| `approval_required` | boolean | required | Whether the resolved **work count** crossed the configured threshold (amended 2026-07-20 from "the phase-2 estimate"). Recorded per run, not re-derived — the threshold can change. |
+| `approval_required` | boolean | required | Whether the run stopped for approval. **Always false on a run started since 2026-10-07**, when the gate was removed (the owner's ruling 3 of 2026-10-07, #290: asking is the approval). True only on a run that crossed the retired work-count threshold before then; kept, not rewritten, as that run's history. |
 | `unresolved_work_count` | integer | nullable | Works from phase 1 for which no credible instance was found. **Q12.** |
 | `started_at` | datetime | required | **Narrowed from nullable 2026-07-27.** A run row is only created by starting one, and both entry states (`resolving_works` for a discovery run, `resolving_images` for a resolve run) are active — there is no state in which a row exists and the run has not started. Nullable would have made every reader handle an absence that cannot occur. |
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
@@ -1309,7 +1482,7 @@ candidates provenance.
 > not. It also matches the "short curation sessions" constraint — the curator is
 > not held at the keyboard while discovery works.
 >
-> **Conversational intent-forming arrived on 2026-08-10 and this decision holds
+> **Conversational intent-forming arrived on 2026-08-10 and this decision held
 > unchanged, which is why it was built the way it was.** `Conversation` sits
 > *upstream* of the run: it answers from model knowledge, shows sample pictures,
 > acquires nothing, and starts nothing. So the thing being estimated is still a
@@ -1317,6 +1490,13 @@ candidates provenance.
 > the fast turns are fast precisely because they do no discovery. Had the
 > conversation been allowed to acquire per turn, this paragraph would have had to
 > be reversed rather than reaffirmed; that it did not is the reason for the split.
+>
+> **Direction changed 2026-10-08 (the owner), built 2026-10-09.** Ask now
+> searches as it talks, so the half of this split that kept turns fast no longer
+> holds: a reply can take as long as its searches. The other half does: a reply
+> still acquires nothing, a Get remains a batch with a knowable scope, and it still
+> proceeds behind a handle. Ask's replies are no longer estimated before they
+> run (`nonfunctional-requirements.md` § Cost visibility).
 >
 > **`target_candidate_count` is resolved, and it is not a column.** This artifact
 > previously deferred it, listing three options: the curator sets it per run, it is
@@ -1326,10 +1506,9 @@ candidates provenance.
 > guessed in advance. Nothing needs to be stored: the count is
 > `COUNT(CandidateWork)` for the run.
 >
-> **`approval_required` is stored rather than derived** because the threshold is
-> configuration and configuration changes. A run that stopped for approval last
-> month must still read as "this stopped for approval", not as whatever the current
-> threshold would imply.
+> **`approval_required` is stored rather than derived** because a run that
+> stopped for approval before the gate was removed (2026-10-07) must still read
+> as "this stopped for approval".
 >
 > **`initiated_by` exists because agents can now start runs.** An MCP client can
 > issue "add all of Salvador Dalí's most famous works" without the curator
@@ -1360,14 +1539,16 @@ artworks.
 | `rationale` | text | required | Why the model matched this work to the intent — **for a proposed work.** On an offered one no model reasoned about it, and this carries a fixed sentence saying the collection volunteered it. It deliberately holds no fact about the browse query: that is per-*query*, and folding it in here is what made one run print the same thirty-word sentence on twelve cards (issue #95). **Q5.** |
 | `offered_for_artist` | string | nullable | The browse query that produced an offered work — the **run's** spelling of the artist, which is what `proposed_artist` carries on the works the run named, so the two halves of a group can be counted against each other. Null on a proposed work, which no query produced. **Null does not mean proposed**: an offered row written before this column carries null too, and `provenance` remains the only thing that says which a work is. |
 | `offered_artist_matched` | integer | nullable | How many works that query matched in the collection. **The collection's holdings, never capped by `offered_works_per_run`** — the per-run bound is what a reader reconciles it against, so capping it here would collapse the comparison `product-brief.md` requires (telling one-of-four-hundred from one-of-one). Null under the same conditions as `offered_for_artist`. |
+| `offered_by` | string | nullable | The source (provider id) that offered an offered work, recorded at the offer. Kept on the work rather than read off its scans, because the scan an offer arrives with can be turned down and another museum's found. Null on proposed and chosen works, and on offers recorded before 2026-10-08. |
 | `work_dedup_key` | string | required, indexed | Normalised work identity for cross-run suppression. **Q3.** |
 | `wikidata_qid` | string | nullable | The Wikidata item a `chosen` work was asked for by, or, on any undecided work, the item the curator picked from Wikidata's matches for its title (`DiscoveryService.set_wikidata_item`, since 2026-10-02, `build-plan-after-review.md` Chunk 04; never matched by title on its own, § Registry identity). Null otherwise. Handed to the image sources, so a source that looks a work up by item (Commons) can, and stored on the artwork at acceptance, set by the curator. Nullable so widening adds it to older files. |
 | `provenance` | enum | required, defaults `proposed` | `proposed` \| `offered` \| `chosen`. Who put this work in front of the curator: the model named it, a wired collection volunteered it, or the curator chose it from Wikidata for a Get. Nullable *on disk* only so the column can be added to files written before collections were browsable — a null reads as `proposed`, that being the only thing which could have written a row then. |
 | `resolution_status` | enum | required | `pending` \| `resolved` \| `unresolved`. Reflects the **latest** resolution attempt, whether that was the original phase 2 or a later re-search. `unresolved` ⇒ that attempt found no credible instance the curator has not already rejected. **Q12.** |
-| `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **Q12.** |
+| `unresolved_reason` | enum | nullable | Which kind of nothing: `not_held` \| `identity_refused` \| `size_unknown` \| `below_floor` \| `all_rejected`. Set whenever `resolution_status = unresolved`, null otherwise — **with one honest exception: a row whose attempt predates the column reads null beside `unresolved`.** The column was added nullable and existing files are widened without backfill, so the two runs that motivated it are themselves in that state. A null beside `unresolved` therefore means "this attempt happened before the reason was recorded", never "no reason applies". **`below_floor` keeps its stored spelling** although since 2026-10-08 it means *below the quality minimum*: it is a persisted value, and renaming it would strand every row written before. **Q12.** |
 | `verdict` | enum | required | `pending` \| `accepted` \| `rejected` \| `wanted`. See State Machines. `wanted` was `awaiting_better_image` until 2026-10-02 (`build-plan-after-review.md` Chunk 03); a migration on open rewrites stored rows, and nothing reads the old spelling. **Q36, Q37.** |
 | `rejected_reason` | text | nullable | Optional curator note. |
 | `decided_at` | datetime | nullable | |
+| `source_confirmed` | boolean | nullable | Phase 1's word on a work it **proposed**: true when a search result it was given names the work by its artist, false when none does (the structured output's `source_found`). Null when it said nothing, on every work proposed before it was asked (widened without backfill), and on every chosen or offered work, which no model named. Read through the derived **`confirmation`** (`confirmed` \| `unconfirmed` \| `unknown`): a chosen or offered work is `confirmed` by where it came from, a proposed one only on phase 1's true, and a null is `unknown`, never confirmed. The review listing orders confirmed, unknown, unconfirmed within each resolution group (#276, `build-plan-walls-work-and-trust.md` Chunk 08). |
 
 > **`confidence` has a fourth derivation, and it is not a comparison result.**
 > The three tiers below this table grade *how much of an identity was
@@ -1390,10 +1571,8 @@ artworks.
 > counts are also reported apart wherever a surface shows a number, because the
 > curator approved a work list of a stated size and the supplement adds to it.
 >
-> **The approval gate cannot see offered works, structurally rather than by rule.**
-> It is computed when the work list settles, which is before phase 2 has run and
-> therefore before anything could have been offered — an offer exists only to
-> supplement what phase 2 failed to confirm.
+> *(The approval gate this paragraph described, which could not see offered works
+> because it was computed before phase 2 ran, was removed 2026-10-07: #290.)*
 
 > **`wanted` is the verdict an accept/reject binary cannot express** — "I want this
 > work, and I hold no scan of it I would accept; find one." It covers a work whose
@@ -1909,8 +2088,7 @@ path consults it before spending.
 | `id` | UUID | PK | |
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
-| `conversation_turn_id` | UUID | FK → ConversationTurn, nullable | Set for intent-forming spend. Added 2026-08-10 — see below. **Nulled, never cascaded, when the conversation is deleted** (2026-08-12): the money was spent whatever became of the thread, and a ledger whose totals fall when someone tidies a transcript is the failure the `conversation_tokens` rule below exists to prevent. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below.** |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below. Nothing writes `conversation_tokens` since 2026-10-09**, and its rows still read and count. |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -1918,6 +2096,11 @@ path consults it before spending.
 | `occurred_at` | datetime | auto, indexed | Indexed for reporting windows. **Not** the basis of any ceiling — see below. |
 
 > **`conversation_tokens` ships with its producer or not at all (2026-08-10).**
+> *Its producer, the stored conversation, was retired on 2026-10-09; the rows it
+> wrote stay in every month total, and `SpendRecord.conversation_turn_id`, which
+> cited the turn, was dropped with the turns. Ask's replies write no row, because
+> the provider's own month figure already includes them and a per-reply record
+> belongs with the 3tears spending cap (`build-plan-ask-agent.md`, chunk 03).*
 > The category and its FK exist because intent-forming spends real money — a model
 > call per turn, plus whatever the sample lookups cost — and Q4 asks what was spent
 > and on what. The rule is written here because this table already carries one
@@ -1958,7 +2141,7 @@ path consults it before spending.
 >
 > **The coupling the earlier deferral named is contained, not removed.**
 > `record_spend` still lives on `DiscoveryService`, and preparation reaches it
-> through a one-method protocol (`SpendLedger`), as the conversation service does.
+> through a one-method protocol (`SpendLedger`), so it holds nothing it does not use.
 > Moving the ledger out of discovery, which the backlog tracks, changes the wiring
 > in the container and nothing in preparation.
 
@@ -2060,6 +2243,41 @@ search read). Written once, when phase 1 closes, and never changed. Table
 > is reachable: phase 2 checks each one when it hands it over, since a name's
 > answer can change between the run and a re-search.
 
+### HistoryEvent
+
+> **Library-owned**, in the catalogue file. Table `history_events`. *Built
+> 2026-10-07, `build-plan-walls-work-and-trust.md` Chunk 03 (the owner's ruling 6
+> of 2026-10-07: "events, from now on").*
+
+One row per act, written where the act happens, inside its transaction where it
+has one. **From now on**: nothing before the table existed is recovered, and past
+hangs cannot be. Read newest first (`occurred_at`, then `rowid`), filtered by kind
+and by wall (`GET /api/history`, `art_catalogue(action='history')`).
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | UUID | PK | |
+| `kind` | enum | required | `EventKind` (`persistence/records.py`): `get.started`, `get.finished`, `work.accepted`, `work.rejected`, `work.archived`, `work.restored`, `wall.hung`, `work.left_theme`, `work.excluded`, `work.allowed`. |
+| `occurred_at` | datetime | required | |
+| `work_id` | UUID | nullable; not a foreign key | The Library work. Null for a rejected candidate, which never became one (its id is in `detail`). |
+| `run_id` | UUID | nullable; not a foreign key | The Get. |
+| `wall_id` | UUID | nullable; not a foreign key | Programming's wall, held opaquely. What a wall's history filters on. |
+| `theme_id` | UUID | nullable; not a foreign key | Programming's theme, held opaquely: what a hang was drawn from. |
+| `detail` | JSON | nullable | The words the event is read by, copied at the time: `title`, `candidate_work_id`, `theme_name`, `wall_name`, `selection`, `works`, `run_kind`, `intent`, `status`, `reason`. |
+
+> **No foreign keys, deliberately.** A history outlives what it names, and walls
+> and themes are Programming's (seam rule 3). That is why `detail` copies names
+> rather than leaving them to be joined.
+>
+> **Who writes which kind.** The Library writes its own: `DiscoveryService` at
+> each run start (`start_discovery_run`, `start_resolve_run`, `start_get_run`),
+> each ending (decline, complete, fail, halt, cancel, and `interrupted` at
+> startup), and each verdict; `CatalogueService` at archive and restore.
+> Programming writes `wall.hung`, `work.left_theme`, `work.excluded` and
+> `work.allowed` through `LibraryFacade.record`, which refuses any other kind,
+> **after** its own change commits (after a split there is no shared transaction,
+> and a history line for a hang that rolled back would be false).
+
 ### TvBinding *(display plane only)*
 
 Everything about one specific television. **Not part of the catalogue** — this is
@@ -2072,7 +2290,7 @@ the entity that enforces the second Direction norm.
 | `artwork_id` | UUID | required, **unique per `wall_id`** | Reference to the catalogue's Artwork id. One television holds at most one image per work. |
 | `tv_content_id` | string | **required when `upload_status = 'uploaded'`, null otherwise** | The TV's own identifier for the uploaded image. **A per-set cache key, not an identity** — see below. |
 | `tv_thumb_md5` | string | nullable | **Modelled, and nothing writes it** (recorded 2026-08-06). It was to re-match after the TV loses or renames content; the display plane instead marks such a binding orphaned and uploads again, which costs one transfer and is correct even when nothing was renamed — fetching a thumbnail per work to compare hashes costs more than the re-upload it saves. The column stays because a future device driver may need it; the value is null on every row. |
-| `render_fingerprint` | string | nullable | The render file's modification time and size when it was sent, so a re-rendered work is sent again. `ready/{artwork_id}.jpg` is stable across re-renders, so without this a changed mat colour leaves the television showing the old composition indefinitely with every record agreeing. Null on rows written before this column existed, which counts as changed. |
+| `render_fingerprint` | string | nullable | The composed file's modification time and size when it was sent, so a picture rewritten in place is sent again. *(Wave 4g, 2026-10-10: this said the file was the server's `ready/{artwork_id}.jpg`, stable across re-renders. The Player now composes its own picture, named by its composition key, so a new mat arrives under a new name; the fingerprint still catches a file rewritten in place.)* Without it a picture rewritten under a name the binding holds leaves the television showing the old composition indefinitely with every record agreeing. Null on rows written before this column existed, which counts as changed. |
 | `uploaded_at` | datetime | auto | |
 | `upload_status` | enum | required | `uploaded` \| `failed` \| `orphaned`. |
 
@@ -2184,14 +2402,6 @@ the catalogue.
 - A work's **Sightings** are matched to it by Wikidata item, not by a foreign key:
   to every **CandidateWork** and **Artwork** carrying that `wikidata_qid`.
 - A **DiscoveryRun** accrues many **SpendRecords** (one-to-many).
-- A **Conversation** has many **ConversationTurns** (one-to-many, ordered by
-  `ordinal`). A turn accrues **SpendRecords** exactly as a run does, and on its own
-  account rather than the run's.
-- A **ConversationTurn** may **commit** at most one **DiscoveryRun**, and a run is
-  committed by at most one turn (one-to-one, optional both ways). A run started
-  from the Discovery screen has no committing turn, and a conversation that ends
-  without committing has no run — both are ordinary, which is why this is optional
-  in both directions rather than a required provenance field on the run.
 - An **Artwork** has many **WorkFacets** (one-to-many), unique per (`kind`,
   `value`). A work with none is ordinary rather than broken — it means nothing was
   published and nothing has been inferred yet.
@@ -2201,26 +2411,29 @@ the catalogue.
   normal state for taste that runs ahead of the collection — and an FK would make
   that judgment unwritable, the same reason `Affinity.value` is not an FK to
   `Artist`.
-- An **Affinity** may cite one **ConversationTurn** as its source (many-to-one,
-  optional) and may resolve to one **Artist** (many-to-one, optional). **Neither
-  optionality is an edge case:** an `observed` affinity has no turn, and an
-  affinity naming an artist the catalogue has never heard of has no Artist — which
-  is the normal state for the artists this product exists to surface.
+- An **Affinity** may resolve to one **Artist** (many-to-one, optional). **The
+  optionality is not an edge case:** an affinity naming an artist the catalogue
+  has never heard of has no Artist, which is the normal state for the artists
+  this product exists to surface.
 - A **Wall** hangs at most one **Theme** (one-to-one, optional, via
   **ThemeAssignment**), and a **Theme** may be hung on many **Walls**. **The
   many side is the point:** two rooms showing the same theme is one theme and two
   assignment rows, never a duplicated theme.
-- A **Wall** has one **Directive** (one-to-one, seeded with the wall). Advances are
-  per wall, so stepping one room does not step the others.
+- ~~A **Wall** has one **Directive** (one-to-one, seeded with the wall).~~
+  *(Retired in wave 4g, 2026-10-10, with the entity.)* Advances are still per
+  wall: *next* and *show now* republish one wall's schedule, so stepping one
+  room does not step the others.
 - A **TvBinding** references an **Artwork** and a **Wall** across the plane
   boundary — **by id only, never by foreign key**, because the two planes do not
   share a database. This is why `wall_id` on that table carries no FK while the
   identical column on **ThemeAssignment** does: the catalogue can enforce what it
   owns, and the display plane holds a copy of an id it was configured with.
-- A **Client** shows many **Walls** (one-to-many, optional both ways, via
-  `Wall.client_id`), each on one of its outputs by name, and an output of a
-  client shows at most one wall. A wall nobody shows and a client with no walls
-  are both ordinary.
+- A **Client** drives many **Displays** (one-to-many, via `Display.client_id`),
+  one per output; a **Display** shows at most one **Wall** (via
+  `Wall.display_id`). A wall nobody shows, a display with no wall and a client
+  with no displays are all ordinary.
+- A **Client** holds many **LabelOutputs**; a **LabelOutput** captions at most one
+  **Wall**, and a wall has any number, on any clients.
 - **Nothing in the catalogue points at a device.** A Wall is a place; which
   television or panel serves it is the client's, and the catalogue holds only
   which client and the output's name, and is rebuildable without knowing more.
@@ -2243,7 +2456,9 @@ the catalogue.
 - `accepted → archived` — removed from circulation without losing the record or
   its mat history. If the work is the **Directive**'s pin, archiving withdraws
   the pin; that rule and its reasoning live with the Directive entity and are
-  deliberately not restated here.
+  deliberately not restated here. *(Wave 4g, 2026-10-10: the directive is gone;
+  archiving a work patches it off every wall's feed, through the Library's
+  `work.archived` event.)*
 - `archived → accepted` — restoration is permitted; renditions may be stale and
   are checked via `source_content_hash`.
 
@@ -2256,9 +2471,13 @@ re-proposal is `CandidateWork.work_dedup_key` (**Q3**).
 kind='discovery':
 
 resolving_works ──┬──────────────────────────▶ resolving_images ──▶ completed
-   (phase 1)      │                                (phase 2)
-                  └──▶ awaiting_approval ──┬──▶ resolving_images
+   (phase 1)      ┊                                (phase 2)
+                  ┊┄┄▶ awaiting_approval ──┬──▶ resolving_images
                                            └──▶ declined
+
+  ┊┄┄▶ retired 2026-10-07: no run enters awaiting_approval now (asking is the
+       approval, #290). A run stored there before still leaves it by approve,
+       decline or cancel, so those edges stay.
 
 kind='resolve':          (the re-search — phase 2 only)
 
@@ -2365,8 +2584,11 @@ mistake this artifact already refuses to make for `halted_by_budget`, and the sa
 reason `api-contract.md` requires an agent to be able to tell "you are out of
 money" from "the fetch failed".
 
-`awaiting_approval` is entered only when the resolved **work count** crosses the
-configured threshold; below it the run goes straight to phase 2.
+`awaiting_approval` is no longer entered (*retired 2026-10-07*, the owner's ruling 3
+in `ia-proposal.md` § Rulings (2026-10-07)): every run goes straight to phase 2, and
+the state survives only for runs a file written before then holds, which approve and
+decline still answer. It used to be entered when the resolved **work count** crossed
+the configured threshold; the amendment below records why the threshold counted works.
 
 > **Amended 2026-07-20** from "the phase-2 estimate crosses the configured
 > threshold". The gate was originally framed on cost. Once real per-run costs were
@@ -2484,13 +2706,14 @@ suppresses it and leaves the verdict where it was.
 3. **At most one Source per Artwork has `is_primary = true`.**
 4. **A Rendition is stale when its `source_content_hash` differs from its
    Artwork's Original `content_hash`.** Stale renditions are regenerated, never
-   served. **This is necessary and, for `kind = 'thumbnail'`, not sufficient
-   (amended 2026-08-10).** Every other rendition is drawn from the Original, so
-   comparing against it answers the whole question. A thumbnail is drawn from the
-   *`tv_display` rendition* whenever one is current — it is the model's only
-   derived-from-derived row — and composing or recomposing that canvas never
-   touches the Original, so this invariant reports "current" for a thumbnail of
-   an image that has since been redrawn. A thumbnail is additionally stale when
+   served. **This is necessary and, for `kind = 'wall_preview'`, not sufficient
+   (amended 2026-08-10, when it was `thumbnail` that was drawn from the canvas;
+   moved to `wall_preview` 2026-10-07).** Every other rendition is drawn from the
+   Original, so comparing against it answers the whole question. A wall preview is
+   drawn from the *`tv_display` rendition* whenever one is current — it is the
+   model's only derived-from-derived row — and composing or recomposing that canvas
+   never touches the Original, so this invariant reports "current" for a preview of
+   an image that has since been redrawn. A wall preview is additionally stale when
    its `generated_at` does not postdate the `generated_at` of the rendition it
    would be made from now. **Enforced at `ThumbnailService._drawn_from`, not in
    `list_renditions`/`view.stale`** — a reader implementing a second consumer will
@@ -2498,9 +2721,14 @@ suppresses it and leaves the verdict where it was.
    (`architecture.md`). The two states that reached a curator before this was
    added: a card badged "wall render" showing the unmatted master, and a mat
    colour they set that changed the wall and not the picture in front of them.
-   **Still open (#116)**: nothing records what a cached thumbnail was actually drawn
+   **Was open (#116, closed 2026-10-10 by wave 4g)** for the wall preview: nothing recorded what a cached one was actually drawn
    from, so the mirror — canvas-derived bytes served under an `original` badge
-   once the canvas file goes — is reachable and needs provenance on the row.
+   once the canvas file goes — was reachable and needed provenance on the row.
+   *(Wave 4g, 2026-10-10: the amendment above no longer applies. The `tv_display`
+   canvas is gone, a wall preview is drawn from the Original like every other
+   row, and `_drawn_from` went with it, so the shared predicate is the whole
+   answer for every kind. The migration forgot every `wall_preview` row, so none
+   drawn from a canvas survives; #116's premise is gone with it.)*
 5. **`Original.byte_size` must be greater than zero.** A zero-byte original is a
    known download failure — the 2024 code detected and deleted these inline; the
    constraint makes it impossible to record one as valid.
@@ -2572,7 +2800,9 @@ suppresses it and leaves the verdict where it was.
     intent, "resolution policy in one place rather than implicit in each renderer",
     is now met by the service-layer norm (`architecture.md` § Direction): the review
     grid and the renderer call the same function, and neither has a policy of its
-    own.
+    own. *(2026-10-08, wave 4b: the verdict is judged against the quality profile,
+    a deployment's minimum in pixels, rather than panel geometry. The rule stands
+    for the same reason: the minimum is a deployment value too.)*
 13. **`Source.rights_status` is recorded for every source, including `unknown`.**
     Absence of a value is not permitted — "we did not check" and "we checked and
     could not tell" are different facts, and only the second is honest as
@@ -2586,6 +2816,10 @@ suppresses it and leaves the verdict where it was.
     gains sharing or export, or the catalogue itself becomes public — those change
     the analysis, and this is recorded so the trigger is recognisable rather than
     rediscovered.
+    **Reopened 2026-10-08 for public channels only** (`feeds-and-players.md`
+    ruling 5): sharing arrived as public channels, and a channel carries only works
+    whose chosen image is `public_domain`, refusing `unknown`. Private walls are
+    unchanged, and rights still gate nothing there.
 14. **A CandidateWork is covered by at most one active `resolve` run at a time.**
     Coverage is recorded in **ResolveRunWork**; the constraint is enforced at
     run-creation time by checking that table — `resolve_images` refuses any work id
@@ -2686,30 +2920,56 @@ rotation from the host with a local timer calling `select_image(content_id)`.
 active theme becomes a *host-side pointer into a TV-side content library*, and
 rotation timing becomes this product's data rather than the TV's setting.
 
-### Theme — additional fields
+### Rotation — how a wall plays its theme
 
-| Field | Type | Constraints | Description |
-|---|---|---|---|
-| `rotation_interval_seconds` | integer | nullable | How long each work is shown. Null ⇒ inherit the global default. |
-| `shuffle` | boolean | nullable | Random vs. `ThemeMembership.position` order. Null ⇒ global default. |
+How long each work stays up and whether it plays shuffled are **fields on Wall**
+(`rotation_interval_seconds`, `shuffle`, § Wall), not on Theme. *(Moved
+2026-10-13, #353, by the owner's ruling 2 of 2026-10-11, `ia-proposal.md`: a
+theme has an order and is never shuffled; shuffle and the interval are settings
+of the wall that plays it. The owner chose the wall over the hanging on
+2026-10-13, so both survive hanging another theme and clearing the wall.
+`migrations.carry_rotation_to_walls` gave each wall its hung theme's values and
+dropped the theme's columns. Until then both were nullable fields on Theme, an
+`[ASSUMPTION]` that a contemplative theme could breathe while a busy one moved.)*
 
-> `[ASSUMPTION: rotation timing is per-theme with a global fallback, rather than
-> a single global setting | LOW impact | user can collapse to global]` — it costs
-> two nullable columns and lets a contemplative theme breathe while a busy one
-> moves, but no stated requirement demands it.
+> **Where "the default" lives** *(settled 2026-07-31, at build).* It is
+> deployment configuration — `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` —
+> defaulting to **180 seconds on shuffle**, which is what the 2024 plane ran the
+> wall at. The values were carried forward rather than chosen: a wall that
+> silently changed pace at cutover would have been a regression nobody asked for.
 >
-> **Where "the global default" lives** *(settled 2026-07-31, at build; this
-> artifact named the fallback without saying what supplied it).* It is deployment
-> configuration — `ROTATION_INTERVAL_SECONDS` and `ROTATION_SHUFFLE` — defaulting
-> to **180 seconds on shuffle**, which is what the 2024 plane runs the wall at
-> today. The values are carried forward rather than chosen: the cutover at Chunk
-> 13 replaces the machinery, and a wall that silently changed pace on the same
-> day would be a regression nobody asked for.
->
-> Null is therefore "inherit", never "unset". The distinction is load-bearing in
-> two places: the row mapping keeps null as null rather than coercing it, and a
-> partial update to a theme leaves an unnamed field alone rather than clearing
-> it — otherwise renaming a theme would silently reset its pace.
+> Null is therefore "the default", never "unset". The distinction is load-bearing
+> in two places: the row mapping keeps null as null rather than coercing it, and
+> a partial update to a wall (`DisplayService.set_playback`, MCP
+> `art_display(action='set_playback')`) leaves an unnamed field alone rather than
+> clearing it.
+
+### The wall's shapes *(Programming; fields on Wall)*
+
+A wall may limit the shapes of work it shows: `min_aspect_ratio` (the tallest)
+and `max_aspect_ratio` (the widest), each width ÷ height and each optional. A
+portrait wall that shows "nothing wider than 1:1" holds `max_aspect_ratio = 1.0`.
+*(Added 2026-10-13, #370. The owner ruled the same day: a min–max range, set by
+hand and off by default, with the screen's reported shape shown only as a hint;
+and a range that leaves nothing is honoured, so the wall goes dark with a
+warning.)*
+
+- **Measured on the presentation master**, which is written upright, so a
+  portrait photograph stored sideways counts as portrait.
+- **Inclusive, with 1% of give** (`programming/shape.py`), so a square scanned a
+  few pixels off square still fits a square-only wall.
+- **Applied when the wall's feed is built.** A playable work outside the range
+  is left off and named among the exclusions with reason `outside_wall_shape`
+  (`KeptOff.WALL_SHAPE`). A work kept off every wall is reported as that
+  instead, and a work the Library refuses is reported for that, so the
+  shape never hides a work that needs repair. The Player sees only a feed with
+  fewer works.
+- **A wall with nothing hung keeps the feed it carries untrimmed.** The range
+  applies at the next hanging, because with no theme to rebuild from, a work
+  the range took off could not come back when the range was widened.
+- **An explicit show-now is not filtered.** `show_work_now` names one work for
+  this moment, which is the curator overriding the range, as it overrides the
+  theme's membership. *(Decided at build, 2026-10-13; for the owner to veto.)*
 
 ### Why this is nearly free here
 
@@ -2807,8 +3067,10 @@ works whose verdict is `wanted`) runs on the same scheduler.
 
 From wave 4, a heartbeat carries the Player's **capabilities**: output geometry,
 backend (Frame, LCD, monitor) and label hardware present. It also carries cache
-state. Programming keeps the latest per wall for the health view and the
-per-wall adequacy verdict, which Programming computes; the Player sends no
+state. Programming keeps the latest heartbeat per wall for the health view.
+For the per-wall adequacy verdict, which Programming computes, it keeps every
+screen size each display reported in the last week and judges against the
+largest (§ Reported screen; built 2026-10-09, wave 4e). The Player sends no
 verdicts. This is device information held by Programming as an **observation**,
 never as configuration, and never in the Library.
 
@@ -2818,14 +3080,30 @@ Set centrally and sent down in the manifest, so the operator never configures a
 Player to change them: label mode (chosen from the capabilities the wall's Player
 reports), which facts the label shows, and viewing distance. Viewing distance is
 a fact about the room, and the Player uses it with its own geometry to size
-label type. Wave 4.
+label type. Wave 4. *(Built 2026-10-09, wave 4e: the mat mode, as `mat_mode`
+above. The label settings wait for a display that can draw text, the caption
+in the mat, wave 6+.)*
 
 ### Schedule entry *(Programming)*
 
-A work for one wall over a time span (from, until), computed for all walls
-together over a horizon of about a day, so rules such as "no work on two walls
+A work for one wall over a time span (from, until), computed for each wall
+against every other wall's published schedule over a horizon of three days (`player-contract.md` § Settled before
+wave 4), so rules such as "no work on two walls
 at once" are central calculations. Dark hours are gaps. The Player follows the
-clock from its cache. Wave 4, with schema major 2.
+clock from its cache. Wave 4, with schema major 2. *(2026-10-13, #350: a wall's
+republish also rebuilds the entries to come of every wall sharing a work with
+it, keeping the entry on each now, so the walls alternate shared works rather
+than each holding one.)*
+
+### Reported screen *(Programming)*
+
+A screen size a display's Player reported in a minor 2 heartbeat
+(`capabilities.screen`), keyed (display, width, height), with when it was last
+reported. Sizes older than a week are forgotten. Programming judges whether a
+work is too small for a wall against the largest size its display reported in
+that week, not the latest (`player-contract.md` § The heartbeat, minor 2). Built
+2026-10-09, wave 4e (`reported_screens`). Answers one question: what is the
+largest screen this display has been in the last week?
 
 ### Scene *(Programming)*
 
@@ -2834,16 +3112,23 @@ A live override spanning walls: a pin per wall, and a lifetime of *preview*
 ordinary Programming state). It takes over the pin's temporary, multi-wall
 uses; `show_now` and `next` themselves become republishes of the schedule, and
 the directive's sequence retires with major 1 (`player-contract.md` § Major 2).
+*(Wave 4g, 2026-10-10: that half is built. Major 1 and the directive are gone,
+and `show_now` and `next` republish the schedule; scenes and staging are 4f.)*
 The manifest also lists works under
 **staging**, so Players fetch and compose a scene's works while it is being
 assembled. Wave 4.
 
 ### Quality profile *(Library)*
 
-A resolution floor and an upgrade cutoff, in pixels, naming no device. Instance
-selection and the review card judge against the minimum. The upgrade job stops
-at the cutoff. It replaces the artwork box derived from `TV_PANEL_*` / `MAT_*`
-in wave 4.
+A minimum in pixels on the long edge, naming no device: `QUALITY_MINIMUM_PX`,
+default 1,000 (the owner, 2026-10-06). Instance selection, the review card, the
+collection supplement and the *Size* facet judge against it, and a scan below
+it is offered and labelled but never chosen for the curator. It has **no
+cutoff** (the owner, 2026-10-02, `upgrades.md` ruling 1): Arrt never stops
+looking for a bigger scan, and how often it looks falls with the held size.
+Configuration, not a stored entity, while it is one number (the owner,
+2026-10-08). Built in wave 4b, replacing the artwork box derived from
+`TV_PANEL_*` / `MAT_*` everywhere but the compositor.
 
 ## Deliberately not modelled
 
@@ -2861,16 +3146,19 @@ in wave 4.
   anyone who remembers the rule.
   **Still true within the amendment:** agents remain stateless *across* sessions —
   what persists is the record, which a new session reads, not a session that stays
-  alive.
+  alive. **Amended again 2026-10-09:** `Conversation` and `ConversationTurn` are
+  retired (§ Conversations, retired). Ask's thread lives in the server's memory
+  and is not modelled; `Affinity` remains.
 - **TV favourites (`MY-C0004`).** A tagging primitive exists (`change_favorite`),
   but the library author notes that on 2022+ sets favourites can only be applied
   to Art Store artwork, not user uploads. Unconfirmed against real hardware, and
   it would only ever support one active subset rather than named themes — so it
   is not a path to this product's requirements even if it works.
 - **`display-state.sqlite` beyond `TvBinding`.** The display plane's other device
-  state (last selected work, brightness state, the last-acted-on directive
-  sequence) is display-internal, never read by curation, and specified at build
+  state (last selected work, brightness state, and until wave 4g the
+  last-acted-on directive sequence) is display-internal, never read by curation, and specified at build
   time. Only `TvBinding` is modelled here, because it is the entity that enforces
   the per-device Direction norm; the rest earns no catalogue-side contract.
   Panel geometry is in neither store — it is configuration both planes read
-  (`operational-spec.md` § Configuration).
+  (`operational-spec.md` § Configuration). *(Wave 4g, 2026-10-10: only the
+  Player reads it now; the server reads no panel geometry.)*

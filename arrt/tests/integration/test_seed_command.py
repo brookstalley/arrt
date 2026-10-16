@@ -92,8 +92,10 @@ class TestRunningIt:
         assert listing.entries[0].artwork.title == "Nighthawks"
         assert listing.entries[0].artist.name == "Georgia O'Keeffe"
 
-    def test_the_work_it_seeds_is_ready_for_a_wall(self, index, seeded_catalogue, capsys):
-        """A work reaches the wall on a master, a mat and a current render — all three from files."""
+    def test_the_work_it_seeds_holds_what_its_first_preparation_needs(self, index, seeded_catalogue, capsys):
+        """Its image and its mat, both from files. The presentation master is made by
+        the work's first preparation, which the startup queue runs; the seed reads
+        no 2024 render."""
         main([str(index)])
         capsys.readouterr()
 
@@ -101,7 +103,7 @@ class TestRunningIt:
         (work,) = service.list_artworks().entries
         assert service.get_original(work.artwork.id) is not None
         assert service.current_mat_color(work.artwork.id) is not None
-        assert [view.stale for view in service.list_renditions(work.artwork.id)] == [False]
+        assert service.list_renditions(work.artwork.id) == []
 
     def test_it_reports_what_it_did(self, index, capsys):
         main([str(index)])

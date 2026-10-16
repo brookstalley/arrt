@@ -57,7 +57,7 @@ def runner(services, engine, settings, museum, previews, collection) -> Discover
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),
@@ -143,6 +143,10 @@ def test_an_offered_work_carries_which_query_produced_it_and_how_many_it_matched
     (gift,) = offered(services, run_id)
     assert gift.offered_for_artist == "Ellsworth Kelly"
     assert gift.offered_artist_matched == 400
+    # And which museum offered it, kept on the work: the scan it arrived with
+    # can be turned down and replaced by another museum's, which would then
+    # be credited with an offer it never made.
+    assert gift.offered_by == "artic"
     # Still marked as the collection's doing on the work itself, because a card
     # read out of its group must not read as something the model proposed.
     assert "collection" in gift.rationale.lower()
@@ -165,6 +169,7 @@ def test_a_proposed_work_claims_no_query_and_no_holdings_count(services, engine,
     for work in named:
         assert work.offered_for_artist is None
         assert work.offered_artist_matched is None
+        assert work.offered_by is None
 
 
 def test_an_offered_work_arrives_reviewable_rather_than_as_a_bare_title(services, engine, runner, collection):
@@ -299,7 +304,7 @@ def test_a_work_the_run_already_proposed_is_not_offered_a_second_time(services, 
 
 
 def test_a_work_too_small_for_the_wall_is_not_offered(services, engine, runner, collection):
-    """A named work below the floor is still shown; a volunteered one is not.
+    """A named work below the minimum is still shown; a volunteered one is not.
 
     The difference is that there are hundreds more behind the volunteered one, so
     a work that cannot go on the wall is padding rather than the answer to what
@@ -354,7 +359,7 @@ def test_a_deployment_with_no_collection_wired_simply_offers_nothing(services, e
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -381,7 +386,7 @@ def test_a_bound_of_zero_switches_the_supplement_off_without_unwiring_it(
         services.discovery,
         engine,
         replace(settings.discovery_settings, offered_works_per_run=0),
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         collection=collection,
         spawn=lambda work: work(),
@@ -438,35 +443,6 @@ def test_the_two_kinds_are_counted_apart_wherever_a_number_is_shown(services, en
     assert view.work_count == 3, "the total is still available; it is simply not the only number"
 
 
-def test_the_approval_gate_is_sized_by_the_models_list_alone(services, engine, settings, museum, previews, collection):
-    """An offer can never push a run over the gate, because it happens after it.
-
-    Asserted on a run whose proposed list sits under a tight threshold and whose
-    supplement would carry it well past: the gate has already been decided by the
-    time a single work is offered.
-    """
-    from dataclasses import replace
-
-    tight = replace(settings.discovery_settings, approval_threshold=3)
-    runner = DiscoveryRunner(
-        services.discovery,
-        engine,
-        tight,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
-        previews=previews,
-        collection=collection,
-        spawn=lambda work: work(),
-    )
-    engine.result = a_list(("A", "Ellsworth Kelly"), ("B", "Ellsworth Kelly"))
-    collection.holdings = a_collection_holding(**{"Ellsworth Kelly": [f"Kelly {n}" for n in range(10)]}).holdings
-
-    run_id = start(runner).id
-
-    assert services.discovery.get_run(run_id).approval_required is False
-    assert runner.run_status(run_id).offered_count > 0
-    assert services.discovery.get_run(run_id).status is RunStatus.COMPLETED
-
-
 def test_an_offered_work_does_not_inflate_the_runs_unresolved_tally(services, engine, runner, collection):
     """The run's own report of what it could not do stays about what it was asked."""
     engine.result = a_list(("Spectrum IV", "Ellsworth Kelly"))
@@ -507,16 +483,16 @@ def test_the_spread_yields_each_work_once_and_takes_the_facets_in_turn():
     assert taken == [("A1", "A"), ("B1", "B"), ("Shared", "A")], "expected one per facet per pass, each work once"
 
 
-def test_a_record_whose_size_is_unknown_does_not_clear_the_floor(services):
+def test_a_record_whose_size_is_unknown_does_not_meet_the_minimum(services):
     """ "We do not know how big it is" is not "it is big enough".
 
     Reached directly because the browse client refuses an unsized record before
     this is ever asked — so nothing end to end can distinguish the two answers,
     and a caller added later would inherit whichever this happens to give.
     """
-    assert services.discovery.clears_display_floor(width=None, height=4500) is False
-    assert services.discovery.clears_display_floor(width=6000, height=None) is False
-    assert services.discovery.clears_display_floor(width=6000, height=4500) is True
+    assert services.discovery.meets_quality_minimum(width=None, height=4500) is False
+    assert services.discovery.meets_quality_minimum(width=6000, height=None) is False
+    assert services.discovery.meets_quality_minimum(width=6000, height=4500) is True
 
 
 def test_a_re_search_offers_nothing_and_does_not_fail_trying(services, engine, runner, collection):
@@ -734,8 +710,8 @@ def test_the_gate_sentence_agrees_at_a_single_proposed_work(services, engine, ru
     """`awaiting_approval` over one work — the branch no fixture reached.
 
     Built as a view rather than driven, for the same reason as the in-flight
-    test below: reaching this state honestly needs an approval threshold of
-    zero, which is a deployment nobody runs, and `_run_notice` is a pure
+    test below: nothing reaches this state now that asking is the approval,
+    a run stored there before still reads it, and `_run_notice` is a pure
     function of the view.
 
     Its absence was found by mutation, not by reading. Every other test of this
@@ -758,7 +734,7 @@ def test_the_gate_sentence_agrees_at_a_single_proposed_work(services, engine, ru
 
     notice = _run_notice(gated)
 
-    assert "This run proposed 1 work, which is more than the configured threshold" in notice
+    assert "This run proposed 1 work and stopped to ask" in notice
     assert "1 works" not in notice
 
 

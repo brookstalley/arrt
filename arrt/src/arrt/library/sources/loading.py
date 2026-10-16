@@ -54,6 +54,7 @@ from arrt.library.discovery.images import (
     ImageSearchFailure,
     offers_images,
 )
+from arrt.library.sources.names import declare_museums, museum_name
 from arrt.library.sources.plugin import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.reading import FetchLocator, Reader
 from arrt.logs import scrub
@@ -135,6 +136,9 @@ class PluginIdentity:
     #: The interface major the plugin says it was written for.
     api_major: int | None = None
     provides: tuple[PluginPart, ...] = ()
+    #: The museum the plugin declares (interface 1.4), once it passed `_museum_of`;
+    #: `None` when it declares none, or one that was refused.
+    museum: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +294,7 @@ class _ContainedFinder:
             _reraise_scrubbed(exc, ImageQueryUnanswerable)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             self._faults.record(self._plugin, "find_images", exc)
-            raise ImageSearchFailure(f"the {self._plugin} plugin faulted: {type(exc).__name__}") from exc
+            raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
 
     def fetch_preview(self, url: str) -> bytes | None:
         try:
@@ -315,7 +319,7 @@ class _ContainedReader:
             _reraise_scrubbed(exc, ImageSearchFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- recorded against the source instead
             self._faults.record(self._plugin, "read", exc)
-            raise ImageSearchFailure(f"the {self._plugin} plugin faulted: {type(exc).__name__}") from exc
+            raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
 
 
 class _ContainedCollection:
@@ -337,7 +341,12 @@ class _ContainedCollection:
             _reraise_scrubbed(exc, CollectionBrowseFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             self._faults.record(self._plugin, "browse", exc)
-            raise CollectionBrowseFailure(f"the {self._plugin} plugin faulted: {type(exc).__name__}") from exc
+            raise CollectionBrowseFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+
+
+def _not_loaded(plugin: str, reason: str | None) -> str:
+    """Why a URL this plugin claims cannot be read here, naming the museum rather than the id."""
+    return f"the {museum_name(plugin)} source plugin is installed and not loaded: {reason}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -415,10 +424,7 @@ class SourceRoster:
                     _Claimant(name, claims, _ContainedReader(reader, name, faults), None)
                     for name, (claims, reader) in readers.items()
                 ),
-                *(
-                    _Claimant(name, claims, None, f"the {name} source plugin is installed and not loaded: {reason}")
-                    for name, (claims, reason) in unavailable.items()
-                ),
+                *(_Claimant(name, claims, None, _not_loaded(name, reason)) for name, (claims, reason) in unavailable.items()),
             ],
             states=[
                 *((name, PluginState.LOADED, None) for name in dict.fromkeys(names)),
@@ -479,7 +485,10 @@ class SourceRoster:
         if provider is not None and provider in self._unknowable:
             return Route(
                 plugin=provider,
-                unavailable=f"the {provider} source plugin is installed and could not be loaded: {self._unknowable[provider]}",
+                unavailable=(
+                    f"the {museum_name(provider)} source plugin is installed and could not be loaded: "
+                    f"{self._unknowable[provider]}"
+                ),
             )
         return Route()
 
@@ -552,6 +561,9 @@ def load_sources(
         else:
             states[entry.name] = (PluginState.FAILED, loaded)
 
+    museums = {name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None}
+    declare_museums(museums)
+
     unknown = [name for name in order if name not in states]
     if unknown:
         # A misspelt name would otherwise reorder the sources in silence.
@@ -579,7 +591,7 @@ def load_sources(
             name=n,
             claims=plugins[n].claims,
             reader=(_ContainedReader(parts[n].reader, n, faults) if n in parts and parts[n].reader is not None else None),
-            unavailable=None if n in parts else f"the {n} source plugin is installed and not loaded: {states[n][1]}",
+            unavailable=None if n in parts else _not_loaded(n, states[n][1]),
         )
         for n in ranked
         if n in plugins and plugins[n].claims is not None
@@ -597,10 +609,36 @@ def load_sources(
                 version=origins[n][1],
                 api_major=plugins[n].api_major if n in plugins else None,
                 provides=() if n not in parts else _provides(parts[n].finder, parts[n].reader, parts[n].collection),
+                museum=museums.get(n),
             )
             for n in ranked
         },
     )
+
+
+#: Long enough for "Solomon R. Guggenheim Museum and Foundation" with room to
+#: spare; a name past it is a paragraph, which every heading and table cell that
+#: names a source would then carry.
+_MUSEUM_MAX_CHARS: Final = 120
+
+
+def _museum_of(name: str, plugin: SourcePlugin) -> str | None:
+    """The museum a plugin declares, if it is one short line of text; else `None`, said once.
+
+    Refusing it costs the plugin only its name: it is still loaded, and named by
+    its id, as one that declares nothing is.
+    """
+    museum = getattr(plugin, "museum", None)
+    if museum is None:
+        return None
+    if isinstance(museum, str) and museum.strip() and len(museum) <= _MUSEUM_MAX_CHARS and museum.isprintable():
+        return museum.strip()
+    log.warning(
+        "source plugin %s declares a museum name that is not one short line of text; it is named by its id",
+        name,
+        extra={"event": "source.museum_refused", "plugin": name},
+    )
+    return None
 
 
 def _origin(entry: importlib.metadata.EntryPoint) -> tuple[str | None, str | None]:

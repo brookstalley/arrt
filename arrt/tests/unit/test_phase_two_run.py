@@ -50,7 +50,7 @@ def runner(services, engine, settings, museum, previews) -> DiscoveryRunner:
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -162,7 +162,7 @@ def test_a_below_floor_instance_is_recorded_but_never_selected_for_the_curator(s
 
     assert len(images) == 1, "the instance is offered, not hidden"
     assert images[0].is_selected is False, "and never chosen without being asked for"
-    assert "too small to reach this wall's size floor" in images[0].selection_rationale
+    assert "below the quality minimum" in images[0].selection_rationale
     assert work.resolution_status is ResolutionStatus.UNRESOLVED
 
 
@@ -244,30 +244,28 @@ def test_an_instance_that_clears_the_floor_is_preferred_over_one_that_does_not(s
     assert work.resolution_status is ResolutionStatus.RESOLVED
 
 
-def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
+def test_the_minimum_is_the_deployment_s_setting_rather_than_a_constant(
     store, discovery_store, wall_settings, thumbnail_settings, settings, engine, museum
 ):
-    """The same image clears the floor on one panel and not on another.
+    """The same image meets one deployment's minimum and not another's.
 
-    A pixel threshold would answer identically for both, which is exactly why the
-    floor is specified as a rendered size on the wall.
-
-    Each geometry gets a whole container built by the same `Services.bind` a
-    deployment uses, rather than one service with its box reassigned — reaching
-    into the service to swap a private would test a state no wiring produces.
+    Each minimum gets a whole container built by the same `Services.bind` a
+    deployment uses, rather than one service with its profile reassigned —
+    reaching into the service to swap a private would test a state no wiring
+    produces. Neither value is the default, so a profile left unwired fails.
     """
     engine.result = a_list("Modest Scan")
     museum.holdings = {"Modest Scan": (an_image("Modest Scan", width=1500, height=1200),)}
 
     verdicts = []
-    for floor in (6.0, 20.0):
-        geometry = replace(settings, resolution_floor_inches=floor)
+    for minimum in (1200, 2000):
+        geometry = replace(settings, quality_minimum_px=minimum)
         plane = Services.bind(
             catalogue=store,
             discovery=discovery_store,
             display_settings=wall_settings,
             thumbnails=thumbnail_settings,
-            artwork_box=geometry.tv_artwork_box,
+            quality_profile=geometry.quality_profile,
             engine=engine,
             discovery_settings=geometry.discovery_settings,
             sources=a_roster(museum),
@@ -276,7 +274,7 @@ def test_the_floor_is_deployment_geometry_rather_than_a_pixel_count(
             plane.discovery,
             engine,
             geometry.discovery_settings,
-            images=PhaseTwoEngine(ImageSourcePool([museum]), box=geometry.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), profile=geometry.quality_profile),
             previews=PreviewCache(
                 PictureStore(geometry.pictures_path, art_root=geometry.art_root, sources=ImageSourcePool([museum]))
             ),
@@ -492,7 +490,7 @@ def test_a_verdict_reached_while_phase_2_ran_is_not_overwritten(services, engine
             services.discovery,
             engine,
             settings.discovery_settings,
-            images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
             previews=previews,
             spawn=lambda work: work(),
         )
@@ -515,7 +513,7 @@ def test_a_run_cancelled_mid_resolve_stops_where_it_was(services, engine, settin
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         previews=previews,
         spawn=lambda work: work(),
     )
@@ -567,7 +565,7 @@ def test_half_a_phase_two_wiring_is_refused_at_construction(services, engine, se
             services.discovery,
             engine,
             settings.discovery_settings,
-            images=PhaseTwoEngine(ImageSourcePool([museum]), box=settings.tv_artwork_box),
+            images=PhaseTwoEngine(ImageSourcePool([museum]), profile=settings.quality_profile),
         )
 
 
@@ -608,7 +606,7 @@ def test_an_instance_from_a_second_source_is_selected_and_its_preview_fetched_fr
         services.discovery,
         engine,
         settings.discovery_settings,
-        images=PhaseTwoEngine(pool, box=settings.tv_artwork_box),
+        images=PhaseTwoEngine(pool, profile=settings.quality_profile),
         previews=PreviewCache(PictureStore(settings.pictures_path, art_root=settings.art_root, sources=pool)),
         spawn=lambda work: work(),
     )
@@ -655,7 +653,7 @@ def test_a_level_tie_between_sources_is_stored_for_the_source_listed_first(
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(second, museum),
@@ -692,7 +690,7 @@ def test_with_commons_the_only_source_a_work_named_by_title_is_not_called_unheld
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(commons),
@@ -768,7 +766,7 @@ def test_a_holders_other_title_resolves_through_the_deployments_registry(
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         registry=registry,

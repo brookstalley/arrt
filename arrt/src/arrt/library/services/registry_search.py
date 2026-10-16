@@ -13,6 +13,11 @@ typeahead pays for every one in sequence.
 nothing, and the same words searched twice give the same answer. A failure is
 not kept.
 
+**Each match is folded into what the library holds of it**, by QID or, for a
+held work or artist with none, by title and artist or name and life dates
+(`twins.py`), so a held work is never also offered as not held. A work a run has
+found and that waits for a verdict says so, with where it waits.
+
 **Nothing a curator types reaches the registry as search syntax.** The query is
 cut into words, and the registry's client drops any word that is not one.
 """
@@ -28,6 +33,7 @@ from typing import Final
 from arrt.library.registry import Registry, RegistryPerson, RegistryUnavailable, RegistryWorkMatch
 from arrt.library.services.artists import REGISTRY_KEPT_FOR, WantedItems, artist_ids_by_qid
 from arrt.library.services.remembered import NOT_CONFIGURED_NOTE, REMEMBERED
+from arrt.library.services.twins import AwaitingReview, InReview, Twins
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.folding import search_fold
 from arrt.persistence.kept import JsonCodec, Kept, KeptAnswers
@@ -92,15 +98,28 @@ class RegistrySearch:
     held_works: Mapping[str, Sequence[str]] = field(default_factory=dict)
     #: The QIDs among the works found that a wanted work names.
     wanted_works: frozenset[str] = frozenset()
+    #: The proposed work awaiting a verdict that each work found and not held is, by QID.
+    waiting_works: Mapping[str, InReview] = field(default_factory=dict)
+    #: For each artist found and not held, a proposed work of theirs awaiting a verdict, by QID.
+    waiting_artists: Mapping[str, InReview] = field(default_factory=dict)
 
 
 class RegistrySearchService:
     """Search the registry for artists and works, and mark what the library holds."""
 
-    def __init__(self, store: CatalogueStore, registry: Registry | None, *, kept: KeptAnswers, wanted: WantedItems) -> None:
+    def __init__(
+        self,
+        store: CatalogueStore,
+        registry: Registry | None,
+        *,
+        kept: KeptAnswers,
+        wanted: WantedItems,
+        awaiting: AwaitingReview,
+    ) -> None:
         self._store = store
         self._registry = registry
         self._wanted = wanted
+        self._awaiting = awaiting
         self._kept: Kept[tuple[str, bool, bool], _Found] = kept.namespace(
             "registry.search", codec=JsonCodec(_Found), max_age=REGISTRY_KEPT_FOR, size=REMEMBERED
         )
@@ -125,22 +144,43 @@ class RegistrySearchService:
         except RegistryUnavailable as exc:
             log.warning("Could not search Wikidata for %r: %s", query, exc)
             return RegistrySearch(state=RegistrySearchState.UNAVAILABLE, note="Wikidata could not be searched just now.")
+        return self._marked(artists, works)
+
+    def _marked(self, artists: Sequence[RegistryPerson], works: Sequence[RegistryWorkMatch]) -> RegistrySearch:
+        """The registry's matches, each marked held, waiting for review, or wanted."""
         ours = artist_ids_by_qid(self._store)
-        holdings = self._store.circulating_ids_by_qid()
+        twins = Twins(self._store, self._awaiting)
+        held_artists: dict[str, str] = {}
+        waiting_artists: dict[str, InReview] = {}
+        for person in artists:
+            held = ours.get(person.qid) or twins.held_artist(person)
+            if held is not None:
+                held_artists[person.qid] = held
+            elif (review := twins.waiting_artist(person.label)) is not None:
+                waiting_artists[person.qid] = review
+        # A maker the library holds links to its page whether or not the name
+        # search found them; by QID only, since a maker carries no life dates.
+        for work in works:
+            if work.creator and work.creator.qid in ours:
+                held_artists.setdefault(work.creator.qid, ours[work.creator.qid])
+        held_works: dict[str, Sequence[str]] = {}
+        waiting_works: dict[str, InReview] = {}
+        for work in works:
+            maker, maker_qid = (work.creator.name, work.creator.qid) if work.creator else (None, None)
+            if found := twins.held_work(work.qid, work.title, maker=maker, maker_qid=maker_qid):
+                held_works[work.qid] = found
+            elif (review := twins.waiting_work(work.qid, work.title, maker=maker, maker_qid=maker_qid)) is not None:
+                waiting_works[work.qid] = review
         wanted = self._wanted.wanted_qids()
         return RegistrySearch(
             state=RegistrySearchState.KNOWN,
             artists=artists,
             works=works,
-            # The artists found and the works' makers both: a maker the library
-            # holds links to its page whether or not the name search found them.
-            held_artists={
-                qid: ours[qid]
-                for qid in {person.qid for person in artists} | {work.creator.qid for work in works if work.creator}
-                if qid in ours
-            },
-            held_works={work.qid: holdings[work.qid] for work in works if work.qid in holdings},
+            held_artists=held_artists,
+            held_works=held_works,
             wanted_works=frozenset(work.qid for work in works if work.qid in wanted),
+            waiting_works=waiting_works,
+            waiting_artists=waiting_artists,
         )
 
     def _found(self, words: Sequence[str], registry: Registry, *, prefix: bool, wide: bool) -> _Found:

@@ -3,11 +3,11 @@
 **Narrowed 2026-09-30 (wave 2b Chunk 04), as the norm's own row scheduled.** The
 channel from curation is now the per-wall manifest and content-addressed media,
 pulled into a Player-local cache (`architecture.md` § Direction). So one module,
-`postarr/src/postarr/pull.py`, may open an HTTP client. The paths it spells are only
+`arrt-player/src/arrt_player/pull.py`, may open an HTTP client. The paths it spells are only
 the routes `contract/routes.json` names; renders it fetches from the addresses
 the manifest's entries give, which is the contract's design. Only the entry point
 may import it, so the exemption cannot be reached by re-export. **What no import
-reader can see:** a module reaching `postarr.pull.aiohttp` as an attribute of a
+reader can see:** a module reaching `arrt_player.pull.aiohttp` as an attribute of a
 package the entry point has already loaded. That is evasion rather than the
 convenience this guard is for, and it is stated here as the guard's limit. Every other module is held exactly as before: a
 second client anywhere else is the "just fetch it live" shortcut this guard
@@ -52,7 +52,7 @@ import pytest
 from import_graph import imported_names, resolve
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-DISPLAY_PACKAGE = REPOSITORY_ROOT / "postarr" / "src" / "postarr"
+DISPLAY_PACKAGE = REPOSITORY_ROOT / "arrt-player" / "src" / "arrt_player"
 
 #: The one module that may open an HTTP client: HTTP mode's pull of the manifest,
 #: its renders and the heartbeat.
@@ -69,7 +69,7 @@ PULL_MODULE = DISPLAY_PACKAGE / "pull.py"
 #: curation copy of anything. Resolution exists only to keep walking repo-local
 #: files, and following the display copy is the honest answer there.
 SEARCH_ROOTS: tuple[pathlib.Path, ...] = (
-    REPOSITORY_ROOT / "postarr" / "src",
+    REPOSITORY_ROOT / "arrt-player" / "src",
     REPOSITORY_ROOT / "arrt" / "src",
     REPOSITORY_ROOT,
 )
@@ -133,7 +133,7 @@ def test_the_pull_is_where_the_http_client_is():
 def test_only_the_entry_point_imports_the_pull():
     """The exemption is for the pull, not for whatever the pull re-exports.
 
-    `from postarr.pull import aiohttp` in any other module would reach the client
+    `from arrt_player.pull import aiohttp` in any other module would reach the client
     through the one file allowed to hold it, and the transitive audit, which
     stops at that file, would see nothing. So the pull has exactly one importer,
     the entry point that starts it.
@@ -142,10 +142,10 @@ def test_only_the_entry_point_imports_the_pull():
         str(path.relative_to(REPOSITORY_ROOT))
         for path in display_modules()
         if path != PULL_MODULE
-        and any(name == "postarr.pull" or name.startswith("postarr.pull.") for name in imported_names(path))
+        and any(name == "arrt_player.pull" or name.startswith("arrt_player.pull.") for name in imported_names(path))
     )
 
-    assert importers == ["postarr/src/postarr/__main__.py"]
+    assert importers == ["arrt-player/src/arrt_player/__main__.py"]
 
 
 def test_the_pull_requests_only_the_routes_the_contract_names():

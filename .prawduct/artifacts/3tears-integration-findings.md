@@ -294,6 +294,15 @@ the display plane are separate processes on separate Python versions.
 > > **So the analysis below names a shape the product does not build.** Where it
 > > says "3tears-models for OpenRouter multi-provider access" is required, read
 > > that as the July position, not the answer.
+> >
+> > **Direction changed 2026-10-08 (the owner).** The deciding factor above, install
+> > weight on the Pi under a `MemoryMax`, went when the server moved to a NAS
+> > container on 2026-09-30. Ask becomes an agent on `3tears-models`,
+> > `3tears-langgraph` and `3tears-agent-tools`, pinned exactly, with no 3tears
+> > storage that needs Postgres and nothing that connects to NATS. Agent-tools
+> > declares the NATS client and agent-memory as install dependencies; that
+> > coupling is accepted, held install-only by a test, and raised upstream as
+> > pacepace/3tears#582. `build-plan-ask-agent.md`.
 >
 > The analysis below is retained because it is what produced that answer, and
 > because § Answer 2 is still a live input. It is not a live recommendation.
@@ -350,9 +359,9 @@ directory: the engine that writes that sentence knows nothing about televisions,
 model spend into search spend. `EngineSpend` is the wrong thing to reference by
 shape — it is pre-persistence, so it has no id and no timestamp and two of them are
 indistinguishable, and `SpendCategory` grows with attribution rules that are not
-derivable from the shape (`CONVERSATION_TOKENS` is deliberately *not* attributed to
-the run a conversation seeds, so a naive roll-up double-counts intent-forming spend
-into a run's actuals). One priced row, one pointer.
+derivable from the shape (`CONVERSATION_TOKENS`, which nothing writes since
+2026-10-09, was deliberately *not* attributed to the run a conversation seeded, so
+a naive roll-up double-counted intent-forming spend into a run's actuals). One priced row, one pointer.
 
 **One question is open and belongs to their sketch: whether a producer candidate
 carries a rank.** Two rules meet here from opposite directions. Ours says a

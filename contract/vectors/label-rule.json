@@ -1,0 +1,594 @@
+{
+  "_about": "The label rule (labels-and-surfaces.md § What a label says) as conformance vectors: a label document, the renderer's clock and the outcome every renderer must reach, wherever it runs. caption: draw the label text. card: a quiet card with wall_name. blank: draw nothing. The rule, in full: showing_art captions when label is present and is the card when it is null; in_use, dark and no_screen are blank; unassigned is the card; silent and unreachable caption while label is present and now is less than hold_seconds after since, and are blank otherwise, including when since is null; a state the reader does not know is read as unreachable. A since later than now is a held state just entered, so it captions. Every document validates against schemas/label.v1.schema.json except those marked schema_valid false, whose one fault is a state from a later minor.",
+  "hold_seconds": 1800,
+  "vectors": [
+    {
+      "name": "showing art with its label is captioned",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "showing_art",
+          "work_id": "work-great-wave",
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "caption"
+    },
+    {
+      "name": "showing art is captioned however long it has shown",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "showing_art",
+          "work_id": "work-great-wave",
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-09T16:00:00Z",
+      "outcome": "caption"
+    },
+    {
+      "name": "showing a picture this wall did not put there is the card",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "showing_art",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": null
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "card"
+    },
+    {
+      "name": "in_use is blank even with a label",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "in_use",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "dark is blank even with a label",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "dark",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "no_screen is blank even with a label",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "no_screen",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "unassigned is the card",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unassigned",
+          "work_id": null,
+          "since": null
+        },
+        "label": null
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "card"
+    },
+    {
+      "name": "silent holds the last caption just inside 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "silent",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:29:59Z",
+      "outcome": "caption"
+    },
+    {
+      "name": "silent blanks at exactly 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "silent",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:30:00Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "silent stays blank past 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "silent",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T18:00:00Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "silent with no last caption is blank at once",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "silent",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": null
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "silent with no since cannot be timed, so is blank",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "silent",
+          "work_id": null,
+          "since": null
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "unreachable holds the last caption just inside 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unreachable",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:29:59Z",
+      "outcome": "caption"
+    },
+    {
+      "name": "unreachable blanks at exactly 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unreachable",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:30:00Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "unreachable stays blank past 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unreachable",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T18:00:00Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "unreachable with no last caption is blank at once",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unreachable",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": null
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "unreachable with no since cannot be timed, so is blank",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unreachable",
+          "work_id": null,
+          "since": null
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:00:01Z",
+      "outcome": "blank"
+    },
+    {
+      "name": "a since ahead of the renderer's clock counts as just now",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "silent",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T15:58:00Z",
+      "outcome": "caption"
+    },
+    {
+      "name": "since in another offset is the same instant",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "unreachable",
+          "work_id": null,
+          "since": "2026-10-08T09:00:00-07:00"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:29:59Z",
+      "outcome": "caption"
+    },
+    {
+      "name": "a state this reader does not know is read as unreachable, holding the caption",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "dimmed",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:29:59Z",
+      "outcome": "caption",
+      "schema_valid": false
+    },
+    {
+      "name": "a state this reader does not know is read as unreachable, blanking at 30 minutes",
+      "document": {
+        "schema": {
+          "major": 1,
+          "minor": 0
+        },
+        "wall_id": "w-living",
+        "wall_name": "Living room",
+        "display_state": {
+          "state": "dimmed",
+          "work_id": null,
+          "since": "2026-10-08T16:00:00Z"
+        },
+        "label": {
+          "title": "The Great Wave off Kanagawa",
+          "artist": "Katsushika Hokusai",
+          "artist_family_name": "Katsushika",
+          "artist_given_name": "Hokusai",
+          "artist_nationality": "Japanese",
+          "artist_dates": "1760–1849",
+          "date_created": "c. 1830–32",
+          "medium": "Woodblock print; ink and color on paper",
+          "dimensions": "25.7 × 37.9 cm",
+          "commentary": null
+        }
+      },
+      "now": "2026-10-08T16:30:00Z",
+      "outcome": "blank",
+      "schema_valid": false
+    }
+  ]
+}

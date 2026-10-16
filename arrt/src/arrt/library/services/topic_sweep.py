@@ -25,6 +25,12 @@ never touched. A work whose QIDs were cleared loses its Wikidata rows without a
 question being asked. A registry that cannot be asked replaces nothing and is
 asked again next pass.
 
+**The same thread warms what Library › Topics offers.** After each pass,
+`warm` asks for the kept answers of `OFFERED_TOPICS` that are missing or a week
+old, one topic at a time, so the first curator to open the 16th century does
+not wait the twenty seconds its works take to ask for. What that costs Wikidata
+is counted on `TopicService.warm_offered`; it stops at the first refusal.
+
 **Off, and saying so once, without `WIKIDATA_USER_AGENT`.** No thread is started,
 and the one line says why Library › Topics will stay as it is.
 """
@@ -38,7 +44,7 @@ from typing import Final
 
 from arrt.library.registry import ItemId, Registry, RegistryTopicRef, RegistryTopicsOf, RegistryUnavailable
 from arrt.library.services.catalogue import CatalogueService, FacetClaim
-from arrt.library.services.topics import FACET_KINDS
+from arrt.library.services.topics import FACET_KINDS, TopicWarming
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import Artwork
 
@@ -101,8 +107,11 @@ class TopicSweep:
         *,
         interval_seconds: float = INTERVAL_SECONDS,
         clock: Callable[[], float] = time.monotonic,
+        warm: Callable[[], TopicWarming] | None = None,
     ) -> None:
         self._store = store
+        #: `TopicService.warm_offered`, called after each pass; None warms nothing.
+        self._warm = warm
         self._catalogue = catalogue
         self._registry = registry
         self._interval = interval_seconds
@@ -182,6 +191,27 @@ class TopicSweep:
         )
         return result
 
+    def warm(self) -> TopicWarming:
+        """Warm the offered topics' kept answers, on the sweep's own thread; nothing without a registry."""
+        if self._registry is None or self._warm is None:
+            return TopicWarming()
+        # Not under the pass's lock: a warming waits on Wikidata for a topic at a
+        # time, and a pass a nudge asks for should not wait behind it.
+        warming = self._warm()
+        # At INFO on every pass, as the sweep's own line is, including one that
+        # found everything fresh: a pass that asked nothing is still a pass.
+        log.info(
+            "warmed the topics Library › Topics offers",
+            extra={
+                "event": "topics.warmed",
+                "warmed": warming.warmed,
+                "fresh": warming.fresh,
+                "stopped_early": warming.stopped,
+                "reason": warming.reason,
+            },
+        )
+        return warming
+
     def _due(self, work: Artwork, artist_qid: str | None, now: float) -> bool:
         asked = self._asked.get(work.id)
         if asked is None:
@@ -227,6 +257,12 @@ def run_topic_sweeps(sweep: TopicSweep, *, stop: threading.Event, after_pass: Ca
             sweep.run()
         except Exception:  # prawduct:allow prawduct/broad-except -- a background loop that dies stops keeping topics, silently
             log.exception("a topic sweep failed; the next one will try again", extra={"event": "topics.sweep_error"})
+        # After the library's own topics, and apart from them: a warming that
+        # fails must not cost the facets their pass, nor the facets the warming.
+        try:
+            sweep.warm()
+        except Exception:  # prawduct:allow prawduct/broad-except -- a background loop that dies stops keeping topics, silently
+            log.exception("warming the offered topics failed; the next pass will try again", extra={"event": "topics.warm_error"})
         after_pass()
         sweep.wait_for_work()
 

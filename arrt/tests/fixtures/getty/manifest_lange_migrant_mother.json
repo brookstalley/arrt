@@ -1,0 +1,274 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/108E2E",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/74a61144-8355-40bc-9705-16e15ea6ffd3",
+ "items": [
+  {
+   "height": 6073,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 6073,
+        "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 189,
+            "width": 148
+           },
+           {
+            "height": 379,
+            "width": 296
+           },
+           {
+            "height": 759,
+            "width": 593
+           },
+           {
+            "height": 1518,
+            "width": 1187
+           },
+           {
+            "height": 3036,
+            "width": 2374
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 4748
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Main View"
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "Yes"
+      ]
+     }
+    }
+   ],
+   "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e/full/!469,600/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 4748
+  }
+ ],
+ "label": {
+  "en": [
+   "Human Erosion in California (Migrant Mother)"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Dorothea Lange (American, 1895 - 1965)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "Human Erosion in California (Migrant Mother)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Gelatin silver print"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Image: 34.1  26.8 cm (13 7/16  10 9/16 in.)",
+     "Mount: 34.8  27.1 cm (13 11/16  10 11/16 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "98.XM.162"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": [
+     "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-09-11T08:30:49.752403Z"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "requiredStatement": {
+  "label": {
+   "en": [
+    "attribution"
+   ]
+  },
+  "value": {
+   "en": [
+    "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+   ]
+  }
+ },
+ "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/5e3e8ca9-7c83-42f5-9739-078d4a0e1266",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/74a61144-8355-40bc-9705-16e15ea6ffd3/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "summary": {
+  "en": [
+   "<blockquote>\n<p>The first publication of this renowned image occurred on March 11, 1936, on the third day that the <em>San Francisco News</em> ran a story about the pea pickers'' camp in Nipomo. It was also featured as a full-page reproduction in the September 1936 issue of <em>Survey Graphic</em>, titled \"Draggin''-Around People\" and captioned \"A blighted pea crop in California in 1935 left the pickers without work. This family sold their tent to get food.\" Also in this issue was an article by Paul Taylor, Dorothea Lange''s husband, entitled \"From the Ground Up.\" His report on demonstration projects of the New Deal''s Resettlement Administration (RA) in Arizona, Utah, New Mexico, and California was illustrated with four more pictures by Lange.  </p>\n<p>Since it was first published, this composition, best known as <em>Migrant Mother</em>, has come to represent not only the pictorial archive created by the RA/Farm Security Administration during the 1930s, but also the Great Depression itself. Posters and other publicity of later activists fighting racial, economic, and political oppression have borrowed from Lange''s icon of the time. The handsome, androgynous face, the pose of stoic anxiety, and the encumbrance of three children proved to be universal attributes. Lange took five other shots of Owens on that same day. The Getty has one more from this group in its collection (<a href=\"http://www.getty.edu/art/collection/objects/130790\">2001.51.1</a>). With Lange''s artistry, Florence Owens took on the timeless quality of Eugne Delacroix''s strong female rebel (<em><a href=\"https://www.louvre.fr/en/oeuvre-notices/july-28-liberty-leading-people\">Liberty Leading the People</a></em>) and Jean-Franois Millet''s <a href=\"https://www.metmuseum.org/art/collection/search/437099\">peasant woman</a> (the agrarian ideal), Honor Daumier''s <a href=\"https://www.metmuseum.org/art/collection/search/436091\">laundresses</a> (the working woman), and K?the Kollwitz''s proletarian woman warrior (one of the mothers leading her <em>Peasant''s War</em>).  </p>\n<p>Owens, although, she became famous, did not enjoy, even momentarily, the life of a celebrity. She had a total of ten children and kept moving with her family, following the California crops. She did become involved in efforts to organize farm labor and would sometimes serve as the straw boss, one who negotiates wages for the migrants as the picking season begins. She was still working in the fields at the age of fifty before finally marrying again (to George Thompson) and settling down into a stable life in Modesto, California.</p>\n</blockquote>\n<p>Judith Keller, <em>Dorothea Lange,</em> In Focus: Photographs from the J. Paul Getty Museum (Los Angeles: J. Paul Getty Museum, 2002), 32.  2002 J. Paul Getty Trust.</p>"
+  ]
+ },
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e/full/!469,600/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/40bfece5-6fa3-4370-ba8a-240d3b56c81e",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}

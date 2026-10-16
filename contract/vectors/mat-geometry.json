@@ -1,0 +1,420 @@
+{
+  "_about": "The mat rule (player-contract.md § Layout) as conformance vectors: a screen, its pixel density or null when the Player cannot know it, a mat mode, the presentation master's size, and the Player's mat width and bottom weight; the outcome is the work's rectangle and the mat's (null for none), in screen pixels from the top left. Rounding is half up. A Player may differ from these by one pixel, because image libraries round a fitted size differently. The proportional vectors with a density are what the server's compositor has drawn since wave 2, and its suite holds it to them.",
+  "relative_width": 0.06,
+  "vectors": [
+    {
+      "name": "50-inch Frame, proportional, landscape master",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 6000,
+          "height_px": 4500
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 669,
+          "top": 132,
+          "width": 2501,
+          "height": 1876
+        },
+        "mat": {
+          "left": 537,
+          "top": 0,
+          "width": 2765,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "50-inch Frame, proportional, portrait master",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 3000,
+          "height_px": 4500
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 1294,
+          "top": 132,
+          "width": 1251,
+          "height": 1876
+        },
+        "mat": {
+          "left": 1162,
+          "top": 0,
+          "width": 1515,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "50-inch Frame, proportional, square master",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 4000,
+          "height_px": 4000
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 982,
+          "top": 132,
+          "width": 1876,
+          "height": 1876
+        },
+        "mat": {
+          "left": 850,
+          "top": 0,
+          "width": 2140,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "50-inch Frame, proportional, a work of the box's own shape meets every edge",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 7152,
+          "height_px": 3752
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 132,
+          "top": 132,
+          "width": 3576,
+          "height": 1876
+        },
+        "mat": {
+          "left": 0,
+          "top": 0,
+          "width": 3840,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "50-inch Frame, proportional, a small work is not enlarged",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 800,
+          "height_px": 600
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 1520,
+          "top": 770,
+          "width": 800,
+          "height": 600
+        },
+        "mat": {
+          "left": 1388,
+          "top": 638,
+          "width": 1064,
+          "height": 884
+        }
+      }
+    },
+    {
+      "name": "42-inch Frame, proportional, landscape master",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 104.9003,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 6000,
+          "height_px": 4500
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 705,
+          "top": 157,
+          "width": 2429,
+          "height": 1822
+        },
+        "mat": {
+          "left": 548,
+          "top": 0,
+          "width": 2743,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "50-inch Frame, full, portrait master",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "full",
+        "work": {
+          "width_px": 3000,
+          "height_px": 4500
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 1294,
+          "top": 132,
+          "width": 1251,
+          "height": 1876
+        },
+        "mat": {
+          "left": 0,
+          "top": 0,
+          "width": 3840,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "50-inch Frame, none, landscape master fills the height",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "none",
+        "work": {
+          "width_px": 6000,
+          "height_px": 4500
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 480,
+          "top": 0,
+          "width": 2880,
+          "height": 2160
+        },
+        "mat": null
+      }
+    },
+    {
+      "name": "50-inch Frame, none, a small work is not enlarged",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": 88.1163,
+        "mat_mode": "none",
+        "work": {
+          "width_px": 800,
+          "height_px": 600
+        },
+        "mat_width_inches": 1.5,
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 1520,
+          "top": 780,
+          "width": 800,
+          "height": 600
+        },
+        "mat": null
+      }
+    },
+    {
+      "name": "no density, 4K screen, proportional, landscape master",
+      "input": {
+        "screen": {
+          "width_px": 3840,
+          "height_px": 2160
+        },
+        "pixels_per_inch": null,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 6000,
+          "height_px": 4500
+        },
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 666,
+          "top": 130,
+          "width": 2507,
+          "height": 1880
+        },
+        "mat": {
+          "left": 536,
+          "top": 0,
+          "width": 2767,
+          "height": 2160
+        }
+      }
+    },
+    {
+      "name": "no density, 1080p screen, proportional, portrait master",
+      "input": {
+        "screen": {
+          "width_px": 1920,
+          "height_px": 1080
+        },
+        "pixels_per_inch": null,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 3000,
+          "height_px": 4500
+        },
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 646,
+          "top": 65,
+          "width": 627,
+          "height": 940
+        },
+        "mat": {
+          "left": 581,
+          "top": 0,
+          "width": 757,
+          "height": 1080
+        }
+      }
+    },
+    {
+      "name": "no density, portrait screen, proportional: the shorter side is the width",
+      "input": {
+        "screen": {
+          "width_px": 1080,
+          "height_px": 1920
+        },
+        "pixels_per_inch": null,
+        "mat_mode": "proportional",
+        "work": {
+          "width_px": 6000,
+          "height_px": 4500
+        },
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 65,
+          "top": 598,
+          "width": 950,
+          "height": 713
+        },
+        "mat": {
+          "left": 0,
+          "top": 533,
+          "width": 1080,
+          "height": 853
+        }
+      }
+    },
+    {
+      "name": "no density, 1440p screen, full, square master",
+      "input": {
+        "screen": {
+          "width_px": 2560,
+          "height_px": 1440
+        },
+        "pixels_per_inch": null,
+        "mat_mode": "full",
+        "work": {
+          "width_px": 4000,
+          "height_px": 4000
+        },
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 652,
+          "top": 86,
+          "width": 1255,
+          "height": 1255
+        },
+        "mat": {
+          "left": 0,
+          "top": 0,
+          "width": 2560,
+          "height": 1440
+        }
+      }
+    },
+    {
+      "name": "no density, 1080p screen, none, portrait master",
+      "input": {
+        "screen": {
+          "width_px": 1920,
+          "height_px": 1080
+        },
+        "pixels_per_inch": null,
+        "mat_mode": "none",
+        "work": {
+          "width_px": 3000,
+          "height_px": 4500
+        },
+        "bottom_weight": 1.15
+      },
+      "expect": {
+        "work": {
+          "left": 600,
+          "top": 0,
+          "width": 720,
+          "height": 1080
+        },
+        "mat": null
+      }
+    }
+  ]
+}

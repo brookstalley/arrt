@@ -10,18 +10,16 @@
  */
 
 import { agree } from "./counting.js";
+import { DEBUG } from "./debug.js";
+import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
 
 const FIT_GLYPHS = {
-  native: "●", // filled circle
-  matted_small: "◇", // open diamond
-  below_floor: "▲", // triangle
+  below_minimum: GLYPHS.problem,
 };
 
 const FIT_WORDS = {
-  native: "native",
-  matted_small: "matted small",
-  below_floor: "below floor",
+  below_minimum: "below minimum",
 };
 
 /* A picture's own size, in pixels, as the curator judges it: a scan on a
@@ -40,7 +38,10 @@ export function pixelSize(width, height) {
   return `${PIXELS.format(width)} × ${PIXELS.format(height)} px`;
 }
 
-/* How this would meet the panel — native, matted small, below the floor — or why that cannot be said.
+/* Whether a picture falls short of the quality minimum, or why that cannot be said — and nothing
+ * when it meets the minimum (the owner's ruling, 2026-10-08): the badge is news, and a mark on
+ * every picture that is fine hides the one that is not. A picture's size on a particular wall is
+ * not the Library's to say; it holds no screen.
  *
  * One function for a held work, a candidate scan and a registry work's picture. Both carry the same
  * `fit`/`fit_note` pair and the same rule — a thing whose dimensions nobody
@@ -52,13 +53,14 @@ export function pixelSize(width, height) {
 export function fitBadge(sized, absentWord = "no size known") {
   if (!sized.fit) {
     return el("span", { class: "badge badge-unknown", title: sized.fit_note || "" }, [
-      el("span", { class: "glyph", text: "—", "aria-hidden": true }),
+      el("span", { class: "glyph", text: GLYPHS.cannot, "aria-hidden": true }),
       el("span", { text: absentWord }),
     ]);
   }
   const verdict = sized.fit.verdict;
+  if (verdict === "meets_minimum") return null;
   return el("span", { class: `badge badge-${verdict}` }, [
-    el("span", { class: "glyph", text: FIT_GLYPHS[verdict] || "●", "aria-hidden": true }),
+    el("span", { class: "glyph", text: FIT_GLYPHS[verdict] || GLYPHS.unknown, "aria-hidden": true }),
     // The verdict word alone. It carried "would show at 28.2″" until the owner
     // ruled it out (2026-10-02): that is the long edge on the one panel this
     // server is configured for, after the mat, and read beside a picture it
@@ -69,27 +71,41 @@ export function fitBadge(sized, absentWord = "no size known") {
   ]);
 }
 
-export function sourceBadge(work) {
-  if (!work.image.available) return null;
-  const rendered = work.image.source_kind === "tv_display";
-  return el("span", { class: "badge" }, [
-    el("span", { class: "glyph", text: rendered ? "▣" : "□", "aria-hidden": true }),
-    el("span", { text: rendered ? "wall render" : "master image" }),
-  ]);
-}
-
 /* Shown only when a work is out of circulation. An archived work is still
  * listed — the catalogue lists accepted and archived together, because that is
  * what "everything we hold" means — and with no badge it looks exactly like a
  * work that is on the wall. */
 export function statusBadge(work) {
   if (work.status === "accepted") return null;
-  // Its own class, not `below_floor`'s: catalogue status and display fit are
+  // Its own class, not `below_minimum`'s: catalogue status and size are
   // unrelated axes, and sharing a class would make an archived work and a
   // too-small work paint identically.
   return el("span", { class: "badge badge-archived" }, [
-    el("span", { class: "glyph", text: "⊘", "aria-hidden": true }),
+    el("span", { class: "glyph", text: GLYPHS.refused, "aria-hidden": true }),
     el("span", { text: work.status }),
+  ]);
+}
+
+/* A held work's accessible name where several works are listed: its title, and
+ * who made it and when, so two works sharing a title ("Untitled", "Water
+ * Lilies") are two different things to somebody moving through the links one at
+ * a time. It starts with the visible title, so a voice command that says what
+ * it sees still finds the control. */
+export function workName(work) {
+  const artist = work.artist ? work.artist.name : null;
+  return [work.title, artist, work.date_created].filter(Boolean).join(", ");
+}
+
+/* A held work with no master image, the same on every screen that pictures one
+ * (Artworks, Artists, a topic, the Work page): one sentence in the picture's
+ * place. The server's note says why in its own words, an exception's as often
+ * as not, and three wordings of it across four screens was the plumbing showing
+ * (`ux-review-2026-10.md` finding 37); the why is the Work page's *Master image*
+ * panel's to say. With `?debug` the note is shown beneath, for whoever asked. */
+export function noPicture(note = null) {
+  return el("div", { class: "card-image-absent no-picture" }, [
+    el("span", { text: "No picture" }),
+    DEBUG && note ? el("span", { class: "muted no-picture-note", text: note }) : null,
   ]);
 }
 
@@ -102,24 +118,65 @@ export function facts(pairs) {
   for (const [term, value] of pairs) {
     if (value === null || value === undefined || value === "") continue;
     // A node is placed as it is, so a value can be a link; anything else is text.
-    list.append(el("dt", { text: term }), value instanceof Node ? el("dd", {}, [value]) : el("dd", { text: String(value) }));
+    list.append(el("dt", { text: term }), value instanceof Node ? el("dd", {}, [value]) : el("dd", {}, breakableAtSlashes(String(value))));
   }
   return list;
 }
 
+/* Text with a line-break opportunity after every slash. A file path or URL
+ * has none of its own: CSS does not break after "/" before a letter, so on a
+ * phone the stylesheet's `overflow-wrap: anywhere` broke it wherever the
+ * column's edge fell, mid-word as often as not. `<wbr>` adds no text, so the
+ * value reads and copies the same. */
+function breakableAtSlashes(text) {
+  if (!text.includes("/")) return [document.createTextNode(text)];
+  const parts = [];
+  for (const [index, piece] of text.split("/").entries()) {
+    if (index > 0) parts.push(document.createTextNode("/"), document.createElement("wbr"));
+    if (piece) parts.push(document.createTextNode(piece));
+  }
+  return parts;
+}
+
 /* A table that scrolls sideways inside its panel rather than widening the page.
  * Its cells hold file paths and museum URLs with no break in them, which on a
- * phone made the whole Work page wider than the screen. */
-export function table(caption, headers, rows) {
-  return el("div", { class: "table-scroll" }, [el("table", {}, [
+ * phone made the whole Work page wider than the screen.
+ *
+ * `stacked`: below 40rem each row becomes a card of its own, every cell under
+ * its column's heading (`data-label`), for a list a phone reads one row at a
+ * time rather than scans across — Activity's (`ux-review-2026-10.md` finding
+ * 14). A cell link marked `row-link` then covers its whole card, so the row is
+ * the link (`app.css`). */
+export function table(caption, headers, rows, { stacked = false } = {}) {
+  const numeric = headers.map((_, index) => isNumberColumn(rows.map((cells) => cells[index])));
+  const cell = (c, index) => {
+    const attrs = { ...(headers[index] ? { "data-label": headers[index] } : {}), class: numeric[index] ? "num" : null };
+    return c instanceof Node ? el("td", attrs, [c]) : el("td", { ...attrs, text: c === null || c === undefined ? "—" : String(c) });
+  };
+  return el("div", { class: "table-scroll" }, [el("table", { class: stacked ? "stacked" : null }, [
     el("caption", { text: caption }),
-    el("thead", {}, [el("tr", {}, headers.map((h) => el("th", { scope: "col", text: h })))]),
-    el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map((c) => (c instanceof Node ? el("td", {}, [c]) : el("td", { text: c === null || c === undefined ? "—" : String(c) }))))),
-    ),
+    el("thead", {}, [el("tr", {}, headers.map((h, index) => el("th", { scope: "col", class: numeric[index] ? "num" : null, text: h })))]),
+    el("tbody", {}, rows.map((cells) => el("tr", {}, cells.map(cell)))),
   ])]);
 }
 
-/* Only ever shown when the runaway guard actually bit. Named rather than
+/* A figure, with at most a unit after it: "12", "1,110 px", "7.5 MB", "40%". */
+const FIGURE = /^-?[\d][\d,.]*(\s?(px|KB|MB|GB|%))?$/;
+
+/* A column is one of numbers when every cell that holds anything holds a figure
+ * (a dash for "none" is not a figure, and does not count against it), so its
+ * cells and its heading are set right-aligned (`app.css`, `.num`). Decided from
+ * the values rather than declared by each caller, so a table gains it the day a
+ * column of counts is added to it. */
+function isNumberColumn(cells) {
+  if (cells.some((c) => c instanceof Node)) return false;
+  const filled = cells.map((c) => (c === null || c === undefined ? "" : String(c).trim())).filter((text) => text && text !== "—");
+  return filled.length > 0 && filled.every((text) => FIGURE.test(text));
+}
+
+/* Only ever shown when a list stopped short of its own total: the runaway guard
+ * bit (`PAGE_CEILING`), or on Artworks, which pages as it scrolls, the server
+ * stopped sending works before its total said it would. Named rather than
  * silent: a list that stops short without saying so is indistinguishable from a
  * catalogue that holds no more. */
 export function shortfallNote(page) {
@@ -152,12 +209,14 @@ export const REASON_SENTENCES = {
   not_held: "No wired collection holds it — this is the one reason that suggests the work may not exist.",
   identity_refused: "Something was found under this title, but its artist did not match, so it was refused.",
   size_unknown: "A scan was found, but nothing said how large it is, so it could not be judged.",
-  below_floor: "Every scan found is too small to show on this wall at a size worth looking at.",
+  below_floor: "Every scan found is below the quality minimum, so none was chosen without you.",
   all_rejected: "You have turned down everything that was found for it.",
 };
 
 const REASON_WORDS = {
-  not_held: "not held",
+  // Not "not held", which elsewhere means the library does not hold a work
+  // (the owner's ruling on #172). This reason is about the museums.
+  not_held: "in no collection",
   identity_refused: "wrong artist",
   size_unknown: "size unknown",
   below_floor: "too small",
@@ -168,12 +227,12 @@ export function reasonBadge(work) {
   if (!work.unresolved_reason) return null;
   const value = work.unresolved_reason;
   return el("span", { class: "badge badge-unknown", title: REASON_SENTENCES[value] || "" }, [
-    el("span", { class: "glyph", text: "▲", "aria-hidden": true }),
+    el("span", { class: "glyph", text: GLYPHS.problem, "aria-hidden": true }),
     el("span", { text: REASON_WORDS[value] || value }),
   ]);
 }
 
-const RESOLUTION_GLYPHS = { resolved: "●", unresolved: "▲", pending: "◌" };
+const RESOLUTION_GLYPHS = { resolved: GLYPHS.good, unresolved: GLYPHS.problem, pending: GLYPHS.waiting };
 
 /* What `resolution_status` says, in the tense it actually holds.
  *
@@ -200,15 +259,15 @@ const RESOLUTION_GLYPHS = { resolved: "●", unresolved: "▲", pending: "◌" }
  * These words mean the same on the grid, in the run table, and beside the raw
  * `resolution_status` an agent reads over MCP. */
 const RESOLUTION_WORDS = {
-  resolved: "the run found an image",
-  unresolved: "the run found none",
+  resolved: "the Get found an image",
+  unresolved: "the Get found none",
   pending: "not looked up",
 };
 
 export function resolutionBadge(work) {
   const status = work.resolution_status;
   return el("span", { class: `badge badge-${status}` }, [
-    el("span", { class: "glyph", text: RESOLUTION_GLYPHS[status] || "●", "aria-hidden": true }),
+    el("span", { class: "glyph", text: RESOLUTION_GLYPHS[status] || GLYPHS.unknown, "aria-hidden": true }),
     el("span", { text: RESOLUTION_WORDS[status] || status }),
   ]);
 }

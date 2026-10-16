@@ -1,4 +1,4 @@
-"""Programming: themes, walls, what hangs where, directives, and the manifest.
+"""Programming: themes, walls, what hangs where, and each wall's feed.
 
 It reads the Library only through `arrt.library.facade`, and holds work ids
 as references that may one day fail to resolve. Its tables are reached through

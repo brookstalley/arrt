@@ -20,6 +20,7 @@ single failure that glares on an emissive panel.
 
 import json
 import logging
+import re
 from itertools import pairwise, permutations
 from pathlib import Path
 
@@ -27,7 +28,6 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab, scale_lightness
-from arrt.library.acquisition.compose import compose
 
 # `_DERIVED_LIGHTNESS_CEILING` is private to the engine and is imported anyway,
 # deliberately: the whole point of the test below is that the clamp's number and
@@ -47,7 +47,6 @@ from arrt.library.acquisition.mat import (
     _under_the_corpus_bar,
     dominant_color,
 )
-from arrt.library.services.display_fit import ArtworkBox
 from arrt.persistence.records import MatMethod
 from arrt.seed.legacy import read_index
 
@@ -121,23 +120,16 @@ def test_the_corpus_holds_genuinely_distinct_choices(corpus):
     assert len({record.mat_hex for record in corpus}) >= 30
 
 
-def test_every_corpus_colour_composes_onto_a_canvas(tmp_path, corpus):
-    """The compositor against all 41 rather than one invented colour: these are
-    what a seeded deployment actually renders with on its first pass."""
-    source = tmp_path / "work.jpg"
-    Image.new("RGB", (600, 400), (200, 180, 160)).save(source, format="JPEG")
-    box = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.87, floor_inches=12.0)
+def test_every_corpus_colour_is_one_the_feed_can_send(corpus):
+    """All 41 rather than one invented colour: these are what a seeded deployment
+    sends on its first pass, and a Player refuses a feed whose colour breaks the
+    contract's pattern. The server no longer draws the mat; this is the one thing
+    about a colour it still owes a Player."""
+    schema = json.loads((CORPUS_PATH.parent / "contract" / "schemas" / "manifest.v2.schema.json").read_text(encoding="utf-8"))
+    pattern = re.compile(schema["$defs"]["work"]["properties"]["mat_color"]["pattern"])
 
-    for index, record in enumerate(corpus):
-        result = compose(
-            source,
-            destination=tmp_path / f"ready/{index}.jpg",
-            mat_hex=record.mat_hex,
-            panel_width=3840,
-            panel_height=2160,
-            box=box,
-        )
-        assert result.path.is_file()
+    for record in corpus:
+        assert pattern.fullmatch(format_hex(parse_hex(record.mat_hex))), record.mat_hex
 
 
 class TestTheMechanicalProducerAgainstTheBar:

@@ -52,19 +52,19 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
     _reported(settings, living_room)
 
     ui.open("#health")
-    ui.page.wait_for_selector("h2:has-text('Status')")
+    ui.page.wait_for_selector("h1:has-text('Status')")
 
-    # `.wall-reading h3` since the client was split into modules: each wall's
+    # `.wall-reading h2` since the client was split into modules: each wall's
     # reading became a panel of its own with its name as the heading, where it had
-    # been an `h4` inside a shared "The walls" panel.
+    # been an `h3` inside a shared "The walls" panel.
     #
     # **Set equality, not a subset.** This assertion was briefly relaxed to `<=`
-    # while moving it to `.panel h3` — which selects the backup and geometry
+    # while moving it to `.panel h2` — which selects the backup and geometry
     # panels too, so exactness was impossible there and the `==` half went with
     # it. That half is the one that catches a wall panel which should not exist:
     # a subset check passes against a screen naming a room that is not in the
     # catalogue. The selector, not the assertion, was what needed to change.
-    headings = ui.page.locator(".wall-reading h3")
+    headings = ui.page.locator(".wall-reading h2")
     assert set(headings.all_inner_texts()) == {living_room.name, study.name}
 
 
@@ -78,7 +78,7 @@ def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, two_walls)
     _reported(settings, living_room)
 
     ui.open("#health")
-    ui.page.wait_for_selector(f".panel h3:has-text('{study.name}')")
+    ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
     assert f"{study.name!r} has not reported" in ui.text()
 
@@ -96,7 +96,7 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     ui.open("#health")
     # Wait on the wall that never reported: it is the one this test is about, and
     # waiting on the other would let the assertions run before its panel painted.
-    ui.page.wait_for_selector(f".panel h3:has-text('{study.name}')")
+    ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
     page = ui.text()
     assert "Nothing has ever written a heartbeat for this wall." in page
@@ -109,7 +109,13 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
 
 
 def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):
-    """Declined, failed and loaded each as its own sentence, the state a word and never only a colour."""
+    """Declined, failed and loaded each as its own row, the state a word and never only a colour.
+
+    A row rather than a sentence since the owner's ruling of 2026-10-08 (#265):
+    a box per source was too long. What the sentence carried is still on the
+    row: the state in words, the reason a plugin is not working here, and the
+    fault count (`test_the_status_sources_table.py` holds it at every width).
+    """
     ui.serve(
         "**/api/health",
         a_health_reading(
@@ -121,20 +127,23 @@ def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_re
         ),
     )
     ui.open("#health")
-    ui.page.wait_for_selector("h3:has-text('Image sources')")
+    ui.page.wait_for_selector(".source-table tbody tr")
 
-    sentences = ui.page.locator("ul.source-readings .reading-sentence").all_inner_texts()
-    assert sentences == [
-        "commons is installed and not configured here: WIKIDATA_USER_AGENT is unset.",
-        "artic is loaded, with 3 faults since startup, the last 12 seconds ago (KeyError: 'x').",
-        "gallery is installed and was not loaded: it could not be imported.",
+    rows = [
+        [cell.inner_text().strip() for cell in row.locator("td.col-source, td.col-state, td.col-faults").all()]
+        for row in ui.page.locator(".source-table tbody tr").all()
+    ]
+    assert rows == [
+        ["Wikimedia Commons\nWIKIDATA_USER_AGENT is unset", "Not configured here", "—"],
+        ["Art Institute of Chicago", "Loaded", "3"],
+        ["gallery\nit could not be imported", "Could not be loaded", "—"],
     ]
 
 
 def test_the_panel_says_when_no_source_plugin_is_installed(ui, a_health_reading):
     ui.serve("**/api/health", a_health_reading(sources=[]))
     ui.open("#health")
-    ui.page.wait_for_selector("h3:has-text('Image sources')")
+    ui.page.wait_for_selector("h2:has-text('Image sources')")
 
     assert "No source plugin is installed" in ui.text()
 
@@ -172,7 +181,7 @@ def test_a_reading_without_the_store_count_says_so(ui, a_health_reading):
     ui.serve("**/api/health", reading)
 
     ui.open("#health")
-    ui.page.wait_for_selector("h2:has-text('Status')")
+    ui.page.wait_for_selector("h1:has-text('Status')")
 
     assert "carries no count of kept pictures" in ui.text()
 

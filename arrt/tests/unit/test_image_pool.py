@@ -14,13 +14,14 @@ import threading
 import pytest
 from fakes import an_image
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 
 #: The engine tests' 42" geometry: the floor sits at about 1,260 px on the long edge.
-BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 TITLE = "The Elephants"
 ARTIST = "Salvador Dalí"
@@ -129,7 +130,7 @@ def test_a_pool_needs_a_source():
 
 
 def resolve(*sources: Source):
-    return PhaseTwoEngine(ImageSourcePool(list(sources)), box=BOX).resolve(query())
+    return PhaseTwoEngine(ImageSourcePool(list(sources)), profile=PROFILE).resolve(query())
 
 
 def test_a_tie_goes_to_the_source_listed_first():

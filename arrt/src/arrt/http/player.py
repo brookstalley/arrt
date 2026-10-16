@@ -1,4 +1,4 @@
-"""The Player's surface: its client, a wall's manifest, media by content hash, and the heartbeats.
+"""The Player's surface: its client, a wall's manifest, a label's document, media by content hash, and the heartbeats.
 
 `player-contract.md` § Transport is the specification, and `contract/routes.json`
 holds these routes' spelling, so the server and a Player in another repository
@@ -7,8 +7,9 @@ sit at the root, beside `/api` rather than under it: `/api` is the curator's
 surface, and this one is the Player's.
 
 **Every request carries a client's token** (`clients.md`). A client learns its
-walls from `GET /client`, reports its outputs to `POST /client/heartbeat`, and is
-admitted to the per-wall routes for the walls assigned to it.
+walls and labels from `GET /client`, reports its outputs to
+`POST /client/heartbeat`, is admitted to the per-wall routes for the walls
+assigned to it, and to `GET /labels/{label_id}` for the label outputs it holds.
 
 **Bindings, like every route.** Admission is a dependency each route declares:
 it asks the access service, and a refused token raises `Refused`, which the
@@ -36,6 +37,7 @@ from starlette.concurrency import run_in_threadpool
 from arrt.library.readiness import CONTENT_TYPES, MEDIA_PATH_TEMPLATE
 from arrt.persistence.records import Client
 from arrt.programming.access import Admission
+from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.services.container import Services
 
 router = APIRouter()
@@ -45,9 +47,10 @@ router = APIRouter()
 #: it are one string.
 CLIENT_ROUTE: Final[str] = "/client"
 CLIENT_HEARTBEAT_ROUTE: Final[str] = "/client/heartbeat"
-MANIFEST_ROUTE: Final[str] = "/walls/{wall_id}/manifest"
+MANIFEST_MAJOR_ROUTE: Final[str] = "/walls/{wall_id}/manifest/v{major}"
 MEDIA_ROUTE: Final[str] = MEDIA_PATH_TEMPLATE
 HEARTBEAT_ROUTE: Final[str] = "/walls/{wall_id}/heartbeat"
+LABEL_ROUTE: Final[str] = "/labels/{label_id}"
 
 _SHA256: Final[re.Pattern[str]] = re.compile(r"[0-9a-f]{64}")
 
@@ -77,9 +80,11 @@ class Refused(Exception):
 
 
 def refusal(admission: Admission) -> JSONResponse:
-    """`401` for no valid client token, `403` for a wall not assigned to the client. Neither names the token."""
+    """`401` for no valid client token, `403` for a wall or label output not the client's. None names the token."""
     if admission is Admission.NOT_ITS_WALL:
         return JSONResponse(status_code=403, content={"error": "That wall is not assigned to this client."})
+    if admission is Admission.NOT_ITS_LABEL:
+        return JSONResponse(status_code=403, content={"error": "That label output is not this client's."})
     return JSONResponse(
         status_code=401,
         content={"error": "A valid client token is required."},
@@ -98,6 +103,13 @@ def _presenting_client(request: Request) -> Client:
 def _admitted_to_the_wall(request: Request, wall_id: str) -> None:
     """The token's client is the one this wall is assigned to."""
     admission = _services(request).access.admit(wall_id, _token(request))
+    if admission is not Admission.ADMITTED:
+        raise Refused(admission)
+
+
+def _admitted_to_the_label(request: Request, label_id: str) -> None:
+    """The token's client holds this label output."""
+    admission = _services(request).access.admit_label(label_id, _token(request))
     if admission is not Admission.ADMITTED:
         raise Refused(admission)
 
@@ -136,14 +148,31 @@ async def client_heartbeat(request: Request, presenting: Annotated[Client, Depen
     return Response(status_code=204)
 
 
-@router.get(MANIFEST_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
-def wall_manifest(request: Request, wall_id: str) -> Response:
-    """The wall's manifest as last published, with its hash as the ETag."""
-    body = _services(request).display.published_manifest(wall_id)
+@router.get(MANIFEST_MAJOR_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_wall)])
+def wall_manifest_at_major(request: Request, wall_id: str, major: str) -> Response:
+    """The wall's feed at one manifest major, with its hash as the ETag.
+
+    Major 2 is the only major published. Any other spelling answers 404, which is
+    how a Player learns to step down a major (`player-contract.md` § The cutover),
+    and so does a wall with nothing hung on it yet, which the contract classes as
+    a configuration error. The match is on the exact string, so `02` is not a
+    second URL for major 2.
+    """
+    if major == str(MANIFEST_MAJOR):
+        body = _services(request).display.published_manifest_v2(wall_id)
+        if body is not None:
+            return _etagged(request, body)
+    return JSONResponse(status_code=404, content={"error": f"No manifest major {major} is published for this wall."})
+
+
+@router.get(LABEL_ROUTE, include_in_schema=False, dependencies=[Depends(_admitted_to_the_label)])
+def label(request: Request, label_id: str) -> Response:
+    """The label document: the state of the wall this label output captions, and its text, with its hash as the ETag."""
+    body = _services(request).clients.label_document(label_id)
     if body is None:
-        # The contract classes a 404 on the wall as a configuration error: a
-        # wall with nothing hanging has no manifest to serve.
-        return JSONResponse(status_code=404, content={"error": "Nothing has been published for this wall yet."})
+        # Its client was told of no such label (`GET /client` lists only label
+        # outputs that caption a wall), so asking is a configuration error.
+        return JSONResponse(status_code=404, content={"error": "This label output captions no wall."})
     return _etagged(request, body)
 
 

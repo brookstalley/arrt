@@ -119,7 +119,6 @@ def clock() -> Clock:
 
 @pytest.fixture
 def services(
-    run_threads,
     store,
     discovery_store,
     wall_settings,
@@ -139,13 +138,12 @@ def services(
         discovery=discovery_store,
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
-        artwork_box=settings.tv_artwork_box,
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
         sources=a_roster(smk, met, artic),
         registry=registry,
         kept=kept,
-        spawn=run_threads,
         look_now=clock,
     )
 

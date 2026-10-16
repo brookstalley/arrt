@@ -15,19 +15,30 @@
       <button class="menu-button" type="button" aria-controls="sidebar" aria-expanded="false">
         <span class="glyph" aria-hidden="true">☰</span><span>Menu</span>
       </button>
-      <h1 class="brand">Arrt</h1>
+      <!-- The product's name, and not a heading: each screen's own heading is the
+           page's `h1`, so a reader moving by heading lands on where they are. -->
+      <p class="brand">Arrt</p>
       <!-- Persistent, because at thousands of works search is the primary
            retrieval mechanism and one you must first navigate to is one more
            step on the most frequent action. -->
       <form class="search" id="search-form" role="search">
         <label class="visually-hidden" for="search">Search artworks</label>
         <input type="search" id="search" name="q" placeholder="Search artworks" autocomplete="off" />
-        <button class="action quiet" type="submit">Search</button>
+        <!-- The magnifier inside the field is the submit button: Enter is not
+             discoverable to everyone, so there is still something to press, and
+             its name is the word a screen reader announces. On a phone the bar
+             keeps one row, and the button is hidden there but stays in the
+             accessibility tree (app.css, the 40rem rules). -->
+        <button class="search-submit" type="submit">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <span class="visually-hidden">Search</span>
+        </button>
       </form>
       <!-- Always present, and never silent: reads "Well" or names what is wrong,
            and opens System › Status. It stays beside the sidebar's System badge
            rather than giving way to it, because a badge is a number and a state
-           needs a word (`core/status.js`).
+           needs a word (`core/status.js`). A link, because what it does is
+           take the curator to a page (`information-architecture.md` § Direction).
 
            `aria-live` rather than `role="status"`, which means the same thing:
            the review grid's re-search offer is the page's `role="status"` region
@@ -35,9 +46,9 @@
            unrelated announcements tellable apart. It carries its own words
            before the first reading lands, because a status surface that is blank
            while it thinks is one a reader learns to ignore. -->
-      <button class="status-indicator" type="button" id="status" aria-live="polite" title="Open System › Status">
-        <span class="glyph" aria-hidden="true">◌</span><span>Reading the panel&hellip;</span>
-      </button>
+      <a class="status-indicator" href="#health" id="status" aria-live="polite" title="Open System › Status">
+        <span class="glyph" aria-hidden="true">&#x25CC;</span><span>Reading the panel&hellip;</span>
+      </a>
     </header>
     <div class="shell">
       <!-- Filled by the router from the route table in app.js, so the labels

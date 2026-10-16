@@ -5,26 +5,22 @@ import logging
 import os
 import shutil
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import uvicorn
+from langchain_core.language_models import BaseChatModel
+from langchain_core.tools import BaseTool
 
 from arrt import art_root, logs
 from arrt.app import create_app
-from arrt.config import Settings
+from arrt.config import Settings, retired_settings_in
 from arrt.library.acquisition.mat import MatEngine
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.acquisition.service import AcquisitionSettings
 from arrt.library.acquisition.transport import http_stream
-from arrt.library.discovery.conversation import (
-    NO_CONVERSATION_KEY,
-    ConversationEngine,
-    UnavailableConversation,
-    build_conversation_engine,
-)
 from arrt.library.discovery.engine import DiscoveryEngine, unavailable_engine
 from arrt.library.discovery.images import offers_images
-from arrt.library.discovery.openrouter import OpenRouterClient
+from arrt.library.discovery.openrouter import KeyStatus, OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
@@ -89,21 +85,38 @@ def _mat_engine(settings: Settings) -> MatEngine:
     return MatEngine(client, image_max_edge=settings.mat_image_max_edge)
 
 
-def _conversation_engine(settings: Settings) -> ConversationEngine:
-    """The engine intent-forming asks, or one that refuses and says why.
+def _key_status(settings: Settings) -> Callable[[], KeyStatus] | None:
+    """How the budget asks the provider what is left of the month, or None with no key.
 
-    **Refuses like `_engine`, rather than falling back like `_mat_engine`.** A mat
-    has an honest mechanical producer; a reply to "what would suit a calm wall"
-    has none, and anything written here that tried would put an invented sentence
-    in a transcript beside real ones with nothing to tell them apart.
+    Its own client rather than an engine's: reading `/key` is free, takes no
+    model, and must not wait behind a run's completion on one session.
     """
     if not settings.openrouter_api_key:
-        return UnavailableConversation(NO_CONVERSATION_KEY)
-    return build_conversation_engine(
+        return None
+    client = OpenRouterClient(
         settings.openrouter_api_key,
-        model=settings.conversation_model,
-        max_output_tokens=settings.conversation_max_output_tokens,
+        model=settings.discovery_model,
+        max_output_tokens=settings.discovery_max_output_tokens,
     )
+    return client.key_status
+
+
+def _ask_model(settings: Settings) -> BaseChatModel | None:
+    """The model Ask's agent runs on, or None when there is no key and Ask answers nothing."""
+    if not settings.openrouter_api_key:
+        return None
+    from threetears.models import create_chat_model
+
+    return create_chat_model(settings.ask_model, api_key=settings.openrouter_api_key, provider="openrouter")
+
+
+def _ask_tools(settings: Settings) -> list[BaseTool]:
+    """Web search through 3tears when a SearXNG instance is configured, and nothing otherwise."""
+    if not settings.searxng_url:
+        return []
+    from threetears.agent.tools.builtin.web_search import create_web_search_tool
+
+    return [create_web_search_tool({"base_url": settings.searxng_url}, "Search the web. Returns titles, addresses and snippets.")]
 
 
 def _sources(settings: Settings, registry: Registry | None) -> SourceRoster:
@@ -178,32 +191,23 @@ def main(argv: Sequence[str] = ()) -> None:
     settings = Settings.from_env()
     log = logging.getLogger(__name__)
     log.info("catalogue=%s bind=%s:%s", settings.catalogue_path, settings.host, settings.port)
-    # The resolved root and this plane's own panel, on one line, so a
-    # misconfiguration is a journal read rather than a mystery. The television's
-    # panel — never the e-paper one, which belongs to the display plane.
-    box = settings.tv_artwork_box
+    # The resolved root and where each wall's feed is written, on one line, so
+    # a misconfiguration is a journal read rather than a mystery. No screen's
+    # geometry: each Player knows its own and draws its own mat. The quality
+    # minimum beside it, because a wrong one is otherwise only visible as scans
+    # labelled oddly in the grid.
     log.info(
-        'art_root=%s manifests=%s tv_panel=%dx%dpx/%.1f" (%.1f px per inch) rotation=%ds shuffle=%s',
+        "art_root=%s feeds=%s rotation=%ds shuffle=%s quality_minimum=%dpx",
         settings.art_root,
         settings.manifest_pattern,
-        settings.tv_panel_width_px,
-        settings.tv_panel_height_px,
-        settings.tv_panel_diagonal_inches,
-        settings.tv_pixels_per_inch,
         settings.rotation_interval_seconds,
         settings.rotation_shuffle,
+        settings.quality_minimum_px,
     )
-    # The derived geometry as well as its inputs: whether a work is judged large
-    # enough for the wall depends on this box, and a wrong mat or floor is
-    # otherwise only visible as works being labelled oddly in the grid.
-    log.info(
-        'artwork_box=%dx%dpx mat=%.2f" (bottom x%.2f) floor=%.1f"',
-        box.width,
-        box.height,
-        settings.mat_width_inches,
-        settings.mat_bottom_weight,
-        settings.resolution_floor_inches,
-    )
+    # A setting this server no longer reads is named, once each, rather than
+    # left to look like one still in force.
+    for retired in retired_settings_in(os.environ):
+        log.warning(retired, extra={"event": "config.retired_setting"})
     # What discovery may spend and what it is priced at, on one line, because a
     # bounded estimate a curator authorises against is only as good as the
     # numbers behind it — and those are the ones most likely to be stale.
@@ -217,9 +221,8 @@ def main(argv: Sequence[str] = ()) -> None:
     # because the test that reads as the guard here deliberately cannot see a
     # deployment's own `.env` — see `test_the_search_price_matches_the_engine_that_is_pinned`.
     log.info(
-        "discovery gate=%d works phase1_searches=%d phase2_searches_per_work=%d offered_works_per_run=%s "
+        "discovery phase1_searches=%d phase2_searches_per_work=%d offered_works_per_run=%s "
         "search_engine=%s search_price=$%s phase1_estimate=$%s",
-        discovery.approval_threshold,
         discovery.phase1_search_allowance,
         discovery.phase2_searches_per_work,
         # Named rather than left at 0, because this is the setting whose "off" is
@@ -277,29 +280,21 @@ def main(argv: Sequence[str] = ()) -> None:
     # machine says dominant_color_fallback" is a question best answered at
     # startup rather than by reading forty rows.
     log.info(
-        "mat model=%s max_output_tokens=%d image_max_edge=%d ready=%s",
+        "mat model=%s max_output_tokens=%d image_max_edge=%d",
         settings.mat_model if settings.openrouter_api_key else "none (no key; every mat comes from the dominant colour)",
         settings.mat_max_output_tokens,
         settings.mat_image_max_edge,
-        settings.ready_path,
     )
 
-    # Which model answers a conversational turn, on its own line for the reason
-    # the mat model's is: it is a third model with a third reservation, and a
-    # deployment whose threads all refuse is a question best answered at startup.
+    # Ask's agent: which model, how many steps a reply may take, and whether it
+    # can search the web. Not the SearXNG address itself, which is the operator's.
     log.info(
-        "conversation model=%s max_output_tokens=%d samples=%s",
-        settings.conversation_model if settings.openrouter_api_key else "none (no key; every turn refuses)",
-        settings.conversation_max_output_tokens,
-        # The sample pictures are the collection's, over the same free seam the
-        # run's supplement uses — so a deployment that has not named itself to
-        # the museum gets names without pictures, and says so here.
-        (
-            sources.collection.provider
-            if sources.collection
-            else "none (no source plugin offers a collection; names carry no pictures)"
-        ),
+        "ask model=%s step_limit=%d web_search=%s",
+        settings.ask_model if settings.openrouter_api_key else "none (no key; Ask answers nothing)",
+        settings.ask_step_limit,
+        "on" if settings.searxng_url else "off (SEARXNG_URL is not set)",
     )
+
     log.info(
         "registry=%s",
         "wikidata" if settings.wikidata_user_agent else "none (WIKIDATA_USER_AGENT unset; works and artists are not matched)",
@@ -325,10 +320,13 @@ def main(argv: Sequence[str] = ()) -> None:
                 rotation_interval_seconds=settings.rotation_interval_seconds,
                 shuffle=settings.rotation_shuffle,
             ),
+            label_units=settings.label_units,
             thumbnails=ThumbnailSettings(art_root=settings.art_root, directory=settings.thumbnails_path),
-            artwork_box=box,
+            quality_profile=settings.quality_profile,
             engine=_engine(settings),
             discovery_settings=settings.discovery_settings,
+            key_status=_key_status(settings),
+            monthly_budget_usd=settings.monthly_budget_usd,
             sources=sources,
             acquisition=AcquisitionSettings(
                 art_root=settings.art_root,
@@ -345,20 +343,8 @@ def main(argv: Sequence[str] = ()) -> None:
             # takes it as an argument, so this line is what separates a process
             # that can fetch from a suite that cannot.
             open_stream=http_stream(settings.acquisition_user_agent),
-            preparation=PreparationSettings(
-                art_root=settings.art_root,
-                ready_path=settings.ready_path,
-                panel_width=settings.tv_panel_width_px,
-                panel_height=settings.tv_panel_height_px,
-                # The same object passed as `artwork_box` above, and passed twice
-                # on purpose rather than derived twice: it is *computed from* the
-                # panel dimensions on the line above it, so a second derivation
-                # here is the only way the canvas and the box could disagree
-                # about where the mat ends.
-                box=box,
-            ),
+            preparation=PreparationSettings(art_root=settings.art_root),
             mat_engine=_mat_engine(settings),
-            conversation_engine=_conversation_engine(settings),
             registry=registry,
             kept=kept,
         )
@@ -392,6 +378,9 @@ def main(argv: Sequence[str] = ()) -> None:
                     )
                 ),
                 backup_interval_seconds=settings.backup_interval_seconds,
+                ask_model=_ask_model(settings),
+                ask_step_limit=settings.ask_step_limit,
+                ask_tools=_ask_tools(settings),
             ),
             host=settings.host,
             port=settings.port,

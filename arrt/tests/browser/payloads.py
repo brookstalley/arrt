@@ -11,6 +11,8 @@ threading half a dozen builder fixtures through every signature would say
 nothing the import does not.
 """
 
+from decimal import Decimal
+
 from arrt.http.models import (
     AffinityListOut,
     AffinityOut,
@@ -18,10 +20,6 @@ from arrt.http.models import (
     CandidateCardOut,
     CandidatePageOut,
     CandidateWorkOut,
-    ConversationListOut,
-    ConversationOut,
-    ConversationTurnOut,
-    ConversationViewOut,
     EstimateOut,
     FacetGroupOut,
     FacetOptionOut,
@@ -35,25 +33,24 @@ from arrt.http.models import (
     RunOut,
     RunTallyOut,
     RunViewOut,
-    SampleOut,
     SearchUsageOut,
     SpendOut,
-    SuggestionOut,
     ThemeDetailOut,
     ThemeOut,
     VerdictOut,
     WorkOut,
     WorkPageOut,
 )
-from arrt.library.services.display_fit import DisplayFit
+from arrt.library.services.quality import Fit
+from arrt.library.services.spending import cost_tier
 from arrt.persistence.discovery_records import (
     AffinityDerivation,
     AffinitySentiment,
+    Confirmation,
     InitiatedBy,
     ResolutionStatus,
     RunKind,
     RunStatus,
-    TurnRole,
     Verdict,
     WorkProvenance,
 )
@@ -77,7 +74,7 @@ def a_catalogue_work(**overrides) -> WorkOut:
         "status": ArtworkStatus.ACCEPTED.value,
         "fit": None,
         "fit_note": None,
-        "image": ImageOut(available=False, source_kind=None, note="No image held."),
+        "image": ImageOut(available=False, note="No image held."),
     }
     return WorkOut(**(fields | overrides))
 
@@ -151,6 +148,10 @@ def a_run(**overrides) -> RunOut:
     return RunOut(**(fields | overrides))
 
 
+def fields_offered(overrides) -> bool:
+    return overrides.get("provenance") == WorkProvenance.OFFERED.value
+
+
 def a_candidate(**overrides) -> CandidateWorkOut:
     """A candidate work, defaulting to one the run asked for and resolved."""
     fields = {
@@ -170,7 +171,14 @@ def a_candidate(**overrides) -> CandidateWorkOut:
         "verdict": Verdict.PENDING.value,
         "resolution_status": ResolutionStatus.RESOLVED.value,
         "unresolved_reason": None,
+        # A proposal phase 1 said a source confirms; a test about the badge sets
+        # `unconfirmed` or `unknown`, as the server reports them.
+        "confirmation": Confirmation.CONFIRMED.value,
     }
+    # The museum an offered work came from, as the server records it at the
+    # offer: Art Institute of Chicago, the museum `an_instance` defaults to, so
+    # an offered work's card and its offer agree unless a test says otherwise.
+    fields["offered_by"] = "artic" if fields_offered(overrides) else None
     fields |= overrides
     # Derived, never passed: a fixture free to say a pending work is decided
     # could assert a card no server could produce.
@@ -223,16 +231,10 @@ def an_instance(**overrides) -> InstanceOut:
         "rejected": False,
         "rights_status": "public_domain",
         "selection_rationale": None,
-        # The scan's own pixels, which the card states as its resolution. Not
-        # the rendered size below: that is the scan fitted to one panel.
+        # The scan's own pixels, which the card states as its resolution.
         "width": 3840,
         "height": 2604,
-        "fit": FitOut(
-            verdict=DisplayFit.NATIVE.value,
-            rendered_width=3316,
-            rendered_height=1597,
-            rendered_long_edge_inches=27.4,
-        ),
+        "fit": FitOut(verdict=Fit.MEETS_MINIMUM.value),
         "fit_note": None,
         "preview_available": True,
         "preview_note": None,
@@ -343,10 +345,9 @@ def a_theme(**overrides) -> ThemeOut:
         "theme_id": "theme-1",
         "name": "Winter",
         "description": None,
-        "rotation_interval_seconds": None,
-        "shuffle": None,
         "created_at": "2026-08-12T09:00:00+00:00",
         "is_default": False,
+        "hidden": False,
     }
     return ThemeOut(**(fields | overrides))
 
@@ -370,7 +371,11 @@ def an_estimate(**overrides) -> dict:
         "basis": "Phase 2 asks museum APIs, which charge nothing.",
         "run_id": "run-under-test",
     }
-    return EstimateOut(**(fields | overrides)).model_dump(mode="json")
+    fields |= overrides
+    # Derived, never passed, as the server derives it: a fixture free to say a
+    # charge is free could assert a control no server could produce.
+    fields["tier"] = str(cost_tier(Decimal(fields["estimated_cost_usd"])))
+    return EstimateOut(**fields).model_dump(mode="json")
 
 
 def a_spend(**overrides) -> dict:
@@ -384,80 +389,14 @@ def a_spend(**overrides) -> dict:
     return SpendOut(**(fields | overrides)).model_dump(mode="json")
 
 
-def a_sample(title="Untitled No. 5", **overrides) -> SampleOut:
-    """One picture beside a name, defaulting to one the collection can show."""
-    fields = {
-        "title": title,
-        "artist": "Agnes Martin",
-        "image_url": f"https://www.artic.edu/iiif/2/{abs(hash(title)) % 100000}/full/843,/0/default.jpg",
-    }
-    return SampleOut(**(fields | overrides))
-
-
-def a_suggestion(value="Agnes Martin", *, kind="artist", samples=None) -> SuggestionOut:
-    return SuggestionOut(kind=kind, value=value, samples=list(samples or []))
-
-
-def a_turn(text="Something calm for the living room.", **overrides) -> ConversationTurnOut:
-    """One turn, defaulting to the curator's own and offering nothing."""
-    fields = {
-        "turn_id": "turn-1",
-        "ordinal": 0,
-        "role": TurnRole.CURATOR.value,
-        "text": text,
-        "suggested": [],
-        "committed_run_id": None,
-        "created_at": "2026-08-12T10:00:00+00:00",
-    }
-    return ConversationTurnOut(**(fields | overrides))
-
-
-def a_conversation(**overrides) -> ConversationOut:
-    fields = {
-        "conversation_id": "conversation-under-test",
-        "started_at": "2026-08-12T10:00:00+00:00",
-        "last_turn_at": "2026-08-12T10:01:00+00:00",
-        "summary": None,
-    }
-    return ConversationOut(**(fields | overrides))
-
-
-def a_thread(turns=None, **overrides) -> dict:
-    """A whole conversation as `/api/conversations/{id}` answers it.
-
-    `committed_run_id` and `unanswered_turn_id` are derived from the turns rather
-    than passed in, exactly as the server derives them. A fixture free to
-    disagree with itself could assert a screen no server could ever have
-    produced — a commit card polling a run no turn committed, or a retry button
-    over a question that was answered.
-    """
-    turns = [a_turn()] if turns is None else list(turns)
-    committed = next((turn.committed_run_id for turn in reversed(turns) if turn.committed_run_id), None)
-    last = turns[-1] if turns else None
-    unanswered = last.turn_id if last is not None and last.role == TurnRole.CURATOR.value and not last.committed_run_id else None
-    fields = {
-        "conversation": a_conversation(),
-        "turns": turns,
-        "committed_run_id": committed,
-        "failure": None,
-        "unanswered_turn_id": unanswered,
-    }
-    return ConversationViewOut(**(fields | overrides)).model_dump(mode="json")
-
-
-def a_conversation_list(conversations=None) -> dict:
-    conversations = [a_conversation()] if conversations is None else list(conversations)
-    return ConversationListOut(conversations=conversations, count=len(conversations)).model_dump(mode="json")
-
-
 def an_affinity(value="Agnes Martin", **overrides) -> AffinityOut:
     """One judgment, defaulting to one the curator stated themselves.
 
     `stated` is the default because it is what every reaction and every
     correction writes, and because it is the one derivation that legitimately
-    carries neither a rationale nor a turn — a builder defaulting to `inferred`
-    would make every test that did not care about provenance assert against a
-    row the write path would refuse.
+    carries no rationale — a builder defaulting to `inferred` would make every
+    test that did not care about provenance assert against a row the write path
+    would refuse.
     """
     fields = {
         "affinity_id": f"affinity-{abs(hash(value)) % 100000}",
@@ -467,8 +406,6 @@ def an_affinity(value="Agnes Martin", **overrides) -> AffinityOut:
         "open_to_more": True,
         "derivation": AffinityDerivation.STATED.value,
         "rationale": None,
-        "source_turn_id": None,
-        "conversation_id": None,
         "artist_id": None,
         "created_at": "2026-08-12T10:00:00+00:00",
         "updated_at": "2026-08-12T10:00:00+00:00",
@@ -488,7 +425,7 @@ def a_taste(affinities=None) -> dict:
 
 
 def a_look_picture(key="a" * 64, **overrides) -> LookPictureOut:
-    """One find a look holds, as `LookPictureOut` carries it: SMK's, native, by default."""
+    """One find a look holds, as `LookPictureOut` carries it: SMK's, meeting the minimum, by default."""
     fields = {
         "key": key,
         "provider": "smk",
@@ -497,8 +434,8 @@ def a_look_picture(key="a" * 64, **overrides) -> LookPictureOut:
         "artist": "Ejler Bille",
         "width": 2201,
         "height": 2221,
-        "fit": FitOut(verdict=str(DisplayFit.NATIVE), rendered_width=1800, rendered_height=1816, rendered_long_edge_inches=31.4),
-        "below_floor": False,
+        "fit": FitOut(verdict=str(Fit.MEETS_MINIMUM)),
+        "below_minimum": False,
         "confidence": 0.95,
         "rights_status": "public_domain",
         "selection_rationale": "smk holds this as 'Tantra-Vision' by Ejler Bille, matching the requested title and artist.",

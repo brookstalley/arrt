@@ -17,7 +17,6 @@ from arrt.seed.legacy import (
     artist_name,
     parse_artist,
     read_index,
-    ready_path_for,
 )
 
 
@@ -136,17 +135,6 @@ class TestArtistName:
         assert artist_name("Juan Gris (Spanish, 1887–1927)") == "Juan Gris"
 
 
-class TestReadyPath:
-    def test_the_render_is_named_from_the_master_and_the_resize(self):
-        assert ready_path_for("Charles Demuth - Home of the Brave.jpg", "scaled") == (
-            "ready/Charles Demuth - Home of the Brave_rscaled.jpg"
-        )
-
-    def test_the_name_carries_no_panel_geometry(self):
-        """The 2024 label filenames encoded one, which is why they name a panel nobody owns."""
-        assert "_w" not in ready_path_for("A work.jpg", "scaled")
-
-
 class TestReadIndex:
     def _write(self, tmp_path, document):
         path = tmp_path / "all.json"
@@ -165,7 +153,6 @@ class TestReadIndex:
     def test_a_record_becomes_paths_relative_to_the_art_root(self, tmp_path):
         (record,) = read_index(self._write(tmp_path, {"default_resize": "scaled", "art": [self._record()]}))
         assert record.raw_path == "raw/A work.jpg"
-        assert record.ready_path == "ready/A work_rscaled.jpg"
 
     def test_order_is_preserved_because_it_is_the_only_recency_signal(self, tmp_path):
         urls = [self._record(url=f"https://www.artic.edu/artworks/{n}/w") for n in (3, 1, 2)]
@@ -204,14 +191,10 @@ class TestReadIndex:
         (record,) = read_index(self._write(tmp_path, {"default_resize": "scaled", "art": [blank]}))
         assert record.medium is None
 
-    def test_the_files_default_resize_applies_where_a_record_states_none(self, tmp_path):
-        (record,) = read_index(self._write(tmp_path, {"default_resize": "cropped", "art": [self._record()]}))
-        assert record.ready_path.endswith("_rcropped.jpg")
-
-    def test_a_record_stating_its_own_resize_wins(self, tmp_path):
-        document = {"default_resize": "scaled", "art": [self._record(resize_option="cropped")]}
-        (record,) = read_index(self._write(tmp_path, document))
-        assert record.ready_path.endswith("_rcropped.jpg")
+    def test_a_record_with_no_resize_option_is_read(self, tmp_path):
+        """The resize option named the 2024 render, which nothing reads now; a record without one is not refused for it."""
+        (record,) = read_index(self._write(tmp_path, {"art": [self._record()]}))
+        assert record.raw_path == "raw/A work.jpg"
 
     @pytest.mark.parametrize(
         ("document", "expected"),
@@ -234,7 +217,3 @@ class TestReadIndex:
         path.write_text("{not json", encoding="utf-8")
         with pytest.raises(LegacyIndexError, match="not valid JSON"):
             read_index(path)
-
-    def test_a_record_with_no_resize_anywhere_is_refused(self, tmp_path):
-        with pytest.raises(LegacyIndexError, match="no resize_option"):
-            read_index(self._write(tmp_path, {"art": [self._record()]}))

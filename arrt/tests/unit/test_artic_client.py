@@ -15,10 +15,11 @@ import json
 import httpx
 import pytest
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources.artic import PROVIDER, ArticFinder, ArticReader
 from arrt.library.sources.reading import FetchLocator, LocatorKind
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
@@ -270,8 +271,8 @@ def test_the_artist_still_reaches_the_judgement_that_refuses_a_near_match():
     then be found *and* kept.
     """
     layton = {**AMERICAN_GOTHIC, "artist_title": "Elizabeth Layton"}
-    box = ArtworkBox(width=3400, height=1687, pixels_per_inch=88.12, floor_inches=12.0)
-    engine = PhaseTwoEngine(ImageSourcePool([_client(_serving(layton))]), box=box)
+    profile = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
+    engine = PhaseTwoEngine(ImageSourcePool([_client(_serving(layton))]), profile=profile)
 
     assert engine.resolve(ImageQuery(title="American Gothic", artist="Grant Wood")).instances == []
 

@@ -1,0 +1,35 @@
+{
+  "reported_at": "2026-10-08T16:40:00Z",
+  "outputs": [
+    {
+      "name": "frame",
+      "kind": "frame",
+      "connected": true,
+      "screen": [
+        3840,
+        2160
+      ],
+      "identity": "uuid:00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "name": "hdmi-a-1",
+      "kind": "framebuffer",
+      "connected": true,
+      "screen": [
+        1280,
+        1024
+      ]
+    }
+  ],
+  "label_outputs": [
+    {
+      "name": "epd-0",
+      "kind": "epaper",
+      "connected": true,
+      "size": [
+        800,
+        480
+      ]
+    }
+  ]
+}

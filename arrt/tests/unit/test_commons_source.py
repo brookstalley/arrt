@@ -13,11 +13,12 @@ import httpx
 import pytest
 from fakes import FakeFinder, FakeRegistry, an_image
 
+from arrt.config import DEFAULT_QUALITY_MINIMUM_PX
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.phase_two import PhaseTwoEngine
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryText, RegistryWork
-from arrt.library.services.display_fit import ArtworkBox
+from arrt.library.services.quality import QualityProfile
 from arrt.library.sources.commons import DOWNLOAD_WIDTH, PREVIEW_WIDTH, CommonsFinder
 from arrt.persistence.records import AcquisitionMethod, RightsStatus
 
@@ -264,7 +265,7 @@ def test_a_preview_that_is_not_served_is_absent():
 
 
 #: The engine tests' 42" geometry.
-BOX = ArtworkBox(width=3316, height=1597, pixels_per_inch=104.9, floor_inches=12.0)
+PROFILE = QualityProfile(minimum_long_edge_px=DEFAULT_QUALITY_MINIMUM_PX)
 
 
 @pytest.mark.parametrize(
@@ -284,7 +285,7 @@ def test_phase_two_picks_the_better_image_whichever_source_found_it(museum_size,
             )
         }
     )
-    engine = PhaseTwoEngine(ImageSourcePool([commons, museum]), box=BOX)
+    engine = PhaseTwoEngine(ImageSourcePool([commons, museum]), profile=PROFILE)
 
     resolution = engine.resolve(ImageQuery(title="The Starry Night", artist="Vincent van Gogh", qid=ItemId("Q45585")))
 

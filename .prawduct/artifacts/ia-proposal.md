@@ -228,6 +228,13 @@ the conversation is a way into the same world rather than a separate one. A
 direction it settles on becomes a **Get**, in place (the seam ruling in
 `information-architecture.md` § Flow 1 stands).
 
+> **Direction changed 2026-10-08 (the owner).** Ask is the conversation and the
+> only box: an agent that searches as it talks, for named work as well as open
+> intent. Its suggestions as artists, works and topics, each showing its state,
+> stand and become its cards. The seam ruling does not: with no separate run to
+> commit to, Get is an act on a card. `build-plan-ask-agent.md`, built
+> 2026-10-09.
+
 ### Theme
 
 A playlist: held works in an order. **Hang…** takes walls (and, from wave 4, a
@@ -292,7 +299,7 @@ S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
 | Add New is a place: an intent box and conversations | Gone as a place. Get is an action on any selection; Ask is the conversation, under Library | **Removed** as a place: an owner-ruled departure from the *arr norm (ruling 3) |
 | Two-scope search: library, then *Search museums* → a paid run | One world: library and registry matches with states, free | **Changed** |
 | Search misses `dali` | Folds accents | **Fix**, independent of everything else |
-| Hang on one wall per click; no end; no history | Walls keep a history now; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6) |
+| Hang on one wall per click; no end; no history | Walls keep a history; hanging on several walls, for a duration, with revert comes with wave 4's schedule | **New**, mostly deferred (ruling 6). *(This row said "Walls keep a history now" until 2026-10-07. They do not: `theme_assignments` holds one row per wall and is overwritten, so no past hang survives. The history is ruling 6 of 2026-10-07, below, and #293.)* |
 | *All works* is an ordinary theme, kept by hand | The designated default theme: acceptances join it automatically unless their Get named another destination (2026-10-02) | **Changed** (rulings 5a and 8) |
 | Archive one work at a time | Archive a selection; *Not this one again* from Walls | **Changed** |
 | Taste recorded, unread | Taste read by Ask and by similar artists; what a Get's destination means for taste is plan 4's (ruling 5b, amended 2026-10-02) | **New** |
@@ -360,3 +367,52 @@ deleted, is not ruled; the build plan proposes it.
 proposal. Then a build plan, whose first pieces stand on their own: the accent
 fix, the default theme (ruling 8), storing registry IDs (ruling 7), and the
 Artist hub (4), which needs the IDs.
+
+## Rulings (2026-10-07)
+
+The owner ruled on the five decisions the first UX walkthrough raised
+(`ux-review-2026-10.md` § Decisions only the owner can make), one at a time, and
+on a sixth their answer to the third opened. A seventh, #278's tile direction,
+was confirmed later the same day. The wording of each option is the
+builder's; the choice is the owner's.
+
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | What to build next | **The Walls and Work pages as this proposal designed them** (§ Walls, § Work): the work on the wall now, Skip, *Not this one again*, and Hang on a work. Durations and hanging everywhere stay with ruling 6 of 2026-10-01. Backlog #272. |
+| 2 | Links or buttons | **Navigation is a link, an act is a button**, as a norm: `information-architecture.md` § Direction. Its migration is backlog #273. |
+| 3 | Approving spend | **No approvals: a monthly budget, shown, and a cost tier on every action.** *"Asking people to approve $0.01 at a time is just a nuisance… just doing the action is the approval."* And: *"We are conscious of total spend and don't want to be wasteful, but also don't want to ask excessive permission for everything."* The sidebar shows what is left of the month; each spending action shows free, $, $$ or $$$ before it is taken; the approval gate on runs of more than 25 works goes. The provider-enforced ceiling is unchanged. This reverses the operator's decision of 2026-08-04 that the remaining balance is never shown, knowing it lags the provider by minutes. Backlog #290. |
+| 4 | The spending request's name | **Get, everywhere**, as § Objects defines it. *Search* means only the free search; *run* leaves the screens. Backlog #291. |
+| 5 | Wanted in the sidebar | **Always shown**, as in every *arr app, with its count when non-zero. Backlog #292. |
+| 6 | History | **Events, from now on**: Gets, verdicts, archives, restores and hangs, in one log that also gives each wall its history. Past hangs are not recoverable. Backlog #293. |
+| 7 | Library tiles | **The work itself, at its own aspect.** The wall render, with its mat and bars, appears only on the Work page, where it is the subject. Previews of works not held are real thumbnails with a badge, not hatching. Confirmed by the owner 2026-10-07. Backlog #278. |
+
+**The builder pushed back on ruling 3 in one place, and the owner kept it.**
+Without the gate, an Ask whose model proposes eighty works lands eighty cards in
+To review; the gate was guarding attention as much as money. If that bites, the
+remedy is a bound on works per Ask, not a cost approval.
+
+## Rulings (2026-10-11)
+
+The owner ruled on the three questions the second walkthrough raised
+(`ux-review-2026-10.md` § Second walk, "For the owner"). The wording of each
+option is the builder's; the choice is the owner's.
+
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | Where engineering detail lives | **A separate debug view.** The owner suggested a global `debug` query string and left the mechanism to the builder. The builder's choice: `?debug` in the page's own query (`/?debug#work/<id>`), not the route's. Every in-app link is a hash, so the flag survives navigation until the address drops it, and it shows in the address bar rather than hiding in browser storage. Without it, a Work page ends at the label and the sources a person can act on. The master's file, hash, renditions and mat hex move behind the flag, and so do Status's raw disclosures. A plugin id is shown only there; elsewhere a source is named by its museum. Findings 34 and 39. |
+| 2 | Order and shuffle | **A theme has an order and is never shuffled.** *"Much like music playlists the theme has an order, but a player may be configured to shuffle."* The Theme page shows its order and lets it be edited, and nothing on it speaks of shuffle. Shuffle is a setting of what plays the theme. **The player is the wall** (the builder's reading, confirmed the same day: *"the wall and its config. Same way we assign a theme to a wall, should be an option to shuffle the theme"*). The server schedules each wall's slots and the Player only follows them (`player-contract.md`, the time-anchored `schedule`), so shuffle is part of the wall's configuration, chosen where a theme is hung on it, with the deployment default as before. This also settles where the 244 inert buttons of finding 31 went: they are no longer inert. **The interval goes with it** (ruled the same day: *"Duration is also wall config not theme"*): how long a work stays up is the wall's too, set where shuffle is. Finding 31. |
+| 3 | Walls with the screen off | **Show the last-shown work.** Today the page shows a work only while the screen reports one, and its `last` covers only a Player that has stopped reporting, not a screen that is dark. The next three stay as ruled on 2026-10-07 (ruling 1). Finding 33. |
+
+**Ruling 2 changes a stored field.** `Theme.shuffle` and `Theme.rotation_interval_seconds` (`data-model.md`,
+nullable, null meaning the deployment default) move to the wall, and with it the API's
+`shuffle` on a theme, the MCP `shuffle` argument, and `display.shuffles(theme)`.
+A theme saved with `shuffle: false` today already has the order this ruling
+keeps. A wall hanging a theme the operator set to shuffle should start
+shuffled, so that the migration does not change what a wall shows.
+**On the wall itself, not on the hanging** *(the owner, 2026-10-13, asked with
+#370, a wall filtering its theme by aspect ratio, in view)*: both are columns on
+`walls` beside `mat_mode`, so they survive hanging another theme and clearing the
+wall, and #370's filter will sit with them. Built on
+`feature/wall-rotation-settings` (#353).
+
+

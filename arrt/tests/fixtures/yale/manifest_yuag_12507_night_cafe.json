@@ -1,0 +1,276 @@
+{
+  "@context": "http://iiif.io/api/presentation/3/context.json",
+  "id": "https://manifests.collections.yale.edu/yuag/obj/12507",
+  "type": "Manifest",
+  "label": {
+    "en": [
+      "Vincent van Gogh, Le café de nuit (The Night Café), 1888"
+    ]
+  },
+  "metadata": [
+    {
+      "label": {
+        "en": [
+          "Copyright Statement"
+        ]
+      },
+      "value": {
+        "en": [
+          "Public domain"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Title"
+        ]
+      },
+      "value": {
+        "en": [
+          "Le café de nuit (The Night Café)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Creator(s)"
+        ]
+      },
+      "value": {
+        "en": [
+          "Artist: Vincent van Gogh (Dutch, active France, 1853–1890)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Culture"
+        ]
+      },
+      "value": {
+        "en": [
+          "Dutch"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Date"
+        ]
+      },
+      "value": {
+        "en": [
+          "1888"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Medium"
+        ]
+      },
+      "value": {
+        "en": [
+          "Oil on canvas"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Dimensions"
+        ]
+      },
+      "value": {
+        "en": [
+          "28 1/2 × 36 1/4 in. (72.4 × 92.1 cm)"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Creditline"
+        ]
+      },
+      "value": {
+        "en": [
+          "Bequest of Stephen Carlton Clark, B.A. 1903"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Classification"
+        ]
+      },
+      "value": {
+        "en": [
+          "Paintings"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Department"
+        ]
+      },
+      "value": {
+        "en": [
+          "European Art"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Institution"
+        ]
+      },
+      "value": {
+        "en": [
+          "Yale University Art Gallery"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Object Number"
+        ]
+      },
+      "value": {
+        "en": [
+          "1961.18.34"
+        ]
+      }
+    },
+    {
+      "label": {
+        "en": [
+          "Alternative Text"
+        ]
+      },
+      "value": {
+        "en": [
+          "A painting made up of vibrant brushstrokes showing the inside of a café with a billiards table at center and tables and chairs lining the walls. The ceiling is green, the walls are red, and the floor is yellowish-brown. Four lamps suspended from the ceiling radiate light in the form of short brushstrokes. A man stands near the billiards table with hands in his pockets. A few people sit at some tables, and a small bar stands at the back.  "
+        ]
+      }
+    }
+  ],
+  "rights": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "requiredStatement": {
+    "label": {
+      "en": [
+        "Rights Description"
+      ]
+    },
+    "value": {
+      "en": [
+        "Data Provided about Yale University Art Gallery collections are public domain. Rights restrictions may apply to cultural works or images of those works."
+      ]
+    }
+  },
+  "logo": [
+    {
+      "id": "https://artgallery.yale.edu/sites/default/files/2023-03/LUX_YUAG_logo.png",
+      "type": "Image"
+    }
+  ],
+  "homepage": [
+    {
+      "format": "text/html",
+      "id": "https://artgallery.yale.edu/collections/objects/12507",
+      "label": {
+        "en": [
+          "catalog entry at the Yale University Art Gallery"
+        ]
+      },
+      "language": "en",
+      "type": "Text"
+    }
+  ],
+  "items": [
+    {
+      "id": "https://manifests.collections.yale.edu/canvas/yuag/3b072179-2fc7-42bc-87cc-9ee4d782b270",
+      "type": "Canvas",
+      "label": {
+        "en": [
+          "Image from Yale University"
+        ]
+      },
+      "height": 5848,
+      "width": 7408,
+      "items": [
+        {
+          "id": "https://manifests.collections.yale.edu/annopage/yuag/3b072179-2fc7-42bc-87cc-9ee4d782b270",
+          "type": "AnnotationPage",
+          "items": [
+            {
+              "id": "https://manifests.collections.yale.edu/annotation/yuag/3b072179-2fc7-42bc-87cc-9ee4d782b270",
+              "type": "Annotation",
+              "motivation": "painting",
+              "body": {
+                "id": "https://images.collections.yale.edu/iiif/2/yuag:3b072179-2fc7-42bc-87cc-9ee4d782b270/full/full/0/default.jpg",
+                "type": "Image",
+                "format": "image/jpeg",
+                "service": [
+                  {
+                    "@id": "https://images.collections.yale.edu/iiif/2/yuag:3b072179-2fc7-42bc-87cc-9ee4d782b270",
+                    "@type": "ImageService2",
+                    "profile": "http://iiif.io/api/image/2/level2.json"
+                  }
+                ],
+                "height": 5848,
+                "width": 7408
+              },
+              "target": "https://manifests.collections.yale.edu/canvas/yuag/3b072179-2fc7-42bc-87cc-9ee4d782b270"
+            }
+          ]
+        }
+      ],
+      "rendering": [
+        {
+          "id": "https://media.collections.yale.edu/tiff/yuag/3b072179-2fc7-42bc-87cc-9ee4d782b270.tif",
+          "type": "Image",
+          "label": {
+            "en": [
+              "TIFF for download"
+            ]
+          },
+          "format": "image/tiff"
+        }
+      ],
+      "thumbnail": [
+        {
+          "id": "https://media.collections.yale.edu/thumbnail/yuag/3b072179-2fc7-42bc-87cc-9ee4d782b270",
+          "type": "Image",
+          "format": "image/jpeg",
+          "width": 480,
+          "height": 379
+        }
+      ],
+      "metadata": [
+        {
+          "label": {
+            "en": [
+              "Image Use Rights"
+            ]
+          },
+          "value": {
+            "en": [
+              "No Copyright - United States"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

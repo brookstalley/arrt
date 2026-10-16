@@ -31,9 +31,13 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREACHABLE_KEPT_FOR
 from arrt.library.services.review import MAX_REVIEW_LIMIT
+from arrt.library.services.survey import FIT_BANDS
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
-from arrt.persistence.records import ArtworkStatus, VocabularyKind, WorkOrder
+from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
+from arrt.programming.display import DEFAULT_SHUFFLE, IN_ORDER, PLAYERS_OWN_MAT, SHUFFLED, MatMode
+from arrt.programming.shape import ANY as ANY_SHAPE
+from arrt.services.works_filter import SHOWN_PERIODS
 
 _STATUS = Param(
     name="status",
@@ -147,7 +151,7 @@ _HEX_RGB = Param(
 _FORCE = Param(
     name="force",
     type="boolean",
-    description="Re-render even if the work's canvas is already current. Defaults to false.",
+    description="Make the presentation master again even if the work's is already current. Defaults to false.",
 )
 
 ART_CATALOGUE: Final = ToolRecord(
@@ -190,6 +194,29 @@ ART_CATALOGUE: Final = ToolRecord(
                         "Only this theme's works, by theme_id; every other filter and every facet count narrows within it."
                     ),
                 ),
+                Param(
+                    name="fit",
+                    type="array",
+                    items="string",
+                    description=(
+                        f"Only works whose size on the wall is in one of these bands: {', '.join(FIT_BANDS)} "
+                        "(unknown: no master yet). The result's fits counts each band."
+                    ),
+                ),
+                Param(
+                    name="not_on_wall",
+                    type="boolean",
+                    description="Only works no wall plays now, through the theme or selection hanging on it. Defaults to false.",
+                ),
+                Param(
+                    name="shown",
+                    type="string",
+                    choices=tuple(SHOWN_PERIODS),
+                    description=(
+                        "Only works no wall has shown: never, or not in the last month (30 days), quarter (90) or "
+                        "year (365). Each period includes the works never shown. The result's shown counts each."
+                    ),
+                ),
                 _SORT,
                 _LIMIT,
                 _OFFSET,
@@ -208,6 +235,10 @@ ART_CATALOGUE: Final = ToolRecord(
                 (
                     "Every result also lists each theme with the count it would select, counted the same way, so "
                     "theme=… can be chosen without a separate art_theme call."
+                ),
+                (
+                    "For clean-up: fits, not_on_wall and shown are counted the same way, so shown='year' with "
+                    "not_on_wall=true finds the works neither hung now nor shown in a year."
                 ),
             ),
         ),
@@ -291,7 +322,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     "Nothing is overwritten: the previous colour is kept, so a worse choice can be read back and reversed "
                     "by setting the old one again."
                 ),
-                "The work is re-rendered in the new colour immediately — there is no separate regenerate to remember.",
+                "Every wall showing the work gets the new colour in its feed at once; there is nothing to regenerate.",
                 (
                     "A colour recorded as method='dominant_color_fallback' was derived mechanically, not chosen for "
                     "this work: no vision model is configured, it could not be reached, its answer could not be used, "
@@ -337,7 +368,7 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="regenerate",
-            description="Re-render a work's television canvas from the image it holds, in the mat colour already in force.",
+            description="Make a work's presentation master from the image it holds, and give it a mat colour if it has none.",
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _FORCE),
             tips=(
@@ -347,13 +378,18 @@ ART_CATALOGUE: Final = ToolRecord(
                     "answer reports cost_usd, so a call that spent nothing says so."
                 ),
                 (
-                    "Ordinarily it does only what is needed — a work whose canvas is already current is reported "
-                    "unchanged rather than re-rendered."
+                    "Ordinarily it does only what is needed: a work whose master is already current is reported "
+                    "unchanged rather than made again. Each wall's Player draws the mat itself."
                 ),
-                "Use force=true after changing the panel geometry or clearing the rendered tree.",
+                "Use force=true after clearing the masters directory.",
                 (
-                    "A work whose master image is missing from disk is refused rather than rendered blank; "
+                    "A work whose image is missing from disk is refused rather than made blank; "
                     "action='retry_acquisition' fetches it again."
+                ),
+                (
+                    "fit is 'meets_minimum' or 'below_minimum', against the quality minimum, and null when nothing "
+                    "was made. Retired 2026-10-08: 'native', 'matted_small' and 'below_floor', and the "
+                    "rendered_long_edge_inches field, which judged the work against one configured television."
                 ),
             ),
         ),
@@ -387,6 +423,40 @@ ART_CATALOGUE: Final = ToolRecord(
                 ),
             ),
         ),
+        Action(
+            name="history",
+            description="Return what happened, newest first: Gets, verdicts, archives, restores, and what was hung.",
+            example="art_catalogue(action='history', kinds=['wall.hung'], wall_id='<a wall_id>')",
+            params=(
+                Param(
+                    name="kinds",
+                    type="array",
+                    items="string",
+                    description=(
+                        "Only these kinds of event, any of them: "
+                        + ", ".join(kind.value for kind in EventKind)
+                        + ". Omit for every kind."
+                    ),
+                ),
+                Param(
+                    name="wall_id",
+                    type="string",
+                    description="Only this wall's history, as art_display(action='walls') names walls. Omit for every wall.",
+                ),
+                _LIMIT,
+                _OFFSET,
+            ),
+            tips=(
+                (
+                    "Recorded from the day the history arrived; nothing earlier is recovered, so an empty history "
+                    "means nothing has happened since, not that nothing ever did."
+                ),
+                (
+                    "Ids in an event may no longer resolve (an archived work, a deleted theme). Each event's detail "
+                    "carries the words it is read by: title, theme_name, selection, and how a Get ended (status)."
+                ),
+            ),
+        ),
     ),
 )
 
@@ -397,7 +467,25 @@ ART_CATALOGUE: Final = ToolRecord(
 #: it governed both — telling a model that omitting `run_id` prices a new question
 #: on the four actions where omitting it is simply an error. What each action does
 #: with it belongs in that action's own description and tips, which `help` shows.
-_RUN_ID_DESCRIPTION = "A discovery run's id, as returned by action='start' or action='list_runs'."
+_RUN_ID_DESCRIPTION = (
+    "A discovery run's id (a Get, in the curator's browser), as returned by action='start' or action='list_runs'."
+)
+
+#: One description for every art_discovery action taking an item, because the
+#: wire schema publishes only the first declaration of a name.
+_ITEM = Param(
+    name="qid",
+    type="string",
+    description="A Wikidata item id such as Q45585: the work, artist or topic the action names.",
+    required=True,
+)
+
+_REGISTRY_QUERY = Param(
+    name="q",
+    type="string",
+    description="A few words: a name, a title, or both.",
+    required=True,
+)
 
 _RUN_ID = Param(name="run_id", type="string", description=_RUN_ID_DESCRIPTION, required=True)
 
@@ -410,9 +498,17 @@ ART_DISCOVERY: Final = ToolRecord(
     #: No longer "the only tool that spends money" — `art_catalogue`'s
     #: `set_mat_color` asks a vision model when given no colour. The distinction
     #: that survives is scale, and it is the one a curator needs: a discovery run
-    #: is the operation with a budget, an approval gate and a ceiling behind it,
-    #: while a mat call is a fraction of a cent against one work.
-    summary="Propose and resolve new works. The only tool that spends money in amounts worth authorising.",
+    #: is the operation with an estimate, a tier and a ceiling behind it, while
+    #: a mat call is a fraction of a cent against one work.
+    #: The action names stay as they are — tool and action names are a frozen
+    #: contract with every agent already calling them, and this surface has no
+    #: action aliases — so the curator's word is carried in the summary instead:
+    #: every run is what the browser calls a Get, and an agent talking to the
+    #: curator should call it that (`information-architecture.md` § Vocabulary).
+    summary=(
+        "Propose and resolve new works. The only tool that spends money in amounts worth pricing first. "
+        "Each run is what the curator's browser calls a Get, at #get/<run_id>; say Get, not run or search, to them."
+    ),
     read_only=False,
     destructive=True,
     open_world=True,
@@ -429,11 +525,15 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "With no run_id the answer covers phase 1 — one model call and its search allowance. With a "
-                    "run_id it is that run's stored phase-2 figure, which is what its approval gate authorises against."
+                    "run_id it is that run's stored phase-2 figure."
                 ),
                 (
                     "Both figures are bounded rather than typical: they price the whole search allowance, because a "
                     "number a run may freely exceed is not an estimate."
+                ),
+                (
+                    "`tier` is the figure as the curator sees it before acting: free, $ (under $0.05), $$ (under "
+                    "$0.50) or $$$. Starting the run is the approval; nothing stops to ask."
                 ),
             ),
         ),
@@ -455,8 +555,8 @@ ART_DISCOVERY: Final = ToolRecord(
                     "with that id, which holds until something changes rather than answering straight away."
                 ),
                 (
-                    "A run that proposes more works than the configured threshold stops and waits for "
-                    "action='approve' before spending anything on phase 2."
+                    "Starting is the approval: a run goes from its work list straight on to finding images, "
+                    "however many works it proposed. Price it first with action='estimate'."
                 ),
                 (
                     "Works the curator has already rejected are skipped rather than proposed again, so a run may "
@@ -486,7 +586,12 @@ ART_DISCOVERY: Final = ToolRecord(
             description="Accept a run's work list and its price, letting it proceed to finding images.",
             example="art_discovery(action='approve', run_id='<a run_id awaiting approval>')",
             params=(_RUN_ID,),
-            tips=("Only a run in 'awaiting_approval' can be approved; check action='status' first.",),
+            tips=(
+                (
+                    "Only a run in 'awaiting_approval' can be approved, and no run stops there now: only one "
+                    "stored there before asking became the approval. Check action='status' first."
+                ),
+            ),
         ),
         Action(
             name="decline",
@@ -496,7 +601,7 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 (
                     "Declining is not the same as cancelling: it is a judgement on the work list, and it is "
-                    "available only while the run is waiting for one."
+                    "available only for a run stored waiting for one before asking became the approval."
                 ),
             ),
         ),
@@ -507,8 +612,8 @@ ART_DISCOVERY: Final = ToolRecord(
             params=(_RUN_ID,),
             tips=(
                 (
-                    "Available from every state a run can still leave, including while it waits for approval — "
-                    "wanting a run gone is a different thing from declining what it found."
+                    "Available from every state a run can still leave, including a run stored waiting for "
+                    "approval — wanting a run gone is a different thing from declining what it found."
                 ),
                 "A run that has already ended cannot be cancelled; the refusal names how it ended.",
             ),
@@ -575,9 +680,9 @@ ART_DISCOVERY: Final = ToolRecord(
             tips=(
                 "This spends nothing: a Get has no phase 1, and the image sources it asks are free.",
                 (
-                    "An item the library already holds, one a Get under way is already looking for, and one "
-                    "Wikidata has no work for are skipped and listed under `skipped`, not refused. When every "
-                    "item is skipped no run starts and `run_id` is null."
+                    "An item the library already holds, one a Get under way is already looking for, one waiting "
+                    "in To review, and one Wikidata has no work for are skipped and listed under `skipped`, not "
+                    "refused. When every item is skipped no run starts and `run_id` is null."
                 ),
                 (
                     "The run is like any other: action='status' and action='cancel' take its run_id, and its works "
@@ -592,16 +697,9 @@ ART_DISCOVERY: Final = ToolRecord(
         ),
         Action(
             name="look",
-            description=("Show what every image source holds of a work you do not hold, by its Wikidata item, before any Get."),
+            description="Show what every image source holds of a work, by its Wikidata item, before any Get.",
             example="art_discovery(action='look', qid='Q20267229')",
-            params=(
-                Param(
-                    name="qid",
-                    type="string",
-                    description="The work's Wikidata item, such as Q20267229.",
-                    required=True,
-                ),
-            ),
+            params=(_ITEM,),
             tips=(
                 (
                     "This spends nothing and records nothing: no run starts. Each source is asked what a Get would "
@@ -624,15 +722,104 @@ ART_DISCOVERY: Final = ToolRecord(
                 ),
                 (
                     "A picture's facts carry the browser's names: width and height are art_review list_images' "
-                    "estimated_width and estimated_height, fit.verdict its display_fit, and "
-                    "fit.rendered_long_edge_inches its renders_at_inches, unrounded."
+                    "estimated_width and estimated_height, fit.verdict its display_fit, and below_minimum is "
+                    "fit.verdict == 'below_minimum'."
+                ),
+            ),
+        ),
+        Action(
+            name="search",
+            description="Find artists and works on Wikidata by a few words, marked where held.",
+            example="art_discovery(action='search', q='Hunters in the Snow')",
+            params=(_REGISTRY_QUERY,),
+            tips=(
+                (
+                    "Up to 10 artists, by Wikidata's name search, and 20 works of visual art, the most renowned first. "
+                    "Each artist and work carries its qid, which action='artist', action='work' and action='get' take."
+                ),
+                (
+                    "A row the library holds names it: an artist's artist_id, a work's held_artwork_ids. wanted and "
+                    "in_review say a work is already wanted, or waiting for the curator's verdict."
+                ),
+                "Words only reach Wikidata: search syntax is dropped, and under three letters nothing is asked.",
+                "Spends nothing. Every answer is kept a week, so asking again is free and fast.",
+            ),
+        ),
+        Action(
+            name="find_topics",
+            description="Find periods, movements, subjects and media on Wikidata by name.",
+            example="art_discovery(action='find_topics', q='surrealism')",
+            params=(_REGISTRY_QUERY,),
+            tips=(
+                "Each topic's qid is what action='topic' takes. A period carries its start and end years.",
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="artist",
+            description="Return an artist as Wikidata knows them, with their best-known works.",
+            example="art_discovery(action='artist', qid='Q5577')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "works are up to 50 by renown plus every work the library holds of theirs, works_total how many "
+                    "Wikidata lists; holdings the collections holding most of them. A work's qid is what "
+                    "action='get' takes."
+                ),
+                (
+                    "artist_id names the library's artist when it holds them, and their held works carry "
+                    "held_artwork_ids. Find an artist's qid with action='search'."
+                ),
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="similar_artists",
+            description="List artists who share a movement with this one.",
+            example="art_discovery(action='similar_artists', qid='Q5577')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "Up to 12, each with images, how many of their works have a free picture, so an artist nobody "
+                    "can supply shows as such; artist_id where the library holds them."
+                ),
+                "Spends nothing. Wikidata can take several seconds the first time; the answer is kept a week.",
+            ),
+        ),
+        Action(
+            name="work",
+            description="Return a work as Wikidata knows it: maker, date, holder and size.",
+            example="art_discovery(action='work', qid='Q45585')",
+            params=(_ITEM,),
+            tips=(
+                (
+                    "held_artwork_ids names the library's works that are this one. fit says how Wikidata's own "
+                    "picture would fill the wall; action='look' asks the image sources what they hold."
+                ),
+                "Spends nothing.",
+            ),
+        ),
+        Action(
+            name="topic",
+            description="Return a topic as Wikidata knows it, with its best-known works and artists.",
+            example="art_discovery(action='topic', qid='Q39427')",
+            params=(_ITEM,),
+            tips=(
+                ("This is Wikidata's half. art_catalogue(action='topic') is the library's: the held works in it."),
+                (
+                    "works and artists each carry their own state, since Wikidata can answer one and not the other. "
+                    "A work's state is held, image_found or no_image."
+                ),
+                (
+                    "Spends nothing, but a period's works can take Wikidata up to a minute the first time; the "
+                    "answer is kept a week."
                 ),
             ),
         ),
         Action(
             name="list_runs",
             description="List discovery runs, newest first, optionally narrowed to one state or kind.",
-            example="art_discovery(action='list_runs', status='awaiting_approval')",
+            example="art_discovery(action='list_runs', status='resolving_images')",
             params=(
                 Param(
                     name="status",
@@ -691,12 +878,10 @@ ART_DISCOVERY: Final = ToolRecord(
             # provenance, and one action name meaning two things across tools
             # would be read as one.
             name="source_plugins",
-            description=(
-                "List every installed image source plugin, most preferred first: the package and version it "
-                "came from, whether it loaded, and what it provides."
-            ),
+            description="List every installed image source plugin, most preferred first, and whether it loaded.",
             example="art_discovery(action='source_plugins')",
             tips=(
+                "Each plugin names the package and version it came from, and what it provides.",
                 (
                     "A plugin that declined is installed and not configured here; its reason names the setting "
                     "that would load it. One that failed could not be loaded, and its reason says why."
@@ -792,6 +977,12 @@ ART_REVIEW: Final = ToolRecord(
                     "Only `not_held` suggests the work may not exist."
                 ),
                 (
+                    "Within each of those, `confirmation` orders the rows: `confirmed` (a source names the "
+                    "work), then `unknown` (the model said nothing), then `unconfirmed` (the model said no "
+                    "source it was given names it). A work that is not confirmed may be a title the model "
+                    "invented; check it before accepting."
+                ),
+                (
                     "Read `provenance` on every row. `proposed` is a work the model named for this intent; "
                     "`offered` is one the collection volunteered by an artist the run named but could not "
                     "confirm a work for. An offered row carries the collection's own title and attribution "
@@ -817,7 +1008,7 @@ ART_REVIEW: Final = ToolRecord(
                 _BLOCK_ORDER_TIP,
                 (
                     "This carries one image, and is_on_offer says whether it is the one a verdict would accept "
-                    "on. It is false for a work whose scans are all below the floor or all turned down — the "
+                    "on. It is false for a work whose scans are all below the quality minimum or all turned down — the "
                     "picture is still shown, because a work with no picture and a work nothing was found for "
                     "must not look alike. Use action='list_images' to see the alternates found for the work."
                 ),
@@ -829,13 +1020,13 @@ ART_REVIEW: Final = ToolRecord(
         ),
         Action(
             name="list_images",
-            description="Return the image instances found for one work, ranked, each with its size on the wall.",
+            description="Return the image instances found for one work, ranked, each with its size in pixels.",
             example="art_review(action='list_images', work_id='<a work_id from action=list_works>')",
             params=(_WORK_ID,),
             tips=(
                 _BLOCK_ORDER_TIP,
                 (
-                    "Where a work has an instance on offer it leads; a work whose scans are all below the floor "
+                    "Where a work has an instance on offer it leads; a work whose scans are all below the minimum "
                     "or all turned down has none, and then the first row is simply the highest-ranked. Read "
                     "is_on_offer rather than position. The rest are alternates, kept rather than discarded so "
                     "an over-eager match stays inspectable."
@@ -846,13 +1037,20 @@ ART_REVIEW: Final = ToolRecord(
                     "rejected_for_this_work on each row."
                 ),
                 (
-                    "display_fit says how an instance would meet the wall: 'native', 'matted_small', or "
-                    "'below_floor'. A below_floor instance is shown and may be chosen — it is labelled with the "
-                    "size it would appear at, never hidden."
+                    "display_fit says whether an instance meets the quality minimum (QUALITY_MINIMUM_PX on its "
+                    "long edge): 'meets_minimum' or 'below_minimum'. A below_minimum instance is shown and may be "
+                    "chosen — it is labelled with its size, never hidden."
                 ),
                 (
-                    "renders_at_inches is the number a thumbnail cannot convey. A 900-pixel scan and a "
-                    "6000-pixel scan look identical here and are not the same thing on a wall."
+                    "size_px (and, on list_images, estimated_width and estimated_height) are the numbers a thumbnail "
+                    "cannot convey. A 900-pixel "
+                    "scan and a 6000-pixel scan look identical here and are not the same thing on a wall."
+                ),
+                (
+                    "Retired 2026-10-08: display_fit's 'native', 'matted_small' and 'below_floor', and the "
+                    "renders_at_inches and renders_at_pixels fields. They judged a scan against one configured "
+                    "television, which the server no longer holds; whether a work suits a particular wall is "
+                    "judged where that wall's screen is known."
                 ),
             ),
         ),
@@ -870,8 +1068,8 @@ ART_REVIEW: Final = ToolRecord(
             ),
             tips=(
                 (
-                    "This is how a below_floor scan gets onto the wall: automatic selection withholds one, and "
-                    "choosing it explicitly is the decision the floor exists to force. Nothing else overrides it."
+                    "This is how a below_minimum scan gets onto the wall: automatic selection withholds one, and "
+                    "choosing it explicitly is the decision the minimum exists to force. Nothing else overrides it."
                 ),
                 (
                     "A scan already turned down cannot be chosen again — that is what rejecting one means. Use "
@@ -966,8 +1164,8 @@ ART_REVIEW: Final = ToolRecord(
             tips=(
                 ("scans_turned_down counts the scans the curator turned down. wikidata_qid is null " "when no item is known."),
                 (
-                    "shown is the scan the work's review card pictures it by, usually one too small for the wall "
-                    "(display_fit below_floor), or null when nothing was found or every scan was turned down."
+                    "shown is the scan the work's review card pictures it by, usually one below the quality minimum "
+                    "(display_fit below_minimum), or null when nothing was found or every scan was turned down."
                 ),
             ),
         ),
@@ -1108,28 +1306,17 @@ ART_THEME: Final = ToolRecord(
         ),
         Action(
             name="update",
-            description="Change a theme's name, description, or rotation settings. Omitted fields are left alone.",
-            example="art_theme(action='update', theme_id='<a theme_id>', rotation_interval_seconds=600)",
+            description="Change a theme's name or description. Omitted fields are left alone.",
+            example="art_theme(action='update', theme_id='<a theme_id>', name='Winter light')",
             params=(
                 _THEME_ID,
                 Param(name="name", type="string", description="A new name for the theme."),
                 Param(name="description", type="string", description="A new description."),
-                Param(
-                    name="rotation_interval_seconds",
-                    type="integer",
-                    description="How long each work is shown in this theme. Omit to leave unchanged.",
-                    minimum=1,
-                ),
-                Param(
-                    name="shuffle",
-                    type="boolean",
-                    description="Show this theme in random order rather than curated order.",
-                ),
             ),
             tips=(
                 (
-                    "A theme that has never set an interval or shuffle inherits the deployment default, "
-                    "which is what art_display(action='sync') reports."
+                    "A theme has an order and is never shuffled. How long each work stays up and whether it "
+                    "plays shuffled are the wall's: art_display(action='set_playback')."
                 ),
             ),
         ),
@@ -1175,6 +1362,12 @@ ART_THEME: Final = ToolRecord(
                 ),
                 _POSITION,
             ),
+            tips=(
+                (
+                    "A wall hanging the theme gets the work at once if it can be shown, keeping the work on the "
+                    "wall now; one that cannot be shown yet joins when it can. No sync is needed."
+                ),
+            ),
         ),
         Action(
             name="remove",
@@ -1184,6 +1377,7 @@ ART_THEME: Final = ToolRecord(
                 _THEME_ID,
                 Param(name="artwork_id", type="string", description="The work to remove.", required=True),
             ),
+            tips=("Every wall hanging the theme loses the work at once; one showing it now moves on.",),
         ),
         Action(
             name="reorder",
@@ -1214,6 +1408,72 @@ ART_THEME: Final = ToolRecord(
                     "art_display(action='sync') does — a theme can be half-displayable."
                 ),
                 "Switching costs no television writes: the whole library stays on the TV and rotation is driven from here.",
+            ),
+        ),
+        Action(
+            name="hang_selection",
+            description="Hang one or more chosen works on a named wall, until something else is hung there.",
+            example="art_theme(action='hang_selection', wall_id='<a wall_id>', artwork_ids=['<an artwork_id>'])",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="artwork_ids",
+                    type="array",
+                    items="string",
+                    description="The works to hang, in the order they should show, as art_catalogue(action='list') names them.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "A selection is kept as a theme marked hidden: action='list' leaves it out, and the wall it hangs "
+                    "on reports it with hidden=true. Hanging anything else there replaces it."
+                ),
+                (
+                    "The result is the same as action='activate': every work that will NOT be on the wall and why, "
+                    "including a work kept off every wall by action='not_again'."
+                ),
+            ),
+        ),
+        Action(
+            name="not_again",
+            description="Not this one again: take a work out of the theme on a wall, or keep it off every wall.",
+            example="art_theme(action='not_again', wall_id='<a wall_id>', artwork_id='<an artwork_id>', scope='theme')",
+            params=(
+                _WALL_ID,
+                Param(name="artwork_id", type="string", description="The work to take off.", required=True),
+                Param(
+                    name="scope",
+                    type="string",
+                    description=(
+                        "theme: out of the theme hanging on that wall, and so off every wall hanging it. "
+                        "every_wall: off every wall until allowed again; the work stays in the library and its themes."
+                    ),
+                    choices=("theme", "every_wall"),
+                    required=True,
+                ),
+            ),
+            tips=(
+                "Ask which the curator meant; the two are different changes. Neither archives the work.",
+                "The walls carrying it lose it now, without a sync, and nothing else on them changes.",
+                "every_wall is undone with action='allow_again'.",
+            ),
+        ),
+        Action(
+            name="kept_off",
+            description="Return every work kept off every wall by action='not_again', oldest first.",
+            example="art_theme(action='kept_off')",
+        ),
+        Action(
+            name="allow_again",
+            description="Let a work kept off every wall go on walls again.",
+            example="art_theme(action='allow_again', artwork_id='<an artwork_id>')",
+            params=(Param(name="artwork_id", type="string", description="The work to allow again.", required=True),),
+            tips=(
+                (
+                    "Every wall hanging a theme that holds the work gets it back at once, if it can be shown. "
+                    "No sync is needed."
+                ),
             ),
         ),
         Action(
@@ -1253,9 +1513,27 @@ _OUTPUT = Param(
     name="output",
     type="string",
     description=(
-        "Which of the client's outputs shows the wall, by the name the client reports for it — 'hdmi-a-1', "
-        "'frame'. art_display(action='clients') lists what each client last reported."
+        "Which of the client's outputs, by the name the client reports for it: a display output such as "
+        "'hdmi-a-1' or 'frame' for assign_wall, a label output such as 'epd-0' for add_label. "
+        "art_display(action='clients') lists what each client last reported."
     ),
+    required=True,
+)
+
+_DISPLAY_ID = Param(
+    name="display_id",
+    type="string",
+    description=(
+        "Which display — one physical screen, kept by the identity its client read from it — as listed under "
+        "each client's displays by art_display(action='clients')."
+    ),
+    required=True,
+)
+
+_LABEL_ID = Param(
+    name="label_id",
+    type="string",
+    description="Which label output, as listed under the wall's labels by art_display(action='walls').",
     required=True,
 )
 
@@ -1281,7 +1559,7 @@ ART_DISPLAY: Final = ToolRecord(
     actions=(
         Action(
             name="walls",
-            description="Return every wall, with the theme hanging on each and that wall's directive.",
+            description="Return every wall, the theme hanging on each, and whether its Player reads the feed.",
             example="art_display(action='walls')",
             tips=(
                 (
@@ -1289,6 +1567,10 @@ ART_DISPLAY: Final = ToolRecord(
                     "and this is where they come from."
                 ),
                 "A wall with no theme hanging on it is an ordinary state, not a fault.",
+                (
+                    "feed_notice is set when the wall's Player said it cannot read this server's feed: that "
+                    "wall shows nothing new until its Player is updated."
+                ),
             ),
         ),
         Action(
@@ -1310,10 +1592,82 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="set_mat_mode",
+            description="Choose how a named wall's Player draws the mat, or leave it to the Player.",
+            example="art_display(action='set_mat_mode', wall_id='<a wall_id>', mode='full')",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="mode",
+                    type="string",
+                    description=(
+                        "none (the work on black), proportional (a mat of the work's own shape, black beyond), full "
+                        f"(mat colour to every edge), or {PLAYERS_OWN_MAT} (no choice: the Player's own)."
+                    ),
+                    required=True,
+                    choices=(*(mode.value for mode in MatMode), PLAYERS_OWN_MAT),
+                ),
+            ),
+            tips=(
+                (
+                    "The colour is always the work's own; only how much of the screen it fills is chosen here. "
+                    "How wide the mat is stays the Player's, because only it knows its screen."
+                ),
+            ),
+        ),
+        Action(
+            name="set_playback",
+            description="Set a named wall's pace, order and the shapes of work it shows.",
+            example="art_display(action='set_playback', wall_id='<a wall_id>', widest='1:1')",
+            params=(
+                _WALL_ID,
+                Param(
+                    name="rotation_interval_seconds",
+                    type="integer",
+                    description="How long each work stays up on this wall, in seconds.",
+                    minimum=1,
+                ),
+                Param(
+                    name="default_interval",
+                    type="boolean",
+                    description="true returns the interval to the deployment default. Not with rotation_interval_seconds.",
+                ),
+                Param(
+                    name="shuffle",
+                    type="string",
+                    description=(
+                        f"{SHUFFLED} (a fresh random order each cycle), {IN_ORDER} (the theme's own order), "
+                        f"or {DEFAULT_SHUFFLE} (the deployment default)."
+                    ),
+                    choices=(SHUFFLED, IN_ORDER, DEFAULT_SHUFFLE),
+                ),
+                Param(
+                    name="tallest",
+                    type="string",
+                    description=f"The tallest shape the wall shows, as width:height (4:5) or decimal; {ANY_SHAPE} for no limit.",
+                ),
+                Param(
+                    name="widest",
+                    type="string",
+                    description=f"The widest shape the wall shows, as width:height (1:1) or decimal; {ANY_SHAPE} for no limit.",
+                ),
+            ),
+            tips=(
+                (
+                    "These are the wall's, not the theme's: they stay when another theme is hung. The wall's feed "
+                    "is republished at once, and the work on the wall now finishes its slot."
+                ),
+                (
+                    "A work outside the wall's shapes is left off it and listed with why. Shapes that leave "
+                    "nothing are honoured: the wall goes dark, and the summary says so. On a wall with nothing "
+                    "hung, the shapes apply when a theme is next hung."
+                ),
+            ),
+        ),
+        Action(
             name="status",
             description=(
-                "Report what the display serving each wall last said about itself, and how long ago, and how "
-                "much the picture store keeps."
+                "Report what each wall's display last said about itself and when, and how much the picture store keeps."
             ),
             example="art_display(action='status')",
             tips=(
@@ -1360,13 +1714,17 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID, Param(name="artwork_id", type="string", description="The work to jump to.", required=True)),
             tips=(
                 (
-                    "Any work that could not reach the wall is refused rather than pinned — archived, "
-                    "missing its master image, mat colour or television render, carrying a render "
-                    "made from an earlier acquisition, or naming no work the catalogue holds. The "
+                    "Any work that could not reach the wall is refused rather than shown — archived, "
+                    "missing its acquired master image, its mat colour or its presentation master (the picture "
+                    "each wall's Player is sent), carrying a presentation master made from an earlier acquisition, "
+                    "or naming no work the catalogue holds. The "
                     "refusal names which, in the same words "
                     "art_display(action='sync') uses for an excluded work."
                 ),
-                "This writes the directive; it does not confirm the television changed.",
+                (
+                    "It republishes the wall's schedule starting with this work; it does not confirm the "
+                    "screen changed. A work outside the theme hanging there is shown for one slot."
+                ),
             ),
         ),
         Action(
@@ -1376,10 +1734,10 @@ ART_DISPLAY: Final = ToolRecord(
             params=(_WALL_ID,),
             tips=(
                 (
-                    "It steps that wall and no other: each wall carries its own counter, so a step in the living "
+                    "It steps that wall and no other: each wall has its own schedule, so a step in the living "
                     "room leaves the study where it was."
                 ),
-                "Repeated calls inside one poll interval coalesce into a single step — latest wins.",
+                "It republishes the wall's schedule starting with the work after the one on the wall now.",
             ),
         ),
         Action(
@@ -1435,7 +1793,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="issue_client_token",
-            description="Issue a client's token, replacing any it had. The answer is the only place it ever appears.",
+            description="Issue a client's token, replacing any it had. The answer is the only place it appears.",
             example="art_display(action='issue_client_token', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
@@ -1469,8 +1827,49 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="assign_display",
+            description="Show a named wall on a display, by its id, wherever that display now is.",
+            example="art_display(action='assign_display', wall_id='<a wall_id>', display_id='<a display_id>')",
+            params=(_WALL_ID, _DISPLAY_ID),
+            tips=(
+                (
+                    "A display is one screen, kept by the identity its client read from it, so a Frame moved to "
+                    "another client keeps its wall. Get display ids from action='clients'."
+                ),
+                "One display shows one wall: refused when it already shows another.",
+                (
+                    "Two clients reporting one display is a fault: neither shows its wall until one stops, and the "
+                    "answer's notice names both."
+                ),
+            ),
+        ),
+        Action(
+            name="add_label",
+            description="Caption a named wall with one of a client's label outputs, by the label output's name.",
+            example="art_display(action='add_label', wall_id='<a wall_id>', client_id='<a client_id>', output='epd-0')",
+            params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
+            tips=(
+                (
+                    "A wall may have any number of labels, on any clients, including a client that shows no wall. "
+                    "Label output names come from action='clients'."
+                ),
+                "A label output captions at most one wall: refused when it already captions another.",
+                (
+                    "The answer's notice says when the client has not reported a label output by that name. The "
+                    "label is kept either way."
+                ),
+            ),
+        ),
+        Action(
+            name="remove_label",
+            description="Stop a label output captioning a named wall. The output stays, captioning nothing.",
+            example="art_display(action='remove_label', wall_id='<a wall_id>', label_id='<a label_id>')",
+            params=(_WALL_ID, _LABEL_ID),
+            tips=("Removing one that captions no wall is not an error. Get label ids from the wall's labels in action='walls'.",),
+        ),
+        Action(
             name="unassign_wall",
-            description="Take a named wall off whichever client showed it. Its theme stays hung.",
+            description="Take a named wall off the client showing it. Its theme stays hung.",
             example="art_display(action='unassign_wall', wall_id='<a wall_id>')",
             params=(_WALL_ID,),
             tips=("Unassigning a wall no client shows is not an error. Get wall ids from action='walls'.",),
@@ -1516,9 +1915,9 @@ _DERIVATION = Param(
     name="derivation",
     type="string",
     description=(
-        "Where a judgment came from: 'stated' is the curator saying it, 'inferred' is a model reading it out "
-        "of what they said and needs the turn it read, 'observed' is the product reading it out of what was "
-        "accepted and rejected in review. action='set' writes the first two and refuses the third."
+        "Where a judgment came from: 'stated' is the curator saying it, 'inferred' is a model's reading of a "
+        "conversation the product no longer keeps, 'observed' is the product reading it out of what was "
+        "accepted and rejected in review. action='set' writes only 'stated'."
     ),
     choices=tuple(str(member) for member in AffinityDerivation),
 )
@@ -1555,8 +1954,8 @@ ART_TASTE: Final = ToolRecord(
                 ),
                 (
                     "A `stated` judgment carries no rationale and that is normal — the curator's own words are "
-                    "the account. An `inferred` one whose `source_turn_id` is null had its conversation deleted; "
-                    "its rationale is the evidence that survived."
+                    "the account. An `inferred` one came from a conversation the product no longer keeps; its "
+                    "rationale is the evidence it has."
                 ),
             ),
         ),
@@ -1587,14 +1986,9 @@ ART_TASTE: Final = ToolRecord(
                     name="rationale",
                     type="string",
                     description=(
-                        "The account of the judgment in the curator's terms. Required for 'inferred'; normally "
-                        "absent for 'stated', where their own words are the account."
+                        "The account of the judgment in the curator's terms. Normally absent for 'stated', where "
+                        "their own words are the account."
                     ),
-                ),
-                Param(
-                    name="source_turn_id",
-                    type="string",
-                    description="The conversation turn an 'inferred' judgment was read out of. Required for it.",
                 ),
             ),
             tips=(
@@ -1603,16 +1997,9 @@ ART_TASTE: Final = ToolRecord(
                     "corrected in place. There is nothing to fetch first."
                 ),
                 (
-                    "It refuses derivation='observed'. That value is a claim only the review path can make, and a "
-                    "row asserting behaviour that never happened cannot be audited afterwards."
-                ),
-                (
-                    "It refuses to overwrite a stronger provenance with a weaker one: a reading of what the "
-                    "curator said cannot overwrite what they said or did. Ask them, then write it as 'stated'."
-                ),
-                (
-                    "Writing replaces the provenance as well as the judgment, so a correction cites the turn it "
-                    "came from or none — never the turn the previous judgment cited."
+                    "It refuses derivation='observed', a claim only the review path can make, and "
+                    "derivation='inferred', which would have to cite a stored conversation and there are none. "
+                    "If you read a judgment out of what the curator said, ask them, then write it as 'stated'."
                 ),
             ),
         ),

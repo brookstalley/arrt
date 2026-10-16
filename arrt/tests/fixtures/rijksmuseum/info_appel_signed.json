@@ -1,0 +1,59 @@
+{
+ "@context": "http://iiif.io/api/image/3/context.json",
+ "id": "https://iiif.micr.io/VeLnE",
+ "type": "ImageService3",
+ "protocol": "http://iiif.io/api/image",
+ "profile": "level2",
+ "qualities": [
+  "default",
+  "gray",
+  "color"
+ ],
+ "formats": [
+  "jpg",
+  "png",
+  "webp"
+ ],
+ "tiles": [
+  {
+   "scaleFactors": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "width": 1024,
+   "height": 1024
+  }
+ ],
+ "created": 1731104903265,
+ "width": 6330,
+ "height": 4977,
+ "title": "f3694fb4b14345f2b064b503703d965b",
+ "tileSize": 1024,
+ "version": "4.1",
+ "viewsWH": false,
+ "organisation": {
+  "name": "Rijks Collectie",
+  "slug": "rijks-collectie",
+  "logo": null,
+  "baseUrl": "https://micrio.rijksmuseum.nl/"
+ },
+ "tileBasePath": "https://micrio.rijksmuseum.nl/",
+ "maxArea": 17550000,
+ "extraFeatures": [
+  "baseUriRedirect",
+  "cors",
+  "jsonldMediaType",
+  "regionByPct",
+  "regionByPx",
+  "regionSquare",
+  "rotationBy90s",
+  "sizeByConfinedWh",
+  "sizeByH",
+  "sizeByPct",
+  "sizeByW",
+  "sizeByWh",
+  "sizeUpscaling"
+ ]
+}

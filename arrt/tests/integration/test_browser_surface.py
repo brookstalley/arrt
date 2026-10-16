@@ -13,6 +13,7 @@ that criterion end to end; the rest pin the pieces it would be easy to break
 without failing it.
 """
 
+import io
 import json
 import pathlib
 import re
@@ -21,6 +22,7 @@ from typing import ClassVar
 
 import httpx
 import pytest
+from PIL import Image
 
 from arrt.http.pages import STATIC_DIR, UI_PATHS
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
@@ -88,7 +90,7 @@ def hold(service, settings, decodable_jpeg):
     question about the tree as well as the catalogue.
     """
 
-    def _hold(title, *, width=6000, height=4000, rendered=False, mat=False, content_hash=None):
+    def _hold(title, *, width=6000, height=4000, mastered=False, mat=False, content_hash=None):
         artwork = service.add_artwork(title=title, date_created="1942", medium="Oil on canvas")
         source = service.add_source(
             artwork_id=artwork.id,
@@ -113,15 +115,15 @@ def hold(service, settings, decodable_jpeg):
         )
         if mat:
             service.record_mat_color(artwork_id=artwork.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        if rendered:
-            rendered_path = f"ready/{artwork.id}.jpg"
-            decodable_jpeg(settings.art_root / rendered_path, width=3840, height=2160)
+        if mastered:
+            master_path = f"presentation/{artwork.id}.jpg"
+            decodable_jpeg(settings.art_root / master_path, width=4000, height=3000)
             service.record_rendition(
                 artwork_id=artwork.id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=3840,
-                target_height=2160,
-                path=rendered_path,
+                kind=RenditionKind.PRESENTATION_MASTER,
+                target_width=7680,
+                target_height=7680,
+                path=master_path,
             )
         return artwork
 
@@ -134,7 +136,9 @@ class TestTheClientIsServed:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "<title>Arrt</title>" in response.text
-        assert '<h1 class="brand">Arrt</h1>' in response.text
+        assert '<p class="brand">Arrt</p>' in response.text
+        # Each screen's heading is its h1, so the shell itself carries none.
+        assert "<h1" not in response.text
 
     def test_a_deep_link_survives_a_reload(self, http):
         """In-page navigation writes a fragment, but a bookmark is a real path.
@@ -181,6 +185,24 @@ class TestTheClientIsServed:
         for module in modules:
             assert http.get(f"/static/{module}").status_code == 200, module
 
+    def test_every_font_the_stylesheet_names_is_served_as_a_font(self, http):
+        """A font file the static mount does not serve is a page in the fallback face.
+
+        `font-display: swap` draws that page as if nothing were wrong, so a
+        renamed file or a typo in a `url()` is invisible in a browser. The list
+        is read from the stylesheet, not from the directory, because the
+        stylesheet is what the browser asks for.
+        """
+        css = (pathlib.Path(STATIC_DIR) / "app.css").read_text(encoding="utf-8")
+        faces = re.findall(r"@font-face\s*\{[^}]*\}", css)
+        named = sorted({url for face in faces for url in re.findall(r'url\("([^"]+)"\)', face)})
+        assert len(faces) == len(named) >= 4, "each face names one file, and both families are declared"
+        for url in named:
+            response = http.get(f"/static/{url}")
+            assert response.status_code == 200, url
+            assert response.headers["content-type"] == "font/woff2", url
+            assert response.content[:4] == b"wOF2", url
+
     def test_the_client_revalidates_every_file_so_a_deploy_never_mixes_versions(self, http):
         """Why, and what a phone did without it: `pages.CLIENT_CACHE_CONTROL`."""
         static = pathlib.Path(STATIC_DIR)
@@ -203,19 +225,18 @@ class TestTheClientIsServed:
 
 
 class TestTheWorkGrid:
-    def test_every_held_work_is_listed_with_the_size_it_would_appear_at(self, http, hold):
+    def test_every_held_work_is_listed_with_its_verdict_against_the_quality_minimum(self, http, hold):
         artwork = hold("Chop Suey")
         card = card_for(http.get("/api/works").json(), artwork.id)
-        assert card["fit"]["verdict"] in {"native", "matted_small", "below_floor"}
-        # A thumbnail cannot convey resolution — the rendered size is what a
-        # curator actually judges, so it may never be absent from a card.
-        assert card["fit"]["rendered_long_edge_inches"] > 0
+        # A thumbnail cannot convey resolution, so the verdict may never be
+        # absent from a card that has a master to judge — and it names no screen.
+        assert card["fit"] == {"verdict": "meets_minimum"}
 
     def test_a_small_work_is_shown_and_labelled_rather_than_hidden(self, http, hold):
-        """Below the floor is a warning, never a filter. The curator may still take it."""
+        """Below the minimum is a warning, never a filter. The curator may still take it."""
         artwork = hold("A postage stamp", width=300, height=200)
         card = card_for(http.get("/api/works").json(), artwork.id)
-        assert card["fit"]["verdict"] == "below_floor"
+        assert card["fit"]["verdict"] == "below_minimum"
         assert card["image"]["available"] is True
 
     def test_a_work_with_no_master_carries_a_reason_rather_than_an_empty_field(self, http, seeded_service):
@@ -226,13 +247,6 @@ class TestTheWorkGrid:
         assert "No master image" in card["fit_note"]
         assert card["image"]["available"] is False
         assert "No master image" in card["image"]["note"]
-
-    def test_a_card_says_whether_it_is_showing_the_wall_render_or_the_master(self, http, hold):
-        rendered = hold("Rendered", rendered=True)
-        master_only = hold("Master only")
-        listing = http.get("/api/works").json()
-        assert card_for(listing, rendered.id)["image"]["source_kind"] == "tv_display"
-        assert card_for(listing, master_only.id)["image"]["source_kind"] == "original"
 
     def test_a_page_describes_its_own_place_in_the_set(self, http, hold):
         for index in range(4):
@@ -271,19 +285,67 @@ class TestThumbnails:
         assert response.status_code == 400
         assert "No master image" in response.json()["error"]
 
+    def test_a_large_thumbnail_is_the_work_itself_and_bigger_than_the_tile(self, http, hold):
+        """Walls' lead: the bare work, at its own aspect, sharper than a tile, never the canvas."""
+        artwork = hold("Automat", width=3000, height=4000, mastered=True, mat=True)
+        tile = http.get(f"/api/works/{artwork.id}/thumbnail")
+        large = http.get(f"/api/works/{artwork.id}/thumbnail", params={"size": "large"})
+        assert large.status_code == 200
+        assert large.headers["content-type"] == "image/jpeg"
+        with Image.open(io.BytesIO(tile.content)) as picture:
+            tile_edge = max(picture.size)
+        with Image.open(io.BytesIO(large.content)) as picture:
+            assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
+            assert max(picture.size) > tile_edge
+
+    def test_a_misspelt_thumbnail_size_is_refused_rather_than_answered_small(self, http, hold):
+        artwork = hold("Automat")
+        assert http.get(f"/api/works/{artwork.id}/thumbnail", params={"size": "huge"}).status_code == 422
+
+    def test_a_thumbnail_and_the_wall_preview_are_both_the_work_itself(self, http, hold):
+        """Both keep the work's own aspect, with no mat: each wall's Player draws the
+        mat. A portrait work, so an answer in a screen's shape would show; the
+        preview is the larger, because the Work page draws it across a column.
+        """
+        artwork = hold("Automat", width=3000, height=4000, mastered=True, mat=True)
+        tile = http.get(f"/api/works/{artwork.id}/thumbnail")
+        preview = http.get(f"/api/works/{artwork.id}/wall-preview")
+        assert tile.status_code == preview.status_code == 200
+        assert preview.headers["content-type"] == "image/jpeg"
+        with Image.open(io.BytesIO(tile.content)) as picture:
+            assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
+            tile_edge = max(picture.size)
+        with Image.open(io.BytesIO(preview.content)) as picture:
+            assert picture.size[1] / picture.size[0] == pytest.approx(4000 / 3000, abs=0.01)
+            assert max(picture.size) > tile_edge
+
+    def test_a_wall_preview_revalidates_and_answers_a_held_copy_with_a_304(self, http, hold):
+        """A new master image rewrites the preview under the same name, as it does a thumbnail."""
+        artwork = hold("Automat", mastered=True)
+        first = http.get(f"/api/works/{artwork.id}/wall-preview")
+        assert "no-cache" in first.headers["cache-control"]
+        again = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": first.headers["etag"]})
+        assert again.status_code == 304
+
+    def test_a_work_with_no_image_has_no_wall_preview_either(self, http, seeded_service):
+        empty = next(work for work in seeded_service.list_artworks().entries)
+        response = http.get(f"/api/works/{empty.artwork.id}/wall-preview")
+        assert response.status_code == 400
+        assert "No master image" in response.json()["error"]
+
 
 class TestWorkDetail:
     def test_the_detail_view_carries_what_the_grid_does_not(self, http, hold):
-        artwork = hold("Automat", rendered=True, mat=True)
+        artwork = hold("Automat", mastered=True, mat=True)
         detail = http.get(f"/api/works/{artwork.id}").json()
         assert detail["work"]["title"] == "Automat"
         assert detail["original"]["width"] == 6000
         assert [source["provider"] for source in detail["sources"]] == ["artic"]
-        assert {rendition["kind"] for rendition in detail["renditions"]} == {"tv_display"}
+        assert {rendition["kind"] for rendition in detail["renditions"]} == {"presentation_master"}
         assert detail["mat_colors"][0]["hex_rgb"] == "#27285b"
 
     def test_a_rendition_says_whether_it_still_matches_the_master(self, http, hold, service, settings, decodable_jpeg):
-        artwork = hold("Automat", rendered=True)
+        artwork = hold("Automat", mastered=True)
         source = service.list_sources(artwork.id)[0]
         replacement = f"raw/{artwork.id}-2.jpg"
         decodable_jpeg(settings.art_root / replacement)
@@ -487,13 +549,15 @@ class TestHealth:
         assert backup["reported"]["destination"].endswith("catalogue-2026-08-05.sqlite")
 
     def test_no_budget_balance_appears_anywhere_on_the_panel(self, http):
-        """Settled 2026-08-04, and asserted because the temptation recurs.
+        """The month's budget is the sidebar's, from `/api/budget`, and never this panel's.
 
-        `limit_remaining` reads non-zero while calls are already being refused, so
-        it fails by inversion rather than by staleness — and stating its age, this
-        panel's whole remedy for a stale figure, would not warn about the case
-        that bites. A future edit that adds it back has to delete this test, which
-        is the point at which the decision gets reopened rather than forgotten.
+        Shown since the owner's ruling of 2026-10-07 (#290), which reversed the
+        2026-08-04 decision to show it nowhere. It stays off this panel: the
+        panel states observations with their ages, and `limit_remaining` fails
+        by inversion rather than by staleness (it reads non-zero while calls are
+        already refused), so an age beside it would not warn about the case that
+        bites. The sidebar says what is left; the provider's refusal at the cap
+        says the month's budget is spent.
         """
         named = _every_key(http.get("/api/health").json())
         assert not [key for key in named if any(word in key for word in ("limit", "credit", "balance", "budget"))]
@@ -504,16 +568,28 @@ class TestHealth:
         # installed source plugins, added with them; its own keys are covered by
         # the word check above. `pictures` is the picture store's files and bytes,
         # added 2026-10-06 by the owner's ruling that the store has no ceiling and
-        # is watched here instead.
-        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "artwork_box", "sources", "pictures"}
+        # is watched here instead. There is no `artwork_box`: the geometry was one
+        # television's, and the owner removed it on 2026-10-08 (#266).
+        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "sources", "pictures"}
 
-    def test_the_panel_shows_the_geometry_every_size_in_the_grid_is_judged_against(self, http):
-        box = http.get("/api/health").json()["artwork_box"]
-        # The reference 42" 4K panel with the shipped 1.5" mat: 3840 less two
-        # mats of 157 px, and 2160 less a top mat plus a bottom weighted 1.15x.
-        assert box["width"] == 3526
-        assert box["height"] == 1822
-        assert box["floor_inches"] == 12.0
+    def test_each_installed_sources_yield_is_counted_from_the_library(self, http, hold):
+        """`GET /api/sources/yields`, one row per plugin the health reading lists, in its order.
+
+        Read twice around holding a work, so the figures are shown to come from
+        the records behind this server rather than from a constant that happens
+        to match a fresh library.
+        """
+        before = http.get("/api/sources/yields").json()["sources"]
+        names = [source["name"] for source in http.get("/api/health").json()["sources"]]
+        assert [row["name"] for row in before] == names == ["artic"]
+        assert set(before[0]) == {"name", "offered", "chosen", "only_here", "median_long_edge"}
+
+        hold("A work held from the Art Institute")
+        after = http.get("/api/sources/yields").json()["sources"][0]
+
+        assert after["offered"] == before[0]["offered"] + 1
+        assert after["chosen"] == before[0]["chosen"] + 1
+        assert after["only_here"] == before[0]["only_here"] + 1
 
 
 class TestTheWholeLoop:
@@ -523,8 +599,8 @@ class TestTheWholeLoop:
         See the works, build a theme, put it on the wall, and read exactly why a
         work that is in the theme is not on the wall.
         """
-        ready = hold("Chop Suey", rendered=True, mat=True)
-        no_mat = hold("Chosen but unmatted", rendered=True)
+        ready = hold("Chop Suey", mastered=True, mat=True)
+        no_mat = hold("Chosen but unmatted", mastered=True)
         no_render = hold("Acquired but unrendered", mat=True)
 
         works = http.get("/api/works").json()["works"]
@@ -547,7 +623,7 @@ class TestTheWholeLoop:
         assert excluded[no_mat.id]["reason"] == "no_mat_color"
         assert "No mat colour has been chosen" in excluded[no_mat.id]["detail"]
         assert excluded[no_render.id]["reason"] == "no_rendition"
-        assert "not been rendered for the television" in excluded[no_render.id]["detail"]
+        assert "no presentation master has been made" in excluded[no_render.id]["detail"]
         assert published["summary"] == "1 of 3 works in this theme is on the wall; 2 are not currently displayable."
 
         # And the standing view of the wall agrees with what activation returned.
@@ -561,11 +637,11 @@ class TestTheWholeLoop:
 
     def test_activating_a_theme_publishes_the_manifest_the_display_plane_reads(self, http, hold, settings, wall):
         """Activation changes the wall, so it must write the file, not only the row."""
-        artwork = hold("Automat", rendered=True, mat=True)
+        artwork = hold("Automat", mastered=True, mat=True)
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
         http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
         http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]})
-        assert settings.manifest_path(wall["wall_id"]).is_file()
+        assert settings.manifest_v2_path(wall["wall_id"]).is_file()
 
 
 class TestThemeOrder:
@@ -644,7 +720,7 @@ class TestStateThatIsEasyToHide:
         assert live.id not in ids
 
     def test_an_archived_work_leaves_the_wall_with_its_reason_stated(self, http, hold, service, wall):
-        artwork = hold("Withdrawn", rendered=True, mat=True)
+        artwork = hold("Withdrawn", mastered=True, mat=True)
         theme = http.post("/api/themes", json={"name": "Late night"}).json()
         http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
         service.archive_artwork(artwork.id)
@@ -698,36 +774,16 @@ class TestThumbnailRevalidation:
         assert response.status_code == 200
         assert response.content != b""
 
-    def test_a_recomposed_canvas_reaches_the_browser_rather_than_revalidating_clean(
-        self, http, hold, service, settings, decodable_jpeg
-    ):
-        """The trigger the mat controls will rest on, end to end.
+    def test_a_new_mat_leaves_the_wall_preview_as_it_was(self, http, hold, services):
+        """The mat is drawn by each wall's Player, so the Work page's picture is the
+        work itself and a browser's held copy stays current through a mat change."""
+        artwork = hold("Automat", mastered=True, mat=True)
+        etag = http.get(f"/api/works/{artwork.id}/wall-preview").headers["etag"]
 
-        The sibling above changes the *master*, which moves the content hash and
-        so is visible to the catalogue's inherited staleness rule. Setting a mat
-        colour moves nothing that rule can see: same original, same path, same
-        geometry. So this is the case where a validator a browser is holding must
-        stop matching because of the thumbnail's own rule and nothing else — and
-        `no-cache` means the browser asks every time, so a 304 here is a curator
-        looking at the colour they just replaced.
-        """
-        artwork = hold("Automat", rendered=True, mat=True)
-        rendered = f"ready/{artwork.id}.jpg"
-        stale_etag = http.get(f"/api/works/{artwork.id}/thumbnail").headers["etag"]
+        services.preparation.set_mat(artwork.id, "#6e4848")
 
-        # What pressing a mat preset amounts to: recompose in place, re-record.
-        decodable_jpeg(settings.art_root / rendered, width=3840, height=2160, color=(200, 190, 170))
-        service.record_rendition(
-            artwork_id=artwork.id,
-            kind=RenditionKind.TV_DISPLAY,
-            target_width=3840,
-            target_height=2160,
-            path=rendered,
-        )
-
-        response = http.get(f"/api/works/{artwork.id}/thumbnail", headers={"If-None-Match": stale_etag})
-        assert response.status_code == 200, "the browser was told its picture of the old mat is still current"
-        assert response.headers["etag"] != stale_etag
+        response = http.get(f"/api/works/{artwork.id}/wall-preview", headers={"If-None-Match": etag})
+        assert response.status_code == 304
 
     def test_a_wildcard_validator_matches_whatever_is_held(self, http, hold):
         """`*` matches any current representation, per RFC 9110.
@@ -785,7 +841,7 @@ class TestWhatTheWallSummaryClaims:
         """ "2 of 2" is what makes "1 of 2" legible, so the clean case is stated too."""
         theme = http.post("/api/themes", json={"name": "All good"}).json()
         for title in ("Automat", "Chop Suey"):
-            artwork = hold(title, rendered=True, mat=True)
+            artwork = hold(title, mastered=True, mat=True)
             http.post(f"/api/themes/{theme['theme_id']}/works", json={"artwork_id": artwork.id})
 
         published = http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]}).json()
@@ -794,7 +850,7 @@ class TestWhatTheWallSummaryClaims:
         assert published["exclusions"] == []
 
     def test_the_browser_summary_carries_no_pointer_at_a_tool_result_field(self, http, hold, wall):
-        """The shared sentence stops at the counts; `not_displayable` is the MCP surface's word.
+        """The shared sentence stops at the counts; `not_on_the_wall` is the MCP surface's word.
 
         A browser has no field by that name, so a summary naming one would be
         telling a curator to look at something that is not on their screen.
@@ -805,8 +861,10 @@ class TestWhatTheWallSummaryClaims:
 
         published = http.post(f"/api/themes/{theme['theme_id']}/activate", json={"wall_id": wall["wall_id"]}).json()
 
-        assert "not_displayable" not in published["summary"]
-        assert published["summary"] == "0 of 1 work in this theme is on the wall; 1 is not currently displayable."
+        assert "not_on_the_wall" not in published["summary"]
+        assert published["summary"] == (
+            "0 of 1 work in this theme is on the wall; 1 is not currently displayable, so the wall is dark."
+        )
 
 
 class TestPagingPastTheCatalogueCap:

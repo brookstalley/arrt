@@ -28,7 +28,7 @@ stays version-free.
 ## Change of direction — 2026-09-30 (read before anything else)
 
 **The product is becoming two: Arrt, a server holding the Library and
-Programming, and Postarr, a Player at each wall.** The target, the waves and
+Programming, and Arrt Player, the player at each wall.** The target, the waves and
 the open questions are in `.prawduct/artifacts/re-architecture.md`. The contract
 between the two is `player-contract.md` and `contract/`. Rules for working here
 meanwhile:
@@ -38,13 +38,13 @@ meanwhile:
   target and the older text wins for what runs today, until its wave lands.
 - **Several norms are `in-transition`**, each with an interim rule. Read
   `architecture.md` § Direction before touching the manifest, the display
-  plane's I/O, or the theme, wall and directive tables.
+  plane's I/O, or the theme and wall tables. (The directive table went in
+  wave 4g.)
   `tests/preferences/test_plane_isolation.py` allows an HTTP client in
-  `postarr/src/postarr/pull.py` only, since wave 2b; everything else it holds is unchanged.
+  `arrt-player/src/arrt_player/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
-  is the one in force. Branch from `develop`. The parked round-2 UI plan lives
-  on `curation-ui/rulings-and-plan`.
+  is the one in force. Branch from `develop`.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 
@@ -54,9 +54,9 @@ Three independent projects, three interpreters, three suites.
 
 | | 2024 modules (repo root) | curation plane | display plane |
 |---|---|---|---|
-| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd postarr && uv run --group raster pytest` |
-| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd postarr && uv run ruff check .` |
-| Format | `uv run black .` | `cd arrt && uv run black .` | `cd postarr && uv run black .` |
+| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` |
+| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` |
+| Format | `uv run black .` | `cd arrt && uv run black .` | `cd arrt-player && uv run black .` |
 
 **All three must pass.** The display plane got its suite, its `test_commands`
 entry and its CI leg on 2026-08-06, with its first modules — until then its
@@ -67,7 +67,7 @@ claim about when a guard starts guarding.
 **Nothing in any of the three reaches a television, a panel, or a museum.** The
 display suite drives a double behind the TV interface, which is why it runs on a
 GitHub runner; the hardware is exercised by `tv_api_check.py`, by
-`postarr/tools/power_probe.py`, and by the `live_*` markers below, all of them run
+`arrt-player/tools/power_probe.py`, and by the `live_*` markers below, all of them run
 by hand.
 
 **`power_probe.py` presses power on the real television, and it is the only thing
@@ -84,7 +84,7 @@ does.** Without it `pytest` collects a strictly smaller suite than the one
 claiming a green display leg are talking about different suites — and the
 difference is the typesetter, the plane's most important accessibility surface.
 
-**`postarr/tests/raster` needs one optional group and skips itself without it.**
+**`arrt-player/tests/raster` needs one optional group and skips itself without it.**
 The label is typeset with Pango through PyGObject, which a default `uv sync` does
 not install. **It does install and import on this Mac** — verified 2026-08-13,
 PyGObject 3.56.3 resolving as a wheel against Pango 1.57.1, rendering through
@@ -94,7 +94,7 @@ product's most important accessibility surface goes unexercised locally and is
 first seen in CI.) So run it:
 
 ```sh
-cd postarr && uv run --group raster pytest tests/raster
+cd arrt-player && uv run --group raster pytest tests/raster
 ```
 
 The display CI leg carries `--ignore=tests/raster` so the collection skip is not
@@ -108,7 +108,7 @@ nothing in either suite needs it, because the driver is passed into
 
 **A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
 the default groups as extraneous and removes it, so after a bare `uv sync` in
-`arrt/` the browser suite skips itself, and in `postarr/` the typesetter
+`arrt/` the browser suite skips itself, and in `arrt-player/` the typesetter
 does. The suites stay green and quietly shrink. Sync with the groups the run
 needs: `uv sync --group browser` in curation, `uv sync --group raster` in display.
 
@@ -124,7 +124,7 @@ Run the curation plane: `cd arrt && uv run python -m arrt`. It needs
 `CURATION_PORT`, its JSON API under `/api`, and MCP clients connect to `/mcp` on
 the same port.
 
-Run the display plane: `cd postarr && uv run python -m postarr`. **It drives the
+Run the display plane: `cd arrt-player && uv run python -m arrt_player`. **It drives the
 real television**, so it is not a thing to start casually: it uploads, deletes and
 selects against whatever `TV_ADDRESS` points at. **Stop it with SIGTERM, never
 SIGKILL** — the set holds an abandoned art-channel client's slot for minutes, and
@@ -134,7 +134,7 @@ is not in art mode, so it will not interrupt somebody watching television.
 **The mutation sweep runs per plane, and the display plane needs `--project`:**
 
 ```sh
-cd postarr && uv run python ../arrt/tools/mutation_sweep.py --project . m.json tests/
+cd arrt-player && uv run python ../arrt/tools/mutation_sweep.py --project . m.json tests/
 ```
 
 Without it the tool sweeps the curation project with the display plane's paths and
@@ -170,3 +170,9 @@ whenever you touch anything under `static/`. The four live markers (`live_museum
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
 default; `live_api` and `llm_eval` spend real money, and every live run takes
 `-n0`. Commands, setup and the reasons behind each rule: `docs/testing.md`.
+
+**Every suite asks whether the client matches its documents; none asks whether
+it is good to use.** When the question is the second one — a redesign, a run of
+screen work, "the UI feels off" — follow `docs/ux-walkthrough.md` rather than
+inventing a method: four passes, in order, and `arrt/tools/ux_walk.py` does the
+first.

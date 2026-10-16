@@ -19,8 +19,10 @@ from typing import Final
 
 import pytest
 import uvicorn
-from fakes import FakeConversationEngine, FakeEngine, FakeReader
+from fakes import FakeEngine, FakeReader
 from fault_guard import FaultRecords
+from feed_guard import checked as feed_checked
+from langchain_core.language_models import BaseChatModel
 from PIL import Image
 
 from arrt.app import create_app
@@ -29,14 +31,12 @@ from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
     DEFAULT_BACKUP_INTERVAL_SECONDS,
     DEFAULT_BACKUP_KEEP,
-    DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
     DEFAULT_DISCOVERY_MAX_OUTPUT_TOKENS,
     DEFAULT_DISCOVERY_MODEL,
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_HOST,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
-    DEFAULT_MAT_BOTTOM_WEIGHT,
-    DEFAULT_MAT_WIDTH_INCHES,
+    DEFAULT_LABEL_UNITS,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -47,27 +47,25 @@ from arrt.config import (
     DEFAULT_PHASE2_SEARCHES_PER_WORK,
     DEFAULT_PORT,
     DEFAULT_PREVIEW_MAX_BYTES,
-    DEFAULT_RESOLUTION_FLOOR_INCHES,
+    DEFAULT_QUALITY_MINIMUM_PX,
     DEFAULT_ROTATION_INTERVAL_SECONDS,
     DEFAULT_ROTATION_SHUFFLE,
     DEFAULT_SEARCH_COST_USD,
     DEFAULT_TILE_BINARY,
     DEFAULT_TILE_MAX_PIXELS,
     DEFAULT_TILE_TIMEOUT_SECONDS,
-    DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-    DEFAULT_TV_PANEL_HEIGHT_PX,
-    DEFAULT_TV_PANEL_WIDTH_PX,
     Settings,
 )
 from arrt.library.acquisition.direct import StreamOpener
 from arrt.library.acquisition.preparation import PreparationSettings
 from arrt.library.discovery.dedup import work_dedup_key
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.facade import LibraryFacade
 from arrt.library.registry import Registry
 from arrt.library.services.catalogue import CatalogueService
-from arrt.library.services.conversation import ConversationService
 from arrt.library.services.discovery import DiscoveryService
-from arrt.library.services.runner import DiscoveryRunner
+from arrt.library.services.look import LOOK_THREAD_NAME
+from arrt.library.services.runner import RUN_THREAD_NAME, DiscoveryRunner
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
@@ -90,6 +88,7 @@ from arrt.persistence.records import (
 )
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
+from arrt.programming import display as display_module
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
@@ -156,8 +155,64 @@ def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
 
 
 @pytest.fixture
-def store(catalogue_file: SqliteDurableStore) -> SqliteCatalogue:
-    return SqliteCatalogue(catalogue_file)
+def quiet_catalogue_file(catalogue_file: SqliteDurableStore) -> Iterator[SqliteDurableStore]:
+    """The catalogue file, with no run or look still writing to it when it closes.
+
+    The runner and the look service start their work on daemon threads and
+    return at once, which is the contract. A test that returns while one still
+    writes leaves teardown to close the database under it; the thread then fails
+    on a closed store, reported as an unhandled-thread error against whichever
+    test is running by then. Pytest tears a fixture down before the one it
+    depends on, so joining here runs before `catalogue_file` closes, and a module
+    that overrides `catalogue_file` keeps the join: both stores are built from
+    this fixture, not from the file directly.
+    """
+    yield catalogue_file
+    _join_worker_threads()
+
+
+#: The threads that write to the catalogue on a run's or a look's behalf, by the
+#: names their own modules start them under.
+_WORKER_THREAD_NAMES: Final = frozenset({RUN_THREAD_NAME, LOOK_THREAD_NAME})
+_WORKER_JOIN_SECONDS: Final = 20.0
+#: Threads one test has already failed for. Still alive, they would otherwise
+#: fail every later test in the same process after another full wait.
+_abandoned: set[int] = set()
+
+
+def _join_worker_threads() -> None:
+    """Wait for every run and look thread, including any one of them started while waiting.
+
+    Asked of `threading.enumerate()` again after each join, because a run's
+    thread can start the next (phase 1 hands its works to a resolve run), and a
+    list taken once would miss the thread started during the wait.
+    """
+    deadline = time.monotonic() + _WORKER_JOIN_SECONDS
+    while True:
+        working = [
+            thread
+            for thread in threading.enumerate()
+            if thread.name in _WORKER_THREAD_NAMES
+            and thread is not threading.current_thread()
+            and thread.is_alive()
+            and thread.ident not in _abandoned
+        ]
+        if not working:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            _abandoned.update(thread.ident for thread in working if thread.ident is not None)
+            pytest.fail(
+                f"run or look threads still working {_WORKER_JOIN_SECONDS:.0f} seconds after the test: "
+                f"{[f'{thread.name} ({thread.ident})' for thread in working]}",
+                pytrace=False,
+            )
+        working[0].join(timeout=remaining)
+
+
+@pytest.fixture
+def store(quiet_catalogue_file: SqliteDurableStore) -> SqliteCatalogue:
+    return SqliteCatalogue(quiet_catalogue_file)
 
 
 @pytest.fixture
@@ -176,8 +231,8 @@ def wall_id(store: SqliteCatalogue) -> str:
 
 
 @pytest.fixture
-def discovery_store(catalogue_file: SqliteDurableStore) -> SqliteDiscovery:
-    return SqliteDiscovery(catalogue_file)
+def discovery_store(quiet_catalogue_file: SqliteDurableStore) -> SqliteDiscovery:
+    return SqliteDiscovery(quiet_catalogue_file)
 
 
 @pytest.fixture
@@ -208,16 +263,11 @@ def settings(tmp_path) -> Settings:
         preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
         rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
         rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
+        label_units=DEFAULT_LABEL_UNITS,
         backup_dir=None,
         backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
         backup_keep=DEFAULT_BACKUP_KEEP,
-        tv_panel_width_px=DEFAULT_TV_PANEL_WIDTH_PX,
-        tv_panel_height_px=DEFAULT_TV_PANEL_HEIGHT_PX,
-        tv_panel_diagonal_inches=DEFAULT_TV_PANEL_DIAGONAL_INCHES,
-        mat_width_inches=DEFAULT_MAT_WIDTH_INCHES,
-        mat_bottom_weight=DEFAULT_MAT_BOTTOM_WEIGHT,
-        resolution_floor_inches=DEFAULT_RESOLUTION_FLOOR_INCHES,
-        approval_threshold=DEFAULT_DISCOVERY_APPROVAL_THRESHOLD,
+        quality_minimum_px=DEFAULT_QUALITY_MINIMUM_PX,
         phase1_search_allowance=DEFAULT_PHASE1_SEARCH_ALLOWANCE,
         phase2_searches_per_work=DEFAULT_PHASE2_SEARCHES_PER_WORK,
         offered_works_per_run=DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -269,16 +319,6 @@ def engine() -> FakeEngine:
 
 
 @pytest.fixture
-def conversation_engine() -> FakeConversationEngine:
-    """The intent-forming engine every test runs against, in its default mood.
-
-    Overridable the same way `engine` is: reassigning its fields before a turn is
-    taken is what selects a failure, a refusal, or a reply that names artists.
-    """
-    return FakeConversationEngine()
-
-
-@pytest.fixture
 def kept(settings: Settings) -> Iterator[KeptAnswers]:
     """The kept answers file, where the entry point opens it: under this test's own art root."""
     answers = KeptAnswers(settings.kept_answers_path)
@@ -301,46 +341,18 @@ def sources() -> SourceRoster:
 
 
 @pytest.fixture
-def run_threads(store: SqliteCatalogue, discovery_store: SqliteDiscovery) -> Iterator[Callable[[Callable[[], None]], None]]:
-    """A run's background work on recorded threads, each joined before the store closes.
-
-    The runner starts a run's work on a daemon thread and returns its handle at
-    once, which is the contract. A test that returns while that thread still
-    writes leaves teardown to close the database under it, and the thread then
-    fails on a closed store, reported (if at all) as a warning about some other
-    test. Pytest tears fixtures down in reverse order of setup, so this one asks
-    for both stores: that is what sets it up after them and so joins its threads
-    before either is closed. Without them it can be set up first and torn down
-    last, joining threads that already failed on a closed store.
-    """
-    threads: list[threading.Thread] = []
-
-    def spawn(work: Callable[[], None]) -> None:
-        thread = threading.Thread(target=work, name="discovery-run", daemon=True)
-        threads.append(thread)
-        thread.start()
-
-    yield spawn
-    for thread in threads:
-        thread.join(timeout=20)
-    still = [thread.name for thread in threads if thread.is_alive()]
-    assert not still, f"run threads still working 20 seconds after the test: {still}"
-
-
-@pytest.fixture
 def services(
-    run_threads: Callable[[Callable[[], None]], None],
     store: SqliteCatalogue,
     discovery_store: SqliteDiscovery,
     wall_settings: DisplaySettings,
     thumbnail_settings: ThumbnailSettings,
     settings: Settings,
     engine: FakeEngine,
-    conversation_engine: FakeConversationEngine,
     registry: Registry | None,
     kept: KeptAnswers,
     open_stream: StreamOpener | None,
     sources: SourceRoster,
+    key_status: Callable[[], KeyStatus] | None,
 ) -> Services:
     """Every service, wired the way the entry point wires them."""
     return Services.bind(
@@ -349,22 +361,11 @@ def services(
         display_settings=wall_settings,
         thumbnails=thumbnail_settings,
         # Derived by the same property the entry point calls, so a test never
-        # asserts against a box a real deployment would not produce.
-        artwork_box=settings.tv_artwork_box,
+        # judges against a profile a real deployment would not produce.
+        quality_profile=settings.quality_profile,
         engine=engine,
         discovery_settings=settings.discovery_settings,
-        # Panel and box from the same resolved settings, as the entry point does
-        # it. Letting the panel default while passing a box derived from these
-        # settings is the one way the canvas and the mat can disagree about where
-        # the mat ends, and a test wired that way would assert against geometry no
-        # deployment produces.
-        preparation=PreparationSettings(
-            art_root=settings.art_root,
-            ready_path=settings.ready_path,
-            panel_width=settings.tv_panel_width_px,
-            panel_height=settings.tv_panel_height_px,
-            box=settings.tv_artwork_box,
-        ),
+        preparation=PreparationSettings(art_root=settings.art_root),
         # Stated rather than looked up, for every test that reaches acquisition. A
         # suite whose job is to be green cannot depend on the network — pyproject
         # says so and deselects the tests that deliberately do. Without this the
@@ -377,16 +378,19 @@ def services(
         # it and every acquisition test starts resolving real hostnames again with
         # nothing failing to say so.
         resolve=lambda _host: ["93.184.216.34"],
-        spawn=run_threads,
-        # Injected for the same reason `engine` is: the container's own default
-        # refuses every turn, which is the keyless deployment and is right for
-        # it — and would make every conversation test assert against a refusal.
-        conversation_engine=conversation_engine,
         registry=registry,
         kept=kept,
         open_stream=open_stream,
         sources=sources,
+        key_status=key_status,
+        monthly_budget_usd=settings.monthly_budget_usd,
     )
+
+
+@pytest.fixture
+def key_status() -> Callable[[], KeyStatus] | None:
+    """No key, as most tests are: the budget says nothing spends. A test of the budget supplies the provider's answer."""
+    return None
 
 
 @pytest.fixture
@@ -425,11 +429,6 @@ def discovery(services: Services) -> DiscoveryService:
 
 
 @pytest.fixture
-def conversation(services: Services) -> ConversationService:
-    return services.conversation
-
-
-@pytest.fixture
 def display(services: Services) -> DisplayService:
     return services.display
 
@@ -453,17 +452,25 @@ def runner(services: Services, engine: FakeEngine, settings: Settings) -> Discov
 
 
 @pytest.fixture
-def ready_work(service: CatalogueService):
-    """A work with everything catalogue readiness asks for, and nothing more.
+def ready_work(service: CatalogueService, settings: Settings, decodable_jpeg):
+    """A work with everything catalogue readiness asks for, and a master the feed can send.
 
     A factory rather than a fixture row: the readiness tests each remove exactly
-    one of the four requirements, and the missing one is the point. It lives here
+    one of the requirements, and the missing one is the point. It lives here
     rather than beside them because anything that puts a work on the wall — a
-    manifest entry, a directive pin — needs a work that can actually be shown.
+    feed entry, a show-now — needs a work that can actually be shown. The master
+    is a small decodable JPEG on disk, because the Library reads its size.
     """
 
     def _ready(
-        title="Nighthawks", *, artist_id=None, original=True, rendition=True, mat=True, content_hash="hash-1", commentary=None
+        title="Nighthawks",
+        *,
+        artist_id=None,
+        original=True,
+        mat=True,
+        master=True,
+        content_hash="hash-1",
+        commentary=None,
     ):
         work = service.add_artwork(
             title=title, artist_id=artist_id, date_created="1942", medium="Oil on canvas", commentary=commentary
@@ -490,13 +497,15 @@ def ready_work(service: CatalogueService):
             )
         if mat:
             service.record_mat_color(artwork_id=work.id, hex_rgb="#27285b", method=MatMethod.VISION_MODEL)
-        if rendition and original:
+        if master and original:
+            path = f"masters/{work.id}.jpg"
+            decodable_jpeg(settings.art_root / path, width=400, height=300)
             service.record_rendition(
                 artwork_id=work.id,
-                kind=RenditionKind.TV_DISPLAY,
-                target_width=3840,
-                target_height=2160,
-                path=f"ready/{work.id}.jpg",
+                kind=RenditionKind.PRESENTATION_MASTER,
+                target_width=7680,
+                target_height=7680,
+                path=path,
             )
         return work
 
@@ -520,7 +529,13 @@ def seeded_service(service: CatalogueService) -> CatalogueService:
 
 
 @pytest.fixture
-def server_url(services: Services, seeded_service: CatalogueService) -> Iterator[str]:
+def ask_model() -> BaseChatModel | None:
+    """No model: the keyless deployment, where Ask answers nothing. A test of Ask supplies a `ScriptedModel`."""
+    return None
+
+
+@pytest.fixture
+def server_url(services: Services, seeded_service: CatalogueService, ask_model: BaseChatModel | None) -> Iterator[str]:
     """A real HTTP server on an ephemeral port, serving the real application.
 
     **uvicorn is asked for port 0 and the port is read back from the socket it
@@ -532,7 +547,7 @@ def server_url(services: Services, seeded_service: CatalogueService) -> Iterator
     they draw from the same ephemeral range. Reading the port back is a little
     more to know about uvicorn and has no window at all.
     """
-    app = create_app(services)
+    app = create_app(services, ask_model=ask_model)
     config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
@@ -1072,3 +1087,24 @@ def build_catalogue(tmp_path_factory):
     yield _build
     for catalogue_file in opened:
         catalogue_file.close()
+
+
+@pytest.fixture(autouse=True)
+def every_feed_keeps_the_contract(monkeypatch):
+    """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`)."""
+    monkeypatch.setattr(display_module, "as_v2_document", feed_checked(display_module.as_v2_document))
+
+
+@pytest.fixture(autouse=True)
+def _museum_names_reset():
+    """Each test starts and ends with no plugin-declared museum names.
+
+    `load_sources` declares the installed plugins' names to `names.py`, which is
+    process state; without this, a test's names would depend on which test this
+    worker ran before it.
+    """
+    from arrt.library.sources import names
+
+    names.declare_museums({})
+    yield
+    names.declare_museums({})

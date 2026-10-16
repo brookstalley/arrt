@@ -1,0 +1,301 @@
+{
+  "@context": "http://iiif.io/api/presentation/2/context.json",
+  "@type": "sc:Manifest",
+  "@id": "https://manifests.collections.yale.edu/v2/ycba/obj/34",
+  "label": "Joseph Mallord William Turner, 1775–1851, Dort, or Dordrecht: The Dort Packet-Boat from Rotterdam Becalmed, 1818",
+  "metadata": [
+    {
+      "label": "Copyright Statement",
+      "value": "Public Domain"
+    },
+    {
+      "label": "Creator",
+      "value": "Joseph Mallord William Turner, born in London, England,1775; active in England; died in London, England, 1851"
+    },
+    {
+      "label": "Title",
+      "value": "Dort, or Dordrecht: The Dort Packet-Boat from Rotterdam Becalmed"
+    },
+    {
+      "label": "Medium",
+      "value": "Oil on canvas"
+    },
+    {
+      "label": "Physical Description",
+      "value": "62 × 92 inches (157.5 × 233.7 cm)"
+    },
+    {
+      "label": "Credit Line",
+      "value": "Yale Center for British Art, Paul Mellon Collection"
+    },
+    {
+      "label": "Institution",
+      "value": "Yale Center for British Art"
+    },
+    {
+      "label": "Collection",
+      "value": "Paintings and Sculpture"
+    },
+    {
+      "label": "Call Number",
+      "value": "B1977.14.77"
+    }
+  ],
+  "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "attribution": "Metadata describing Yale Center for British Art collections is public domain under CC0. Copyright or other restrictions may apply to cultural works or images of those works in this record.",
+  "logo": "https://static.britishart.yale.edu/images/ycba_logo.jpg",
+  "related": {
+    "@id": "https://collections.britishart.yale.edu/catalog/tms:34",
+    "format": "text/html"
+  },
+  "seeAlso": [
+    {
+      "@id": "https://harvester-bl.britishart.yale.edu/oaicatmuseum/OAIHandler?verb=GetRecord\u0026identifier=oai:tms.ycba.yale.edu:34\u0026metadataPrefix=lido",
+      "foramt": "text/xml",
+      "profile": "http://www.lido-schema.org/schema/v1.0/lido-v1.0.xsd"
+    },
+    {
+      "@id": "http://collection.britishart.yale.edu/id/page/object/34",
+      "foramt": "text/rdf+n3",
+      "profile": ""
+    }
+  ],
+  "sequences": [
+    {
+      "@id": "https://manifests.collections.yale.edu/v2/ycba/obj/34/sequence/0",
+      "@type": "sc:Sequence",
+      "canvases": [
+        {
+          "@id": "https://manifests.collections.yale.edu/canvas/ycba/4f227f08-7842-46cc-b05a-e3c6a4614cc1",
+          "@type": "sc:Canvas",
+          "label": "recto, cropped to image",
+          "height": 9741,
+          "width": 14484,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "@id": "https://manifests.collections.yale.edu/annotation/ycba/4f227f08-7842-46cc-b05a-e3c6a4614cc1",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://images.collections.yale.edu/iiif/2/ycba:4f227f08-7842-46cc-b05a-e3c6a4614cc1/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://images.collections.yale.edu/iiif/2/ycba:4f227f08-7842-46cc-b05a-e3c6a4614cc1",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                },
+                "height": 9741,
+                "width": 14484
+              },
+              "on": "https://manifests.collections.yale.edu/canvas/ycba/4f227f08-7842-46cc-b05a-e3c6a4614cc1"
+            }
+          ],
+          "rendering": [
+            {
+              "@id": "https://media.collections.yale.edu/tiff/ycba/4f227f08-7842-46cc-b05a-e3c6a4614cc1.tif",
+              "label": "TIFF for download",
+              "format": "image/tiff"
+            }
+          ],
+          "thumbnail": {
+            "@id": "https://media.collections.yale.edu/thumbnail/ycba/4f227f08-7842-46cc-b05a-e3c6a4614cc1",
+            "@type": "dctypes:Image",
+            "width": 480,
+            "height": 323
+          },
+          "metadata": [
+            {
+              "label": "Image Use Rights",
+              "value": "No Copyright: You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission. (CC0 1.0)"
+            }
+          ]
+        },
+        {
+          "@id": "https://manifests.collections.yale.edu/canvas/ycba/2e789b5b-3172-4540-bd73-0d3c7c845389",
+          "@type": "sc:Canvas",
+          "label": "recto, unframed",
+          "height": 11867,
+          "width": 15612,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "@id": "https://manifests.collections.yale.edu/annotation/ycba/2e789b5b-3172-4540-bd73-0d3c7c845389",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://images.collections.yale.edu/iiif/2/ycba:2e789b5b-3172-4540-bd73-0d3c7c845389/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://images.collections.yale.edu/iiif/2/ycba:2e789b5b-3172-4540-bd73-0d3c7c845389",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                },
+                "height": 11867,
+                "width": 15612
+              },
+              "on": "https://manifests.collections.yale.edu/canvas/ycba/2e789b5b-3172-4540-bd73-0d3c7c845389"
+            }
+          ],
+          "rendering": [
+            {
+              "@id": "https://media.collections.yale.edu/tiff/ycba/2e789b5b-3172-4540-bd73-0d3c7c845389.tif",
+              "label": "TIFF for download",
+              "format": "image/tiff"
+            }
+          ],
+          "thumbnail": {
+            "@id": "https://media.collections.yale.edu/thumbnail/ycba/2e789b5b-3172-4540-bd73-0d3c7c845389",
+            "@type": "dctypes:Image",
+            "width": 480,
+            "height": 365
+          },
+          "metadata": [
+            {
+              "label": "Image Use Rights",
+              "value": "No Copyright: You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission. (CC0 1.0)"
+            }
+          ]
+        },
+        {
+          "@id": "https://manifests.collections.yale.edu/canvas/ycba/03512ed2-3a43-4e84-af7b-7fd7cda3663a",
+          "@type": "sc:Canvas",
+          "label": "recto, framed",
+          "height": 12411,
+          "width": 15988,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "@id": "https://manifests.collections.yale.edu/annotation/ycba/03512ed2-3a43-4e84-af7b-7fd7cda3663a",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://images.collections.yale.edu/iiif/2/ycba:03512ed2-3a43-4e84-af7b-7fd7cda3663a/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://images.collections.yale.edu/iiif/2/ycba:03512ed2-3a43-4e84-af7b-7fd7cda3663a",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                },
+                "height": 12411,
+                "width": 15988
+              },
+              "on": "https://manifests.collections.yale.edu/canvas/ycba/03512ed2-3a43-4e84-af7b-7fd7cda3663a"
+            }
+          ],
+          "rendering": [
+            {
+              "@id": "https://media.collections.yale.edu/tiff/ycba/03512ed2-3a43-4e84-af7b-7fd7cda3663a.tif",
+              "label": "TIFF for download",
+              "format": "image/tiff"
+            }
+          ],
+          "thumbnail": {
+            "@id": "https://media.collections.yale.edu/thumbnail/ycba/03512ed2-3a43-4e84-af7b-7fd7cda3663a",
+            "@type": "dctypes:Image",
+            "width": 480,
+            "height": 373
+          },
+          "metadata": [
+            {
+              "label": "Image Use Rights",
+              "value": "No Copyright: You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission. (CC0 1.0)"
+            }
+          ]
+        },
+        {
+          "@id": "https://manifests.collections.yale.edu/canvas/ycba/bda361a3-3112-4e3f-b46e-603b38c963dd",
+          "@type": "sc:Canvas",
+          "label": "verso, framed",
+          "height": 6507,
+          "width": 7750,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "@id": "https://manifests.collections.yale.edu/annotation/ycba/bda361a3-3112-4e3f-b46e-603b38c963dd",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://images.collections.yale.edu/iiif/2/ycba:bda361a3-3112-4e3f-b46e-603b38c963dd/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://images.collections.yale.edu/iiif/2/ycba:bda361a3-3112-4e3f-b46e-603b38c963dd",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                },
+                "height": 6507,
+                "width": 7750
+              },
+              "on": "https://manifests.collections.yale.edu/canvas/ycba/bda361a3-3112-4e3f-b46e-603b38c963dd"
+            }
+          ],
+          "rendering": [
+            {
+              "@id": "https://media.collections.yale.edu/tiff/ycba/bda361a3-3112-4e3f-b46e-603b38c963dd.tif",
+              "label": "TIFF for download",
+              "format": "image/tiff"
+            }
+          ],
+          "thumbnail": {
+            "@id": "https://media.collections.yale.edu/thumbnail/ycba/bda361a3-3112-4e3f-b46e-603b38c963dd",
+            "@type": "dctypes:Image",
+            "width": 480,
+            "height": 403
+          },
+          "metadata": [
+            {
+              "label": "Image Use Rights",
+              "value": "No Copyright: You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission. (CC0 1.0)"
+            }
+          ]
+        },
+        {
+          "@id": "https://manifests.collections.yale.edu/canvas/ycba/0eb669dc-788b-45f4-b2ec-b3cc74cc56f8",
+          "@type": "sc:Canvas",
+          "label": "x-radiograph",
+          "height": 34053,
+          "width": 46800,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "@id": "https://manifests.collections.yale.edu/annotation/ycba/0eb669dc-788b-45f4-b2ec-b3cc74cc56f8",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://images.collections.yale.edu/iiif/2/ycba:0eb669dc-788b-45f4-b2ec-b3cc74cc56f8/full/full/0/default.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://images.collections.yale.edu/iiif/2/ycba:0eb669dc-788b-45f4-b2ec-b3cc74cc56f8",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                },
+                "height": 34053,
+                "width": 46800
+              },
+              "on": "https://manifests.collections.yale.edu/canvas/ycba/0eb669dc-788b-45f4-b2ec-b3cc74cc56f8"
+            }
+          ],
+          "rendering": [
+            {
+              "@id": "https://media.collections.yale.edu/tiff/ycba/0eb669dc-788b-45f4-b2ec-b3cc74cc56f8.tif",
+              "label": "TIFF for download",
+              "format": "image/tiff"
+            }
+          ],
+          "thumbnail": {
+            "@id": "https://media.collections.yale.edu/thumbnail/ycba/0eb669dc-788b-45f4-b2ec-b3cc74cc56f8",
+            "@type": "dctypes:Image",
+            "width": 480,
+            "height": 349
+          },
+          "metadata": [
+            {
+              "label": "Image Use Rights",
+              "value": "No Copyright: You can copy, modify, distribute and perform the work, even for commercial purposes, all without asking permission. (CC0 1.0)"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

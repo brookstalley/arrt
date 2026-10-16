@@ -13,6 +13,10 @@ except where a line says otherwise.
 > and the engine's model are unrelated roles. The Pi-install weight no longer
 > applies to it.
 
+> **Tool calling, measured 2026-10-08:** how the cheap models do as an agent
+> on the product's tools, with steps and cost per reply, is
+> `ask-agent-findings.md`.
+
 **Two probe rounds, on different keys, and which one produced a finding matters
 when reading it.** The first used a **borrowed key** from another product on this
 machine (`limit` 10, not this product's ceiling): adequate for response shapes and
@@ -119,6 +123,54 @@ data.rate_limit.{requests:int, interval:str, note:str}
 `usage_daily` / `usage_weekly` / `usage_monthly` were not anticipated by any
 artifact and are worth knowing: the monthly figure is closer to what the ceiling
 means than the lifetime `usage` is.
+
+### Re-measured 2026-10-07: the shape has grown, and `limit_remaining` is the month's
+
+One `GET /api/v1/key` with the product's configured key (free; the values below
+are the shape and the money only, with every identifier left out). Status 200.
+
+```
+data.limit                  int     20
+data.limit_reset            str     "monthly"
+data.limit_remaining        float   19.94596061
+data.usage                  float   0.588850173      (lifetime)
+data.usage_daily            int     0
+data.usage_weekly           float   0.05322656
+data.usage_monthly          float   0.05403939
+data.byok_usage{,_daily,_weekly,_monthly}  int 0
+data.include_byok_in_limit  bool    false
+data.is_free_tier           bool    false
+data.is_provisioning_key    bool    false
+data.is_management_key      bool    false
+data.expires_at             null
+data.creator_user_id        str     (not recorded)
+data.label                  str     (new; not recorded)
+data.organization_id        null    (new)
+data.workspace_id           str     (new; not recorded)
+data.allowed_data_regions   list    (new; not recorded)
+data.free_model_daily_requests.{used,limit,remaining}  int   (new; limit 1000)
+data.rate_limit.{requests:int -1, interval:"10s", note:str}
+```
+
+**What drifted (#150):** five fields this file did not list — `label`,
+`organization_id`, `workspace_id`, `allowed_data_regions` and
+`free_model_daily_requests` — and `rate_limit.requests` reads `-1` with a `10s`
+interval. Every field the product reads (`limit`, `usage`, `limit_remaining`,
+`limit_reset`) is where it was, with the types it had. A JSON integer arrives
+where the value is whole (`limit`, `usage_daily`), so a reader takes any number.
+
+**`limit_remaining` is the month's, not the lifetime's.** `limit` less
+`usage_monthly` is `19.94596061` exactly, while `limit` less the lifetime
+`usage` would be `19.41`. So on a key with a monthly reset it answers "what is
+left this month" directly, which is what the sidebar shows (#290). The lag
+recorded above is unchanged and was not re-measured.
+
+**On a key with no limit**, `limit` and `limit_remaining` are null (recorded
+above, 2026-08-02). The product then reads `usage_monthly`, the provider's own
+figure for the month, against a configured budget, rather than tallying its own
+ledger. *Inferred, not measured:* that `usage_monthly` is present on an
+uncapped key was not checked, since the only uncapped key to hand is not this
+deployment's; a reply without it reads as spend unknown.
 
 ### `/key` lags materially, and the design must not depend on it being current
 
@@ -297,6 +349,14 @@ one of should look like. See `nonfunctional-requirements.md` § Cost Constraints
 
 ## The client is first-party, behind a seam (decided 2026-08-02)
 
+> **Direction changed 2026-10-08 (the owner).** Ask's agent runs on
+> `3tears-models` and LangChain's tool loop, not on this client: tool calling,
+> streaming and a 3tears-owned spending cap are what it needs, and the
+> install-weight argument below went with the move to the NAS. This client
+> still serves discovery's phase 1 and the mat's vision call until
+> `build-plan-ask-agent.md` decides otherwise. `project-state.yaml` →
+> `technical_decisions.technology`, 2026-10-08.
+
 **A direct HTTP client, written against the shapes above, behind a narrow
 interface** — not `threetears.models.create_chat_model`, which
 `arrt/pyproject.toml` had anticipated ("it arrives with the discovery work
@@ -317,6 +377,8 @@ argument. Three things decided it anyway:
   `langchain-openai`, `langchain-openrouter` and `jsonschema` into the curation
   plane's **default** install — the plane that runs co-located with display under
   a `MemoryMax`. Today that weight is opt-in, confined to the `eval` group.
+  *(2026-10-08: no longer. The server moved to the NAS, and Ask's agent put
+  this weight in the default install, `build-plan-ask-agent.md`.)*
 - **The two model uses are not the same axis.** The eval harness's model plays the
   *curator*, driving the MCP surface from outside; the engine's model is the
   *discovery worker* behind it. "One model-construction path" reads like reuse and
@@ -428,6 +490,12 @@ recorded value rather than the mat engine retrying until the model complies. An
 unparseable answer is a normal outcome of an unenforced schema, not an incident.
 
 ## The conversation call: a longer `messages` array, and two defects it exposes (measured 2026-08-12)
+
+> **Its consumer was retired on 2026-10-09** (`build-plan-ask-agent.md` Chunk 04).
+> Ask now runs on 3tears-models, not on this client. The measurements stand as
+> the provider's behaviour, `complete_thread` is still the client's multi-message
+> path, and `tests/unit/test_conversation_client.py` still holds it to these
+> captures.
 
 Probed against the live API, nine days after the vision call above, because the
 curation-UX build plan needed its least confident assumption tested before code

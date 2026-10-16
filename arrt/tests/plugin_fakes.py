@@ -130,6 +130,13 @@ UNANSWERABLE = SourcePlugin(api_major=1, create=_unanswerable)
 CONFIGURED = SourcePlugin(api_major=1, create=_configured)
 RAISING = SourcePlugin(api_major=1, create=_raising)
 MISNAMED = SourcePlugin(api_major=1, create=_misnamed)
+#: 1.4: plugins that say which museum they answer for, one well and some badly.
+NAMED = SourcePlugin(api_major=1, create=_good, museum="Tate")
+NAMED_DECLINING = SourcePlugin(api_major=1, create=_configured, museum="The Whitney Museum of American Art")
+BLANK_NAMED = SourcePlugin(api_major=1, create=_good, museum="   ")
+LONG_NAMED = SourcePlugin(api_major=1, create=_good, museum="T" * 121)
+CONTROL_NAMED = SourcePlugin(api_major=1, create=_good, museum="Tate\nGallery")
+NOT_TEXT_NAMED = SourcePlugin(api_major=1, create=_good, museum=7)  # type: ignore[arg-type]
 NOT_PARTS = SourcePlugin(api_major=1, create=_not_parts)
 FUTURE = SourcePlugin(api_major=2, create=_good)
 NOT_A_PLUGIN = object()

@@ -42,7 +42,8 @@ reader should not conclude these were forgotten.
 |---|---|---|
 | Structured logs | **Yes** — the primary signal | Both planes, to the systemd journal |
 | Health/heartbeat state | **Yes** | Display writes it; the curation UI reads and displays it |
-| Spend | **Per run, yes; as a live balance, never** | Recorded spend is on the run and reported by the discovery surface. **`limit_remaining` is not surfaced, and the operator settled that it will not be** — see the note below the table |
+| Spend | **Per run, yes; the month's remaining budget, yes, in the sidebar** *(since 2026-10-07; it was "never" until the owner reversed it, see the note below the table)* | Recorded spend is on the run and reported by the discovery surface. What is left this month is `GET /api/budget`, read from `limit_remaining` (`library/services/spending.py`), display only and never on the health panel |
+| Ask's replies | **Yes, per reply, since 2026-10-08** | One INFO line on `arrt.ask` per reply: thread, how it ended (`answered`, `step_limit`, `budget_spent`, `failed`, `cancelled`), model calls, tool calls, cost (OpenRouter's own `response_metadata["cost"]`, summed) with the number of calls that carried none, and seconds. A failed reply also logs its traceback. The cost is shown to the curator under the reply. **No `SpendRecord` is written for it**: the month's figure in the sidebar is the provider's own, so it already includes Ask. A per-reply record is the 3tears spending cap's question (pacepace/3tears#583) |
 | Metrics (time series) | No | No store, no query surface, nobody to read them. Revisit only if a real question needs a trend |
 | Distributed tracing | No | Two processes with no request/response between them. There is no distributed call to trace. *(2026-09-30: after wave 2 there is one: the Player's manifest poll and media pull, and its heartbeat POST. Each is a single hop with no fan-out, so `work_id` and the wall id remain enough correlation, and this row still holds. See `re-architecture.md`.)* |
 | Uptime monitoring (external) | No | Follows from the operator's alerting decision below |
@@ -58,6 +59,8 @@ reader should not conclude these were forgotten.
 > failure mode are recorded per-run spend and the `halted_by_budget` outcome.
 > (`operational-spec.md` § Troubleshooting corrected the same claim the same day;
 > this artifact was the copy that sweep did not reach.)
+>
+> *(**Reversed by the owner 2026-10-07** (`ia-proposal.md` § Rulings (2026-10-07), ruling 3): the month's remaining budget is shown. How, and what was weighed, is the note in `nonfunctional-requirements.md` § Direction, under its *read from the authority* corollary; #290 builds it; the server half, `GET /api/budget`, was built 2026-10-07.)*
 >
 > **Settled 2026-08-04 by the operator: it is not surfaced, in any form.** The
 > question left open here was whether to show it anyway as a lagging advisory
@@ -176,6 +179,18 @@ Deliberately minimal, because the topology does not need more.
   binding inside the caption itself rather than at its two callers: one forgotten
   call site defeats a discipline, and the lines lost that way are the ones logged
   from inside a failure.
+- *(Direction changed 2026-10-08, build plan displays-and-label-outputs Chunk 06:
+  the label is drawn by a label renderer from a label document, not by the Frame
+  loop, so no label event carries `tv_content_id` any more. Every one carries
+  `label_id`, a caption binds the document's `work_id`, and `label.blanked` and
+  the new `label.card` carry the `display_state` that asked for them. The
+  renderer's own events are `label.renderer_started`, `label.server_unreachable`
+  / `label.server_reachable`, `label.refused` / `label.accepted` and
+  `label.document_refused` / `label.document_readable`, each once per episode;
+  the client's are `client.label_started`, `client.label_stopped`,
+  `client.label_unplaceable`, `client.label_crashed` / `client.label_ended`, and
+  `client.identity_unreadable` / `client.identity_read` for the Frame's device
+  id. The paragraph below is the history of the Frame loop's events.)*
 - **`tv_content_id` on a label event is not a duplicate of `work_id`**, though it
   looks like one on the path where both appear. The set's own id is the *only*
   identity available when the wall shows a picture the manifest cannot name —
@@ -214,7 +229,7 @@ between planes.
 > | Event | Says |
 > |---|---|
 > | `phase_two.searched` | which collection was asked about which work, how many results came back, and how many were usable at all |
-> | `phase_two.judged` | how many instances were credible, how many of those are below the floor, and `refused_at` — the gates that turned the rest away, which is the per-work summary of the `not_the_work` and `size_unknown` lines below |
+> | `phase_two.judged` | how many instances were credible, how many of those are below the quality minimum (`instances_below_floor`, named when the minimum was an inch floor), and `refused_at` — the gates that turned the rest away, which is the per-work summary of the `not_the_work` and `size_unknown` lines below |
 > | `phase_two.not_the_work` | a result was discarded as a different painting, naming what the provider called it and who it says painted it, its `found_url`, the work's `qid`, and `link`: why no Wikidata link settled a differing title (`no_registry`, `no_qid`, `registry_unavailable`, `not_recorded`), or how the title was settled before the artist refused it (`title_matched`, `linked`); and, on an artist refusal, `names`: why Wikidata's names for the creator did not settle it (the page link's own word when the page is not the item's, `names_unavailable`, or `not_a_creators_name`) |
 > | `phase_two.renamed` | a result whose artist is named differently was kept, on a page the work's item records, because Wikidata records both names for one of the item's creators; naming both artists, the page and the item |
 > | `phase_two.linked` | a result whose title differs was kept because the work's Wikidata item records its page, naming both titles, the page and the item |
@@ -249,7 +264,7 @@ between planes.
 > | `browse.unreachable` | the collection could not be browsed. **A supplement failing must not fail the run**, so this is the only signal that one was attempted and lost |
 > | `browse.surname_retried` | an artist was recovered under a different spelling, naming the surname and the artist the collection filed it under. **The one line to read when a wrong-hand offer reaches a curator**: this is the only path that returns work under a name nobody asked for, and it is licensed by a measurement the museum could change under us |
 > | `browse.surname_ambiguous` | a retry was refused because the surname reaches several artists — the guard working, and the counterpart to the line above |
-> | `browse.below_floor` | a work was not offered because it would render too small. **Systemic rather than per-work**: one wrong artwork-box setting makes every browse result fall below the floor, and without this line the supplement offers nothing for ever while reporting only `works_offered: 0` |
+> | `browse.below_floor` | a work was not offered because it is below the quality minimum (the event keeps its name from when that was an inch floor, so a journal query written then still finds it). **Systemic rather than per-work**: one wrong `QUALITY_MINIMUM_PX` makes every browse result fall below it, and without this line the supplement offers nothing for ever while reporting only `works_offered: 0` |
 > | `work.suppressed` / `work.already_present` | an offer was declined because the curator rejected that work earlier, or because the run already carries it |
 >
 > **Acquisition's events, which start here.** `acquisition.source_read` (named
@@ -307,6 +322,15 @@ between planes.
 > walk counts what it could not read** (`unreadable`), and the panel's sentence
 > then says the store could not be read in full rather than "no pictures yet": an
 > unreadable store must never read as an empty one.
+
+> **What each wall has shown, added 2026-10-15** (`programming/display.py`,
+> `build-plan-shown-record.md`). Written on each heartbeat; neither refuses the
+> heartbeat, which is the Player's.
+>
+> | Event | Level | Says |
+> |---|---|---|
+> | `showings.not_recorded` | ERROR | a wall's report could not be written as a showing, with `wall_id` and `reported_at`: the store refused it, or the disk did (full, failing, or locked). The heartbeat file is still written, so the health panel is unaffected; Walls' last-shown work and the Artworks *Last shown* facet fall behind until a later report is kept |
+> | `showings.not_in_feed` | INFO | a wall reported showing a work its published feed does not carry, with `wall_id` and `work_id`, and it was not kept. Only when the wall has a published feed and the report is newer than the last one kept: a wall with nothing hung, or a late report, is not this. A work taken out of a theme a moment before is ordinary; a steady stream for one wall is a Player showing from a feed this server did not send |
 
 > **The topic sweep's events, added 2026-10-02** (`library/services/topic_sweep.py`,
 > `build-plan-topics-and-destinations.md` Chunk 04). The sweep keeps the
@@ -718,6 +742,8 @@ provider's own figure for budget left. A local counter would be a second source 
 truth for a number the provider owns, and the two would drift — which is the
 reasoning behind the ratified provider-enforced-ceilings norm.
 
+> *(Reversed by the owner 2026-10-07; the note under the signals table says how. #290 builds it: `GET /api/budget`, server half built 2026-10-07.)*
+>
 > **`limit_remaining` is not surfaced, and as of 2026-08-04 that is settled rather
 > than pending.** Two measured facts stand against it: nothing outside the client
 > and its tests reads it, and it lags by minutes — it was observed reporting credit
@@ -765,24 +791,24 @@ metadata and curatorial intent.
 
 > **"No PII" stopped being true on 2026-08-12 and this paragraph did not notice**
 > — found by Critic review, and corrected here rather than argued with.
-> `security-model.md` § The one exception designates `ConversationTurn.text` as
-> **the product's only retained free-text record of a person**, and rules that
-> deleting a conversation destroys it. That is a classification this section owns
-> the log-filtering consequences of, and the path is live: `ConversationService`
-> hands the curator's own words to `DiscoveryRunner.start(intent_text=...)`, and
+> From then until 2026-10-09 `ConversationTurn.text` was the product's only
+> retained free-text record of a person; since then the curator's words are held
+> only in the server's memory for a thread's life (`security-model.md` § The
+> curator's own words). Either way that is a classification this section owns the
+> log-filtering consequences of, and the path is live: a Get from words hands the
+> curator's sentence to `DiscoveryRunner.start(intent_text=...)`, and
 > § Correlation's stated reason for structured logging is that "an intent is the
 > curator's own words and goes in a log line".
 >
-> **So the delete does not reach the journal, and that is a limit rather than a
-> gap to close.** A log line is written once and shipped; a retraction mechanism
+> **So forgetting a thread does not reach the journal, and that is a limit rather
+> than a gap to close.** A log line is written once and shipped; a retraction mechanism
 > over journald would be a second, weaker copy of a deletion guarantee this
 > product does not otherwise make. What follows instead is that **the words are
 > the one thing here whose logging is a decision rather than a freedom**: an
 > intent is logged because a run cannot be explained without the sentence that
 > started it, and a turn's full text is not. That is the built shape rather than
-> an aspiration: `run.started` carries `intent_text`, and every line
-> `ConversationService` writes — `conversation.started`, `.failed`, `.committed`,
-> `.deleted` — carries ids and counts and no text at all. If that ever changes,
+> an aspiration: `run.started` carries `intent_text`, and Ask's one line per
+> reply carries its thread, steps and cost and no words at all. If that ever changes,
 > it changes here first. `security-model.md` is the authority on what the record is; this
 > section is the authority on where it may be repeated.
 
@@ -796,7 +822,7 @@ signal exists:
 | The wired collection could not be browsed | `browse.unreachable` at WARNING, and nothing else — a supplement is swallowed so it cannot fail the run, which makes this line the only trace that one was attempted. **Distinguish it from a collection that answered and offered nothing**, which is `browse.offered` carrying `works_offered: 0` against a non-zero `collection_holds`: that is every candidate declined, and `browse.below_floor` / `work.suppressed` / `work.already_present` say which gate did it |
 | Display plane stalled or dead | Heartbeat stops advancing; panel shows its age |
 | TV unreachable | Heartbeat carries TV connectivity state; WARNING in the journal. **The panel renders the heartbeat's whole reported document as of 2026-08-05**, so this row and the two below it have a reader rather than naming a field nothing displayed |
-| E-paper panel not updating | Heartbeat carries its state, and the panel shows it — same mechanism as the row above, and no second contract. **The journal answers the question the heartbeat cannot**, added 2026-08-13: the heartbeat is a snapshot of current state, so it can say the surface is working and never say *what it captioned*, and its `current_work_id` is the rotation's rather than the label's — the two disagree exactly when the label is wrong, which is the failure that matters. `label.drawn` names the work per draw, so the panel's history is reconstructable after the fact and joinable to `rotation.selected` |
+| E-paper panel not updating | Heartbeat carries its state, and the panel shows it — same mechanism as the row above, and no second contract. *(2026-10-08: the panel is a label output now, so its state is the client heartbeat's `label_outputs[].connected` — false for a panel that would not open or whose last draw failed — and no longer the wall heartbeat's `has_label_surface` / `label_surface_working`, which every wall reports false / null. Two things the wall heartbeat carried have no field there yet and are journal-only: why a panel would not open (`panel.unavailable`), and a geometry with no usable area (`label.unusable`, the panel still `connected`).)* **The journal answers the question the heartbeat cannot**, added 2026-08-13: the heartbeat is a snapshot of current state, so it can say the surface is working and never say *what it captioned*, and its `current_work_id` is the rotation's rather than the label's — the two disagree exactly when the label is wrong, which is the failure that matters. `label.drawn` names the work per draw, so the panel's history is reconstructable after the fact and joinable to `rotation.selected` |
 | **The panel is captioning, and nobody can read it** | `label.shrunk` at WARNING per draw, carrying the lines set below the floor as the catalogue spells them, the derived `floor_px` and the `smallest_px` actually set. **The only WARNING this plane emits about legibility, and the condition an accessibility ruling rests on.** Type never shrinks to fit — except for the facts that identify the work, which shrink rather than vanishing, because a name too small to read at 7 feet can still be read by somebody who steps closer. That exception is only safe because this line exists: illegible type fails invisibly, and a panel routinely setting names below the floor is a misconfigured device — too small a panel, or one read from further than `EPD_VIEWING_DISTANCE_INCHES` claims — which nobody discovers by eye. **INFO would have been wrong**: a dropped medium is the engine working as designed and a name below the floor is a deployment that cannot show its corpus. **Not episode-gated, unlike `label.failed`**: the shrunk set is per work rather than per device, so a gate would swallow a different label's shrink to spare a repeat of the first |
 | **The label surface has no usable area at all** | `label.unusable` at WARNING, added 2026-08-13, replacing the `label.drawn` that would otherwise claim a caption that is not there. Reachable rather than theoretical: the margin derives from the primary tier, which grows with viewing distance, so a device configured to be read from far enough away borders its own label out of existence. **It is guarded on facts having existed and not been placed**, because a work whose institution published no label text also lays out to nothing — and that is a fact about the record rather than about the device. **Episode-gated like `label.failed` and unlike `label.shrunk`**, and the split is the same one the `work_id` paragraph draws: a shrunk set belongs to one work, so a gate would swallow the next work's, while this is a statement about the surface and says the same thing whatever the wall shows. What causes it is a geometry setting, so it holds until somebody changes one — ungated, that is the same line some five hundred times a day at the default rotation, in the only channel this plane reports failure through. **The episode ends on `label.drawn` with no recovery line of its own**: a label actually placed is the proof, and that line already names it, where `label.recovered` exists only because `label.failed`'s success path is silent. **The heartbeat carries it too, added 2026-08-13, and the episode gate is why it must**: this row described the journal as the whole answer, and the one WARNING an episode emits can be hours scrolled away on a headless Pi while the panel has been blank throughout — so the condition is written to `last_error`, which the health panel reads every beat. **`label_surface_working` stays `true`** on that path, because the driver took the frame and the geometry is what failed; reporting the driver broken would send somebody to the panel wiring for a margin they can change in a config file |
 | **A name the line breaker split across rows** | `label.name_wrapped` at WARNING per draw, added 2026-08-13, carrying the line as the catalogue spells it, the row count and the wrap width. **The fault a person found by standing in front of the panel, and the channel that would have said it.** The wall drew `KATSUSHIKA,` / `Hokusai, Japanese` / `1760–1849` — every fact split mid-phrase, the comma that inverts the name stranded at a row end where the weight distinguishing it from a list separator cannot work — and nothing reported it: type was at its tier so `label.shrunk` was silent, every fact was placed so `label.truncated` was silent, and `label.drawn` said the panel was captioning the work. The name ladder exists to prevent this and normally does; reaching here means no arrangement of the name fitted, which is a fact about the *device* — too narrow a panel, or type calibrated for a reader further away — which is why it is a WARNING beside `label.shrunk` rather than an INFO beside `label.truncated`. **Load-bearing beyond its own report**: `legibility.MARGIN_TO_PRIMARY_RATIO` cites the ladder's wrap trigger to declare itself freely movable, and without this line the next margin, viewing-distance or panel change could put the fault back on the wall in silence |

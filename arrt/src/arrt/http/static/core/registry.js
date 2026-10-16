@@ -10,8 +10,9 @@
  * value used as a URL is an image the server has already checked is a Commons
  * file. Links out are built here from a QID, never from a URL the registry gave. */
 
+import { GLYPHS } from "./glyphs.js";
 import { el } from "./render.js";
-import { go } from "./router.js";
+import { link } from "./router.js";
 
 /* A Wikidata item id, as the server checks it: the address of a page about
  * something the library may not hold. A library id is a uuid and never this. */
@@ -44,12 +45,7 @@ export function lifeDates(person) {
  * library holds it, the registry's otherwise. */
 export function workLink(work) {
   const held = work.held_artwork_ids || [];
-  return el("button", {
-    class: "row-title",
-    type: "button",
-    text: named(work.title, work.qid),
-    onclick: () => (held.length ? go("work", held[0]) : go("work", work.qid)),
-  });
+  return link({ view: "work", id: held.length ? held[0] : work.qid }, { class: "row-title", text: named(work.title, work.qid) });
 }
 
 /* A listed work's title cell: its link, and under it who made it (where the
@@ -89,27 +85,23 @@ export function listHeadings(names) {
 /* A registry person's name, opening their page here: the library's artist when
  * it holds them, the registry's otherwise. */
 export function personLink(person) {
-  return el("button", {
-    class: "link",
-    type: "button",
-    text: named(person.name, person.qid),
-    onclick: () => go("artist", person.artist_id || person.qid),
-  });
+  return link({ view: "artist", id: person.artist_id || person.qid }, { class: "link", text: named(person.name, person.qid) });
 }
 
 /* The Commons rendering a listed work's picture is asked at. Commons serves
- * fixed widths only and answers any other with the next one up; 250 is the
- * first that stays sharp at the 3rem a list draws it at on a 3x screen
- * (`app.css`, `.artist-works .work-pic`). The search typeahead and results
- * draw the same picture at 2rem and share it, so a work shown in both is one
- * download. */
+ * fixed widths only and answers any other with the next one up; 250 stays
+ * sharp at the 5rem a list draws it at on a 3x screen (`app.css`,
+ * `.artist-works .work-pic`). The search results and typeahead draw the same
+ * picture smaller and share it, so a work shown in both is one download. */
 const FOUND_WIDTH = 250;
 
 /* A work's mark wherever registry works are listed — the search typeahead,
  * the results page, the Topic, Artist and Work pages: its picture, in the
  * image style of its state, then glyph and word.
  *
- *   ● *Held*: the library's own thumbnail, and a button to the work.
+ *   ● *Held*: the library's own thumbnail, and a link to the work.
+ *   ◔ *Waiting for review*: a run found it and nobody has judged it yet
+ *     (`in_review`); a link to that review, unless `inOption`.
  *   ◑ *Wanted*: Wikidata's picture, where it has one (the Wanted section).
  *   ◐ *Not held · Image found*: Wikidata's picture.
  *   ○ *Not held* (or `noImage`'s words): no picture.
@@ -127,34 +119,76 @@ const FOUND_WIDTH = 250;
  * results and the dropdown): the words say only what the heading does not, so
  * ◐ *Image found*, and ○ *No image known* as the Topic page says it. "Not held"
  * on every row of a group headed *Not held* was noise (the owner, 2026-10-06).
- * `noImage`, where given, is the no-picture word whichever. */
-export function workState(work, { noImage = null, opens = true, grouped = false } = {}) {
+ * `noImage`, where given, is the no-picture word whichever.
+ *
+ * **`inOption`, where the mark sits inside a search suggestion**: nothing in
+ * it is a link, since a control inside an option is what ARIA forbids. Waiting
+ * for review links to a page other than the row's own, so the row's `opens`
+ * does not stand in for it. */
+export function workState(work, { noImage = null, opens = true, grouped = false, inOption = false, picture = true } = {}) {
   const held = work.held_artwork_ids || [];
   if (held.length) {
     // Two held works naming one item is a duplicate the curator should see,
     // not a mark that quietly picks one; it opens the first.
     const words = held.length === 1 ? "Held" : `Held ×${held.length}`;
     const parts = [
-      workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`),
-      el("span", { class: "glyph", text: "●", "aria-hidden": true }),
+      picture ? workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`) : null,
+      el("span", { class: "glyph", text: GLYPHS.good, "aria-hidden": true }),
       el("span", { text: words }),
     ];
-    // Not a button where the row it sits in already opens the work: a button
+    // Not a link where the row it sits in already opens the work: a link
     // inside a search suggestion is a control inside an option, which ARIA
     // forbids and which Tab would land on, and a results row would carry two
     // ways to the same page.
     if (!opens) return el("span", { class: "badge badge-held state-mark" }, parts);
-    return el("button", { class: "badge badge-held state-mark", type: "button", onclick: () => go("work", held[0]) }, parts);
+    return link({ view: "work", id: held[0] }, { class: "badge badge-held state-mark" }, parts);
   }
+  if (work.in_review) return reviewMark(work.in_review, { inOption });
   const found = work.image ? `${work.image}?width=${FOUND_WIDTH}` : null;
-  if (work.wanted) return stateBadge("badge-wanted", "◑", "Wanted", found && workPicture("wanted", found));
-  if (found) return stateBadge("badge-image-found", "◐", grouped ? "Image found" : "Not held · Image found", workPicture("not-held", found));
-  return stateBadge("badge-not-held", "○", noImage || (grouped ? "No image known" : "Not held"));
+  if (work.wanted) return stateBadge("badge-wanted", GLYPHS.wanted, "Wanted", picture && found && workPicture("wanted", found));
+  if (found) return stateBadge("badge-image-found", GLYPHS.imageFound, grouped ? "Image found" : "Not held · Image found", picture && workPicture("not-held", found));
+  return stateBadge("badge-not-held", GLYPHS.none, noImage || (grouped ? "No image known" : "Not held"));
 }
 
-/* A picture in the image style of a state. In a frame, because the not-held
- * style draws hatching over the picture and an `<img>` cannot carry an
- * overlay of its own. Decorative: the title beside it names the work.
+/* A listed work's picture on its own, in the image style of its state, for a
+ * row that leads with it rather than carrying it inside the state's badge (the
+ * search typeahead and results, where a picture in the badge was 48 px and read
+ * as part of the mark: `ux-review-2026-10.md` finding 38). `workState(…, {
+ * picture: false })` is the badge that goes with it. Null where the state has
+ * no picture; a held one that cannot be loaded takes its frame with it, as the
+ * badge's did. */
+export function statePicture(work) {
+  const held = work.held_artwork_ids || [];
+  if (held.length) return workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`);
+  if (work.in_review || !work.image) return null;
+  return workPicture(work.wanted ? "wanted" : "not-held", `${work.image}?width=${FOUND_WIDTH}`);
+}
+
+/* Whether a registry row can be ticked for a Get: not when the library holds
+ * it, and not when a run already found it and it waits for a verdict, which a
+ * second Get would pay for again (the server skips it too, as `in_review`). */
+export function gettable(work) {
+  return !(work.held_artwork_ids || []).length && !work.in_review;
+}
+
+/* *Waiting for review*, for a registry work or artist a run proposed and
+ * nobody has judged: glyph, words, and the way to the review it waits on. */
+export function reviewMark(inReview, { inOption = false } = {}) {
+  const parts = [el("span", { class: "glyph", text: GLYPHS.forReview, "aria-hidden": true }), el("span", { text: "Waiting for review" })];
+  if (inOption) return el("span", { class: "badge badge-in-review state-mark" }, parts);
+  return link({ view: "review", id: inReview.run_id }, { class: "badge badge-in-review state-mark" }, parts);
+}
+
+/* A library work's own picture for a list row: its thumbnail when it holds a
+ * master, else nothing, so no request goes out for one the server would
+ * refuse (`work.image.available`, as the listing reports it). */
+export function heldPicture(work) {
+  return work.image && work.image.available ? workPicture("held", `/api/works/${encodeURIComponent(work.artwork_id)}/thumbnail`) : null;
+}
+
+/* A picture in the image style of a state. In a frame, which carries the
+ * state's outline and keeps the box square while the picture inside it keeps
+ * its own aspect. Decorative: the title beside it names the work.
  *
  * A picture that fails to load takes its frame with it, so a held work with
  * no master yet, or a Commons outage, leaves glyph and word rather than a
@@ -173,10 +207,10 @@ function workPicture(kind, src) {
  * (`accessibility-spec.md`). A work in a list takes `workState`, which adds
  * its picture. */
 export function stateMark({ held = false, wanted = false, image = false } = {}) {
-  if (held) return stateBadge("badge-held", "●", "In your library");
-  if (wanted) return stateBadge("badge-wanted", "◑", "Wanted");
-  if (image) return stateBadge("badge-image-found", "◐", "Not held · Image found");
-  return stateBadge("badge-not-held", "○", "Not held");
+  if (held) return stateBadge("badge-held", GLYPHS.good, "In your library");
+  if (wanted) return stateBadge("badge-wanted", GLYPHS.wanted, "Wanted");
+  if (image) return stateBadge("badge-image-found", GLYPHS.imageFound, "Not held · Image found");
+  return stateBadge("badge-not-held", GLYPHS.none, "Not held");
 }
 
 function stateBadge(kind, glyph, words, picture = null) {
@@ -189,8 +223,13 @@ function stateBadge(kind, glyph, words, picture = null) {
 
 /* A topic's name, or what to say when Wikidata has none in English: the label
  * service answers with the bare QID, as it does for a work (`named` above). */
+/* A topic's name standing on its own — a list item, a page title, a dropdown
+ * row — so it starts with a capital: Wikidata writes "realism" and "cubism"
+ * lower-case beside "Impressionism", and a list of names in two cases reads as
+ * two kinds of thing. */
 export function topicName(label, qid) {
-  return label && label !== qid ? label : `No English name (${qid})`;
+  if (!label || label === qid) return `No English name (${qid})`;
+  return label.charAt(0).toLocaleUpperCase("en") + label.slice(1);
 }
 
 /* A topic's kinds as a curator reads them, one and many, in the order the

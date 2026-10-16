@@ -15,12 +15,11 @@ exactly is a rounding error in a running total that nobody will ever reconcile
 against the provider's own figure.
 """
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any, Final
+from typing import Final
 
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass, VocabularyKind
 
@@ -75,6 +74,9 @@ class RunStatus(StrEnum):
     """
 
     RESOLVING_WORKS = "resolving_works"
+    #: Stopped for the curator's approval. Nothing enters it since 2026-10-07,
+    #: when asking became the approval; a run stored here before still leaves
+    #: by approve, decline or cancel.
     AWAITING_APPROVAL = "awaiting_approval"
     RESOLVING_IMAGES = "resolving_images"
     COMPLETED = "completed"
@@ -157,6 +159,36 @@ class WorkProvenance(StrEnum):
     #: The curator chose this work from the registry, by its Wikidata item. Its
     #: title and maker are the registry's, and nothing proposed or offered it.
     CHOSEN = "chosen"
+
+
+class Confirmation(StrEnum):
+    """Whether anything outside the model confirms a proposed work exists, as the review card says it.
+
+    A model asked for works will occasionally name a plausible one that does not
+    exist, and its own note may say it found no source while the card's badges
+    and Accept read as a match. This is what the card marks *Not confirmed*.
+    """
+
+    #: A source confirms it: phase 1's search found it, the curator chose it by
+    #: its Wikidata item, or a wired collection offered it from its holdings.
+    CONFIRMED = "confirmed"
+    #: Phase 1 named it and said no source it was given confirms it.
+    UNCONFIRMED = "unconfirmed"
+    #: Phase 1 named it and said nothing either way: every work proposed before
+    #: the model was asked, and any answer that left the field out.
+    UNKNOWN = "unknown"
+
+    @property
+    def rank(self) -> int:
+        """Where a review listing puts it: confirmed first, unknown next, unconfirmed last."""
+        return _CONFIRMATION_ORDER.index(self)
+
+
+_CONFIRMATION_ORDER: Final[tuple[Confirmation, ...]] = (
+    Confirmation.CONFIRMED,
+    Confirmation.UNKNOWN,
+    Confirmation.UNCONFIRMED,
+)
 
 
 class UnresolvedReason(StrEnum):
@@ -263,12 +295,10 @@ class SpendCategory(StrEnum):
     re-search spend and attributes to the resolve run that incurred it, rolling
     up to the original intent through the run's parent.
 
-    `CONVERSATION_TOKENS` is intent-forming spend, and it is deliberately **not**
-    attributed to the run a conversation eventually seeds. "What did talking
-    cost" and "what did asking for Kandinsky cost" are separate questions, and
-    folding the first into the second would make a run's `estimated_cost_usd`
-    unfalsifiable against its actuals — the estimate never covered the
-    conversation.
+    `CONVERSATION_TOKENS` is what the retired intent-forming conversation spent.
+    Nothing writes it now, and it stays so those rows still read and still count
+    in the month: the money was spent. Ask's replies write no row; the
+    provider's own month figure already includes them.
     """
 
     DISCOVERY_TOKENS = "discovery_tokens"
@@ -286,10 +316,10 @@ class DiscoveryRun:
     its own — it inherits the parent's, which is what keeps "what did asking for
     Dalí actually cost" answerable once spend is spread across a chain of runs.
 
-    `approval_required` is stored rather than re-derived because the threshold it
-    was judged against is configuration, and configuration changes. A run that
-    stopped for approval last month must still read as "this stopped for
-    approval", not as whatever today's threshold would imply.
+    `approval_required` is false on every run started since 2026-10-07, when
+    the approval gate was removed (asking is the approval). It is kept rather
+    than dropped because a run that stopped for approval before then must still
+    read as "this stopped for approval".
 
     There is no `target_candidate_count`: the phase-1 work list *is* the count,
     and it is a reviewable, trimmable list rather than a number guessed in
@@ -379,6 +409,10 @@ class CandidateWork:
     #: requirement exists for.
     offered_for_artist: str | None = None
     offered_artist_matched: int | None = None
+    #: The source that offered the work (its provider id). The scan an offer
+    #: arrives with can be turned down and another museum's found, so which
+    #: museum offered it is a fact about the work, not read off its scans.
+    offered_by: str | None = None
     #: The Wikidata item the curator chose this work by. Set only on a `CHOSEN`
     #: work. Phase 2 hands it to the image sources, and acceptance stores it on
     #: the artwork, so the work is *Held* wherever the registry shows it.
@@ -389,6 +423,25 @@ class CandidateWork:
     unresolved_reason: UnresolvedReason | None = None
     rejected_reason: str | None = None
     decided_at: datetime | None = None
+    #: What phase 1 said of a work it proposed: true when a source it was given
+    #: confirms the work, false when none does. `None` when it said nothing, and
+    #: on every chosen or offered work, which no model named.
+    source_confirmed: bool | None = None
+
+    @property
+    def confirmation(self) -> Confirmation:
+        """Whether the card may present this work as confirmed (`Confirmation`).
+
+        A chosen work is a Wikidata item and an offered one a collection's own
+        holding, so each is confirmed by where it came from. A proposed work is
+        confirmed only on phase 1's word, and an absent word is `UNKNOWN`, never
+        confirmed.
+        """
+        if self.provenance is not WorkProvenance.PROPOSED:
+            return Confirmation.CONFIRMED
+        if self.source_confirmed is None:
+            return Confirmation.UNKNOWN
+        return Confirmation.CONFIRMED if self.source_confirmed else Confirmation.UNCONFIRMED
 
 
 @dataclass(frozen=True, slots=True)
@@ -471,11 +524,6 @@ class SpendRecord:
     input_tokens: int | None = None
     output_tokens: int | None = None
     units: int | None = None
-    #: Set for intent-forming spend, and **nulled rather than cascaded when the
-    #: conversation is deleted**: the money was spent whatever became of the
-    #: thread, and a ledger whose totals fall when somebody tidies a transcript
-    #: is the under-reporting this table exists to prevent.
-    conversation_turn_id: str | None = None
 
 
 class AffinitySentiment(StrEnum):
@@ -506,10 +554,9 @@ class AffinityDerivation(StrEnum):
     reject behaviour, and a row asserting behaviour that never happened is
     indistinguishable afterwards from one the product earned.
 
-    **`INFERRED` and `OBSERVED` both require a `rationale`.** It is the only
-    evidence that survives a deleted conversation — `source_turn_id` is nulled
-    rather than cascaded — and an inferred judgment with neither turn nor
-    rationale is one the product can neither explain nor revisit.
+    **`INFERRED` and `OBSERVED` both require a `rationale`.** Neither cites
+    anything stored, so the rationale is the only evidence either has, and a
+    judgment without one is one the product can neither explain nor revisit.
     """
 
     STATED = "stated"
@@ -521,11 +568,10 @@ class AffinityDerivation(StrEnum):
 class Affinity:
     """One standing judgment about a thing the curator has reacted to.
 
-    Retained across conversations by design, and the thing a new conversation
-    opens knowing. Unique on (`kind`, `value`): one live judgment per thing,
-    corrected in place rather than accumulating a history of contradictions the
-    product would then have to arbitrate between. The history that matters is the
-    turns, which are retained separately.
+    Retained by design, and consulted when discovery proposes. Unique on
+    (`kind`, `value`): one live judgment per thing, corrected in place rather
+    than accumulating a history of contradictions the product would then have
+    to arbitrate between.
 
     **`value` is a string and never a foreign key, and that is this record's
     central decision.** The product exists to surface artists the curator could
@@ -536,11 +582,10 @@ class Affinity:
     `artist_id` *follows* the name where a match happens to exist, and its absence
     means nothing.
 
-    **`source_turn_id` may be null on an `inferred` row, and that is a legal state
-    rather than a corruption.** Deleting a conversation nulls it. The rule that an
-    inferred judgment cites a turn is an invariant on the **write path** — see
-    `library/services/taste.py` — and building it into the file would make the delete
-    impossible, which is the opposite of what the deletion ruling asks for.
+    **An `inferred` row cites nothing.** It was read out of a conversation that
+    the store no longer keeps, and its `rationale` is the evidence it has left.
+    No new one can be written until saved threads give it something to cite
+    (`library/services/taste.py`).
     """
 
     id: str
@@ -556,11 +601,8 @@ class Affinity:
     updated_at: datetime
     #: The account of the judgment in the curator's terms. Null is normal for
     #: `stated`, where the curator's own words are the account; required by the
-    #: write path for the other two, where it is the only evidence a deleted
-    #: thread leaves behind.
+    #: write path for the other two, where it is the only evidence there is.
     rationale: str | None = None
-    #: The turn this was derived from, where one is cited and still exists.
-    source_turn_id: str | None = None
     #: Set only where `kind` is `artist` **and** the name resolves to a catalogue
     #: artist. Derived and re-derivable; never the identity.
     artist_id: str | None = None
@@ -597,74 +639,24 @@ class Sighting:
     url: str
 
 
-class TurnRole(StrEnum):
-    """Who spoke a turn — the product's own two words, not the provider's.
-
-    `CURATOR` and `SYSTEM`, never `user`/`assistant`. The distinction is not
-    pedantry: the provider refuses a role it does not know (measured — *"curator
-    is not one of ['system', 'assistant', 'user', 'tool', 'function']"*), so the
-    translation to its vocabulary happens once, at the client seam, and the
-    transcript a curator reads back is in the product's terms rather than in a
-    chat API's.
-    """
-
-    CURATOR = "curator"
-    SYSTEM = "system"
-
-
 @dataclass(frozen=True, slots=True)
-class Conversation:
-    """One intent-forming session.
+class SourceYield:
+    """What one source has given this library: an observation, never a ranking.
 
-    **Not a run, and never confused with one:** it acquires nothing, writes no
-    `Artwork`, and reaches no museum API to *resolve* anything. It ends by
-    seeding a `DiscoveryRun` or by ending.
-
-    `summary` is a short account of where the conversation got to, written at
-    rest for the list. **Never read back as taste** — `Affinity` is the only
-    thing the product consults for that, and a summary consulted as one would be
-    a second, prose-shaped opinion about a curator free to drift from the
-    recorded one.
+    Counted from the records rather than kept as a tally, so it cannot drift from
+    them and survives a restart. Keyed by the provider id a found image records,
+    which is the source plugin's own name.
     """
 
-    id: str
-    started_at: datetime
-    #: Orders the conversation list, and indexed for it. Distinct from
-    #: `started_at` because a thread returned to a week later is the one a
-    #: curator is looking for, and the day it began says nothing about that.
-    last_turn_at: datetime
-    summary: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ConversationTurn:
-    """One thing said in a conversation, and what it offered.
-
-    `ordinal` orders the thread and is unique per conversation. **Not a
-    timestamp**: two turns can share a second — the curator's question and the
-    answer to it routinely do, since the answer is written in the same request —
-    and an order derived from time would then be a coin toss.
-
-    `text` is verbatim and required. A model turn that was cut off arrives from
-    the provider as `content: null`, and storing that null is what would make the
-    *next* turn fail with a refusal about a required content field rather than
-    about anything that went wrong. So the column cannot hold one, and the empty
-    string is what a turn with nothing in it holds.
-
-    `committed_run_id` is the seam. It is set on the turn where the curator
-    committed a direction, and it is the only edge from this side of the product
-    to a `DiscoveryRun`.
-    """
-
-    id: str
-    conversation_id: str
-    ordinal: int
-    role: TurnRole
-    text: str
-    created_at: datetime
-    #: What this turn offered, as `[{kind, value, samples}]`. Denormalised on
-    #: purpose: a record of *what was said*, not a live index — so a thread read
-    #: back next month shows the pictures it showed at the time rather than
-    #: whatever the collection would answer today.
-    suggested: Sequence[Mapping[str, Any]] | None = None
-    committed_run_id: str | None = None
+    provider: str
+    #: Distinct images, by address, this source has offered: to a search, or as
+    #: one of a held work's sources. An image offered again by a later search is
+    #: one image, and one the curator turned down still counts as offered.
+    offered: int
+    #: Works in the library whose chosen image (their primary source) is from it.
+    chosen: int
+    #: Of those, the works no other source offered any image for.
+    only_here: int
+    #: The median long edge, in pixels, of the offered images whose size is
+    #: known; `None` when no offered image's size is known.
+    median_long_edge: int | None

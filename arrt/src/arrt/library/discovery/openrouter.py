@@ -267,6 +267,9 @@ class KeyStatus:
     usage_usd: Decimal
     remaining_usd: Decimal | None
     resets: str | None
+    #: What the key has spent this calendar month, by the provider's own count
+    #: (`usage_monthly`), or `None` where the reply did not say.
+    usage_monthly_usd: Decimal | None = None
 
 
 class OpenRouterClient:
@@ -376,8 +379,8 @@ class OpenRouterClient:
         (images × remaining turns) and a caller deciding how much history to
         carry is deciding what it spends.
 
-        `reasoning` is the parameter `complete` has no need of and a
-        conversational turn cannot do without. On an open-ended prompt the routed
+        `reasoning` is the parameter `complete` has no need of and an
+        open-ended multi-turn call cannot do without. On an open-ended prompt the routed
         model consumed its **entire** output reservation on reasoning before
         emitting a character — measured at 16, 200 and 900 tokens alike, ten
         calls in a row, each returning empty content and each billed in full.
@@ -420,14 +423,10 @@ class OpenRouterClient:
     def key_status(self) -> KeyStatus:
         """What the account says about the ceiling. For display, never for gating.
 
-        **No surface consumes this yet, and that is deliberate rather than an
-        oversight.** `api-contract.md` specifies no action that reports remaining
-        budget; the cost display that will is part of the discovery UI, and until
-        it exists adding a field to the tool surface would be inventing a
-        requirement. What already depends on this is the live suite's check that
-        the key carries a limit at all — the only mechanical test that the
-        product's entire spend ceiling has been provisioned, since nothing in this
-        repository enforces one.
+        Read by the budget the sidebar shows (`library/services/spending.py`),
+        and by the live suite's check that the key carries a limit at all — the
+        only mechanical test that the product's entire spend ceiling has been
+        provisioned, since nothing in this repository enforces one.
         """
         payload = self._get("/key")
         data = payload.get("data") or {}
@@ -436,6 +435,7 @@ class OpenRouterClient:
             usage_usd=_money(data.get("usage")) or Decimal(0),
             remaining_usd=_money(data.get("limit_remaining")),
             resets=data.get("limit_reset"),
+            usage_monthly_usd=_money(data.get("usage_monthly")),
         )
 
     # -- transport ------------------------------------------------------------
@@ -467,19 +467,47 @@ def _timeout(overall: float) -> httpx.Timeout:
     return httpx.Timeout(overall, connect=CONNECT_TIMEOUT_SECONDS)
 
 
+def budget_spent(provider_said: str) -> str:
+    """What a call refused at the key's credit limit says, led by the budget.
+
+    One sentence for every caller OpenRouter refuses this way (a halted run, an
+    Ask reply), in the words the sidebar uses for the budget (the owner's ruling
+    3 of 2026-10-07, #290).
+    """
+    return (
+        "This month's budget is spent: OpenRouter refused the call because the key's credit limit is used up. "
+        f"{provider_said} The ceiling is a per-key credit limit with a monthly reset, so this clears when the "
+        "month turns or when the limit is raised in the OpenRouter console."
+    )
+
+
+def names_the_key_limit(said: str) -> bool:
+    """Whether a 403's message is OpenRouter's for a spent key.
+
+    "Key limit exceeded (total limit)" is the measured wording
+    (`openrouter-api-findings.md` § Exhaustion is 403). OpenRouter answers 403
+    for other things too, a moderated model flagging the input among them, and
+    those are not the budget.
+    """
+    return "key limit" in said.lower()
+
+
 def _read_body(response: httpx.Response) -> Mapping[str, Any]:
     """Turn a response into a payload, or into the right kind of refusal.
 
     The status is what discriminates, and the two money-related codes are read
-    apart here rather than anywhere above: 403 means the key is spent, 402 means
-    this particular request reserved more than the balance covers.
+    apart here rather than anywhere above: a 403 naming the key's limit means the
+    key is spent, 402 means this particular request reserved more than the
+    balance covers. Any other 403, a moderated model flagging the input among
+    them, is an ordinary refusal and says what the provider said.
     """
     if response.status_code == httpx.codes.FORBIDDEN:
-        raise KeyExhausted(
-            f"OpenRouter refused the call: the key's credit limit is spent. {_provider_message(response)} "
-            "The ceiling is a per-key credit limit with a monthly reset, so this clears when the month turns "
-            "or when the limit is raised in the OpenRouter console."
-        )
+        said = _provider_message(response)
+        if names_the_key_limit(said):
+            # Led by the budget, in the words the sidebar uses for it, because
+            # this sentence is what a halted run and a refused reply show.
+            raise KeyExhausted(budget_spent(said))
+        raise OpenRouterError(f"OpenRouter refused the call (HTTP 403) for a reason other than the key's limit: {said}")
     if response.status_code == httpx.codes.PAYMENT_REQUIRED:
         raise RequestUnaffordable(
             f"OpenRouter declined the request as unaffordable, with credit still in the account: "

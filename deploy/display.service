@@ -36,7 +36,7 @@ Group=tvpi
 # display card (`/dev/dri/card*`, group `video`).
 SupplementaryGroups=spi gpio video
 
-WorkingDirectory=/opt/samsung-frame-art-loader/postarr
+WorkingDirectory=/opt/samsung-frame-art-loader/arrt-player
 
 # **Un-prefixed on purpose.** systemd treats a missing un-prefixed
 # EnvironmentFile= as fatal and refuses to start the unit, naming the path it
@@ -55,7 +55,7 @@ EnvironmentFile=/opt/samsung-frame-art-loader/.env
 # where the path is written, rather than resolving to whatever a PATH= line
 # happened to inherit — which is how the recovered 2024 unit came to carry pyenv
 # shims and a stray editor directory it never needed.
-ExecStart=/usr/local/bin/uv run python -m postarr
+ExecStart=/usr/local/bin/uv run python -m arrt_player
 
 Restart=always
 

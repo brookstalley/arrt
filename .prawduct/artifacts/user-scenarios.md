@@ -34,7 +34,7 @@ work is not the same as being able to hang it.
 |---|---|---|---|
 | **Held** | Is it in my library? | Arrt's catalogue | Free, instant |
 | **Exists** | What did Dalí make, and who holds it? | Wikidata, Getty ULAN for the artist, catalogues raisonnés, the holding museum's accession number. Today Arrt asks a model instead (below) | Free and instant from a registry; under a cent from a model |
-| **Seeable** | What does it look like? | A museum's preview image, Commons | Free and instant from a museum API; today only reached inside a conversation or a run |
+| **Seeable** | What does it look like? | A museum's preview image, Commons | Free and instant from a museum API; reached inside Ask or a run (inside a conversation until 2026-10-09) |
 | **Hangable** | Can I get an image good enough for the wall? | Open-access museum APIs and Commons, or tile reassembly from a museum's viewer | A discovery run: minutes and money |
 
 **Seeable is a separate layer because it is free, not because it is rarer.**
@@ -112,7 +112,7 @@ Frequency is the builder's guess in every row:
 | S3 | Get more by an artist than they have ("more Dalí") | Search, or a work's artist | Exists → Hangable | Monthly | New works by the artist are waiting for review |
 | S4a | Find a specific work they have heard of: does it exist, who holds it? | Search | Exists, Seeable | Occasionally | They see the work, its holder, and whether it can be got |
 | S4b | Get a copy of that work | S4a's result | Hangable | Occasionally | It is waiting for review, or they are told plainly why not |
-| S5 | Find artists they could not have named ("who's like Dalí?") | Add New, conversation | Exists, Seeable → Hangable | Monthly | A direction is committed as a run |
+| S5 | Find artists they could not have named ("who's like Dalí?") | Ask (Add New and a conversation until 2026-10-09) | Exists, Seeable → Hangable | Monthly | Works by them are waiting for review |
 | S6 | Learn what is on the wall right now | Walls | Held | Weekly | They see the work and its label facts |
 | S7 | Make a theme ("winter") and switch a wall to it | Artworks, Themes | Held | Seasonal | The wall is drawing from the theme |
 | S8 | Take a work they are tired of out of rotation | The wall, or the work | Held | Monthly | It no longer comes up, and nothing else changed |
@@ -231,7 +231,8 @@ is plan 4's. `build-plan-topics-and-destinations.md` § The owner's rulings.)*
 ### "I like Robert and Sonia Delaunay. Who's similar?"
 
 **The table held it.** This is S5, and its path is built: Add New, conversation,
-a commit card, a run. The reactions on each sample ("more like this", "not
+a commit card, a run. *(Since 2026-10-09 the path is Ask: a reply's artist
+cards carry the reactions, and its work cards *Get this work*.)* The reactions on each sample ("more like this", "not
 this") record taste as `stated`.
 
 **Supply, measured** by each source's own identifier for the artist. Wikidata:

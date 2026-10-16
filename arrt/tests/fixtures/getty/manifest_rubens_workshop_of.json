@@ -1,0 +1,482 @@
+{
+ "@context": "http://iiif.io/api/presentation/3/context.json",
+ "homepage": [
+  {
+   "id": "https://www.getty.edu/art/collection/object/103RBN",
+   "type": "Text"
+  }
+ ],
+ "id": "https://media.getty.edu/iiif/manifest/b6447d74-b0b2-4018-b458-574da31d529a",
+ "items": [
+  {
+   "height": 5055,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p0",
+     "items": [
+      {
+       "body": {
+        "height": 5055,
+        "id": "https://media.getty.edu/iiif/image/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 39,
+            "width": 105
+           },
+           {
+            "height": 78,
+            "width": 210
+           },
+           {
+            "height": 157,
+            "width": 420
+           },
+           {
+            "height": 315,
+            "width": 840
+           },
+           {
+            "height": 631,
+            "width": 1680
+           },
+           {
+            "height": 1263,
+            "width": 3361
+           },
+           {
+            "height": 2527,
+            "width": 6722
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 13445
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Front, post-cons."
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "Yes"
+      ]
+     }
+    }
+   ],
+   "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8/full/!600,226/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 13445
+  },
+  {
+   "height": 5224,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/ff007380-e4c2-416d-be79-00a8ad4d5036",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p1",
+     "items": [
+      {
+       "body": {
+        "height": 5224,
+        "id": "https://media.getty.edu/iiif/image/ff007380-e4c2-416d-be79-00a8ad4d5036/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/ff007380-e4c2-416d-be79-00a8ad4d5036",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 40,
+            "width": 106
+           },
+           {
+            "height": 81,
+            "width": 213
+           },
+           {
+            "height": 163,
+            "width": 427
+           },
+           {
+            "height": 326,
+            "width": 854
+           },
+           {
+            "height": 653,
+            "width": 1708
+           },
+           {
+            "height": 1306,
+            "width": 3417
+           },
+           {
+            "height": 2612,
+            "width": 6834
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 13668
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-ff007380-e4c2-416d-be79-00a8ad4d5036",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/ff007380-e4c2-416d-be79-00a8ad4d5036",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Back, post-cons."
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "Yes"
+      ]
+     }
+    }
+   ],
+   "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/ff007380-e4c2-416d-be79-00a8ad4d5036/full/!600,229/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/ff007380-e4c2-416d-be79-00a8ad4d5036",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 13668
+  },
+  {
+   "height": 5974,
+   "id": "https://media.getty.edu/iiif/manifest/canvas/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/annopage/p2",
+     "items": [
+      {
+       "body": {
+        "height": 5974,
+        "id": "https://media.getty.edu/iiif/image/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa/full/max/0/default.jpg",
+        "service": [
+         {
+          "id": "https://media.getty.edu/iiif/image/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa",
+          "profile": "level1",
+          "sizes": [
+           {
+            "height": 46,
+            "width": 103
+           },
+           {
+            "height": 93,
+            "width": 207
+           },
+           {
+            "height": 186,
+            "width": 414
+           },
+           {
+            "height": 373,
+            "width": 829
+           },
+           {
+            "height": 746,
+            "width": 1659
+           },
+           {
+            "height": 1493,
+            "width": 3319
+           },
+           {
+            "height": 2987,
+            "width": 6639
+           }
+          ],
+          "type": "ImageService3"
+         }
+        ],
+        "type": "Image",
+        "width": 13278
+       },
+       "id": "https://media.getty.edu/iiif/manifest/anno-5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa",
+       "motivation": "painting",
+       "target": "https://media.getty.edu/iiif/manifest/canvas/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa",
+       "type": "Annotation"
+      }
+     ],
+     "type": "AnnotationPage"
+    }
+   ],
+   "label": {
+    "en": [
+     "Framed, post-cons."
+    ]
+   },
+   "metadata": [
+    {
+     "label": {
+      "en": [
+       "Open Content Quality"
+      ]
+     },
+     "value": {
+      "en": [
+       "Yes"
+      ]
+     }
+    }
+   ],
+   "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+   "thumbnail": [
+    {
+     "id": "https://media.getty.edu/iiif/image/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa/full/!600,270/0/default.jpg",
+     "service": [
+      {
+       "id": "https://media.getty.edu/iiif/image/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa",
+       "profile": "level1",
+       "type": "ImageService3"
+      }
+     ],
+     "type": "Image"
+    }
+   ],
+   "type": "Canvas",
+   "width": 13278
+  }
+ ],
+ "label": {
+  "en": [
+   "Four Studies of a Male Head"
+  ]
+ },
+ "metadata": [
+  {
+   "label": {
+    "en": [
+     "Artist/Maker"
+    ]
+   },
+   "value": {
+    "en": [
+     "Workshop of Peter Paul Rubens (Flemish, 1577 - 1640)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Title"
+    ]
+   },
+   "value": {
+    "en": [
+     "Four Studies of a Male Head"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Material"
+    ]
+   },
+   "value": {
+    "en": [
+     "Oil on panel"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Dimensions"
+    ]
+   },
+   "value": {
+    "en": [
+     "Unframed: 25.4  67.9 cm (10  26 3/4 in.)",
+     "Framed [Outer Dim]: 43.2  84.5  10.2 cm (17  33 1/4  4 in.)"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Accession Number"
+    ]
+   },
+   "value": {
+    "en": [
+     "71.PB.39"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Collection"
+    ]
+   },
+   "value": {
+    "en": [
+     "<a href=\"http://www.getty.edu/art/collection/\">The J. Paul Getty Museum</a>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Rights Statement"
+    ]
+   },
+   "value": {
+    "en": [
+     "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+    ]
+   }
+  },
+  {
+   "label": {
+    "en": [
+     "Date Modified"
+    ]
+   },
+   "value": {
+    "en": [
+     "2026-09-23T08:35:57.159274Z"
+    ]
+   }
+  }
+ ],
+ "provider": [
+  {
+   "id": "https://www.getty.edu/about/",
+   "label": {
+    "en": [
+     "J. Paul Getty Trust"
+    ]
+   },
+   "logo": [
+    {
+     "format": "image/png",
+     "height": 529,
+     "id": "https://www.getty.edu/global/images/getty_logo_primary_blk.png",
+     "type": "Image",
+     "width": 486
+    }
+   ],
+   "type": "Agent"
+  }
+ ],
+ "requiredStatement": {
+  "label": {
+   "en": [
+    "attribution"
+   ]
+  },
+  "value": {
+   "en": [
+    "<p>Images provided here are believed to be in the public domain and     are available under <a href=\"https://creativecommons.org/publicdomain/zero/1.0/\">CC0</a>     through Getty&rsquo;s <a href=\"http://www.getty.edu/about/opencontent.html\">Open Content Program</a>.     Texts provided here are &copy; J. Paul Getty Trust, licensed under     <a href=\"https://creativecommons.org/licenses/by/4.0/legalcode\">CC BY 4.0</a>.     Terms of use for the Getty logo can be found     <a href=\"http://www.getty.edu/legal/copyright.html#logo\"> here</a>.    </p>"
+   ]
+  }
+ },
+ "rights": "http://creativecommons.org/publicdomain/zero/1.0/",
+ "seeAlso": [
+  {
+   "id": "https://data.getty.edu/museum/collection/object/3ae0423f-ef94-4581-88d0-005e78dbe651",
+   "type": "Text"
+  }
+ ],
+ "structures": [
+  {
+   "id": "https://media.getty.edu/iiif//manifest/range/b6447d74-b0b2-4018-b458-574da31d529a/default.json",
+   "items": [
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+     "type": "Canvas"
+    },
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/ff007380-e4c2-416d-be79-00a8ad4d5036",
+     "type": "Canvas"
+    },
+    {
+     "id": "https://media.getty.edu/iiif/manifest/canvas/5b6845c9-6578-4c19-8ae4-6cb5e70fe4aa",
+     "type": "Canvas"
+    }
+   ],
+   "type": "Range"
+  }
+ ],
+ "summary": {
+  "en": [
+   "<p>Skillfully copying a study by Peter Paul Rubens, this unknown artist, probably an assistant in Rubens''s studio, explored a variety of facial expressions and poses while retaining the liveliness and immediacy of Rubens''s original sketch. Using a single dim source of light, he created strong contrasts of brightness and shadow on the man''s skin, varying these along with the different expressions. He aptly captured Rubens''s great achievement--the three-dimensional quality of his modeling and the pulsating vitality he bestowed on painted human flesh.   </p>\n<p>Rubens produced a celebrated series of studio heads, executing some from life and inventing others from imaginary stock figure types. He kept these preliminary studies permanently on hand in the studio for reference. These studies of an African may have been used as a source for one of the kings in the Adoration of the Magi, who was often depicted as a Moor. Aside from this subject, images of African figures were uncommon in European Renaissance and Baroque art.</p>"
+  ]
+ },
+ "thumbnail": [
+  {
+   "id": "https://media.getty.edu/iiif/image/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8/full/!600,226/0/default.jpg",
+   "service": [
+    {
+     "id": "https://media.getty.edu/iiif/image/c0fbd5f5-9030-45ea-b40f-9b8d9317b4f8",
+     "profile": "level1",
+     "type": "ImageService3"
+    }
+   ],
+   "type": "Image"
+  }
+ ],
+ "type": "Manifest"
+}
