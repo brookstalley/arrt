@@ -17,7 +17,13 @@ governed_by:
     dispositions:
       - "the operator's ruling of 2026-09-30, removals republish and additions wait for sync → superseded by the owner, 2026-10-10 (Goals): a hung theme's feed follows the theme"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — the feed follows the hung theme
 

@@ -16,7 +16,13 @@ governed_by:
     dispositions:
       - "the display plane never requires the curation plane to be reachable → conforms: the rename changes only names. The one behaviour change the review brought in, the Player refusing a relative CACHE_DIR or TV_TOKEN_FILE at startup, is a config refusal that reads no server"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Postarr becomes Arrt Player
 

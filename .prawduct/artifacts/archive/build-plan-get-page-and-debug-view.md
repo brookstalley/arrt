@@ -19,7 +19,13 @@ governed_by:
     dispositions:
       - "§ Versioning (a minor only adds optional capabilities) → conforms: 03 adds an optional `museum` as interface 1.4"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — the Get page, and the debug view
 

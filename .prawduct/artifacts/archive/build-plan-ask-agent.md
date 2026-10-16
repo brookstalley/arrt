@@ -18,7 +18,13 @@ governed_by:
   - artifact: observability-strategy
   - artifact: project-preferences
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Ask as an agent
 

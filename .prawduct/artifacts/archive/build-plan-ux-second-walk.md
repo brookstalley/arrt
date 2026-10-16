@@ -26,7 +26,13 @@ governed_by:
       - "§ Rulings (2026-10-11), ruling 2 (a theme is never shuffled) → conforms: 05 removes every word of shuffle from the Theme page"
       - "§ Rulings (2026-10-11), ruling 3 (with the screen off, Walls shows the last-shown work) → conforms: 04 builds it"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan: the rest of the second UX walk
 

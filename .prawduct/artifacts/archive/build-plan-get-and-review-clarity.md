@@ -13,7 +13,13 @@ governed_by:
   - artifact: design-direction
   - artifact: accessibility-spec
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Get and review clarity
 

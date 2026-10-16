@@ -44,7 +44,13 @@ governed_by:
       - "§ Availability, the wall never goes black because the server is down → conforms: the Player replays the horizon; 02 rolls it forward long before it runs out"
       - "§ Output Quality, a picture below the minimum is shown rather than refused → conforms: 04's 'too small for this wall' informs the curator and takes nothing off the schedule"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 4e: Programming's schedule, wall settings and the major 2 feed
 

@@ -30,7 +30,13 @@ governed_by:
       - "§ Direction (the *arr layout) → conforms: the facet is one more rail group on Artworks, and nothing moves"
       - "§ Direction (navigation is a link, an act is a button) → conforms: facet options are the rail's existing controls"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan: what each wall has shown (#316)
 

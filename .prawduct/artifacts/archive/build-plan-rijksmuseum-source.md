@@ -22,7 +22,13 @@ governed_by:
     dispositions:
       - "Invariant 13, rights gate nothing → conforms: in-copyright works (rightsstatements.org `InC`, marked not downloadable) are found and offered at the size served"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — the Rijksmuseum through its Linked Art API and IIIF
 

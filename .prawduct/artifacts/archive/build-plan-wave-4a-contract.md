@@ -29,7 +29,13 @@ governed_by:
     dispositions:
       - "§ The mat is geometric (inch rule, bottom weighted, work-shaped mat, no upscaling) → conforms: 03's `proportional` vectors are derived from the server's compositor as it draws today, so the Player's port in 4d has a target that already holds the rule"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 4a: the major 2 contract, settled
 

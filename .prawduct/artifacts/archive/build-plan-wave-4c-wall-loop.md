@@ -37,7 +37,13 @@ governed_by:
       - "per-device runtime state never lives in the catalogue → conforms: the Frame's bindings and its resume state stay in the Player's own store (`state/store.py`), now reached through the Frame driver"
       - "derived artifacts are regenerated, never transported (in-transition) → inapplicable because 4c changes no rendition; major 1's composed render is still transported until 4g, and 02 caches the untransformed presentation master"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 4c: one wall loop, a driver per display, a reader for majors 1 and 2
 

@@ -17,7 +17,13 @@ governed_by:
       - "§ Direction (operation logic only in the service layer; bindings thin) → conforms: one service method, two bindings"
       - "§ Direction (the Library/Programming seam) → conforms: wall and theme are both Programming; nothing crosses"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — shuffle and the interval move from the theme to the wall (#353)
 

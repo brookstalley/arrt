@@ -38,7 +38,13 @@ governed_by:
     dispositions:
       - "§ Availability, the wall never goes black because the server is down → conforms: unchanged; the Player replays the v2 horizon"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 4g: the cutover and the removals
 

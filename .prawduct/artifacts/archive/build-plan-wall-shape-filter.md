@@ -28,7 +28,13 @@ governed_by:
     dispositions:
       - "§ Direction (identity is never a source URL) → inapplicable because nothing here touches identity"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — a wall filters its theme by shape (#370)
 

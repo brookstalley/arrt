@@ -263,7 +263,7 @@ wheels = [
 
 [[package]]
 name = "arrt"
-version = "0.4.0"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "3tears-agent-tools" },

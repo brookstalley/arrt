@@ -42,7 +42,13 @@ governed_by:
     dispositions:
       - "the plane isolation rules (no HTTP client outside `pull.py`; the Player knows a screen only through its configuration and its drivers) → conforms: the compositor reads files and configuration only; `test_plane_isolation.py` is unchanged"
 last_validated: null
+lifecycle: completed
+archived: 2026-10-16
+released_in: v0.5.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — Wave 4d: compositing moves to the Player
 
