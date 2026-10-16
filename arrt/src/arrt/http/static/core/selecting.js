@@ -390,8 +390,12 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
 
     /* The tick for one held work. `className` places it: Artworks' tiles lay it
      * over the picture. A work arriving on a later page while *Select all* is
-     * in force is born ticked. */
+     * in force is born ticked.
+     *
+     * None, on a page that offers no held half: a tick with no act to apply it
+     * to would show the toggle and a bar with nothing in it. */
     heldBox(work, { className = "select-box" } = {}) {
+      if (!held) return null;
       const box = el("input", { type: "checkbox", class: className, "aria-label": `Select ${workName(work)}` });
       box.hidden = !selecting;
       box.checked = isTicked(work.artwork_id);

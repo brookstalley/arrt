@@ -317,6 +317,19 @@ header.topbar {
   min-width: calc(var(--sidebar) - var(--space-5) - var(--space-4));
 }
 
+/* The name keeps its own colour rather than a link's: it is the product's mark,
+   and an accent-coloured name would read as one more link in a row of them. The
+   underline on hover is what says it can be pressed, as on the status indicator. */
+.topbar .brand-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.topbar .brand-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Available to a screen reader and to nobody else. Clipped rather than
    `display: none`, which removes it from the accessibility tree as well and
    would leave the search field with no label at all. */

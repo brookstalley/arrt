@@ -68,12 +68,16 @@ export async function viewSearch(generation) {
         topics: [],
       }))
     : Promise.resolve({ state: "known", note: null, topics: [] });
-  const [page, people, ours] = await Promise.all([
+  const [page, people, ours, themes] = await Promise.all([
     api(`/api/works?q=${encodeURIComponent(query)}&limit=${WORKS_SHOWN}`),
     api(`/api/artists?q=${encodeURIComponent(query)}`),
     // The library's topics fail on their own: the artists and works above them
     // still stand, and the Held group says the topics could not be listed.
     api("/api/topics").catch(() => null),
+    // What a held selection can be added to. Without it the held half is not
+    // offered: a picker holding only *New theme…* would make a second theme
+    // of one the curator already has.
+    api("/api/themes").catch(() => null),
   ]);
 
   const everyTopic = (ours ? ours.kinds : []).flatMap((group) => group.topics.map((topic) => ({ ...topic, kind: group.kind })));
@@ -102,11 +106,31 @@ export async function viewSearch(generation) {
   // The Not held group's one line, whatever Wikidata did: asking, found,
   // nothing more, or why it could not be asked.
   const registryNote = el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" });
-  // One selection for the page (`core/selecting.js`), its toggle shown once a
-  // work the library does not hold is listed to tick. Painted once: the works
-  // are drawn when the artist and work search answers, and the topic search
-  // arriving later does not redraw them, so a box already ticked stays ticked.
-  const selection = selectionMode({ notHeld: {} });
+  // One selection for the page (`core/selecting.js`), as on Artworks and an
+  // artist's page: held works to add to a theme or archive, and works the
+  // library does not hold, to get. Painted once: the works are drawn when the
+  // artist and work search answers, and the topic search arriving later does
+  // not redraw them, so a box already ticked stays ticked.
+  //
+  // **No filter**, so *Select all* ticks the held works listed and no more: the
+  // page lists the first of the library's matches and links Artworks for the
+  // rest, and the held rows Wikidata adds are matched by its search, not ours.
+  const selection = selectionMode({
+    held: themes
+      ? {
+          themes: themes.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name })),
+          filter: null,
+          total: 0,
+          // An archived work leaves circulation, and so leaves the Held group.
+          onArchived: (ids) => {
+            for (const artworkId of ids) {
+              for (const row of document.querySelectorAll(`#view li[data-artwork="${CSS.escape(artworkId)}"]`)) row.remove();
+            }
+          },
+        }
+      : null,
+    notHeld: {},
+  });
   setTitle(generation, `Results for “${query}”`);
   render(
     generation,
@@ -253,8 +277,9 @@ function artistRow(row) {
   ]);
 }
 
-/* The works: the library's first, and Wikidata's split the same way. A work the
- * library does not hold can be ticked and got from here. */
+/* The works: the library's first, and Wikidata's split the same way. Any of
+ * them can be ticked: a held work to add to a theme or archive, one the library
+ * does not hold to get. */
 function workRows(library, found, selection) {
   const shown = new Set(library.works.map((work) => work.artwork_id));
   const held = library.works.map((work) => ({
@@ -263,6 +288,8 @@ function workRows(library, found, selection) {
     picture: heldPicture(work),
     mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false, picture: false }),
     open: { view: "work", id: work.artwork_id },
+    artworkId: work.artwork_id,
+    box: selection.heldBox(work),
   }));
   const notHeld = [];
   if (found && found.state === "known") {
@@ -275,7 +302,12 @@ function workRows(library, found, selection) {
         picture: statePicture(work),
         mark: workState(work, { opens: false, grouped: true, picture: false }),
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
-        box: gettable(work) ? selection.registryBox(work.qid, named(work.title, work.qid)) : null,
+        artworkId: isHeld ? work.held_artwork_ids[0] : null,
+        box: isHeld
+          ? selection.heldBox({ artwork_id: work.held_artwork_ids[0], title: named(work.title, work.qid), artist: work.creator })
+          : gettable(work)
+            ? selection.registryBox(work.qid, named(work.title, work.qid))
+            : null,
       };
       (isHeld ? held : notHeld).push(row);
     }
@@ -284,7 +316,7 @@ function workRows(library, found, selection) {
 }
 
 function workRow(row) {
-  return el("li", { class: "row-pictured" }, [
+  return el("li", { class: "row-pictured", "data-artwork": row.artworkId || null }, [
     row.box || null,
     row.picture,
     link(row.open, { class: "row-title", text: row.title }),
