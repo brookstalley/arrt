@@ -710,7 +710,7 @@ class TestAMatBelowTheFloor:
 
 
 @pytest.mark.parametrize(
-    "colour, moved",
+    ("colour", "moved"),
     [((255, 255, 255), "held at the corpus ceiling"), ((0, 0, 0), "lifted to the floor")],
     ids=["ceiling", "floor"],
 )
