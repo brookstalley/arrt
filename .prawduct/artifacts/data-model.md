@@ -735,7 +735,7 @@ regenerating it costs money.
 | `hex_rgb` | string | required | e.g. `#27285b`. *(Floor added 2026-10-03, #183.)* No darker than CIE L\* 15 (`MAT_LIGHTNESS_FLOOR`). `CatalogueService.record_mat_color` refuses one; the store itself does not check, so rows written before the floor remain. The seed does not carry a 2024 colour below it, or one the work has worn before. A current colour below it predates the floor: preparing the work chooses again, and at startup the acquisition queue gets a preparation for each work holding a presentation master with such a mat, or with none. *(Wave 4g, 2026-10-10: this read "redraws the canvas" and "holding a canvas"; nothing is drawn on the server now, and a mat change rides each wall's feed.)* |
 | `lab_l`, `lab_a`, `lab_b` | float | nullable | Preserved when the model returns them. |
 | `reason` | text | nullable | The model's stated rationale. |
-| `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual`. |
+| `method` | enum | required | `vision_model` \| `dominant_color_fallback` \| `manual` \| `derived`. `manual` is a person's colour, typed or a one-press preset; `derived` is the dominant-colour derivation asked for by a person, kept apart from `dominant_color_fallback`, which is the same derivation taken because the model gave no usable answer *(`derived` added 2026-10-16, #91)*. |
 | `model_id` | string | nullable | e.g. the OpenRouter model slug. Which model chose it. |
 | `is_current` | boolean | required | Superseded choices are retained, not overwritten. |
 | `chosen_at` | datetime | auto | When this choice was made. **Added 2026-07-27 at build.** |

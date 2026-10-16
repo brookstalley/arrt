@@ -94,6 +94,7 @@ from arrt.http.models import (
     ManifestEntryOut,
     ManifestOut,
     MatColorOut,
+    MatPresetOut,
     MoveWork,
     NameClient,
     NextOut,
@@ -134,6 +135,7 @@ from arrt.http.models import (
     SetMatMode,
     SetPlayback,
     SetVerdict,
+    SetWorkMat,
     SightingHostOut,
     SightingHostsOut,
     SimilarArtistOut,
@@ -181,12 +183,14 @@ from arrt.http.models import (
     WorkFacetOut,
     WorkMatchesOut,
     WorkMatchOut,
+    WorkMatOut,
     WorkOut,
     WorkPageOut,
     WorkPlacementsOut,
     WorkSelection,
     WorksFilter,
 )
+from arrt.library.acquisition.mat import MAT_PRESETS
 from arrt.library.acquisition.queue import AcquisitionState, FailureCause, QueueEntry, QueuePause
 from arrt.library.services.artists import HeldArtist, RegistryView
 from arrt.library.services.catalogue import DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT, FacetGroup, RenditionView
@@ -1170,6 +1174,45 @@ def assign_display(request: Request, wall_id: str, body: AssignDisplay) -> WallA
     services = _services(request)
     assignment = services.clients.assign_display(wall_id, display_id=body.display_id)
     return WallAssignmentOut(wall=_wall(services, services.display.get_wall_view(wall_id)), notice=assignment.notice)
+
+
+@router.get("/works/{artwork_id}/mat")
+def get_work_mat(request: Request, artwork_id: str) -> WorkMatOut:
+    """The Work page's mat control: the current mat, the presets, and what re-deriving would give."""
+    return _work_mat(_services(request), artwork_id)
+
+
+@router.post("/works/{artwork_id}/mat")
+def set_work_mat(request: Request, artwork_id: str, body: SetWorkMat) -> WorkMatOut:
+    """Choose a work's mat: a preset, recorded as the curator's, or the derivation,
+    recorded as `derived`. Free either way, and the previous colour is kept.
+
+    Read-back-after-mutate, so the control repaints from what was recorded.
+    """
+    if (body.preset is None) == (not body.derive):
+        raise ServiceError("Choose a mat by naming one preset or by asking to derive it, and not both.")
+    services = _services(request)
+    services.catalogue.get_artwork(artwork_id)
+    if body.derive:
+        services.preparation.derive_mat(artwork_id)
+    else:
+        services.preparation.set_mat_preset(artwork_id, body.preset)
+    return _work_mat(services, artwork_id)
+
+
+def _work_mat(services: Services, artwork_id: str) -> WorkMatOut:
+    services.catalogue.get_artwork(artwork_id)
+    current = services.catalogue.current_mat_color(artwork_id)
+    try:
+        derived = services.preparation.derived_mat(artwork_id)
+    except ServiceError:
+        # No master on disk to derive from: the control offers the presets alone.
+        derived = None
+    return WorkMatOut(
+        current=_mat_color(current) if current else None,
+        presets=[MatPresetOut(key=preset.key, label=preset.label, hex_rgb=preset.hex_rgb) for preset in MAT_PRESETS],
+        derived_hex_rgb=derived,
+    )
 
 
 @router.put("/walls/{wall_id}/mat")

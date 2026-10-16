@@ -10,6 +10,22 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The mat control — added 2026-10-16
+
+**`build-plan-ui-mat-selection-labels.md` chunk 03, #91.** Open a work you
+know, then open *Mat* under the picture.
+
+- **The choices.** *Dark grey* (`#272727`), *Mid grey* (`#6b6b6b`) and, when
+  it would change the mat, *From the picture*. Pressing one shows it on the
+  picture above; nothing is recorded until *Use this mat*. Judge whether
+  "Showing … on the picture above" is enough to say nothing has changed yet.
+- **On the wall.** After *Use this mat*, the wall showing the work should
+  draw the new colour once its feed is pulled. Check one.
+- **Dark grey.** It is the darkest neutral your L* 15 floor allows. Judge it
+  on the wall, beside a work you know reads well in near-black.
+- **The words.** "Mat: Chosen by the vision model", "From the picture", "Set
+  by hand". Say if any reads as plumbing.
+
 ### The Work page shows the work in its mat — added 2026-10-16
 
 **`build-plan-ui-mat-selection-labels.md` chunk 02, #346.** Run this branch

@@ -315,7 +315,17 @@ def _set_mat_color(services: Services, arguments: Mapping[str, Any]) -> dict[str
     """
     artwork_id = arguments["artwork_id"]
     hex_rgb = arguments.get("hex_rgb")
-    result = services.preparation.set_mat(artwork_id, str(hex_rgb)) if hex_rgb else services.preparation.choose_mat(artwork_id)
+    preset = arguments.get("preset")
+    if hex_rgb and preset:
+        raise ServiceError("Give hex_rgb or preset, not both: each sets the mat on its own.")
+    if preset == "derived":
+        result = services.preparation.derive_mat(artwork_id)
+    elif preset:
+        result = services.preparation.set_mat_preset(artwork_id, str(preset))
+    elif hex_rgb:
+        result = services.preparation.set_mat(artwork_id, str(hex_rgb))
+    else:
+        result = services.preparation.choose_mat(artwork_id)
     return ok(
         artwork_id=result.artwork_id,
         hex_rgb=result.mat_hex,

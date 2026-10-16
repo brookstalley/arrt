@@ -2625,6 +2625,46 @@ dialog.confirm::backdrop {
   border-radius: var(--radius-sm);
 }
 
+/* The mat control under the Work page's picture: each choice a named swatch,
+   its colour the catalogue's (`--swatch`, set on the element). The one being
+   shown on the picture is marked by its border as well as its pressed state, and
+   the current one is disabled and says "(current)", so neither rests on colour. */
+.mat-control {
+  margin-top: var(--space-4);
+}
+
+.mat-control summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.mat-control[open] summary {
+  margin-bottom: var(--space-3);
+}
+
+.mat-control .mat-swatch {
+  width: var(--space-5);
+  height: var(--space-5);
+  background: var(--swatch);
+}
+
+.mat-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mat-option[aria-pressed="true"] {
+  border-color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px var(--text-strong);
+}
+
+.mat-confirm .mat-previewing {
+  margin: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -2716,6 +2756,7 @@ section.offered + section.offered {
    blank lines between its paragraphs. */
 
 .work-hero .work-picture {
+  display: block;
   width: 100%;
   max-height: 75vh;
   object-fit: contain;

@@ -107,7 +107,30 @@ work's current mat colour, with the contract's no-density proportions, read from
   so the client holds no hex.
 - 03's Re-derive is shown only when it would change the mat.
 
-**Decisions made mid-build:** *(appended while building)*
+**Decisions made mid-build:**
+- Chunk 01: the brand is a link inside the existing `<p class="brand">`, not a
+  replacement for it, so the box that lines the name up with the sidebar is not
+  a click target. Settled by § Direction (a link) and the layout rule already on
+  the box.
+- Chunk 01: Search and Topic pass no filter to the held half, so *Select all*
+  ticks the held works on the page. Search lists the first of the library's
+  matches and links Artworks for the rest; a topic lists all of its own.
+  Settled by `core/selecting.js`'s existing contract for a list that holds
+  every work it shows.
+- Chunk 01: when the themes can't be read, Search and Topic offer no held
+  half, rather than a picker holding only *New theme…*. Not settled by the
+  goals; inferred, so the curator does not make a duplicate theme.
+- Chunk 02: the "screen" the Work page lays the mat out on is the space it
+  gives the picture (the column's width × 75vh), as a screen of unknown
+  density, and the canvas is cut to the mat. Settled by the contract vectors,
+  which measure the mat against the screen's shorter side, not the work's.
+- Chunk 03 (answered before the route): a curator's re-derive is recorded as a
+  new `MatMethod.DERIVED` (`"derived"`). `dominant_color_fallback` means "the
+  model was asked and gave no usable answer", which is how the MCP notice and
+  `tools/mat_corpus.py` read it. `manual` would lose that the colour was
+  computed rather than picked. The column is TEXT with no CHECK, so the new
+  value needs no migration. A Library downgraded past this change cannot read
+  a `derived` row, which is accepted (no users, `no-users-skip-releases`).
 
 **Level:** High for 01, 02 and 04. Medium for 03, because its one persisted-format
 question (below) is open until the chunk answers it. What raises it: answer that
@@ -115,13 +138,16 @@ question before writing the route.
 
 ## Status
 
-- [ ] Chunk 01: the brand links home, and held works select on Search and Topic (#317)
-- [ ] Chunk 02: the Work page shows the work in its mat (#346)
+- [x] Chunk 01: the brand links home, and held works select on Search and Topic (#317)
+- [x] Chunk 02: the Work page shows the work in its mat (#346)
 - [ ] Chunk 03: the curator chooses the mat (#91, presets and re-derive)
 - [ ] Chunk 04: labels are bare nouns, by rule and by test (#267)
-Context: Plan written 2026-10-16 on `feature/ui-mat-selection-labels`, from
-`origin/develop` at `dfeb61a1`. Nothing built yet. Next: Chunk 01, after reading
-`/prawduct:methodology building`.
+Context: Chunks 01 (`617830c4`) and 02 (`a6a31c5a`) are committed and reviewed,
+0 blocking each. Chunk 02's review observations O-1 (a sideways-master test)
+and O-3 (`display:block` on the hero) are fixed in the working tree and ride
+Chunk 03's commit. #317 and #346 are closed at the PR's merge, not before: the
+backlog lives in GitHub Issues, and closing there is immediate. Next: Chunk 03,
+whose persisted-format question is answered under Decisions.
 
 ## Verification Strategy
 

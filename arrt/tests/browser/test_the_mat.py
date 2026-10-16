@@ -19,6 +19,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from arrt.library.acquisition.mat import MAT_PRESETS, derive
 from arrt.persistence.records import MatMethod
 
 VECTORS = json.loads(
@@ -170,3 +171,135 @@ def test_a_work_with_a_mat_says_nothing_about_one(ui, matted):
 
     assert ui.page.locator(".work-hero .mat-surround").is_visible()
     assert ui.page.locator(".work-hero .no-mat").count() == 0
+
+
+def detail_rewritten(ui, work, change):
+    """The work's detail as the server sends it, changed by `change` in the browser."""
+
+    def rewrite(route):
+        response = route.fetch()
+        body = response.json()
+        change(body)
+        route.fulfill(response=response, json=body)
+
+    ui.page.route(f"**/api/works/{work.id}", rewrite)
+
+
+def mat_shape(ui):
+    return ui.page.evaluate(
+        "() => { const box = document.querySelector('.work-hero .mat-surround').getBoundingClientRect();"
+        " return [box.width, box.height]; }"
+    )
+
+
+def test_a_master_recorded_on_its_side_is_drawn_the_right_way_up(ui, matted):
+    """The catalogue can record a master's size as stored, sideways to the
+    picture served: the mat follows the picture's orientation, not the record's."""
+    work = matted(1200, 1800)
+    detail_rewritten(ui, work, lambda body: body["original"].update(width=1800, height=1200))
+    open_matted(ui, work)
+
+    width, height = mat_shape(ui)
+    assert height > width, "a portrait work was matted as a landscape"
+
+
+def test_a_work_with_no_recorded_master_is_matted_at_its_pictures_shape(ui, matted):
+    work = matted(1200, 1800)
+    detail_rewritten(ui, work, lambda body: body.update(original=None))
+    open_matted(ui, work)
+
+    width, height = mat_shape(ui)
+    assert height > width
+    assert ui.page.locator(".work-hero .mat-surround").is_visible()
+
+
+# -- the mat control (#91) --------------------------------------------------------
+
+
+def open_control(ui, work):
+    """Open the folded control, as a curator does, once it has read the mat."""
+    open_matted(ui, work)
+    ui.page.wait_for_selector(".mat-control summary:has-text('Mat:')")
+    assert not ui.page.locator(".mat-control").evaluate("(node) => node.open"), "the control starts open"
+    ui.page.click(".mat-control summary")
+    ui.page.wait_for_selector(".mat-control .mat-option")
+
+
+def option(ui, label):
+    return ui.page.locator(".mat-control button.mat-option", has_text=label)
+
+
+def hero_colour(ui):
+    return ui.page.evaluate("() => getComputedStyle(document.querySelector('.work-hero .mat-surround')).backgroundColor")
+
+
+def test_a_preset_is_previewed_on_the_picture_and_recorded_only_when_used(ui, service, matted):
+    work = matted(1600, 1200)
+    second = MAT_PRESETS[1]
+    open_control(ui, work)
+
+    option(ui, second.label).click()
+
+    assert hero_colour(ui) == rgb(second.hex_rgb)
+    assert ui.page.locator(".mat-confirm").is_visible()
+    assert service.current_mat_color(work.id).hex_rgb == CURRENT, "a preview recorded the colour"
+
+    ui.page.click(".mat-confirm button.mat-use")
+    ui.page.wait_for_selector(f".mat-status:has-text('The mat is now {second.label.lower()}.')")
+
+    assert service.current_mat_color(work.id).hex_rgb == second.hex_rgb
+    assert hero_colour(ui) == rgb(second.hex_rgb)
+    assert option(ui, f"{second.label} (current)").is_disabled()
+
+
+def test_keeping_the_current_mat_puts_the_picture_back(ui, service, matted):
+    work = matted(1600, 1200)
+    open_control(ui, work)
+
+    option(ui, MAT_PRESETS[0].label).click()
+    ui.page.click(".mat-confirm button.mat-keep")
+
+    assert hero_colour(ui) == rgb(CURRENT)
+    assert ui.page.locator(".mat-confirm").is_hidden()
+    assert service.current_mat_color(work.id).hex_rgb == CURRENT
+
+
+def test_a_refused_choice_is_said_beside_the_control(ui, service, matted):
+    work = matted(1600, 1200)
+    ui.page.route(
+        f"**/api/works/{work.id}/mat",
+        lambda route: (
+            route.fulfill(status=400, json={"error": "That colour is darker than the mat floor."})
+            if route.request.method == "POST"
+            else route.continue_()
+        ),
+    )
+    open_control(ui, work)
+
+    option(ui, MAT_PRESETS[0].label).click()
+    ui.page.click(".mat-confirm button.mat-use")
+
+    failure = ui.page.locator(".mat-confirm button.mat-use + .act-failure")
+    failure.wait_for()
+    assert "darker than the mat floor" in failure.inner_text()
+    assert "Nothing was changed." in failure.inner_text()
+
+
+def test_the_derivation_is_offered_when_it_would_change_the_mat(ui, matted):
+    open_control(ui, matted(1600, 1200))
+
+    assert option(ui, "From the picture").count() == 1
+
+
+def test_the_derivation_is_not_offered_when_it_is_already_the_mat(ui, service, settings, matted):
+    work = matted(1600, 1200)
+    original = service.get_original(work.id)
+    service.record_mat_color(
+        artwork_id=work.id,
+        hex_rgb=derive(settings.art_root / original.relative_path).hex_rgb,
+        method=MatMethod.DERIVED,
+    )
+    open_control(ui, work)
+
+    assert option(ui, "From the picture").count() == 0
+    assert ui.page.locator(".mat-control summary").inner_text() == "Mat: From the picture"

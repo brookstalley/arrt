@@ -147,8 +147,16 @@ class MatMethod(StrEnum):
     """
 
     VISION_MODEL = "vision_model"
+    #: The dominant-colour derivation, taken because the model was asked and
+    #: gave no usable answer (or none is configured). The state the 2024
+    #: pipeline entered silently, so it says so.
     DOMINANT_COLOR_FALLBACK = "dominant_color_fallback"
+    #: A colour a person set, by hand or with a one-press preset.
     MANUAL = "manual"
+    #: The same dominant-colour derivation, asked for by a person: a curator's
+    #: *Re-derive*. Not the fallback, because no model was asked and none
+    #: failed; not manual, because the colour was computed rather than picked.
+    DERIVED = "derived"
 
 
 class VocabularyKind(StrEnum):

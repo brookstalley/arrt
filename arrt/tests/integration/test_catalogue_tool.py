@@ -562,6 +562,41 @@ async def test_set_mat_color_records_a_curators_colour_and_makes_nothing(server_
     assert services.catalogue.list_renditions(work.id) == []
 
 
+async def test_a_preset_is_set_as_the_curators_and_derived_as_derived(server_url, services, settings):
+    """The Work page's one-press mats, through the agent's tool, so an agent and a
+    curator still have the same controls. The second preset, not the first, so a
+    binding that ignored the key would fail."""
+    from arrt.library.acquisition.mat import MAT_PRESETS, derive
+
+    work = _a_work_with_an_original(services, settings)
+    second = MAT_PRESETS[1]
+
+    payload, errored = await call(server_url, "art_catalogue", action="set_mat_color", artwork_id=work.id, preset=second.key)
+    assert errored is False
+    assert (payload["hex_rgb"], payload["method"], payload["cost_usd"]) == (second.hex_rgb, "manual", "0")
+
+    payload, errored = await call(server_url, "art_catalogue", action="set_mat_color", artwork_id=work.id, preset="derived")
+    assert errored is False
+    original = services.catalogue.get_original(work.id)
+    assert payload["hex_rgb"] == derive(settings.art_root / original.relative_path).hex_rgb
+    assert payload["method"] == "derived"
+    assert payload["notice"] is None, "a derivation asked for is not the model failing"
+    # Neither replaced the other: both are kept, the last one current.
+    assert [mat.method.value for mat in services.catalogue.mat_color_history(work.id)] == ["derived", "manual"]
+
+
+async def test_a_preset_and_a_colour_together_are_refused(server_url, services, settings):
+    work = _a_work_with_an_original(services, settings)
+
+    payload, errored = await call(
+        server_url, "art_catalogue", action="set_mat_color", artwork_id=work.id, preset="dark", hex_rgb="#27285b"
+    )
+
+    assert errored is True
+    assert "not both" in payload["error"]
+    assert services.catalogue.current_mat_color(work.id) is None
+
+
 async def test_omitting_the_colour_asks_the_producer_and_says_which_one_answered(server_url, services, settings):
     # This deployment wires no model client, which is the keyless deployment
     # exactly — so the mechanical producer answers, and the notice is the only

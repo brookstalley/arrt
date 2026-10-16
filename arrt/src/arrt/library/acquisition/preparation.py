@@ -37,7 +37,7 @@ from typing import Protocol
 
 from arrt.library.acquisition.color import ColorError, format_hex, parse_hex
 from arrt.library.acquisition.master import MASTER_RULE, MASTERS_DIRNAME, make_master, master_path
-from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MatChoice, MatEngine, below_the_floor
+from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MAT_PRESETS, MatChoice, MatEngine, below_the_floor, derive
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
 from arrt.persistence.discovery_records import SpendCategory
@@ -181,17 +181,7 @@ class PreparationService:
         colour is kept — `record_mat_color` never overwrites — so a worse choice
         is reversible.
         """
-        original = self._catalogue.get_original(artwork_id)
-        if original is None:
-            raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to choose a mat for.")
-        source = self._settings.art_root / original.relative_path
-        if not source.is_file():
-            raise ServiceError(
-                f"Artwork {artwork_id!r} records an original at {original.relative_path!r} that is not on disk. "
-                "Re-acquire it before choosing a mat."
-            )
-
-        choice = self._mat.choose(source)
+        choice = self._mat.choose(self._source_for_a_mat(artwork_id))
         self._catalogue.record_mat_color(
             artwork_id=artwork_id,
             hex_rgb=choice.hex_rgb,
@@ -216,7 +206,61 @@ class PreparationService:
             mat_fallback_detail=choice.fallback_detail,
         )
 
-    def set_mat(self, artwork_id: str, hex_rgb: str) -> PreparationResult:
+    def _source_for_a_mat(self, artwork_id: str) -> Path:
+        """The work's master on disk, or a refusal that says what to do instead."""
+        original = self._catalogue.get_original(artwork_id)
+        if original is None:
+            raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to choose a mat for.")
+        source = self._settings.art_root / original.relative_path
+        if not source.is_file():
+            raise ServiceError(
+                f"Artwork {artwork_id!r} records an original at {original.relative_path!r} that is not on disk. "
+                "Re-acquire it before choosing a mat."
+            )
+        return source
+
+    def derived_mat(self, artwork_id: str) -> str:
+        """The colour *Re-derive* would record for this work, recording nothing.
+
+        Asked so a control can offer the derivation only when it would change the
+        mat, and preview it before it is chosen. Free: no model is asked.
+        """
+        return derive(self._source_for_a_mat(artwork_id)).hex_rgb
+
+    def derive_mat(self, artwork_id: str) -> PreparationResult:
+        """Record the mechanical mat, the work's own dominant colour, at a person's request.
+
+        Recorded as `derived`, not as the fallback: no model was asked and none
+        failed. Free, and the previous colour is kept, as every choice keeps it.
+        """
+        choice = derive(self._source_for_a_mat(artwork_id))
+        recorded = self._catalogue.record_mat_color(
+            artwork_id=artwork_id,
+            hex_rgb=choice.hex_rgb,
+            method=choice.method,
+            lab_l=choice.lab_l,
+            lab_a=choice.lab_a,
+            lab_b=choice.lab_b,
+            reason=choice.reason,
+        )
+        return PreparationResult(
+            artwork_id=artwork_id,
+            outcome=PreparationOutcome.PREPARED,
+            detail=f"its mat is now {recorded.hex_rgb}, derived from the picture",
+            mat_hex=recorded.hex_rgb,
+            mat_method=recorded.method.value,
+            relative_path=self._master_path(artwork_id),
+        )
+
+    def set_mat_preset(self, artwork_id: str, key: str) -> PreparationResult:
+        """Record one of the one-press mats (`MAT_PRESETS`), as a person's choice."""
+        preset = next((preset for preset in MAT_PRESETS if preset.key == key), None)
+        if preset is None:
+            known = ", ".join(repr(preset.key) for preset in MAT_PRESETS)
+            raise ServiceError(f"There is no mat preset {key!r}; the presets are {known}.")
+        return self.set_mat(artwork_id, preset.hex_rgb, reason=f"The {preset.label.lower()} preset.")
+
+    def set_mat(self, artwork_id: str, hex_rgb: str, *, reason: str | None = None) -> PreparationResult:
         """Record a mat colour the curator chose.
 
         Recorded as `manual`, which is the same provenance the 41 legacy colours
@@ -248,7 +292,9 @@ class PreparationService:
             normalised = format_hex(parse_hex(hex_rgb))
         except ColorError as exc:
             raise ServiceError(str(exc)) from exc
-        recorded = self._catalogue.record_mat_color(artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL)
+        recorded = self._catalogue.record_mat_color(
+            artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL, reason=reason
+        )
         return PreparationResult(
             artwork_id=artwork_id,
             outcome=PreparationOutcome.PREPARED,
