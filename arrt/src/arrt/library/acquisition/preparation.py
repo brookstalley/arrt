@@ -207,7 +207,8 @@ class PreparationService:
         )
 
     def _source_for_a_mat(self, artwork_id: str) -> Path:
-        """The work's master on disk, or a refusal that says what to do instead."""
+        """The work's original image on disk, which every mat is judged from, or a
+        refusal that says what to do instead."""
         original = self._catalogue.get_original(artwork_id)
         if original is None:
             raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to choose a mat for.")

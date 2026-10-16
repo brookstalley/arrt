@@ -131,6 +131,14 @@ work's current mat colour, with the contract's no-density proportions, read from
   computed rather than picked. The column is TEXT with no CHECK, so the new
   value needs no migration. A Library downgraded past this change cannot read
   a `derived` row, which is accepted (no users, `no-users-skip-releases`).
+- Chunk 03: the presets and the derivation reach the client on their own
+  `GET /api/works/{id}/mat`, not on the work's detail as Goals inferred.
+  Working out the derivation decodes the original, and the detail is read on
+  every Work page paint; the control reads it only once it is drawn.
+- Chunk 03: the control is a one-line disclosure under the picture, closed
+  until opened. Open, it pushed the work's title a screen down on a phone (seen
+  in the screenshot pass). Settled by the Work page's rule that the title
+  follows the picture.
 
 **Level:** High for 01, 02 and 04. Medium for 03, because its one persisted-format
 question (below) is open until the chunk answers it. What raises it: answer that
@@ -140,14 +148,15 @@ question before writing the route.
 
 - [x] Chunk 01: the brand links home, and held works select on Search and Topic (#317)
 - [x] Chunk 02: the Work page shows the work in its mat (#346)
-- [ ] Chunk 03: the curator chooses the mat (#91, presets and re-derive)
-- [ ] Chunk 04: labels are bare nouns, by rule and by test (#267)
-Context: Chunks 01 (`617830c4`) and 02 (`a6a31c5a`) are committed and reviewed,
-0 blocking each. Chunk 02's review observations O-1 (a sideways-master test)
-and O-3 (`display:block` on the hero) are fixed in the working tree and ride
-Chunk 03's commit. #317 and #346 are closed at the PR's merge, not before: the
-backlog lives in GitHub Issues, and closing there is immediate. Next: Chunk 03,
-whose persisted-format question is answered under Decisions.
+- [x] Chunk 03: the curator chooses the mat (#91, presets and re-derive)
+- [ ] Chunk 04: labels are bare nouns, by rule and by test (#267; found already built)
+Context: Chunks 01 (`617830c4`), 02 (`a6a31c5a`) and 03 (`0a8fcef5`) are
+committed and reviewed, 0 blocking each. Chunk 03's review observations O-1 to
+O-4 are fixed in the working tree and ride Chunk 04's commit. #379 (the AI
+picker) is filed; #91 carries a comment recording what changed from its body.
+#317, #346 and #91 are closed at the PR's merge, not before: the backlog lives
+in GitHub Issues, and closing there is immediate. Next: Chunk 04, the label
+rule, which ends with the cumulative review.
 
 ## Verification Strategy
 
@@ -302,39 +311,26 @@ proportions, which a test can pin but not judge.
 
 ### Chunk 04: labels are bare nouns, by rule and by test (#267)
 
-- **Description:**
-  - **The rule, as drafted in #267 and confirmed by the owner on 2026-10-16:**
-    navigation, headings, column headers, buttons and field labels are bare nouns or
-    verbs and never open with "The". Sentences, notes and announcements stay
-    sentences.
-  - **Its home** is a new subsection of `information-architecture.md`, beside
-    § Vocabulary.
-  - **The guard** is a new `tests/preferences/test_label_style.py`. It reads the
-    curation plane's `static/` and fails on any short label that opens with "The ".
-    It ranges over every label form #267 names (headings, buttons, return labels,
-    field labels, panel titles passed through a helper, captions, `<option>`s), not
-    only headings.
-  - **Measured 2026-10-16, before planning:** the second walk's copy pass (#359)
-    already removed most of #267's sites. A grep of `text:`/`label:`/`caption:`
-    strings found only sentences left (the getting module's "The themes could not be
-    read", the Walls screen's "The mat is always the work's own colour."). So the
-    guard may be green on arrival. It must still be seen to fail once, against a
-    re-broken label of each form (learning: a new check is watched failing).
-  - **What separates a label from a sentence** is the guard's real design question.
-    Settle it by the label's form, not by a word count, and record it in the IA
-    subsection.
-- **Depends on:** Chunks 01–03 (so the guard sees their labels)
-- **Tests:** the guard itself. Its fixture includes one label of each form opening
-  with "The", which must fail, and one sentence opening with "The", which must pass.
-- **Acceptance criteria:** #267's three bullets (the owner's confirmation is
-  recorded above). Every site renamed, or none left, stated with the grep that shows
-  it.
+- **Found already built, 2026-10-16, on starting the chunk.** Commit
+  `e48f6212` ("One vocabulary…", 2026-10-07, released in v0.5.0) shipped all of
+  #267: the rule in `information-architecture.md` § Labels, the guard
+  `tests/preferences/test_labels_are_bare.py` (with a falsifying sample of every
+  label form), and the renames. Only the issue was left open. Planning missed
+  it: the measurement before the plan grepped for remaining sites (and found
+  only sentences) but did not grep for the guard itself.
+- **What the chunk is now:** confirm the guard still guards (re-seen red on
+  2026-10-16 against `"The current mat"` in the Work screen, green once
+  restored, and green over chunks 01–03's new labels); close #267 as shipped;
+  write the branch's change-log entry; and carry the branch's one cumulative
+  review, which this chunk's Type makes its own.
+- **Depends on:** Chunks 01–03
+- **Acceptance criteria:** #267 closed with its evidence; the guard green over
+  the whole client; the change-log entry carries `scope=ui-mat-selection-labels`.
 - **Type:** cumulative-final
 - **Done when:**
-  1. Acceptance criteria met; all three suites and `-m browser` pass
+  1. All three suites and `-m browser` pass
   2. Committed, then `/prawduct:critic cumulative` run and blocking findings resolved
-  3. Chunk marked `[x]`; #267 updated to shipped; change-log entry with
-     `scope=ui-mat-selection-labels`
+  3. Chunk marked `[x]`
 
 ## Early Feedback Milestone
 

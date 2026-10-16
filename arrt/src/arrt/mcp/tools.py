@@ -137,6 +137,17 @@ _SOURCE_ID = Param(
 #: because the parameter's presence changes what the action *costs*, and a caller
 #: reading only the schema would have no way to know that omitting it spends
 #: money — the one thing on this tool that does.
+_HEX_RGB = Param(
+    name="hex_rgb",
+    type="string",
+    description=(
+        f"The mat colour as a hex triplet, e.g. '#27285b', no darker than CIE L* {MAT_LIGHTNESS_FLOOR:g} (a darker "
+        "one is refused). Omit it to have the vision model choose one, which "
+        "spends a fraction of a cent. (action='regenerate' also chooses one, and pays, for a work that has "
+        "never had a mat; both actions report cost_usd.)"
+    ),
+)
+
 #: The curator's one-press mats, and the derivation, as the Work page offers them.
 #: `derived` is not a preset but sits beside them, because like them it is free
 #: and decided by whoever asks, where omitting everything asks a model and pays.
@@ -149,17 +160,6 @@ _MAT_PRESET = Param(
         + ", or 'derived', the artwork's own dominant colour worked out mechanically. All are free."
     ),
     choices=(*(preset.key for preset in MAT_PRESETS), "derived"),
-)
-
-_HEX_RGB = Param(
-    name="hex_rgb",
-    type="string",
-    description=(
-        f"The mat colour as a hex triplet, e.g. '#27285b', no darker than CIE L* {MAT_LIGHTNESS_FLOOR:g} (a darker "
-        "one is refused). Omit it to have the vision model choose one, which "
-        "spends a fraction of a cent. (action='regenerate' also chooses one, and pays, for a work that has "
-        "never had a mat; both actions report cost_usd.)"
-    ),
 )
 
 _FORCE = Param(

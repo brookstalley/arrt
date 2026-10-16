@@ -1205,8 +1205,16 @@ def _work_mat(services: Services, artwork_id: str) -> WorkMatOut:
     current = services.catalogue.current_mat_color(artwork_id)
     try:
         derived = services.preparation.derived_mat(artwork_id)
-    except ServiceError:
-        # No master on disk to derive from: the control offers the presets alone.
+    except ServiceError as refusal:
+        # Nothing to derive from: no original recorded, none on disk, or one that
+        # will not decode. The control offers the presets alone, and the reason is
+        # logged, since a broken image otherwise only loses an option silently.
+        log.info(
+            "no derived mat offered for %s: %s",
+            artwork_id,
+            refusal,
+            extra={"event": "mat.derivation_unavailable", "artwork_id": artwork_id},
+        )
         derived = None
     return WorkMatOut(
         current=_mat_color(current) if current else None,

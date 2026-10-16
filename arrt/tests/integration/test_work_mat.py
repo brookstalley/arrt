@@ -141,3 +141,20 @@ def test_an_unknown_work_is_refused_by_name(http):
     for answer in (http.get("/api/works/no-such-work/mat"), http.post("/api/works/no-such-work/mat", json={"preset": "dark"})):
         assert answer.status_code == 400
         assert "no-such-work" in answer.json()["error"]
+
+
+def test_a_colour_under_the_floor_is_refused_in_the_stores_words(http, service, held, monkeypatch):
+    """No shipped preset is under the floor and the derivation lifts to it, so the
+    state is built: a preset table holding a near-black, as one edited by hand
+    might. The store's refusal must reach the curator as itself, and change nothing."""
+    from arrt.library.acquisition import mat, preparation
+
+    too_dark = mat.MatPreset(key="black", label="Black", hex_rgb="#111111")
+    monkeypatch.setattr(preparation, "MAT_PRESETS", (*mat.MAT_PRESETS, too_dark))
+    work, _ = held
+
+    answer = http.post(f"/api/works/{work.id}/mat", json={"preset": "black"})
+
+    assert answer.status_code == 400
+    assert f"{mat.MAT_LIGHTNESS_FLOOR:g}" in answer.json()["error"]
+    assert service.current_mat_color(work.id).hex_rgb == "#27285b"

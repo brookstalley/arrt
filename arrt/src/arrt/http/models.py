@@ -2035,7 +2035,7 @@ class WorkMatOut(BaseModel):
 
     `derived_hex_rgb` is what *Re-derive* would record, worked out and not
     recorded, so a control offers it only when it would change the mat; null when
-    the work has no master on disk to derive from.
+    the work has no readable original image to derive from.
     """
 
     current: MatColorOut | None
