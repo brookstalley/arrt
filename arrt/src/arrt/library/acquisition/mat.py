@@ -218,6 +218,35 @@ _FALLBACK_REASON: Final[str] = (
     "Derived from the artwork's dominant colour, darkened and kept between the mat floor and ceiling, because {why}."
 )
 
+#: What a curator's *Re-derive* records as its reason: the same derivation, and
+#: who asked for it.
+_DERIVED_REASON: Final[str] = (
+    "Derived from the artwork's dominant colour, darkened and kept between the mat floor and ceiling, at the "
+    "curator's request."
+)
+
+
+@dataclass(frozen=True)
+class MatPreset:
+    """A mat a curator sets with one press: a judgement someone made, rather than
+    a colour applied silently to forty works."""
+
+    key: str
+    label: str
+    hex_rgb: str
+
+
+#: The one-press mats, darkest first. `#272727` is the darkest neutral the floor
+#: allows, with a little margin against rounding: the corpus's most common colour,
+#: `#222222`, sits under the floor (the owner chose the replacement, 2026-10-16).
+#: `#6b6b6b` is the corpus's lightest, a human's choice for the Mondrian.
+#: Checked against the floor and the ceiling by the suite, so a preset added here
+#: is held to both.
+MAT_PRESETS: Final[tuple[MatPreset, ...]] = (
+    MatPreset(key="dark", label="Dark grey", hex_rgb="#272727"),
+    MatPreset(key="mid", label="Mid grey", hex_rgb="#6b6b6b"),
+)
+
 
 class _Why(StrEnum):
     """Why no model's colour was used, in the words the stored reason ends with."""
@@ -364,51 +393,69 @@ class MatEngine:
         return ImageAttachment(base64_data=base64.b64encode(buffer.getvalue()).decode("ascii"), media_type="image/jpeg")
 
     def _fallback(self, image_path: Path, *, why: _Why, detail: str, cost_usd: Decimal = Decimal(0)) -> MatChoice:
-        rgb = reading(image_path, lambda: dominant_color(image_path))
-        scaled = scale_lightness(rgb, _FALLBACK_LIGHTNESS)
-        darkened = _under_the_corpus_bar(scaled)
-        held = _over_the_floor(darkened)
-        lab = rgb_to_lab(held)
         log.info("mat for %s fell back to the dominant colour: %s", image_path.name, detail)
-        if held != darkened:
-            # Logged for the reason the ceiling is, below: `method` cannot say a
-            # derived colour was moved, and a curator asking why a black work has
-            # a mat lighter than itself has nowhere else to look.
-            log.info(
-                "mat for %s was lifted to the floor: derived L* %.1f, lifted to L* %.1f",
-                image_path.name,
-                rgb_to_lab(darkened).l,
-                lab.l,
-            )
-        if darkened != scaled:
-            # **The ceiling firing is the one thing about a derived colour that is
-            # otherwise unrecoverable.** `method` records that the colour was
-            # derived and not chosen, but not that it was then held back — so a
-            # curator asking "why is this mat not the colour of the picture?" has
-            # nowhere to look, and neither does the operator judging exactly these
-            # works. Logged rather than added to `MatChoice`, because the answer is
-            # still the mechanical derivation's; the ceiling is how it was computed,
-            # not a third producer beside the model and the fallback.
-            log.info(
-                "mat for %s was held at the corpus ceiling: derived L* %.1f, capped to L* %.1f",
-                image_path.name,
-                rgb_to_lab(scaled).l,
-                lab.l,
-            )
-        return MatChoice(
-            hex_rgb=format_hex(held),
+        return replace(
+            derive(image_path),
             method=MatMethod.DOMINANT_COLOR_FALLBACK,
             reason=_FALLBACK_REASON.format(why=why.value),
-            lab_l=lab.l,
-            lab_a=lab.a,
-            lab_b=lab.b,
-            # No `model_id`: no model chose this. Recording the configured one
-            # would attribute a mechanical colour to a model that never saw the
-            # work, which is precisely the confusion `method` exists to end.
-            model_id=None,
             cost_usd=cost_usd,
             fallback_detail=detail,
         )
+
+
+def derive(image_path: Path, *, recording: bool = True) -> MatChoice:
+    """The mechanical mat: the work's dominant colour, darkened, and kept between
+    the floor and the corpus ceiling. Free and deterministic.
+
+    Recorded as `derived`, a person's request; the engine's fallback takes the
+    same colour and records it as itself. `recording=False` is for a preview,
+    worked out and shown but not kept, which logs nothing: the log lines below
+    explain a colour that was recorded.
+    """
+    rgb = reading(image_path, lambda: dominant_color(image_path))
+    scaled = scale_lightness(rgb, _FALLBACK_LIGHTNESS)
+    darkened = _under_the_corpus_bar(scaled)
+    held = _over_the_floor(darkened)
+    lab = rgb_to_lab(held)
+    if recording and held != darkened:
+        # Logged for the reason the ceiling is, below: `method` cannot say a
+        # derived colour was moved, and a curator asking why a black work has
+        # a mat lighter than itself has nowhere else to look.
+        log.info(
+            "mat for %s was lifted to the floor: derived L* %.1f, lifted to L* %.1f",
+            image_path.name,
+            rgb_to_lab(darkened).l,
+            lab.l,
+        )
+    if recording and darkened != scaled:
+        # **The ceiling firing is the one thing about a derived colour that is
+        # otherwise unrecoverable.** `method` records that the colour was
+        # derived and not chosen, but not that it was then held back — so a
+        # curator asking "why is this mat not the colour of the picture?" has
+        # nowhere to look, and neither does the operator judging exactly these
+        # works. Logged rather than added to `MatChoice`, because the answer is
+        # still the mechanical derivation's; the ceiling is how it was computed,
+        # not a third producer beside the model and the fallback.
+        log.info(
+            "mat for %s was held at the corpus ceiling: derived L* %.1f, capped to L* %.1f",
+            image_path.name,
+            rgb_to_lab(scaled).l,
+            lab.l,
+        )
+    return MatChoice(
+        hex_rgb=format_hex(held),
+        method=MatMethod.DERIVED,
+        reason=_DERIVED_REASON,
+        lab_l=lab.l,
+        lab_a=lab.a,
+        lab_b=lab.b,
+        # No `model_id`: no model chose this. Recording the configured one
+        # would attribute a mechanical colour to a model that never saw the
+        # work, which is precisely the confusion `method` exists to end.
+        model_id=None,
+        cost_usd=Decimal(0),
+        fallback_detail=None,
+    )
 
 
 def _under_the_corpus_bar(rgb: tuple[int, int, int]) -> tuple[int, int, int]:

@@ -1,6 +1,6 @@
 [project]
 name = "arrt"
-version = "0.5.0"
+version = "0.6.0"
 description = "Curation plane — discovery, acquisition, catalogue, and the MCP + HTTP surfaces."
 # Held by the 3tears packages Ask's agent depends on, each of which declares the
 # same floor. What holds it is stated once, in `project-preferences.md` §

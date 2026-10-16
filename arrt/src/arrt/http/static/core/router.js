@@ -546,6 +546,25 @@ function installSkipLink() {
   });
 }
 
+/* The product's name in the top bar goes home, as it does in every *arr app.
+ *
+ * Its address is the home page's, read from the table rather than written in
+ * the page, so the two cannot disagree. A plain click goes through `go`, as the
+ * sidebar's links do: pressed on the home page itself it fires no
+ * `hashchange`, and it must still return the page to its unfiltered state. It
+ * closes the drawer for the same reason a sidebar pick does. A click with a
+ * modifier is the browser's, a new tab. */
+function installBrand() {
+  const brand = document.getElementById("brand");
+  brand.href = hrefFor(home, null, {});
+  brand.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    closeDrawer();
+    go(home);
+  });
+}
+
 /* `sections` is the sidebar's list, in order; see `core/sidebar.js`.
  *
  * **The home page is the first sidebar page in the table**, and is the one
@@ -561,6 +580,7 @@ export function install(routes, { sections, onNavigate } = {}) {
   });
   closeDrawer = installDrawer();
   installSkipLink();
+  installBrand();
   // The scroll a history entry is returned to is this module's to decide
   // (`rememberPlace`): the browser's own restoration runs before the screen has
   // repainted, against a page that is not yet the one it remembers.

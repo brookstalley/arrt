@@ -78,14 +78,16 @@ def test_the_title_is_the_one_h1_and_the_picture_is_the_largest_thing(ui, hangab
     ui.page.wait_for_function("() => document.querySelector('img.work-picture')?.complete")
 
     assert ui.page.locator("h1").all_inner_texts() == ["Automat"]
-    # A landscape picture spans its column, however few pixels the copy served
-    # has: the thumbnail is smaller than the column on any desktop.
+    # A landscape work spans its column, however few pixels the copy served
+    # has: the thumbnail is smaller than the column on any desktop. What spans
+    # it is the work in its mat, as a wall shows it (the owner, 2026-10-07):
+    # the picture alone sits inside the mat's margins (`test_the_mat.py`).
     spans = ui.page.evaluate("""() => {
-        const picture = document.querySelector('img.work-picture');
-        const column = picture.parentElement;
+        const matted = document.querySelector('.work-hero .mat-surround');
+        const column = document.querySelector('.work-picture-button');
         const style = getComputedStyle(column);
         const inner = column.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        return picture.getBoundingClientRect().width / inner;
+        return matted.getBoundingClientRect().width / inner;
     }""")
     assert spans > 0.95
     largest = ui.page.evaluate("""() => {

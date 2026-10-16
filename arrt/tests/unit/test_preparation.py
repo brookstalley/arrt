@@ -704,3 +704,27 @@ class TestAMatBelowTheFloor:
         assert result.cost_usd == Decimal(0)
         assert len(service.mat_color_history(work.id)) == history
         assert result.outcome is PreparationOutcome.UNCHANGED
+
+
+# -- a derived mat, previewed and recorded ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("colour", "moved"),
+    [((255, 255, 255), "held at the corpus ceiling"), ((0, 0, 0), "lifted to the floor")],
+    ids=["ceiling", "floor"],
+)
+def test_a_preview_of_the_derivation_logs_nothing_and_recording_it_does(prep, service, settings, caplog, colour, moved):
+    """The floor and ceiling lines explain a colour that was recorded. A preview,
+    read on every Work page that opens its control, records nothing and must not
+    write them; recording the same colour must, which is what makes the first
+    half's silence mean something."""
+    work, _ = _work_with_original(service, settings, colour=colour)
+    caplog.set_level("INFO", logger="arrt.library.acquisition.mat")
+
+    previewed = prep.derived_mat(work.id)
+    assert not [r for r in caplog.records if moved in r.getMessage()], "a preview logged as if it were recorded"
+
+    recorded = prep.derive_mat(work.id)
+    assert recorded.mat_hex == previewed
+    assert [r for r in caplog.records if moved in r.getMessage()], "recording the derivation no longer explains the move"

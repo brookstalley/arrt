@@ -100,7 +100,15 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
     rows = ui.page.locator("#view .results-list li:has(.row-title:text-is('The Hunters in the Snow'))")
     assert rows.count() == 1, "the library's row and Wikidata's are one work"
     assert " ".join(rows.inner_text().split()).endswith("● Held")
-    assert rows.locator("input[type='checkbox']").count() == 0
+    # A held work is never offered a Get. Its tick, since #317, is the held
+    # half's, to add to a theme or archive: ticked, it lights those and leaves
+    # Get dark. (This line asserted no tick at all until then, which was the
+    # gap #317 closed, not the contract.)
+    assert rows.locator("input[type='checkbox']").count() == 1
+    ui.page.click("#view button.select-toggle")
+    rows.locator("input[type='checkbox']").check()
+    assert ui.page.locator("#view .selection button.selection-archive").is_enabled()
+    assert ui.page.locator("#view .selection .get-control button.action").is_disabled()
 
 
 def test_a_work_in_review_says_so_links_to_the_review_and_offers_no_get(ui, harvesters_waiting):

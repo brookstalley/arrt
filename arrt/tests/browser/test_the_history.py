@@ -7,6 +7,7 @@ Get, whose run would take a model to start — never a stubbed listing, so what
 is asserted is what the page makes of what the server really records.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -79,7 +80,12 @@ def test_a_date_is_said_as_a_readable_date_and_how_long_ago(ui, services, work_w
 
     said = stamp.inner_text()
     assert str(datetime.now(UTC).year) in said
-    assert said.endswith(("(0 seconds ago)", "(1 second ago)", "(2 seconds ago)", "(3 seconds ago)"))
+    # Seconds ago, and recent: the event was written a moment before the page
+    # opened. Not "at most 3 seconds", which a loaded parallel run exceeded; the
+    # contract is the readable age, and a minute bounds "a moment" without timing.
+    age = re.search(r"\((\d+) seconds? ago\)$", said)
+    assert age, f"no age in seconds is said: {said!r}"
+    assert int(age.group(1)) < 60
     # The machine instant is in the attribute, never in what is read.
     assert stamp.get_attribute("datetime").startswith(str(datetime.now(UTC).year))
     assert "T" not in said

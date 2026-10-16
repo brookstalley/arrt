@@ -317,6 +317,19 @@ header.topbar {
   min-width: calc(var(--sidebar) - var(--space-5) - var(--space-4));
 }
 
+/* The name keeps its own colour rather than a link's: it is the product's mark,
+   and an accent-coloured name would read as one more link in a row of them. The
+   underline on hover is what says it can be pressed, as on the status indicator. */
+.topbar .brand-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.topbar .brand-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Available to a screen reader and to nobody else. Clipped rather than
    `display: none`, which removes it from the accessibility tree as well and
    would leave the search field with no label at all. */
@@ -2612,6 +2625,46 @@ dialog.confirm::backdrop {
   border-radius: var(--radius-sm);
 }
 
+/* The mat control under the Work page's picture: each choice a named swatch,
+   its colour the catalogue's (`--swatch`, set on the element). The one being
+   shown on the picture is marked by its border as well as its pressed state, and
+   the current one is disabled and says "(current)", so neither rests on colour. */
+.mat-control {
+  margin-top: var(--space-4);
+}
+
+.mat-control summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.mat-control[open] summary {
+  margin-bottom: var(--space-3);
+}
+
+.mat-control .mat-swatch {
+  width: var(--space-5);
+  height: var(--space-5);
+  background: var(--swatch);
+}
+
+.mat-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mat-option[aria-pressed="true"] {
+  border-color: var(--text-strong);
+  box-shadow: inset 0 0 0 1px var(--text-strong);
+}
+
+.mat-confirm .mat-previewing {
+  margin: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -2703,6 +2756,7 @@ section.offered + section.offered {
    blank lines between its paragraphs. */
 
 .work-hero .work-picture {
+  display: block;
   width: 100%;
   max-height: 75vh;
   object-fit: contain;
@@ -2710,6 +2764,39 @@ section.offered + section.offered {
   border-radius: 0;
   margin: 0;
   filter: drop-shadow(var(--shadow-art));
+}
+
+/* The work inside its mat, laid out by `core/mat.js` to the contract's rule:
+   the mat's colour is the work's own, set on the element as `--mat`, because it
+   is the catalogue's data and not a colour of the interface. The shadow falls
+   from the mat, which is the object on the wall; a work shown without one keeps
+   it on the picture. Until the layout has run (the picture not yet loaded, or
+   failing to), the picture is drawn as it was before there was a mat, so a
+   picture never sits in a box of no height. */
+.matted {
+  position: relative;
+  width: 100%;
+}
+
+.matted .mat-surround {
+  position: absolute;
+  top: 0;
+  background: var(--mat);
+  filter: drop-shadow(var(--shadow-art));
+}
+
+.matted.unmatted .mat-surround {
+  display: none;
+}
+
+.work-hero .matted[data-layout] .work-picture {
+  position: absolute;
+  max-height: none;
+  object-fit: fill;
+}
+
+.work-hero .matted:not(.unmatted) .work-picture {
+  filter: none;
 }
 
 /* Wall label: the picture and its label side by side, as on a gallery wall,
