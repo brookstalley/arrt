@@ -15,7 +15,7 @@ depends_on:
 governed_by:
   - artifact: re-architecture
     dispositions:
-      - "§ Order of work, wave 5 row (two-pass filter-repo over four historical paths; move the root's non-2024 hardware tools into arrt-player/tools first; remove the 2024 root modules; onboard prawduct there; carry the Player's artifacts; pin contract/ with player-contract.md and the major 2 semantic validator; the new repo is arrt-player, this one Arrt) → conforms: 02 moves the tools and removes the modules, 04 runs the measured recipe and its two tree checks, 01 makes the pin a package that carries all three, 05 leaves this repo as Arrt. The pin's form is the owner's ruling of 2026-10-26 (Goals). Exception, recorded as a decision in Goals: the tools do not carry the root's `config.py` with them; they read the Player's own settings"
+      - "§ Order of work, wave 5 row (two-pass filter-repo over four historical paths; move the root's non-2024 hardware tools into arrt-player/tools first; remove the 2024 root modules; onboard prawduct there; carry the Player's artifacts; pin contract/ with player-contract.md and the major 2 semantic validator; the new repo is arrt-player, this one Arrt) → conforms: 02 moves the tools and removes the modules, 04 runs the measured recipe and its two tree checks, 01 makes the pin a package that carries all three, 05 leaves this repo as Arrt. The pin's form is the owner's ruling of 2026-10-26 (Goals). Exception, recorded as a decision in Goals and ratified by the owner 2026-10-26: the tools do not carry the root's `config.py` with them; they read the Player's own settings"
       - "§ Agents (after the split, one session per repo; a Player agent that needs a field files it against the server repo) → conforms: 05 transfers the Player's issues and the contract package lives here, so a field is a change to this repo's package and a version the Player then takes"
   - artifact: architecture
     dispositions:
@@ -116,7 +116,7 @@ streams.
   `semantic_errors`.
 
 **Open assumptions** (each the builder's inference, not the owner's ruling):
-- *Inferred:* "published" means a version that anyone can install by name and
+- *Ratified 2026-10-26 ("Git tag for now"):* "published" means a version that anyone can install by name and
   that does not move: an annotated tag `contract-v<version>` on
   brookstalley/arrt, which the Player installs as
   `arrt-contract @ git+https://github.com/brookstalley/arrt@contract-v<version>#subdirectory=contract`.
@@ -146,9 +146,9 @@ streams.
   Player's artifacts point at them by URL. 04 derives the final list from what
   the Player's code and tests cite. [MED impact | user can override]
 
-`[DECISION: the contract package is installed from a git tag on brookstalley/arrt rather than PyPI | the owner asked for a published package; a tag gives a named, immutable, installable version with no account, token or global name to hold, and uv resolves it like any index; PyPI is a one-line swap when a third consumer or an outside user appears | the builder's, 2026-10-26; user can veto]`
+`[DECISION: the contract package is installed from a git tag on brookstalley/arrt rather than PyPI | the owner asked for a published package; a tag gives a named, immutable, installable version with no account, token or global name to hold, and uv resolves it like any index; PyPI is a one-line swap when a third consumer or an outside user appears | the builder's, 2026-10-26; **ratified by the owner 2026-10-26: "Git tag for now."**]`
 
-`[DECISION: the hand-run tools read the Player's own settings (arrt_player.config.load) instead of carrying the root's config.py into arrt-player/tools | the owner's 2026-10-05 ruling moved "tv_api_check.py, tv_delete.py, panel_check.py, and the config.py they read" so that the tools leave with the Player and keep working; that config.py was the 2024 configuration and required ART_ROOT, LATITUDE, LONGITUDE and LOCATION_NAME at import, so carried as written it would have stopped tv_api_check.py on a Player, and a tool reaching the set by settings other than the wall's checks something other than the wall | the builder's, 2026-10-26; user can veto]`
+`[DECISION: the hand-run tools read the Player's own settings (arrt_player.config.load) instead of carrying the root's config.py into arrt-player/tools | the owner's 2026-10-05 ruling moved "tv_api_check.py, tv_delete.py, panel_check.py, and the config.py they read" so that the tools leave with the Player and keep working; that config.py was the 2024 configuration and required ART_ROOT, LATITUDE, LONGITUDE and LOCATION_NAME at import, so carried as written it would have stopped tv_api_check.py on a Player, and a tool reaching the set by settings other than the wall's checks something other than the wall | the builder's, 2026-10-26; **ratified by the owner 2026-10-26: "Yes accept change."**]`
 
 **Decisions made mid-build:** *(appended while building; one line each, naming
 what settled it)*
