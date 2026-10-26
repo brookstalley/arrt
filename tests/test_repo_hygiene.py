@@ -15,7 +15,7 @@ import pathlib
 import subprocess
 
 import pytest
-from repository import projects
+from repository import ROOT, projects
 
 #: Every tree whose absence from a fresh clone would matter: each project's
 #: `src` and `tests`, its `tools` where it has one, and the root's own `tests`.
@@ -29,9 +29,15 @@ SOURCE_TREES = (
         f"{project}/{tree}"
         for project in projects()
         for tree in ("src", "tests", "tools")
-        if tree != "tools" or pathlib.Path(project, "tools").is_dir()
+        if tree != "tools" or (ROOT / project / "tools").is_dir()
     ),
 )
+
+
+@pytest.fixture(autouse=True)
+def _at_the_repository_root(monkeypatch):
+    """Every path and git call below is relative to the repository root, wherever pytest was started."""
+    monkeypatch.chdir(ROOT)
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:
