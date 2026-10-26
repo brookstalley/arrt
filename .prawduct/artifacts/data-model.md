@@ -3117,6 +3117,17 @@ and `show_now` and `next` republish the schedule; scenes and staging are 4f.)*
 The manifest also lists works under
 **staging**, so Players fetch and compose a scene's works while it is being
 assembled. Wave 4.
+*(Wave 4f, 2026-10-26: built less keep, which waits for a pin or a playlist to
+keep into (`build-plan-wave-4f-scenes.md`). Two tables: `scenes` (id, status of
+draft, live or ended; lifetime of preview or hold; `starts_at`, `until`,
+`created_at`, `ended_at`) and `scene_pins` (scene, wall, work; one work per wall
+per scene). A live preview past its `until` reads as ended without a write
+(`Scene.status_at`), and a heartbeat writes the end down. Whether a wall
+reached the scene is never stored: it is the heartbeat's `scene_id`. A draft's
+pins are the staging; a live scene's pin is the wall's `scene`. Both keys are
+derived from these tables at every feed write, never read back from the feed.
+Answers: which scene is live and until when, which walls it pins to which work,
+what a draft stages on each wall, and when a scene was applied and ended.)*
 
 ### Quality profile *(Library)*
 

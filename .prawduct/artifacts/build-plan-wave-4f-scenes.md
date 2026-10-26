@@ -193,6 +193,14 @@ one room rather than one at a time.
 
 **Decisions made mid-build:** *(appended while building; one line each, naming
 what settled it)*
+- 01: every act patches its walls (`_patch_v2_works`) rather than republishing them keeping the slot, so pin, apply and release move no slot at all. Settled by the plan's own goal for a scene's end ("the schedule resumes where it would have been"), which a patch meets exactly and a rebuild only approximately.
+- 01: the funnel is a new `_publish_feed`, the one function that spells and writes a feed; `_write_v2` and `_patch_v2_works` hand it a schedule. The plan's `_control_layer(wall_id)` is called there and nowhere else. Settled by the plan's decision that the control layer is derived in one writer.
+- 01: `Published.works` reads back only the schedule's works; the scene's and staging's entries are `control_works`, and `carried` is both. Otherwise a staged work would join the wall's cycle on its next rebuild and make two walls look like they share works. Settled by "do it right": the 4e read-back meant the schedule's works, and a control-layer work is not one.
+- 01: withdrawal, reconciliation and the showings record consider every carried work, so a pinned work kept off every wall or archived leaves a live scene at once, and a wall showing its scene keeps a showing. Found while reading `exclude_work`; the plan did not name these paths.
+- 01: `draft_scene` returns the draft being assembled if there is one. Settled by the plan's "the builder holds one draft".
+- 01: History events for a scene applied and ended move to 02, with their rendering in `activity.js`. A kind recorded before the client can name it shows as "Something the history records as …". Alignment-pass miss: the plan's inference put History in the plan, not in a chunk.
+- 01: a pin is refused for a wall with no feed, by name, as show now is. Inferred; the plan was silent.
+- 01: the data model's Scene entry is marked built at 01 rather than 03, because the tables exist now and the entry describes stored state.
 
 **Level:** Medium. The contract fixes both keys and the Player already reads
 them, so what the feed must say is not in doubt. What is: whether every
@@ -210,6 +218,11 @@ and corrects this table if it has moved):
 |---|---|---|
 | `_write_v2` | `_sync_v2` (hang, re-hang, selection, reconcile), `_rebuild_v2` (restart, withdraw, roll), `_rebuild_beside` | the wall's live scene and its draft staging, with their works in `works` |
 | `_patch_v2_works` | `_reconcile_v2` (a work re-rendered or re-coloured) | the same; today it rewrites from `Published`, which does not hold them |
+
+*(01, as built: both writers hand a schedule to `_publish_feed`, which adds the
+control layer and is the only function that spells a feed.
+`tests/unit/test_scenes.py` derives the writers from the source and drives
+each publish path through them.)*
 
 ## Scaffolding
 

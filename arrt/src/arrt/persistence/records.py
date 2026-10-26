@@ -731,6 +731,72 @@ class Showing:
     ended_at: datetime | None = None
 
 
+class SceneStatus(StrEnum):
+    """Where a scene is in its life. Stored, except that a live preview whose end has passed is ended (`Scene.status_at`)."""
+
+    #: Being assembled: its pins stage their works on their walls, and nothing is shown because of it.
+    DRAFT = "draft"
+    #: Applied: each pinned wall shows its pin over the schedule.
+    LIVE = "live"
+    #: Released, replaced, or a preview run out. Kept so History can say when.
+    ENDED = "ended"
+
+
+class SceneLifetime(StrEnum):
+    """How long an applied scene stays (`player-contract.md` § Scenes). Keep is not built (`build-plan-wave-4f-scenes.md`)."""
+
+    #: Until `until`, then each wall returns to its schedule on its own.
+    PREVIEW = "preview"
+    #: Until released.
+    HOLD = "hold"
+
+
+@dataclass(frozen=True, slots=True)
+class Scene:
+    """One override spanning walls: a work per wall, shown together over each wall's schedule.
+
+    Programming's own. Which walls and which works are its pins (`ScenePin`),
+    not columns here, so a scene spans as many walls as the household has.
+    **Whether a wall reached it is not stored**: that is the wall's heartbeat,
+    read each time, because per-device runtime state never lives here.
+    """
+
+    id: str
+    status: SceneStatus
+    created_at: datetime
+    #: Chosen at Apply; null on a draft.
+    lifetime: SceneLifetime | None = None
+    #: When it was applied; null on a draft.
+    starts_at: datetime | None = None
+    #: When a preview runs out; null on a draft and on a hold.
+    until: datetime | None = None
+    #: When it was released or replaced, or the `until` a preview ran out at.
+    ended_at: datetime | None = None
+
+    def status_at(self, now: datetime) -> SceneStatus:
+        """The status as of `now`: a live preview whose `until` has passed is ended, stored or not.
+
+        The Player returns to its schedule at `until` on its own, so the server
+        keeps no timer to match it, and asks this instead.
+        """
+        if self.status is SceneStatus.LIVE and self.until is not None and self.until <= now:
+            return SceneStatus.ENDED
+        return self.status
+
+
+@dataclass(frozen=True, slots=True)
+class ScenePin:
+    """One wall's work in a scene. A wall appears at most once in a scene.
+
+    Neither id is a foreign key outside Programming: `work_id` is an opaque
+    reference to a Library work, as everywhere Programming names one.
+    """
+
+    scene_id: str
+    wall_id: str
+    work_id: str
+
+
 @dataclass(frozen=True, slots=True)
 class WorkExclusion:
     """A work the curator said not to show again on any wall: *Not this one again*, from every wall.

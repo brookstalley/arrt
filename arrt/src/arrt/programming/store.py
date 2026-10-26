@@ -2,7 +2,7 @@
 
 Themes, what each holds, walls, what hangs on each, the
 clients that show walls, their displays and label outputs, the works kept
-off every wall, and what each wall has shown.
+off every wall, what each wall has shown, and scenes.
 Programming reaches its storage only through this protocol and never through
 `persistence.catalogue.CatalogueStore`, which is the Library's. Today one SQLite
 file serves both and one object implements both protocols. The split is
@@ -24,6 +24,9 @@ from arrt.persistence.records import (
     Client,
     Display,
     LabelOutput,
+    Scene,
+    ScenePin,
+    SceneStatus,
     Showing,
     Theme,
     ThemeAssignment,
@@ -278,4 +281,45 @@ class ProgrammingStore(Protocol):
 
     def list_exclusions(self) -> Sequence[WorkExclusion]:
         """Every work kept off every wall, oldest first."""
+        ...
+
+    # -- scenes ---------------------------------------------------------------
+
+    def add_scene(self, scene: Scene) -> None:
+        """Persist a scene. Raises if the id is already present."""
+        ...
+
+    def get_scene(self, scene_id: str) -> Scene | None:
+        """Return the scene, or None if no such id is stored."""
+        ...
+
+    def update_scene(self, scene: Scene) -> None:
+        """Overwrite a stored scene with this one. Raises if the id is absent."""
+        ...
+
+    def list_scenes(self, status: SceneStatus | None = None) -> Sequence[Scene]:
+        """Every scene with this stored status, or every scene; oldest first.
+
+        The stored status: a live preview past its `until` is listed as live
+        here, and `Scene.status_at` says it has ended.
+        """
+        ...
+
+    def remove_scene(self, scene_id: str) -> None:
+        """Delete a scene. Its pins must already be gone; removing an absent one is not an error."""
+        ...
+
+    def set_pin(self, pin: ScenePin) -> None:
+        """Pin a work to a wall in a scene, replacing the work that wall had in it.
+
+        At most one work per wall per scene, which is the table's key.
+        """
+        ...
+
+    def remove_pin(self, scene_id: str, wall_id: str) -> None:
+        """Unpin a wall from a scene. Removing an absent pin is not an error."""
+        ...
+
+    def list_pins(self, scene_id: str) -> Sequence[ScenePin]:
+        """A scene's pins, by wall id."""
         ...
