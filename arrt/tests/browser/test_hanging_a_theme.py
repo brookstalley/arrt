@@ -176,8 +176,9 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     ui.page.wait_for_selector("h2")
 
     # One h2 per wall, and every panel heading a rank below it. The theme is on
-    # the line under the heading now, not in it.
-    assert sorted(ui.page.locator("h2").all_text_contents()) == ["Study", "The wall"]
+    # the line under the heading now, not in it. The Scene above the walls is
+    # the one other h2: a block about every room, at the rank of a room.
+    assert sorted(ui.page.locator("h2").all_text_contents()) == ["Scene", "Study", "The wall"]
     assert ui.page.locator("h2.wall-title").count() == 2
     assert ui.page.locator(".panel h2").count() == 0
     # Four per wall: the setup's panels for what is not showing, how it

@@ -61,9 +61,10 @@
  */
 
 import { attempt } from "../core/acting.js";
-import { ago, inWords, readable } from "../core/dates.js";
+import { ago, clockTime, inWords, readable } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
+import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
 import { DEBUG } from "../core/debug.js";
 import { hangTheme } from "../core/hanging.js";
@@ -101,7 +102,14 @@ export async function viewWalls(generation) {
     return;
   }
 
-  const [beats, shownBy, builds] = await Promise.all([heartbeats(), clientListing(), Promise.all(walls.walls.map(built))]);
+  const [beats, shownBy, builds, scenes] = await Promise.all([
+    heartbeats(),
+    clientListing(),
+    Promise.all(walls.walls.map(built)),
+    // A scene that cannot be read leaves every wall's card standing: the section
+    // says so, and the cards say nothing about a scene they cannot know of.
+    api("/api/scenes/live").catch(() => null),
+  ]);
   const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall)));
 
   if (!walls.walls.length) {
@@ -119,8 +127,11 @@ export async function viewWalls(generation) {
     return;
   }
 
-  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy));
-  render(generation, heading(), ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
+  const live = scenes ? scenes.live : null;
+  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live));
+  const scene = { walls: walls.walls, node: el("section", { class: "scene", "aria-labelledby": "scene-title" }) };
+  paintScene(scene, scenes);
+  render(generation, heading(), scene.node, ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
 }
 
 /* The page's heading, at the size every page's `h1` has: Walls is a page
@@ -333,7 +344,7 @@ function reasonFor(wall, build, beats) {
   return "hanging";
 }
 
-function wallSection(wall, build, beats, now, themes, shownBy) {
+function wallSection(wall, build, beats, now, themes, shownBy, live) {
   const manifest = build.manifest;
   const reason = reasonFor(wall, build, beats);
   // What the card's acts read the current work from. The lead can be replaced
@@ -359,10 +370,317 @@ function wallSection(wall, build, beats, now, themes, shownBy) {
     // invite the reader to look for the difference between them.
     manifest && reason !== "empty-theme" ? summaryLine(manifest) : null,
     ...emptiness(reason, wall, build, beats),
+    sceneLine(wall, live),
     controls(card, themes, reason, manifest),
     card.said,
     manifest ? setup(wall, manifest) : null,
   ]);
+}
+
+/* The Scene: a work per wall, shown together over each wall's schedule
+ * (`player-contract.md` § Scenes; the owner placed it on Walls, as a
+ * collection, 2026-10-26).
+ *
+ * **Assembled, then applied.** Picking a work for a wall stages it there: the
+ * wall's Player fetches and prepares it while the rest are picked, so on Apply
+ * every wall switches together instead of a Frame landing ten seconds after the
+ * screen beside it. Nothing is shown until Apply, which asks first and names each
+ * wall and its work, as hanging names the wall.
+ *
+ * **Once live, each wall says whether it got there**, from its own heartbeat:
+ * showing it, or waiting for the television to be free (the Player never
+ * interrupts somebody watching), or not there yet. After Apply or Release the
+ * section watches for that, bounded as a Skip's watch is, and repaints only
+ * itself, so focus stays where the curator left it.
+ *
+ * One draft and one live scene, as the builder holds them; the server would
+ * take more, and a draft made elsewhere (over MCP) shows here as the draft. */
+function paintScene(scene, scenes, focus = null) {
+  const parts = [el("h2", { id: "scene-title", class: "scene-title", text: "Scene" })];
+  if (!scenes) {
+    parts.push(el("p", { class: "note", text: "This page could not read the scene, so it cannot be shown or changed here. Reload to try again." }));
+  } else {
+    if (scenes.live) parts.push(...liveScene(scene, scenes.live));
+    if (!scenes.live || scenes.draft) parts.push(...sceneBuilder(scene, scenes.draft));
+  }
+  fill(scene.node, ...parts);
+  if (focus) {
+    const target = scene.node.querySelector(`[data-scene-focus="${focus}"]`);
+    if (target) target.focus();
+  }
+}
+
+/* Read the scene again and repaint the section, keeping focus on `focus`. */
+async function repaintScene(scene, focus = null) {
+  paintScene(scene, await api("/api/scenes/live"), focus);
+}
+
+/* A scene's walls in the order the cards below are in, so a sentence naming
+ * them reads in the order the page does. */
+function inWallOrder(scene, entries) {
+  const order = new Map(scene.walls.map((wall, index) => [wall.wall_id, index]));
+  return [...entries].sort((one, other) => (order.get(one.wall_id) ?? Infinity) - (order.get(other.wall_id) ?? Infinity));
+}
+
+/* What a live scene's walls are doing, in words, from each wall's heartbeat. */
+function reachWords(entry) {
+  if (entry.reached) return `${entry.wall_name} is showing it`;
+  if (entry.screen === "in_use") return `${entry.wall_name} is waiting for the television to be free`;
+  return `${entry.wall_name} has not shown it yet`;
+}
+
+function sceneSpan(live) {
+  return live.until ? `Scene until ${clockTime(live.until)}` : "Scene, held until released";
+}
+
+function liveScene(scene, live) {
+  const entries = inWallOrder(scene, live.walls);
+  const names = entries.map((entry) => entry.wall_name).join(" and ");
+  return [
+    el("p", { class: "scene-span", text: sceneSpan(live) }),
+    el(
+      "ul",
+      { class: "scene-walls" },
+      entries.map((entry) =>
+        el("li", { "data-wall": entry.wall_id }, [
+          el("span", { text: `${entry.title || "A work"} on ` }),
+          link({ view: "walls", params: { wall: entry.wall_id } }, { class: "link", text: entry.wall_name }),
+          el("span", { class: "scene-reach", text: `: ${reachWords(entry)}.` }),
+        ]),
+      ),
+    ),
+    el("div", { class: "row" }, [
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Release",
+        "data-scene-focus": "release",
+        "aria-label": `Release the scene on ${names}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `release the scene on ${names}`,
+            () => api(`/api/scenes/${encodeURIComponent(live.scene_id)}/release`, { method: "POST" }),
+            { then: () => refresh() },
+          ),
+      }),
+    ]),
+  ];
+}
+
+/* The preview lengths offered: a short list, not a typed number, because a
+ * scene is a look at a room, and these cover a glance, a while and an evening's
+ * hour. Twenty is the default the owner ruled (2026-10-08). */
+const PREVIEW_MINUTES = [5, 20, 60];
+
+function sceneBuilder(scene, draft) {
+  const pins = draft ? draft.walls : [];
+  const parts = [
+    el("p", {
+      class: "muted",
+      text: draft && pins.length
+        ? "Preparing the walls. Pick a work for each wall you want in the scene, then apply it."
+        : "Pick a work for each wall to show them together, for a while or until you release them.",
+    }),
+    ...scene.walls.map((wall) => pickRow(scene, draft, wall)),
+  ];
+  if (draft && pins.length) parts.push(applyControls(scene, draft));
+  if (draft) {
+    parts.push(
+      el("div", { class: "row" }, [
+        el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Discard",
+          "aria-label": "Discard the scene being assembled",
+          onclick: (event) =>
+            attempt(
+              event.currentTarget,
+              "discard the scene",
+              () => api(`/api/scenes/${encodeURIComponent(draft.scene_id)}`, { method: "DELETE" }),
+              { then: (left) => paintScene(scene, left, "scene-title") },
+            ),
+        }),
+      ]),
+    );
+  }
+  return parts;
+}
+
+/* One wall's row: what is picked for it, and a search for a work to pick. The
+ * search reads the held works by title or artist, as Artworks' does. */
+function pickRow(scene, draft, wall) {
+  const pin = draft ? draft.walls.find((entry) => entry.wall_id === wall.wall_id) : null;
+  const inputId = `scene-find-${wall.wall_id}`;
+  const query = el("input", { id: inputId, type: "search", "data-scene-focus": `find-${wall.wall_id}` });
+  const found = el("ul", { class: "scene-found", "aria-label": `Works found for ${wall.name}` });
+  const findButton = el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Find",
+    "aria-label": `Search the library for ${wall.name}`,
+    onclick: (event) => findWorks(event.currentTarget, scene, draft, wall, query.value, found),
+  });
+  query.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      findButton.click();
+    }
+  });
+  return el("div", { class: "scene-wall", "data-wall": wall.wall_id }, [
+    el("p", { class: "scene-wall-name", text: wall.name }),
+    pin
+      ? el("p", { class: "scene-pick" }, [
+          el("span", { text: `${pin.title || "A work"} ` }),
+          el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Remove",
+            "aria-label": `Remove ${pin.title || "the work"} from the scene on ${wall.name}`,
+            onclick: (event) =>
+              attempt(
+                event.currentTarget,
+                `remove ${pin.title || "the work"} from the scene on ${wall.name}`,
+                () => api(`/api/scenes/${encodeURIComponent(draft.scene_id)}/pins/${encodeURIComponent(wall.wall_id)}`, { method: "DELETE" }),
+                { then: () => repaintScene(scene, `find-${wall.wall_id}`) },
+              ),
+          }),
+        ])
+      : el("p", { class: "muted scene-pick", text: "Nothing picked." }),
+    el("div", { class: "row" }, [el("div", { class: "field" }, [el("label", { for: inputId, text: `Find a work for ${wall.name}` }), query]), findButton]),
+    found,
+  ]);
+}
+
+async function findWorks(control, scene, draft, wall, words, found) {
+  const asked = words.trim();
+  if (!asked) {
+    fill(found, el("li", { class: "muted", text: "Type a title or an artist first." }));
+    return;
+  }
+  await attempt(
+    control,
+    `find works for ${wall.name}`,
+    () => api(`/api/works?status=accepted&limit=6&q=${encodeURIComponent(asked)}`),
+    {
+      then: (page) => {
+        if (!page.works.length) {
+          fill(found, el("li", { class: "muted", text: `Nothing held matches “${asked}”.` }));
+          return;
+        }
+        fill(
+          found,
+          ...page.works.map((work) =>
+            el("li", {}, [
+              el("button", {
+                class: "action quiet",
+                type: "button",
+                text: work.artist ? `${work.title}, ${work.artist.name}` : work.title,
+                "aria-label": `Pick ${work.title} for ${wall.name}`,
+                onclick: (event) => pick(event.currentTarget, scene, draft, wall, work),
+              }),
+            ]),
+          ),
+        );
+      },
+    },
+  );
+}
+
+/* Pick a work for a wall. The first pick starts the scene, so a visit that
+ * picks nothing leaves nothing behind. A refusal (a work that cannot go on a
+ * wall) is said beside the work, and the wall's other pick stays. */
+function pick(control, scene, draft, wall, work) {
+  return attempt(
+    control,
+    `pick ${work.title} for ${wall.name}`,
+    async () => {
+      const id = draft ? draft.scene_id : (await api("/api/scenes", { method: "POST" })).scene_id;
+      return api(`/api/scenes/${encodeURIComponent(id)}/pins/${encodeURIComponent(wall.wall_id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ work_id: work.artwork_id }),
+      });
+    },
+    { then: () => repaintScene(scene, `find-${wall.wall_id}`) },
+  );
+}
+
+function applyControls(scene, draft) {
+  const lengthId = "scene-length";
+  const length = el(
+    "select",
+    { id: lengthId },
+    PREVIEW_MINUTES.map((minutes) => el("option", { value: String(minutes), text: `${minutes} minutes`, selected: minutes === 20 })),
+  );
+  const named = inWallOrder(scene, draft.walls)
+    .map((entry) => `${entry.title || "a work"} on ${entry.wall_name}`)
+    .join(", ");
+  const apply = (control, lifetime) => {
+    const minutes = Number(length.value);
+    const span = lifetime === "hold" ? "until you release it" : `for ${minutes} minutes, then each wall returns to its schedule`;
+    return confirmAct({
+      title: lifetime === "hold" ? "Hold this scene?" : "Show this scene now?",
+      consequence: `${named}, ${span}.`,
+      confirmLabel: lifetime === "hold" ? "Hold" : "Apply",
+    }).then((yes) =>
+      yes
+        ? attempt(
+            control,
+            `apply the scene (${named})`,
+            () =>
+              api(`/api/scenes/${encodeURIComponent(draft.scene_id)}/apply`, {
+                method: "POST",
+                body: JSON.stringify(lifetime === "hold" ? { lifetime } : { lifetime, minutes }),
+              }),
+            { then: (applied) => watchScene(scene, applied.scene_id) },
+          )
+        : false,
+    );
+  };
+  return el("div", { class: "row scene-apply" }, [
+    el("div", { class: "field" }, [el("label", { for: lengthId, text: "Preview length" }), length]),
+    el("button", { class: "action", type: "button", text: "Apply", "aria-label": `Apply the scene: ${named}`, onclick: (event) => apply(event.currentTarget, "preview") }),
+    el("button", { class: "action quiet", type: "button", text: "Hold", "aria-label": `Hold the scene until released: ${named}`, onclick: (event) => apply(event.currentTarget, "hold") }),
+  ]);
+}
+
+/* After Apply: repaint the cards once, then watch the scene until every wall
+ * reports it, repainting only this section. Bounded as a Skip's watch is, by
+ * `STALE_AFTER_SECONDS` and by leaving the screen. */
+async function watchScene(scene, sceneId) {
+  await refresh();
+  const generation = state.poll;
+  const deadline = Date.now() + STALE_AFTER_SECONDS * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, WATCH_MS));
+    const section = document.querySelector("section.scene");
+    if (state.poll !== generation || !section) return;
+    let scenes;
+    try {
+      scenes = await api("/api/scenes/live");
+    } catch {
+      return;
+    }
+    if (!scenes.live || scenes.live.scene_id !== sceneId) return;
+    for (const entry of scenes.live.walls) {
+      const line = section.querySelector(`li[data-wall="${entry.wall_id}"] .scene-reach`);
+      if (line) line.textContent = `: ${reachWords(entry)}.`;
+    }
+    if (scenes.live.walls.every((entry) => entry.reached)) return;
+  }
+}
+
+/* On a wall's card, while a scene shows here: what the scene put up and until
+ * when, beside Skip, because Skip then moves the schedule beneath the scene and
+ * nothing on the wall changes until the scene ends. */
+function sceneLine(wall, live) {
+  const entry = live ? live.walls.find((each) => each.wall_id === wall.wall_id) : null;
+  if (!entry) return null;
+  const until = live.until ? `until ${clockTime(live.until)}` : "until the scene is released";
+  return el("p", {
+    class: "note wall-scene",
+    text: `A scene shows ${entry.title || "a work"} here ${until}. Skip moves the schedule beneath it, and the wall shows that when the scene ends.`,
+  });
 }
 
 /* The server's sentence about how much of the theme reached the wall. Marked

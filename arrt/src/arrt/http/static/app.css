@@ -2135,13 +2135,13 @@ th {
   border-top: 1px solid var(--border);
 }
 
-/* One wall's section heading on the walls view. A direct child of the view root,
- * so like `.offer-group > h2` above it would otherwise fall back to browser
- * defaults — the failure the comment there names, and the one no browser test
- * can see, since the text and the attributes are correct either way. It takes
- * the same treatment because it is the same rank of thing: a titled block within
- * a view, of which the client has exactly two. */
-.wall-title {
+/* One wall's section heading on the walls view, and the Scene's above them. A
+ * direct child of a section at the view root, so like `.offer-group > h2` above
+ * it would otherwise fall back to browser defaults — the failure the comment
+ * there names. It takes the same treatment because it is the same rank of
+ * thing: a titled block within a view. */
+.wall-title,
+.scene-title {
   margin: 0 0 var(--space-1);
   font: 500 var(--text-xl) / 1.25 var(--font-label);
   color: var(--text-strong);
@@ -2157,6 +2157,36 @@ th {
    between them would draw a border across a page of paintings. */
 section.wall {
   margin-bottom: var(--space-8);
+}
+
+/* The Scene, above the walls: a work per wall, shown together. Set apart by
+   space, as a wall's section is, since it is the one block on the page about
+   more than one room. */
+section.scene {
+  margin-bottom: var(--space-8);
+}
+
+/* One wall's pick in the scene being assembled. Named in bold text rather than
+   by a heading, so a reader moving by heading meets each wall once, at its own
+   card. */
+.scene-wall {
+  margin-bottom: var(--space-4);
+}
+
+.scene-wall-name {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.scene-found {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0 0;
+}
+
+.scene-walls {
+  margin: 0 0 var(--space-3);
 }
 
 /* The wall's controls, held apart from the account of what is on it: hanging a

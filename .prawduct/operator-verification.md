@@ -10,6 +10,31 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Scenes on the two walls — added 2026-10-26
+
+**`build-plan-wave-4f-scenes.md` chunk 03.** Both walls up, the Frame in art
+mode. On Walls, the *Scene* section above the cards.
+
+- **Together.** Pick a work for the HDMI wall and one for the Frame. Watch
+  the Pi's journal log the Frame's upload before you press *Apply*. Apply a
+  5-minute preview and time the gap between the two walls changing. Under two
+  seconds is expected; near ten means the Frame was not staged, which is a
+  defect in the server, not the Player.
+- **Waiting.** Switch the Frame to a TV programme, apply a scene, and see
+  Walls say "Hall is waiting for the television to be free" (your wall's
+  name). Switch back to art mode and see it reach the scene. This is the
+  first time `in_use` is read off the real set; a wrong reading is #309's
+  chunk 05 finding.
+- **The server gone.** Apply a preview, stop the server (`docker stop` on
+  the NAS), and see both walls return to their schedules on their own when
+  it ends. Start the server and see Walls agree.
+- **Hold and Release.** Hold, then Release, and see both walls resume where
+  their schedules are.
+- **The words.** "Preparing the walls", "Scene until {time}", "Scene, held
+  until released", "{wall} is showing it", and a card's "A scene shows {work}
+  here until {time}. Skip moves the schedule beneath it, …". Say if any reads
+  as plumbing, or if the card's sentence is too long beside *Skip*.
+
 ### The mat control — added 2026-10-16
 
 **`build-plan-ui-mat-selection-labels.md` chunk 03, #91.** Open a work you

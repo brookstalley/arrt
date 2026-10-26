@@ -209,3 +209,31 @@ def test_a_get_of_chosen_works_says_how_many(ui, services):
     occurred = datetime.fromisoformat(stamp.get_attribute("datetime"))
     assert datetime.now(UTC) - occurred < timedelta(minutes=1)
     assert "Started a Get for 2 works" in ui.text()
+
+
+@pytest.mark.parametrize(
+    ("end", "ending"),
+    [("release", "Released"), ("replace", "Another scene replaced")],
+)
+def test_a_scene_reads_as_applied_and_ended_on_its_wall(ui, services, ready_work, the_wall, end, ending):
+    """A scene's History lines name the work and the wall, and how the scene ended."""
+    display = services.display
+    theme = display.add_theme(name="Winter")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work("Automat").id)
+    display.activate_theme(theme.id, wall_id=the_wall.id)
+    scene = display.draft_scene().scene
+    display.pin_scene(scene.id, the_wall.id, ready_work("Golconda").id)
+    display.apply_scene(scene.id, lifetime="hold")
+    if end == "release":
+        display.release_scene(scene.id)
+    else:
+        later = display.draft_scene().scene
+        display.pin_scene(later.id, the_wall.id, ready_work("Persistence").id)
+        display.apply_scene(later.id, lifetime="hold")
+
+    open_history(ui, "#history?kind=walls")
+    ui.page.wait_for_selector("ol.history-events li")
+
+    sentences = [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)]
+    assert f"{ending} the scene showing Golconda on {the_wall.name}" in sentences
+    assert f"Showed Golconda on {the_wall.name} in a scene, held until released" in sentences

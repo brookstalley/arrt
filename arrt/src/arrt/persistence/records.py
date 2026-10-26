@@ -838,6 +838,10 @@ class EventKind(StrEnum):
     EXCLUDED = "work.excluded"
     #: The undo of the above: the work may go on a wall again.
     ALLOWED = "work.allowed"
+    #: A scene was applied: one line per wall it pins, naming that wall's work.
+    SCENE_APPLIED = "scene.applied"
+    #: A scene ended on a wall: released, replaced by another, or a preview run out. Which, in the detail.
+    SCENE_ENDED = "scene.ended"
 
 
 @dataclass(frozen=True, slots=True)

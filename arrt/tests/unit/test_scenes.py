@@ -691,3 +691,99 @@ def test_a_failure_writing_a_previews_end_does_not_cost_the_wall_its_roll(
 
     assert read_published(path).horizon_until - _now() > timedelta(days=2, hours=23)
     assert _events(caplog, "scene.not_settled")
+
+
+# -- History ----------------------------------------------------------------------------
+
+
+def _history(store, kind):
+    from arrt.persistence.records import EventKind
+
+    page = store.list_events(kinds=[EventKind(kind)], limit=50, offset=0)
+    return {(event.wall_id, event.work_id): dict(event.detail or {}) for event in page.events}
+
+
+def test_history_says_a_scene_was_applied_on_each_wall_with_its_work(store, display, staged):
+    scene, works = staged
+
+    display.apply_scene(scene.id, lifetime="preview", minutes=5)
+
+    lines = _history(store, "scene.applied")
+    assert set(lines) == {(wall, work.id) for wall, work in works.items()}
+    for (wall, _), detail in lines.items():
+        assert detail["scene_id"] == scene.id
+        assert detail["lifetime"] == "preview"
+        assert detail["until"] is not None
+        assert detail["wall_name"] == display.get_wall(wall).name
+    assert {detail["title"] for detail in lines.values()} == {"Dalí", "Magritte"}
+    assert _history(store, "scene.ended") == {}
+
+
+@pytest.mark.parametrize("how", ["released", "replaced", "ran_out"])
+def test_history_says_how_a_scene_ended_on_each_wall(store, display, staged, mastered, wall_id, how):
+    scene, works = staged
+    display.apply_scene(scene.id, lifetime="preview", minutes=5)
+    if how == "released":
+        display.release_scene(scene.id)
+    elif how == "replaced":
+        other = display.draft_scene().scene
+        display.pin_scene(other.id, next(iter(works)), mastered("Picasso").id)
+        display.apply_scene(other.id, lifetime="hold")
+    else:
+        _expire(store, scene.id)
+        display.record_heartbeat(wall_id, {"schema": {"major": 1, "minor": 1}, "reported_at": _now().isoformat()})
+
+    lines = _history(store, "scene.ended")
+    assert set(lines) == {(wall, work.id) for wall, work in works.items()}
+    assert {(detail["scene_id"], detail["how"]) for detail in lines.values()} == {(scene.id, how)}
+
+
+def test_nothing_reaches_history_for_a_draft(store, display, staged):
+    scene, _ = staged
+
+    display.discard_scene(scene.id)
+
+    assert _history(store, "scene.applied") == {} == _history(store, "scene.ended")
+
+
+# -- which walls reached it -------------------------------------------------------------
+
+
+def _beat(scene_id, state="showing_art", work_id=None):
+    return {
+        "schema": {"major": 1, "minor": 3},
+        "reported_at": _now().isoformat(),
+        "current_work_id": work_id,
+        "scene_id": scene_id,
+        "display_state": {"state": state, "work_id": work_id if state == "showing_art" else None, "since": _now().isoformat()},
+    }
+
+
+def test_a_wall_has_reached_a_scene_when_its_heartbeat_names_it(services, display, staged):
+    from arrt.programming.display_state import ScreenState
+
+    scene, works = staged
+    hall, study = works
+    client = services.clients.add_client(name="Pi")
+    services.clients.assign_wall(hall, client_id=client.id, output="hdmi-a-1")
+    services.clients.assign_wall(study, client_id=client.id, output="hdmi-a-2")
+    applied = display.apply_scene(scene.id, lifetime="hold")
+    display.record_heartbeat(hall, _beat(scene.id, work_id=works[hall].id))
+    display.record_heartbeat(study, _beat(None, state="in_use"))
+
+    reach = {wall.wall_id: wall for wall in display.scene_walls(applied)}
+
+    assert reach[hall].reached is True
+    assert reach[hall].work_id == works[hall].id
+    assert reach[study].reached is False
+    assert reach[study].wall_name == "Study"
+    assert (reach[hall].screen, reach[study].screen) == (ScreenState.SHOWING_ART, ScreenState.IN_USE)
+
+
+def test_a_wall_whose_heartbeat_names_another_scene_has_not_reached_this_one(display, staged):
+    scene, works = staged
+    hall = next(iter(works))
+    applied = display.apply_scene(scene.id, lifetime="hold")
+    display.record_heartbeat(hall, _beat("an-earlier-scene", work_id=works[hall].id))
+
+    assert {wall.wall_id: wall.reached for wall in display.scene_walls(applied)}[hall] is False

@@ -17,7 +17,7 @@
 
 import { acquisitionBadge, acquisitionSentence, retryButton } from "../core/acquiring.js";
 import { attempt } from "../core/acting.js";
-import { stamp } from "../core/dates.js";
+import { readable, stamp } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
 import { wallLink } from "../core/places.js";
@@ -404,7 +404,7 @@ const HISTORY_GROUPS = [
   { key: "gets", label: "Gets", kinds: ["get.started", "get.finished"] },
   { key: "verdicts", label: "Verdicts", kinds: ["work.accepted", "work.rejected"] },
   { key: "archive", label: "Archive", kinds: ["work.archived", "work.restored"] },
-  { key: "walls", label: "Walls", kinds: ["wall.hung", "work.left_theme", "work.excluded", "work.allowed"] },
+  { key: "walls", label: "Walls", kinds: ["wall.hung", "work.left_theme", "work.excluded", "work.allowed", "scene.applied", "scene.ended"] },
 ];
 
 function kindFilter(group, params) {
@@ -500,6 +500,14 @@ function verdictWork(event, titles) {
   return event.kind === "work.accepted" && event.artwork_id ? link({ view: "work", id: event.artwork_id }, { class: "link", text: title }) : title;
 }
 
+/* How a scene ended, in words, by the `how` its History line records. One
+ * not named here is said as "Ended". */
+const SCENE_ENDINGS = {
+  released: "Released",
+  replaced: "Another scene replaced",
+  ran_out: "Time ran out on",
+};
+
 /* How a Get ended, in words, by `RunStatus`. A status added there and not here
  * is shown as itself rather than guessed at. */
 const ENDINGS = {
@@ -560,6 +568,10 @@ function sentence(event, wallNames, titles) {
       return ["Kept ", work(), " off every wall", ...(event.wall_id ? [" (from ", wall, ")"] : [])];
     case "work.allowed":
       return ["Let ", work(), " back on the walls"];
+    case "scene.applied":
+      return ["Showed ", work(), " on ", wall, " in a scene, ", detail.until ? `until ${readable(detail.until)}` : "held until released"];
+    case "scene.ended":
+      return [`${SCENE_ENDINGS[detail.how] || "Ended"} the scene showing `, work(), " on ", wall];
     default:
       return [`Something the history records as ${event.kind}`];
   }
