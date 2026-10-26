@@ -50,15 +50,17 @@ meanwhile:
 
 ## Dev commands
 
-Three independent projects, three interpreters, three suites.
+Four independent projects, four suites.
 
-| | 2024 modules (repo root) | curation plane | display plane |
-|---|---|---|---|
-| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` |
-| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` |
-| Format | `uv run black .` | `cd arrt && uv run black .` | `cd arrt-player && uv run black .` |
+| | 2024 modules (repo root) | curation plane | display plane | contract package |
+|---|---|---|---|---|
+| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` | `cd contract && uv run pytest` |
+| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` | `cd contract && uv run ruff check .` |
+| Format | `uv run black .` | `cd arrt && uv run black .` | `cd arrt-player && uv run black .` | `cd contract && uv run black .` |
 
-**All three must pass.** The display plane got its suite, its `test_commands`
+**All four must pass.** `contract/` is the `arrt-contract` package
+(`player-contract.md` § The package): every suite reads the schemas, fixtures,
+vectors and routes through it, never by a path of its own. The display plane got its suite, its `test_commands`
 entry and its CI leg on 2026-08-06, with its first modules — until then its
 `pytest` collected nothing and exited 5, which is neither a pass nor a failure.
 That same commit carried the plane-isolation test, because both are the same

@@ -44,10 +44,10 @@ guard nobody has watched go red is a guard nobody knows is wired up.
 """
 
 import ast
-import json
 import pathlib
 import re
 
+import arrt_contract
 import pytest
 from import_graph import imported_names, resolve
 
@@ -155,7 +155,7 @@ def test_the_pull_requests_only_the_routes_the_contract_names():
     manifest entry's `media.url`, which the contract says to resolve against the
     manifest's own URL.
     """
-    routes = json.loads((REPOSITORY_ROOT / "contract" / "routes.json").read_text(encoding="utf-8"))["routes"]
+    routes = arrt_contract.routes()
     contract_paths = {route["path"] for route in routes.values()}
     tree = ast.parse(PULL_MODULE.read_text(encoding="utf-8"))
     spelled = {

@@ -36,10 +36,10 @@ _ROOT_MODULES = frozenset(
     }
 )
 
-#: Each plane's test tree. `testpaths = ["tests"]` in every plane's `pyproject.toml`
+#: Each plane's test tree, and the contract package's. `testpaths = ["tests"]` in every plane's `pyproject.toml`
 #: means a `test_*.py` anywhere else is never collected, so it would look like a
 #: test and guard nothing.
-_TEST_TREES = ("tests/", "arrt/tests/", "arrt-player/tests/")
+_TEST_TREES = ("tests/", "arrt/tests/", "arrt-player/tests/", "contract/tests/")
 
 
 def _tracked() -> list[str]:

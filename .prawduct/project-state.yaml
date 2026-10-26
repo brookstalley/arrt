@@ -3358,10 +3358,11 @@ coverage_required: false
 #   Whitespace-separated test trees for the coverage verifier (default:
 #   `tests`). One verifier run unions discovery across all of them.
 
-# Three independent projects, three interpreters, three suites — all three must
+# Four independent projects (the root's governance suite, the two planes and the
+# contract package), four suites — all four must
 # pass, and the hook must run the real invocations rather than its
 # `sys.executable -m pytest` default, which resolves none of them. Each plane is
-# uv-managed on its own pinned interpreter, so the two under a subdirectory are
+# uv-managed on its own pinned interpreter, so the three under a subdirectory are
 # reached with `--directory` (shell operators are unsupported here, and `cd` is a
 # shell operator).
 #
@@ -3380,8 +3381,11 @@ test_commands:
   # 2026-08-13, on this project's development Mac; where it genuinely cannot, CI's
   # separate `typesetting` job is what holds the claim.
   - uv run --directory arrt-player --group raster pytest --junit-xml={junit_xml} -q
+  # The contract package, which a Player outside this repository pins by version,
+  # so its own suite gates a change to it as each plane's does.
+  - uv run --directory contract pytest --junit-xml={junit_xml} -q
 
-tests_dirs: tests arrt/tests arrt-player/tests
+tests_dirs: tests arrt/tests arrt-player/tests contract/tests
 
 # =============================================================================
 # OPERATOR VERIFICATION (opt-in, v1.4+)

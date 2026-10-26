@@ -95,6 +95,26 @@ jobs:
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
 
+  contract:
+    name: "The contract package"
+    # Arrt owns the contract, and a released version of this package is what a
+    # Player outside this repository pins. So the package's own suite (schemas
+    # against fixtures, the vectors against their reference statements, and the
+    # wheel carrying its data) gates every change to it, as each plane's does.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Run the contract suite
+        working-directory: contract
+        run: uv run pytest tests -v --junitxml=results.xml
+      - name: Fail if nothing actually ran
+        if: always()
+        run: python3 .github/scripts/assert_tests_ran.py contract/results.xml
+
   arrt-player:
     name: "The display plane"
     runs-on: ubuntu-latest
@@ -187,7 +207,7 @@ jobs:
         run: python3 .github/scripts/assert_tests_ran.py arrt-player/results.xml
 
   lint:
-    name: "Lint and format, all three planes"
+    name: "Lint and format, the three planes and the contract"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -206,6 +226,11 @@ jobs:
           uv run black --check .
       - name: The display plane
         working-directory: arrt-player
+        run: |
+          uv run ruff check .
+          uv run black --check .
+      - name: The contract package
+        working-directory: contract
         run: |
           uv run ruff check .
           uv run black --check .

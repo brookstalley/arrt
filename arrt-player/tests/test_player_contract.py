@@ -35,9 +35,9 @@ files.
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
+from arrt_contract import root
 from fakes import RecordingOutput, drm_tree
 from jsonschema import Draft202012Validator
 
@@ -55,7 +55,7 @@ from arrt_player.heartbeat import DisplayReport, Health, ScreenState, path_in
 from arrt_player.label_rule import STATES, LabelDocumentUnreadable, Outcome, outcome, parse_label_document
 from arrt_player.manifest import Watcher
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
 FEEDS = [row for row in INDEX if row["schema"] == "schemas/manifest.v2.schema.json"]
 

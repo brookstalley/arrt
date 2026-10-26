@@ -10,16 +10,16 @@ the bindings Settings › Clients uses.
 
 import hashlib
 import json
-from pathlib import Path
 
 import httpx
 import pytest
+from arrt_contract import root
 from jsonschema import Draft202012Validator
 
 from arrt.programming import client_heartbeat
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
-CONTRACT = Path(__file__).resolve().parents[3] / "contract"
+CONTRACT = root()
 ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
 INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
 HEARTBEATS = [row for row in INDEX if row["schema"] == "schemas/client-heartbeat.v1.schema.json"]

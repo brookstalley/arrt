@@ -233,3 +233,17 @@ def test_every_directory_the_display_leg_ignores_is_run_by_another_job():
         f"the display leg ignores {sorted(unrun)} and no other job in suites.yml runs it, so those "
         "tests do not execute in CI at all — which is indistinguishable from their passing"
     )
+
+
+def test_the_contract_leg_runs_and_needs_no_ignores():
+    """The contract package's suite has a leg of its own, and nothing in it is optional.
+
+    A Player outside this repository pins a released version of the package, so
+    a change that breaks it must go red here, before the tag. `_ignored_by`
+    fails by name if no job runs it.
+    """
+    assert _directories_that_import_or_skip(REPO / "contract" / "tests") == set(), (
+        "a module under contract/tests now uses importorskip, so its CI leg needs the --ignore "
+        "treatment and another job that runs what it ignores"
+    )
+    assert _ignored_by("contract") == set()

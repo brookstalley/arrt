@@ -3,6 +3,28 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
+name = "arrt-contract"
+version = "1.0.0"
+source = { editable = "contract" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "referencing" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = ">=4.23" },
+    { name = "referencing", specifier = ">=0.35" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "black", specifier = ">=24" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "ruff", specifier = ">=0.6" },
+]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -399,6 +421,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "arrt-contract" },
     { name = "black" },
     { name = "jsonschema" },
     { name = "pytest" },
@@ -412,6 +435,7 @@ requires-dist = [{ name = "python-dotenv" }]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "arrt-contract", editable = "contract" },
     { name = "black", specifier = ">=24" },
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "pytest", specifier = ">=8" },

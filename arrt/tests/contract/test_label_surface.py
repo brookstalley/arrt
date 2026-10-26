@@ -10,16 +10,16 @@ below reads both and compares them.
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import httpx
 import pytest
+from arrt_contract import root
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, heartbeat_path_in
 
-CONTRACT = Path(__file__).resolve().parents[3] / "contract"
+CONTRACT = root()
 ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
 
 # The label schema reuses the manifest's label text by reference, so every schema

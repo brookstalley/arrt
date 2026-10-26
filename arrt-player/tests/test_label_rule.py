@@ -9,9 +9,9 @@ mangles fails a vector rather than passing on a dict the Player never sees.
 import json
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
+from arrt_contract import root
 
 from arrt_player.label_rule import (
     HOLD,
@@ -25,7 +25,7 @@ from arrt_player.label_rule import (
     parse_label_document,
 )
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 VECTORS_FILE = json.loads((CONTRACT / "vectors" / "label-rule.json").read_text(encoding="utf-8"))
 VECTORS = VECTORS_FILE["vectors"]
 LABEL_SCHEMA = json.loads((CONTRACT / "schemas" / "label.v1.schema.json").read_text(encoding="utf-8"))

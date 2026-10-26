@@ -10,9 +10,9 @@ those vectors require of a screen with no known density.
 
 import json
 import math
-from pathlib import Path
 
 import pytest
+from arrt_contract import root
 
 pytest.importorskip(
     "playwright.sync_api",
@@ -22,9 +22,7 @@ pytest.importorskip(
 from arrt.library.acquisition.mat import MAT_PRESETS, derive
 from arrt.persistence.records import MatMethod
 
-VECTORS = json.loads(
-    (Path(__file__).resolve().parents[3] / "contract" / "vectors" / "mat-geometry.json").read_text(encoding="utf-8")
-)
+VECTORS = json.loads((root() / "vectors" / "mat-geometry.json").read_text(encoding="utf-8"))
 
 #: The colour current on the work, and the older one it superseded.
 CURRENT = "#27285b"

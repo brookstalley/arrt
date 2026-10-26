@@ -19,6 +19,11 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # **The contract both sides are tested against**, read through the package
+    # rather than by a path of this project's own, so the version a project
+    # depends on is the contract it is tested against. Arrt owns the source in
+    # `contract/`; a Player outside this repository takes a released tag.
+    "arrt-contract",
     # Imported directly by the root contract test to resolve one schema's $ref
     # into another, so declared for the same reason as jsonschema above.
     "referencing>=0.35",
@@ -38,12 +43,12 @@ line-length = 130
 # targets happen to produce identical output for this code today, which is
 # exactly why nobody would notice the plane split had stopped holding for
 # formatting while it still held for lint.
-extend-exclude = "^/(arrt|arrt-player)/"
+extend-exclude = "^/(arrt|arrt-player|contract)/"
 
 [tool.ruff]
 line-length = 130
 target-version = "py312"
-extend-exclude = ["arrt", "arrt-player"]
+extend-exclude = ["arrt", "arrt-player", "contract"]
 
 [tool.ruff.lint]
 # Mechanical rows from the project-preferences norm index, migrated from the
@@ -114,3 +119,8 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.uv.sources]
+# An editable path while the contract lives in this repository, so a contract
+# change and the code it changes land in one commit with every suite behind it.
+arrt-contract = { path = "contract", editable = true }

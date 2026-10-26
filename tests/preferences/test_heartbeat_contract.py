@@ -38,12 +38,13 @@ import json
 import pathlib
 
 import pytest
+from arrt_contract import root
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 WRITER = REPOSITORY_ROOT / "arrt-player" / "src" / "arrt_player" / "heartbeat.py"
 READER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "manifest" / "heartbeat.py"
 CLIENT_READER = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "programming" / "client_heartbeat.py"
-SCHEMAS = REPOSITORY_ROOT / "contract" / "schemas"
+SCHEMAS = root() / "schemas"
 
 #: Every declaration both planes make separately and must spell identically, as
 #: `(constant, display's copy, curation's copy)`. The Player writes both bodies'

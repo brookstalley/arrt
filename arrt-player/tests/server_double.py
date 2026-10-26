@@ -24,10 +24,11 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from aiohttp import web
+from arrt_contract import root
 from jsonschema import Draft202012Validator
 from PIL import Image
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
 CLIENT_HEARTBEAT_SCHEMA = json.loads((CONTRACT / "schemas" / "client-heartbeat.v1.schema.json").read_text())
 

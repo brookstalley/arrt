@@ -30,8 +30,9 @@ half an answer alone (the routes' spelling is a fourth file, `contract/routes.js
   refuses, what it keeps when it does, what a time means, and which wave brings
   what.
 
-**Who tests what.** The root suite (`tests/preferences/test_player_contract.py`)
-checks that the fixtures and schemas agree. Every invalid fixture must break
+**Who tests what.** The contract is the `arrt-contract` package (`contract/`,
+§ The package below), and its own suite (`contract/tests/`) checks that the
+fixtures and schemas agree. Every invalid fixture must break
 exactly one rule, the one its filename names. Arrt's suite validates
 manifests its real builder writes, runs its heartbeat reader over the
 heartbeat fixtures, validates the `GET /client` document it serves against the
@@ -39,10 +40,10 @@ client schema, and holds its client-heartbeat reader to the client-heartbeat
 fixtures (`arrt/tests/contract/test_client_surface.py`). Arrt Player's suite runs its manifest reader over the manifest
 fixtures and validates the heartbeat it writes. The conformance vectors in
 `contract/vectors/` (the label rule, the mat's geometry, what a feed shows at
-an instant) are held to reference statements in the root suite, and each
-Player's suite runs them against its own code. When Arrt Player moves to its own
-repository (wave 5), it pins a copy of `contract/` and runs the same tests
-against it. Arrt owns the contract, and a Player that needs a field asks
+an instant) are held to reference statements in the package's suite, and each
+Player's suite runs them against its own code. Every suite reads the files
+through the package, never by a path of its own, so the version a Player
+depends on is the contract it is tested against. Arrt owns the contract, and a Player that needs a field asks
 for it here.
 
 ## Versioning
@@ -74,6 +75,30 @@ installed. A timestamp without an offset would then pass silently.
 admits `1.0`, and a reader may refuse it where a count matters. The schema is
 the looser of the two, so the writer's obligation is stated here: Arrt writes
 `1`, never `1.0`, as Python's `json` does.
+
+### The package
+
+The schemas, fixtures, vectors and routes, `semantic_errors`, and this file
+are released together as the Python distribution **`arrt-contract`**
+(import name `arrt_contract`). Its source is `contract/` in Arrt's repository,
+and Arrt owns it. A Player depends on a released version; a Player that needs a
+field asks for it as a change to the package.
+
+- **The package carries its own version, not the manifest's.** A new schema
+  minor, fixture or vector is a package minor. A new manifest, heartbeat or
+  label major is a package major. A correction that changes no document's
+  meaning is a patch.
+- **A release is an annotated tag `contract-v<version>`** on Arrt's repository,
+  installed as
+  `arrt-contract @ git+https://github.com/brookstalley/arrt@contract-v<version>#subdirectory=contract`.
+  A released tag is not moved. Nothing on GitHub prevents moving one, so what
+  holds a Player to the bytes it was tested against is its `uv.lock`, which
+  records the commit the tag resolved to.
+- **Read the data through the package:** `root()` is the directory holding
+  `schemas/`, `fixtures/`, `vectors/` and `routes.json`, and it refuses by name
+  a build without them. `validator(path)` registers every schema, so a
+  reference between schemas resolves. `specification()` is this file as
+  released.
 
 ## Major 1
 
@@ -281,7 +306,7 @@ Player's own default, so a channel may say nothing about presentation.
 ### Rules a schema cannot state
 
 A document that breaks any of these is malformed, and a Player refuses it and
-keeps what it has. `semantic_errors` in `tests/preferences/test_player_contract.py`
+keeps what it has. `semantic_errors` in the `arrt-contract` package
 is the reference statement, and each rule has an invalid fixture.
 
 1. **Every work the schedule, the scene or staging names is a key of `works`.** A
@@ -334,13 +359,13 @@ is the reference statement, and each rule has an invalid fixture.
 **Conformance vectors:** `contract/vectors/schedule.json` gives feeds and
 instants and the work (or dark, and the scene) each must show. The root suite
 holds them to a reference statement of these rules
-(`tests/preferences/test_contract_vectors.py`), and every Player's suite runs them.
+(`contract/tests/test_vectors.py`), and every Player's suite runs them.
 
 ### Layout
 
 What a Player draws for one work on one screen, as numbers. The vectors are
 `contract/vectors/mat-geometry.json`; the reference statement is in
-`tests/preferences/test_contract_vectors.py`, and Arrt Player's compositor is
+`contract/tests/test_vectors.py`, and Arrt Player's compositor is
 held to them in `arrt-player/tests/test_compose.py`. *(Wave 4g: Arrt's own
 compositor, which drew the `proportional` vectors with a density on the Frame
 from wave 2, retired with major 1, and its check with it.)*

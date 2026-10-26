@@ -114,6 +114,11 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # **The contract both sides are tested against**, read through the package
+    # rather than by a path of this project's own, so the version a project
+    # depends on is the contract it is tested against. Arrt owns the source in
+    # `contract/`; a Player outside this repository takes a released tag.
+    "arrt-contract",
     "ruff>=0.6",
     "black>=24",
     # **The label engine is defined by invariants over a space too large to
@@ -169,6 +174,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/arrt_player"]
+
+[tool.uv.sources]
+# An editable path while the contract lives in this repository, so a contract
+# change and the code it changes land in one commit with every suite behind it.
+arrt-contract = { path = "../contract", editable = true }
 
 [tool.uv]
 # **The pin that a `[dependency-groups]` entry cannot express, and the decision it

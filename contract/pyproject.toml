@@ -1,0 +1,91 @@
+[project]
+name = "arrt-contract"
+# **The contract's own version, not the manifest's.** A new schema minor or a new
+# fixture is a minor here; a manifest major is a major here. A Player pins this
+# number, so the version is how anyone can read which contract a Player was
+# built against. `player-contract.md` § Versioning says what moves it.
+version = "1.0.0"
+description = "The contract between Arrt and every Arrt Player: schemas, fixtures, conformance vectors, routes, and the rules a schema cannot state."
+# The Player's floor, which is the lower of the two consumers'.
+requires-python = ">=3.12"
+dependencies = [
+    # `validator()` and `registry()` hand a consumer a ready validator, so the
+    # library is a runtime dependency of the package, not only of its tests.
+    "jsonschema>=4.23",
+    # Imported directly to register each schema under its `$id`. Declared rather
+    # than inherited from jsonschema, so it survives jsonschema changing its own.
+    "referencing>=0.35",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "black>=24",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/arrt_contract"]
+
+# **The data stays where the documents name it.** `contract/schemas/…`,
+# `contract/fixtures/…`, `contract/vectors/…` and `contract/routes.json` are
+# cited across the artifacts and both planes' code, so the files are not moved
+# under the package directory; the wheel carries them inside the package
+# instead. `root()` looks in the package first (an installed wheel), then at
+# this directory (an editable install from this checkout).
+[tool.hatch.build.targets.wheel.force-include]
+"schemas" = "arrt_contract/schemas"
+"fixtures" = "arrt_contract/fixtures"
+"vectors" = "arrt_contract/vectors"
+"routes.json" = "arrt_contract/routes.json"
+# The specification travels with the files it specifies, because the schemas
+# alone do not carry the rules a schema cannot state. `player-contract.md` here
+# is a symlink to the artifact, so there is one text.
+"player-contract.md" = "arrt_contract/player-contract.md"
+
+# hatchling leaves a symlink out of the sdist, so the sdist takes the artifact's
+# content by its real path. Without this a wheel built from the sdist, which is
+# how an installer may build it, fails for want of the file.
+[tool.hatch.build.targets.sdist.force-include]
+"../.prawduct/artifacts/player-contract.md" = "player-contract.md"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.black]
+target-version = ["py312"]
+line-length = 130
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    # black owns layout, and these two fight it.
+    "COM812",
+    "ISC001",
+    # Docstrings here are prose written for a reader, not a convention's sections.
+    "D",
+    # No copyright header: a public repository with one owner.
+    "CPY",
+    # An exception's message is a sentence composed where it is raised.
+    "EM101",
+    "EM102",
+    "TRY003",
+    # Prose uses typographic quotes and dashes on purpose.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # `tests/` is a directory of test modules, not a package.
+    "INP001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The wheel test builds the package with uv, the one tool a contributor here has.
+"tests/*" = ["ANN", "S101", "PLR2004", "S603", "S607"]

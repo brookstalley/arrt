@@ -132,6 +132,28 @@ wheels = [
 ]
 
 [[package]]
+name = "arrt-contract"
+version = "1.0.0"
+source = { editable = "../contract" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "referencing" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jsonschema", specifier = ">=4.23" },
+    { name = "referencing", specifier = ">=0.35" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "black", specifier = ">=24" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "ruff", specifier = ">=0.6" },
+]
+
+[[package]]
 name = "arrt-player"
 version = "0.6.0"
 source = { editable = "." }
@@ -146,6 +168,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "arrt-contract" },
     { name = "black" },
     { name = "hypothesis" },
     { name = "jsonschema" },
@@ -173,6 +196,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "arrt-contract", editable = "../contract" },
     { name = "black", specifier = ">=24" },
     { name = "hypothesis", specifier = ">=6" },
     { name = "jsonschema", specifier = ">=4.23" },

@@ -12,9 +12,11 @@ import json
 import re
 from pathlib import Path
 
+from arrt_contract import root
+
 ROOT = Path(__file__).resolve().parents[3]
 WALLS = ROOT / "arrt" / "src" / "arrt" / "http" / "static" / "screens" / "walls.js"
-LABEL_SCHEMA = ROOT / "contract" / "schemas" / "label.v1.schema.json"
+LABEL_SCHEMA = root() / "schemas" / "label.v1.schema.json"
 
 #: Worded where the card is built rather than in the table.
 WORDED_IN_THE_CARD = {"showing_art", "silent"}

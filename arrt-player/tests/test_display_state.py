@@ -17,12 +17,13 @@ import json
 import logging
 from pathlib import Path
 
+from arrt_contract import root
 from conftest import WALL_ID
 from jsonschema import Draft202012Validator
 
 from arrt_player.heartbeat import INTERVAL_SECONDS, path_in
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 SCHEMA = json.loads((CONTRACT / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8"))
 VALIDATOR = Draft202012Validator(SCHEMA, format_checker=Draft202012Validator.FORMAT_CHECKER)
 
@@ -222,10 +223,9 @@ async def test_a_device_with_no_panel_still_reports_its_state(daemon, tv, publis
 def test_the_player_reports_exactly_the_states_the_schema_names():
     """Copied by hand from the schema, so a state added there and not here is caught by name."""
     import json
-    from pathlib import Path
 
     from arrt_player.heartbeat import ScreenState
 
-    schema = json.loads((Path(__file__).parents[2] / "contract" / "schemas" / "heartbeat.v1.schema.json").read_text())
+    schema = json.loads((root() / "schemas" / "heartbeat.v1.schema.json").read_text())
 
     assert {state.value for state in ScreenState} == set(schema["properties"]["display_state"]["properties"]["state"]["enum"])

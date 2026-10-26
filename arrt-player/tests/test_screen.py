@@ -8,9 +8,9 @@ ended early cannot pass for one correctly held.
 
 import json
 import logging
-from pathlib import Path
 
 import pytest
+from arrt_contract import root
 from fakes import RecordingOutput
 from jsonschema import Draft202012Validator
 
@@ -203,9 +203,7 @@ async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_the_schedule
 
 # -- display state: what the screen is doing (labels-and-surfaces.md § Display state) -------
 
-_SCHEMA = json.loads(
-    (Path(__file__).resolve().parents[2] / "contract" / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8")
-)
+_SCHEMA = json.loads((root() / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8"))
 
 
 def _display(wall_dir) -> tuple[str, str | None]:

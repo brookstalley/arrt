@@ -6,7 +6,7 @@ show at an instant. Arrt Player's suite runs the same files against its own
 code: the schedule vectors against its reader since wave 4c
 (`arrt-player/tests/test_schedule.py`), the mat vectors once its compositor
 lands in 4d. This file holds the **reference statement** of both rules, as
-`semantic_errors` in `test_player_contract.py` is for the rules a schema cannot
+`semantic_errors` in the package is for the rules a schema cannot
 state, so a vector that disagrees with `player-contract.md` § Layout or § Time
 fails here before any Player is asked to match it.
 
@@ -20,14 +20,18 @@ wave 2.
 import json
 import math
 from datetime import datetime
-from pathlib import Path
 
 import pytest
-from test_player_contract import _instant, _schema, _validator, semantic_errors
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+from arrt_contract import root, schema, semantic_errors, validator
+
+CONTRACT = root()
 MAT = json.loads((CONTRACT / "vectors" / "mat-geometry.json").read_text(encoding="utf-8"))
 SCHEDULE = json.loads((CONTRACT / "vectors" / "schedule.json").read_text(encoding="utf-8"))
+
+
+def _instant(text: str) -> datetime:
+    return datetime.fromisoformat(text)
 
 
 def _round_half_up(value: float) -> int:
@@ -98,30 +102,35 @@ def test_each_mat_vector_keeps_the_work_inside_its_mat_and_the_screen(vector):
     work, mat = vector["expect"]["work"], vector["expect"]["mat"]
     outer = mat or {"left": 0, "top": 0, "width": screen["width_px"], "height": screen["height_px"]}
 
-    assert outer["left"] <= work["left"] and outer["top"] <= work["top"]
+    assert outer["left"] <= work["left"]
+    assert outer["top"] <= work["top"]
     assert work["left"] + work["width"] <= outer["left"] + outer["width"]
     assert work["top"] + work["height"] <= outer["top"] + outer["height"]
-    assert outer["left"] >= 0 and outer["top"] >= 0
-    assert outer["left"] + outer["width"] <= screen["width_px"] and outer["top"] + outer["height"] <= screen["height_px"]
+    assert outer["left"] >= 0
+    assert outer["top"] >= 0
+    assert outer["left"] + outer["width"] <= screen["width_px"]
+    assert outer["top"] + outer["height"] <= screen["height_px"]
     # No upscaling, ever.
-    assert work["width"] <= vector["input"]["work"]["width_px"] and work["height"] <= vector["input"]["work"]["height_px"]
+    assert work["width"] <= vector["input"]["work"]["width_px"]
+    assert work["height"] <= vector["input"]["work"]["height_px"]
 
 
 def test_the_mat_vectors_cover_every_mode_the_schema_names_with_and_without_a_density():
     """Read from the schema, so a mode added there with no vector fails here."""
-    settings = _schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]
+    settings = schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]
     modes = settings["mat"]["properties"]["mode"]["enum"]
     seen = {(vector["input"]["mat_mode"], vector["input"]["pixels_per_inch"] is None) for vector in MAT["vectors"]}
 
     for mode in modes:
-        assert (mode, True) in seen and (mode, False) in seen, mode
+        assert (mode, True) in seen, mode
+        assert (mode, False) in seen, mode
 
 
 @pytest.mark.parametrize("name", sorted(SCHEDULE["feeds"]))
 def test_each_schedule_feed_is_a_valid_major_2_document(name):
     feed = SCHEDULE["feeds"][name]
 
-    assert [error.message for error in _validator("schemas/manifest.v2.schema.json").iter_errors(feed)] == []
+    assert [error.message for error in validator("schemas/manifest.v2.schema.json").iter_errors(feed)] == []
     assert semantic_errors(feed) == []
 
 

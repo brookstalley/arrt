@@ -150,6 +150,10 @@ streams.
 
 **Decisions made mid-build:** *(appended while building; one line each, naming
 what settled it)*
+- 01: the data stays at `contract/schemas/`, `fixtures/`, `vectors/` and `routes.json`, with the package in `contract/src/`, and the wheel force-includes the data. Settled by "do it right": 58 files cite those paths, and moving them would rewrite the specification's addresses for no change in meaning.
+- 01: the package carries `player-contract.md` (`specification()`), through a symlink in `contract/` for the wheel and its real path for the sdist. Settled by the wave 5 row: pin the contract "together with `player-contract.md`".
+- 01: the Player's suite does not import `semantic_errors`. Its reader states the rules in its own code and is held to the fixtures' `player_must_refuse`, which is the independence the contract wants. The plan's Done-when 3 said otherwise and was corrected. Not settled by the goals: an error in the plan.
+- 01: the package's tests are the three root files that read only the contract, moved whole with `git mv`, plus a new `test_package.py` for `root()`, `specification()` and the wheel.
 
 **Level:** Medium. The extraction recipe is measured. The package boundary is
 new, and the guard split (03) is the part most likely to hide a loss. What would
@@ -193,9 +197,10 @@ about that leg. CLAUDE.md's table gains the column.
    a path of its own.
 2. All four suites are green, and the contract leg collects more than zero tests.
 3. `semantic_errors` exists once in the tree (`grep -rn "def semantic_errors"`),
-   and Arrt's `feed_guard.py` and the Player's reader tests import it.
-4. The package builds a wheel that carries the schemas
-   (`uv build`, then list the wheel's contents).
+   and Arrt's `feed_guard.py` imports it.
+4. The package builds a wheel that carries the schemas, the routes and
+   `player-contract.md`, through the sdist as an installer may build it, and
+   the wheel reads cleanly in an isolated interpreter.
 
 ### Chunk 02 — The root is cleared down to governance
 

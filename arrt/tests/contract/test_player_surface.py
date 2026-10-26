@@ -16,10 +16,10 @@ import json
 import logging
 import sqlite3
 from datetime import UTC, datetime
-from pathlib import Path
 
 import httpx
 import pytest
+from arrt_contract import root
 from feed_guard import problems
 from scenarios import connect
 
@@ -29,7 +29,7 @@ from arrt.mcp.tools import TOOLS
 from arrt.persistence.records import RenditionKind
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS
 
-CONTRACT = Path(__file__).resolve().parents[3] / "contract"
+CONTRACT = root()
 ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
 
 
