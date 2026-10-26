@@ -82,9 +82,9 @@ chunks 01 to 03). The owner chose a published package, as a git tag for now.
   § The package): the schemas, fixtures, vectors, routes and timing, the
   rules a schema cannot state (`semantic_errors`), and `player-contract.md`
   itself, at one version (1.0.0). The data stays where the specification
-  names it; the wheel carries it. Every suite reads it through the package,
-  each project as an editable dev dependency, and the contract has its own
-  suite and CI leg.
+  names it; the wheel carries it. The server's and the Player's suites read
+  it through the package, each as an editable dev dependency; the contract
+  has its own suite, CI leg and `test_commands` entry.
 - **The contract says three things it only implied:** the heartbeat's
   instant key (`instant_key()`), the 60-second heartbeat interval and the
   three-interval stale threshold (`timing.json`), and the label corpus
@@ -92,8 +92,15 @@ chunks 01 to 03). The owner chose a published package, as a git tag for now.
 - **The root holds no code.** `tv_api_check.py`, `tv_delete.py` and
   `panel_check.py` moved to `arrt-player/tools/` and read the Player's own
   settings (the owner ratified this in place of carrying the 2024
-  `config.py`). The 2024 modules, `requirements.txt` and the 2024 systemd
-  unit are deleted. `all.json` stays: the server's seed reads it.
+  `config.py`). The Player declares `requests>=2.32`, which `tv_api_check.py`
+  imports and the television client already installed, so the Pi's install
+  does not change. The 2024 modules, `requirements.txt` and the 2024 systemd
+  unit are deleted, and `.env.example` drops the three settings only they read
+  (`OPENAI_KEY`, `EPD_TYPE`, `USE_ART_LABEL`). The root project is renamed
+  `arrt-governance`. `all.json` stays: the server's seed reads it.
+- **#33 is finished:** the broad-except rule (`BLE001`) now holds in every
+  project with no per-file exception, because the root's last one went with
+  the 2024 modules. It closes when this merges.
 - **Each agreement between the planes is held by each side against the
   contract**, in its own suite: the heartbeat key, the timing, the label
   corpus (Arrt against its seed tables, the Player's copy against the
