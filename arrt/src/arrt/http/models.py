@@ -2362,6 +2362,10 @@ class SceneWallOut(BaseModel):
     work_id: str
     title: str | None
     reached: bool
+    #: Why the wall cannot show its work in the scene now (archived, kept off
+    #: every wall), or null. Such a wall shows its schedule, and gets the work
+    #: back if it is restored or allowed again.
+    cannot_show: str | None
     screen: str
 
 

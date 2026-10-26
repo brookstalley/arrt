@@ -54,7 +54,7 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Display, Showing, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import Artist, Artwork, Client, Display, Scene, Showing, Source, Theme, VocabularyKind, Wall
 from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
 from arrt.programming.display import (
@@ -62,6 +62,7 @@ from arrt.programming.display import (
     SHUFFLE_CHOICES,
     UNSET,
     SceneView,
+    SceneWall,
     SizeJudgement,
     ThemePlacement,
     WallView,
@@ -523,24 +524,32 @@ def _hang_selection(services: Services, arguments: Mapping[str, Any]) -> dict[st
 
 
 def _scene_fields(services: Services, view: SceneView) -> dict[str, Any]:
-    scene = view.scene
+    return _scene_projection(view.scene, services.display.scene_walls(view))
+
+
+def _scene_projection(scene: Scene, walls: Sequence[SceneWall]) -> dict[str, Any]:
+    """A scene as `GET /api/scenes/live` spells it (`SceneOut`), so an agent and a click read the same facts."""
     return {
         "scene_id": scene.id,
         "status": str(scene.status),
         "lifetime": None if scene.lifetime is None else str(scene.lifetime),
         "starts_at": None if scene.starts_at is None else _moment(scene.starts_at),
         "until": None if scene.until is None else _moment(scene.until),
-        "walls": [
-            {
-                "wall_id": wall.wall_id,
-                "wall_name": wall.wall_name,
-                "artwork_id": wall.work_id,
-                "title": wall.title,
-                "reached": wall.reached,
-                "screen": str(wall.screen),
-            }
-            for wall in services.display.scene_walls(view)
-        ],
+        "ended_at": None if scene.ended_at is None else _moment(scene.ended_at),
+        "walls": [_scene_wall_fields(wall) for wall in walls],
+    }
+
+
+def _scene_wall_fields(wall: SceneWall) -> dict[str, Any]:
+    """One wall in a scene, as `SceneWallOut` spells it."""
+    return {
+        "wall_id": wall.wall_id,
+        "wall_name": wall.wall_name,
+        "work_id": wall.work_id,
+        "title": wall.title,
+        "reached": wall.reached,
+        "cannot_show": wall.cannot_show,
+        "screen": str(wall.screen),
     }
 
 

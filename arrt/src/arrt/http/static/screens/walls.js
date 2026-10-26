@@ -389,14 +389,19 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
  *
  * **Once live, each wall says whether it got there**, from its own heartbeat:
  * showing it, or waiting for the television to be free (the Player never
- * interrupts somebody watching), or not there yet. After Apply or Release the
- * section watches for that, bounded as a Skip's watch is, and repaints only
- * itself, so focus stays where the curator left it.
+ * interrupts somebody watching), or not there yet, or why it cannot (its work
+ * archived or kept off every wall since it was picked). Apply and Release
+ * repaint the page, since every card's scene line changes with them; after
+ * Apply the section then watches for the walls to arrive, bounded as a Skip's
+ * watch is, and rewrites only those lines. Picks, removals and Discard repaint
+ * only the section and put focus back on the control the curator was at.
  *
  * One draft and one live scene, as the builder holds them; the server would
  * take more, and a draft made elsewhere (over MCP) shows here as the draft. */
 function paintScene(scene, scenes, focus = null) {
-  const parts = [el("h2", { id: "scene-title", class: "scene-title", text: "Scene" })];
+  // Focusable by script only, so Discard, which removes the control that had
+  // focus, can hand it to the section's heading rather than the page's body.
+  const parts = [el("h2", { id: "scene-title", class: "scene-title", tabindex: "-1", "data-scene-focus": "scene-title", text: "Scene" })];
   if (!scenes) {
     parts.push(el("p", { class: "note", text: "This page could not read the scene, so it cannot be shown or changed here. Reload to try again." }));
   } else {
@@ -424,9 +429,10 @@ function inWallOrder(scene, entries) {
 
 /* What a live scene's walls are doing, in words, from each wall's heartbeat. */
 function reachWords(entry) {
-  if (entry.reached) return `${entry.wall_name} is showing it`;
-  if (entry.screen === "in_use") return `${entry.wall_name} is waiting for the television to be free`;
-  return `${entry.wall_name} has not shown it yet`;
+  if (entry.cannot_show) return `${entry.wall_name} cannot show it, so it shows its schedule. ${entry.cannot_show}`;
+  if (entry.reached) return `${entry.wall_name} is showing it.`;
+  if (entry.screen === "in_use") return `${entry.wall_name} is waiting for the television to be free.`;
+  return `${entry.wall_name} has not shown it yet.`;
 }
 
 function sceneSpan(live) {
@@ -445,7 +451,7 @@ function liveScene(scene, live) {
         el("li", { "data-wall": entry.wall_id }, [
           el("span", { text: `${entry.title || "A work"} on ` }),
           link({ view: "walls", params: { wall: entry.wall_id } }, { class: "link", text: entry.wall_name }),
-          el("span", { class: "scene-reach", text: `: ${reachWords(entry)}.` }),
+          el("span", { class: "scene-reach", text: `: ${reachWords(entry)}` }),
         ]),
       ),
     ),
@@ -454,7 +460,6 @@ function liveScene(scene, live) {
         class: "action",
         type: "button",
         text: "Release",
-        "data-scene-focus": "release",
         "aria-label": `Release the scene on ${names}`,
         onclick: (event) =>
           attempt(
@@ -664,9 +669,9 @@ async function watchScene(scene, sceneId) {
     if (!scenes.live || scenes.live.scene_id !== sceneId) return;
     for (const entry of scenes.live.walls) {
       const line = section.querySelector(`li[data-wall="${entry.wall_id}"] .scene-reach`);
-      if (line) line.textContent = `: ${reachWords(entry)}.`;
+      if (line) line.textContent = `: ${reachWords(entry)}`;
     }
-    if (scenes.live.walls.every((entry) => entry.reached)) return;
+    if (scenes.live.walls.every((entry) => entry.reached || entry.cannot_show)) return;
   }
 }
 
@@ -675,7 +680,9 @@ async function watchScene(scene, sceneId) {
  * nothing on the wall changes until the scene ends. */
 function sceneLine(wall, live) {
   const entry = live ? live.walls.find((each) => each.wall_id === wall.wall_id) : null;
-  if (!entry) return null;
+  // A wall that cannot show its scene's work shows its schedule, so its card
+  // has no scene to speak of; the Scene section says why.
+  if (!entry || entry.cannot_show) return null;
   const until = live.until ? `until ${clockTime(live.until)}` : "until the scene is released";
   return el("p", {
     class: "note wall-scene",

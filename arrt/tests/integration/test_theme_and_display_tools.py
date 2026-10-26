@@ -710,7 +710,7 @@ async def test_an_agent_can_show_a_work_per_wall_together_and_release_it(server_
         server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=dali.id
     )
     assert errored is False
-    assert [(entry["wall_id"], entry["artwork_id"], entry["title"]) for entry in pinned["walls"]] == [(wall, dali.id, "Dalí")]
+    assert [(entry["wall_id"], entry["work_id"], entry["title"]) for entry in pinned["walls"]] == [(wall, dali.id, "Dalí")]
     feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
     assert feed["staging"] == [dali.id]
 
@@ -729,6 +729,7 @@ async def test_an_agent_can_show_a_work_per_wall_together_and_release_it(server_
 
     released, _ = await call(server_url, "art_theme", action="release_scene", scene_id=draft["scene_id"])
     assert released["status"] == "ended"
+    assert released["ended_at"] is not None
     assert "scene" not in json.loads(wall_settings.manifest_v2_path(wall).read_text())
 
 

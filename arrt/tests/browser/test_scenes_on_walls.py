@@ -152,3 +152,24 @@ def test_discard_forgets_the_picks(ui, two_walls, services):
     ui.page.locator("section.scene .scene-pick:has-text('Golconda')").wait_for(state="detached")
 
     assert services.display.scene_draft() is None
+    # The button that had focus is gone; focus is on the section's heading, not lost to the page.
+    assert ui.page.evaluate("document.activeElement && document.activeElement.id") == "scene-title"
+
+
+def test_a_wall_whose_work_was_kept_off_says_it_cannot_show_it(ui, two_walls, services):
+    walls, persistence, golconda = two_walls
+    display = services.display
+    draft = display.draft_scene().scene
+    display.pin_scene(draft.id, walls["The wall"], persistence.id)
+    display.pin_scene(draft.id, walls["Study"], golconda.id)
+    display.apply_scene(draft.id, lifetime="hold")
+    display.exclude_work(persistence.id)
+
+    ui.open("#walls")
+    ui.page.locator("section.scene .scene-span").wait_for()
+
+    line = ui.page.locator(f"section.scene li[data-wall='{walls['The wall']}']").inner_text()
+    assert "The wall cannot show it, so it shows its schedule. It is kept off every wall." in line
+    # Its card has no scene to speak of; the study's still does.
+    assert ui.page.locator(f"section.wall[data-wall='{walls['The wall']}'] .wall-scene").count() == 0
+    assert ui.page.locator(f"section.wall[data-wall='{walls['Study']}'] .wall-scene").count() == 1

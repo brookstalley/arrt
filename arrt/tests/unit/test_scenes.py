@@ -226,7 +226,14 @@ def test_a_hold_has_no_end(display, staged, document):
 
 @pytest.mark.parametrize(
     ("lifetime", "minutes", "match"),
-    [("hold", 5, "takes no length"), ("preview", 0, "at least a minute"), ("keep", None, "lifetime")],
+    [
+        ("hold", 5, "takes no length"),
+        ("preview", 0, "at least a minute"),
+        ("preview", 24 * 60 + 1, "at most 1440 minutes"),
+        # Large enough to overflow the date arithmetic, were it not refused first.
+        ("preview", 10**10, "at most 1440 minutes"),
+        ("keep", None, "lifetime"),
+    ],
 )
 def test_a_lifetime_that_cannot_be_applied_is_refused_and_the_draft_stays(display, staged, document, lifetime, minutes, match):
     scene, works = staged
@@ -610,8 +617,9 @@ def test_each_act_on_a_scene_is_said_with_its_walls(display, mastered, two_walls
     assert said("scene.staged") == [(first.id, [hall]), (first.id, [study]), (second.id, [study]), (third.id, [hall])]
     assert said("scene.unstaged") == [(first.id, [study])]
     assert said("scene.applied") == [(first.id, [hall]), (second.id, [study])]
-    # The first ended when the second was applied, and the second when released.
-    assert sorted(said("scene.released")) == sorted([(first.id, [hall]), (second.id, [study])])
+    # The first ended when the second was applied, and is said as replaced; the second was released.
+    assert said("scene.replaced") == [(first.id, [hall])]
+    assert said("scene.released") == [(second.id, [study])]
     assert said("scene.discarded") == [(third.id, [hall])]
 
 
@@ -787,3 +795,80 @@ def test_a_wall_whose_heartbeat_names_another_scene_has_not_reached_this_one(dis
     display.record_heartbeat(hall, _beat("an-earlier-scene", work_id=works[hall].id))
 
     assert {wall.wall_id: wall.reached for wall in display.scene_walls(applied)}[hall] is False
+
+
+# -- after the cumulative review --------------------------------------------------------
+
+
+def test_a_preview_of_exactly_a_day_is_applied(display, staged):
+    scene, _ = staged
+
+    applied = display.apply_scene(scene.id, lifetime="preview", minutes=24 * 60)
+
+    assert applied.scene.until - applied.scene.starts_at == timedelta(days=1)
+
+
+def test_a_refused_release_leaves_no_line_claiming_a_preview_ran_out(store, display, staged, caplog):
+    """The run-out is written inside the act's transaction; a refusal after it rolls the write back, and the line with it."""
+    scene, _ = staged
+    display.apply_scene(scene.id, lifetime="preview", minutes=5)
+    _expire(store, scene.id)
+
+    with caplog.at_level("INFO", logger=display_module.__name__), pytest.raises(ServiceError, match="nothing to release"):
+        display.release_scene(scene.id)
+
+    assert _events(caplog, "scene.expired") == []
+    assert store.get_scene(scene.id).status is SceneStatus.LIVE
+
+
+def test_history_says_when_a_preview_ran_out_not_when_it_was_noticed(store, display, staged, wall_id):
+    scene, _ = staged
+    display.apply_scene(scene.id, lifetime="preview", minutes=5)
+    _expire(store, scene.id)
+    until = store.get_scene(scene.id).until
+
+    display.record_heartbeat(wall_id, {"schema": {"major": 1, "minor": 1}, "reported_at": _now().isoformat()})
+
+    assert {detail["ended_at"] for detail in _history(store, "scene.ended").values()} == {until.isoformat()}
+
+
+def test_a_wall_whose_scene_work_was_kept_off_says_why_and_gets_it_back_when_allowed(display, staged, document):
+    scene, works = staged
+    hall = next(iter(works))
+    display.apply_scene(scene.id, lifetime="hold")
+    display.exclude_work(works[hall].id)
+    assert "scene" not in document(hall)
+
+    reach = {wall.wall_id: wall for wall in display.scene_walls(display.live_scene())}
+    assert reach[hall].cannot_show == "It is kept off every wall."
+    assert {wall_id: wall.cannot_show for wall_id, wall in reach.items() if wall_id != hall} == dict.fromkeys(set(works) - {hall})
+
+    display.allow_work(works[hall].id)
+
+    assert document(hall)["scene"]["work_id"] == works[hall].id
+    assert [wall.cannot_show for wall in display.scene_walls(display.live_scene())] == [None] * len(works)
+
+
+def test_a_scenes_work_archived_and_restored_comes_back_to_its_wall(services, display, staged, document):
+    scene, works = staged
+    hall = next(iter(works))
+    display.apply_scene(scene.id, lifetime="hold")
+    services.catalogue.archive_artwork(works[hall].id)
+    assert "scene" not in document(hall)
+    (dropped,) = [wall for wall in display.scene_walls(display.live_scene()) if wall.wall_id == hall]
+    assert "archived" in dropped.cannot_show
+
+    services.catalogue.restore_artwork(works[hall].id)
+
+    assert document(hall)["scene"]["work_id"] == works[hall].id
+
+
+def test_a_staged_work_kept_off_and_allowed_again_is_staged_again(display, staged, document):
+    _, works = staged
+    hall = next(iter(works))
+    display.exclude_work(works[hall].id)
+    assert "staging" not in document(hall)
+
+    display.allow_work(works[hall].id)
+
+    assert document(hall)["staging"] == [works[hall].id]

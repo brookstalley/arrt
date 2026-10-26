@@ -571,6 +571,11 @@ function sentence(event, wallNames, titles) {
     case "scene.applied":
       return ["Showed ", work(), " on ", wall, " in a scene, ", detail.until ? `until ${readable(detail.until)}` : "held until released"];
     case "scene.ended":
+      // A preview's end is when its time ran out, which the line carries: it
+      // is written when the server notices, and that can be a restart later.
+      if (detail.how === "ran_out" && detail.ended_at) {
+        return [`Time ran out at ${readable(detail.ended_at)} on the scene showing `, work(), " on ", wall];
+      }
       return [`${SCENE_ENDINGS[detail.how] || "Ended"} the scene showing `, work(), " on ", wall];
     default:
       return [`Something the history records as ${event.kind}`];

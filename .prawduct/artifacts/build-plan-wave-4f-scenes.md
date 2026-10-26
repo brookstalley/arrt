@@ -210,6 +210,7 @@ what settled it)*
 - 02: the per-wall rows in the Scene name their wall in bold text, not a heading, so a reader moving by heading meets each wall once, at its card; the Scene itself is an `h2` with the section treatment.
 - 02: after Apply the section watches `GET /api/scenes/live` until every wall reports the scene, bounded as Skip's watch is, and repaints only its reach lines.
 - 02: walls in a scene are named in the page's own wall order, so "Release the scene on Study and The wall" reads as the cards do.
+- 02, after the cumulative review: a scene's wall that cannot show its work (archived or kept off every wall since it was picked) says so, and gets the work back when it is restored or allowed again, because reconciliation now asks about every work a scene pins; a run-out's History line carries when it ran out; a preview lasts at most a day (`MAX_PREVIEW_MINUTES`); how a scene ended is `SceneEnding`, and a replacement is said as `scene.replaced`; the tool's scene answer gains `ended_at` and spells the wall's work `work_id`, as its Show now answer does, so the two surfaces are held together by `test_surface_parity.py`.
 - 02, a finding for the walk, not a change: the walls double's upload is instant, so the end-to-end shows staging happens before Apply, not that a real Frame finishes in time. 03 times it.
 
 **01's mutation sweep (Done when 6)**, `arrt/tools/mutation_sweep.py` over `tests/unit/test_scenes.py` and `tests/unit/test_major_2_feed.py`, 2026-10-26. Each mutation matched once and the base run collected and passed.
@@ -397,8 +398,8 @@ builds its screen on the writer, and 02's review is the one
 
 ## Status
 
-- [ ] Chunk 01: The scene in the feed
-- [ ] Chunk 02: Scenes on Walls, over HTTP and MCP
+- [x] Chunk 01: The scene in the feed
+- [x] Chunk 02: Scenes on Walls, over HTTP and MCP
 - [ ] Chunk 03: On the wall
 
 Context: branched from `develop` at v0.6.0 (`a0e2a5f4`), 2026-10-26. No other

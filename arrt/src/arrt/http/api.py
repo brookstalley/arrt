@@ -2279,6 +2279,7 @@ def _scene(services: Services, view: SceneView) -> SceneOut:
                 work_id=wall.work_id,
                 title=wall.title,
                 reached=wall.reached,
+                cannot_show=wall.cannot_show,
                 screen=str(wall.screen),
             )
             for wall in services.display.scene_walls(view)

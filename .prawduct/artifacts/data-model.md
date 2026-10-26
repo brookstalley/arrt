@@ -2257,7 +2257,7 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
-| `kind` | enum | required | `EventKind` (`persistence/records.py`): `get.started`, `get.finished`, `work.accepted`, `work.rejected`, `work.archived`, `work.restored`, `wall.hung`, `work.left_theme`, `work.excluded`, `work.allowed`, `scene.applied`, `scene.ended` (from 2026-10-26: one line per wall a scene pins, `work_id` its work, `detail` the scene's id, the wall's name, the work's title, and `lifetime` and `until` when applied or `how` it ended: `released`, `replaced` or `ran_out`). |
+| `kind` | enum | required | `EventKind` (`persistence/records.py`): `get.started`, `get.finished`, `work.accepted`, `work.rejected`, `work.archived`, `work.restored`, `wall.hung`, `work.left_theme`, `work.excluded`, `work.allowed`, `scene.applied`, `scene.ended` (from 2026-10-26: one line per wall a scene pins, `work_id` its work, `detail` the scene's id, the wall's name, the work's title, and `lifetime` and `until` when applied or `how` it ended: `released`, `replaced` or `ran_out`, with `ended_at`, when it ended, since a run-out is noticed later). |
 | `occurred_at` | datetime | required | |
 | `work_id` | UUID | nullable; not a foreign key | The Library work. Null for a rejected candidate, which never became one (its id is in `detail`). |
 | `run_id` | UUID | nullable; not a foreign key | The Get. |

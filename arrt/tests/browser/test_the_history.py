@@ -237,3 +237,32 @@ def test_a_scene_reads_as_applied_and_ended_on_its_wall(ui, services, ready_work
     sentences = [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)]
     assert f"{ending} the scene showing Golconda on {the_wall.name}" in sentences
     assert f"Showed Golconda on {the_wall.name} in a scene, held until released" in sentences
+
+
+def test_a_preview_that_ran_out_says_when_it_ended(ui, services, ready_work, the_wall, store):
+    """When it ended, from the line, not when the server noticed: those differ by a restart."""
+    from dataclasses import replace
+    from datetime import UTC, datetime, timedelta
+
+    display = services.display
+    theme = display.add_theme(name="Winter")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work("Automat").id)
+    display.activate_theme(theme.id, wall_id=the_wall.id)
+    scene = display.draft_scene().scene
+    display.pin_scene(scene.id, the_wall.id, ready_work("Golconda").id)
+    display.apply_scene(scene.id, lifetime="preview", minutes=5)
+    applied = store.get_scene(scene.id)
+    # Midday UTC, so the browser's own time zone keeps it on 4 March.
+    ran_out = datetime(2026, 3, 4, 12, 6, tzinfo=UTC)
+    store.update_scene(replace(applied, starts_at=ran_out - timedelta(minutes=5), until=ran_out))
+    display.draft_scene()  # any scene act notices the run-out
+
+    open_history(ui, "#history?kind=walls")
+    ui.page.wait_for_selector("ol.history-events li")
+
+    sentences = [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)]
+    (said,) = [sentence for sentence in sentences if "ran out at" in sentence]
+    assert said.startswith("Time ran out at ")
+    assert said.endswith(f" on the scene showing Golconda on {the_wall.name}")
+    # The instant it ran out, in March, not today's date of noticing, in either order the locale writes it.
+    assert "4 Mar 2026" in said or "Mar 4, 2026" in said

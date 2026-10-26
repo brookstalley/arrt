@@ -35,7 +35,15 @@ from arrt.library.services.survey import FIT_BANDS
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
-from arrt.programming.display import DEFAULT_SHUFFLE, IN_ORDER, PLAYERS_OWN_MAT, SHUFFLED, MatMode
+from arrt.programming.display import (
+    DEFAULT_SHUFFLE,
+    IN_ORDER,
+    MAX_PREVIEW_MINUTES,
+    PLAYERS_OWN_MAT,
+    PREVIEW_MINUTES,
+    SHUFFLED,
+    MatMode,
+)
 from arrt.programming.shape import ANY as ANY_SHAPE
 from arrt.services.works_filter import SHOWN_PERIODS
 
@@ -1574,7 +1582,13 @@ ART_THEME: Final = ToolRecord(
                     required=True,
                     choices=("preview", "hold"),
                 ),
-                Param(name="minutes", type="integer", description="A preview's length; 20 when omitted.", minimum=1),
+                Param(
+                    name="minutes",
+                    type="integer",
+                    description=f"A preview's length; {PREVIEW_MINUTES} when omitted, {MAX_PREVIEW_MINUTES} at most.",
+                    minimum=1,
+                    maximum=MAX_PREVIEW_MINUTES,
+                ),
             ),
             tips=(
                 "Any other live scene ends. Each wall returns to its schedule on its own when a preview ends.",

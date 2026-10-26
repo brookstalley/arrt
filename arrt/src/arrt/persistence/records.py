@@ -743,12 +743,28 @@ class SceneStatus(StrEnum):
 
 
 class SceneLifetime(StrEnum):
-    """How long an applied scene stays (`player-contract.md` § Scenes). Keep is not built (`build-plan-wave-4f-scenes.md`)."""
+    """How long an applied scene stays (`player-contract.md` § Scenes). Keep is not built (`data-model.md` § Scene)."""
 
     #: Until `until`, then each wall returns to its schedule on its own.
     PREVIEW = "preview"
     #: Until released.
     HOLD = "hold"
+
+
+class SceneEnding(StrEnum):
+    """How a live scene ended: the words History keeps, and the journal event each is said under."""
+
+    #: Ended by hand.
+    RELEASED = "released"
+    #: Ended because another scene was applied.
+    REPLACED = "replaced"
+    #: A preview whose `until` passed. Each Player returned to its schedule on its own.
+    RAN_OUT = "ran_out"
+
+    @property
+    def event(self) -> str:
+        """The journal event this ending is said under."""
+        return {"released": "scene.released", "replaced": "scene.replaced", "ran_out": "scene.expired"}[self.value]
 
 
 @dataclass(frozen=True, slots=True)
