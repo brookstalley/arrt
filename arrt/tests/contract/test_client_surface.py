@@ -13,20 +13,20 @@ import json
 
 import httpx
 import pytest
-from arrt_contract import root
+from arrt_contract import fixtures, root, routes, validator
 from jsonschema import Draft202012Validator
 
 from arrt.programming import client_heartbeat
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 CONTRACT = root()
-ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
-INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
+ROUTES = routes()
+INDEX = fixtures()
 HEARTBEATS = [row for row in INDEX if row["schema"] == "schemas/client-heartbeat.v1.schema.json"]
 
 
 def _schema(name: str) -> Draft202012Validator:
-    return Draft202012Validator(json.loads((CONTRACT / "schemas" / name).read_text(encoding="utf-8")))
+    return validator(f"schemas/{name}")
 
 
 def _bearer(token: str) -> dict[str, str]:

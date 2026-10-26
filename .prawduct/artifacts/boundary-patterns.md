@@ -558,7 +558,7 @@
 - **Producer:** environment / config file. **Consumer:** both planes.
 - **Contract:** no hardcoded deployment values in source. Now mechanically
   enforced rather than Critic-enforced:
-  `tests/test_config.py::test_no_source_file_carries_a_deployment_value` fails on
+  `tests/preferences/test_deployment_values.py::test_no_source_file_carries_a_deployment_value` fails on
   a private address or a named home directory in any module line, and on the
   deployment's published paths in code; its sibling compares every tracked file
   against this checkout's own `.env` values (rebuilt 2026-10-05, so that the guard

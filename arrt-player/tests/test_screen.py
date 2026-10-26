@@ -10,9 +10,8 @@ import json
 import logging
 
 import pytest
-from arrt_contract import root
+from arrt_contract import validator
 from fakes import RecordingOutput
-from jsonschema import Draft202012Validator
 
 from arrt_player.displays.screen import screen_wall
 from arrt_player.heartbeat import INTERVAL_SECONDS, path_in
@@ -203,14 +202,12 @@ async def test_a_screen_that_cannot_be_drawn_again_is_said_once_and_the_schedule
 
 # -- display state: what the screen is doing (labels-and-surfaces.md § Display state) -------
 
-_SCHEMA = json.loads((root() / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8"))
+_HEARTBEAT = validator("schemas/heartbeat.v1.schema.json")
 
 
 def _display(wall_dir) -> tuple[str, str | None]:
     document = json.loads(path_in(wall_dir, "living-room").read_text())
-    errors = [
-        e.message for e in Draft202012Validator(_SCHEMA, format_checker=Draft202012Validator.FORMAT_CHECKER).iter_errors(document)
-    ]
+    errors = [e.message for e in _HEARTBEAT.iter_errors(document)]
     assert errors == [], errors
     assert document["schema"] == {"major": 1, "minor": 4}
     return document["display_state"]["state"], document["display_state"]["work_id"]

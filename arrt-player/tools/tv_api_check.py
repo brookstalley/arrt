@@ -5,7 +5,12 @@ library is a two-year-old fork of an unowned websocket protocol, its failure
 modes differ across TV generations, and reading its source only establishes what
 it intends to do. This establishes what this television does.
 
-    python tv_api_check.py --image "$ART_ROOT/ready/<a 4K composite>.jpg"
+    cd arrt-player && uv run python tools/tv_api_check.py --image <a 4K composite>.jpg
+
+It reads the Player's own configuration (`arrt_player.config`), so it runs from
+the Player's checkout with the Player's `.env`. Stop the daemon first, for the
+reason `power_probe.py` gives: a refusal caused by the daemon holding the art
+channel reads exactly like a finding about the television.
 
 Every check reports rather than asserts, because a "no" is a finding worth
 recording and not a reason to stop. The exit status is non-zero if any check
@@ -21,16 +26,22 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Awaitable, Callable
+from functools import cache
+from pathlib import Path
 
+import panel_check
 import requests
 from samsungtvws.async_art import SamsungTVAsyncArt
 from samsungtvws.exceptions import ConnectionFailure, HttpApiError, ResponseError
 from samsungtvws.rest import SamsungTVRest
+from tv_delete import UPLOADED_CATEGORY, DeleteNotConfirmed, delete_list_confirmed
 from websockets.exceptions import WebSocketException
 
-import config
-import panel_check
-from tv_delete import UPLOADED_CATEGORY, DeleteNotConfirmed, delete_list_confirmed
+from arrt_player.config import ConfigError, FrameSettings, load
+
+#: The first art-API major that speaks the `slideshow_*` verbs; `_api_generation` says why the major is compared.
+NEW_API_MAJOR = 4
 
 logging.basicConfig(format="%(levelname)s:%(message)s", level=logging.INFO)
 
@@ -60,7 +71,7 @@ TV_TIMEOUT_SECONDS = 15
 class Report:
     """Findings in the order they were made, and whether any of them failed."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.lines: list[tuple[str, str, str]] = []
 
     def record(self, outcome: str, check: str, detail: str) -> None:
@@ -81,7 +92,22 @@ class Report:
         return any(outcome == "FAIL" for outcome, _, _ in self.lines)
 
 
-def parse_args():
+@cache
+def _frame() -> FrameSettings:
+    """The television this Player is configured for, resolved exactly as the wall resolves it.
+
+    The Player's own settings, so the address, port and token file are the ones
+    the daemon uses: a check that reached the set some other way would establish
+    what that other way does. A Player with no Frame output has nothing here to
+    check, which is refused by name.
+    """
+    frame = load().frame
+    if frame is None:
+        raise ConfigError("this client has no Frame output (TV_ADDRESS is not set), so there is no television to check")
+    return frame
+
+
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--image",
@@ -114,10 +140,10 @@ def check_construction(report: Report) -> SamsungTVAsyncArt | None:
         # connections fails fast, but one that silently drops them would hang
         # here forever and report no number at all.
         tv_art = SamsungTVAsyncArt(
-            host=config.tv_address,
-            port=config.tv_port,
+            host=_frame().tv_address,
+            port=_frame().tv_port,
             name="tvpi-apicheck",
-            token_file=config.tv_token_file,
+            token_file=str(_frame().tv_token_file),
             timeout=TV_TIMEOUT_SECONDS,
         )
     except (HttpApiError, requests.exceptions.Timeout) as err:
@@ -145,11 +171,10 @@ def check_construction(report: Report) -> SamsungTVAsyncArt | None:
 def _configured_diagonal() -> float | None:
     """What this deployment says the panel measures, or None if it has not said.
 
-    Read from the environment rather than from `config`, because the value
-    belongs to the curation plane and this module is the 2024 one — importing it
-    here would be the geometry crossing a plane boundary to be checked. `config`
-    has already called `load_dotenv()`, so the same `.env` both planes read is in
-    scope by the time this runs.
+    Read from the environment rather than from the Player's settings, because
+    those fill in a default diagonal, and this check must tell "the deployment
+    said nothing" from "it said 50". `load()` has already called `load_dotenv()`,
+    so the `.env` the Player reads is in scope by the time this runs.
 
     An unparseable value is None, not an error: this is a diagnostic tool, and
     refusing to report on the television because a number is malformed would
@@ -180,7 +205,7 @@ def _reported_model(report: Report) -> str | None:
     **The port is the configured one, not a literal**, and that matters because
     the library derives the scheme from it: `_is_ssl_connection()` is
     `port == 8002`, so the same route is `https` there and `http` on 8001. Both
-    serve it. Passing `config.tv_port` is what keeps this read on the endpoint
+    serve it. Passing the configured port is what keeps this read on the endpoint
     the art client's own constructor already reached for the model year — a
     hardcoded 8001 here would silently be a second television address.
 
@@ -189,7 +214,7 @@ def _reported_model(report: Report) -> str | None:
     checks here run one after another rather than concurrently, and an aiohttp
     session opened for one REST read would cost more than the block does.
     """
-    rest = SamsungTVRest(host=config.tv_address, port=config.tv_port, timeout=TV_TIMEOUT_SECONDS)
+    rest = SamsungTVRest(host=_frame().tv_address, port=_frame().tv_port, timeout=TV_TIMEOUT_SECONDS)
     try:
         info = rest.rest_device_info()
     except (OSError, HttpApiError, ResponseError) as err:
@@ -269,10 +294,10 @@ def _api_generation(version: str) -> str:
     major = str(version).split(".")[0]
     if not major.isdigit():
         return f"generation unknown from {version!r} — record it and decide by hand"
-    return "new API (slideshow_* verbs)" if int(major) >= 4 else "old API (auto_rotation_* verbs)"
+    return "new API (slideshow_* verbs)" if int(major) >= NEW_API_MAJOR else "old API (auto_rotation_* verbs)"
 
 
-def _record_when_fired(trigger: str, fired: list[str]):
+def _record_when_fired(trigger: str, fired: list[str]) -> Callable[[object, object], Awaitable[None]]:
     """A callback that records WHICH event provoked it.
 
     The trigger has to be captured here rather than read from the callback's own
@@ -290,7 +315,7 @@ def _record_when_fired(trigger: str, fired: list[str]):
     registered under `image_selected` runs only when that is the sub-event.
     """
 
-    async def on_event(event, response):
+    async def on_event(_event: object, _response: object) -> None:
         fired.append(trigger)
 
     return on_event
@@ -329,7 +354,7 @@ async def check_upload(tv_art: SamsungTVAsyncArt, report: Report, path: str) -> 
     failure this whole exercise exists to close. Checking at a window six times
     wider than the loader's would clear a pass the loader would not.
     """
-    size_mb = os.path.getsize(path) / (1024 * 1024)
+    size_mb = Path(path).stat().st_size / (1024 * 1024)  # noqa: ASYNC240 -- one stat of a local file, before the upload
     started = time.monotonic()
     try:
         content_id = await tv_art.upload(path, matte="none", portrait_matte="none")
@@ -373,7 +398,7 @@ async def check_confirmed_delete(tv_art: SamsungTVAsyncArt, report: Report, cont
         report.fail("confirmed delete", f"the set still lists {', '.join(result.surviving)} after removal")
 
 
-async def guarded(report: Report, name: str, coroutine):
+async def guarded[T](report: Report, name: str, coroutine: Awaitable[T]) -> T | None:
     """Run one check so that its failure costs only that check.
 
     Access to the television is the scarce resource here — it has to be awake,
@@ -405,9 +430,9 @@ async def guarded(report: Report, name: str, coroutine):
         return None
 
 
-async def run(args) -> int:
+async def run(args: argparse.Namespace) -> int:
     report = Report()
-    print(f"Checking the art API on {config.tv_address}:{config.tv_port}\n")
+    print(f"Checking the art API on {_frame().tv_address}:{_frame().tv_port}\n")
 
     tv_art = check_construction(report)
     if tv_art is None:
@@ -456,7 +481,7 @@ async def run(args) -> int:
 
 def main() -> int:
     args = parse_args()
-    if args.image and not os.path.exists(args.image):
+    if args.image and not Path(args.image).exists():
         print(f"No such image: {args.image}")
         return 2
     return asyncio.run(run(args))

@@ -27,6 +27,10 @@ dependencies = [
     # resolve honouring the declared floor installs cleanly and fails at import.
     # A declared floor is a claim; what a package imports is the constraint.
     "websockets>=13",
+    # Imported directly by `tools/tv_api_check.py`, whose timeouts are `requests`'
+    # exceptions. The television client brings it today; declared rather than
+    # inherited, so the tool survives that client changing its own dependencies.
+    "requests>=2.32",
     # The wall's daily rhythm: television brightness follows the sun's position
     # rather than the clock, so a winter afternoon and a summer evening are not
     # given the same panel.

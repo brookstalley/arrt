@@ -37,9 +37,8 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
-from arrt_contract import root
+from arrt_contract import root, validator
 from fakes import RecordingOutput, drm_tree
-from jsonschema import Draft202012Validator
 
 from arrt_player import manifest
 from arrt_player.client import (
@@ -166,9 +165,7 @@ def _at(instant: str) -> datetime:
 
 
 def _heartbeat_errors(document: dict) -> list[str]:
-    schema = json.loads((CONTRACT / "schemas" / "heartbeat.v1.schema.json").read_text(encoding="utf-8"))
-    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
-    return [error.message for error in validator.iter_errors(document)]
+    return [error.message for error in validator("schemas/heartbeat.v1.schema.json").iter_errors(document)]
 
 
 def test_a_heartbeat_from_a_running_player_conforms():
@@ -303,9 +300,7 @@ def test_every_invalid_client_document_is_refused_whole(row):
 
 
 def _client_heartbeat_errors(document: dict) -> list[str]:
-    schema = json.loads((CONTRACT / "schemas" / "client-heartbeat.v1.schema.json").read_text(encoding="utf-8"))
-    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
-    return [error.message for error in validator.iter_errors(document)]
+    return [error.message for error in validator("schemas/client-heartbeat.v1.schema.json").iter_errors(document)]
 
 
 @pytest.mark.parametrize("row", CLIENT_HEARTBEATS, ids=lambda row: row["path"])

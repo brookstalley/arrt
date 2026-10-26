@@ -13,16 +13,11 @@ judgement about whether a work was large enough was silently mis-sized.
 change log then admitted that sentence advertised a capability nothing delivered.
 This is the check.
 
-**Where it lives, and why here rather than beside the value.** Curation reads the
-diagonal for major 1's composed render, and since wave 4d the Player reads its own
-copy for the mats it composes; curation has no client for the television — no
-`samsungtvws` dependency, and it never talks to the set. The 2024 plane talks
-to the set and owns none of the geometry. Neither side holds both halves, so the
-comparison goes where the `modelName` already arrives, and the *decision* goes
-here: a module with no heavy imports, which the root suite can import and drive.
-That is the same split `tv_delete.forgettable_ids` was extracted for — inline in
-`tvart.py` a rule is unreachable by any test, because the root suite cannot import
-a module that pulls in PIL and `samsungtvws`.
+**Where it lives, and why here rather than beside the value.** The Player owns
+the panel's geometry since wave 4d, and the comparison goes where the set's
+`modelName` arrives: `tv_api_check.py`, a hand-run tool whose checks talk to a
+live television. The *decision* goes here, a module with no heavy imports and no
+television, so the Player's suite can drive every branch of it.
 
 **It warns; it does not refuse.** A refusal would couple startup to a reachable
 television, and the set is not always reachable. The operator's call, recorded

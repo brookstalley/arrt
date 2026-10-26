@@ -298,8 +298,8 @@ Player's own default, so a channel may say nothing about presentation.
   output with its own document (`labels-and-surfaces.md`), not a mode, which is
   why major 2 has no `panel`.
 - **`facts`** lists which of a work's label keys a caption or overlay shows, in
-  order. Its values are exactly the label's keys, a copy the root suite holds to
-  the label definition.
+  order. Its values are exactly the label's keys, a copy the contract package's suite holds
+  to the label definition.
 - **A Player applies what its display can honour** and ignores the rest, which
   is why a setting is never a reason to refuse a document.
 
@@ -357,7 +357,7 @@ is the reference statement, and each rule has an invalid fixture.
   current to fix a case that needs an outage of days.
 
 **Conformance vectors:** `contract/vectors/schedule.json` gives feeds and
-instants and the work (or dark, and the scene) each must show. The root suite
+instants and the work (or dark, and the scene) each must show. The contract package's suite
 holds them to a reference statement of these rules
 (`contract/tests/test_vectors.py`), and every Player's suite runs them.
 

@@ -31,13 +31,8 @@ def test_root_holds_the_four_kinds_of_file_the_specification_names():
 def test_a_package_without_its_data_refuses_by_name(tmp_path, monkeypatch):
     package = tmp_path / "site" / "arrt_contract"
     shutil.copytree(CHECKOUT / "src" / "arrt_contract", package, ignore=shutil.ignore_patterns("__pycache__"))
-    monkeypatch.setattr(sys, "path", [str(tmp_path / "site"), *sys.path])
-    for name in [name for name in sys.modules if name == "arrt_contract"]:
-        monkeypatch.delitem(sys.modules, name)
+    bare = _import_from(tmp_path / "site", monkeypatch)
 
-    import arrt_contract as bare  # noqa: PLC0415 -- imported from the copy, after the path is changed
-
-    assert Path(bare.__file__).is_relative_to(tmp_path)
     with pytest.raises(bare.ContractNotFoundError):
         bare.root()
 
@@ -53,21 +48,62 @@ def test_every_route_is_a_method_and_a_path():
         assert route["path"].startswith("/")
 
 
-@pytest.mark.skipif(shutil.which("uv") is None, reason="building the wheel needs uv")
-def test_the_wheel_carries_the_data_inside_the_package(tmp_path):
-    """What a Player installs from a tag is a wheel, and a wheel without its data is the broken build `root()` refuses.
+def _import_from(site: Path, monkeypatch: pytest.MonkeyPatch):
+    """`arrt_contract` imported from `site`, ahead of this checkout's editable install."""
+    monkeypatch.setattr(sys, "path", [str(site), *sys.path])
+    for name in [name for name in sys.modules if name == "arrt_contract"]:
+        monkeypatch.delitem(sys.modules, name)
+    import arrt_contract as installed  # noqa: PLC0415 -- imported from `site`, after the path is changed
 
-    Built the way a package index or installer may build it: an sdist first,
-    then the wheel from the sdist. A file reached from outside this directory
-    survives a direct wheel build and is lost on this path.
+    assert Path(installed.__file__).is_relative_to(site)
+    return installed
+
+
+@pytest.fixture(scope="module")
+def wheel(tmp_path_factory) -> Path:
+    """The wheel built the way a package index or installer may build it: an sdist first, then the wheel from the sdist.
+
+    A file reached from outside this directory survives a direct wheel build and
+    is lost on this path.
     """
-    subprocess.run(["uv", "build", "--out-dir", str(tmp_path), str(CHECKOUT)], check=True, capture_output=True)
-    wheel = next(tmp_path.glob("arrt_contract-*.whl"))
-    names = set(zipfile.ZipFile(wheel).namelist())
+    if shutil.which("uv") is None:
+        pytest.skip("building the wheel needs uv")
+    out = tmp_path_factory.mktemp("dist")
+    subprocess.run(["uv", "build", "--out-dir", str(out), str(CHECKOUT)], check=True, capture_output=True)
+    return next(out.glob("arrt_contract-*.whl"))
 
+
+def test_the_wheel_carries_the_data_inside_the_package(wheel):
+    """What a Player installs from a tag is a wheel, and a wheel without its data is the broken build `root()` refuses."""
+    names = set(zipfile.ZipFile(wheel).namelist())
     on_disk = {
         f"arrt_contract/{path.relative_to(CHECKOUT)}"
         for kind in ("schemas", "fixtures", "vectors")
         for path in (CHECKOUT / kind).rglob("*.json")
     } | {"arrt_contract/routes.json", "arrt_contract/player-contract.md"}
     assert on_disk <= names, sorted(on_disk - names)
+
+
+def test_an_installed_wheel_reads_its_own_data(wheel, tmp_path, monkeypatch):
+    """The other suites run on the editable install, finding the data in this checkout; a Player finds it in the package."""
+    site = tmp_path / "site"
+    zipfile.ZipFile(wheel).extractall(site)
+    installed = _import_from(site, monkeypatch)
+    package = site / "arrt_contract"
+
+    assert installed.root() == package
+    assert installed.specification() == package / "player-contract.md"
+    assert installed.specification().read_text(encoding="utf-8").startswith("---\nartifact: player-contract\n")
+    assert len(installed.fixtures()) == len(arrt_contract.fixtures())
+    assert installed.routes() == arrt_contract.routes()
+    assert installed.validator("schemas/label.v1.schema.json").schema["$id"].endswith("label.v1.schema.json")
+
+
+def test_an_installed_wheel_without_the_specification_refuses_by_name(wheel, tmp_path, monkeypatch):
+    site = tmp_path / "site"
+    zipfile.ZipFile(wheel).extractall(site)
+    (site / "arrt_contract" / "player-contract.md").unlink()
+    installed = _import_from(site, monkeypatch)
+
+    with pytest.raises(installed.ContractNotFoundError):
+        installed.specification()

@@ -154,12 +154,18 @@ what settled it)*
 - 01: the package carries `player-contract.md` (`specification()`), through a symlink in `contract/` for the wheel and its real path for the sdist. Settled by the wave 5 row: pin the contract "together with `player-contract.md`".
 - 01: the Player's suite does not import `semantic_errors`. Its reader states the rules in its own code and is held to the fixtures' `player_must_refuse`, which is the independence the contract wants. The plan's Done-when 3 said otherwise and was corrected. Not settled by the goals: an error in the plan.
 - 01: the package's tests are the three root files that read only the contract, moved whole with `git mv`, plus a new `test_package.py` for `root()`, `specification()` and the wheel.
+- 01, after its review (0 blocking): every remaining caller reads through `validator()`, `routes()` and `schema()`, so no project builds its own registry; `semantic_errors` states that it is asked only of a schema-valid document, and the feed guard asks it only then; a test installs the built wheel and reads its data through it; the root's `jsonschema` and `referencing` went with the test that used them. Carried into chunk 02's commit, per the learnings rule on cheap observations.
+- 02: the tools read the Player's own settings (`arrt_player.config.load()`) rather than carrying the root's `config.py` with them. That file was the 2024 configuration: it required `ART_ROOT`, `LATITUDE`, `LONGITUDE` and `LOCATION_NAME` at import, so `tv_api_check.py` would have refused to start on a Player that sets none of them, and reaching the set by other settings than the wall's would check something other than the wall. This departs from the letter of the owner's 2026-10-05 ruling ("and the `config.py` they read") and keeps its purpose, which was that the tools leave with the Player and keep working. Not settled by the goals: flagged for the boundary review.
+- 02: `all.json` stays: the server's seed tool reads it and `arrt/Dockerfile` copies it into the NAS image, so it is the server's data, not a 2024 module. `deploy/pi-freeze-2024.txt` stays as the record of the Player's pinned panel driver (`arrt-player/pyproject.toml` cites it) and leaves with the Player in 04. Settled by "do it right": the plan's list was wrong about both.
+- 02: `tv_delete.py`'s `remove_from_tv`, `forgettable_ids` and `describe_removal` went with their only caller, `tvart.py`, and so did the ten tests that exercised only them. The two tests that held the cause in the refusal's message were rewritten against `delete_list_confirmed`, which carries that message.
+- 02: `tests/test_config.py` was split. Its repo-wide deployment-value guards became `tests/preferences/test_deployment_values.py`, now walking `contract/src` too. Its tests of the 2024 `config.py` left with that file, and the norm index's secret row now names the planes' own startup guards. The two tests of the 2024 systemd unit left with the unit, because the live-unit tests beside them assert the same properties on the units that run.
+- 02: the 2024 sections of `deploy/README.md` (the retired unit's recipe and its provenance) were removed, and the dependency-move record stays with its references corrected. The rest of that file is the Player's install history, which 04 carries.
 
 **Level:** Medium. The extraction recipe is measured. The package boundary is
 new, and the guard split (03) is the part most likely to hide a loss. What would
 raise it: 01's inventory of every contract reader, derived by grep and checked
-against a run in which `contract/` is renamed away and both suites fail
-loudly.
+against a run in which the package is renamed away and every suite fails
+loudly. *(Done 2026-10-26: all four failed at collection.)*
 
 ## Chunks
 
@@ -169,19 +175,21 @@ loudly.
 contract through what this chunk builds).
 
 `contract/` becomes the `arrt-contract` distribution, with the import name
-`arrt_contract`. The data moves into the package (new
-`contract/src/arrt_contract/`) by `git mv`, so the history follows each file.
-The package exposes the following:
-- `root()`: the package's data directory, as a path.
-- `schema(name)`, the registry, and `validator(name)`. These are lifted from
-  `tests/preferences/test_player_contract.py`.
+`arrt_contract`. The data stays where the specification names it
+(`contract/schemas/` and the rest), and the package (new
+`contract/src/arrt_contract/`) carries it in the wheel; see the mid-build
+decisions. The package exposes the following:
+- `root()`: the directory holding the data, as a path.
+- `schema(name)`, `registry()` and `validator(name)`, lifted from the root
+  suite's contract test.
 - `semantic_errors(document)`: the reference statement of major 2's rules that
   no schema can state, moved out of that test file.
-- `fixtures()` and `routes()`.
+- `fixtures()`, `routes()` and `specification()`.
 
-The package's own tests (new `contract/tests/`) take over everything in the
-root suite that reads only the contract: `test_player_contract.py`,
-`test_label_rule.py`, and the contract-only parts of `test_contract_vectors.py`.
+The package's own tests (new `contract/tests/`) take over the three root
+tests that read only the contract, moved whole: they are now
+`contract/tests/test_schemas_and_fixtures.py`, `test_label_rule.py` and
+`test_vectors.py`.
 
 Every reader goes through the package. The inventory is derived from the code
 (grep for `"contract"` path joins across `arrt/`, `arrt-player/`, `tests/` and

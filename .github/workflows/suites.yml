@@ -44,7 +44,7 @@ permissions:
 
 jobs:
   root:
-    name: "The 2024 modules"
+    name: "The governance suite"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -215,7 +215,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - name: The 2024 modules
+      - name: The governance suite
         run: |
           uv run ruff check .
           uv run black --check .

@@ -114,6 +114,11 @@ def semantic_errors(document: dict) -> list[str]:
     horizon is whole days; a scene with an end ends after it starts. A Player
     enforces the same rules in its own reader, and Arrt checks every feed it
     publishes against this statement of them.
+
+    **For a document the schema accepts.** These rules are about the values of
+    keys the schema requires, so a caller validates first and asks this only of
+    a document with no schema errors; a document missing `works` or `schedule`
+    raises `KeyError` here rather than being reported twice.
     """
     errors = []
     works = document["works"]

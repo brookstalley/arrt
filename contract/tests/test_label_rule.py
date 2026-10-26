@@ -19,13 +19,13 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from arrt_contract import root, validator
+from arrt_contract import root, schema, validator
 
 CONTRACT = root()
 VECTORS_FILE = json.loads((CONTRACT / "vectors" / "label-rule.json").read_text(encoding="utf-8"))
 VECTORS = VECTORS_FILE["vectors"]
 HOLD = timedelta(seconds=VECTORS_FILE["hold_seconds"])
-LABEL_SCHEMA = json.loads((CONTRACT / "schemas" / "label.v1.schema.json").read_text(encoding="utf-8"))
+LABEL_SCHEMA = schema("schemas/label.v1.schema.json")
 STATES = LABEL_SCHEMA["properties"]["display_state"]["properties"]["state"]["enum"]
 
 VALIDATOR = validator("schemas/label.v1.schema.json")

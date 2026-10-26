@@ -8,21 +8,20 @@ unauthenticated everywhere, and the wall itself must survive to be assigned to a
 client.
 """
 
-import json
 import sqlite3
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import httpx
 import pytest
-from arrt_contract import root
+from arrt_contract import root, routes
 
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.file import open_catalogue_file
 from arrt.programming.access import Admission, verifier_of
 
 CONTRACT = root()
-ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
+ROUTES = routes()
 
 #: The token a Player configured before 2026-10-02 carries as `WALL_TOKEN`.
 FORMER_WALL_TOKEN = "a-wall-token-issued-before-clients"

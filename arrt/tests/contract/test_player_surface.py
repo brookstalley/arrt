@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 
 import httpx
 import pytest
-from arrt_contract import root
+from arrt_contract import root, routes
 from feed_guard import problems
 from scenarios import connect
 
@@ -30,7 +30,7 @@ from arrt.persistence.records import RenditionKind
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS
 
 CONTRACT = root()
-ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
+ROUTES = routes()
 
 
 def _path(name: str, **values: str) -> str:

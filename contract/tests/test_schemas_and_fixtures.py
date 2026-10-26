@@ -53,7 +53,7 @@ def _semantics(row: dict) -> list[str]:
 
 @pytest.mark.parametrize("schema_path", sorted({row["schema"] for row in INDEX}))
 def test_every_schema_is_valid_draft_2020_12(schema_path):
-    Draft202012Validator.check_schema(json.loads((CONTRACT / schema_path).read_text(encoding="utf-8")))
+    Draft202012Validator.check_schema(schema(schema_path))
 
 
 def test_the_facts_a_major_2_overlay_may_show_are_exactly_the_label_keys():

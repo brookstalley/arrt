@@ -162,6 +162,7 @@ dependencies = [
     { name = "astral" },
     { name = "pillow" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "samsungtvws" },
     { name = "websockets" },
 ]
@@ -190,6 +191,7 @@ requires-dist = [
     { name = "astral" },
     { name = "pillow" },
     { name = "python-dotenv" },
+    { name = "requests", specifier = ">=2.32" },
     { name = "samsungtvws", git = "https://github.com/NickWaterton/samsung-tv-ws-api.git?rev=fe95ef1d784cd32f49bf9a07ec479576574eea07" },
     { name = "websockets", specifier = ">=13" },
 ]

@@ -52,7 +52,7 @@ meanwhile:
 
 Four independent projects, four suites.
 
-| | 2024 modules (repo root) | curation plane | display plane | contract package |
+| | governance (repo root) | curation plane | display plane | contract package |
 |---|---|---|---|---|
 | Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` | `cd contract && uv run pytest` |
 | Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` | `cd contract && uv run ruff check .` |
@@ -154,9 +154,8 @@ so an in-process test would pass against an app that fails every real request.
 `pdb` breakpoint has no terminal to stop in. The root suite runs in a fraction of
 a second and is left serial.
 
-**The root suite is not only the 2024 modules**, and believing that costs a
-developer their first hour on the leg most likely to go red under them. It also
-carries `tests/preferences/`, where this repo's artifact-versus-code contracts
+**The root suite holds no product code, and it is not optional.** It carries
+`tests/preferences/`, where this repo's artifact-versus-code contracts
 live — plane isolation, the Library/Programming seam, the heartbeat, the norm
 index, the label corpus, and the screen tables. Those span two projects by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against

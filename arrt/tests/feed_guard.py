@@ -26,8 +26,14 @@ def _validator() -> Draft202012Validator:
 
 
 def problems(document: dict) -> list[str]:
-    """Everything a Player would refuse this feed for, schema first."""
-    return [error.message for error in _validator().iter_errors(document)] + semantic_errors(document)
+    """Everything a Player would refuse this feed for: the schema's errors, or, when it has none, the semantic rules'.
+
+    The semantic rules read keys the schema requires, so asking them of a
+    document the schema refuses would trade the schema's message for a
+    `KeyError` traceback.
+    """
+    schema_errors = [error.message for error in _validator().iter_errors(document)]
+    return schema_errors or semantic_errors(document)
 
 
 def checked(build: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:

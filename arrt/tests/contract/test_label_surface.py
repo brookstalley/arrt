@@ -13,27 +13,17 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
-from arrt_contract import root
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
+from arrt_contract import root, routes, validator
 
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS, heartbeat_path_in
 
 CONTRACT = root()
-ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
+ROUTES = routes()
 
-# The label schema reuses the manifest's label text by reference, so every schema
-# is registered under its $id.
-_REGISTRY = Registry().with_resources(
-    (schema["$id"], Resource.from_contents(schema))
-    for schema in (json.loads(path.read_text(encoding="utf-8")) for path in (CONTRACT / "schemas").glob("*.json"))
-)
-_LABEL = Draft202012Validator(
-    json.loads((CONTRACT / "schemas" / "label.v1.schema.json").read_text(encoding="utf-8")),
-    registry=_REGISTRY,
-    format_checker=Draft202012Validator.FORMAT_CHECKER,
-)
-_CLIENT = Draft202012Validator(json.loads((CONTRACT / "schemas" / "client.v1.schema.json").read_text(encoding="utf-8")))
+# The label schema reuses the manifest's label text by reference; `validator`
+# registers every schema, so the reference resolves.
+_LABEL = validator("schemas/label.v1.schema.json")
+_CLIENT = validator("schemas/client.v1.schema.json")
 
 
 def _bearer(token: str) -> dict[str, str]:

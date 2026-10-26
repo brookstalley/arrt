@@ -24,13 +24,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from aiohttp import web
-from arrt_contract import root
-from jsonschema import Draft202012Validator
+from arrt_contract import root, routes, validator
 from PIL import Image
 
 CONTRACT = root()
-ROUTES = json.loads((CONTRACT / "routes.json").read_text(encoding="utf-8"))["routes"]
-CLIENT_HEARTBEAT_SCHEMA = json.loads((CONTRACT / "schemas" / "client-heartbeat.v1.schema.json").read_text())
+ROUTES = routes()
+CLIENT_HEARTBEAT = validator("schemas/client-heartbeat.v1.schema.json")
 
 #: The client every test's Player is, unless it says otherwise.
 TOKEN = "the-clients-token"
@@ -127,7 +126,7 @@ class ServerDouble:
             document = json.loads(await request.read())
         except ValueError:
             return web.json_response({"error": "The body is not JSON."}, status=400)
-        errors = [error.message for error in Draft202012Validator(CLIENT_HEARTBEAT_SCHEMA).iter_errors(document)]
+        errors = [error.message for error in CLIENT_HEARTBEAT.iter_errors(document)]
         names = [output.get("name") for output in document.get("outputs", []) if isinstance(output, dict)]
         if len(names) != len(set(names)):
             errors.append("two outputs share a name")

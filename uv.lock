@@ -25,6 +25,35 @@ dev = [
 ]
 
 [[package]]
+name = "arrt-governance"
+version = "0.6.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "python-dotenv" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "arrt-contract" },
+    { name = "black" },
+    { name = "pytest" },
+    { name = "pyyaml" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "python-dotenv" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "arrt-contract", editable = "contract" },
+    { name = "black", specifier = ">=24" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "ruff", specifier = ">=0.6" },
+]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -409,39 +438,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/1d/1b2ef7bcde851c78d7f17f1cca13fd6dc695fc4b3d6197941e72cae5b132/ruff-0.16.0-py3-none-win32.whl", hash = "sha256:7fab76fa065c873f41ff744347c6e77bcc3dfec4bcc754dc26b63d23c0f7f5fb", size = 10785885, upload-time = "2026-07-23T19:11:23.947Z" },
     { url = "https://files.pythonhosted.org/packages/b2/a3/d5e4ef7a56be3f928ffb90b94c25ba7d3cb9c7fe0736aeaaedf361770712/ruff-0.16.0-py3-none-win_amd64.whl", hash = "sha256:429c117f022bf481fabd9d551e7a3952b24c65e6ef44337ea09d90bebef14472", size = 11923141, upload-time = "2026-07-23T19:11:26.409Z" },
     { url = "https://files.pythonhosted.org/packages/cb/9a/8415f2657cbe200f41a4531ccededf135505a92d4a012229121f885b26f9/ruff-0.16.0-py3-none-win_arm64.whl", hash = "sha256:14296fedcd2705c77ab8235439278bbb38f285cf7da5528b00b3e330c3d4872d", size = 11273407, upload-time = "2026-07-23T19:11:28.705Z" },
-]
-
-[[package]]
-name = "samsung-frame-art-loader-legacy"
-version = "0.6.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "python-dotenv" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "arrt-contract" },
-    { name = "black" },
-    { name = "jsonschema" },
-    { name = "pytest" },
-    { name = "pyyaml" },
-    { name = "referencing" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "python-dotenv" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "arrt-contract", editable = "contract" },
-    { name = "black", specifier = ">=24" },
-    { name = "jsonschema", specifier = ">=4.23" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "referencing", specifier = ">=0.35" },
-    { name = "ruff", specifier = ">=0.6" },
 ]
 
 [[package]]

@@ -146,7 +146,9 @@ convert-on-touch**: they die with the 2024 modules at the legacy retirement,
 because convert-on-touch had no mechanism behind it and all eight were touched without a
 single call being converted. Do not convert them against that waiver, and do not
 report their survival as a defect. The authority is `project-preferences.md`'s
-`T20` row.)*
+`T20` row.)* *(2026-10-26, wave 5: the eight modules were deleted at the legacy
+retirement, so the waiver is closed and every `print()` left is in a hand-run
+tool.)*
 
 ## Correlation
 
