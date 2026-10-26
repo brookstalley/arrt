@@ -514,3 +514,28 @@ def test_the_look_projections_agree_value_for_value_but_for_the_image_block():
     assert set(tool["pictures"][0]) >= MCP_ONLY_ON_LOOK_PICTURE, "an exemption for a field the tool no longer carries"
     tool["pictures"] = [{k: v for k, v in p.items() if k not in MCP_ONLY_ON_LOOK_PICTURE} for p in tool["pictures"]]
     assert tool == route.model_dump()
+
+
+def test_the_scene_projections_carry_the_same_field_names():
+    """`GET /api/scenes/live` and `art_theme(action='scenes')` read one scene, its walls included."""
+    from arrt.persistence.records import Scene, SceneLifetime, SceneStatus
+    from arrt.programming.display import SceneWall
+    from arrt.programming.display_state import ScreenState
+
+    scene = Scene(
+        id="scn_1", status=SceneStatus.ENDED, created_at=WHEN, lifetime=SceneLifetime.HOLD, starts_at=WHEN, ended_at=WHEN
+    )
+    wall = SceneWall(
+        wall_id="wal_1",
+        wall_name="Hall",
+        work_id="wrk_1",
+        title="Golconda",
+        reached=True,
+        cannot_show=None,
+        screen=ScreenState.SHOWING_ART,
+    )
+
+    projected = bindings._scene_projection(scene, [wall])
+
+    check_parity("Scene", set(projected), _fields(http_models.SceneOut))
+    check_parity("SceneWall", set(projected["walls"][0]), _fields(http_models.SceneWallOut))

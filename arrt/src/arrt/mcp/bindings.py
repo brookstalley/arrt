@@ -54,10 +54,20 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     Verdict,
 )
-from arrt.persistence.records import Artist, Artwork, Client, Display, Showing, Source, Theme, VocabularyKind, Wall
+from arrt.persistence.records import Artist, Artwork, Client, Display, Scene, Showing, Source, Theme, VocabularyKind, Wall
 from arrt.programming import shape
 from arrt.programming.clients import ClientView, DisplayFault, PlacementSurvey
-from arrt.programming.display import PLAYERS_OWN_MAT, SHUFFLE_CHOICES, UNSET, SizeJudgement, ThemePlacement, WallView, feed_notice
+from arrt.programming.display import (
+    PLAYERS_OWN_MAT,
+    SHUFFLE_CHOICES,
+    UNSET,
+    SceneView,
+    SceneWall,
+    SizeJudgement,
+    ThemePlacement,
+    WallView,
+    feed_notice,
+)
 from arrt.programming.display_state import DisplayState
 from arrt.programming.manifest.builder import ManifestBuild
 from arrt.services import works_filter
@@ -511,6 +521,71 @@ def _hang_selection(services: Services, arguments: Mapping[str, Any]) -> dict[st
     # The answer `activate` gives, because it is the same question: what is on
     # the wall now, and what is not.
     return _built(services, services.display.hang_selection(arguments["artwork_ids"], wall_id=arguments["wall_id"]))
+
+
+def _scene_fields(services: Services, view: SceneView) -> dict[str, Any]:
+    return _scene_projection(view.scene, services.display.scene_walls(view))
+
+
+def _scene_projection(scene: Scene, walls: Sequence[SceneWall]) -> dict[str, Any]:
+    """A scene as `GET /api/scenes/live` spells it (`SceneOut`), so an agent and a click read the same facts."""
+    return {
+        "scene_id": scene.id,
+        "status": str(scene.status),
+        "lifetime": None if scene.lifetime is None else str(scene.lifetime),
+        "starts_at": None if scene.starts_at is None else _moment(scene.starts_at),
+        "until": None if scene.until is None else _moment(scene.until),
+        "ended_at": None if scene.ended_at is None else _moment(scene.ended_at),
+        "walls": [_scene_wall_fields(wall) for wall in walls],
+    }
+
+
+def _scene_wall_fields(wall: SceneWall) -> dict[str, Any]:
+    """One wall in a scene, as `SceneWallOut` spells it."""
+    return {
+        "wall_id": wall.wall_id,
+        "wall_name": wall.wall_name,
+        "work_id": wall.work_id,
+        "title": wall.title,
+        "reached": wall.reached,
+        "cannot_show": wall.cannot_show,
+        "screen": str(wall.screen),
+    }
+
+
+def _scenes(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    live, draft = services.display.live_scene(), services.display.scene_draft()
+    return ok(
+        live=None if live is None else _scene_fields(services, live),
+        draft=None if draft is None else _scene_fields(services, draft),
+    )
+
+
+def _draft_scene(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(**_scene_fields(services, services.display.draft_scene()))
+
+
+def _pin_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    view = services.display.pin_scene(arguments["scene_id"], arguments["wall_id"], arguments["artwork_id"])
+    return ok(**_scene_fields(services, view))
+
+
+def _unpin_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(**_scene_fields(services, services.display.unpin_scene(arguments["scene_id"], arguments["wall_id"])))
+
+
+def _discard_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    services.display.discard_scene(arguments["scene_id"])
+    return ok(discarded=arguments["scene_id"])
+
+
+def _apply_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    view = services.display.apply_scene(arguments["scene_id"], lifetime=arguments["lifetime"], minutes=arguments.get("minutes"))
+    return ok(**_scene_fields(services, view))
+
+
+def _release_scene(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(**_scene_fields(services, services.display.release_scene(arguments["scene_id"])))
 
 
 def _not_again(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1672,6 +1747,13 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "kept_off"): _kept_off,
     ("art_theme", "allow_again"): _allow_again,
     ("art_theme", "unhang"): _unhang,
+    ("art_theme", "scenes"): _scenes,
+    ("art_theme", "draft_scene"): _draft_scene,
+    ("art_theme", "pin_scene"): _pin_scene,
+    ("art_theme", "unpin_scene"): _unpin_scene,
+    ("art_theme", "discard_scene"): _discard_scene,
+    ("art_theme", "apply_scene"): _apply_scene,
+    ("art_theme", "release_scene"): _release_scene,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
     ("art_display", "set_mat_mode"): _set_mat_mode,

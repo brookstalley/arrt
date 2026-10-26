@@ -2349,6 +2349,63 @@ class ArchivedWorksOut(BaseModel):
     already: int
 
 
+class SceneWallOut(BaseModel):
+    """One wall in a scene: its work, and whether the wall has reached the scene.
+
+    `reached` is the wall's own heartbeat naming this scene. `screen` is what
+    the wall's screen is doing now, so a wall not there yet can say why:
+    `in_use` is somebody watching television, and the Player waits for it.
+    """
+
+    wall_id: str
+    wall_name: str
+    work_id: str
+    title: str | None
+    reached: bool
+    #: Why the wall cannot show its work in the scene now (archived, kept off
+    #: every wall), or null. Such a wall shows its schedule, and gets the work
+    #: back if it is restored or allowed again.
+    cannot_show: str | None
+    screen: str
+
+
+class SceneOut(BaseModel):
+    """A scene: a work per wall, applied together over each wall's schedule.
+
+    `status` is `draft`, `live` or `ended`, as of the read: a preview whose
+    `until` has passed is `ended`. `lifetime` is `preview` or `hold`, null on a
+    draft; `until` is null on a draft and on a hold.
+    """
+
+    scene_id: str
+    status: str
+    lifetime: str | None
+    starts_at: str | None
+    until: str | None
+    ended_at: str | None
+    walls: list[SceneWallOut]
+
+
+class ScenesOut(BaseModel):
+    """The scene on the walls now and the one being assembled, either null."""
+
+    live: SceneOut | None
+    draft: SceneOut | None
+
+
+class PinScene(BaseModel):
+    """The work to put on a wall in a scene being assembled."""
+
+    work_id: str
+
+
+class ApplyScene(BaseModel):
+    """How long an applied scene stays: `preview` for `minutes` (20 when null), or `hold` until released."""
+
+    lifetime: str
+    minutes: int | None = None
+
+
 class NextOut(BaseModel):
     """What a step put on one wall: the work its feed now starts with.
 

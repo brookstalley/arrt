@@ -73,6 +73,14 @@ export function readable(iso) {
   return at.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
+/* The time of day alone, "14:20", for an instant within the next hours: a
+ * scene's end. An instant that will not parse is said to be unknown. */
+export function clockTime(iso) {
+  const at = new Date(iso);
+  if (iso === null || iso === undefined || Number.isNaN(at.getTime())) return "an unknown time";
+  return at.toLocaleTimeString(undefined, { timeStyle: "short" });
+}
+
 /* The readable date and how long ago it was, together: "5 Oct 2026, 14:46
  * (3 days ago)". The one way a moment is written on a screen. */
 export function dated(iso, now = Date.now()) {

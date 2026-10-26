@@ -37,6 +37,17 @@ def manifest_v2_path_in(art_root: Path, wall_id: str) -> Path:
 
 
 @dataclass(frozen=True, slots=True)
+class SceneEntry:
+    """The scene object one wall's feed carries (`player-contract.md` § Scenes): the same `id` on every wall it spans."""
+
+    id: str
+    work_id: str
+    starts_at: datetime
+    #: None holds until released.
+    until: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
 class Feed:
     """One wall's major 2 document, before it is spelled as JSON."""
 
@@ -52,14 +63,26 @@ class Feed:
     works: Mapping[str, Mapping[str, Any]]
     #: The feed's presentation defaults (§ Presentation settings), each key optional.
     settings: Mapping[str, Any] = field(default_factory=dict)
+    #: The control layer (§ Scenes, § Staging): the scene this wall shows over
+    #: its schedule, and the works to prepare for one being assembled. Only a
+    #: wall's private feed carries them; both are absent when empty.
+    scene: SceneEntry | None = None
+    staging: tuple[str, ...] = ()
+
+    def named(self) -> set[str]:
+        """Every work the document names: the schedule's, the scene's and staging's."""
+        scene = {self.scene.work_id} if self.scene is not None else set()
+        return {slot.work_id for slot in self.schedule.slots} | set(self.staging) | scene
 
     def __post_init__(self) -> None:
-        named = {slot.work_id for slot in self.schedule.slots}
-        missing = named - set(self.works)
+        if self.scene is not None and self.scene.until is not None and self.scene.until <= self.scene.starts_at:
+            # The contract's fifth rule: a Player refuses a scene that ends before it starts.
+            raise ValueError(f"Scene {self.scene.id!r} ends before it starts.")
+        missing = self.named() - set(self.works)
         if missing:
             # The contract's first rule a schema cannot state. A Player refuses the
             # whole document over one dangling name, so it is refused here first.
-            raise ValueError(f"The schedule names works the feed does not carry: {', '.join(sorted(missing))}.")
+            raise ValueError(f"The feed names works it does not carry: {', '.join(sorted(missing))}.")
 
 
 def as_document(feed: Feed) -> dict[str, Any]:
@@ -70,12 +93,22 @@ def as_document(feed: Feed) -> dict[str, Any]:
     }
     if feed.settings:
         document["settings"] = dict(feed.settings)
-    named = {slot.work_id for slot in feed.schedule.slots}
-    document["works"] = {work_id: dict(feed.works[work_id]) for work_id in sorted(named)}
+    document["works"] = {work_id: dict(feed.works[work_id]) for work_id in sorted(feed.named())}
     document["schedule"] = {
         "horizon": {"from": _instant(feed.schedule.horizon_from), "until": _instant(feed.schedule.horizon_until)},
         "slots": [{"work_id": s.work_id, "from": _instant(s.start), "until": _instant(s.until)} for s in feed.schedule.slots],
     }
+    # Written only when there is something to say: a feed with neither key is
+    # a wall with no scene in play, which is how a channel's feed reads too.
+    if feed.scene is not None:
+        document["scene"] = {
+            "id": feed.scene.id,
+            "work_id": feed.scene.work_id,
+            "from": _instant(feed.scene.starts_at),
+            "until": None if feed.scene.until is None else _instant(feed.scene.until),
+        }
+    if feed.staging:
+        document["staging"] = list(feed.staging)
     return document
 
 
@@ -94,10 +127,22 @@ class Published:
     horizon_from: datetime
     horizon_until: datetime
     slots: tuple[Slot, ...]
-    #: Each work's entry as published, keyed by id.
+    #: The entry of each work the schedule names, keyed by id. The schedule's
+    #: works only: a work the scene or staging alone names is not part of the
+    #: wall's cycle, nor a work another wall shares with it, and every writer
+    #: derives the control layer afresh (`DisplayService._control_layer`).
     works: Mapping[str, dict[str, Any]]
     #: The feed's presentation defaults as published, so a patch keeps them.
     settings: Mapping[str, Any] = field(default_factory=dict)
+    #: The entries of works only the scene or staging names. The scene and
+    #: staging themselves are not read back: every writer derives them afresh
+    #: from the store, and a malformed one would otherwise hide the whole feed.
+    control_works: Mapping[str, dict[str, Any]] = field(default_factory=dict)
+
+    @property
+    def carried(self) -> dict[str, dict[str, Any]]:
+        """Every work entry the document carries, the scene's and staging's included."""
+        return {**self.control_works, **self.works}
 
     def on_the_wall(self, now: datetime) -> Slot | None:
         """The slot covering `now`, if one does (a gap, or a horizon run out, has none)."""
@@ -126,17 +171,20 @@ def read_published(path: Path) -> Published | None:
         return None
     try:
         schedule = document["schedule"]
+        slots = tuple(
+            Slot(slot["work_id"], datetime.fromisoformat(slot["from"]), datetime.fromisoformat(slot["until"]))
+            for slot in schedule["slots"]
+        )
+        scheduled = {slot.work_id for slot in slots}
         return Published(
             playlist_id=document["playlist"]["id"],
             playlist_name=document["playlist"]["name"],
             horizon_from=datetime.fromisoformat(schedule["horizon"]["from"]),
             horizon_until=datetime.fromisoformat(schedule["horizon"]["until"]),
-            slots=tuple(
-                Slot(slot["work_id"], datetime.fromisoformat(slot["from"]), datetime.fromisoformat(slot["until"]))
-                for slot in schedule["slots"]
-            ),
-            works=dict(document["works"]),
+            slots=slots,
+            works={work_id: entry for work_id, entry in document["works"].items() if work_id in scheduled},
             settings=dict(document.get("settings") or {}),
+            control_works={work_id: entry for work_id, entry in document["works"].items() if work_id not in scheduled},
         )
     except (KeyError, TypeError, ValueError) as exc:
         log.warning("The major 2 manifest at %s is not one this server wrote (%s); the next publish replaces it.", path, exc)

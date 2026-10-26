@@ -66,6 +66,61 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-26: Scenes — a work per wall, shown together (wave 4f)
+
+<!-- prawduct: scope=wave-4f-scenes -->
+
+**Why:** The owner's MVP for wave 4f: "the HDMI display on rpi and samsung
+frame transitioning at the same time to related works that I pick manually."
+The Player has honoured a feed's `scene` and `staging` since wave 4c; nothing
+on the server wrote them (`build-plan-wave-4f-scenes.md`).
+
+**What changed:**
+- **Scenes are Programming state.** Two tables, `scenes` and `scene_pins`;
+  a draft, live or ended scene, a preview or a hold. Keep is deferred until
+  Programming has something to keep a scene into.
+- **Every feed carries the control layer.** One function now spells and
+  writes a wall's feed, and asks the store for the wall's live scene and the
+  draft's staged works on every write, so no publish path can drop a live
+  scene. A pinned work archived or kept off every wall leaves that wall's
+  feed at once, and Walls says why the wall shows its schedule instead; it
+  comes back when the work is restored or allowed again.
+- **Walls has a Scene section** above the cards: pick a work per wall (each
+  pick stages it), *Apply* as a 5, 20 or 60 minute preview or *Hold*, both
+  asked first naming each wall and its work; once live, whether each wall has
+  reached it, from its heartbeat, and *Release*. A card says when a scene is
+  showing on it.
+- **`/api/scenes`** routes, and seven `art_theme` actions for agents. A
+  preview lasts at most a day (1,440 minutes); longer is refused (400), and
+  a hold is how a scene stays longer.
+- **History** records a scene applied and ended on each wall (released,
+  replaced, or its time run out).
+
+**End to end, on this Mac (2026-10-26).** A server booted from this branch
+with two walls, each hanging a theme, and Arrt Player's real Frame and screen
+wall loops run beside their real pulls against it, with the suite's Frame
+double and screen double in place of the television and the HDMI output.
+Pinning a work to each wall had the Frame double holding the staged upload
+within a second, while both walls went on showing their schedules. Applying
+as a hold switched both walls within the same 50 ms poll, and both
+heartbeats reported the scene. Release put both back on the schedule works
+they showed before. A one-minute preview, applied and then the server
+stopped, ended on both walls 60.1 s after Apply, with the server down. The
+Frame double uploads at once, so this shows the upload happens before Apply,
+not how long a real one takes; the walk at the wall times that.
+
+**Rolling back:** a build before this one reads each History row through
+`EventKind(...)` and fails on the new `scene.applied` and `scene.ended`
+rows, so History would not load once any scene has been applied. Before
+rolling back, delete them: `DELETE FROM history_events WHERE kind IN
+('scene.applied', 'scene.ended')`. Release any live scene first, or a held
+scene stays in a wall's feed until the older server next rewrites that
+wall. The `scenes` and `scene_pins` tables are left behind unread.
+
+**Tests changed in what they assert:** the Walls nesting test lists the
+Scene's `h2` among the page's headings, beside one per wall; its claims of
+one `h2` per wall and panels a rank below are unchanged.
+
 ## 2026-10-16: The brand goes home, held works select everywhere, and the Work page shows and chooses the mat (#317, #346, #91)
 
 <!-- prawduct: scope=ui-mat-selection-labels | release=v0.6.0 -->
