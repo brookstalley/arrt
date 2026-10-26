@@ -9,6 +9,7 @@ root's governance suite rather than in either plane's own.
 import os
 import pathlib
 import re
+import subprocess
 
 import pytest
 
@@ -33,6 +34,20 @@ _DEPLOYMENT_PATHS = re.compile(r"/srv/art|/opt/samsung-frame-art-loader")
 _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
+def _projects(repository_root: pathlib.Path) -> list[str]:
+    """Every project here: each directory holding a tracked `pyproject.toml`, the root's own aside.
+
+    Derived rather than listed, so a project that leaves the repository leaves
+    this scan with it, and a new one joins it without an edit here.
+    """
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "*pyproject.toml"], cwd=repository_root, capture_output=True, check=True, text=True
+    ).stdout.split("\0")
+    projects = sorted(str(pathlib.PurePosixPath(name).parent) for name in listed if name and name != "pyproject.toml")
+    assert projects, "no project's pyproject.toml is tracked; the scan would cover nothing"
+    return projects
+
+
 def _source_modules():
     """Every module the norm covers, with a canary per plane.
 
@@ -41,15 +56,16 @@ def _source_modules():
     that it cannot be quietly satisfied must not have a green path through
     checking zero files. **`tools` as well as `src`**, because a tool's docstring
     is what an operator copies, which makes it where a real machine path is most
-    tempting. **One canary per plane**, because `rglob` over a missing directory
-    is silent and a moved plane would otherwise drop out of the check unnoticed.
+    tempting. **One canary per project**, because `rglob` over a missing directory
+    is silent and a moved `src/` would otherwise drop out of the check unnoticed.
     """
     repository_root = _REPOSITORY_ROOT
     modules = sorted(repository_root.glob("*.py"))
-    for plane in ("arrt/src", "arrt-player/src", "arrt/tools", "arrt-player/tools", "contract/src"):
-        found = sorted((repository_root / plane).rglob("*.py"))
-        assert found, f"expected a plane under {repository_root}/{plane}; has the layout moved?"
+    for project in _projects(repository_root):
+        found = sorted((repository_root / project / "src").rglob("*.py"))
+        assert found, f"expected source under {project}/src; has the layout moved?"
         modules.extend(found)
+        modules.extend(sorted((repository_root / project / "tools").rglob("*.py")))
     return modules
 
 

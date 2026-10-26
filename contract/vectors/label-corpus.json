@@ -1,0 +1,72 @@
+{
+  "_about": "Label text the server produces for real works, chosen for the ways they break a label engine: a long family name set first, a name whose family part is last, a culture with no name parts, a nationality that is a place, a nearly empty record. Each record is a major 2 label block (manifest.v2 $defs/label) with its null keys left out, keyed by the name a renderer's preview tool selects it by. What is verbatim is the artist, the name split and the nationality: the server's suite holds those to the tables it seeds from, so a renderer measured against these records is measured against what the wall carries. Every renderer's suite holds its own copy of these records to this file. The other fields are the shapes an engine has to survive, not the catalogue's values.",
+  "records": {
+    "hokusai": {
+      "title": "Under the Well of the Great Wave off Kanagawa",
+      "artist": "Katsushika Hokusai",
+      "artist_family_name": "Katsushika",
+      "artist_given_name": "Hokusai",
+      "artist_nationality": "Japanese",
+      "artist_dates": "1760–1849",
+      "date_created": "c. 1830–32",
+      "medium": "Colour woodblock print on paper",
+      "dimensions": "25.7 × 37.9 cm (10 1/8 × 14 15/16 in.)",
+      "commentary": "One of thirty-six views, and the one that outran the series."
+    },
+    "okeeffe": {
+      "title": "Cow's Skull with Calico Roses",
+      "artist": "Georgia O'Keeffe",
+      "artist_family_name": "O'Keeffe",
+      "artist_given_name": "Georgia",
+      "artist_nationality": "American",
+      "artist_dates": "1887–1986",
+      "date_created": "1931",
+      "medium": "Oil on canvas",
+      "dimensions": "91.4 × 61 cm (36 × 24 in.)"
+    },
+    "moche": {
+      "title": "Stirrup Spout Vessel",
+      "artist": "Moche",
+      "artist_nationality": "North coast, Peru",
+      "date_created": "100 BCE–500 CE",
+      "medium": "Ceramic and pigment",
+      "dimensions": "24.1 × 14 cm"
+    },
+    "kandinsky": {
+      "title": "Painting with Green Center",
+      "artist": "Vasily Kandinsky",
+      "artist_family_name": "Kandinsky",
+      "artist_given_name": "Vasily",
+      "artist_nationality": "Russian",
+      "artist_dates": "1866–1944",
+      "date_created": "1913",
+      "medium": "Oil on canvas",
+      "dimensions": "108.9 × 118.4 cm"
+    },
+    "wright": {
+      "title": "Triptych Window from the Avery Coonley Playhouse, Riverside, Illinois",
+      "artist": "Frank Lloyd Wright",
+      "artist_family_name": "Wright",
+      "artist_given_name": "Frank Lloyd",
+      "artist_nationality": "American",
+      "artist_dates": "1867–1959",
+      "date_created": "1912",
+      "medium": "Leaded glass",
+      "dimensions": "224.2 × 109.2 cm"
+    },
+    "anonymous": {
+      "medium": "Albumen print",
+      "date_created": "c. 1870"
+    },
+    "unattributed": {
+      "title": "Untitled",
+      "date_created": "1968",
+      "medium": "Gelatin silver print"
+    },
+    "nationality-only": {
+      "title": "Water Jar",
+      "artist_nationality": "Japanese",
+      "medium": "Stoneware"
+    }
+  }
+}

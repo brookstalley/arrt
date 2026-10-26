@@ -41,7 +41,10 @@ fixtures (`arrt/tests/contract/test_client_surface.py`). Arrt Player's suite run
 fixtures and validates the heartbeat it writes. The conformance vectors in
 `contract/vectors/` (the label rule, the mat's geometry, what a feed shows at
 an instant) are held to reference statements in the package's suite, and each
-Player's suite runs them against its own code. Every suite reads the files
+Player's suite runs them against its own code. The label corpus
+(`vectors/label-corpus.json`, real records chosen for the ways they break a
+label engine) is held by Arrt's suite to the name splits and nationalities it
+seeds, and each renderer's suite holds its own copy of the records to it. Every suite reads the files
 through the package, never by a path of its own, so the version a Player
 depends on is the contract it is tested against. Arrt owns the contract, and a Player that needs a field asks
 for it here.
@@ -78,8 +81,8 @@ the looser of the two, so the writer's obligation is stated here: Arrt writes
 
 ### The package
 
-The schemas, fixtures, vectors and routes, `semantic_errors`, and this file
-are released together as the Python distribution **`arrt-contract`**
+The schemas, fixtures, vectors, routes and timing, `semantic_errors`, and this
+file are released together as the Python distribution **`arrt-contract`**
 (import name `arrt_contract`). Its source is `contract/` in Arrt's repository,
 and Arrt owns it. A Player depends on a released version; a Player that needs a
 field asks for it as a change to the package.
@@ -143,13 +146,15 @@ written it since wave 2b Chunk 03, omitting `media` for a render whose file it c
 
 - **`reported_at` is the one key the server depends on.** Arrt treats a
   heartbeat without it as unreadable, which reports the Player as broken. The
-  spelling is fixed for that reason, and `tests/preferences/test_heartbeat_contract.py`
-  checks both planes spell it the same.
+  spelling is fixed for that reason: it is the schema's one required `date-time`
+  property (`instant_key` in the package), and each side's suite holds its own
+  constant to it.
 - **`has_label_surface` is never null.** It separates a Player with no panel from
   a Player whose panel has not drawn yet, a distinction `null` used to blur.
 - **Written every 60 seconds.** On the file channel that is an SD-card wear
   budget. Over HTTP it stays, because it sits under the shortest rotation
-  interval with margin.
+  interval with margin. The number, and the three intervals after which a report
+  is stale, are `contract/timing.json` (`timing()` in the package).
 - **Minor 1 (wave 2)** adds the `schema` key.
 
 ### Transport (wave 2; clients from 2026-10-02)

@@ -1,10 +1,14 @@
-"""The display plane imports no curation module, and opens an HTTP client in one module only.
+"""Arrt Player imports no Arrt module, and opens an HTTP client in one module only.
+
+**In the Player's own suite since wave 5**, when the repository split put the
+server out of reach: everything this guard reads is the Player's, and the one
+thing it reads from the contract, the routes, comes through the package.
 
 **Narrowed 2026-09-30 (wave 2b Chunk 04), as the norm's own row scheduled.** The
 channel from curation is now the per-wall manifest and content-addressed media,
 pulled into a Player-local cache (`architecture.md` § Direction). So one module,
-`arrt-player/src/arrt_player/pull.py`, may open an HTTP client. The paths it spells are only
-the routes `contract/routes.json` names; renders it fetches from the addresses
+`src/arrt_player/pull.py`, may open an HTTP client. The paths it spells are only
+the routes the contract's `routes()` names; renders it fetches from the addresses
 the manifest's entries give, which is the contract's design. Only the entry point
 may import it, so the exemption cannot be reached by re-export. **What no import
 reader can see:** a module reaching `arrt_player.pull.aiohttp` as an attribute of a
@@ -51,27 +55,21 @@ import arrt_contract
 import pytest
 from import_graph import imported_names, resolve
 
-REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-DISPLAY_PACKAGE = REPOSITORY_ROOT / "arrt-player" / "src" / "arrt_player"
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+DISPLAY_PACKAGE = PROJECT_ROOT / "src" / "arrt_player"
 
 #: The one module that may open an HTTP client: HTTP mode's pull of the manifest,
 #: its renders and the heartbeat.
 PULL_MODULE = DISPLAY_PACKAGE / "pull.py"
 
-#: Where a module name may resolve to a file **in this repository**. Ordered by
-#: how a plane's own code would find it, and **first match wins** — a name
-#: present in two planes resolves to the display one, which is what an import
-#: from a display module would actually get.
-#:
-#: That ordering cannot weaken the ban, and the reason is worth stating because
-#: it is not obvious: a curation-plane name (`arrt.*`) is rejected by `_forbidden` *before*
-#: resolution is ever attempted, so the guard never depends on finding the
-#: curation copy of anything. Resolution exists only to keep walking repo-local
-#: files, and following the display copy is the honest answer there.
+#: Where a module name may resolve to a file **in this project**, first match
+#: winning. Arrt's own source is not among them, and need not be: a server name
+#: (`arrt.*`) is rejected by `_forbidden` *before* resolution is ever attempted,
+#: so the guard never depends on finding the server's copy of anything.
+#: Resolution exists only to keep walking this project's files.
 SEARCH_ROOTS: tuple[pathlib.Path, ...] = (
-    REPOSITORY_ROOT / "arrt-player" / "src",
-    REPOSITORY_ROOT / "arrt" / "src",
-    REPOSITORY_ROOT,
+    PROJECT_ROOT / "src",
+    PROJECT_ROOT,
 )
 
 #: The forbidden side of the channel. Anything under this package is curation's.
@@ -139,13 +137,13 @@ def test_only_the_entry_point_imports_the_pull():
     the entry point that starts it.
     """
     importers = sorted(
-        str(path.relative_to(REPOSITORY_ROOT))
+        str(path.relative_to(PROJECT_ROOT))
         for path in display_modules()
         if path != PULL_MODULE
         and any(name == "arrt_player.pull" or name.startswith("arrt_player.pull.") for name in imported_names(path))
     )
 
-    assert importers == ["arrt-player/src/arrt_player/__main__.py"]
+    assert importers == ["src/arrt_player/__main__.py"]
 
 
 def test_the_pull_requests_only_the_routes_the_contract_names():
@@ -286,7 +284,7 @@ class Offence:
 
 def _relative(path: pathlib.Path) -> str:
     try:
-        return str(path.relative_to(REPOSITORY_ROOT))
+        return str(path.relative_to(PROJECT_ROOT))
     except ValueError:
         return str(path)
 

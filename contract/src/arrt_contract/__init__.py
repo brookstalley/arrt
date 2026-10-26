@@ -25,12 +25,14 @@ from referencing import Registry, Resource
 __all__ = [
     "ContractNotFoundError",
     "fixtures",
+    "instant_key",
     "registry",
     "root",
     "routes",
     "schema",
     "semantic_errors",
     "specification",
+    "timing",
     "validator",
 ]
 
@@ -43,7 +45,7 @@ class ContractNotFoundError(RuntimeError):
 
 @cache
 def root() -> Path:
-    """The directory holding `schemas/`, `fixtures/`, `vectors/` and `routes.json`.
+    """The directory holding `schemas/`, `fixtures/`, `vectors/`, `routes.json` and `timing.json`.
 
     An installed wheel carries the data inside the package. A checkout of Arrt
     keeps it in `contract/`, where the specification's paths name it, two levels
@@ -92,6 +94,23 @@ def validator(relative: str) -> Draft202012Validator:
     return Draft202012Validator(schema(relative), registry=registry(), format_checker=Draft202012Validator.FORMAT_CHECKER)
 
 
+def instant_key(relative: str) -> str:
+    """The key a document's own instant is reported under: its one required `date-time` property.
+
+    A heartbeat's writer and reader each spell it as a constant of their own, and
+    a reader that finds the instant under another spelling reads the heartbeat as
+    unreadable, which reports a running Player as down. Each side holds its
+    constant to this, so the two agree because each agrees with the contract.
+    A schema with no such key, or more than one, is refused by name.
+    """
+    document = schema(relative)
+    properties = document.get("properties", {})
+    keys = [key for key in document.get("required", []) if properties.get(key, {}).get("format") == "date-time"]
+    if len(keys) != 1:
+        raise ValueError(f"{relative} has {len(keys)} required date-time properties, not one: {keys}")
+    return keys[0]
+
+
 def fixtures() -> list[dict]:
     """The fixture index's rows: each fixture's path, its schema, whether it is valid, and what an invalid one breaks."""
     return _load("fixtures/index.json")["fixtures"]
@@ -100,6 +119,11 @@ def fixtures() -> list[dict]:
 def routes() -> dict[str, dict]:
     """The routes a Player may request, and nothing else, by name: each a `method` and a `path`."""
     return _load("routes.json")["routes"]
+
+
+def timing() -> dict[str, int]:
+    """The heartbeat interval and the staleness threshold in intervals, which no document carries."""
+    return {key: value for key, value in _load("timing.json").items() if not key.startswith("_")}
 
 
 def _instant(text: str) -> datetime:

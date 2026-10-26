@@ -463,8 +463,9 @@ requirement read across two rooms: `information-architecture.md` asks health to
 name *which* wall is silent, and one shared file cannot — a second display would
 overwrite the first's report every minute, so a wall that had gone dark would
 read identically to a wall that was fine. The filename is a template rather than
-a constant on both sides, and the two copies are held equal by
-`tests/preferences/test_heartbeat_contract.py`, whose value is that **both sides
+a constant on both sides, and the two copies were held equal by a root-suite
+test (since wave 5, each side's instant key is held to the contract's
+`instant_key` in its own suite), whose value is that **both sides
 moving together is still a break**: a rename that updated both planes would
 orphan every heartbeat already on disk and every line of this document.
 

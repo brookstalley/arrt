@@ -16,13 +16,34 @@ import subprocess
 
 import pytest
 
-#: Every tree whose absence from a fresh clone would matter. `arrt/tests`
-#: carries almost all of the curation plane's coverage, and a tree the guard does
+
+def _projects() -> list[str]:
+    """Every project here: each directory holding a tracked `pyproject.toml`, the root's own aside.
+
+    Derived rather than listed, so a project that leaves the repository leaves
+    these scans with it, and a new one joins them without an edit here.
+    """
+    listed = subprocess.run(["git", "ls-files", "-z", "*pyproject.toml"], capture_output=True, check=True, text=True).stdout
+    projects = sorted(str(pathlib.PurePosixPath(name).parent) for name in listed.split("\0") if name and name != "pyproject.toml")
+    assert projects, "no project's pyproject.toml is tracked; the scans would cover nothing"
+    return projects
+
+
+#: Every tree whose absence from a fresh clone would matter: each project's
+#: `src` and `tests`, its `tools` where it has one, and the root's own `tests`.
+#: A project's tests carry almost all of its coverage, and a tree the guard does
 #: not walk is exactly the tree this guard was built for: the suite stays green
-#: locally while the clone and the Pi quietly lose it. The `tools/` trees are
-#: here because the operator runs them by hand on the Pi — `arrt-player/tools` holds the
-#: only code that presses power on the television.
-SOURCE_TREES = ("arrt/src", "arrt/tests", "arrt/tools", "arrt-player/src", "arrt-player/tests", "arrt-player/tools", "tests")
+#: locally while the clone quietly loses it. The `tools/` trees are here because
+#: an operator runs them by hand.
+SOURCE_TREES = (
+    "tests",
+    *(
+        f"{project}/{tree}"
+        for project in _projects()
+        for tree in ("src", "tests", "tools")
+        if tree != "tools" or pathlib.Path(project, "tools").is_dir()
+    ),
+)
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:
@@ -117,15 +138,11 @@ def _directives_of(unit: pathlib.Path) -> dict[str, list[str]]:
     return directives
 
 
-
-
-
-
 @pytest.mark.parametrize("unit", sorted(LIVE_UNITS), ids=lambda p: p.stem)
 def test_a_live_unit_declares_its_environment_file(unit: pathlib.Path):
-    """Same requirement as the loader unit, on the units that actually run.
+    """The units that run declare their environment file, un-prefixed.
 
-    `config.py` raises at import without its deployment values, and an
+    Each plane's settings refuse to start without their deployment values, and an
     `EnvironmentFile=` the unit does not declare — or declares with a `-` prefix,
     making it optional — turns a missing file into an import-time crash nobody
     connects back to a file that was never placed.

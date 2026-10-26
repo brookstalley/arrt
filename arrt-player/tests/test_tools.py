@@ -490,3 +490,11 @@ def test_the_api_check_refuses_a_client_with_no_television(deployment, api_check
 
     with pytest.raises(ConfigError, match="TV_ADDRESS"):
         api_check._frame()
+
+
+def test_the_api_check_says_why_it_cannot_start_rather_than_raising(deployment, api_check, monkeypatch, capsys):
+    monkeypatch.delenv("TV_ADDRESS")
+    monkeypatch.setattr(sys, "argv", ["tv_api_check.py"])
+
+    assert api_check.main() == 2
+    assert "TV_ADDRESS" in capsys.readouterr().out

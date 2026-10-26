@@ -31,15 +31,13 @@ outcome: its caller, `tv_api_check.py`, reports the exception as a finding.
 import logging
 from typing import TYPE_CHECKING
 
+# The category every image this project uploads lands in, defined once, by the daemon.
+from arrt_player.tv.client import UPLOADED_CATEGORY
+
 if TYPE_CHECKING:
     from samsungtvws.async_art import SamsungTVAsyncArt
 
 _log = logging.getLogger(__name__)
-
-#: The category every image this project uploads lands in. Samsung exposes no
-#: way to create another: 2 = my pictures, 4 = favourites, 8 = store, and the
-#: upload verb takes no category argument.
-UPLOADED_CATEGORY = "MY-C0002"
 
 
 class DeleteNotConfirmed(Exception):

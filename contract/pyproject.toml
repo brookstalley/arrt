@@ -42,6 +42,7 @@ packages = ["src/arrt_contract"]
 "fixtures" = "arrt_contract/fixtures"
 "vectors" = "arrt_contract/vectors"
 "routes.json" = "arrt_contract/routes.json"
+"timing.json" = "arrt_contract/timing.json"
 # The specification travels with the files it specifies, because the schemas
 # alone do not carry the rules a schema cannot state. `player-contract.md` here
 # is a symlink to the artifact, so there is one text.

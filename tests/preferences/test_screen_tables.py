@@ -22,7 +22,7 @@ failure a test catches and a reading does not, which is why the rule keeps its
 sentence — it still says what agreement *means* — and loses its job to this file.
 
 It reads both sources rather than importing either, the technique
-`test_plane_isolation.py` and `test_heartbeat_contract.py` already use, and it
+`test_plane_isolation.py` already uses, and it
 lives in the root suite because the two files it compares are in two different
 projects: `.prawduct/artifacts/` is the repository's and `app.js` is the curation
 plane's, and neither plane's suite spans both.

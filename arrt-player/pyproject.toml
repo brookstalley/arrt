@@ -58,7 +58,7 @@ dependencies = [
     # of only on a Pi with a panel screwed to it.
     "pillow",
     # The HTTP mode's one client, in `src/arrt_player/pull.py` and nowhere else
-    # (`tests/preferences/test_plane_isolation.py` holds that). Already installed
+    # (`tests/test_plane_isolation.py` holds that). Already installed
     # through the fork above, at the version the lockfile resolves; declared
     # because an indirect copy disappears the day that package changes its own
     # dependencies. asyncio, like the daemon, and its test server is the stub the
@@ -97,7 +97,7 @@ dependencies = [
 #     job.
 #
 #     **Enforced mechanically since 2026-08-06** by
-#     `tests/preferences/test_plane_isolation.py`, which landed in the same commit
+#     `tests/test_plane_isolation.py`, which landed in the same commit
 #     as this plane's first modules — the sequencing this comment previously
 #     described as owed, and owed for a reason: a check written over an empty
 #     package passes vacuously, and a green suite is exactly what a violation

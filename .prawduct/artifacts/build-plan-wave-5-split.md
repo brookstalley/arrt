@@ -15,7 +15,7 @@ depends_on:
 governed_by:
   - artifact: re-architecture
     dispositions:
-      - "§ Order of work, wave 5 row (two-pass filter-repo over four historical paths; move the root's non-2024 hardware tools into arrt-player/tools first; remove the 2024 root modules; onboard prawduct there; carry the Player's artifacts; pin contract/ with player-contract.md and the major 2 semantic validator; the new repo is arrt-player, this one Arrt) → conforms: 02 moves the tools and removes the modules, 04 runs the measured recipe and its two tree checks, 01 makes the pin a package that carries all three, 05 leaves this repo as Arrt. The pin's form is the owner's ruling of 2026-10-26 (Goals)"
+      - "§ Order of work, wave 5 row (two-pass filter-repo over four historical paths; move the root's non-2024 hardware tools into arrt-player/tools first; remove the 2024 root modules; onboard prawduct there; carry the Player's artifacts; pin contract/ with player-contract.md and the major 2 semantic validator; the new repo is arrt-player, this one Arrt) → conforms: 02 moves the tools and removes the modules, 04 runs the measured recipe and its two tree checks, 01 makes the pin a package that carries all three, 05 leaves this repo as Arrt. The pin's form is the owner's ruling of 2026-10-26 (Goals). Exception, recorded as a decision in Goals: the tools do not carry the root's `config.py` with them; they read the Player's own settings"
       - "§ Agents (after the split, one session per repo; a Player agent that needs a field files it against the server repo) → conforms: 05 transfers the Player's issues and the contract package lives here, so a field is a change to this repo's package and a version the Player then takes"
   - artifact: architecture
     dispositions:
@@ -148,6 +148,8 @@ streams.
 
 `[DECISION: the contract package is installed from a git tag on brookstalley/arrt rather than PyPI | the owner asked for a published package; a tag gives a named, immutable, installable version with no account, token or global name to hold, and uv resolves it like any index; PyPI is a one-line swap when a third consumer or an outside user appears | the builder's, 2026-10-26; user can veto]`
 
+`[DECISION: the hand-run tools read the Player's own settings (arrt_player.config.load) instead of carrying the root's config.py into arrt-player/tools | the owner's 2026-10-05 ruling moved "tv_api_check.py, tv_delete.py, panel_check.py, and the config.py they read" so that the tools leave with the Player and keep working; that config.py was the 2024 configuration and required ART_ROOT, LATITUDE, LONGITUDE and LOCATION_NAME at import, so carried as written it would have stopped tv_api_check.py on a Player, and a tool reaching the set by settings other than the wall's checks something other than the wall | the builder's, 2026-10-26; user can veto]`
+
 **Decisions made mid-build:** *(appended while building; one line each, naming
 what settled it)*
 - 01: the data stays at `contract/schemas/`, `fixtures/`, `vectors/` and `routes.json`, with the package in `contract/src/`, and the wheel force-includes the data. Settled by "do it right": 58 files cite those paths, and moving them would rewrite the specification's addresses for no change in meaning.
@@ -160,6 +162,11 @@ what settled it)*
 - 02: `tv_delete.py`'s `remove_from_tv`, `forgettable_ids` and `describe_removal` went with their only caller, `tvart.py`, and so did the ten tests that exercised only them. The two tests that held the cause in the refusal's message were rewritten against `delete_list_confirmed`, which carries that message.
 - 02: `tests/test_config.py` was split. Its repo-wide deployment-value guards became `tests/preferences/test_deployment_values.py`, now walking `contract/src` too. Its tests of the 2024 `config.py` left with that file, and the norm index's secret row now names the planes' own startup guards. The two tests of the 2024 systemd unit left with the unit, because the live-unit tests beside them assert the same properties on the units that run.
 - 02: the 2024 sections of `deploy/README.md` (the retired unit's recipe and its provenance) were removed, and the dependency-move record stays with its references corrected. The rest of that file is the Player's install history, which 04 carries.
+- 02, after its review (0 blocking): `tv_delete.py` takes `UPLOADED_CATEGORY` from the daemon's `arrt_player.tv.client`; rewiring the tool onto `SamsungTv.remove` is #384, because it changes what the tool measures and only the set can verify it. `tv_api_check` refuses a Player with no television in a sentence and exit 2. The feed guard's schema-first branch has a test. The surviving present-tense references to the 2024 plane in the artifacts were corrected; historical ones stay.
+- 03: each cross-plane agreement is restated against the contract rather than split in two: a side holds its own constant to the package, so the two agree because each agrees with the contract. That needed the contract to say three things it only implied: `instant_key()` (the heartbeat's one required `date-time` key), `timing.json` (the heartbeat interval and the three-interval staleness threshold, which `player-contract.md` states in prose), and `vectors/label-corpus.json` (the real records renderers measure against, which Arrt holds to its seed tables and the Player holds its copy to). Settled by the architecture goal, "nothing that guards today guards less afterwards".
+- 03: the corpus vector found that the `anonymous` record has no title, which no server sends (#385). It is a named exception in the package test until that is decided, rather than a change to records the accessibility spec's measurements were taken against.
+- 03: the plane-isolation guard moved whole into the Player's suite, with a copy of the import reader; it reads only Player code and the contract's routes. The root's repository-wide scans (deployment values, gitignored source, test placement) now derive their scope from the tracked `pyproject.toml` files rather than naming planes, and the Player carries its own copies scoped to itself.
+- 03: the Player's deploy files (`deploy/display.service`, the journald bound, `pi-freeze-2024.txt`) and the root tests that guard `display.service` are not moved here. The Pi's runbook and the deploy README name those paths for the live install, so moving them mid-wave changes the operator's procedure; 04 copies them, with their guards, into the new repository, and 05 removes them here. The norm index's rows that name Player tests move with the Player's artifacts in 04 and 05 likewise.
 
 **Level:** Medium. The extraction recipe is measured. The package boundary is
 new, and the guard split (03) is the part most likely to hide a loss. What would
@@ -258,7 +265,7 @@ re-break, per the learnings rule on new checks. Nothing in this chunk deletes
 an assertion without naming the one that replaces it.
 
 **Done when:** no root test reads `arrt-player/`
-(`grep -rln "arrt-player\|arrt_player" tests/` is empty, apart from
+(`grep -rln "arrt-player\|arrt_player" tests/` finds only comments, and
 `test_default_suite_ci_scope` while the leg exists). All four suites are green.
 The cumulative review is clean. PR 1 is merged to `develop`, and the tag
 `contract-v1.0.0` is pushed at its merge commit.

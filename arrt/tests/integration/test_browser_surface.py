@@ -482,7 +482,7 @@ class TestHealth:
                     # a fixture naming a field nothing produces is how a surface
                     # gets built against a document that never arrives. The two
                     # planes cannot import each other, so what holds them together
-                    # is `tests/preferences/test_heartbeat_contract.py`.
+                    # is each holding its key to the contract's `instant_key`.
                     "reported_at": datetime.now(UTC).isoformat(),
                     "television_reachable": False,
                     "last_error": "the television refused the pairing token",

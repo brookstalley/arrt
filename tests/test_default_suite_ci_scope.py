@@ -176,7 +176,7 @@ def test_tests_live_is_collected_rather_than_ignored():
 def test_the_root_leg_needs_no_ignores():
     """Why the two test jobs are not written the same way.
 
-    The root suite runs the 2024 modules and has no opt-in group to miss, so its
+    The root suite is the governance suite and has no opt-in group to miss, so its
     invocation is the plain one. If that ever stops being true, this fails here
     rather than in CI — where it would present as a provisioning failure against
     a suite that is fine.

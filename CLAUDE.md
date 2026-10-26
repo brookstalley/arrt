@@ -40,7 +40,7 @@ meanwhile:
   `architecture.md` § Direction before touching the manifest, the display
   plane's I/O, or the theme and wall tables. (The directive table went in
   wave 4g.)
-  `tests/preferences/test_plane_isolation.py` allows an HTTP client in
+  `arrt-player/tests/test_plane_isolation.py` allows an HTTP client in
   `arrt-player/src/arrt_player/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on

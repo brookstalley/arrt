@@ -80,7 +80,7 @@ def test_the_wheel_carries_the_data_inside_the_package(wheel):
         f"arrt_contract/{path.relative_to(CHECKOUT)}"
         for kind in ("schemas", "fixtures", "vectors")
         for path in (CHECKOUT / kind).rglob("*.json")
-    } | {"arrt_contract/routes.json", "arrt_contract/player-contract.md"}
+    } | {"arrt_contract/routes.json", "arrt_contract/timing.json", "arrt_contract/player-contract.md"}
     assert on_disk <= names, sorted(on_disk - names)
 
 
@@ -107,3 +107,32 @@ def test_an_installed_wheel_without_the_specification_refuses_by_name(wheel, tmp
 
     with pytest.raises(installed.ContractNotFoundError):
         installed.specification()
+
+
+HEARTBEATS = ("schemas/heartbeat.v1.schema.json", "schemas/client-heartbeat.v1.schema.json")
+
+
+def test_both_heartbeats_report_their_instant_under_one_key():
+    """A Player writes both bodies' instant from one constant, so the two schemas must name the same key."""
+    assert {arrt_contract.instant_key(name) for name in HEARTBEATS} == {"reported_at"}
+
+
+def test_a_schema_with_two_candidate_instants_is_refused(monkeypatch):
+    two = {
+        "required": ["at", "also_at"],
+        "properties": {"at": {"format": "date-time"}, "also_at": {"format": "date-time"}},
+    }
+    monkeypatch.setattr(arrt_contract, "schema", lambda _relative: two)
+
+    with pytest.raises(ValueError, match="2 required date-time"):
+        arrt_contract.instant_key("schemas/anything.json")
+
+
+def test_the_timing_is_what_the_specification_says():
+    """The numbers and the prose that states them, held together so neither moves alone."""
+    text = arrt_contract.specification().read_text(encoding="utf-8")
+    timing = arrt_contract.timing()
+
+    assert f"**Written every {timing['heartbeat_interval_seconds']} seconds.**" in text
+    assert "older than three heartbeat intervals" in text
+    assert timing["stale_after_intervals"] == 3

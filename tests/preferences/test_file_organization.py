@@ -16,10 +16,19 @@ _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 #: tools went to `arrt-player/tools` with the Player whose hardware they exercise.
 _ROOT_MODULES: frozenset[str] = frozenset()
 
-#: Each plane's test tree, and the contract package's. `testpaths = ["tests"]` in every plane's `pyproject.toml`
-#: means a `test_*.py` anywhere else is never collected, so it would look like a
-#: test and guard nothing.
-_TEST_TREES = ("tests/", "arrt/tests/", "arrt-player/tests/", "contract/tests/")
+
+def _projects() -> list[str]:
+    """Every project here: each directory holding a tracked `pyproject.toml`, the root's own aside."""
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "*pyproject.toml"], cwd=_REPOSITORY_ROOT, capture_output=True, check=True, text=True
+    ).stdout.split("\0")
+    return sorted(str(pathlib.PurePosixPath(name).parent) for name in listed if name and name != "pyproject.toml")
+
+
+#: Each project's test tree and the root's, derived from the projects present.
+#: `testpaths = ["tests"]` in every `pyproject.toml` means a `test_*.py` anywhere
+#: else is never collected, so it would look like a test and guard nothing.
+_TEST_TREES = ("tests/", *(f"{project}/tests/" for project in _projects()))
 
 
 def _tracked() -> list[str]:
@@ -36,7 +45,7 @@ def test_nothing_new_is_added_at_the_root():
 
     assert present <= _ROOT_MODULES, (
         f"new modules at the repository root: {sorted(present - _ROOT_MODULES)}. "
-        "New code goes in a plane package (arrt/src, arrt-player/src, or a plane's tools/)."
+        "New code goes in a project's package (its src/) or its tools/."
     )
 
 

@@ -484,6 +484,13 @@ def main() -> int:
     if args.image and not Path(args.image).exists():
         print(f"No such image: {args.image}")
         return 2
+    try:
+        _frame()
+    except ConfigError as err:
+        # Before anything reaches for the set: a configuration that names no
+        # television is an operator's fix, said in a sentence, not a traceback.
+        print(f"Cannot check the television: {err}")
+        return 2
     return asyncio.run(run(args))
 
 

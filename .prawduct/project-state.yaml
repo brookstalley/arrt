@@ -590,7 +590,7 @@ product_definition:
       - "Multiple TVs / multiple display planes"
       - "Swapping the e-paper panel or driver without touching curation"
     later:                # Not needed for v1 to be useful
-      - "Re-enabling automatic art-mode on/off scheduling (currently commented out in tvart.py)"
+      - "Re-enabling automatic art-mode on/off scheduling (commented out in the 2024 tvart.py, retired 2026-10-26; Arrt Player power control, wave 6+)"
       - "Weather-aware brightness (the weather_adjustments table in local.py is hardcoded to 'clear')"
       - "3tears agent memory — DROPPED, not merely deferred. Operator confirmed 2026-07-19 that agents may be stateless across sessions. This removes the only 3tears capability that forces Postgres, so the curation plane is infrastructure-free by decision rather than by compromise."
     never:                # Explicitly out of scope. Each: { item, rationale }

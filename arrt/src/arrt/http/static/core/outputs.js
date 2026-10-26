@@ -31,9 +31,9 @@
 import { ago } from "./dates.js";
 import { GLYPHS } from "./glyphs.js";
 
-/* How often a Player reports, both its client heartbeat and each wall's:
- * `arrt-player/src/arrt_player/heartbeat.py`'s `INTERVAL_SECONDS`, which
- * `tests/preferences/test_staleness_threshold.py` holds this to. */
+/* How often a Player reports, both its client heartbeat and each wall's: the
+ * contract's `timing.json`, which `arrt/tests/contract/test_staleness_threshold.py`
+ * holds this to. */
 export const HEARTBEAT_INTERVAL_SECONDS = 60;
 
 /* Three missed reports, not one: a report a few seconds late is a busy Pi, and

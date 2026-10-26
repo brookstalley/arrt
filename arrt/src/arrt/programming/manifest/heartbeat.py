@@ -12,9 +12,9 @@ verdict computed from a file that may simply be young is how a health surface
 starts lying: the reader is told the age and decides.
 
 The writer is the display plane's — `arrt-player/src/arrt_player/heartbeat.py`, which
-declares the same two names and is held to them by
-`tests/preferences/test_heartbeat_contract.py`, since neither plane can import
-the other to check. A heartbeat that has never been written is still an ordinary
+declares the same names; each plane holds its own to the contract
+(`arrt/tests/contract/test_heartbeat_key.py` here), since neither can import the
+other to check. A heartbeat that has never been written is still an ordinary
 answer and is reported as one: a fresh deployment has no writer running yet, and
 that is a true and useful thing to say rather than a zero that reads like a
 reading.
@@ -51,8 +51,8 @@ REPORTED_AT_KEY: Final[str] = "reported_at"
 
 #: How often a Player reports each wall's heartbeat: `arrt-player/src/arrt_player/
 #: heartbeat.py`'s `INTERVAL_SECONDS`. Written again here because neither plane
-#: imports the other; `tests/preferences/test_staleness_threshold.py` holds this,
-#: the Player's and the browser's (`static/core/outputs.js`) to one number.
+#: imports the other; each holds its copy to the contract's `timing()`, and
+#: `arrt/tests/contract/test_staleness_threshold.py` holds this and the browser's.
 INTERVAL_SECONDS: Final[float] = 60.0
 
 #: Past this age a wall's report says nothing about now, and the wall is
