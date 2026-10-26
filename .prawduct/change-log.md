@@ -66,6 +66,63 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-26: The contract becomes a package, the root clears, and every cross-plane guard holds where it will survive the split (wave 5, part 1; #33)
+
+<!-- prawduct: scope=wave-5-split -->
+
+**Why:** Wave 5 splits Arrt Player into its own repository
+(`re-architecture.md` § Order of work). Before the history can be cut, the
+contract both sides test against has to be something a repository outside
+this one can depend on, and every guard that read both planes from the root
+has to hold in a suite that survives the cut (`build-plan-wave-5-split.md`,
+chunks 01 to 03). The owner chose a published package, as a git tag for now.
+
+**What changed:**
+- **`contract/` is the `arrt-contract` package** (`player-contract.md`
+  § The package): the schemas, fixtures, vectors, routes and timing, the
+  rules a schema cannot state (`semantic_errors`), and `player-contract.md`
+  itself, at one version (1.0.0). The data stays where the specification
+  names it; the wheel carries it. Every suite reads it through the package,
+  each project as an editable dev dependency, and the contract has its own
+  suite and CI leg.
+- **The contract says three things it only implied:** the heartbeat's
+  instant key (`instant_key()`), the 60-second heartbeat interval and the
+  three-interval stale threshold (`timing.json`), and the label corpus
+  (`vectors/label-corpus.json`) that renderers measure against.
+- **The root holds no code.** `tv_api_check.py`, `tv_delete.py` and
+  `panel_check.py` moved to `arrt-player/tools/` and read the Player's own
+  settings (the owner ratified this in place of carrying the 2024
+  `config.py`). The 2024 modules, `requirements.txt` and the 2024 systemd
+  unit are deleted. `all.json` stays: the server's seed reads it.
+- **Each agreement between the planes is held by each side against the
+  contract**, in its own suite: the heartbeat key, the timing, the label
+  corpus (Arrt against its seed tables, the Player's copy against the
+  vector). The plane-isolation guard moved whole into the Player's suite.
+  The root's repository-wide scans derive their scope from the projects
+  present, and the Player carries its own copies.
+- **The server image's test stage installs the contract.** Its suite in the
+  image still fails for reasons this work did not cause (#386).
+
+**Tests changed in what they assert:**
+- *Moved, unchanged in what they assert:* the contract's schema, fixture,
+  vector and label-rule tests (`contract/tests/`), and the plane-isolation
+  guard (`arrt-player/tests/test_plane_isolation.py`).
+- *Restated against the contract:* the heartbeat-key, staleness and
+  label-corpus guards, each split into a server half and a Player half that
+  hold their own constant to the package instead of reading the other
+  plane's source. Each half was watched failing against a re-break.
+- *Deleted with the code they tested:* the 2024 `config.py` tests and the
+  2024 dezoomify argv test; the two tests of the deleted 2024 unit (the live
+  units' tests assert the same properties); and ten `tv_delete` tests of
+  `remove_from_tv`, `forgettable_ids` and `describe_removal`, whose only
+  caller was the deleted `tvart.py`. Two of those asserted that a refusal's
+  message names its cause; they were rewritten against
+  `delete_list_confirmed`, which carries that message.
+
+**Rolling back:** no data changes. A checkout before this one reads the
+contract from `contract/` by path, so rolling back is checking out the older
+commit; nothing a running wall or server stores is touched.
+
 ## 2026-10-26: Scenes — a work per wall, shown together (wave 4f)
 
 <!-- prawduct: scope=wave-4f-scenes -->
