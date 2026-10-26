@@ -31,7 +31,8 @@ mode. On Walls, the *Scene* section above the cards.
 - **Hold and Release.** Hold, then Release, and see both walls resume where
   their schedules are.
 - **The words.** "Preparing the walls", "Scene until {time}", "Scene, held
-  until released", "{wall} is showing it", and a card's "A scene shows {work}
+  until released", "{wall} is showing it", "{wall} cannot show it, so it
+  shows its schedule." (keep a picked work off every wall to see it), and a card's "A scene shows {work}
   here until {time}. Skip moves the schedule beneath it, …". Say if any reads
   as plumbing, or if the card's sentence is too long beside *Skip*.
 

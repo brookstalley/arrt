@@ -82,13 +82,17 @@ on the server wrote them (`build-plan-wave-4f-scenes.md`).
 - **Every feed carries the control layer.** One function now spells and
   writes a wall's feed, and asks the store for the wall's live scene and the
   draft's staged works on every write, so no publish path can drop a live
-  scene. A pinned work the walls can no longer show leaves the scene at once.
+  scene. A pinned work archived or kept off every wall leaves that wall's
+  feed at once, and Walls says why the wall shows its schedule instead; it
+  comes back when the work is restored or allowed again.
 - **Walls has a Scene section** above the cards: pick a work per wall (each
   pick stages it), *Apply* as a 5, 20 or 60 minute preview or *Hold*, both
   asked first naming each wall and its work; once live, whether each wall has
   reached it, from its heartbeat, and *Release*. A card says when a scene is
   showing on it.
-- **`/api/scenes`** routes, and seven `art_theme` actions for agents.
+- **`/api/scenes`** routes, and seven `art_theme` actions for agents. A
+  preview lasts at most a day (1,440 minutes); longer is refused (400), and
+  a hold is how a scene stays longer.
 - **History** records a scene applied and ended on each wall (released,
   replaced, or its time run out).
 
@@ -104,6 +108,14 @@ they showed before. A one-minute preview, applied and then the server
 stopped, ended on both walls 60.1 s after Apply, with the server down. The
 Frame double uploads at once, so this shows the upload happens before Apply,
 not how long a real one takes; the walk at the wall times that.
+
+**Rolling back:** a build before this one reads each History row through
+`EventKind(...)` and fails on the new `scene.applied` and `scene.ended`
+rows, so History would not load once any scene has been applied. Before
+rolling back, delete them: `DELETE FROM history_events WHERE kind IN
+('scene.applied', 'scene.ended')`. Release any live scene first, or a held
+scene stays in a wall's feed until the older server next rewrites that
+wall. The `scenes` and `scene_pins` tables are left behind unread.
 
 **Tests changed in what they assert:** the Walls nesting test lists the
 Scene's `h2` among the page's headings, beside one per wall; its claims of

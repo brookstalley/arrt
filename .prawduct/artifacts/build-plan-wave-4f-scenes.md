@@ -41,7 +41,7 @@ governed_by:
     dispositions:
       - "per-device runtime state never lives in the catalogue → conforms: whether a wall reached a scene is read from its heartbeat each time, never stored on the scene"
       - "derived artifacts are regenerated, never transported → conforms: a scene names works by id; the Player composes them as it composes a slot's"
-      - "§ Scene (planned entity, wave 4) → conforms: 01 builds it as planned, less keep; 03 marks the entry built"
+      - "§ Scene (planned entity, wave 4) → conforms: 01 builds it as planned, less keep, and marks the entry built (a mid-build decision below)"
   - artifact: information-architecture
     dispositions:
       - "§ Direction (the *arr layout; navigation is a link, an act is a button) → conforms: the scene section's picks, Apply and Release are buttons, because they write; a wall's name in it is the link it is everywhere else"
