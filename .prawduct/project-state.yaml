@@ -560,7 +560,7 @@ product_definition:
         switch cost zero TV writes.
       priority: must-have
     - name: "Ambient adaptation"
-      description: "Brightness follows sun position; art mode follows time of day. Exists today in local.py; the auto art-mode logic is currently commented out."
+      description: "Brightness follows sun position; art mode follows time of day. Brightness is built in Arrt Player (arrt_player/brightness.py); the art-mode schedule was commented out in the 2024 local.py, retired 2026-10-26, and returns with power control (wave 6+)."
       priority: nice-to-have
     - name: "Drive everything from an agent, over MCP"
       description: >
@@ -591,7 +591,7 @@ product_definition:
       - "Swapping the e-paper panel or driver without touching curation"
     later:                # Not needed for v1 to be useful
       - "Re-enabling automatic art-mode on/off scheduling (commented out in the 2024 tvart.py, retired 2026-10-26; Arrt Player power control, wave 6+)"
-      - "Weather-aware brightness (the weather_adjustments table in local.py is hardcoded to 'clear')"
+      - "Weather-aware brightness (the 2024 local.py, retired 2026-10-26, hardcoded its weather table to 'clear')"
       - "3tears agent memory — DROPPED, not merely deferred. Operator confirmed 2026-07-19 that agents may be stateless across sessions. This removes the only 3tears capability that forces Postgres, so the curation plane is infrastructure-free by decision rather than by compromise."
     never:                # Explicitly out of scope. Each: { item, rationale }
       - item: "Kubernetes, NATS, or multi-pod deployment"

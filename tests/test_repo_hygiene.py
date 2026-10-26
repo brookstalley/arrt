@@ -15,19 +15,7 @@ import pathlib
 import subprocess
 
 import pytest
-
-
-def _projects() -> list[str]:
-    """Every project here: each directory holding a tracked `pyproject.toml`, the root's own aside.
-
-    Derived rather than listed, so a project that leaves the repository leaves
-    these scans with it, and a new one joins them without an edit here.
-    """
-    listed = subprocess.run(["git", "ls-files", "-z", "*pyproject.toml"], capture_output=True, check=True, text=True).stdout
-    projects = sorted(str(pathlib.PurePosixPath(name).parent) for name in listed.split("\0") if name and name != "pyproject.toml")
-    assert projects, "no project's pyproject.toml is tracked; the scans would cover nothing"
-    return projects
-
+from repository import projects
 
 #: Every tree whose absence from a fresh clone would matter: each project's
 #: `src` and `tests`, its `tools` where it has one, and the root's own `tests`.
@@ -39,7 +27,7 @@ SOURCE_TREES = (
     "tests",
     *(
         f"{project}/{tree}"
-        for project in _projects()
+        for project in projects()
         for tree in ("src", "tests", "tools")
         if tree != "tools" or pathlib.Path(project, "tools").is_dir()
     ),

@@ -15,11 +15,6 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
     "black>=24",
-    # **The contract both sides are tested against**, read through the package
-    # rather than by a path of this project's own: the governance tests that
-    # check the planes against the contract (the heartbeat's two sides, the
-    # Player's routes) read it here. Arrt owns the source in `contract/`.
-    "arrt-contract",
     # Reads `.prawduct/project-state.yaml` in the artifact-manifest guard, which
     # checks a YAML document's structure and so parses it rather than grepping it.
     "pyyaml>=6",
@@ -73,8 +68,5 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[tool.uv.sources]
-# An editable path while the contract lives in this repository, so a contract
-# change and the code it changes land in one commit with every suite behind it.
-arrt-contract = { path = "contract", editable = true }
+# `tests/repository.py` is shared by the guards in `tests/` and `tests/preferences/`.
+pythonpath = ["tests"]

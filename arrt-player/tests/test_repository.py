@@ -42,6 +42,11 @@ _PRIVATE_SHAPES = re.compile(
     r"|/(?:Users|home)/[A-Za-z][\w.-]*"
 )
 
+#: The deployment's published paths. Public (the deploy docs name them), so not a
+#: leak; still forbidden in code, because the same code runs on a dev machine
+#: where they do not exist. Comments may name them.
+_DEPLOYMENT_PATHS = re.compile(r"/srv/art|/opt/samsung-frame-art-loader")
+
 
 def _tracked() -> list[str]:
     listed = subprocess.run(
@@ -103,10 +108,10 @@ def test_no_source_file_carries_a_deployment_value():
         f"{path.relative_to(PROJECT)}:{number}"
         for path in modules
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
-        if _PRIVATE_SHAPES.search(line)
+        if _PRIVATE_SHAPES.search(line) or (not line.strip().startswith("#") and _DEPLOYMENT_PATHS.search(line))
     ]
 
-    assert offenders == [], "a private address or a named home directory, which belongs in .env:\n" + "\n".join(offenders)
+    assert offenders == [], "a deployment value, which belongs in .env:\n" + "\n".join(offenders)
 
 
 @pytest.mark.parametrize(
@@ -126,21 +131,44 @@ def test_the_shape_check_knows_a_leak_from_a_lookalike(line, leaks):
     assert bool(_PRIVATE_SHAPES.search(line)) is leaks
 
 
-def test_no_tracked_file_carries_this_users_home():
-    """This machine's own home path, which the shape check above cannot know is someone's."""
+def _this_machines_values() -> dict[str, str]:
+    """The deployment values this checkout's `.env` holds, and this user's home.
+
+    Read with `dotenv_values`, the parser the Player loads `.env` through, so an
+    `export` prefix or an inline comment means here what it means there.
+    Coordinates and the television's address are what a public repository must
+    not carry; `$HOME` stands in for every path under it.
+    """
+    from dotenv import dotenv_values
+
+    values = {}
+    dotenv = PROJECT / ".env"
+    if dotenv.is_file():
+        declared = dotenv_values(dotenv)
+        for key in ("TV_ADDRESS", "LATITUDE", "LONGITUDE"):
+            value = (declared.get(key) or "").strip()
+            if len(value) >= 4:
+                values[key] = value
     home = os.environ.get("HOME", "")
-    if len(home) <= len("/home/"):
-        pytest.skip("no $HOME here, so there is nothing of this machine's to look for")
+    if len(home) > len("/home/"):
+        values["HOME"] = home
+    return values
+
+
+def test_no_tracked_file_carries_this_machines_deployment_values():
+    """Every tracked file, against the values this checkout uses; it names the key that leaked, never the value."""
+    values = _this_machines_values()
+    if not values:
+        pytest.skip("no .env deployment values and no $HOME here, so there is nothing of this machine's to look for")
     offenders = []
     for name in _tracked():
         try:
             text = (PROJECT / name).read_text(encoding="utf-8")
         except (UnicodeDecodeError, FileNotFoundError, IsADirectoryError):
             continue  # binary, or deleted in the working tree
-        if home in text:
-            offenders.append(name)
+        offenders.extend(f"{name}: this machine's {key}" for key, value in values.items() if value in text)
 
-    assert offenders == [], f"tracked files carry this machine's home path: {offenders}"
+    assert offenders == [], "a tracked file carries this machine's deployment values:\n" + "\n".join(offenders)
 
 
 def test_every_test_module_is_in_tests():

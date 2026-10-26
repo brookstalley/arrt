@@ -37,12 +37,12 @@ until it is taken this paragraph is the warning that these records are the
 optimistic case.
 
 **Copied rather than imported, and the duplication is the architecture.** The
-display plane does not depend on the curation plane — it reads its feed and
-nothing else (`architecture.md` § Direction), and the preview tool that draws
-these runs on a Player with no contract package installed, and an import across that seam would
-be the one place the two planes touched. What these records are *for* is being the
-manifest's label blocks, which is exactly what they are: the keys here are
-`LabelText`'s fields, so `read_label` takes them unchanged.
+Player does not depend on Arrt: it reads its feed and nothing else
+(`architecture.md` § Direction). Nor can it read these from the contract
+package at run time, because the preview tool that draws them runs on a Player
+where that package, a test dependency, is not installed. What these records are
+*for* is being the feed's label blocks, which is exactly what they are: the keys
+here are `LabelText`'s fields, so `read_label` takes them unchanged.
 
 **The splits are compared against that table rather than trusted to match it**,
 through the contract: these records are a copy of the contract's

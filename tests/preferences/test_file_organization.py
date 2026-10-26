@@ -8,6 +8,8 @@ get a test rather than a reviewer's memory.
 import pathlib
 import subprocess
 
+from repository import projects
+
 _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 #: The root holds no modules. Code goes in a plane package or a plane's `tools/`;
@@ -17,18 +19,10 @@ _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _ROOT_MODULES: frozenset[str] = frozenset()
 
 
-def _projects() -> list[str]:
-    """Every project here: each directory holding a tracked `pyproject.toml`, the root's own aside."""
-    listed = subprocess.run(
-        ["git", "ls-files", "-z", "*pyproject.toml"], cwd=_REPOSITORY_ROOT, capture_output=True, check=True, text=True
-    ).stdout.split("\0")
-    return sorted(str(pathlib.PurePosixPath(name).parent) for name in listed if name and name != "pyproject.toml")
-
-
 #: Each project's test tree and the root's, derived from the projects present.
 #: `testpaths = ["tests"]` in every `pyproject.toml` means a `test_*.py` anywhere
 #: else is never collected, so it would look like a test and guard nothing.
-_TEST_TREES = ("tests/", *(f"{project}/tests/" for project in _projects()))
+_TEST_TREES = ("tests/", *(f"{project}/tests/" for project in projects()))
 
 
 def _tracked() -> list[str]:

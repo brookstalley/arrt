@@ -2733,6 +2733,8 @@ with the below-floor work pictured and marked `is_on_offer: false`.
 
 ### The loader unit starts clean with its declared `EnvironmentFile=` — added 2026-08-02
 
+**Closed 2026-10-26 (wave 5), unwalked.** The unit this checks, `samsung-frame-art-loader.service`, was the 2024 loader's, never ran in production after the cutover, and was deleted with the 2024 modules; the units that run (`display.service`, `curation.service`) are held to the same `EnvironmentFile=` rule by `tests/test_repo_hygiene.py`. The steps below are the record, not an instruction.
+
 > **DISCHARGED 2026-08-11, by the cutover rather than by running this item.** The
 > question this was kept for — does an un-prefixed `EnvironmentFile=` start clean
 > on the real machine — is answered, on the units that matter. Both
@@ -2785,6 +2787,8 @@ the checkout's absolute paths are machine-specific and already flagged as such i
 `deploy/README.md`.
 
 ### The samsungtvws move, against the live television — added 2026-08-01
+
+**Closed 2026-10-26 (wave 5).** The half still owing below asked whether `pip install -r requirements.txt` installs on the Pi. That install path retired with the 2024 plane; the Player installs with uv from its own lockfile, which has run on the Pi since 2026-08-07 (`deploy/README.md`). The television half was answered on 2026-08-06. To re-run the check today, from the Player's checkout: `uv run python tools/tv_api_check.py --image <a JPEG>`. The commands below are the record.
 
 **Status: the television half is answered; the Pi half is not.** The 2026-08-06
 run reached the set and passed, so what the library does against real hardware is

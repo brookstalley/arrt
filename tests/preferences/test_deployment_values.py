@@ -12,6 +12,7 @@ import re
 import subprocess
 
 import pytest
+from repository import projects
 
 #: Shapes no source line may carry, comments included: a private-range IPv4
 #: address, and a path under a named person's home directory. These are what a
@@ -34,20 +35,6 @@ _DEPLOYMENT_PATHS = re.compile(r"/srv/art|/opt/samsung-frame-art-loader")
 _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
-def _projects(repository_root: pathlib.Path) -> list[str]:
-    """Every project here: each directory holding a tracked `pyproject.toml`, the root's own aside.
-
-    Derived rather than listed, so a project that leaves the repository leaves
-    this scan with it, and a new one joins it without an edit here.
-    """
-    listed = subprocess.run(
-        ["git", "ls-files", "-z", "*pyproject.toml"], cwd=repository_root, capture_output=True, check=True, text=True
-    ).stdout.split("\0")
-    projects = sorted(str(pathlib.PurePosixPath(name).parent) for name in listed if name and name != "pyproject.toml")
-    assert projects, "no project's pyproject.toml is tracked; the scan would cover nothing"
-    return projects
-
-
 def _source_modules():
     """Every module the norm covers, with a canary per plane.
 
@@ -61,7 +48,7 @@ def _source_modules():
     """
     repository_root = _REPOSITORY_ROOT
     modules = sorted(repository_root.glob("*.py"))
-    for project in _projects(repository_root):
+    for project in projects():
         found = sorted((repository_root / project / "src").rglob("*.py"))
         assert found, f"expected source under {project}/src; has the layout moved?"
         modules.extend(found)
@@ -146,7 +133,6 @@ def test_no_tracked_file_carries_this_machines_deployment_values():
     failure message cannot publish what it found. Where there is no `.env` (CI)
     there is nothing to compare against, and it says so rather than passing.
     """
-    import subprocess
 
     values = _this_machines_values()
     if not values:
