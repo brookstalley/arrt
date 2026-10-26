@@ -1379,13 +1379,13 @@ class DisplayService:
         """The scene being assembled: the one already started, else a new empty one.
 
         One draft at a time, because the builder on Walls holds one; the store
-        would take more.
+        would take more, and only the newest stages anything (`_current_draft`).
         """
         with self._store.transaction():
             self._settle_scenes()
-            drafts = self._store.list_scenes(SceneStatus.DRAFT)
-            if drafts:
-                return self._scene_view(drafts[-1])
+            draft = self._current_draft()
+            if draft is not None:
+                return self._scene_view(draft)
             scene = Scene(id=str(uuid.uuid4()), status=SceneStatus.DRAFT, created_at=datetime.now(UTC))
             store_write(self._store.add_scene, scene)
             return self._scene_view(scene)
@@ -1409,16 +1409,17 @@ class DisplayService:
                 )
             store_write(self._store.set_pin, ScenePin(scene_id=scene.id, wall_id=wall_id, work_id=answer.work_id))
             self._patch_walls([wall_id])
-        log.info("Scene %s: staging %s on wall %r.", scene.id, answer.work_id, wall.name)
+        _log_scene("staged", scene_id, [wall_id], f"staging {answer.work_id} on wall {wall.name!r}")
         return self.get_scene(scene_id)
 
     def unpin_scene(self, scene_id: str, wall_id: str) -> SceneView:
         """Take this wall out of the draft and stop staging its work there."""
-        self.get_wall(wall_id)
+        wall = self.get_wall(wall_id)
         with self._store.transaction():
             self._require_scene(scene_id, SceneStatus.DRAFT)
             store_write(self._store.remove_pin, scene_id, wall_id)
             self._patch_walls([wall_id])
+        _log_scene("unstaged", scene_id, [wall_id], f"nothing staged on wall {wall.name!r} any more")
         return self.get_scene(scene_id)
 
     def discard_scene(self, scene_id: str) -> None:
@@ -1430,6 +1431,7 @@ class DisplayService:
                 store_write(self._store.remove_pin, scene_id, wall_id)
             store_write(self._store.remove_scene, scene_id)
             self._patch_walls(walls)
+        _log_scene("discarded", scene_id, walls, "discarded before it was applied")
 
     def apply_scene(self, scene_id: str, *, lifetime: SceneLifetime | str, minutes: int | None = None) -> SceneView:
         """Show the draft on every wall it pins, now: for `minutes` as a preview, or until released as a hold.
@@ -1458,7 +1460,12 @@ class DisplayService:
                 except ServiceError as refusal:
                     raise ServiceError(f"{wall.name}: {refusal}") from refusal
             now = datetime.now(UTC)
-            ended = self._end_live(now, replaced_by=scene_id)
+            ended = [
+                wall_id
+                for other in self._store.list_scenes(SceneStatus.LIVE)
+                if other.status_at(now) is SceneStatus.LIVE
+                for wall_id in self._end(other, at=now, event="released", words=f"replaced by scene {scene_id}")
+            ]
             applied = replace(
                 scene,
                 status=SceneStatus.LIVE,
@@ -1468,13 +1475,13 @@ class DisplayService:
             )
             store_write(self._store.update_scene, applied)
             walls = [pin.wall_id for pin in pins]
-            self._patch_walls(list(dict.fromkeys([*walls, *ended])))
-        log.info(
-            "Scene %s applied on %s, %s.",
+            self._patch_walls([*walls, *ended])
+        _log_scene(
+            "applied",
             scene_id,
-            ", ".join(repr(self.get_wall(wall_id).name) for wall_id in walls),
-            f"until {applied.until.isoformat()}" if applied.until else "held until released",
-            extra={"event": "scene.applied", "scene_id": scene_id, "wall_ids": walls},
+            walls,
+            f"applied on {self._wall_names(walls)}, "
+            + (f"until {applied.until.isoformat()}" if applied.until else "held until released"),
         )
         return self.get_scene(scene_id)
 
@@ -1483,15 +1490,7 @@ class DisplayService:
         with self._store.transaction():
             self._settle_scenes()
             scene = self._require_scene(scene_id, SceneStatus.LIVE)
-            store_write(self._store.update_scene, replace(scene, status=SceneStatus.ENDED, ended_at=datetime.now(UTC)))
-            walls = [pin.wall_id for pin in self._store.list_pins(scene_id)]
-            self._patch_walls(walls)
-        log.info(
-            "Scene %s released on %s.",
-            scene_id,
-            ", ".join(repr(self.get_wall(wall_id).name) for wall_id in walls),
-            extra={"event": "scene.released", "scene_id": scene_id, "wall_ids": walls},
-        )
+            self._patch_walls(self._end(scene, at=datetime.now(UTC), event="released", words="released"))
         return self.get_scene(scene_id)
 
     def live_scene(self) -> SceneView | None:
@@ -1499,13 +1498,13 @@ class DisplayService:
         now = datetime.now(UTC)
         with self._store.reading():
             live = [scene for scene in self._store.list_scenes(SceneStatus.LIVE) if scene.status_at(now) is SceneStatus.LIVE]
-            return self._scene_view(max(live, key=lambda scene: scene.starts_at or scene.created_at)) if live else None
+            return self._scene_view(max(live, key=_applied_at)) if live else None
 
     def scene_draft(self) -> SceneView | None:
         """The scene being assembled, or None."""
         with self._store.reading():
-            drafts = self._store.list_scenes(SceneStatus.DRAFT)
-            return self._scene_view(drafts[-1]) if drafts else None
+            draft = self._current_draft()
+            return None if draft is None else self._scene_view(draft)
 
     def get_scene(self, scene_id: str) -> SceneView:
         """A scene and its pins, with its status as of now."""
@@ -1514,6 +1513,11 @@ class DisplayService:
             if scene is None:
                 raise ServiceError(f"No scene with id {scene_id!r}.")
             return self._scene_view(scene)
+
+    def _current_draft(self) -> Scene | None:
+        """The draft the builder shows and the walls stage: the newest, should the store hold more than one."""
+        drafts = self._store.list_scenes(SceneStatus.DRAFT)
+        return drafts[-1] if drafts else None
 
     def _scene_view(self, scene: Scene) -> SceneView:
         now = datetime.now(UTC)
@@ -1530,21 +1534,16 @@ class DisplayService:
             raise ServiceError(_SCENE_NOT[status].format(status=actual.value))
         return scene
 
-    def _end_live(self, now: datetime, *, replaced_by: str) -> list[str]:
-        """End every scene live now, and return their walls."""
-        walls: list[str] = []
-        for scene in self._store.list_scenes(SceneStatus.LIVE):
-            if scene.id == replaced_by or scene.status_at(now) is not SceneStatus.LIVE:
-                continue
-            store_write(self._store.update_scene, replace(scene, status=SceneStatus.ENDED, ended_at=now))
-            ended = [pin.wall_id for pin in self._store.list_pins(scene.id)]
-            walls.extend(ended)
-            log.info(
-                "Scene %s ended, replaced by scene %s.",
-                scene.id,
-                replaced_by,
-                extra={"event": "scene.released", "scene_id": scene.id, "wall_ids": ended},
-            )
+    def _end(self, scene: Scene, *, at: datetime, event: str, words: str) -> list[str]:
+        """Write a live scene's end, say it, and return its walls: the one place a scene ends.
+
+        Released or replaced ends it now; a preview run out ends it at its
+        `until`. The caller republishes the walls, or, for a preview run out,
+        leaves them: their Players returned to the schedule on their own.
+        """
+        store_write(self._store.update_scene, replace(scene, status=SceneStatus.ENDED, ended_at=at))
+        walls = [pin.wall_id for pin in self._store.list_pins(scene.id)]
+        _log_scene(event, scene.id, walls, f"{words} on {self._wall_names(walls)}")
         return walls
 
     def _settle_scenes(self) -> None:
@@ -1557,15 +1556,15 @@ class DisplayService:
         """
         now = datetime.now(UTC)
         for scene in self._store.list_scenes(SceneStatus.LIVE):
-            if scene.status_at(now) is SceneStatus.ENDED:
-                store_write(self._store.update_scene, replace(scene, status=SceneStatus.ENDED, ended_at=scene.until))
-                walls = [pin.wall_id for pin in self._store.list_pins(scene.id)]
-                log.info(
-                    "Scene %s ran out at %s.",
-                    scene.id,
-                    scene.until.isoformat() if scene.until else "?",
-                    extra={"event": "scene.expired", "scene_id": scene.id, "wall_ids": walls},
-                )
+            if scene.status_at(now) is SceneStatus.ENDED and scene.until is not None:
+                self._end(scene, at=scene.until, event="expired", words=f"ran out at {scene.until.isoformat()}")
+
+    def _wall_names(self, wall_ids: Iterable[str]) -> str:
+        names = []
+        for wall_id in wall_ids:
+            wall = self._store.get_wall(wall_id)
+            names.append(repr(wall.name) if wall is not None else wall_id)
+        return ", ".join(names) or "no wall"
 
     def _patch_walls(self, wall_ids: Iterable[str]) -> None:
         """Republish each wall's feed as it stands, so it carries the control layer as the store now says."""
@@ -1683,9 +1682,17 @@ class DisplayService:
         self._record_showing(wall_id, document)
         self._record_screen(wall_id, document)
         # A live wall's heartbeat is the clock a preview's end is noticed by,
-        # as it is for the horizon's roll.
-        with self._store.transaction():
-            self._settle_scenes()
+        # as it is for the horizon's roll. Behind a bulkhead, as the showings
+        # record is: this is the store's account of what the Player already did,
+        # and must never cost the wall its roll.
+        try:
+            with self._store.transaction():
+                self._settle_scenes()
+        except Exception:  # prawduct:allow prawduct/broad-except -- expiry bookkeeping never stops a heartbeat
+            log.exception(
+                "a preview that ran out was not written down as ended",
+                extra={"event": "scene.not_settled", "wall_id": wall_id},
+            )
         self._roll_v2(wall_id)
 
     def _record_showing(self, wall_id: str, document: Mapping[str, Any]) -> None:
@@ -2042,14 +2049,15 @@ class DisplayService:
             self._rebuild_v2(wall_id, previous, works=works, start=Keep())
         else:
             # Only the scene or staging names it: the schedule stands, and the
-            # control layer, derived afresh at the write, leaves it out.
+            # control layer, derived afresh at the write, leaves it out if the
+            # walls may no longer show it.
             self._patch_v2_works(wall_id, previous, {})
-        log.info(
-            "Wall %r: took %s off the feed (after %s).",
-            self.get_wall(wall_id).name,
-            ", ".join(sorted(refused & set(previous.carried))),
-            cause,
-        )
+        # Said for what actually left: a work leaving its theme stays on the
+        # wall when a scene pins it, because the control layer puts it back.
+        after = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        left = sorted(refused & set(previous.carried) - set(after.carried if after is not None else ()))
+        if left:
+            log.info("Wall %r: took %s off the feed (after %s).", self.get_wall(wall_id).name, ", ".join(left), cause)
         return True
 
     def _roll_v2(self, wall_id: str) -> None:
@@ -2288,12 +2296,20 @@ class DisplayService:
             return True
         if fresh or gone:
             self._patch_v2_works(wall_id, feed, {work_id: entry for work_id, entry in fresh.items() if work_id in feed.works})
-            log.info(
-                "Wall %r: pointed the feed at the current master or colour of %s (after %s).",
-                self.get_wall(wall_id).name,
-                ", ".join(sorted(fresh)),
-                cause,
-            )
+            if fresh:
+                log.info(
+                    "Wall %r: pointed the feed at the current master or colour of %s (after %s).",
+                    self.get_wall(wall_id).name,
+                    ", ".join(sorted(fresh)),
+                    cause,
+                )
+            if gone:
+                log.info(
+                    "Wall %r: took works the Library no longer offers out of its scene (%s, after %s).",
+                    self.get_wall(wall_id).name,
+                    ", ".join(sorted(gone)),
+                    cause,
+                )
             return True
         return False
 
@@ -2367,8 +2383,9 @@ class DisplayService:
         for scene in self._store.list_scenes(SceneStatus.LIVE):
             if scene.status_at(now) is SceneStatus.LIVE:
                 live.extend((scene, pin) for pin in self._store.list_pins(scene.id) if pin.wall_id == wall_id)
-        for scene in self._store.list_scenes(SceneStatus.DRAFT):
-            staged.extend(pin.work_id for pin in self._store.list_pins(scene.id) if pin.wall_id == wall_id)
+        draft = self._current_draft()
+        if draft is not None:
+            staged.extend(pin.work_id for pin in self._store.list_pins(draft.id) if pin.wall_id == wall_id)
         if not live and not staged:
             return _Control(scene=None, staging=(), works={})
         if len(live) > 1:
@@ -2379,7 +2396,7 @@ class DisplayService:
                 self.get_wall(wall_id).name,
                 len(live),
             )
-        pinned = max(live, key=lambda found: found[0].starts_at or found[0].created_at) if live else None
+        pinned = max(live, key=lambda found: _applied_at(found[0])) if live else None
         wanted = sorted(set(staged) | ({pinned[1].work_id} if pinned else set()))
         answers = self._library.playable(wanted)
         kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
@@ -2531,6 +2548,20 @@ SCREEN_MEMORY: Final[timedelta] = timedelta(days=7)
 #: hour against a week's memory: a screen still reporting is never near falling
 #: out of the window, and a live wall costs one write an hour, not one a minute.
 SCREEN_REFRESH: Final[timedelta] = timedelta(hours=1)
+
+
+def _applied_at(scene: Scene) -> datetime:
+    """What decides which of several live scenes a wall shows: the one applied last."""
+    return scene.starts_at or scene.created_at
+
+
+def _log_scene(act: str, scene_id: str, wall_ids: Sequence[str], words: str) -> None:
+    """Say one act on a scene, naming its walls, under the event `scene.<act>`.
+
+    Every act that changes what a wall stages or shows says so, because a Frame
+    uploading or evicting a work nobody hung is otherwise a mystery in the journal.
+    """
+    log.info("Scene %s: %s.", scene_id, words, extra={"event": f"scene.{act}", "scene_id": scene_id, "wall_ids": list(wall_ids)})
 
 
 def _log_published(build: ManifestBuild) -> None:

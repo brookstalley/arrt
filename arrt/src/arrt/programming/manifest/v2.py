@@ -134,11 +134,9 @@ class Published:
     works: Mapping[str, dict[str, Any]]
     #: The feed's presentation defaults as published, so a patch keeps them.
     settings: Mapping[str, Any] = field(default_factory=dict)
-    #: The scene as published, or None.
-    scene: SceneEntry | None = None
-    #: The staged works as published.
-    staging: tuple[str, ...] = ()
-    #: The entries of works only the scene or staging names.
+    #: The entries of works only the scene or staging names. The scene and
+    #: staging themselves are not read back: every writer derives them afresh
+    #: from the store, and a malformed one would otherwise hide the whole feed.
     control_works: Mapping[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
@@ -178,7 +176,6 @@ def read_published(path: Path) -> Published | None:
             for slot in schedule["slots"]
         )
         scheduled = {slot.work_id for slot in slots}
-        scene = document.get("scene")
         return Published(
             playlist_id=document["playlist"]["id"],
             playlist_name=document["playlist"]["name"],
@@ -187,17 +184,6 @@ def read_published(path: Path) -> Published | None:
             slots=slots,
             works={work_id: entry for work_id, entry in document["works"].items() if work_id in scheduled},
             settings=dict(document.get("settings") or {}),
-            scene=(
-                None
-                if scene is None
-                else SceneEntry(
-                    id=scene["id"],
-                    work_id=scene["work_id"],
-                    starts_at=datetime.fromisoformat(scene["from"]),
-                    until=None if scene["until"] is None else datetime.fromisoformat(scene["until"]),
-                )
-            ),
-            staging=tuple(document.get("staging") or ()),
             control_works={work_id: entry for work_id, entry in document["works"].items() if work_id not in scheduled},
         )
     except (KeyError, TypeError, ValueError) as exc:

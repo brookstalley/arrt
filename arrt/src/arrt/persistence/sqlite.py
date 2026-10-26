@@ -448,6 +448,10 @@ CREATE TABLE IF NOT EXISTS scenes (
     ended_at    TEXT
 );
 
+-- Every feed write asks for the live scenes and the draft, so the lookup is by
+-- status and does not grow with the ended scenes kept behind them.
+CREATE INDEX IF NOT EXISTS scenes_by_status ON scenes(status);
+
 -- One wall's work in a scene. The scene is a foreign key, within Programming;
 -- the wall is not, so a wall removed leaves its scene readable; `work_id` is an
 -- opaque reference to a Library work.

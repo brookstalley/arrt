@@ -3127,7 +3127,12 @@ reached the scene is never stored: it is the heartbeat's `scene_id`. A draft's
 pins are the staging; a live scene's pin is the wall's `scene`. Both keys are
 derived from these tables at every feed write, never read back from the feed.
 Answers: which scene is live and until when, which walls it pins to which work,
-what a draft stages on each wall, and when a scene was applied and ended.)*
+what a draft stages on each wall, and when a scene was applied and ended.
+**Retention:** a discarded draft is deleted; an applied scene is kept, ended,
+with its pins. Nothing prunes them. The bound is the curator's hand: a scene is
+applied by a person, a few a day at most, so a decade is tens of thousands of
+small rows, and the per-write lookup reads by an index on `status` rather than
+scanning them.)*
 
 ### Quality profile *(Library)*
 

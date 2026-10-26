@@ -550,3 +550,144 @@ def test_two_live_scenes_on_one_wall_publish_the_one_applied_last_and_say_so(sto
     assert document(hall)["scene"]["work_id"] == later.id
     assert display.live_scene().scene.id == second.id
     assert any("2 live scenes" in record.getMessage() for record in caplog.records)
+
+
+# -- the feed's own refusals ------------------------------------------------------------
+
+
+def _feed_with(**control):
+    from arrt.programming.manifest.v2 import Feed
+    from arrt.programming.schedule import Schedule
+
+    now = _now()
+    return Feed("p", "Playlist", Schedule(now, now + timedelta(days=3), (), ()), works={"w": {}}, **control)
+
+
+def test_a_feed_refuses_a_scene_that_ends_before_it_starts():
+    from arrt.programming.manifest.v2 import SceneEntry
+
+    at = _now()
+    with pytest.raises(ValueError, match="ends before it starts"):
+        _feed_with(scene=SceneEntry(id="s", work_id="w", starts_at=at, until=at))
+
+
+@pytest.mark.parametrize("control", ["scene", "staging"])
+def test_a_feed_refuses_a_scene_or_staged_work_it_does_not_carry(control):
+    from arrt.programming.manifest.v2 import SceneEntry
+
+    at = _now()
+    named = {"scene": SceneEntry(id="s", work_id="absent", starts_at=at, until=None), "staging": ("absent",)}
+    with pytest.raises(ValueError, match="does not carry: absent"):
+        _feed_with(**{control: named[control]})
+
+
+# -- the journal --------------------------------------------------------------------------
+
+
+def _events(caplog, name):
+    return [record for record in caplog.records if getattr(record, "event", None) == name]
+
+
+def test_each_act_on_a_scene_is_said_with_its_walls(display, mastered, two_walls, caplog):
+    hall, study = two_walls
+    with caplog.at_level("INFO", logger=display_module.__name__):
+        first = display.draft_scene().scene
+        display.pin_scene(first.id, hall, mastered("Dalí").id)
+        display.pin_scene(first.id, study, mastered("Magritte").id)
+        display.unpin_scene(first.id, study)
+        display.apply_scene(first.id, lifetime="hold")
+        second = display.draft_scene().scene
+        display.pin_scene(second.id, study, mastered("Picasso").id)
+        display.apply_scene(second.id, lifetime="hold")
+        display.release_scene(second.id)
+        third = display.draft_scene().scene
+        display.pin_scene(third.id, hall, mastered("Ernst").id)
+        display.discard_scene(third.id)
+
+    def said(name):
+        return [(record.scene_id, record.wall_ids) for record in _events(caplog, name)]
+
+    assert said("scene.staged") == [(first.id, [hall]), (first.id, [study]), (second.id, [study]), (third.id, [hall])]
+    assert said("scene.unstaged") == [(first.id, [study])]
+    assert said("scene.applied") == [(first.id, [hall]), (second.id, [study])]
+    # The first ended when the second was applied, and the second when released.
+    assert sorted(said("scene.released")) == sorted([(first.id, [hall]), (second.id, [study])])
+    assert said("scene.discarded") == [(third.id, [hall])]
+
+
+@pytest.mark.parametrize("act", ["pin", "unpin", "discard", "apply"])
+def test_a_scene_no_longer_being_assembled_cannot_be_changed(display, staged, mastered, act):
+    scene, works = staged
+    display.apply_scene(scene.id, lifetime="hold")
+    hall = next(iter(works))
+    acts = {
+        "pin": lambda: display.pin_scene(scene.id, hall, mastered("Late").id),
+        "unpin": lambda: display.unpin_scene(scene.id, hall),
+        "discard": lambda: display.discard_scene(scene.id),
+        "apply": lambda: display.apply_scene(scene.id, lifetime="hold"),
+    }
+
+    with pytest.raises(ServiceError, match="is live, not being assembled"):
+        acts[act]()
+
+    assert display.live_scene().scene.id == scene.id
+    assert {pin.wall_id: pin.work_id for pin in display.get_scene(scene.id).pins} == {
+        wall: work.id for wall, work in works.items()
+    }
+
+
+def test_a_scenes_work_leaving_its_theme_stays_on_the_wall_and_is_not_said_to_leave(display, two_walls, document, caplog):
+    hall, _ = two_walls
+    theme = display.hanging_on(hall)
+    pinned = display.theme_work_ids(theme.id)[-1]
+    scene = display.draft_scene().scene
+    display.pin_scene(scene.id, hall, pinned)
+    display.apply_scene(scene.id, lifetime="hold")
+
+    with caplog.at_level("INFO", logger=display_module.__name__):
+        display.leave_theme(pinned, wall_id=hall)
+
+    assert document(hall)["scene"]["work_id"] == pinned
+    assert not [record.getMessage() for record in caplog.records if "off the feed" in record.getMessage()]
+
+
+def test_only_the_draft_being_assembled_stages(store, display, mastered, two_walls, document):
+    """The store would hold two drafts; the builder shows the newest, so only it stages."""
+    from arrt.persistence.records import Scene, ScenePin
+
+    hall, _ = two_walls
+    current = display.draft_scene().scene
+    display.pin_scene(current.id, hall, mastered("Shown").id)
+    older = Scene(id="older", status=SceneStatus.DRAFT, created_at=current.created_at - timedelta(hours=1))
+    store.add_scene(older)
+    store.set_pin(ScenePin(scene_id="older", wall_id=hall, work_id=mastered("Hidden").id))
+
+    display.set_mat_mode(hall, "full")
+
+    assert display.scene_draft().scene.id == current.id
+    assert document(hall)["staging"] == [display.get_scene(current.id).pins[0].work_id]
+
+
+def test_a_failure_writing_a_previews_end_does_not_cost_the_wall_its_roll(
+    store, display, staged, wall_settings, monkeypatch, caplog
+):
+    scene, works = staged
+    hall = next(iter(works))
+    display.apply_scene(scene.id, lifetime="preview", minutes=5)
+    _expire(store, scene.id)
+    path = wall_settings.manifest_v2_path(hall)
+    published = json.loads(path.read_text(encoding="utf-8"))
+    for span in [published["schedule"]["horizon"], *published["schedule"]["slots"]]:
+        for key in ("from", "until"):
+            span[key] = (datetime.fromisoformat(span[key]) - timedelta(days=1, hours=1)).isoformat()
+    path.write_text(json.dumps(published), encoding="utf-8")
+
+    def refuse(*_args, **_kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(store, "update_scene", refuse)
+    with caplog.at_level("ERROR", logger=display_module.__name__):
+        display.record_heartbeat(hall, {"schema": {"major": 1, "minor": 1}, "reported_at": _now().isoformat()})
+
+    assert read_published(path).horizon_until - _now() > timedelta(days=2, hours=23)
+    assert _events(caplog, "scene.not_settled")
