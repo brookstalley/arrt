@@ -82,7 +82,7 @@ this plan are the record a builder works from.
 **Response taken:** proceed. The owner reviewed the prototype, gave three
 changes (*Remove…*, no "until changed", no rights on Work), and answered "yes
 to all" to the four questions (Players; cards with no page per wall; Scene as a
-dialog; the next work dimmed when the screen is off).
+dialog; the next work dimmed when the screen is off, re-ruled during the build as the last shown, else the next, once the builder corrected a wrong premise).
 
 **Product:** Walls answers "what is on each wall, and what comes next", and
 lets the owner change it without reading a sentence to find the control. The
@@ -115,9 +115,7 @@ away, in dialogs.
 
 - Two homes for wall assignment until the Players plan ships (above). Worth
   revisiting if that plan slips past one release.
-- The screen-off card shows the next work, not the last shown (ruling 6), because a
-  dark screen reports no `last`. If the Player starts reporting what a dark
-  screen last showed, the ruling can be revisited; nothing here blocks it.
+- The screen-off card shows the last-shown work, and the next work only until the showings log has one (ruling 6, re-ruled once the builder corrected the premise it was first asked on).
 
 **Decisions made mid-build:** *(appended while building; one line each, naming
 the goal or prior choice that settled it.)*
@@ -189,7 +187,7 @@ owner on the deployed server.
     wall…* (wired in 04) and *Scene…*;
   - one card per wall: its name, a state badge (*Showing*, *Screen off*, *No
     Player*, *Scene*), *Edit…* (wired in 04), the picture on its mat;
-  - with the screen off, the next work dimmed under "Screen off since {time}" (ruling 6);
+  - with the screen off, the last-shown work dimmed under "Screen off since {time}", or the next work when the wall has shown nothing yet (ruling 6, as re-ruled);
   - the work's title (a link) and artist; *Skip*, the card's one filled act,
     and *Remove…*, which keeps today's two choices (from this theme; from every
     wall) under its new name (ruling 2);
