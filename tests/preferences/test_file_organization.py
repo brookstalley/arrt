@@ -13,9 +13,7 @@ from repository import projects
 _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 #: The root holds no modules. Code goes in a plane package or a plane's `tools/`;
-#: the root is the governance suite, its CI scripts and tool configuration. The
-#: 2024 modules that were here left at the legacy retirement, and the hand-run
-#: tools went to `arrt-player/tools` with the Player whose hardware they exercise.
+#: the root is the governance suite, its CI scripts and tool configuration.
 _ROOT_MODULES: frozenset[str] = frozenset()
 
 

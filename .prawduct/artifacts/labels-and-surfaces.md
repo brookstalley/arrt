@@ -5,7 +5,6 @@ depends_on:
   - artifact: re-architecture
   - artifact: clients
   - artifact: player-contract
-  - artifact: samsung-tv-state-findings
   - artifact: accessibility-spec
 last_validated: 2026-10-08
 ---
@@ -76,7 +75,7 @@ The server adds two of its own, which no controller reports: **`unassigned`** (n
 display output mapped) and **`silent`** (the last report is older than the
 staleness threshold Walls already uses, `core/outputs.js` `STALE_AFTER_SECONDS`).
 
-`samsung-tv-state-findings.md` § The states is the authority on the Frame
+`arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` § The states is the authority on the Frame
 readings: `PowerState` does not distinguish art mode from television, and
 `get_artmode` does.
 
@@ -140,7 +139,7 @@ Nothing here is built for it, and these rules keep it possible:
 2. **Label outputs and their mapping** (#188, after #181). Clients report label
    outputs; the server maps a wall's labels; a label renderer runs per label output
    on any client; `EPD_DEVICE`'s refusal without a Frame goes
-   (`arrt-player/src/arrt_player/config.py`).
+   (`arrt-player:src/arrt_player/config.py`).
    *(2026-10-08: built by `build-plan-displays-and-label-outputs.md`, which also
    makes displays server records. #181 blocks only that plan's last chunk, on the
    wall; the rest builds against the panel double.)*

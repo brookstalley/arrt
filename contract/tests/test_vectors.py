@@ -2,10 +2,9 @@
 
 `contract/vectors/` holds inputs and the outcome every Player must reach from
 them, wherever it runs: the mat's geometry for a screen, and what a feed says to
-show at an instant. Arrt Player's suite runs the same files against its own
-code: the schedule vectors against its reader since wave 4c
-(`arrt-player/tests/test_schedule.py`), the mat vectors once its compositor
-lands in 4d. This file holds the **reference statement** of both rules, as
+show at an instant. Arrt Player's suite, in brookstalley/arrt-player, runs the
+same files against its own code: the schedule vectors against its reader and the
+mat vectors against its compositor. This file holds the **reference statement** of both rules, as
 `semantic_errors` in the package is for the rules a schema cannot
 state, so a vector that disagrees with `player-contract.md` § Layout or § Time
 fails here before any Player is asked to match it.
