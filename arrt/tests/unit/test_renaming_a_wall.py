@@ -46,8 +46,15 @@ def test_a_blank_name_is_refused_and_the_old_one_kept(display, wall_id):
 def test_a_name_another_wall_has_is_refused_by_that_name(display, wall_id):
     display.add_wall(name="The study")
 
-    with pytest.raises(ServiceError, match="The study"):
+    with pytest.raises(ServiceError, match=r"^Another wall is already called 'The study'\.$"):
         display.rename_wall(wall_id, name="The study")
+
+
+def test_adding_a_wall_with_a_taken_name_is_refused_in_the_same_words(display, wall_id):
+    taken = display.get_wall(wall_id).name
+
+    with pytest.raises(ServiceError, match=rf"^Another wall is already called '{taken}'\.$"):
+        display.add_wall(name=f"  {taken} ")
 
 
 def test_renaming_a_wall_to_its_own_name_is_not_a_clash(display, wall_id):

@@ -123,6 +123,8 @@ away, in dialogs.
 the goal or prior choice that settled it.)*
 
 - 02: renaming is `POST /walls/{wall_id}`, not the `PATCH` this plan first named, because renaming a client is `POST /clients/{client_id}` (match the product's other choices).
+- 02: `art_display`'s menu was at its 2 KB budget (`DESCRIPTION_BUDGET_BYTES`), so the `status` and `add_label` descriptions say the same in fewer words to make room for `rename_wall`.
+- 02 (after its review): a name another wall has is refused as "Another wall is already called '…'." by `add_wall` and `rename_wall` alike, rather than the store's "already stored", because 04's dialogs show the refusal to the owner.
 
 **Level:** High for the page; Medium for the size of 03. The prototype settles the layout
 and the words, and every write already exists. What could raise it: 03's diff

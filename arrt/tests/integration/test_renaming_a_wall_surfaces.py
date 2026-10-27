@@ -55,6 +55,13 @@ def test_the_route_refuses_another_walls_name_and_keeps_the_old_one(http, wall):
     assert names[wall["wall_id"]] == wall["name"]
 
 
+def test_the_route_refuses_a_blank_name(http, wall):
+    refused = http.post(f"/api/walls/{wall['wall_id']}", json={"name": "   "})
+
+    assert refused.status_code == 400
+    assert "name cannot be empty" in refused.json()["error"]
+
+
 def test_the_route_refuses_an_unknown_wall_by_its_id(http):
     refused = http.post("/api/walls/nobody", json={"name": "The hall"})
 
@@ -80,3 +87,16 @@ async def test_the_tool_refuses_a_blank_name(server_url, wall):
 
     assert errored is True
     assert "name cannot be empty" in payload["error"]
+
+
+@pytest.mark.parametrize(
+    ("wall_id", "name", "refusal"),
+    [("nobody", "The hall", "No wall with id 'nobody'"), (None, "The study", "Another wall is already called 'The study'")],
+)
+async def test_the_tool_carries_the_services_refusals(server_url, wall, wall_id, name, refusal):
+    await _display(server_url, "add_wall", name="The study")
+
+    payload, errored = await _display(server_url, "rename_wall", wall_id=wall_id or wall["wall_id"], name=name)
+
+    assert errored is True
+    assert refusal in payload["error"]
