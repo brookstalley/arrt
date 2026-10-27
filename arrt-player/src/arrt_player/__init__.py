@@ -6,7 +6,7 @@ each wall from that cache on one of its outputs — the Frame, or a screen it dr
 itself. It reaches the server only through the Player contract's routes, from
 one module (`pull.py`), imports no curation module and queries no curation
 database. That is a ratified norm rather than a convention, and
-`tests/preferences/test_plane_isolation.py` enforces it mechanically, because the
+`tests/test_plane_isolation.py` enforces it mechanically, because the
 violation it guards against ("just fetch the label text live") works perfectly in
 development and in every test: the server is up in both, so a green suite is
 exactly what the violation looks like.

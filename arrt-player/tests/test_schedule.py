@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from arrt_contract import root
 from conftest import WALL_ID, a_master
 
 from arrt_player.compose import Geometry, Uncomposable, compose, composition_key
@@ -22,7 +23,7 @@ from arrt_player.manifest import Feed, parse
 from arrt_player.programmes.schedule import COMPOSE_RETRY_SECONDS, RETRY_SECONDS, InMemory, Schedule, what_to_show
 from arrt_player.wall import DisplayRecord, Picture, Shown
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 VECTORS = json.loads((CONTRACT / "vectors" / "schedule.json").read_text(encoding="utf-8"))
 
 

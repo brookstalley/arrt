@@ -8,7 +8,7 @@ green, the linters stayed green, and the only thing that would have discovered i
 is the operator running the tool at the panel with the service stopped, which is
 the most expensive place this product has to find a defect.
 
-`tests/test_config.py` walks `arrt-player/tools/*.py`, but only with a regex looking
+`tests/preferences/test_deployment_values.py` (the root suite) walks `arrt-player/tools/*.py`, but only with a regex looking
 for deployment values — it never imports them. A file nothing imports is a file
 the type checker, the test suite and the linter all agree is fine.
 
@@ -457,3 +457,44 @@ def _primary_of(printed: str) -> int:
         if "tiers:" in line:
             return int(line.split("tiers:")[1].split("px")[0].strip())
     raise AssertionError(f"the report named no tiers:\n{printed}")
+
+
+@pytest.fixture
+def api_check(monkeypatch):
+    """`tv_api_check`, imported as its siblings are, with its settings read fresh for each test."""
+    monkeypatch.syspath_prepend(str(TOOLS))
+    monkeypatch.delitem(sys.modules, "tv_api_check", raising=False)
+    import tv_api_check as module
+
+    module._frame.cache_clear()
+    yield module
+    module._frame.cache_clear()
+
+
+def test_the_api_check_reaches_the_set_the_wall_is_configured_for(deployment, api_check, monkeypatch, tmp_path):
+    """The Player's own settings, not a second configuration: address, a non-default port, the wall's token file."""
+    monkeypatch.setenv("TV_PORT", "8001")
+    monkeypatch.delenv("TV_TOKEN_FILE", raising=False)
+
+    frame = api_check._frame()
+
+    assert frame.tv_address == "10.0.0.2"
+    assert frame.tv_port == 8001
+    assert frame.tv_token_file == tmp_path / "token_file"
+
+
+def test_the_api_check_refuses_a_client_with_no_television(deployment, api_check, monkeypatch):
+    from arrt_player.config import ConfigError
+
+    monkeypatch.delenv("TV_ADDRESS")
+
+    with pytest.raises(ConfigError, match="TV_ADDRESS"):
+        api_check._frame()
+
+
+def test_the_api_check_says_why_it_cannot_start_rather_than_raising(deployment, api_check, monkeypatch, capsys):
+    monkeypatch.delenv("TV_ADDRESS")
+    monkeypatch.setattr(sys, "argv", ["tv_api_check.py"])
+
+    assert api_check.main() == 2
+    assert "TV_ADDRESS" in capsys.readouterr().out

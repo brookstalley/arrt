@@ -560,7 +560,7 @@ product_definition:
         switch cost zero TV writes.
       priority: must-have
     - name: "Ambient adaptation"
-      description: "Brightness follows sun position; art mode follows time of day. Exists today in local.py; the auto art-mode logic is currently commented out."
+      description: "Brightness follows sun position; art mode follows time of day. Brightness is built in Arrt Player (arrt_player/brightness.py); the art-mode schedule was commented out in the 2024 local.py, retired 2026-10-26, and returns with power control (wave 6+)."
       priority: nice-to-have
     - name: "Drive everything from an agent, over MCP"
       description: >
@@ -590,8 +590,8 @@ product_definition:
       - "Multiple TVs / multiple display planes"
       - "Swapping the e-paper panel or driver without touching curation"
     later:                # Not needed for v1 to be useful
-      - "Re-enabling automatic art-mode on/off scheduling (currently commented out in tvart.py)"
-      - "Weather-aware brightness (the weather_adjustments table in local.py is hardcoded to 'clear')"
+      - "Re-enabling automatic art-mode on/off scheduling (commented out in the 2024 tvart.py, retired 2026-10-26; Arrt Player power control, wave 6+)"
+      - "Weather-aware brightness (the 2024 local.py, retired 2026-10-26, hardcoded its weather table to 'clear')"
       - "3tears agent memory — DROPPED, not merely deferred. Operator confirmed 2026-07-19 that agents may be stateless across sessions. This removes the only 3tears capability that forces Postgres, so the curation plane is infrastructure-free by decision rather than by compromise."
     never:                # Explicitly out of scope. Each: { item, rationale }
       - item: "Kubernetes, NATS, or multi-pod deployment"
@@ -3358,10 +3358,11 @@ coverage_required: false
 #   Whitespace-separated test trees for the coverage verifier (default:
 #   `tests`). One verifier run unions discovery across all of them.
 
-# Three independent projects, three interpreters, three suites — all three must
+# Four independent projects (the root's governance suite, the two planes and the
+# contract package), four suites — all four must
 # pass, and the hook must run the real invocations rather than its
 # `sys.executable -m pytest` default, which resolves none of them. Each plane is
-# uv-managed on its own pinned interpreter, so the two under a subdirectory are
+# uv-managed on its own pinned interpreter, so the three under a subdirectory are
 # reached with `--directory` (shell operators are unsupported here, and `cd` is a
 # shell operator).
 #
@@ -3380,8 +3381,11 @@ test_commands:
   # 2026-08-13, on this project's development Mac; where it genuinely cannot, CI's
   # separate `typesetting` job is what holds the claim.
   - uv run --directory arrt-player --group raster pytest --junit-xml={junit_xml} -q
+  # The contract package, which a Player outside this repository pins by version,
+  # so its own suite gates a change to it as each plane's does.
+  - uv run --directory contract pytest --junit-xml={junit_xml} -q
 
-tests_dirs: tests arrt/tests arrt-player/tests
+tests_dirs: tests arrt/tests arrt-player/tests contract/tests
 
 # =============================================================================
 # OPERATOR VERIFICATION (opt-in, v1.4+)

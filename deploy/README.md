@@ -34,9 +34,9 @@
 account on the Raspberry Pi driving the Frame TV. They were installed and enabled
 on 2026-08-11; § The cutover below is what was run.
 
-`samsung-frame-art-loader.service` is the **2024** unit. It is retired, it is not
-installed, and it is kept here as recovered evidence until the legacy retirement —
-see the banner above its recipe further down before running anything from it.
+The **2024** unit (`samsung-frame-art-loader.service`) and the 2024 modules it
+ran were removed at the legacy retirement (wave 5, 2026-10-26); they never ran
+in production after the cutover, and git history holds them.
 
 ## The server on the NAS (2026-10-02, `build-plan-nas.md`)
 
@@ -716,121 +716,19 @@ reports it on the heartbeat, and goes on rotating the wall. Add both lines to
 Those are the reference wall's: a 6-inch panel read from 7 feet. Measure to
 where people stand, not to where you stand while installing it.
 
-**Before the unit is enabled, the checkout needs its environment file.** Since
-2026-07-27 `config.py` raises at import unless `ART_ROOT`, `TV_ADDRESS`,
-`LATITUDE`, `LONGITUDE`, `LOCATION_NAME` and — since 2026-08-12 — `WALL_ID` all
-resolve, deliberately, so that a missing deployment value stops the process
-instead of quietly running against a plausible-looking default.
+**Before the unit is enabled, the checkout needs its environment file.** The
+Player's settings (`arrt_player.config.load`) refuse to start without each value
+`.env.example` marks REQUIRED, naming the one that is missing, so that a missing
+deployment value stops the process instead of quietly running against a
+plausible-looking default. The unit's `EnvironmentFile=` is un-prefixed, so a
+missing `.env` stops the unit with the path it wanted (`operational-spec.md`
+§ Configuration).
 
-**`WALL_ID` is the one value here that cannot be typed from this document**: it is
-the id the curation catalogue minted for the room this device serves, read off the
-Walls screen or `art_display(action='walls')`. Start the curation plane once first
-if this is a fresh install, since the id does not exist until the catalogue is
-opened. Each wall has its own manifest, so a display carrying another room's id
-shows that room's pictures with nothing anywhere reporting a fault — which is why
-the plane refuses to start rather than guess one. The unit names that file in `EnvironmentFile=`, and
-`load_dotenv` independently resolves it next to `config.py`; both point at the
-repository root, which is also the unit's `WorkingDirectory`. The two agree
-today because they read the same file, and if they are ever pointed at
-different ones **the unit's `EnvironmentFile=` wins**: it is already in the
-process environment by the time the code runs, and `load_dotenv` fills only
-what the environment does not carry.
+## The dependency moves the television has confirmed
 
-> **The recipe below installs the *2024* unit, and it is kept as a record rather
-> than as an instruction — do not run it.** That unit is retired: it names
-> `/home/tvpi/…` paths that do not exist — the account does now, since the
-> cutover created it, but deliberately without that home — it runs `tvart.py`
-> through a `.venv` that no longer exists, and its hand-written `PATH` carries
-> pyenv shims and a stray editor directory. It is committed exactly as recovered
-> because it had only ever existed on an SD card, and it is deleted with the rest
-> of the 2024 plane at the legacy retirement. The live procedure is
-> **§ The cutover, near the top of this file** — not below this banner, where the
-> only thing you will find is the retired recipe itself. The Provenance section at
-> the foot of this file records what else was assumed from the original card.
-
-    cp .env.example .env      # then fill it in
-    sudo cp deploy/samsung-frame-art-loader.service /etc/systemd/system/
-    sudo mkdir -p /etc/systemd/journald.conf.d
-    sudo cp deploy/journald.conf.d/10-bound-the-journal.conf /etc/systemd/journald.conf.d/
-    sudo systemctl restart systemd-journald
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now samsung-frame-art-loader
-
-**The journald line is not optional decoration.** Committing that drop-in without
-installing it is how the last unit file came to exist nowhere but a card. It bounds
-the journal at 256M on *both* ceilings — `SystemMaxUse=` and `RuntimeMaxUse=` —
-because Raspberry Pi OS ships `Storage=volatile`, so the journal lives in RAM and a
-`SystemMaxUse=`-only file would bind nothing while reading as though it does. Two
-things follow from volatile storage that are worth knowing before you debug
-anything: **the journal does not survive a reboot**, and **logging does not wear the
-card**. The file's own header carries the detail.
-
-Verify it took — `systemd-analyze cat-config` proves only that the file parses:
-
-    sudo journalctl -b -u systemd-journald | grep -i 'Journal.*max'
-    # expect: "Runtime Journal (...) is 9.2M, max 256M, ..."
-
-**Skipping the first line now fails loudly, and the two ways it can fail are
-worth telling apart.** If `.env` is *absent*, systemd refuses to start the unit at
-all and names the path it wanted — the fastest diagnosis available. If `.env` is
-*present but incomplete*, the unit starts, `config.py` raises at import naming the
-first variable it could not resolve, and the unit retries every ten seconds
-indefinitely rather than giving up; `systemctl status` shows it actively failing
-and `journalctl -u samsung-frame-art-loader` shows the variable. Neither case is
-silent, which is the whole point of both settings.
-
-## Provenance
-
-This unit was recovered from the Pi's SD card, where it had only ever existed at
-`/etc/systemd/system/`. It was never in version control, so it was invisible to
-anyone reading this repo and would have been lost with the card.
-
-It is committed here exactly as recovered. That means it still carries the
-assumptions of the machine it was written on, all of which need revisiting before
-it is deployed again:
-
-- Absolute paths to `/home/tvpi/source/samsung-frame-art-loader` and its `.venv`.
-- A hardcoded `PATH` containing pyenv shims and — spuriously — a VS Code Remote
-  extension directory that happened to be in the shell environment when the unit
-  was written.
-- `User=tvpi`.
-- ~~**No `EnvironmentFile=`, and the code now requires one.**~~ **Resolved
-  2026-08-02** — the unit now declares
-  `EnvironmentFile=/home/tvpi/source/samsung-frame-art-loader/.env`, un-prefixed,
-  so a missing file stops the unit with a message naming the path instead of
-  letting a process start that will raise at import. `operational-spec.md`
-  § Configuration carries the reasoning and makes it a rule for every unit, not
-  just this one. Note that the *path* is still one of the machine-specific
-  absolutes listed above, and moves with them if the checkout ever does.
-- `After=network.target`, which does not guarantee the network is actually up.
-  `network-online.target` is the correct dependency for a service that talks to
-  the TV on startup.
-- ~~**`Restart=always` with no `RestartSec` or `StartLimit*` override**~~ —
-  **Resolved 2026-08-02.** systemd's defaults restart after 100ms and give up
-  after 5 attempts in 10 seconds, so a loader that crashed on startup burned its
-  whole burst allowance in half a second and landed in `failed`, permanently, with
-  nothing sent anywhere — the exact opposite of the success criterion requiring
-  that *"a failure in the unattended loader is visible without inspecting the
-  wall"*. The unit now sets `StartLimitIntervalSec=0` with `RestartSec=10`, so a
-  persistent fault keeps retrying visibly rather than going quiet; the rule is
-  recorded for every unit in `operational-spec.md` § Process Management. **The
-  `OnFailure=` prescription that
-  used to end this bullet is withdrawn (2026-07-20):** the recorded alerting
-  decision (`observability-strategy.md` § The Health Surface) chose the curation
-  UI health panel as the *only* alerting surface, and a crash-looped display
-  already surfaces there as a stopped heartbeat with its age shown. Wiring
-  `OnFailure=` to a notification path would implement an alerting surface the
-  operator explicitly declined; if the deferred push path is ever revisited, that
-  is the decision to reopen — not this unit file.
-- No `SyslogIdentifier` or `StandardOutput` settings, so journal lines are
-  attributed by executable path. Compounded by the code's use of `print()` for
-  operational output, which produces journal entries with no level and no
-  timestamp — recorded as a known departure in `project-preferences.md`.
-
-## Before you install the current `requirements.txt` on the Pi
-
-Two pin moves are described here. This one is the more recent; both have now
-been exercised against the real television.
+Two pin moves are described here, made while the 2024 plane still ran the wall
+from `requirements.txt` (retired with it, 2026-10-26). This one is the more
+recent; both have now been exercised against the real television.
 
 `aiohttp` (3.9.5 → 3.14.3), `lxml` (5.2.2 → 6.1.1), `pillow` (10.4.0 → 12.3.0),
 `python-dotenv` (1.0.1 → 1.2.2) and `requests` (2.32.3 → 2.34.2) moved together on
@@ -900,7 +798,7 @@ measured from what was inferred.)*
 Findings in `.prawduct/artifacts/platform-and-dependency-findings.md` § The
 television. Run it yourself after any change to the pins or the set's firmware:
 
-    python tv_api_check.py --image "<any 3840x2160 JPEG>"
+    cd arrt-player && uv run python tools/tv_api_check.py --image "<any 3840x2160 JPEG>"
 
 That exercises upload, callback registration, and a confirmed delete against the
 live set, touching only the image it uploads itself, and exits non-zero if any
@@ -916,7 +814,8 @@ and the source-derived mechanism first written around it has been retracted. Iss
 - **Building the art client now performs blocking network I/O** and raises when
   the set is unreachable, where it used to defer that to first use.
 - **Deletion is confirmed against the television's own content list**, and the
-  loader now says which of three things happened. *Removed* — an ordinary INFO
+  2024 loader said which of three things happened (the Player's own client does
+  the same). *Removed* — an ordinary INFO
   line with the confirmed count. *Still listed* — the set kept them: a WARNING
   naming the images. ***Unconfirmable*** — nobody could establish which of those
   it is, whether because the set refused the request or because its list could
@@ -924,13 +823,6 @@ and the source-derived mechanism first written around it has been retracted. Iss
   would skip the catalogue save and every pending upload to prevent some leftover
   images. That third case is the one that used to be indistinguishable from
   success.
-
-**The code and the pins can be deployed independently**, which is what makes this
-safe to land ahead of the hardware pass. `tvart.py` calls only shapes that both
-library versions carry: `available(category=...)` is unchanged between them, and
-`upload()` has always accepted a path — the old one reads the file itself, the new
-one streams it. So pulling the checkout without reinstalling degrades to the old
-buffering behaviour and keeps working, rather than breaking.
 
 ### The e-paper driver is pinned rather than vendored, and here is why
 
@@ -946,11 +838,9 @@ Cython nobody here can maintain plus the ability to take any fix from upstream.
 Vendoring stays available as the escape hatch if that repository ever goes away;
 `pi-freeze-2024.txt` records what to vendor.
 
-The pin is applied on both install paths, because they resolve independently:
+The pin is applied where the Player installs:
 
-- `requirements.txt` (the 2024 plane) carries an explicit `IT8951[rpi] @ …@9f13613`
-  line beside `omni_epd`.
-- `arrt-player/pyproject.toml` (the display plane) uses `[tool.uv] override-dependencies`,
+- `arrt-player/pyproject.toml` uses `[tool.uv] override-dependencies`,
   which is the only mechanism that reaches a requirement written inside another
   package's metadata. **Verified resolving on the Pi 2026-08-07** — `uv lock`
   lands `it8951` on `9f13613` from the override rather than from upstream's
@@ -960,9 +850,7 @@ The pin is applied on both install paths, because they resolve independently:
 have left it open: `IT8951` builds its Cython extensions from 2023-era `.pyx`
 sources and its own build-requires names `Cython` with no bound, so a PEP 517
 isolated build takes whatever released most recently. `[tool.uv]
-build-constraint-dependencies` holds it at `>=3.0,<4`. `requirements.txt` has no
-equivalent mechanism, so that path remains exposed to a Cython 4 — one more reason
-the 2024 install path is retired rather than maintained.
+build-constraint-dependencies` holds it at `>=3.0,<4`.
 
 **If the label panel misbehaves after a rebuild, this is still the first thing to
 check**: confirm the installed `it8951` is `9f13613` before looking anywhere else.

@@ -1,0 +1,1 @@
+../.prawduct/artifacts/player-contract.md

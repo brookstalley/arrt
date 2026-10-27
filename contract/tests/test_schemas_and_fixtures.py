@@ -1,7 +1,7 @@
 """The Player contract's schemas and fixtures agree with each other.
 
-The contract under `contract/` is what Arrt and Arrt Player are each tested
-against, and after the repo split it is what Arrt Player pins. So the fixtures are
+The `arrt-contract` package is what Arrt and Arrt Player are each tested
+against, and a released version of it is what Arrt Player pins. So the fixtures are
 a claim about the schemas, and this file is what makes the claim true: every
 valid fixture validates, and every invalid one fails for exactly one reason.
 
@@ -15,48 +15,28 @@ fixture defend the rule it is named for.
 not list is one no test reads, and an index row with no file is a test that
 passes by reading nothing.
 
-It lives in the root suite because the contract belongs to neither plane: each
-plane's own suite checks its side against these same files.
+It lives in the package's own suite because a version of the package is a
+claim that these agree: each plane's suite checks its side against the same
+files, at whatever version it depends on.
 
 **Major 2 has rules no schema can state**: every work the schedule, a scene or
 staging names is in `works`, slots run forward in order without overlapping and
-stay inside the horizon, and the horizon is whole days. `semantic_errors` below is
-the reference statement of those rules. A Player enforces the same ones when
-wave 4 builds its reader, and an invalid fixture is marked as breaking either the
-schema or one of these.
+stay inside the horizon, and the horizon is whole days. The package's
+`semantic_errors` is the reference statement of those rules. A Player enforces
+the same ones in its reader, and an invalid fixture is marked as breaking either
+the schema or one of these.
 """
 
 import json
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
-INDEX = json.loads((CONTRACT / "fixtures" / "index.json").read_text(encoding="utf-8"))["fixtures"]
+from arrt_contract import fixtures, root, schema, semantic_errors, validator
 
-
-def _schema(schema_path: str) -> dict:
-    return json.loads((CONTRACT / schema_path).read_text(encoding="utf-8"))
-
-
-# Every schema, registered under its $id, so a reference from one schema to another
-# (the label document reuses major 2's label) resolves to the file on disk rather
-# than to a URL nobody serves.
-REGISTRY = Registry().with_resources(
-    (schema["$id"], Resource.from_contents(schema))
-    for schema in (_schema(str(path.relative_to(CONTRACT))) for path in (CONTRACT / "schemas").glob("*.json"))
-)
-
-
-def _validator(schema_path: str) -> Draft202012Validator:
-    # The format checker is passed so that a validator which does check formats
-    # checks them; the schemas do not rely on it, because without an optional
-    # package `date-time` is not checked at all, and each instant carries a
-    # pattern for that reason.
-    return Draft202012Validator(_schema(schema_path), registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER)
+CONTRACT = root()
+INDEX = fixtures()
 
 
 def _document(row: dict) -> dict:
@@ -64,37 +44,7 @@ def _document(row: dict) -> dict:
 
 
 def _errors(row: dict) -> list[str]:
-    return [error.message for error in _validator(row["schema"]).iter_errors(_document(row))]
-
-
-def _instant(text: str) -> datetime:
-    return datetime.fromisoformat(text)
-
-
-def semantic_errors(document: dict) -> list[str]:
-    """The major 2 rules a schema cannot state, each broken rule reported once."""
-    errors = []
-    works = document["works"]
-    slots = document["schedule"]["slots"]
-    # A channel's feed carries no control layer, so scene and staging may be absent.
-    scene = document.get("scene")
-    named = [slot["work_id"] for slot in slots] + document.get("staging", []) + ([scene["work_id"]] if scene else [])
-    if any(work_id not in works for work_id in named):
-        errors.append("a work is named that is not in works")
-    if any(_instant(slot["from"]) >= _instant(slot["until"]) for slot in slots):
-        errors.append("a slot ends before it starts")
-    elif any(_instant(first["until"]) > _instant(second["from"]) for first, second in zip(slots, slots[1:], strict=False)):
-        errors.append("slots overlap or are out of order")
-    horizon_from = _instant(document["schedule"]["horizon"]["from"])
-    horizon_until = _instant(document["schedule"]["horizon"]["until"])
-    span = horizon_until - horizon_from
-    if span <= timedelta(0) or span % timedelta(days=1):
-        errors.append("the horizon is not a whole number of days")
-    if any(_instant(slot["from"]) < horizon_from or _instant(slot["until"]) > horizon_until for slot in slots):
-        errors.append("a slot falls outside the horizon")
-    if scene and scene["until"] is not None and _instant(scene["until"]) <= _instant(scene["from"]):
-        errors.append("the scene ends before it starts")
-    return errors
+    return [error.message for error in validator(row["schema"]).iter_errors(_document(row))]
 
 
 def _semantics(row: dict) -> list[str]:
@@ -103,7 +53,7 @@ def _semantics(row: dict) -> list[str]:
 
 @pytest.mark.parametrize("schema_path", sorted({row["schema"] for row in INDEX}))
 def test_every_schema_is_valid_draft_2020_12(schema_path):
-    Draft202012Validator.check_schema(json.loads((CONTRACT / schema_path).read_text(encoding="utf-8")))
+    Draft202012Validator.check_schema(schema(schema_path))
 
 
 def test_the_facts_a_major_2_overlay_may_show_are_exactly_the_label_keys():
@@ -113,8 +63,8 @@ def test_the_facts_a_major_2_overlay_may_show_are_exactly_the_label_keys():
     this is what keeps the copy from drifting: a key added to the label and not
     here would be a fact no setting could ask for.
     """
-    facts = _schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]["facts"]["items"]["enum"]
-    label = _schema("schemas/manifest.v2.schema.json")["$defs"]["label"]["properties"]
+    facts = schema("schemas/manifest.v2.schema.json")["properties"]["settings"]["properties"]["facts"]["items"]["enum"]
+    label = schema("schemas/manifest.v2.schema.json")["$defs"]["label"]["properties"]
 
     assert facts == list(label)
 

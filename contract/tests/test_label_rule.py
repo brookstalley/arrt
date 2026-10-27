@@ -5,7 +5,7 @@ on every platform it is written for, so the vectors are a claim twice over: that
 each input is a label document a server may send, and that each outcome is what
 `labels-and-surfaces.md` § What a label says gives for it. This file makes both
 true. `label_outcome` below is the reference statement of the rule, as
-`semantic_errors` is of major 2's rules in `test_player_contract.py`; a renderer
+`semantic_errors` is of major 2's rules in the package; a renderer
 implements it again and runs the same vectors.
 
 **Coverage is checked, not hoped for.** A vector file that lost its boundary cases
@@ -16,26 +16,19 @@ to be present.
 
 import json
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+from arrt_contract import root, schema, validator
+
+CONTRACT = root()
 VECTORS_FILE = json.loads((CONTRACT / "vectors" / "label-rule.json").read_text(encoding="utf-8"))
 VECTORS = VECTORS_FILE["vectors"]
 HOLD = timedelta(seconds=VECTORS_FILE["hold_seconds"])
-LABEL_SCHEMA = json.loads((CONTRACT / "schemas" / "label.v1.schema.json").read_text(encoding="utf-8"))
+LABEL_SCHEMA = schema("schemas/label.v1.schema.json")
 STATES = LABEL_SCHEMA["properties"]["display_state"]["properties"]["state"]["enum"]
 
-# The label schema reuses the manifest's label text by reference, so every schema
-# is registered under its $id and the reference resolves to the file on disk.
-REGISTRY = Registry().with_resources(
-    (schema["$id"], Resource.from_contents(schema))
-    for schema in (json.loads(path.read_text(encoding="utf-8")) for path in (CONTRACT / "schemas").glob("*.json"))
-)
-VALIDATOR = Draft202012Validator(LABEL_SCHEMA, registry=REGISTRY, format_checker=Draft202012Validator.FORMAT_CHECKER)
+VALIDATOR = validator("schemas/label.v1.schema.json")
 
 BLANK_STATES = {"in_use", "dark", "no_screen"}
 HELD_STATES = {"silent", "unreachable"}

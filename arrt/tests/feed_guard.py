@@ -7,46 +7,33 @@ one test would leave every other publish path (a theme edit, show now, a
 withdrawal, a horizon rolled forward) unchecked, so `conftest.py` wraps the
 builder for every test.
 
-**The rules are the root suite's reference statement**, loaded from its file,
-not copied: the contract belongs to neither plane, and a copy here would be a
-second statement free to drift from the one the fixtures are held to.
+**The rules are the contract package's reference statement**, imported, not
+copied: a copy here would be a second statement free to drift from the one the
+fixtures are held to.
 """
 
-import importlib.util
-import json
 from collections.abc import Callable
 from functools import cache, wraps
-from pathlib import Path
 from typing import Any
 
+from arrt_contract import semantic_errors, validator
 from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
-
-ROOT = Path(__file__).resolve().parents[2]
-CONTRACT = ROOT / "contract"
 
 
 @cache
 def _validator() -> Draft202012Validator:
-    schemas = [json.loads(path.read_text(encoding="utf-8")) for path in (CONTRACT / "schemas").glob("*.json")]
-    registry = Registry().with_resources((schema["$id"], Resource.from_contents(schema)) for schema in schemas)
-    feed = next(schema for schema in schemas if schema["$id"].endswith("manifest.v2.schema.json"))
-    return Draft202012Validator(feed, registry=registry, format_checker=Draft202012Validator.FORMAT_CHECKER)
-
-
-@cache
-def _semantic_errors() -> Callable[[dict], list[str]]:
-    spec = importlib.util.spec_from_file_location(
-        "contract_reference", ROOT / "tests" / "preferences" / "test_player_contract.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.semantic_errors
+    return validator("schemas/manifest.v2.schema.json")
 
 
 def problems(document: dict) -> list[str]:
-    """Everything a Player would refuse this feed for, schema first."""
-    return [error.message for error in _validator().iter_errors(document)] + _semantic_errors()(document)
+    """Everything a Player would refuse this feed for: the schema's errors, or, when it has none, the semantic rules'.
+
+    The semantic rules read keys the schema requires, so asking them of a
+    document the schema refuses would trade the schema's message for a
+    `KeyError` traceback.
+    """
+    schema_errors = [error.message for error in _validator().iter_errors(document)]
+    return schema_errors or semantic_errors(document)
 
 
 def checked(build: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:

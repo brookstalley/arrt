@@ -1,0 +1,5 @@
+{
+  "_about": "Timing every Player and the server agree on, which no document carries. player-contract.md § The heartbeat states both: a Player reports each heartbeat every heartbeat_interval_seconds, and a report counts as current while it is no older than stale_after_intervals intervals. The Player paces its heartbeats by the first; the server and the browser call a report stale past the product of the two. Each side holds its own constants to this file.",
+  "heartbeat_interval_seconds": 60,
+  "stale_after_intervals": 3
+}

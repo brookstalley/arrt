@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
+from arrt_contract import root
 from PIL import Image
 
 from arrt_player import compose as compose_module
@@ -27,7 +28,7 @@ from arrt_player.compose import (
     mat_rgb,
 )
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 VECTORS = json.loads((CONTRACT / "vectors" / "mat-geometry.json").read_text(encoding="utf-8"))
 
 SHA = "a" * 64

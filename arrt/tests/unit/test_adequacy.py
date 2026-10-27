@@ -1,13 +1,13 @@
 """Too small for a wall: the box agrees with the contract's layout, and the line falls at half of it."""
 
 import json
-from pathlib import Path
 
 import pytest
+from arrt_contract import root
 
 from arrt.programming.adequacy import RELATIVE_MAT_WIDTH, box, too_small
 
-VECTORS = json.loads((Path(__file__).resolve().parents[3] / "contract" / "vectors" / "mat-geometry.json").read_text())
+VECTORS = json.loads((root() / "vectors" / "mat-geometry.json").read_text())
 
 
 def _no_density_vectors():

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 import pytest
+from arrt_contract import root
 from conftest import WALL_ID, write_manifest
 
 from arrt_player.config import CACHED_MANIFEST_FILENAME
@@ -18,7 +19,7 @@ from arrt_player.manifest import (
     parse,
 )
 
-CONTRACT = Path(__file__).resolve().parents[2] / "contract"
+CONTRACT = root()
 
 #: A media hash for the builder's one work: well-formed, and nothing to fetch.
 _SHA = "a" * 64

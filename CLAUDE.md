@@ -40,7 +40,7 @@ meanwhile:
   `architecture.md` § Direction before touching the manifest, the display
   plane's I/O, or the theme and wall tables. (The directive table went in
   wave 4g.)
-  `tests/preferences/test_plane_isolation.py` allows an HTTP client in
+  `arrt-player/tests/test_plane_isolation.py` allows an HTTP client in
   `arrt-player/src/arrt_player/pull.py` only, since wave 2b; everything else it holds is unchanged.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
@@ -50,23 +50,25 @@ meanwhile:
 
 ## Dev commands
 
-Three independent projects, three interpreters, three suites.
+Four independent projects, four suites.
 
-| | 2024 modules (repo root) | curation plane | display plane |
-|---|---|---|---|
-| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` |
-| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` |
-| Format | `uv run black .` | `cd arrt && uv run black .` | `cd arrt-player && uv run black .` |
+| | governance (repo root) | curation plane | display plane | contract package |
+|---|---|---|---|---|
+| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` | `cd contract && uv run pytest` |
+| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` | `cd contract && uv run ruff check .` |
+| Format | `uv run black .` | `cd arrt && uv run black .` | `cd arrt-player && uv run black .` | `cd contract && uv run black .` |
 
-**All three must pass.** The display plane got its suite, its `test_commands`
+**All four must pass.** `contract/` is the `arrt-contract` package
+(`player-contract.md` § The package): every suite reads the schemas, fixtures,
+vectors and routes through it, never by a path of its own. The display plane got its suite, its `test_commands`
 entry and its CI leg on 2026-08-06, with its first modules — until then its
 `pytest` collected nothing and exited 5, which is neither a pass nor a failure.
 That same commit carried the plane-isolation test, because both are the same
 claim about when a guard starts guarding.
 
-**Nothing in any of the three reaches a television, a panel, or a museum.** The
+**Nothing in any of the four reaches a television, a panel, or a museum.** The
 display suite drives a double behind the TV interface, which is why it runs on a
-GitHub runner; the hardware is exercised by `tv_api_check.py`, by
+GitHub runner; the hardware is exercised by `arrt-player/tools/tv_api_check.py`, by
 `arrt-player/tools/power_probe.py`, and by the `live_*` markers below, all of them run
 by hand.
 
@@ -152,11 +154,14 @@ so an in-process test would pass against an app that fails every real request.
 `pdb` breakpoint has no terminal to stop in. The root suite runs in a fraction of
 a second and is left serial.
 
-**The root suite is not only the 2024 modules**, and believing that costs a
-developer their first hour on the leg most likely to go red under them. It also
-carries `tests/preferences/`, where this repo's artifact-versus-code contracts
-live — plane isolation, the Library/Programming seam, the heartbeat, the norm
-index, the label corpus, and the screen tables. Those span two projects by design: `test_screen_tables.py` reads
+**The root suite holds no product code, and it is not optional.** It carries
+`tests/preferences/`, where this repo's artifact-versus-code contracts
+live — the Library/Programming seam, the norm index, deployment values, and the
+screen tables — and the repository-wide scans, which cover every project its
+tracked `pyproject.toml` files name. Agreements between the planes (the
+heartbeat, the timing, the label corpus, plane isolation) are held by each
+plane's own suite against the contract package since wave 5. The screen tables
+span two homes by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against
 `.prawduct/artifacts/information-architecture.md`, and neither plane's own suite
 can see both. So a change made entirely inside `arrt/` — routing a screen,

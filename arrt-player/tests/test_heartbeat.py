@@ -1,12 +1,9 @@
 """The heartbeat this plane writes, and the atomicity curation's polling needs.
 
-The cross-plane half — that both planes spell the filename and the instant the
-same way — is asserted by `tests/preferences/test_heartbeat_contract.py` in the
-repository-root suite, which reads both sources with AST. It lives there because
-neither plane can import the other: the isolation guard forbids display reaching
-into curation, and rightly, since that is the second channel the whole norm
-exists to prevent. What is pinned here is the shape; what is pinned there is the
-agreement.
+The cross-plane half, that the Player reports the instant under the key Arrt
+reads, is `test_heartbeat_key.py`, which holds this plane's constant to the
+contract's `instant_key`; Arrt holds its readers to the same key in its own
+suite. What is pinned here is the shape and the atomicity.
 """
 
 import json

@@ -37,17 +37,19 @@ until it is taken this paragraph is the warning that these records are the
 optimistic case.
 
 **Copied rather than imported, and the duplication is the architecture.** The
-display plane does not depend on the curation plane — it reads a manifest file and
-nothing else (`architecture.md` § Direction), and an import across that seam would
-be the one place the two planes touched. What these records are *for* is being the
-manifest's label blocks, which is exactly what they are: the keys here are
-`LabelText`'s fields, so `read_label` takes them unchanged.
+Player does not depend on Arrt: it reads its feed and nothing else
+(`architecture.md` § Direction). Nor can it read these from the contract
+package at run time, because the preview tool that draws them runs on a Player
+where that package, a test dependency, is not installed. What these records are
+*for* is being the feed's label blocks, which is exactly what they are: the keys
+here are `LabelText`'s fields, so `read_label` takes them unchanged.
 
-**The splits are compared against that table rather than trusted to match it** —
-`tests/preferences/test_label_corpus_contract.py`, at the repository root, which
-reads both files without importing either plane. A promise that two files agree
-is worth what the thing checking it is worth, and the copy this one replaced
-drifted for exactly as long as somebody kept it in step by hand.
+**The splits are compared against that table rather than trusted to match it**,
+through the contract: these records are a copy of the contract's
+`vectors/label-corpus.json`, which `tests/test_corpus_contract.py` holds them to,
+and Arrt's suite holds that file to the seed table. A promise that two files
+agree is worth what the thing checking it is worth, and the copy this one
+replaced drifted for exactly as long as somebody kept it in step by hand.
 
 The properties in `test_label_properties.py` cross the whole permutation space; these
 are the specific records a human would want to look at, and the ones whose

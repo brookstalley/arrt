@@ -101,17 +101,17 @@ was ever real:**
 Without `python3-dev`, the install fails — but *not* in IT8951. It fails building
 `rpi-gpio`, a dependency of the `[rpi]` extra, with
 `fatal error: Python.h: No such file or directory`, which sends a reader hunting
-in the wrong package entirely. `requirements.txt` documents an apt line for the
-label's Cairo/Pango stack and `python3-dev` is absent from it; that file's own
-comment observes that a dependency nothing declares is one nobody installs until
+in the wrong package entirely. The 2024 `requirements.txt` (retired 2026-10-26)
+documented an apt line for the label's Cairo/Pango stack without `python3-dev`;
+that file's own comment observed that a dependency nothing declares is one nobody installs until
 an import fails, which is what this is.
 
 **`Cython` is unpinned in that `build-requires`,** so a future Cython that stops
 emitting compatible C would break the build with nothing in this repository
 having changed. **Closed for the display plane 2026-08-07** by
 `[tool.uv] build-constraint-dependencies` holding it at `>=3.0,<4`;
-`requirements.txt` has no equivalent mechanism and stays exposed, which is one
-more reason that install path is retired rather than maintained.
+the 2024 `requirements.txt` had no equivalent mechanism and stayed exposed until
+it retired with that plane on 2026-10-26.
 
 **`Pins.POWER` is confirmed absent from the installed package** — checked by
 attribute on the built module, not inferred from reading the abandoned checkout

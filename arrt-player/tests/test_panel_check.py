@@ -9,17 +9,21 @@ wall was silently mis-sized. `.env.example` and the change log both said the set
 names its own size "so this is checkable rather than merely documentable"; the
 change log then admitted no check existed.
 
-The decision lives in `panel_check` rather than inline at the call site for the
-same reason `tv_delete.forgettable_ids` was extracted: this suite cannot import
-`tv_api_check`, which pulls in `samsungtvws`, so a rule written inside it is
-unreachable by any test.
+The decision lives in `panel_check`, a sibling of the hand-run `tv_api_check`
+in `tools/`, rather than inline in a tool whose every check talks to a live
+television; it is imported from `tools/` the way that tool imports it.
 
 **Silence is a behaviour here, not a gap**, so it is asserted as hard as the
 warning is. A check that guessed at model lines nobody can verify against a real
 set would be turned off, and then the case it was written for goes unreported too.
 """
 
+import sys
+from pathlib import Path
+
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 from panel_check import TOLERANCE_INCHES, disagreement, not_compared, size_from_model
 
@@ -38,7 +42,8 @@ def test_the_deployment_fault_that_produced_this_module_is_reported():
     warning = disagreement(REAL_MODEL, 42.0)
 
     assert warning is not None
-    assert "42" in warning and "50" in warning
+    assert "42" in warning
+    assert "50" in warning
 
 
 def test_the_warning_quotes_the_consequence_rather_than_only_the_numbers():
@@ -125,7 +130,7 @@ def test_a_comparison_that_can_be_made_reports_no_reason_it_could_not():
 
 
 @pytest.mark.parametrize(
-    "model, configured, expected_in_reason",
+    ("model", "configured", "expected_in_reason"),
     [
         (None, 42.0, "no model name was read"),
         ("", 42.0, "no model name was read"),

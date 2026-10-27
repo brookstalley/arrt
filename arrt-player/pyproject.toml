@@ -27,6 +27,10 @@ dependencies = [
     # resolve honouring the declared floor installs cleanly and fails at import.
     # A declared floor is a claim; what a package imports is the constraint.
     "websockets>=13",
+    # Imported directly by `tools/tv_api_check.py`, whose timeouts are `requests`'
+    # exceptions. The television client brings it today; declared rather than
+    # inherited, so the tool survives that client changing its own dependencies.
+    "requests>=2.32",
     # The wall's daily rhythm: television brightness follows the sun's position
     # rather than the clock, so a winter afternoon and a summer evening are not
     # given the same panel.
@@ -54,7 +58,7 @@ dependencies = [
     # of only on a Pi with a panel screwed to it.
     "pillow",
     # The HTTP mode's one client, in `src/arrt_player/pull.py` and nowhere else
-    # (`tests/preferences/test_plane_isolation.py` holds that). Already installed
+    # (`tests/test_plane_isolation.py` holds that). Already installed
     # through the fork above, at the version the lockfile resolves; declared
     # because an indirect copy disappears the day that package changes its own
     # dependencies. asyncio, like the daemon, and its test server is the stub the
@@ -93,7 +97,7 @@ dependencies = [
 #     job.
 #
 #     **Enforced mechanically since 2026-08-06** by
-#     `tests/preferences/test_plane_isolation.py`, which landed in the same commit
+#     `tests/test_plane_isolation.py`, which landed in the same commit
 #     as this plane's first modules — the sequencing this comment previously
 #     described as owed, and owed for a reason: a check written over an empty
 #     package passes vacuously, and a green suite is exactly what a violation
@@ -114,6 +118,11 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # **The contract both sides are tested against**, read through the package
+    # rather than by a path of this project's own, so the version a project
+    # depends on is the contract it is tested against. Arrt owns the source in
+    # `contract/`; a Player outside this repository takes a released tag.
+    "arrt-contract",
     "ruff>=0.6",
     "black>=24",
     # **The label engine is defined by invariants over a space too large to
@@ -169,6 +178,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/arrt_player"]
+
+[tool.uv.sources]
+# An editable path while the contract lives in this repository, so a contract
+# change and the code it changes land in one commit with every suite behind it.
+arrt-contract = { path = "../contract", editable = true }
 
 [tool.uv]
 # **The pin that a `[dependency-groups]` entry cannot express, and the decision it

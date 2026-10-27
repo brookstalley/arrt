@@ -48,7 +48,6 @@ exactly one file between them:
   schedule)*, renders the wall label
   onto this device's own surface, and writes the heartbeat curation's health panel
   reads. `deploy/curation.service` and `deploy/display.service` are written.
-  The root `display.py` is a 2024 module and does none of this.
 
 **Both new planes now run on the Pi, from systemd, as of 2026-08-11.** The `tvpi`
 service account exists, `ART_ROOT` is `/srv/art`, the checkout is at
@@ -61,7 +60,7 @@ record and the procedure.
 That was a **first install, not a swap**: nothing of this product was running
 unattended on that machine beforehand, so the 2024 loader at the repository root
 stopped being the answer to "what runs the wall" some time before this, not at the
-cutover. Those modules are still present and are deleted at the legacy retirement.
+cutover. Those modules were deleted at the legacy retirement (wave 5, 2026-10-26).
 
 **What remains at the hardware** — the check that a rotation still completes with
 a second subscriber attached, and an unattended run across a television

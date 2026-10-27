@@ -110,7 +110,7 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > heartbeat, `GET /client` and `POST /client/heartbeat`). The contract file is
 > the list, so a sixth route is a contract change rather than an edit to this
 > sentence. **Status: steady-state.** The transition ended when the Player
-> retired the file channel on 2026-10-02; `tests/preferences/test_plane_isolation.py`
+> retired the file channel on 2026-10-02; `arrt-player/tests/test_plane_isolation.py`
 > holds the statement as amended.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
@@ -1121,9 +1121,10 @@ derives. The server's per-wall file is now read by nothing on the Player's side.
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
 the planes — the isolation norm forbids it — so both were declared twice and held
-equal by `tests/preferences/test_heartbeat_contract.py`; the manifest's left the
-display plane on 2026-10-02 with the file channel, and the guard compares the
-heartbeat's.
+equal by a root-suite test; the manifest's left the display plane on 2026-10-02
+with the file channel, the heartbeat's when Players began POSTing, and since
+wave 5 each plane holds its heartbeat key to the contract's `instant_key`
+(`arrt-player/tests/test_heartbeat_key.py` and `arrt/tests/contract/test_heartbeat_key.py`).
 
 ## Data Ownership & Consistency
 

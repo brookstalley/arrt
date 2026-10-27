@@ -4,24 +4,21 @@ The library's async `delete_list` returns None whether it removed anything or
 not, so every assertion here is about the wrapper distinguishing outcomes the
 library cannot: gone, still listed, and unknown.
 
-There is no `pytest-asyncio` in this project and these tests do not warrant
-adding one — `asyncio.run` drives a coroutine perfectly well, and the legacy
-modules these cover are retired once both planes exist.
+`tv_delete` is a hand-run tool's module (`tools/tv_api_check.py` removes the
+image it uploaded through it), so it is imported from `tools/` as that tool
+imports it, a sibling on the path. `asyncio.run` drives each coroutine.
 """
 
 import asyncio
 import logging
+import sys
+from pathlib import Path
 
 import pytest
 
-from tv_delete import (
-    UPLOADED_CATEGORY,
-    DeleteNotConfirmed,
-    delete_list_confirmed,
-    describe_removal,
-    forgettable_ids,
-    remove_from_tv,
-)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+
+from tv_delete import UPLOADED_CATEGORY, DeleteNotConfirmed, delete_list_confirmed
 
 
 class FakeTv:
@@ -47,7 +44,6 @@ class FakeTv:
             raise self.delete_raises
         self.listed = [c for c in self.listed if not (c in content_ids and c in self.honours)]
         # The library returns None here regardless of outcome. That is the defect.
-        return None
 
     async def available(self, category=None):
         self.available_calls.append(category)
@@ -156,23 +152,6 @@ def test_a_removal_request_the_set_refuses_is_unknown_too():
     assert tv.available_calls == [], "the read is unreachable once the request itself raised"
 
 
-def test_a_refused_removal_request_does_not_stop_the_caller(caplog):
-    """A refusal reaches the caller by a different door from an unreadable list,
-    and an earlier version of this guard covered only the second — so a refused
-    removal aborted the housekeeping pass before it could save or upload."""
-
-    class ResponseError(Exception):
-        pass
-
-    tv = FakeTv(listed=["MY-C0002-1"], delete_raises=ResponseError("delete_image_list failed with error number 3"))
-
-    with caplog.at_level(logging.ERROR):
-        result = asyncio.run(remove_from_tv(tv, ["MY-C0002-1"]))
-
-    assert result is None
-    assert [r for r in caplog.records if r.levelno == logging.ERROR]
-
-
 def test_nothing_to_remove_does_not_touch_the_television():
     """An empty batch is the common case on a settled wall. The library's
     `available` asserts on an empty response, so a pointless round trip is a
@@ -214,59 +193,7 @@ def test_the_confirming_read_is_scoped_to_the_category_asked_for():
     assert tv.available_calls == ["MY-C0004"]
 
 
-def test_an_unconfirmable_removal_does_not_stop_the_caller(caplog):
-    """The housekeeping pass has a catalogue save and pending uploads after it.
-    Raising there would cost all of them to prevent some leftover images."""
-    tv = FakeTv(listed=["MY-C0002-1"], confirm_raises=AssertionError())
-
-    with caplog.at_level(logging.ERROR):
-        result = asyncio.run(remove_from_tv(tv, ["MY-C0002-1"]))
-
-    assert result is None
-    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
-    assert len(errors) == 1, "not stopping the caller must not mean saying nothing"
-    assert "could not be confirmed" in errors[0].getMessage()
-
-
-def test_a_confirmable_removal_passes_the_result_through():
-    tv = FakeTv(listed=["MY-C0002-1", "MY-C0002-2"], honours=["MY-C0002-1"])
-
-    result = asyncio.run(remove_from_tv(tv, ["MY-C0002-1", "MY-C0002-2"]))
-
-    assert result is not None
-    assert result.deleted == ("MY-C0002-1",)
-    assert result.surviving == ("MY-C0002-2",)
-
-
-def test_the_sentence_for_an_unknown_outcome_does_not_claim_a_count():
-    """ "Confirmed 0 of 5" asserts the set kept all five. Nobody knows that."""
-    unknown = describe_removal(None, 5)
-
-    assert "could not confirm" in unknown
-    assert "confirmed 0" not in unknown.lower()
-
-
-def test_the_sentence_for_a_known_outcome_reports_the_confirmed_count():
-    tv = FakeTv(listed=["MY-C0002-1", "MY-C0002-2"], honours=["MY-C0002-1"])
-    result = asyncio.run(remove_from_tv(tv, ["MY-C0002-1", "MY-C0002-2"]))
-
-    assert describe_removal(result, 2) == "the TV confirmed 1 of 2 image(s) removed"
-
-
-def test_the_three_outcomes_read_differently():
-    """A partial removal and an unknown one must not produce the same sentence —
-    they are the two the old code collapsed into one."""
-    tv_all = FakeTv(listed=["MY-C0002-1"])
-    tv_none = FakeTv(listed=["MY-C0002-1"], honours=[])
-
-    complete = describe_removal(asyncio.run(remove_from_tv(tv_all, ["MY-C0002-1"])), 1)
-    kept = describe_removal(asyncio.run(remove_from_tv(tv_none, ["MY-C0002-1"])), 1)
-    unknown = describe_removal(None, 1)
-
-    assert len({complete, kept, unknown}) == 3
-
-
-def test_the_reason_reaches_the_log_and_not_only_the_chain(caplog):
+def test_the_reason_reaches_the_message_and_not_only_the_chain():
     """`str()` of an exception never renders `__cause__`, and an unattended
     loader is read through its journal. Without the cause in the message every
     failure reads alike — including a defect in this repo, which would look like
@@ -277,90 +204,19 @@ def test_the_reason_reaches_the_log_and_not_only_the_chain(caplog):
 
     tv = FakeTv(listed=["MY-C0002-1"], confirm_raises=ResponseError("error number 3"))
 
-    with caplog.at_level(logging.ERROR):
-        asyncio.run(remove_from_tv(tv, ["MY-C0002-1"]))
+    with pytest.raises(DeleteNotConfirmed) as refused:
+        asyncio.run(delete_list_confirmed(tv, ["MY-C0002-1"]))
 
-    logged = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.ERROR)
-    assert "ResponseError" in logged, "the cause's type must survive into the log line"
-    assert "error number 3" in logged
+    assert "ResponseError" in str(refused.value), "the cause's type must survive into the message"
+    assert "error number 3" in str(refused.value)
 
 
-def test_a_defect_in_this_repo_is_not_dressed_up_as_a_television_fault(caplog):
+def test_a_defect_in_this_repo_is_not_dressed_up_as_a_television_fault():
     """The cost of catching every cause is that they all look alike unless the
     message says otherwise. A TypeError is ours, not the set's."""
     tv = FakeTv(listed=["MY-C0002-1"], confirm_raises=TypeError("available() got an unexpected keyword"))
 
-    with caplog.at_level(logging.ERROR):
-        asyncio.run(remove_from_tv(tv, ["MY-C0002-1"]))
+    with pytest.raises(DeleteNotConfirmed) as refused:
+        asyncio.run(delete_list_confirmed(tv, ["MY-C0002-1"]))
 
-    logged = "\n".join(r.getMessage() for r in caplog.records if r.levelno == logging.ERROR)
-    assert "TypeError" in logged
-
-
-# -- what local state may forget after a removal --------------------------------
-#
-# The other half of the same defect. `delete_all_uploaded` cleared every
-# `tv_content_id` regardless of what the set confirmed, and `sync_artsets_to_tv`
-# selects upload candidates with exactly the test "has no tv_content_id" — so a
-# survivor was marked never-uploaded and uploaded again, as a duplicate, onto a
-# set with finite storage. The survivors were already being computed and warned
-# about; nothing consumed them.
-
-
-def test_only_the_ids_the_television_confirmed_gone_may_be_forgotten():
-    """The regression test for the defect itself."""
-    tv = FakeTv(listed=["MY-C0002-1", "MY-C0002-2", "MY-C0002-3"], honours=["MY-C0002-1", "MY-C0002-3"])
-
-    result = asyncio.run(remove_from_tv(tv, ["MY-C0002-1", "MY-C0002-2", "MY-C0002-3"]))
-
-    assert forgettable_ids(result) == frozenset({"MY-C0002-1", "MY-C0002-3"})
-    assert "MY-C0002-2" not in forgettable_ids(result), "an image the TV still holds was marked not-uploaded"
-
-
-def test_a_removal_nobody_could_confirm_forgets_nothing():
-    """Clearing on no evidence is the same mistake made more quietly.
-
-    It errs towards leaving an image marked uploaded, which costs a work its
-    place on the set until the next confirmed pass — where the other error costs
-    storage on every run and is invisible.
-    """
-    assert forgettable_ids(None) == frozenset()
-
-
-def test_a_removal_the_television_honoured_in_full_forgets_all_of_it():
-    """The ordinary case still has to work, or the fix trades one bug for another.
-
-    Without this, refusing to forget anything at all would pass the two above.
-    """
-    tv = FakeTv(listed=["MY-C0002-1", "MY-C0002-2"])
-
-    result = asyncio.run(remove_from_tv(tv, ["MY-C0002-1", "MY-C0002-2"]))
-
-    assert forgettable_ids(result) == frozenset({"MY-C0002-1", "MY-C0002-2"})
-
-
-def test_the_clearing_loop_keeps_a_survivor_marked_uploaded():
-    """The rule applied the way `delete_all_uploaded` applies it.
-
-    A copy of that loop, and deliberately so: the root suite cannot import
-    `tvart` — it pulls in PIL and `samsungtvws`, which are legacy runtime
-    dependencies this project does not install (see `pyproject.toml`). So what
-    is asserted here is the *rule*, which is why the rule was moved into
-    `forgettable_ids` rather than left inline where nothing could reach it.
-    Mutating the loop in `tvart.py` will not turn this red; mutating the rule it
-    calls will.
-    """
-
-    class _ArtFile:
-        def __init__(self, tv_content_id):
-            self.tv_content_id = tv_content_id
-
-    tv = FakeTv(listed=["MY-C0002-1", "MY-C0002-2"], honours=["MY-C0002-1"])
-    art_files = [_ArtFile("MY-C0002-1"), _ArtFile("MY-C0002-2"), _ArtFile(None)]
-
-    forgettable = forgettable_ids(asyncio.run(remove_from_tv(tv, ["MY-C0002-1", "MY-C0002-2"])))
-    for art_file in art_files:
-        if art_file.tv_content_id in forgettable:
-            art_file.tv_content_id = None
-
-    assert [art_file.tv_content_id for art_file in art_files] == [None, "MY-C0002-2", None]
+    assert "TypeError" in str(refused.value)

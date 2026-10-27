@@ -24,17 +24,20 @@ That third case covers the refused request and the unreadable list alike. They
 are one finding, not two: the removal is sent and the reply discarded, so a
 caller that separated them would be distinguishing states it cannot observe.
 
-Two entry points, differing only in what an unknown outcome costs the caller.
-`delete_list_confirmed` raises; `remove_from_tv` logs an ERROR and returns None,
-for the caller with work left that is worth more than a tidy television.
+`delete_list_confirmed` is the one entry point, and it raises on the unknown
+outcome: its caller, `tv_api_check.py`, reports the exception as a finding.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
-#: The category every image this project uploads lands in. Samsung exposes no
-#: way to create another: 2 = my pictures, 4 = favourites, 8 = store, and the
-#: upload verb takes no category argument.
-UPLOADED_CATEGORY = "MY-C0002"
+# The category every image this project uploads lands in, defined once, by the daemon.
+from arrt_player.tv.client import UPLOADED_CATEGORY
+
+if TYPE_CHECKING:
+    from samsungtvws.async_art import SamsungTVAsyncArt
+
+_log = logging.getLogger(__name__)
 
 
 class DeleteNotConfirmed(Exception):
@@ -50,7 +53,7 @@ class DeleteNotConfirmed(Exception):
 class DeleteResult:
     """What the television actually holds after a removal was requested."""
 
-    def __init__(self, requested: tuple[str, ...], surviving: tuple[str, ...]):
+    def __init__(self, requested: tuple[str, ...], surviving: tuple[str, ...]) -> None:
         self.requested = requested
         self.surviving = surviving
 
@@ -69,7 +72,9 @@ class DeleteResult:
         return f"DeleteResult(requested={len(self.requested)}, deleted={len(self.deleted)}, surviving={self.surviving!r})"
 
 
-async def delete_list_confirmed(tv_art, content_ids, category: str = UPLOADED_CATEGORY) -> DeleteResult:
+async def delete_list_confirmed(
+    tv_art: "SamsungTVAsyncArt", content_ids: list[str], category: str = UPLOADED_CATEGORY
+) -> DeleteResult:
     """Ask the television to remove `content_ids`, then verify against its list.
 
     `tv_art` is a `samsungtvws.async_art.SamsungTVAsyncArt`, taken as a
@@ -111,67 +116,10 @@ async def delete_list_confirmed(tv_art, content_ids, category: str = UPLOADED_CA
     still_listed = {entry["content_id"] for entry in remaining}
     surviving = tuple(content_id for content_id in requested if content_id in still_listed)
     if surviving:
-        logging.warning(
+        _log.warning(
             "The television still lists %d of %d image(s) after a removal request: %s",
             len(surviving),
             len(requested),
             ", ".join(surviving),
         )
     return DeleteResult(requested=requested, surviving=surviving)
-
-
-async def remove_from_tv(tv_art, content_ids, category: str = UPLOADED_CATEGORY) -> DeleteResult | None:
-    """Remove images and report what the set confirmed, or `None` if it could not say.
-
-    The caller for whom an unconfirmable removal is not worth abandoning the
-    rest of its work. Leftover images on the television are untidy; a caller
-    that stopped here would skip everything it had left to do — for the
-    housekeeping pass that means the catalogue save and every pending upload,
-    which is the worse outcome. The ERROR keeps it from being a silent one.
-
-    Use `delete_list_confirmed` directly where an unconfirmed removal genuinely
-    should stop the caller.
-    """
-    try:
-        return await delete_list_confirmed(tv_art, content_ids, category=category)
-    except DeleteNotConfirmed as err:
-        logging.error("Removal of %d image(s) could not be confirmed, continuing: %s", len(content_ids), err)
-        return None
-
-
-def forgettable_ids(result: DeleteResult | None) -> frozenset[str]:
-    """The content ids local state may now forget — and only those.
-
-    A caller that has just asked the television to remove images has to decide
-    which of its own "this is uploaded" markers to clear. The answer is the ids
-    the set confirmed gone, and nothing else.
-
-    **Clearing them all was a real defect, not a tidiness question.** The
-    television keeps images it was asked to drop — that is the outcome
-    `DeleteResult.surviving` exists to name — and `tvart.sync_artsets_to_tv`
-    picks its upload candidates by exactly the test "has no `tv_content_id`". So
-    a wholesale clear told the sync path that images the set was still holding
-    had never been uploaded, and it uploaded them again: duplicates in
-    `MY-C0002`, on a set with finite storage. The warning naming the survivors
-    was already being logged, and nothing read it.
-
-    An unconfirmed removal (`None`) forgets nothing. That is the deliberate
-    direction rather than the cautious-looking one: we do not know what the set
-    holds, and clearing on no evidence is the same mistake made more quietly. It
-    errs towards leaving an image marked uploaded, which costs a work its place
-    on the set until the next confirmed pass — where the other error costs
-    storage on every run and is invisible.
-    """
-    return frozenset() if result is None else frozenset(result.deleted)
-
-
-def describe_removal(result: DeleteResult | None, requested_count: int) -> str:
-    """One sentence about a removal that never claims more than is known.
-
-    The three outcomes read differently on purpose. "Confirmed 0 of 5" is a
-    claim — the set was asked and kept them all — and it must not be the
-    sentence printed when nobody could tell.
-    """
-    if result is None:
-        return f"asked the TV to remove {requested_count} image(s); it could not confirm any of them"
-    return f"the TV confirmed {len(result.deleted)} of {requested_count} image(s) removed"

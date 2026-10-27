@@ -15,14 +15,29 @@ import pathlib
 import subprocess
 
 import pytest
+from repository import ROOT, projects
 
-#: Every tree whose absence from a fresh clone would matter. `arrt/tests`
-#: carries almost all of the curation plane's coverage, and a tree the guard does
+#: Every tree whose absence from a fresh clone would matter: each project's
+#: `src` and `tests`, its `tools` where it has one, and the root's own `tests`.
+#: A project's tests carry almost all of its coverage, and a tree the guard does
 #: not walk is exactly the tree this guard was built for: the suite stays green
-#: locally while the clone and the Pi quietly lose it. The `tools/` trees are
-#: here because the operator runs them by hand on the Pi — `arrt-player/tools` holds the
-#: only code that presses power on the television.
-SOURCE_TREES = ("arrt/src", "arrt/tests", "arrt/tools", "arrt-player/src", "arrt-player/tests", "arrt-player/tools", "tests")
+#: locally while the clone quietly loses it. The `tools/` trees are here because
+#: an operator runs them by hand.
+SOURCE_TREES = (
+    "tests",
+    *(
+        f"{project}/{tree}"
+        for project in projects()
+        for tree in ("src", "tests", "tools")
+        if tree != "tools" or (ROOT / project / "tools").is_dir()
+    ),
+)
+
+
+@pytest.fixture(autouse=True)
+def _at_the_repository_root(monkeypatch):
+    """Every path and git call below is relative to the repository root, wherever pytest was started."""
+    monkeypatch.chdir(ROOT)
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:
@@ -88,9 +103,6 @@ def test_the_tv_token_is_not_tracked():
     assert not offenders, f"credential files must never be tracked: {offenders}"
 
 
-#: The loader unit, whose environment dependency is otherwise invisible.
-LOADER_UNIT = pathlib.Path("deploy/samsung-frame-art-loader.service")
-
 #: The two units that actually run the wall, and the restart policy each one is
 #: supposed to have. **They are not the same policy and a shared assertion would
 #: be wrong**: the display plane's downtime is visible on the wall and it should
@@ -98,12 +110,10 @@ LOADER_UNIT = pathlib.Path("deploy/samsung-frame-art-loader.service")
 #: stopping it on purpose and it should stay stopped — the wall goes on rotating
 #: the last manifest either way.
 #:
-#: These carry every property the loader-unit guards below exist to protect, and
-#: until this entry existed **none of them was checked on the units that run in
-#: production**. The guarded unit is the 2024 one: retired, never installed, and
-#: deleted at the legacy retirement — so the guard would have left with the code
-#: it guards, having never once covered the units it matters for. That stopped
-#: being hypothetical on 2026-08-11, when both of these were enabled on the Pi.
+#: These are the units that run in production, and every property below is
+#: checked on them. The guards were first written for the 2024 loader's unit,
+#: which never ran in production and left with the 2024 modules; carried here
+#: before it went, they cover the units they matter for.
 LIVE_UNITS = {
     pathlib.Path("deploy/display.service"): "always",
     pathlib.Path("deploy/curation.service"): "on-failure",
@@ -122,47 +132,11 @@ def _directives_of(unit: pathlib.Path) -> dict[str, list[str]]:
     return directives
 
 
-def test_the_loader_unit_declares_its_environment_file():
-    """`config.py` raises at import without five deployment values, and the unit is
-    what has to supply them.
-
-    Declared without a `-` prefix on purpose: systemd treats a missing
-    `EnvironmentFile=` as fatal and names the path it wanted, which is a far better
-    failure than the import-time crash that a silently absent file produces.
-    Prefixing it with `-` would restore exactly the silence this guard exists to
-    prevent, so the assertion covers the prefix and not merely the directive.
-    """
-    values = _directives_of(LOADER_UNIT).get("EnvironmentFile", [])
-    assert values, "the loader unit must declare EnvironmentFile= — config.py requires five variables at import"
-    assert not any(v.startswith("-") for v in values), f"EnvironmentFile= must not be optional (`-` prefix): {values}"
-
-
-def test_the_loader_unit_cannot_silently_stop_retrying():
-    """systemd's stock rate limit gives up after 5 starts in 10s.
-
-    With `Restart=always` and no override, an import-time failure burns that whole
-    allowance in about half a second and parks the unit in `failed` — a dark
-    television and a service that stopped trying, which is the opposite of the
-    product's requirement that an unattended failure be visible without inspecting
-    the wall. Retrying on a real interval, forever, keeps the fault legible in the
-    journal and in `systemctl status`.
-    """
-    directives = _directives_of(LOADER_UNIT)
-    assert directives.get("Restart") == ["always"], "the loader is meant to come back from anything"
-    assert directives.get("StartLimitIntervalSec") == [
-        "0"
-    ], "start rate limiting must be disabled, or a crash loop ends in a silent permanent `failed`"
-
-    restart_sec = directives.get("RestartSec", [])
-    assert restart_sec, "RestartSec= must be set; the 100ms default is what exhausts the burst allowance"
-    assert int(restart_sec[0]) >= 5, f"RestartSec= must leave a real gap between attempts, got {restart_sec[0]}"
-
-
 @pytest.mark.parametrize("unit", sorted(LIVE_UNITS), ids=lambda p: p.stem)
 def test_a_live_unit_declares_its_environment_file(unit: pathlib.Path):
-    """Same requirement as the loader unit, on the units that actually run.
+    """The units that run declare their environment file, un-prefixed.
 
-    `config.py` raises at import without its deployment values, and an
+    Each plane's settings refuse to start without their deployment values, and an
     `EnvironmentFile=` the unit does not declare — or declares with a `-` prefix,
     making it optional — turns a missing file into an import-time crash nobody
     connects back to a file that was never placed.

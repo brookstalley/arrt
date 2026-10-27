@@ -2144,8 +2144,9 @@ controller's (`showing_art`, `in_use`, `dark`, `no_screen`, `unreachable`) read
 from the wall's heartbeat, or the server's own: **`unassigned`** when no client
 output shows the wall, whatever its heartbeat file says, and **`silent`** when
 there is no readable heartbeat or it is older than `STALE_AFTER_SECONDS` (three
-heartbeat intervals, `programming/manifest/heartbeat.py`; held to the Player's
-and the browser's by `tests/preferences/test_staleness_threshold.py`). `work_id`
+heartbeat intervals, `programming/manifest/heartbeat.py`; held with the
+browser's to the contract's `timing.json` by
+`arrt/tests/contract/test_staleness_threshold.py`, as the Player's is in its own suite). `work_id`
 only with `showing_art`, null there for a picture the wall did not put there.
 `since` is the controller's, null from a Player before minor 3 and for
 `unassigned`; for `silent` it is the last report's instant. `last` is set only
