@@ -46,8 +46,9 @@ _LIVE = re.compile(
 #: a scan that guessed would cry wolf on every shorthand.
 _PATH = re.compile(r"(?<![\w:/.*-])((?:\.prawduct/(?!\.)|\.claude/|\.github/|deploy/|docs/)[\w./-]*[\w-])")
 
-#: A file cited by its bare name. Not after `*` (a glob), `:` or `/`.
-_BARE = re.compile(r"(?<![\w:/.*-])([\w][\w.-]*\.(?:md|service))\b")
+#: A file cited by its bare name, in the extensions a moved or deleted file here
+#: has carried. Not after `*` (a glob), `:` or `/`.
+_BARE = re.compile(r"(?<![\w:/.*-])([\w][\w.-]*\.(?:md|service|txt|conf))\b")
 
 #: An artifact named in a plan's or artifact's frontmatter.
 _FRONTMATTER = re.compile(r"^\s*-\s*artifact:\s*([\w-]+)\s*$")
@@ -66,6 +67,11 @@ _NOT_FILES_HERE = {
     "docs/norms.md",
     # A prefix, not a file: the UX walkthrough's reports are named by date.
     ".prawduct/artifacts/ux-review-",
+    # A museum's or website's crawl rules, not a file of this repository.
+    "robots.txt",
+    # The 2024 plane's install list, deleted at wave 5 with nothing replacing it:
+    # the live citation says it retired, and the rest sit in dated decisions.
+    "requirements.txt",
 }
 
 
@@ -139,6 +145,8 @@ TRACKED_FIXTURE = [".prawduct/artifacts/kept-findings.md", "deploy/curation.serv
         ("Install `deploy/display.service` first.", ["1: deploy/display.service"]),
         ("See `gone-findings.md` § The states.", ["1: gone-findings.md"]),
         ("for the reason spelled out in display.service: a", ["1: display.service"]),
+        ("with pi-freeze-2024.txt recording what to vendor", ["1: pi-freeze-2024.txt"]),
+        ("the 10-bound-the-journal.conf drop-in", ["1: 10-bound-the-journal.conf"]),
         ("  - artifact: gone-findings", ["1: artifact gone-findings"]),
         ("[x](gone-findings.md)", ["1: gone-findings.md"]),
         ("`arrt-player:deploy/display.service` and `arrt-player:.prawduct/artifacts/gone-findings.md`", []),
