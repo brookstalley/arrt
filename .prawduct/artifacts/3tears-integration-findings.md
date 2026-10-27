@@ -250,7 +250,7 @@ the operator maintains — rather than to unblock this product.
 `packages/*/pyproject.toml`).
 
 This collides directly with
-[platform-and-dependency-findings.md](platform-and-dependency-findings.md), which
+[`arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md`](https://github.com/brookstalley/arrt-player/blob/develop/.prawduct/artifacts/platform-and-dependency-findings.md), which
 chose **Python 3.13** for the Pi and explicitly rejected 3.14 *(the 3.12 fallback
 that used to be named here was discharged 2026-08-04 — the build succeeded on 3.13,
 so 3.12 is a floor rather than a landing site)*:

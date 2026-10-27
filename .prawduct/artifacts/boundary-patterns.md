@@ -491,7 +491,7 @@
   event and changes nothing whenever the panel is dark, while every other verb
   succeeds. So **no state-changing verb here is believed on its return** —
   uploads and removals read the set's list back, and selections read what it says
-  it is displaying. `samsung-tv-state-findings.md` is the state-by-state map, and
+  it is displaying. `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` is the state-by-state map, and
   it is the artifact to read before adding a verb.
 - **Tested at the seam and only at the seam** — `arrt-player:tests/test_samsung_client.py`
   stubs the library, because the daemon suite runs against `FakeTv` and proves
@@ -499,7 +499,7 @@
   with no test objecting, for exactly that reason.
 - **Direction changed 2026-09-30 — see `re-architecture.md` § Player outputs.**
   This surface is unchanged and goes to the Player whole, moving with it to the
-  new repository in wave 5. `samsung-tv-state-findings.md` stays its authority.
+  new repository in wave 5. `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` stays its authority.
   - It becomes **one of two output families** behind a higher-level "show this
     work" interface. The Frame is *push-to-appliance* (upload, select, confirm
     by announcement). The other family is **framebuffer**: an HDMI LCD on a Pi,

@@ -132,7 +132,7 @@ mapping goes, and reports outputs and label outputs.
 
 **The HDMI output** draws the render fitted to the connector's screen, with no
 desktop, as the service user: kernel mode setting through `libdrm`, chosen and
-measured on the Pi in `hdmi-output-findings.md`. Waking or switching a TV's
+measured on the Pi in `arrt-player:.prawduct/artifacts/hdmi-output-findings.md`. Waking or switching a TV's
 input over CEC is a power act and is not done automatically
 (`nonfunctional-requirements.md` § The television belongs to whoever is using
 it). What it does as built:

@@ -583,7 +583,7 @@ There are two families of screen, behind one "show this work" interface:
 
 - **Push-to-appliance (Samsung Frame):** upload, select, bindings, orphan cleanup,
   selection confirmed by the set's own `image_selected` announcement. Today's
-  `TvClient` has this shape, and `samsung-tv-state-findings.md` stays the
+  `TvClient` has this shape, and `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` stays the
   authority on it.
 - **Framebuffer (HDMI LCD on a Pi, a monitor on a Mac):** composite, then draw.
 
@@ -603,7 +603,7 @@ the screen is in use or dark. A caption in the image stays the wall controller's
 since it is part of the image. Label mode as a wall setting, above, stands.*
 
 **Each new Player host needs its text stack re-verified.** The label is typeset
-with Pango through PyGObject (`platform-and-dependency-findings.md`). A Pi driving
+with Pango through PyGObject (`arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md`). A Pi driving
 an HDMI LCD, or a Mac, is a new host for that stack, and caption mode depends on
 it.
 
@@ -793,7 +793,7 @@ rewritten, because it remains true of the code until the wave that changes it.
 - `api-contract.md` (including a PLANNED section for the Server↔Player surface),
   `security-model.md`, `operational-spec.md`, `observability-strategy.md`,
   `boundary-patterns.md`, `information-architecture.md`,
-  `platform-and-dependency-findings.md`, `samsung-tv-state-findings.md` and
+  `arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md`, `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` and
   `design-direction.md`: forward notes where their target-state claims change.
 - `README.md`, `CLAUDE.md`, `deploy/README.md`: orientation for a new reader.
 

@@ -277,7 +277,7 @@ everything above the paint call.
   `player-contract.md`, `clients.md`, `labels-and-surfaces.md` and
   `nonfunctional-requirements.md`: the cache, "every failure keeps the cache",
   refusal, replay, the label table, display states, the guardrails.
-  `samsung-tv-state-findings.md` stays the Frame driver's spec for any language.
+  `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` stays the Frame driver's spec for any language.
 - **No shared native core yet.** Port layout to Swift for the first non-Pi
   Player against the vectors and measure where the two disagree. **Revisit
   when** a third platform is committed to and the layout layer is still growing;
@@ -288,7 +288,7 @@ everything above the paint call.
 
 ## Platforms
 
-Measured or sourced 2026-10-08 in `apple-platform-findings.md`, which carries
+Measured or sourced 2026-10-08 in `arrt-player:.prawduct/artifacts/apple-platform-findings.md`, which carries
 the evidence and labels each fact; this section keeps only what the design
 depends on. **Every fact still marked unverified there is verified on hardware
 before its platform's plan is written**: for tvOS, the connection to a Frame;

@@ -1919,7 +1919,7 @@ technical_decisions:
         and a setup.py of that vintage may not declare Cython in build-requires —
         which PEP 517 build isolation would then not provide. Under uv this is the
         one plausible failure. It is adjacent to, but NOT the same as, the existing
-        "IT8951 build is unverified" risk in platform-and-dependency-findings.md
+        "IT8951 build is unverified" risk in arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md
         (that one is about the interpreter version); an earlier draft claimed it
         "folds into" that risk, which the Critic correctly called an overstatement.
         CLOSED 2026-08-04, issue #9 closed with it. Both halves are answered and
@@ -2375,7 +2375,7 @@ design_decisions:
     correct answer with nobody visiting it, and a deployment that states neither
     loses its label surface with a named reason rather than guessing. Full
     reasoning in accessibility-spec.md § The type floor is derived from viewing
-    distance; panel measurements in platform-and-dependency-findings.md § The
+    distance; panel measurements in arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md § The
     e-paper panel.
 
     The TV surface has no accessibility affordances by deliberate design — it is

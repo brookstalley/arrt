@@ -184,6 +184,7 @@ what settled it)*
 - 05: the CI-scope guard's "every ignored directory is run by another job" test left with the display leg. Its property still applies to the curation leg's `--ignore=tests/browser`, which `browser.yml` runs; no guard reads that pairing today, as none did before.
 - 05: review observation O-1 (the pytest matcher stopping inside `pytest-cov`) was fixed in both scans with an example watched failing; O-2 (a paragraph narrating its own history) went with the Pi section it sat in.
 - 05: the Player's issues are transferred only after the owner sees the list; that step is the owner's turn.
+- 05, after its cumulative review (1 blocking): the sweep had keyed on `arrt-player/`, so citations of the departed files by bare name survived, an instruction to install the moved journald drop-in among them. A root-suite guard now resolves every citation in the live records against the tree (bare `*.md` and `*.service` names, frontmatter `artifact:` names, and paths under the root's own directories), watched failing on all twelve records first; the citations were then rewritten to `arrt-player:<path>`. It does not resolve a project's own paths, which records write relative to the project. The CI pytest matcher now also sees a quoted `run:` value, and lives in `tests/repository.py` for both scans.
 **Level:** Medium. The extraction recipe is measured. The package boundary is
 new, and the guard split (03) is the part most likely to hide a loss. What would
 raise it: 01's inventory of every contract reader, derived by grep and checked
@@ -334,6 +335,10 @@ list before the transfer.
 
 **Done when:**
 - `grep -rn "arrt-player/" --exclude-dir=.git .` finds only links and history.
+- Every file a live record cites resolves in this tree or names its repository
+  (`tests/preferences/test_citations_resolve.py`). *(Added after the cumulative
+  review: the grep above keys on the directory the Player left from, and the
+  departed deploy files and findings are cited by bare name.)*
 - Arrt's three suites (root, server, contract) are green.
 - The transferred issues resolve on arrt-player, and `/prawduct:backlog` there
   lists them.

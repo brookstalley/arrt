@@ -5,7 +5,6 @@ depends_on:
   - artifact: re-architecture
   - artifact: clients
   - artifact: player-contract
-  - artifact: samsung-tv-state-findings
   - artifact: accessibility-spec
 last_validated: 2026-10-08
 ---
@@ -76,7 +75,7 @@ The server adds two of its own, which no controller reports: **`unassigned`** (n
 display output mapped) and **`silent`** (the last report is older than the
 staleness threshold Walls already uses, `core/outputs.js` `STALE_AFTER_SECONDS`).
 
-`samsung-tv-state-findings.md` § The states is the authority on the Frame
+`arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` § The states is the authority on the Frame
 readings: `PowerState` does not distinguish art mode from television, and
 `get_artmode` does.
 

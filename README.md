@@ -39,8 +39,8 @@ Player pins by tag. How the product got to this shape, and what comes next:
 
 ```sh
 cp .env.example .env                       # then set ART_ROOT
-cd arrt && uv run python -m arrt --init   # once, to make ART_ROOT an art root
-cd arrt && uv run python -m arrt          # every run after that
+(cd arrt && uv run python -m arrt --init) # once, to make ART_ROOT an art root
+(cd arrt && uv run python -m arrt)        # every run after that
 ```
 
 **`--init` is needed once per art root, and leaving it out is the point.** The

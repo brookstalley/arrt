@@ -20,9 +20,9 @@ nothing else pins which one is being read.
 
 import importlib.util
 import pathlib
-import re
 
 import pytest
+from repository import INVOCATION as _INVOCATION
 
 GUARD = pathlib.Path(__file__).resolve().parents[1] / ".github" / "scripts" / "assert_tests_ran.py"
 
@@ -213,20 +213,6 @@ def test_every_workflow_that_runs_a_suite_calls_the_guard():
         assert "assert_tests_ran.py" in text, f"{workflow.name} runs pytest but never checks that anything actually ran"
 
 
-#: `uv run`, anything uv itself takes, then `pytest`. **Whatever sits between is
-#: the point.** Matching the literal `uv run pytest` skips every `uv run --group
-#: <name> pytest …` in silence, and a suite that needs a group is the kind that
-#: skips itself when the group is absent. A pattern spelling out which options may
-#: appear skips the next option it does not know in the same silence, so nothing
-#: between the two words is constrained.
-#:
-#: `pytest` must be a whole whitespace-delimited word. A word boundary alone also
-#: stops inside `pytest-cov` or `./pytest`, which an option's value may carry: the
-#: line then splits at the wrong word, and the token read as its path scope is not
-#: one. The CI-scope test reads the workflows with the same shape.
-_INVOCATION = re.compile(r"(?<!\S)uv run(?!\S).*?(?<!\S)pytest(?!\S)")
-
-
 def _ci_pytest_invocations(directory: pathlib.Path) -> list[tuple[str, str]]:
     """Every line in a workflow directory that actually runs pytest.
 
@@ -259,7 +245,9 @@ def _is_scoped(line: str) -> bool:
     The path comes first by convention, and it is the token that is neither the
     command nor an option nor an option's value.
     """
-    after = _INVOCATION.split(line, maxsplit=1)[1].split()
+    # A quoted `run:` value closes its quote after the last argument, and a lone
+    # quote is not a path.
+    after = _INVOCATION.split(line, maxsplit=1)[1].replace('"', " ").replace("'", " ").split()
     return bool(after) and not after[0].startswith("-")
 
 
@@ -371,12 +359,20 @@ def test_an_invocation_with_uvs_own_options_is_still_scanned(tmp_path):
     word boundary, the first splits at `pytest-cov` and reports `pytest` as its
     scope, and the second splits at `./pytest` and reports `pytest` as its scope
     too: two unscoped runs passed as scoped.
+
+    The last three are quoted, as YAML needs a `run:` value to be when it holds
+    `: ` or starts with a special character. A boundary of whitespace alone
+    never sees the words beside a quote, so these were not collected at all, and
+    the closing quote of a bare `"uv run pytest"` must not read as its path.
     """
     lines = [
         "- run: uv run --group raster pytest -v --junitxml=results.xml",
         "- run: uv run --project ../elsewhere --with foo==1.0 pytest -v --junitxml=results.xml",
         "- run: uv run --with pytest-cov pytest -v --junitxml=results.xml",
         "- run: uv run --project ./pytest pytest -v --junitxml=results.xml",
+        '- run: "uv run pytest -m browser -n0"',
+        "- run: 'uv run pytest -k x'",
+        '- run: "uv run pytest"',
     ]
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)

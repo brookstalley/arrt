@@ -17,8 +17,8 @@ Usage:
     # An opt-in suite needs its marker, or pytest collects nothing:
     uv run python tools/mutation_sweep.py m.json tests/browser/test_x.py -- -m browser
 
-    # Another plane, from that plane's own directory — its interpreter, its
-    # lockfile, its `addopts`. `--project` must come first:
+    # Another project (the contract package), from its own directory — its
+    # interpreter, its lockfile, its `addopts`. `--project` must come first:
     uv run python ../arrt/tools/mutation_sweep.py --project . m.json tests/test_x.py
 
 `mutations.json` is a list of objects with `label`, `file` (relative to the swept
@@ -82,8 +82,8 @@ from dataclasses import dataclass
 
 #: The project this sweep runs in: the one holding the files a mutation names and
 #: the one `uv run pytest` is invoked from. Defaults to the curation plane, which
-#: this file lives directly beneath, and moves with `--project` — the display
-#: plane is a sibling uv project with its own interpreter, lockfile and `addopts`,
+#: this file lives directly beneath, and moves with `--project` — the contract
+#: package is a sibling uv project with its own interpreter, lockfile and `addopts`,
 #: so running its tests from here would apply the wrong ones (including this
 #: project's `-n auto` and its marker deselection) to a different suite.
 #:
@@ -136,7 +136,7 @@ def serial_flags() -> tuple[str, ...]:
     usage error, which this tool correctly refuses to interpret and which reads as
     "your suite is broken" rather than "that flag does not exist here". The
     curation plane has xdist because its suite is slow enough to want it; the
-    display plane does not, its suite running in under a second serial.
+    contract package does not, its suite running in about a second serial.
 
     Asked once per process, of the project being swept rather than of this file's
     own environment — they are different interpreters with different lockfiles.

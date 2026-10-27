@@ -3,7 +3,7 @@
 This exists because of a real near-miss: the stock Python `.gitignore` carries an
 unanchored `MANIFEST` rule for the setuptools artifact, and on a case-insensitive
 filesystem (macOS) that also matched `arrt/src/arrt/programming/manifest/` — the
-theme-manifest builder, which is the only channel between the server and its Players. The
+feed builder, which publishes what every Player shows. The
 package existed on disk, imports succeeded, and tests passed; it was simply never
 committed. A fresh clone, or the Pi, would have had a missing module.
 
@@ -103,7 +103,8 @@ def test_the_tv_token_is_not_tracked():
     assert not offenders, f"credential files must never be tracked: {offenders}"
 
 
-#: The unit that runs the server, and the restart policy it is supposed to have.
+#: The systemd unit for running the server outside its container, and the
+#: restart policy it is supposed to have.
 #: A clean exit from the server is somebody stopping it on purpose and it should
 #: stay stopped; the walls go on rotating the feed they last pulled either way.
 #: Arrt Player's unit is guarded in its own repository, where its own restart

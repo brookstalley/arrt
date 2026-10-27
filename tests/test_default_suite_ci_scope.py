@@ -26,7 +26,7 @@ import pathlib
 import re
 
 import pytest
-from test_assert_tests_ran import _INVOCATION
+from repository import INVOCATION
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "suites.yml"
@@ -79,7 +79,7 @@ def _pytest_invocations_by_job() -> dict[str, list[str]]:
         opening = _JOB.match(line)
         if opening:
             job = opening.group(1)
-        elif job and not line.strip().startswith("#") and _INVOCATION.search(line):
+        elif job and not line.strip().startswith("#") and INVOCATION.search(line):
             invocations.setdefault(job, []).append(line.strip())
     return invocations
 

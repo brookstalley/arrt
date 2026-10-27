@@ -341,7 +341,7 @@ programme, a due rotation sent `select_image` and the set **switched itself into
 art mode**, and the picture they were watching was gone. Somebody watching
 television is a daily event, so this is a daily interruption, not an edge case.
 
-**What the plane may rely on**, from `samsung-tv-state-findings.md`: `get_artmode`
+**What the plane may rely on**, from `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md`: `get_artmode`
 answers `on` only in art mode, and `off` in both the states where selecting is
 wrong — so one reading distinguishes them, and `PowerState` does not (it reads
 `on` for a television programme). The set announces its own transitions on the art
@@ -425,7 +425,7 @@ control (`re-architecture.md`, wave 6+) inherits.)
 > **Interim rule: no code that runs unattended sends a power key until the
 > power-transition measurement (formerly the v1 plan's Chunk 24, now part of
 > Arrt Player power control) has recorded what the keys do.** The transitions are a sketch today —
-> `platform-and-dependency-findings.md` observed two presses from one starting state
+> `arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md` observed two presses from one starting state
 > and never tested press-and-hold — and the state its map is missing is the
 > television one, where a press is the interruption the paragraphs above forbid.
 >
@@ -466,7 +466,7 @@ nothing to honour, since neither `select_image` nor `set_artmode('on')` can wake
 this set anyway" — which was true, and was also the tell: the norm had never been
 priced, because nothing had ever been able to violate it. Chunk 24 gives the
 plane the one verb that can, `KEY_POWER` over the remote-control channel, and
-`samsung-tv-state-findings.md` § The dark state cannot be left in software
+`arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` § The dark state cannot be left in software
 already records that it works. So the amendment is not a relaxation arriving with
 the capability — it is the decision the original sentence deferred, taken before
 the capability lands rather than after.)*
@@ -1325,7 +1325,7 @@ one — see `design_decisions.accessibility_approach`.
 > check cannot detect it because `max_colors` reports 16 either way. The display
 > plane therefore has to set the mode explicitly and assert on `mode` itself —
 > otherwise this requirement is unmet by a build that passes every test. Full
-> measurements in `platform-and-dependency-findings.md` § The e-paper panel.
+> measurements in `arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md` § The e-paper panel.
 
 ## What This Artifact Hands Off
 
