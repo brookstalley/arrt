@@ -1604,8 +1604,8 @@ ART_THEME: Final = ToolRecord(
     ),
 )
 
-#: Shared by `add_wall`, `add_client` and `rename_client`, and described for all
-#: three because the wire schema publishes one description per name.
+#: Shared by `add_wall`, `rename_wall`, `add_client` and `rename_client`, and described
+#: for all four because the wire schema publishes one description per name.
 _NAME = Param(
     name="name",
     type="string",
@@ -1703,6 +1703,16 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="rename_wall",
+            description="Give a wall a new name.",
+            example="art_display(action='rename_wall', wall_id='<a wall_id>', name='Hall')",
+            params=(_WALL_ID, _NAME),
+            tips=(
+                "Refuses a name that is empty or that another wall has.",
+                "What the wall hangs, its client and its settings are unchanged, and nothing is republished.",
+            ),
+        ),
+        Action(
             name="set_mat_mode",
             description="Choose how a named wall's Player draws the mat, or leave it to the Player.",
             example="art_display(action='set_mat_mode', wall_id='<a wall_id>', mode='full')",
@@ -1777,9 +1787,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description=(
-                "Report what each wall's display last said about itself and when, and how much the picture store keeps."
-            ),
+            description=("Report each wall's last display report and when, and how much the picture store keeps."),
             example="art_display(action='status')",
             tips=(
                 (
@@ -1956,7 +1964,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="add_label",
-            description="Caption a named wall with one of a client's label outputs, by the label output's name.",
+            description="Caption a named wall with one of a client's label outputs, by its name.",
             example="art_display(action='add_label', wall_id='<a wall_id>', client_id='<a client_id>', output='epd-0')",
             params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
             tips=(

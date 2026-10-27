@@ -122,6 +122,8 @@ away, in dialogs.
 **Decisions made mid-build:** *(appended while building; one line each, naming
 the goal or prior choice that settled it.)*
 
+- 02: renaming is `POST /walls/{wall_id}`, not the `PATCH` this plan first named, because renaming a client is `POST /clients/{client_id}` (match the product's other choices).
+
 **Level:** High for the page; Medium for the size of 03. The prototype settles the layout
 and the words, and every write already exists. What could raise it: 03's diff
 is most of a 1,500-line screen, so if it does not fit one review, the Scene
@@ -162,7 +164,7 @@ owner on the deployed server.
   recorded in `api-contract.md`)
 - **Surfaces:** `arrt/src/arrt/programming/display.py` (`rename_wall`, beside
   `add_wall`, refusing an empty or duplicate name the way `add_wall` does);
-  `arrt/src/arrt/http/api.py` (`PATCH /walls/{wall_id}` with `{name}`,
+  `arrt/src/arrt/http/api.py` (`POST /walls/{wall_id}` with `{name}`,
   returning the wall as `GET /walls` does); `arrt/src/arrt/mcp/tools.py` and
   `bindings.py` (`art_display(action='rename_wall')`, sharing the name
   description `add_wall` and `rename_client` already share);

@@ -1157,6 +1157,14 @@ def create_wall(request: Request, body: CreateWall) -> WallOut:
     return _wall(services, services.display.get_wall_view(services.display.add_wall(name=body.name).id))
 
 
+@router.post("/walls/{wall_id}")
+def rename_wall(request: Request, wall_id: str, body: CreateWall) -> WallOut:
+    """Rename a wall. Nothing a Player reads carries the name, so nothing is republished."""
+    services = _services(request)
+    services.display.rename_wall(wall_id, name=body.name)
+    return _wall(services, services.display.get_wall_view(wall_id))
+
+
 @router.post("/walls/{wall_id}/client")
 def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignmentOut:
     """Show this wall on one of a client's outputs, by the output's name.

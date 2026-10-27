@@ -660,6 +660,20 @@ class DisplayService:
             store_write(self._store.add_wall, wall)
         return wall
 
+    def rename_wall(self, wall_id: str, *, name: str) -> Wall:
+        """Give a wall a new name; a name another wall has is refused, as at `add_wall`.
+
+        **Nothing is republished.** A feed names works and slots, never the wall
+        (`player-contract.md`), so a Player sees no change. What changes is what a
+        person reads: Walls, History, and every confirmation that names the wall.
+        """
+        wall = self.get_wall(wall_id)
+        renamed = replace(wall, name=require_text(name, field="name"))
+        with self._store.transaction():
+            store_write(self._store.update_wall, renamed)
+        log.info("Wall %r is now called %r.", wall.name, renamed.name)
+        return renamed
+
     # -- writes: themes and membership ----------------------------------------
 
     def set_mat_mode(self, wall_id: str, mode: MatMode | str | None) -> Wall:
