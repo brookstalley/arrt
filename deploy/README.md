@@ -517,9 +517,7 @@ carries.** The manifest is written at activation, not at startup, so a plane tha
 restarts against an existing manifest serves the old label text — including after
 a seed re-run that has just filled in new fields. **The block above this one is a
 read** — it recovers `WALL_ID` from `/api/walls` — and this sentence used to point
-at it as though it were the activation. The activation is the `POST` in the
-paragraph above beginning "A machine that has never run this product needs a
-catalogue":
+at it as though it were the activation. The activation is this `POST`:
 
     curl -sX POST localhost:"$CURATION_PORT"/api/themes/"$THEME_ID"/activate \
          -H 'content-type: application/json' -d '{"wall_id":"'"$WALL_ID"'"}'

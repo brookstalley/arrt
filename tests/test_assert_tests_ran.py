@@ -213,11 +213,14 @@ def test_every_workflow_that_runs_a_suite_calls_the_guard():
         assert "assert_tests_ran.py" in text, f"{workflow.name} runs pytest but never checks that anything actually ran"
 
 
-#: `uv run`, any options of uv's own, then `pytest`. **The options are the point.**
-#: Matching the literal `uv run pytest` skipped every `uv run --group raster
-#: pytest …` in silence, and that is the typesetting job: the one leg whose suite
-#: skips itself when its group is absent.
-_INVOCATION = re.compile(r"\buv run(?: --?[\w-]+(?:[ =][\w.-]+)?)* pytest\b")
+#: `uv run`, anything uv itself takes, then `pytest`. **Whatever sits between is
+#: the point.** Matching the literal `uv run pytest` skipped every `uv run --group
+#: raster pytest …` in silence, and that is the typesetting job: the one leg whose
+#: suite skips itself when its group is absent. A pattern spelling out which
+#: options may appear skips the next option it does not know in the same silence,
+#: so nothing between the two words is constrained. The CI-scope test reads the
+#: workflows with the same shape.
+_INVOCATION = re.compile(r"\buv run\b.*?\bpytest\b")
 
 
 def _ci_pytest_invocations(directory: pathlib.Path) -> list[tuple[str, str]]:
@@ -360,14 +363,17 @@ def test_an_invocation_with_uvs_own_options_is_still_scanned(tmp_path):
     collected it, so an unscoped run of it would have passed this file in
     silence. The fixture carries it unscoped, so collecting it is what fails it.
     """
+    lines = [
+        "- run: uv run --group raster pytest -v --junitxml=results.xml",
+        "- run: uv run --project ../elsewhere --with foo==1.0 pytest -v --junitxml=results.xml",
+    ]
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)
     (workflows / "probe.yml").write_text(
-        "jobs:\n  j:\n    steps:\n      - run: uv run --group raster pytest -v --junitxml=results.xml\n",
-        encoding="utf-8",
+        "jobs:\n  j:\n    steps:\n" + "".join(f"      {line}\n" for line in lines), encoding="utf-8"
     )
 
     collected = _ci_pytest_invocations(workflows)
 
-    assert [line for _, line in collected] == ["- run: uv run --group raster pytest -v --junitxml=results.xml"]
-    assert not _is_scoped(collected[0][1])
+    assert [line for _, line in collected] == lines
+    assert not any(_is_scoped(line) for _, line in collected)
