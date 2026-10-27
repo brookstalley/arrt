@@ -422,8 +422,8 @@ browser suite only; not yet deployed. Check, on the NAS after deploy:
 is `arrt-player/` and the module `arrt_player`. Until the Pi takes this, its
 `display.service` names a directory and module that no longer exist after a
 pull. The steps and the way back are in Arrt Player's `deploy/README.md`
-§ The Player renamed Arrt Player (brookstalley/arrt-player). The walk below,
-moving the Pi onto a clone of that repository, covers this one. Check: the unit is active, the journal's logger names start
+§ The Player renamed Arrt Player (brookstalley/arrt-player). The walk at the top
+of this queue, moving the Pi onto a clone of that repository, covers this one. Check: the unit is active, the journal's logger names start
 `arrt_player.`, and the next rotation logs `label.drawn` on `epd-0`.
 
 **Entries below this one are dated and keep the paths of their day.** Read

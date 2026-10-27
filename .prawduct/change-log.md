@@ -106,6 +106,15 @@ of the Player that nothing here builds or deploys (chunk 05).
   `architecture.md` records the two repositories and the pinned contract.
   History (the change log, archived and released plans, dated rulings) keeps
   the paths of its day.
+- **Every file a live record cites now resolves in this tree or names its
+  repository** (`tests/preferences/test_citations_resolve.py`, new). A sweep keyed
+  on the Player's old directory had missed the departed deploy files and findings
+  cited by bare name, among them an instruction to install the moved journald
+  drop-in; those citations now read `arrt-player:<path>`. The CI pytest matcher
+  also sees a quoted `run:` value, and is shared by both of its scans.
+- **Ten of the Player's issues moved to brookstalley/arrt-player** (#16 to #25
+  there: #41, #103, #104, #105, #107, #153, #182, #184, #326, #384 here), with the
+  labels the transfer dropped restored. The rest stay here.
 - **Queued for the operator:** the wall moving onto a clone of arrt-player
   (`operator-verification.md`), which is chunk 06.
 
@@ -114,7 +123,9 @@ of the Player that nothing here builds or deploys (chunk 05).
   the display unit's restart policy and stop timeout, and the CI-scope guard's
   display-leg and typesetting-job tests.
 - *Strengthened:* the CI scope check's fixture carries `pytest` inside an
-  option's value, watched failing against the old matcher.
+  option's value and in quoted `run:` values, each watched failing against the
+  matcher before it.
+- *New:* the citation guard, watched failing on every record it then fixed.
 
 **Rolling back:** no data changes, and nothing deployed reads this repository's
 copy of the Player: the Pi moves to arrt-player at chunk 06. Until it does, its
