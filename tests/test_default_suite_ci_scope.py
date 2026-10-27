@@ -26,6 +26,7 @@ import pathlib
 import re
 
 import pytest
+from test_assert_tests_ran import _INVOCATION
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = REPO / ".github" / "workflows" / "suites.yml"
@@ -78,7 +79,7 @@ def _pytest_invocations_by_job() -> dict[str, list[str]]:
         opening = _JOB.match(line)
         if opening:
             job = opening.group(1)
-        elif job and not line.strip().startswith("#") and re.search(r"uv run .*\bpytest\b", line):
+        elif job and not line.strip().startswith("#") and _INVOCATION.search(line):
             invocations.setdefault(job, []).append(line.strip())
     return invocations
 
@@ -187,59 +188,11 @@ def test_the_root_leg_needs_no_ignores():
     )
 
 
-def test_the_display_leg_ignores_exactly_the_directories_that_cannot_import():
-    """The same claim about the third suite, derived the same way on both sides.
-
-    This test used to assert the display leg needed *no* ignores, and predicted
-    the moment that would stop being true: the e-paper panel arriving behind an
-    optional install. It has arrived. The typesetter needs Pango through
-    PyGObject, which a default `uv sync` does not install, so `tests/raster`
-    `importorskip`s the group and the leg excludes it.
-
-    **What excluding it must not mean is that the typesetter goes untested in
-    CI**, which is what the job asserted below exists to prevent — a directory
-    ignored by one leg and run by no other is coverage that has silently gone.
-    """
-    needed = _directories_that_import_or_skip(REPO / "arrt-player" / "tests")
-    assert needed, "no module under arrt-player/tests uses importorskip — the display CI leg should carry no --ignore at all"
-
-    check_ignores(_ignored_by("arrt-player"), needed)
-
-
-def test_every_directory_the_display_leg_ignores_is_run_by_another_job():
-    """The half that `check_ignores` cannot see, and the one that actually bites.
-
-    Ignoring a directory keeps a green leg honest; it does not keep the code
-    tested. A `--ignore` added because a group is optional, with no job installing
-    that group, removes the tests from CI entirely — and a suite that does not run
-    reports exactly what a suite that passes reports.
-
-    So the ignored directories are checked against the paths other jobs name.
-    Here that is `tests/raster`, run by the typesetting job with the group
-    installed and `assert_tests_ran.py` behind it.
-    """
-    elsewhere = {
-        path
-        for job, invocations in _pytest_invocations_by_job().items()
-        if job != "arrt-player"
-        for invocation in invocations
-        # The `--ignore=` arguments come out first: a directory another job also
-        # excludes is not a directory another job runs, and counting it would let
-        # two legs cover for each other while neither collected a line of it.
-        for path in re.findall(r"(?<![=\w/])tests/\S+", re.sub(r"--ignore=\S+", "", invocation))
-    }
-    unrun = {f"tests/{name}" for name in _ignored_by("arrt-player")} - elsewhere
-    assert not unrun, (
-        f"the display leg ignores {sorted(unrun)} and no other job in suites.yml runs it, so those "
-        "tests do not execute in CI at all — which is indistinguishable from their passing"
-    )
-
-
 def test_the_contract_leg_runs_and_needs_no_ignores():
     """The contract package's suite has a leg of its own, and nothing in it is optional.
 
-    A Player outside this repository pins a released version of the package, so
-    a change that breaks it must go red here, before the tag. `_ignored_by`
+    Arrt Player, in its own repository, pins a released version of the package,
+    so a change that breaks it must go red here, before the tag. `_ignored_by`
     fails by name if no job runs it.
     """
     assert _directories_that_import_or_skip(REPO / "contract" / "tests") == set(), (

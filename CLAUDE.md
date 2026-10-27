@@ -27,21 +27,21 @@ stays version-free.
 
 ## Change of direction — 2026-09-30 (read before anything else)
 
-**The product is becoming two: Arrt, a server holding the Library and
-Programming, and Arrt Player, the player at each wall.** The target, the waves and
-the open questions are in `.prawduct/artifacts/re-architecture.md`. The contract
-between the two is `player-contract.md` and `contract/`. Rules for working here
-meanwhile:
+**The product is two: Arrt, this repository, a server holding the Library and
+Programming; and Arrt Player, the player at each wall, which lives in
+[brookstalley/arrt-player](https://github.com/brookstalley/arrt-player).** The
+target, the waves and the open questions are in
+`.prawduct/artifacts/re-architecture.md`. The contract between the two is
+`player-contract.md` and `contract/`, which Arrt owns and Arrt Player pins by
+tag. A field a Player needs is a change to that package here. Rules for working
+here meanwhile:
 
 - **The as-built artifacts are still true of the code.** Where one carries a
   dated `Direction changed 2026-09-30` note, `re-architecture.md` wins for the
   target and the older text wins for what runs today, until its wave lands.
 - **Several norms are `in-transition`**, each with an interim rule. Read
-  `architecture.md` § Direction before touching the manifest, the display
-  plane's I/O, or the theme and wall tables. (The directive table went in
-  wave 4g.)
-  `arrt-player/tests/test_plane_isolation.py` allows an HTTP client in
-  `arrt-player/src/arrt_player/pull.py` only, since wave 2b; everything else it holds is unchanged.
+  `architecture.md` § Direction before touching the manifest, the routes a
+  Player calls, or the theme and wall tables.
 - **Each wave has its own plan, which names its branch.** What comes next is
   `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
   is the one in force. Branch from `develop`.
@@ -50,69 +50,28 @@ meanwhile:
 
 ## Dev commands
 
-Four independent projects, four suites.
+Three independent projects, three suites.
 
-| | governance (repo root) | curation plane | display plane | contract package |
-|---|---|---|---|---|
-| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd arrt-player && uv run --group raster pytest` | `cd contract && uv run pytest` |
-| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd arrt-player && uv run ruff check .` | `cd contract && uv run ruff check .` |
-| Format | `uv run black .` | `cd arrt && uv run black .` | `cd arrt-player && uv run black .` | `cd contract && uv run black .` |
+| | governance (repo root) | curation plane | contract package |
+|---|---|---|---|
+| Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd contract && uv run pytest` |
+| Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd contract && uv run ruff check .` |
+| Format | `uv run black .` | `cd arrt && uv run black .` | `cd contract && uv run black .` |
 
-**All four must pass.** `contract/` is the `arrt-contract` package
+**All three must pass.** `contract/` is the `arrt-contract` package
 (`player-contract.md` § The package): every suite reads the schemas, fixtures,
-vectors and routes through it, never by a path of its own. The display plane got its suite, its `test_commands`
-entry and its CI leg on 2026-08-06, with its first modules — until then its
-`pytest` collected nothing and exited 5, which is neither a pass nor a failure.
-That same commit carried the plane-isolation test, because both are the same
-claim about when a guard starts guarding.
+vectors and routes through it, never by a path of its own. A change to it is
+released as a `contract-v<version>` tag, which Arrt Player's `pyproject.toml`
+names.
 
-**Nothing in any of the four reaches a television, a panel, or a museum.** The
-display suite drives a double behind the TV interface, which is why it runs on a
-GitHub runner; the hardware is exercised by `arrt-player/tools/tv_api_check.py`, by
-`arrt-player/tools/power_probe.py`, and by the `live_*` markers below, all of them run
-by hand.
-
-**`power_probe.py` presses power on the real television, and it is the only thing
-in this repo that does.** It refuses to send anything without `--i-am-at-the-set`,
-because one measurement is deliberately taken from the television state that
-`nonfunctional-requirements.md` § The television belongs to whoever is using it
-forbids shipped code to press at — legitimate only with somebody watching the set.
-Stop the daemon first. Its docstring carries the rest and `deploy/README.md`
-§ Measuring what the power keys do carries this machine's paths.
-
-**The display column carries `--group raster` because the recorded evidence
-does.** Without it `pytest` collects a strictly smaller suite than the one
-`test_commands` runs, so a developer following this table and a `.test-evidence.json`
-claiming a green display leg are talking about different suites — and the
-difference is the typesetter, the plane's most important accessibility surface.
-
-**`arrt-player/tests/raster` needs one optional group and skips itself without it.**
-The label is typeset with Pango through PyGObject, which a default `uv sync` does
-not install. **It does install and import on this Mac** — verified 2026-08-13,
-PyGObject 3.56.3 resolving as a wheel against Pango 1.57.1, rendering through
-PangoCairo. (This entry said the opposite for months, on the strength of an older
-Homebrew build that failed at import; the cost of believing it is that the
-product's most important accessibility surface goes unexercised locally and is
-first seen in CI.) So run it:
-
-```sh
-cd arrt-player && uv run --group raster pytest tests/raster
-```
-
-The display CI leg carries `--ignore=tests/raster` so the collection skip is not
-read as a provisioning failure, and a **separate `typesetting` job** installs the
-group and runs it, with `assert_tests_ran.py` behind it. Both halves of that are
-derived rather than trusted by `tests/test_default_suite_ci_scope.py`, which fails
-at home if a leg ignores a directory no other job runs. The panel *driver* group
-(`--group epaper`, `omni_epd`) installs on a Raspberry Pi and nowhere else;
-nothing in either suite needs it, because the driver is passed into
-`EpaperSurface` rather than opened by it.
+**Nothing in any of the three reaches a television, a panel, or a museum.** The
+`live_*` markers below reach museums and are run by hand. Everything that drives
+hardware is Arrt Player's, in its own repository.
 
 **A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
 the default groups as extraneous and removes it, so after a bare `uv sync` in
-`arrt/` the browser suite skips itself, and in `arrt-player/` the typesetter
-does. The suites stay green and quietly shrink. Sync with the groups the run
-needs: `uv sync --group browser` in curation, `uv sync --group raster` in display.
+`arrt/` the browser suite skips itself. The suite stays green and quietly
+shrinks. Sync with the groups the run needs: `uv sync --group browser`.
 
 **`uv run` in every column, including the root.** pytest, ruff and black live in a
 `[dependency-groups] dev` group that only uv installs — `pip install -e .` does
@@ -126,22 +85,8 @@ Run the curation plane: `cd arrt && uv run python -m arrt`. It needs
 `CURATION_PORT`, its JSON API under `/api`, and MCP clients connect to `/mcp` on
 the same port.
 
-Run the display plane: `cd arrt-player && uv run python -m arrt_player`. **It drives the
-real television**, so it is not a thing to start casually: it uploads, deletes and
-selects against whatever `TV_ADDRESS` points at. **Stop it with SIGTERM, never
-SIGKILL** — the set holds an abandoned art-channel client's slot for minutes, and
-a hard kill can leave the next connection refused. It declines to touch a set that
-is not in art mode, so it will not interrupt somebody watching television.
-
-**The mutation sweep runs per plane, and the display plane needs `--project`:**
-
-```sh
-cd arrt-player && uv run python ../arrt/tools/mutation_sweep.py --project . m.json tests/
-```
-
-Without it the tool sweeps the curation project with the display plane's paths and
-reports every mutation as drifted. How to read a sweep, budget one, and sweep the
-browser suite: `docs/testing.md`.
+**The mutation sweep runs per project.** How to read a sweep, budget one, and
+sweep the browser suite: `docs/testing.md`.
 
 The curation suite boots a real uvicorn server per test class of surface work.
 Do not replace that with an in-process ASGI transport: Starlette does not run a
@@ -158,19 +103,19 @@ a second and is left serial.
 `tests/preferences/`, where this repo's artifact-versus-code contracts
 live — the Library/Programming seam, the norm index, deployment values, and the
 screen tables — and the repository-wide scans, which cover every project its
-tracked `pyproject.toml` files name. Agreements between the planes (the
-heartbeat, the timing, the label corpus, plane isolation) are held by each
-plane's own suite against the contract package since wave 5. The screen tables
+tracked `pyproject.toml` files name. Agreements with Arrt Player (the
+heartbeat, the timing, the label corpus) are held by each side's own suite
+against the contract package, never by a test that reads both. The screen tables
 span two homes by design: `test_screen_tables.py` reads
 the *curation* plane's `http/static/app.js` against
-`.prawduct/artifacts/information-architecture.md`, and neither plane's own suite
-can see both. So a change made entirely inside `arrt/` — routing a screen,
+`.prawduct/artifacts/information-architecture.md`, and the server's own suite
+does not read the artifacts. So a change made entirely inside `arrt/` — routing a screen,
 editing those IA tables — is guarded by a leg in the repo root.
 
 ## The browser suite and the live suites
 
 The client under `arrt/src/arrt/http/static/` is the product's only human
-interface, and neither Python suite runs it: `-m browser` does, and you run it
+interface, and no Python suite runs it: `-m browser` does, and you run it
 whenever you touch anything under `static/`. The four live markers (`live_museum`,
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
 default; `live_api` and `llm_eval` spend real money, and every live run takes

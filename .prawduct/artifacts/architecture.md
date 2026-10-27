@@ -28,6 +28,11 @@ crashing — not because the work is too big for one box.
 > third gain rulings. Four new norms for the Library/Programming seam are born
 > `in-transition` at the end of § Direction. The Decision Log's 2026-09-30
 > entries record the reversal of the 2026-07-20 co-location decision.
+>
+> **Since wave 5 (2026-10-27) this repository holds the server only.** Where a
+> norm below binds the Player's code, its guard runs in Arrt Player's own
+> repository, and a path written `arrt-player:<path>` names a file there. The
+> norm statements stay here, beside the contract they constrain.
 
 ## Direction
 
@@ -86,7 +91,7 @@ database. Adding a second channel is a departure requiring a recorded decision.
 >
 > **Wave 2 landed 2026-09-30 (wave 2b Chunks 03 and 04).** Arrt serves the
 > three routes behind a per-wall token, and Arrt Player's `MANIFEST_SOURCE=http` pulls
-> into `CACHE_DIR` through `arrt-player/src/arrt_player/pull.py`, the one module the isolation test now
+> into `CACHE_DIR` through `arrt-player:src/arrt_player/pull.py`, the one module the isolation test now
 > lets open an HTTP client, and only to routes `contract/routes.json` names. The
 > file channel is still the default and still works, so today both channels are
 > in force, and a Pi switches by configuration after a soak. Wave 3 retires the
@@ -97,7 +102,7 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > server gains `GET /client` and `POST /client/heartbeat` (`player-contract.md`
 > § Transport). Wall tokens are retired. **The Player is a client from
 > `build-plan-clients.md` Chunk 03:** one process supervising one worker per wall
-> the server assigns it (`arrt-player/src/arrt_player/client.py`), each pulling into its
+> the server assigns it (`arrt-player:src/arrt_player/client.py`), each pulling into its
 > own `CACHE_DIR/<wall id>/`. `WALL_ID`, `WALL_TOKEN` and `MANIFEST_SOURCE` are
 > retired and refused by name, and the file channel is retired on the Player's
 > side: a client always pulls. `pull.py` stays the one module that opens an HTTP
@@ -110,7 +115,7 @@ database. Adding a second channel is a departure requiring a recorded decision.
 > heartbeat, `GET /client` and `POST /client/heartbeat`). The contract file is
 > the list, so a sixth route is a contract change rather than an edit to this
 > sentence. **Status: steady-state.** The transition ended when the Player
-> retired the file channel on 2026-10-02; `arrt-player/tests/test_plane_isolation.py`
+> retired the file channel on 2026-10-02; `arrt-player:tests/test_plane_isolation.py`
 > holds the statement as amended.
 
 <!-- Ratified by the owner 2026-08-07, in the words they stated it: "The display
@@ -1117,14 +1122,14 @@ holds by that directory instead — a wall's worker opens only the paths its id
 derives. The server's per-wall file is now read by nothing on the Player's side.
 
 **Built 2026-08-12** (`arrt/src/arrt/programming/manifest/builder.py`,
-`arrt-player/src/arrt_player/config.py`). The one-wall installation is the degenerate
+`arrt-player:src/arrt_player/config.py`). The one-wall installation is the degenerate
 case: one wall, one manifest, one heartbeat, and behaviour identical to the
 single-file form apart from the filename. Neither filename may be imported across
 the planes — the isolation norm forbids it — so both were declared twice and held
 equal by a root-suite test; the manifest's left the display plane on 2026-10-02
 with the file channel, the heartbeat's when Players began POSTing, and since
 wave 5 each plane holds its heartbeat key to the contract's `instant_key`
-(`arrt-player/tests/test_heartbeat_key.py` and `arrt/tests/contract/test_heartbeat_key.py`).
+(`arrt-player:tests/test_heartbeat_key.py` and `arrt/tests/contract/test_heartbeat_key.py`).
 
 ## Data Ownership & Consistency
 
@@ -1277,6 +1282,15 @@ is overwritten, so backpressure is structurally impossible.
 > restart window, and the manifest's major/minor rule below is what absorbs it.
 > Contract fixtures pinned by the Player's tests are what enforce it
 > (`re-architecture.md` § Seam 2).
+>
+> **Landed 2026-10-27 (wave 5).** Arrt and Arrt Player are two repositories
+> (brookstalley/arrt and brookstalley/arrt-player), released and deployed
+> separately. The contract is the `arrt-contract` package, which this
+> repository owns and the Player pins by tag (`contract-v<version>`), so the
+> skew between the two is a version number anyone can read in the Player's
+> `pyproject.toml`. A field a Player needs is a change to that package here,
+> then a new tag the Player takes when it is ready. The text below describes the
+> single-repository deployment that ran until then.
 
 **One deploy unit in practice, two in principle.** Both planes live in one git
 repo, are updated together (`git pull` plus two `systemctl restart`s), and there is

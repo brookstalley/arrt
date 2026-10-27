@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### The wall runs from brookstalley/arrt-player — added 2026-10-27
+
+**`build-plan-wave-5-split.md` chunk 06.** The Pi's checkout becomes a clone of
+arrt-player, following that repository's runbook
+(`.prawduct/runbooks/moving-the-pi-player-to-a-new-revision.md` § The first
+time: off the monorepo checkout), and `display.service` names `/opt/arrt-player`.
+The old checkout stays in place as the way back until you retire it, and is not
+pulled: this repository's `develop` no longer carries `deploy/display.service`
+or `arrt-player/`. Check:
+
+- **The wall resumes from its cache.** The unit is active, and the journal
+  shows `client.started` and each wall's `pull.adopted` with no re-upload storm.
+- **Its heartbeat reaches Arrt.** Settings › Clients shows the client reporting
+  within a minute.
+- **A republish reaches it.** Hang a different theme (or add a work to the hung
+  one) and see the wall's next `pull.adopted`.
+
+The homelab repository's references to the old checkout are yours to update.
+
 ### Scenes on the two walls — added 2026-10-26
 
 **`build-plan-wave-4f-scenes.md` chunk 03.** Both walls up, the Frame in art
@@ -402,8 +421,9 @@ browser suite only; not yet deployed. Check, on the NAS after deploy:
 **`build-plan-rename-arrt-player.md`.** Postarr is now Arrt Player: the project
 is `arrt-player/` and the module `arrt_player`. Until the Pi takes this, its
 `display.service` names a directory and module that no longer exist after a
-pull. The steps and the way back are in `deploy/README.md` § The Player renamed
-Arrt Player. Check: the unit is active, the journal's logger names start
+pull. The steps and the way back are in Arrt Player's `deploy/README.md`
+§ The Player renamed Arrt Player (brookstalley/arrt-player). The walk below,
+moving the Pi onto a clone of that repository, covers this one. Check: the unit is active, the journal's logger names start
 `arrt_player.`, and the next rotation logs `label.drawn` on `epd-0`.
 
 **Entries below this one are dated and keep the paths of their day.** Read

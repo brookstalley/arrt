@@ -3,7 +3,7 @@
 This exists because of a real near-miss: the stock Python `.gitignore` carries an
 unanchored `MANIFEST` rule for the setuptools artifact, and on a case-insensitive
 filesystem (macOS) that also matched `arrt/src/arrt/programming/manifest/` — the
-theme-manifest builder, which is the only channel between the two planes. The
+theme-manifest builder, which is the only channel between the server and its Players. The
 package existed on disk, imports succeeded, and tests passed; it was simply never
 committed. A fresh clone, or the Pi, would have had a missing module.
 
@@ -103,19 +103,15 @@ def test_the_tv_token_is_not_tracked():
     assert not offenders, f"credential files must never be tracked: {offenders}"
 
 
-#: The two units that actually run the wall, and the restart policy each one is
-#: supposed to have. **They are not the same policy and a shared assertion would
-#: be wrong**: the display plane's downtime is visible on the wall and it should
-#: come back from anything, while a clean exit from the curation plane is somebody
-#: stopping it on purpose and it should stay stopped — the wall goes on rotating
-#: the last manifest either way.
+#: The unit that runs the server, and the restart policy it is supposed to have.
+#: A clean exit from the server is somebody stopping it on purpose and it should
+#: stay stopped; the walls go on rotating the feed they last pulled either way.
+#: Arrt Player's unit is guarded in its own repository, where its own restart
+#: policy (`always`) is pinned.
 #:
-#: These are the units that run in production, and every property below is
-#: checked on them. The guards were first written for the 2024 loader's unit,
-#: which never ran in production and left with the 2024 modules; carried here
-#: before it went, they cover the units they matter for.
+#: A mapping, not one path, because the properties below are each unit's own and a
+#: second unit joins them by being listed here.
 LIVE_UNITS = {
-    pathlib.Path("deploy/display.service"): "always",
     pathlib.Path("deploy/curation.service"): "on-failure",
 }
 
@@ -134,15 +130,15 @@ def _directives_of(unit: pathlib.Path) -> dict[str, list[str]]:
 
 @pytest.mark.parametrize("unit", sorted(LIVE_UNITS), ids=lambda p: p.stem)
 def test_a_live_unit_declares_its_environment_file(unit: pathlib.Path):
-    """The units that run declare their environment file, un-prefixed.
+    """A unit that runs declares its environment file, un-prefixed.
 
-    Each plane's settings refuse to start without their deployment values, and an
+    The server's settings refuse to start without their deployment values, and an
     `EnvironmentFile=` the unit does not declare — or declares with a `-` prefix,
     making it optional — turns a missing file into an import-time crash nobody
     connects back to a file that was never placed.
     """
     values = _directives_of(unit).get("EnvironmentFile", [])
-    assert values, f"{unit.name} must declare EnvironmentFile=; both planes require deployment values at import"
+    assert values, f"{unit.name} must declare EnvironmentFile=; the server requires deployment values at import"
     assert not any(v.startswith("-") for v in values), f"{unit.name}: EnvironmentFile= must not be optional: {values}"
 
 
@@ -153,12 +149,10 @@ def test_a_live_unit_cannot_silently_stop_retrying(unit: pathlib.Path):
     Five starts in ten seconds is exhausted in about half a second by a fault that
     reproduces on every start, leaving `failed` permanently after five log lines.
     That is the failure the product's requirement about unattended faults being
-    visible exists to prevent, and it applies to whichever plane hits it.
+    visible exists to prevent.
     """
     directives = _directives_of(unit)
-    assert directives.get("Restart") == [
-        LIVE_UNITS[unit]
-    ], f"{unit.name}: restart policy is deliberate and differs per plane — see LIVE_UNITS for why"
+    assert directives.get("Restart") == [LIVE_UNITS[unit]], f"{unit.name}: restart policy is deliberate — see LIVE_UNITS for why"
     assert directives.get("StartLimitIntervalSec") == [
         "0"
     ], f"{unit.name}: start rate limiting must be disabled, or a crash loop ends in a silent permanent `failed`"
@@ -183,8 +177,8 @@ def test_the_curation_unit_treats_a_clean_stop_as_success():
     correct in every place anybody reads — and the fault it reintroduces appears
     only on a real stop against a real machine.
 
-    Only the curation unit: `display.service` runs `Restart=always`, where the
-    exit status does not decide whether it comes back.
+    A unit under `Restart=always` would not need it: there, the exit status does
+    not decide whether it comes back.
     """
     unit = pathlib.Path("deploy/curation.service")
     assert LIVE_UNITS[unit] == "on-failure", "this test's premise is the on-failure policy pinned above"
@@ -226,20 +220,3 @@ def test_a_live_unit_names_its_interpreter_absolutely(unit: pathlib.Path):
     for value in exec_starts:
         assert value.startswith("/"), f"{unit.name}: ExecStart= must be absolute, got {value!r}"
         assert not value.startswith("/usr/bin/env "), f"{unit.name}: ExecStart= must not resolve through env: {value!r}"
-
-
-def test_the_display_unit_gives_the_television_time_to_let_go():
-    """A SIGKILL inside a TV connection leaves the set holding a half-open channel.
-
-    A connection attempt is roughly 15s of blocking construction plus the 30s
-    art-channel ceiling, and a SIGTERM landing inside one is honoured when that
-    pass ends rather than during it — measured at ~22s against a sleeping set,
-    with ~45s the worst case. Below that the unit starts SIGKILLing live
-    connections, and the set refuses the next one for minutes. This is a floor
-    against *shortening* it; what ships is systemd's 90s default, which clears it.
-    """
-    directives = _directives_of(pathlib.Path("deploy/display.service"))
-    timeout = directives.get("TimeoutStopSec", [])
-    assert timeout, "display.service must state TimeoutStopSec= rather than inherit it silently"
-    assert int(timeout[0]) >= 45, f"TimeoutStopSec= must clear the ~45s worst-case television pass, got {timeout[0]}"
-    assert directives.get("KillSignal") == ["SIGTERM"], "the plane closes the television on SIGTERM; nothing else does"

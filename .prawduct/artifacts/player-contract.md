@@ -371,7 +371,7 @@ holds them to a reference statement of these rules
 What a Player draws for one work on one screen, as numbers. The vectors are
 `contract/vectors/mat-geometry.json`; the reference statement is in
 `contract/tests/test_vectors.py`, and Arrt Player's compositor is
-held to them in `arrt-player/tests/test_compose.py`. *(Wave 4g: Arrt's own
+held to them in `arrt-player:tests/test_compose.py`. *(Wave 4g: Arrt's own
 compositor, which drew the `proportional` vectors with a density on the Frame
 from wave 2, retired with major 1, and its check with it.)*
 

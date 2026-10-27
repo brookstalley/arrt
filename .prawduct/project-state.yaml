@@ -2367,7 +2367,7 @@ design_decisions:
     threshold of legibility and every check the product had passed while it was.
 
     What settles it instead is a DERIVATION, built as 13B-1
-    (arrt-player/src/arrt_player/panel/legibility.py): the deployment states its panel
+    (arrt-player:src/arrt_player/panel/legibility.py): the deployment states its panel
     diagonal and its viewing distance, and the type sizes follow from a cap height
     in arcminutes calibrated once by eye. The reference wall reads a 6-inch
     1448x1072 panel from 7 feet, which gives a 130 px primary tier and a 92 px
@@ -3142,7 +3142,7 @@ artifact_manifest:
     - name: labels-and-surfaces
       file_path: .prawduct/artifacts/labels-and-surfaces.md
       version: 1
-      depends_on: [re-architecture, clients, player-contract, samsung-tv-state-findings, accessibility-spec]
+      depends_on: [re-architecture, clients, player-contract, accessibility-spec]
     - name: feeds-and-players
       file_path: .prawduct/artifacts/feeds-and-players.md
       version: 1
@@ -3176,9 +3176,10 @@ artifact_manifest:
   #
   # The edges point at what each findings file's conclusions FEED, so a decision
   # changing one of those artifacts walks back into the findings that argued for it.
+  # The Player's own findings (the Frame's state, HDMI output, the Apple
+  # platform, the Pi's platform and dependencies) left with it for
+  # brookstalley/arrt-player, whose manifest registers them.
   findings:
-    - file_path: .prawduct/artifacts/platform-and-dependency-findings.md
-      depends_on: [operational-spec, architecture, project-preferences]
     - file_path: .prawduct/artifacts/3tears-integration-findings.md
       depends_on: [architecture, operational-spec, project-preferences]
     # The five below were unregistered until 2026-10-01 (backlog #147), and the
@@ -3209,16 +3210,10 @@ artifact_manifest:
       depends_on: [data-model, accessibility-spec]
     - file_path: .prawduct/artifacts/openrouter-api-findings.md
       depends_on: [architecture, nonfunctional-requirements]
-    - file_path: .prawduct/artifacts/samsung-tv-state-findings.md
-      depends_on: [architecture, operational-spec]
     - file_path: .prawduct/artifacts/wikidata-findings.md
       depends_on: [data-model, architecture, security-model, observability-strategy]
     - file_path: .prawduct/artifacts/procurement-corpus.md
       depends_on: [nonfunctional-requirements, data-model, re-architecture, wikidata-findings]
-    - file_path: .prawduct/artifacts/hdmi-output-findings.md
-      depends_on: [clients, nonfunctional-requirements]
-    - file_path: .prawduct/artifacts/apple-platform-findings.md
-      depends_on: [feeds-and-players]
     - file_path: .prawduct/artifacts/ask-agent-findings.md
       depends_on: [product-brief, information-architecture, nonfunctional-requirements, api-contract, openrouter-api-findings]
   # Strategy-class artifacts still owed: test-specifications.md. The build plan
@@ -3358,34 +3353,21 @@ coverage_required: false
 #   Whitespace-separated test trees for the coverage verifier (default:
 #   `tests`). One verifier run unions discovery across all of them.
 
-# Four independent projects (the root's governance suite, the two planes and the
-# contract package), four suites — all four must
-# pass, and the hook must run the real invocations rather than its
-# `sys.executable -m pytest` default, which resolves none of them. Each plane is
-# uv-managed on its own pinned interpreter, so the three under a subdirectory are
-# reached with `--directory` (shell operators are unsupported here, and `cd` is a
-# shell operator).
-#
-# The display plane's entry landed 2026-08-06 with its first module, which is
-# when it stopped being a command that could not fail: until then its pytest
-# collected nothing and exited 5 — neither a pass nor a failure. Same commit,
-# same reason, as the plane-isolation test.
+# Three independent projects (the root's governance suite, the server and the
+# contract package), three suites — all three must pass, and the hook must run
+# the real invocations rather than its `sys.executable -m pytest` default, which
+# resolves none of them. Each project is uv-managed on its own pinned
+# interpreter, so the two under a subdirectory are reached with `--directory`
+# (shell operators are unsupported here, and `cd` is a shell operator). Arrt
+# Player's suite is declared in its own repository.
 test_commands:
   - uv run pytest tests --junit-xml={junit_xml} -q
   - uv run --directory arrt pytest --junit-xml={junit_xml} -q
-  # `--group raster` because the typesetter is the plane's most important
-  # accessibility surface and the group is what makes it runnable. Without the
-  # flag `tests/raster` importorskips and the recorded evidence covers every tier
-  # of the label except the one that puts ink on the panel — a green record that
-  # executed no line of Pango. The group installs on any modern Linux and, since
-  # 2026-08-13, on this project's development Mac; where it genuinely cannot, CI's
-  # separate `typesetting` job is what holds the claim.
-  - uv run --directory arrt-player --group raster pytest --junit-xml={junit_xml} -q
-  # The contract package, which a Player outside this repository pins by version,
-  # so its own suite gates a change to it as each plane's does.
+  # The contract package, which Arrt Player pins by version from its own
+  # repository, so its own suite gates a change to it as the server's does.
   - uv run --directory contract pytest --junit-xml={junit_xml} -q
 
-tests_dirs: tests arrt/tests arrt-player/tests contract/tests
+tests_dirs: tests arrt/tests contract/tests
 
 # =============================================================================
 # OPERATOR VERIFICATION (opt-in, v1.4+)

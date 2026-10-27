@@ -268,7 +268,7 @@ everything above the paint call.
   testable while each platform measures with its own text stack. Vectors are
   checked to a tolerance, not pixel for pixel, because text stacks differ.
 - **The Pi's label code is the reference implementation**
-  (`arrt-player/src/arrt_player/panel/layout.py`, `legibility.py`). Its behaviour is
+  (`arrt-player:src/arrt_player/panel/layout.py`, `legibility.py`). Its behaviour is
   written out as vectors before a second platform ports it.
 - **Behaviour vectors beyond layout**: (feed, now) → the slot or scene to show;
   (display state, label document, age) → what a label shows; invalid feeds →

@@ -110,7 +110,7 @@ decision.
 >
 > **Status:** steady-state again since 2026-10-05 (the Norm Health sweep). The
 > transition ended when the Player retired the file channel on 2026-10-02 and
-> rendered only from its cache; `arrt-player/tests/test_pull.py` tests the cache
+> rendered only from its cache; `arrt-player:tests/test_pull.py` tests the cache
 > claim with the server stopped and with the Player restarted while it is down.
 > The transition's record follows. *(Was: in-transition, amended 2026-09-30.)*
 > **Interim rule, now discharged:** until wave 3 retires the file channel, the
@@ -433,20 +433,20 @@ control (`re-architecture.md`, wave 6+) inherits.)
 > written, because the measurement itself needs something that sends one. The
 > original wording forbade the instrument that satisfies its own precondition,
 > which is a rule that cannot be complied with. **What the narrowing turns on is
-> the operator, not the code**: `arrt-player/tools/power_probe.py` refuses to send
+> the operator, not the code**: `arrt-player:tools/power_probe.py` refuses to send
 > anything without `--i-am-at-the-set`, so every press it makes has somebody
 > standing in front of the set watching — which is the whole distinction this norm
 > draws. It is stated here rather than only in the build plan because a plan is
 > archived when it completes and this sentence outlives it.)*
 >
 > **Retroactivity:** migrate, no residual sites in the daemon. Nothing on the
-> unattended path holds a power verb: `arrt-player/src/arrt_player/tv/` opens the art
+> unattended path holds a power verb: `arrt-player:src/arrt_player/tv/` opens the art
 > channel only and sends no key, and that is what Arrt Player power control (`re-architecture.md`,
 > wave 6+) changes.
 >
 > Two places a reader will find power code today, and neither is the plane running
 > on the wall. `tvart.py` has every `KEY_POWER` line commented out — inert, the 2024
-> plane, deleted at wave 5. `arrt-player/tools/power_probe.py` sends them for real, by
+> plane, deleted at wave 5. `arrt-player:tools/power_probe.py` sends them for real, by
 > hand, guarded as above; it is an instrument rather than a plane, and it is listed
 > here because a retroactivity claim that misses a live call site is worse than no
 > claim.

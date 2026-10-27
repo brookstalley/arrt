@@ -1,121 +1,37 @@
 # Arrt
 
-*Formerly samsung-frame-art-loader, then Curatarr. The player half, Arrt Player, lives here
-until it moves to its own repo.*
+*Formerly samsung-frame-art-loader, then Curatarr.*
 
-Curated art on a Samsung Frame TV, with a matching e-paper label beside it.
+Curated art for the screens in a house, in the manner of Radarr and Sonarr.
 
-## Where this is going (direction changed 2026-09-30)
+Arrt is the server. It holds two roles:
 
-This repo is turning into **two products**:
+- **The Library** finds, acquires, maintains, upgrades and enhances artwork,
+  including standing "watch for new abstract expressionists" searches.
+- **Programming** decides which playlist hangs on which wall, and publishes each
+  wall's feed: what to show, when, and the label that goes with it.
 
-- **Arrt, the server,** in the manner of Radarr/Sonarr. It holds two roles: the
-  **Library** finds, acquires, maintains, upgrades and enhances artwork, including
-  standing "watch for new abstract expressionists" searches; **Programming**
-  decides which playlist hangs on which wall. It runs as a container on a home
-  NAS.
-- **Arrt Player, the player,** in the manner of a Plex client. It reads what the server
-  publishes and shows it on whatever screen it owns: a Samsung Frame, a plain
-  LCD, a monitor. It composes the mat for that screen. The e-ink label is
-  optional, and a caption in the mat is the alternative.
+It runs as a container on a home NAS, with a browser interface, a JSON API and
+an MCP server on one port.
 
-Most of it already exists here: `arrt/` is most of the server and `arrt-player/`
-is most of the player. The work is moving the seams. The shared directory becomes
-an HTTP manifest that the player pulls into a local cache, and mat compositing
-moves from the server to the player. *(Both are done as of wave 4g,
-2026-10-10: the player pulls manifest major 2 over HTTP and composes every mat
-itself.)* That happens in waves, and splitting this
-repo in two comes **last**, once the contract between them has settled. This
-repo then becomes Arrt, and Arrt Player moves to a repo of its own.
+**Each wall is driven by [Arrt Player](https://github.com/brookstalley/arrt-player)**,
+in the manner of a Plex client. It pulls its walls' feeds into a local cache and
+shows them on whatever screen it owns: a Samsung Frame, a plain LCD, a monitor.
+It composes the mat for that screen, and draws the label on an e-paper panel or
+as a caption in the mat. A wall goes on showing art while the server is down.
 
-**The record, the reasoning and the order of work:**
-`.prawduct/artifacts/re-architecture.md`. Everything below describes the product
-**as built and running today**, which stays true until each wave lands.
-
-The design is two independent planes on one Raspberry Pi, sharing a directory and
-exactly one file between them:
-
-- **The curation plane** (`arrt/`, Python 3.14) — the catalogue, discovery, image
-  preparation, an HTTP API and an MCP server. It writes the theme manifest.
-  **Built.**
-- **The display plane** (`arrt-player/`, Python 3.13 on the Pi; 3.12 declared floor) — polls that manifest, drives
-  the TV and the e-paper panel, and keeps showing art whether or not curation is
-  running. **Built.** It reads the manifest, rotates the active theme over the
-  television, keeps its own record of what that set is holding, executes the
-  `next` and `show_now` directives the manifest carries *(until wave 4g,
-  2026-10-10: the Player now pulls manifest major 2 over HTTP, composes each
-  wall's mat itself, and a `next` or `show_now` reaches it as a republished
-  schedule)*, renders the wall label
-  onto this device's own surface, and writes the heartbeat curation's health panel
-  reads. `deploy/curation.service` and `deploy/display.service` are written.
-
-**Both new planes now run on the Pi, from systemd, as of 2026-08-11.** The `tvpi`
-service account exists, `ART_ROOT` is `/srv/art`, the checkout is at
-`/opt/samsung-frame-art-loader`, and `display.service` and `curation.service` are
-installed and enabled. The catalogue was seeded there from the 2024 index — 40
-works — and the display plane reconciled the television against a manifest and
-re-uploaded the theme without a warning. `deploy/README.md` § The cutover is the
-record and the procedure.
-
-That was a **first install, not a swap**: nothing of this product was running
-unattended on that machine beforehand, so the 2024 loader at the repository root
-stopped being the answer to "what runs the wall" some time before this, not at the
-cutover. Those modules were deleted at the legacy retirement (wave 5, 2026-10-26).
-
-**What remains at the hardware** — the check that a rotation still completes with
-a second subscriber attached, and an unattended run across a television
-power-cycle. Both need the television, not the panel.
-
-**The label's typography is built**, as of 2026-08-14 and two panel sittings. The
-first visit turned three numbers into a redesign and the second tuned it at the
-wall. All of it has landed: the type floor derives from the panel's geometry and
-its reading distance, the catalogue carries `family_name`/`given_name`, a short
-`display_nationality` and a commentary field, the artist is set above the work,
-the identification block is **two** lines — the name, then the biography beneath
-it at the floor — the family name is set in bold capitals with the title in
-italic, optional content is admitted in priority order, and a long name takes its
-own line before it gives up its size, at a size a fifth larger when it does. What
-is left over vertically is spent on the gaps rather than falling to the bottom, so
-the top and bottom margins match.
-
-*(This paragraph said "one line rather than three" until 2026-08-14. That was
-true of the collapse built on 2026-08-11 and stopped being true two days later,
-when the first sitting sent the biography to its own line — the block is two, and
-the name may take a third rung of its own.)*
-
-**The type floor has exactly one exception, and it is the point rather than a
-lapse.** The facts that identify the work — the artist's name and the title —
-*shrink* below the floor rather than being dropped, because a name too small to
-read at 7 feet can still be read by somebody who steps closer and a name that is
-not there cannot. Every such shrink is journalled as `label.shrunk` at WARNING,
-which is the condition that ruling rests on: illegible type fails invisibly, and
-the exception would reopen that hole if nothing named it. All of it is specified in
-`accessibility-spec.md` — § Type never shrinks to fit for the two content tiers,
-§ The label's content model for the ordering, the name ladder and the fill rule —
-which is where it stays after the build plan that schedules it is archived.
-
-**The label reached e-ink on 2026-08-11**, which it never had before: rotation
-does not run while the set is in standby, so the label path had never executed on
-hardware at all. The operator read a type ladder from the viewing position and
-settled the floor at **12.4 arcminutes** of cap height, with 8.8′ as the absolute
-minimum for content a reader steps closer for.
-
-**The derived type floor landed the same day, and the provisional sizes are gone.** The label's
-type is now derived from two values a deployment states — the panel's diagonal
-and the distance it is read from — against that calibrated cap height, so a
-second device with a different panel at a different distance gets a correct
-answer with nobody visiting it. Those two have no defaults and never will: a
-guessed distance gives silently illegible type, which is what this product
-shipped for as long as the sizes were fixed. **An existing `.env` needs both keys
-added or its device draws no label** — see `deploy/README.md`.
+**The contract between the two** is `player-contract.md` and the
+`arrt-contract` package under `contract/`, which this repository owns and Arrt
+Player pins by tag. How the product got to this shape, and what comes next:
+`.prawduct/artifacts/re-architecture.md`.
 
 ## Where things are written down
 
 | For | Read |
 |---|---|
-| Running the tests, the linters, and the curation plane | `CLAUDE.md` |
+| Running the tests, the linters, and the server | `CLAUDE.md` |
 | Every environment variable, and which are required | `.env.example` |
-| The systemd units and their caveats | `deploy/README.md` |
+| Deploying the server, and what each release asks of it | `deploy/README.md` |
 | Where it is going, and in what order | `.prawduct/artifacts/re-architecture.md` |
 | Why any of it is shaped this way | `.prawduct/artifacts/` |
 
@@ -128,10 +44,10 @@ cd arrt && uv run python -m arrt          # every run after that
 ```
 
 **`--init` is needed once per art root, and leaving it out is the point.** The
-plane refuses to start against a directory that is neither marked as an art root
+server refuses to start against a directory that is neither marked as an art root
 nor already holding a catalogue, because the alternative is what it used to do: a
 typo in `ART_ROOT` created the directory, created an empty catalogue, and started
-cleanly, leaving the operator with a working plane and an empty collection. An
+cleanly, leaving the operator with a working server and an empty collection. An
 existing art root needs nothing — a directory holding a catalogue is one by
 better evidence than a marker.
 

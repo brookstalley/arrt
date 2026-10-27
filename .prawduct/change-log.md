@@ -66,6 +66,61 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-27: Arrt without the Player (wave 5, part 2)
+
+<!-- prawduct: scope=wave-5-split -->
+
+**Why:** Arrt Player now lives in its own repository,
+[brookstalley/arrt-player](https://github.com/brookstalley/arrt-player),
+extracted with its history and green on its own CI (`build-plan-wave-5-split.md`
+chunk 04). This repository becomes Arrt, the server, and stops carrying a copy
+of the Player that nothing here builds or deploys (chunk 05).
+
+**What changed:**
+- **`arrt-player/` is gone**, and so are the Player's deploy files
+  (`deploy/display.service`, the journald bound, `deploy/pi-freeze-2024.txt`),
+  its artifacts (the Frame's state, HDMI output, Apple platform, and platform
+  and dependency findings), the Pi runbook and the `display.md` learnings. Each
+  is in arrt-player, carried at chunk 04; the tree removed here was the
+  extracted tip exactly.
+- **CI runs three suites:** the governance suite, the server and the contract.
+  The display leg, the typesetting job and the display lint step are gone, and
+  so are the CI-scope guard's two display tests. `project-state.yaml`'s
+  `test_commands` and `tests_dirs` drop the Player's suite.
+- **The scans of CI's pytest lines match `pytest` as a whole word.** Both the
+  scope guard and the CI-scope guard stopped inside `pytest-cov` or `./pytest`,
+  so `uv run --with pytest-cov pytest …` was split at the wrong word and an
+  unscoped run could read as scoped. The review of chunk 04 found it in the
+  matcher chunk 04 had widened, from the literal `uv run pytest` to anything
+  between `uv run` and `pytest`. The CI-scope guard now uses the same matcher.
+- **The norm index drops the four rows only the Player's code can hold** (the
+  television belongs to whoever is using it; the Player never requires the
+  server; the e-paper label's legibility; the Player's only channel), which
+  arrt-player's index carries. The mixed rows keep the server's guard, and the
+  index says where the Player's halves are.
+- **The records say what this repository is.** CLAUDE.md's commands, the
+  README, `deploy/README.md` (the server's deployment, with each release's
+  server half; the Pi's record is arrt-player's), `.env.example` (the keys the
+  server reads), and the live artifacts, which name a Player file as
+  `arrt-player:<path>`. `re-architecture.md` closes wave 5, and
+  `architecture.md` records the two repositories and the pinned contract.
+  History (the change log, archived and released plans, dated rulings) keeps
+  the paths of its day.
+- **Queued for the operator:** the wall moving onto a clone of arrt-player
+  (`operator-verification.md`), which is chunk 06.
+
+**Tests changed in what they assert:**
+- *Deleted with the code they guarded, each carried to arrt-player at chunk 04:*
+  the display unit's restart policy and stop timeout, and the CI-scope guard's
+  display-leg and typesetting-job tests.
+- *Strengthened:* the CI scope check's fixture carries `pytest` inside an
+  option's value, watched failing against the old matcher.
+
+**Rolling back:** no data changes, and nothing deployed reads this repository's
+copy of the Player: the Pi moves to arrt-player at chunk 06. Until it does, its
+old checkout keeps the files on disk and must not be pulled. Checking out a
+commit before this one restores the tree.
+
 ## 2026-10-26: The contract becomes a package, the root clears, and every cross-plane guard holds where it will survive the split (wave 5, part 1; #33)
 
 <!-- prawduct: scope=wave-5-split -->

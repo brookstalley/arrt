@@ -214,13 +214,17 @@ def test_every_workflow_that_runs_a_suite_calls_the_guard():
 
 
 #: `uv run`, anything uv itself takes, then `pytest`. **Whatever sits between is
-#: the point.** Matching the literal `uv run pytest` skipped every `uv run --group
-#: raster pytest …` in silence, and that is the typesetting job: the one leg whose
-#: suite skips itself when its group is absent. A pattern spelling out which
-#: options may appear skips the next option it does not know in the same silence,
-#: so nothing between the two words is constrained. The CI-scope test reads the
-#: workflows with the same shape.
-_INVOCATION = re.compile(r"\buv run\b.*?\bpytest\b")
+#: the point.** Matching the literal `uv run pytest` skips every `uv run --group
+#: <name> pytest …` in silence, and a suite that needs a group is the kind that
+#: skips itself when the group is absent. A pattern spelling out which options may
+#: appear skips the next option it does not know in the same silence, so nothing
+#: between the two words is constrained.
+#:
+#: `pytest` must be a whole whitespace-delimited word. A word boundary alone also
+#: stops inside `pytest-cov` or `./pytest`, which an option's value may carry: the
+#: line then splits at the wrong word, and the token read as its path scope is not
+#: one. The CI-scope test reads the workflows with the same shape.
+_INVOCATION = re.compile(r"(?<!\S)uv run(?!\S).*?(?<!\S)pytest(?!\S)")
 
 
 def _ci_pytest_invocations(directory: pathlib.Path) -> list[tuple[str, str]]:
@@ -358,14 +362,21 @@ def test_a_documented_command_in_a_comment_does_not_fail_the_scope_check(tmp_pat
 def test_an_invocation_with_uvs_own_options_is_still_scanned(tmp_path):
     """`uv run --group raster pytest` is an invocation, and it is the one that skips itself.
 
-    The typesetting job runs exactly this form, and its suite is the one that
-    skips without its group. A scan keyed on the literal `uv run pytest` never
-    collected it, so an unscoped run of it would have passed this file in
-    silence. The fixture carries it unscoped, so collecting it is what fails it.
+    A suite behind an optional group is the one that skips without it, and it is
+    run in exactly this form. A scan keyed on the literal `uv run pytest` never
+    collects it, so an unscoped run of it would pass this file in silence. The
+    fixture carries it unscoped, so collecting it is what fails it.
+
+    The last two lines carry `pytest` inside an option's value. Read with a bare
+    word boundary, the first splits at `pytest-cov` and reports `pytest` as its
+    scope, and the second splits at `./pytest` and reports `pytest` as its scope
+    too: two unscoped runs passed as scoped.
     """
     lines = [
         "- run: uv run --group raster pytest -v --junitxml=results.xml",
         "- run: uv run --project ../elsewhere --with foo==1.0 pytest -v --junitxml=results.xml",
+        "- run: uv run --with pytest-cov pytest -v --junitxml=results.xml",
+        "- run: uv run --project ./pytest pytest -v --junitxml=results.xml",
     ]
     workflows = tmp_path / ".github" / "workflows"
     workflows.mkdir(parents=True)
