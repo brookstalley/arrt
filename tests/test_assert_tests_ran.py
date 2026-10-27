@@ -20,6 +20,7 @@ nothing else pins which one is being read.
 
 import importlib.util
 import pathlib
+import re
 
 import pytest
 
@@ -212,6 +213,13 @@ def test_every_workflow_that_runs_a_suite_calls_the_guard():
         assert "assert_tests_ran.py" in text, f"{workflow.name} runs pytest but never checks that anything actually ran"
 
 
+#: `uv run`, any options of uv's own, then `pytest`. **The options are the point.**
+#: Matching the literal `uv run pytest` skipped every `uv run --group raster
+#: pytest …` in silence, and that is the typesetting job: the one leg whose suite
+#: skips itself when its group is absent.
+_INVOCATION = re.compile(r"\buv run(?: --?[\w-]+(?:[ =][\w.-]+)?)* pytest\b")
+
+
 def _ci_pytest_invocations(directory: pathlib.Path) -> list[tuple[str, str]]:
     """Every line in a workflow directory that actually runs pytest.
 
@@ -232,7 +240,7 @@ def _ci_pytest_invocations(directory: pathlib.Path) -> list[tuple[str, str]]:
     for workflow in workflows:
         for line in workflow.read_text(encoding="utf-8").splitlines():
             stripped = line.strip()
-            if stripped.startswith("#") or "uv run pytest" not in stripped:
+            if stripped.startswith("#") or not _INVOCATION.search(stripped):
                 continue
             found.append((workflow.name, stripped))
     return found
@@ -244,7 +252,7 @@ def _is_scoped(line: str) -> bool:
     The path comes first by convention, and it is the token that is neither the
     command nor an option nor an option's value.
     """
-    after = line.split("uv run pytest", 1)[1].split()
+    after = _INVOCATION.split(line, maxsplit=1)[1].split()
     return bool(after) and not after[0].startswith("-")
 
 
@@ -342,3 +350,24 @@ def test_a_documented_command_in_a_comment_does_not_fail_the_scope_check(tmp_pat
         "- run: uv run pytest tests/live -m live_museum -n0 --junitxml=results.xml"
     ], f"the commented local command was read as a CI invocation: {collected}"
     assert all(_is_scoped(line) for _, line in collected)
+
+
+def test_an_invocation_with_uvs_own_options_is_still_scanned(tmp_path):
+    """`uv run --group raster pytest` is an invocation, and it is the one that skips itself.
+
+    The typesetting job runs exactly this form, and its suite is the one that
+    skips without its group. A scan keyed on the literal `uv run pytest` never
+    collected it, so an unscoped run of it would have passed this file in
+    silence. The fixture carries it unscoped, so collecting it is what fails it.
+    """
+    workflows = tmp_path / ".github" / "workflows"
+    workflows.mkdir(parents=True)
+    (workflows / "probe.yml").write_text(
+        "jobs:\n  j:\n    steps:\n      - run: uv run --group raster pytest -v --junitxml=results.xml\n",
+        encoding="utf-8",
+    )
+
+    collected = _ci_pytest_invocations(workflows)
+
+    assert [line for _, line in collected] == ["- run: uv run --group raster pytest -v --junitxml=results.xml"]
+    assert not _is_scoped(collected[0][1])
