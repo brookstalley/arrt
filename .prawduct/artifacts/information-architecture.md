@@ -225,6 +225,17 @@ takes — and refuses one of five words or fewer that opens with "The ".
   wall hanging a theme that holds it", which it does by itself *(since 2026-10-10;
   until then it came back "the next time a theme holding it is hung", and
   re-hanging was how to make that happen sooner)*.
+- **The words for walls** *(rulings 2, 4, 5 and 7 of 2026-10-27, `ia-proposal.md`
+  § Rulings (2026-10-27))*. A **wall** is a place that shows art. A **Player**
+  is the device at a wall, never a *client* on a screen a person reads; its
+  outputs are a **screen** (*HDMI 1*, not `hdmi-a-1`) and a **label panel**. A
+  wall **hangs** a theme (*Hanging*, not *Drawing from*). **Skip** moves a wall on;
+  **Remove…** takes a work out of a wall's rotation (it was *Not this one again*).
+  A **scene** is works hung on walls together for a while. A search that reads
+  only held works says so: *Search your library*. These land page by page with
+  the three plans that ruling names; until each lands, the page it changes keeps
+  its old words. The server's records, routes and MCP tools keep `client`, as
+  `run` did above: they are a contract with what already calls them.
 - **One date formatter**, `core/dates.js`: a readable date and how long ago
   ("5 Oct 2026, 14:46 (3 days ago)"). The instant itself goes only in a
   `<time datetime>` or inside a *Details* disclosure; `tests/browser/
