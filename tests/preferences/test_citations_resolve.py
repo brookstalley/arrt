@@ -114,12 +114,23 @@ def dangling(text: str, tracked: list[str]) -> list[str]:
 _TRACKED = _tracked()
 
 
-def _gitignored(fault: str) -> bool:
-    """Whether a dangling path is one git ignores: machine state a record may name, which no clone carries."""
+def _gitignored(fault: str, root: pathlib.Path = ROOT) -> bool:
+    """Whether a dangling path is one git ignores: machine state a record may name, which no clone carries.
+
+    **Asked of the directory form too.** A directory-only rule (`backlog-export/`)
+    matches a path git cannot see is a directory, which is every path no clone
+    carries: `git check-ignore` answers it only when the directory is on disk, so
+    the bare form passes on the machine that made it and fails on a fresh checkout.
+    """
     cited = fault.split(": ", 1)[1]
     if "/" not in cited:
         return False
-    return subprocess.run(["git", "check-ignore", "-q", cited], cwd=ROOT, check=False).returncode == 0
+    # One path per call: `-q` refuses more than one, and its refusal exits non-zero
+    # exactly as "not ignored" does.
+    return any(
+        subprocess.run(["git", "check-ignore", "-q", form], cwd=root, check=False).returncode == 0
+        for form in (cited, cited + "/")
+    )
 
 
 def test_the_scan_has_records_to_read():
@@ -161,3 +172,13 @@ TRACKED_FIXTURE = [".prawduct/artifacts/kept-findings.md", "deploy/curation.serv
 def test_the_scan_tells_a_dangling_citation_from_a_resolved_one(line: str, expected: list[str]):
     """Each form a citation takes, dangling and resolved, so a pattern that stops seeing one fails here."""
     assert dangling(line, TRACKED_FIXTURE) == expected
+
+
+def test_a_directory_only_ignore_matches_a_directory_no_clone_carries(tmp_path: pathlib.Path):
+    """The rule names a directory that is absent, as it is on every fresh checkout."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / ".gitignore").write_text("state/export/\n", encoding="utf-8")
+    assert not (tmp_path / "state" / "export").exists()
+
+    assert _gitignored("1: state/export", tmp_path)
+    assert not _gitignored("1: state/kept", tmp_path)
