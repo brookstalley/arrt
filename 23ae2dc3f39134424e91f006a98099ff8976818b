@@ -1,0 +1,1 @@
+{"schema": 1, "kind": "chunk-imported", "id": "chunk-imported-20261028T040507Z-9129c0f7", "ts": "2026-10-28T04:05:07Z", "actor": {"worktree": "arrt", "plugin": "3.8.0-dev.2", "branch": "feature/ui-pass-walls"}, "body": {"scope": "ui-pass-walls", "chunk": "01", "source": "status-box", "imported_at": "2026-10-28T04:05:07Z"}}
