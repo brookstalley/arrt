@@ -196,7 +196,7 @@ owner on the deployed server.
     wall…* (wired in 04) and *Scene…*;
   - one card per wall: its name, a state badge (*Showing*, *Screen off*, *No
     Player*, *Scene*), *Edit…* (wired in 04), the picture on its mat;
-  - with the screen off, the last-shown work dimmed under "Screen off since {time}", or the next work when the wall has shown nothing yet (ruling 6, as re-ruled);
+  - with the screen off, the last-shown work dimmed under "Off since {time}" (the badge says *Screen off*), or the next work when the wall has shown nothing yet (ruling 6, as re-ruled);
   - the work's title (a link) and artist; *Skip*, the card's one filled act,
     and *Remove…*, which keeps today's two choices (from this theme; from every
     wall) under its new name (ruling 2);
@@ -279,10 +279,10 @@ the one that makes the branch PR-ready. One PR to `develop`.
 
 ## Status
 
-- [ ] Chunk 01: The rulings, the page rules and this plan
+- [x] Chunk 01: The rulings, the page rules and this plan
 - [ ] Chunk 02: Renaming a wall
 - [ ] Chunk 03: The wall card
-- [ ] Chunk 04: Edit and add a wall
+- [x] Chunk 04: Edit and add a wall
 - [ ] Chunk 05: On the wall
 
 Context: branched from `develop` at `1a1af8a3`, 2026-10-27, the commit the NAS
