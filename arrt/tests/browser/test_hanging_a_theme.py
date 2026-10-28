@@ -176,13 +176,14 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     ui.page.wait_for_selector("h2")
 
     # One h2 per wall, and every panel heading a rank below it. The theme is on
-    # the line under the heading now, not in it. The Scene above the walls is
-    # the one other h2: a block about every room, at the rank of a room.
-    assert sorted(ui.page.locator("h2").all_text_contents()) == ["Scene", "Study", "The wall"]
+    # the line under the heading now, not in it. The Scene is no longer an h2 on
+    # the page: assembling one is the Scene… dialog's (ruling 5 of 2026-10-27).
+    assert sorted(ui.page.locator("h2").all_text_contents()) == ["Study", "The wall"]
     assert ui.page.locator("h2.wall-title").count() == 2
     assert ui.page.locator(".panel h2").count() == 0
-    # Four per wall: the setup's panels for what is not showing, how it
-    # rotates, which shapes it shows, and its mat.
+    # Four per wall: the setup's panels for where it shows, how it rotates,
+    # which shapes it shows, and its mat. What it does not show left for the
+    # card's foot (the page rules of 2026-10-27), and where it shows came in.
     assert ui.page.locator(".panel h3").count() == 8
     assert ui.page.locator("section.wall").nth(0).locator(".panel h3").count() == 4
     # And with nothing empty there is no take-down note: a caption with nothing

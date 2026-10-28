@@ -115,15 +115,12 @@ def test_the_work_the_heartbeat_names_leads_the_card(ui, services, the_wall, win
     assert "Nighthawks" not in lead.inner_text()
     # And it leads: the first thing in the card after the wall's name.
     assert card(ui, the_wall).locator("> *").nth(1).get_attribute("class") == "wall-now"
-    # What it draws from, and for how long.
-    assert card(ui, the_wall).locator(".wall-source").inner_text() == "Drawing from Winter, until changed."
-    assert (
-        card(ui, the_wall)
-        .locator(".wall-source")
-        .get_by_role("link", name="Winter")
-        .get_attribute("href")
-        .startswith(f"#theme/{winter.id}")
-    )
+    # What it hangs: the Hanging fact, whose value is the control that hangs
+    # another (ruling 3 of 2026-10-27; it read "Drawing from Winter, until
+    # changed." with a separate Change, and "until changed" is gone).
+    picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
+    assert picker.input_value() == winter.id
+    assert "until changed" not in card(ui, the_wall).inner_text()
 
 
 def test_an_old_heartbeat_still_leads_with_its_work_under_when_it_was_last_heard_from(ui, services, the_wall, winter, two_works):
@@ -150,7 +147,23 @@ def test_a_selection_is_drawn_from_as_a_selection(ui, services, the_wall, two_wo
     report(services, the_wall, two_works[0].id)
     open_walls(ui)
 
-    assert card(ui, the_wall).locator(".wall-source").inner_text() == "Drawing from a selection, until changed."
+    # The Hanging fact names it a selection (ruling 3 of 2026-10-27 made the fact
+    # the control; it read "Drawing from a selection, until changed."). With no
+    # theme to hang instead there is no picker, and it is said in words.
+    assert card(ui, the_wall).locator(".wall-hanging").inner_text().startswith("Hanging a selection.")
+    assert "until changed" not in card(ui, the_wall).inner_text()
+    assert "Selection for" not in ui.page.locator("#view").text_content()
+
+
+def test_a_selection_with_a_theme_to_hang_instead_is_the_pickers_unchoosable_first(ui, services, the_wall, winter, two_works):
+    services.display.hang_selection([two_works[0].id], wall_id=the_wall.id)
+    report(services, the_wall, two_works[0].id)
+    open_walls(ui)
+
+    picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
+    assert picker.locator("option").all_inner_texts() == ["A selection", "Winter"]
+    assert picker.locator("option").first.get_attribute("disabled") is not None
+    assert picker.input_value() == ""
     assert "Selection for" not in ui.page.locator("#view").text_content()
 
 
@@ -159,14 +172,12 @@ def test_change_offers_themes_and_never_a_selection(ui, services, the_wall, wint
     services.display.hang_selection([two_works[0].id], wall_id=other.id)
     open_walls(ui)
 
-    change = card(ui, the_wall).locator("details.wall-change")
-    assert change.get_attribute("open") is None, "Change is closed while something is hung"
-    summary = change.locator("summary")
-    assert summary.inner_text() == "Change"
-    assert summary.get_attribute("aria-label") == f"Change what {the_wall.name} draws from"
-    summary.click()
-    options = change.locator("select option").all_inner_texts()
-    assert options == ["Winter"]
+    # Change became the Hanging picker (ruling 3 of 2026-10-27). It offers the
+    # themes and never a selection, whichever wall is hanging one.
+    picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
+    assert picker.locator("option").all_inner_texts() == ["Winter"]
+    study = card(ui, other).locator(f"select#hang-{other.id}")
+    assert study.locator("option:not([disabled])").all_inner_texts() == ["Winter"]
 
 
 def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reported(ui, services, the_wall, winter, two_works):
@@ -195,21 +206,22 @@ def test_not_this_one_again_asks_where_and_does_that(ui, services, the_wall, win
     report(services, the_wall, nighthawks.id)
     open_walls(ui)
 
-    opener = ui.page.get_by_role("button", name=f"Not this one again on {the_wall.name}")
-    assert opener.inner_text() == "Not this one again"
-    assert opener.get_attribute("aria-expanded") == "false"
+    # Named Remove… by the owner's ruling 2 of 2026-10-27 ("Not this one again"
+    # was too cute and too close to Skip); the question is now a dialog.
+    opener = ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…")
+    assert opener.inner_text() == "Remove…"
+    assert opener.get_attribute("aria-haspopup") == "dialog"
     opener.click()
-    assert opener.get_attribute("aria-expanded") == "true"
-    choice = card(ui, the_wall).locator(".not-again-choice")
-    assert choice.locator("p").inner_text() == "Not Nighthawks again — from where?"
+    choice = ui.page.locator("dialog.panel-dialog")
+    assert choice.locator("h2").inner_text() == f"Remove Nighthawks from {the_wall.name}"
 
     if scope == "theme":
-        choice.get_by_role("button", name="From Winter").click()
+        choice.locator("button", has_text="Take it out of Winter").click()
         card(ui, the_wall).locator(".wall-said", has_text="Nighthawks is out of Winter.").wait_for()
         assert nighthawks.id not in services.display.theme_work_ids(winter.id)
         assert services.display.excluded_works() == []
     else:
-        choice.get_by_role("button", name="From every wall").click()
+        choice.locator("button", has_text="Keep it off every wall").click()
         card(ui, the_wall).locator(".wall-said", has_text="Nighthawks is kept off every wall.").wait_for()
         assert [each.artwork_id for each in services.display.excluded_works()] == [nighthawks.id]
         assert nighthawks.id in services.display.theme_work_ids(winter.id)
@@ -222,7 +234,7 @@ def test_not_this_one_again_is_not_offered_without_a_work_named(ui, services, th
     services.display.record_heartbeat(the_wall.id, {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")})
     open_walls(ui)
 
-    assert ui.page.get_by_role("button", name=f"Not this one again on {the_wall.name}").count() == 0
+    assert ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…").count() == 0
     assert "has not said which work it is showing" in card(ui, the_wall).inner_text()
 
 
@@ -275,7 +287,6 @@ def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, wint
     ("state", "words"),
     [
         ("in_use", "Somebody is using the screen"),
-        ("dark", "Its screen is off"),
         ("no_screen", "No screen"),
         ("unreachable", "Not known"),
         # A state from a later minor, which the server reads as unreachable.
@@ -283,7 +294,12 @@ def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, wint
     ],
 )
 def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_wall, winter, two_works, state, words):
-    """Not the work: a Frame somebody is watching television on is not showing Nighthawks."""
+    """Not the work: a Frame somebody is watching television on is not showing Nighthawks.
+
+    A dark screen is not among these: it leads with the last-shown work, or the
+    next, dimmed (ruling 6 of 2026-10-27), which
+    `test_walls_last_and_next.py` holds.
+    """
     report_state(services, the_wall, state)
     open_walls(ui)
 
@@ -305,7 +321,7 @@ def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_
     # The lead still leads the card.
     assert card(ui, the_wall).locator("> *").nth(1).get_attribute("class") == "wall-now"
     # Nothing on screen to be tired of.
-    assert ui.page.get_by_role("button", name=f"Not this one again on {the_wall.name}").count() == 0
+    assert ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…").count() == 0
 
 
 def test_minor_3_is_read_over_current_work_id(ui, services, the_wall, winter, two_works):
@@ -345,7 +361,7 @@ def test_a_picture_this_wall_did_not_put_there_reads_as_one(ui, services, the_wa
     assert lead.locator(".wall-now-when").inner_text() == "On the wall now"
     assert lead.locator(".wall-now-state").inner_text() == f"A picture {the_wall.name} did not put there"
     assert lead.locator("img").count() == 0
-    assert ui.page.get_by_role("button", name=f"Not this one again on {the_wall.name}").count() == 0
+    assert ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…").count() == 0
 
 
 def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, services, the_wall, winter, two_works):
@@ -355,9 +371,13 @@ def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, 
 
     lead = card(ui, the_wall).locator(".wall-now")
     assert lead.get_attribute("data-state") == "unassigned"
-    assert lead.locator(".wall-now-state").inner_text() == "Not assigned to a screen"
-    assert "Nighthawks" not in lead.inner_text()
-    # The way to fix it is the assignment line's link, still beneath.
+    # Said once, in the badge, with the problem line's way to fix it (a state is
+    # worded once: the page rules of 2026-10-27). It read "Not assigned to a
+    # screen" in the lead as well, and the work it last reported is not led with.
+    assert lead.is_hidden()
+    assert card(ui, the_wall).locator("figure").count() == 0
+    assert card(ui, the_wall).locator(".wall-badge-unassigned").inner_text().strip().endswith("No Player")
+    assert "Not assigned to a screen" not in card(ui, the_wall).inner_text()
     assert card(ui, the_wall).get_by_role("link", name="Assign it in Settings › Clients").count() == 1
 
 
@@ -591,8 +611,10 @@ def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, serv
 
     warning = card(ui, the_wall).locator(".wall-dark")
     assert warning.inner_text().endswith("2 are outside this wall's shapes, so the wall is dark.")
-    card(ui, the_wall).locator("details.wall-setup summary").click()
-    reasons = card(ui, the_wall).locator("details.wall-setup table tbody tr")
+    # The works it cannot show open from the card's foot (the page rules of
+    # 2026-10-27); they were a table in the setup disclosure.
+    card(ui, the_wall).locator("button.wall-kept").click()
+    reasons = ui.page.locator("dialog.panel-dialog table tbody tr")
     assert set(reasons.all_inner_texts()) == {
         f"{title}\tOutside this wall's shapes\tThis wall shows nothing wider than 1:1, and this work is 4:3. "
         "Change the wall's shapes on Walls to put it back."
@@ -603,8 +625,12 @@ def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, serv
 def test_a_wall_showing_works_carries_no_dark_warning(ui, the_wall, winter):
     open_walls(ui)
 
-    card(ui, the_wall).locator(".note", has_text="on the wall").first.wait_for()
+    # The card no longer repeats how much of the theme is on the wall when all of
+    # it is (an exception stays quiet until it blocks, 2026-10-27); it says so
+    # only when none of it is, and then as the dark warning.
+    card(ui, the_wall).locator(".wall-controls").wait_for()
     assert card(ui, the_wall).locator(".wall-dark").count() == 0
+    assert card(ui, the_wall).locator("button.wall-kept").count() == 0
 
 
 @pytest.fixture
@@ -696,3 +722,83 @@ def test_the_walls_api_says_what_the_judgement_was_made_against(ui, services, th
     assert wall["too_small"] == [nighthawks.id]
     assert wall["sizes_judged_against"] == {"width_px": 3840, "height_px": 2160, "shape": "16:9"}
     assert wall["sizes_unjudged"] is None
+
+
+# -- the state badge at the card's head (the page rules of 2026-10-27) ---------------------
+
+
+def test_a_wall_showing_art_says_so_in_its_badge(ui, services, the_wall, winter, two_works):
+    report(services, the_wall, two_works[0].id)
+    open_walls(ui)
+
+    badge = card(ui, the_wall).locator("header.wall-head .wall-badge")
+    assert badge.inner_text().strip().endswith("Showing")
+    assert card(ui, the_wall).locator(".wall-badge-unassigned").count() == 0
+
+
+def test_an_assigned_wall_carries_no_no_player_badge_and_an_unassigned_one_does(ui, services, the_wall, winter, two_works):
+    """The conditional half: "No Player" only where no Player is assigned."""
+    # `the_wall` is assigned to Hall Pi by its fixture; the study is assigned to nothing.
+    study = services.display.add_wall(name="Study")
+    assert services.display.get_wall(the_wall.id).display_id is not None, "the fixture must assign the wall"
+    report(services, the_wall, two_works[0].id)
+    open_walls(ui)
+
+    assert card(ui, the_wall).locator(".wall-badge-unassigned").count() == 0
+    assert card(ui, the_wall).locator(".wall-problem").count() == 0
+    assert card(ui, study).locator(".wall-badge-unassigned").inner_text().strip().endswith("No Player")
+    assert card(ui, study).locator(".wall-problem").inner_text().startswith("No Player shows this wall.")
+
+
+# -- the keyboard (Done-when 3 of `build-plan-ui-pass-walls.md` Chunk 03) ------------------
+
+
+def _tab_to(ui, name, limit=60):
+    """Press Tab until the focused element's accessible name is `name`; fail past `limit`."""
+    for _ in range(limit):
+        ui.page.keyboard.press("Tab")
+        label = ui.page.evaluate(
+            "() => { const n = document.activeElement;"
+            " return n && (n.getAttribute('aria-label') || n.textContent || '').trim(); }"
+        )
+        if label == name:
+            return
+    raise AssertionError(f"Tab never reached {name!r}")
+
+
+@pytest.mark.parametrize(
+    ("opener", "safe"),
+    [("Remove the work on {wall}…", "Cancel"), ("Scene…", "Close")],
+)
+def test_each_dialog_opens_from_the_keyboard_starts_safe_and_closes_with_escape(
+    ui, services, the_wall, winter, two_works, opener, safe
+):
+    nighthawks, _ = two_works
+    report(services, the_wall, nighthawks.id)
+    before = services.display.published_manifest_v2(the_wall.id)
+    open_walls(ui)
+
+    _tab_to(ui, opener.format(wall=the_wall.name))
+    ui.page.keyboard.press("Enter")
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.wait_for()
+    # Wider than a confirmation's 32rem: it holds a choice or a list (`app.css`).
+    assert dialog.evaluate("(node) => getComputedStyle(node).maxWidth") == "640px"
+    # Focus starts on the answer that changes nothing, as `confirm.js`'s does.
+    assert ui.page.evaluate("() => document.activeElement.textContent.trim()") == safe
+    ui.page.keyboard.press("Escape")
+    ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
+
+    assert services.display.published_manifest_v2(the_wall.id) == before
+    assert services.display.excluded_works() == []
+    assert services.display.scene_draft() is None
+
+
+def test_the_pages_facts_count_the_walls_and_those_showing_art(ui, services, the_wall, winter, two_works):
+    """The one line under the page's name (the page rules of 2026-10-27), counted
+    from each wall's display state: two walls, one of them showing art."""
+    services.display.add_wall(name="Study")
+    report(services, the_wall, two_works[0].id)
+    open_walls(ui)
+
+    assert ui.page.locator("#view .page-facts").inner_text() == "2 walls · 1 showing art now"

@@ -244,7 +244,8 @@ def test_a_report_older_than_three_heartbeats_says_nothing_about_now(ui, service
     assert "● detected" not in text
 
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    # In the card's setup disclosure since ruling 4 of 2026-10-27, so opened first.
+    ui.page.click("section.wall details.wall-setup > summary")
     line = ui.page.locator("section.wall p.wall-client").inner_text()
     assert line == "Assigned to Hall Pi. Hall Pi last reported 5 days ago, so whether a screen is there now is not known."
     assert "Shown by" not in line
@@ -262,7 +263,8 @@ def test_a_report_just_inside_the_threshold_still_speaks_for_now(ui, services, s
     assert "older than" not in panel(ui, hall).inner_text()
 
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    # In the card's setup disclosure since ruling 4 of 2026-10-27, so opened first.
+    ui.page.click("section.wall details.wall-setup > summary")
     assert ui.page.locator("section.wall p.wall-client").inner_text() == "Shown by Hall Pi"
 
 

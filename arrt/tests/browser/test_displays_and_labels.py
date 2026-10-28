@@ -112,8 +112,10 @@ def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls
         assert f"epd-0 on Hall Pi now captions {wall.name}." in panel(ui, hall).inner_text()
         assert panel(ui, hall).locator(".client-labels tbody tr").inner_text().split("\t")[-1] == wall.name
         open_walls(ui)
+        # In the card's setup disclosure, closed (ruling 4 of 2026-10-27 moved a
+        # wall's label off the card), so read as text rather than as rendered.
         line = wall_card(ui, wall).locator(".wall-labels")
-        assert line.inner_text().startswith("Captioned by a label on Hall Pi.")
+        assert line.text_content().startswith("Captioned by a label on Hall Pi.")
         for other in three_walls:
             if other is not wall:
                 assert wall_card(ui, other).locator(".wall-labels").count() == 0
@@ -165,7 +167,9 @@ def test_a_frame_two_clients_report_is_a_fault_both_pages_name(ui, services, hal
         assert fault.inner_text().startswith("▲ ")
 
     open_walls(ui)
-    line = wall_card(ui, living).locator(".wall-client")
+    # A fault is a problem, so the card says it (the page rules of 2026-10-27:
+    # where a wall shows is said on the card only when it is one).
+    line = wall_card(ui, living).locator(".wall-problem")
     assert "Hall Pi and Study Mac both report" in line.inner_text()
     # Neither shows it, whatever the wall's record still names.
     assert "Shown by" not in line.inner_text()

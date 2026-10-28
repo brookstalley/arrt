@@ -123,6 +123,11 @@ the goal or prior choice that settled it.)*
 - 02: renaming is `POST /walls/{wall_id}`, not the `PATCH` this plan first named, because renaming a client is `POST /clients/{client_id}` (match the product's other choices).
 - 02: `art_display`'s menu was at its 2 KB budget (`DESCRIPTION_BUDGET_BYTES`), so the `status` and `add_label` descriptions say the same in fewer words to make room for `rename_wall`.
 - 02 (after its review): a name another wall has is refused as "Another wall is already called '…'." by `add_wall` and `rename_wall` alike, rather than the store's "already stored", because 04's dialogs show the refusal to the owner.
+- 03: the dialog shell, new `core/editing.js` (`openPanel`), landed here rather than in 04: the Scene…, Remove… and "can't be shown" dialogs need it first. 04 reuses it.
+- 03: which Player and screen show a wall, and its label, moved off the card (ruling 4) into a *Where it shows* panel of the existing *How {wall} is set up* disclosure, the interim home for settings until 04's Edit… dialog; the tests that pin those lines open the disclosure. The card says it only as a problem (*No Player*, a display fault).
+- 03: Done-when 4 reads against the client. The server's route, records and MCP action keep `not-again` / *Not this one again*, as `client` and `run` do (`information-architecture.md` § Vocabulary): a contract with what already calls them. No string a person reads in the client says it.
+- 03: *Edit…* on each card and *Add wall…* in the toolbar land with 04, which wires them; a button that does nothing until then would be a dead end on the page (the plan's 03 surfaces listed them "wired in 04").
+- 03: the screen-off line says "Off since {time}" and the badge says "Screen off", so the card says it once (the existing test that holds that).
 
 **Level:** High for the page; Medium for the size of 03. The prototype settles the layout
 and the words, and every write already exists. What could raise it: 03's diff
