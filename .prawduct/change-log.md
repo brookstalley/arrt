@@ -68,7 +68,7 @@
 
 ## 2026-10-27: Walls, rebuilt to the page rules (UI pass, part 1)
 
-<!-- prawduct: scope=ui-pass-walls -->
+<!-- prawduct: scope=ui-pass-walls | release=v0.7.0 -->
 
 **Why:** the owner walked Walls on the newly deployed server and found it jumbled:
 no way to add or rename a wall, a scene search that did not say what it searched,
@@ -108,7 +108,7 @@ assignment controls until the Players plan (#390).
 
 ## 2026-10-27: Arrt without the Player (wave 5, part 2)
 
-<!-- prawduct: scope=wave-5-split -->
+<!-- prawduct: scope=wave-5-split | release=v0.7.0 -->
 
 **Why:** Arrt Player now lives in its own repository,
 [brookstalley/arrt-player](https://github.com/brookstalley/arrt-player),
@@ -174,7 +174,7 @@ commit before this one restores the tree.
 
 ## 2026-10-26: The contract becomes a package, the root clears, and every cross-plane guard holds where it will survive the split (wave 5, part 1; #33)
 
-<!-- prawduct: scope=wave-5-split -->
+<!-- prawduct: scope=wave-5-split | release=v0.7.0 -->
 
 **Why:** Wave 5 splits Arrt Player into its own repository
 (`re-architecture.md` § Order of work). Before the history can be cut, the
@@ -238,7 +238,7 @@ commit; nothing a running wall or server stores is touched.
 
 ## 2026-10-26: Scenes — a work per wall, shown together (wave 4f)
 
-<!-- prawduct: scope=wave-4f-scenes -->
+<!-- prawduct: scope=wave-4f-scenes | release=v0.7.0 -->
 
 **Why:** The owner's MVP for wave 4f: "the HDMI display on rpi and samsung
 frame transitioning at the same time to related works that I pick manually."
