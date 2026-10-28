@@ -2004,7 +2004,7 @@ class RenameTheme(BaseModel):
 
 
 class CreateWall(BaseModel):
-    """Everything needed to record a wall: a name, and nothing device-shaped."""
+    """A wall's name, to record it or to rename it. Nothing device-shaped."""
 
     name: str
 

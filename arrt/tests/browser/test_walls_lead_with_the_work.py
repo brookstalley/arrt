@@ -1,8 +1,7 @@
 """Each wall's card leads with what its screen is doing, in a real browser.
 
-`ia-proposal.md` § Walls: the work on the wall now, large, with its label facts,
-then what the wall draws from and "until changed", then Skip, *Not this one
-again* and Change, and the wall's history from its card. `labels-and-surfaces.md`
+What the card holds, in order, is `information-architecture.md`'s Walls row
+(the owner's rulings of 2026-10-27, `ia-proposal.md`). `labels-and-surfaces.md`
 § Display state: when the screen is not showing art, the card says what it is
 doing instead, in words.
 

@@ -156,6 +156,25 @@ def test_a_wall_that_has_shown_nothing_leads_with_the_next_work_dimmed(ui, servi
     assert upcoming[0].work_id not in (nxt.inner_html())
 
 
+def test_a_next_work_that_cannot_be_read_leads_nothing_and_stays_in_the_row(ui, services, the_wall, hopper):
+    """The lead and the row decide together which work the lead drew: one that
+    could not be read is not drawn, so the row keeps it with its failure."""
+    upcoming = services.display.get_wall_view(the_wall.id).upcoming
+    first = upcoming[0].work_id
+    assert len({slot.work_id for slot in upcoming[:3]}) > 1, "the row must hold another work"
+    report_state(services, the_wall, "dark", since=datetime.now(UTC) - timedelta(minutes=1))
+    ui.page.route(f"**/api/works/{first}", lambda route: route.fulfill(status=500, json={"error": "the catalogue is busy"}))
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    lead.wait_for()
+    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
+    assert lead.locator("figure").count() == 0
+    nxt = card(ui, the_wall).locator(".wall-next")
+    assert nxt.locator("h3").inner_text() == "Up next"
+    assert nxt.locator("li").first.inner_text().startswith("A work that could not be read")
+
+
 def test_a_dark_wall_with_nothing_scheduled_leads_with_its_state_alone(ui, services, the_wall):
     report_state(services, the_wall, "dark", since=datetime.now(UTC) - timedelta(minutes=1))
     open_walls(ui)

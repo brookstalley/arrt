@@ -27,6 +27,9 @@ branch is deployed. Open Walls beside the wall.
   room Pi in its Edit…, hang a theme on it, and see it reach the Player.
 - **Scene….** Assemble one, apply it, see the line above the cards and the
   *Scene* badge on the wall once it reaches it, and Release.
+- **Older pending steps below that name *Change*, *How {wall} is set up* or its
+  *Mat* and *Shapes it shows*:** those controls are now the card's Hanging picker
+  and its *Edit…* dialog; do the step there.
 - **The words and the weight.** Judge the page against the prototype: does the
   Edit… dialog hold too much, and does anything you use daily now take a step it
   did not?

@@ -7,7 +7,7 @@
  *
  * **Built to "How a page reads"** (`design-direction.md` § Component Patterns;
  * the owner's rulings of 2026-10-27, `ia-proposal.md`): the page's name, one line
- * of facts, and a toolbar holding *Scene…*; then one card per wall.
+ * of facts, and a toolbar holding the page's acts; then one card per wall.
  *
  * **Each card leads with what the wall's screen is doing** (`labels-and-surfaces.md`
  * § Display state), which the server derives for each wall and `/api/walls`
@@ -76,7 +76,7 @@ import { openPanel } from "../core/editing.js";
 import { hangTheme } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
+import { screenName, screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
 import { clientLink } from "../core/places.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
@@ -144,7 +144,7 @@ export async function viewWalls(generation) {
     generation,
     heading(),
     pageFacts(walls.walls, nows),
-    toolbar({ actions: [addWallOpener(shownBy), sceneOpener(scene)] }),
+    toolbar({ actions: [addWallOpener(), sceneOpener(scene)] }),
     scene.node,
     el("div", { class: "walls" }, sections),
     walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null,
@@ -205,8 +205,7 @@ function takeDownNote() {
  * appears on the page only when it is one). A wall nobody shows is an ordinary
  * state (`clients.md` § The model), and the one where everything else on this
  * card happens to no screen at all; a display two clients report is shown by
- * neither, whatever `client_id` still names. Where a wall is assigned is
- * Settings › Clients until its *Edit…* dialog holds it. */
+ * neither, whatever `client_id` still names. */
 function assignmentProblem(wall) {
   if (wall.display && wall.display.fault) {
     return el("p", { class: "note wall-problem wall-fault" }, [
@@ -240,33 +239,16 @@ async function clientListing() {
 }
 
 /* Which client this wall is assigned to, on which output, and whether a screen
- * is there to show it — or that no client is assigned.
+ * is there to show it.
  *
  * "Shown by" only where the client reports a screen detected on that output, in
  * a report young enough to speak for now (`core/outputs.js` says why); otherwise
- * the assignment, and what the report says or why it cannot. A wall nobody shows
- * is an ordinary state (`clients.md` § The model), and the one where everything
- * else on this screen happens to no screen at all — so it is said, with the way
- * to Settings › Clients, where a wall is assigned. */
+ * the assignment, and what the report says or why it cannot. */
 function assignmentLine(wall, shownBy) {
   // No Player, or a display two clients claim: the card says it, and in the Edit…
   // dialog the Player picker reads None, so this says nothing more (a state is
   // worded once).
   if ((wall.display && wall.display.fault) || !wall.client_id) return null;
-  // A display two clients report is shown by neither, whatever `client_id`
-  // still names, so the fault is said in place of the assignment.
-  if (wall.display && wall.display.fault) {
-    return el("p", { class: "note wall-client wall-fault" }, [
-      el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-      link({ view: "clients" }, { text: "See Settings › Clients" }),
-    ]);
-  }
-  if (!wall.client_id) {
-    return el("p", { class: "muted wall-client" }, [
-      el("span", { text: "No Player shows this wall. " }),
-      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
-    ]);
-  }
   const client = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   // A port is named only with `?debug` (the owner's ruling 1 of 2026-10-11),
   // and a screen the lead already calls off is not called off again here.
@@ -850,8 +832,8 @@ function stateWords(state) {
 
 /* The lead for a wall that names no work: the state, and since when, then the
  * work it showed last, large, where the server has one. */
-function stateLead(wall, shown, said, silent, last, next) {
-  if (!silent && said.state === "dark") return darkLead(wall, shown, last, next);
+function stateLead(wall, shown, said, silent, last, first) {
+  if (!silent && said.state === "dark") return darkLead(wall, shown, last, first);
   const words = said.state === "showing_art" ? `A picture ${wall.name} did not put there` : stateWords(said.state);
   const lines = silent
     ? [el("p", { class: "wall-now-when", text: lastHeard(shown) }), el("p", { class: "muted", text: `When it last reported: ${words}.` })]
@@ -880,14 +862,13 @@ function stateLead(wall, shown, said, silent, last, next) {
  * nothing the server logged, the work that comes on when the screen does (ruling
  * 6 of 2026-10-27, which keeps ruling 3 of 2026-10-11 and falls back for an
  * empty log). Under one line saying since when the screen has been off. */
-function darkLead(wall, shown, last, next) {
+function darkLead(wall, shown, last, first) {
   // "Screen off" is the badge's, at the card's head; this line says since when,
   // so the card says the screen is off once.
   const since = shown.since ? `Off since ${readable(shown.since)}` : "Off";
-  const first = next && next.length ? next[0] : null;
   let figure = null;
   if (last) figure = lastShownFigure(wall, last);
-  else if (first && first.work) figure = workFigure(wall, first.work, `Next, when the screen comes on, from ${readable(first.slot.starts_at)}`, "wall-last");
+  else if (first) figure = workFigure(wall, first.work, `Next, when the screen comes on, from ${readable(first.slot.starts_at)}`, "wall-last");
   return el("div", { class: "wall-now wall-dim", "data-state": shown.state }, [el("p", { class: "wall-now-state", text: since }), figure]);
 }
 
@@ -936,7 +917,7 @@ function nowShowing(wall, now) {
   // No Player: the badge says so and the line under it has the way to fix it,
   // so the lead adds nothing (a state is worded once, 2026-10-27).
   if (!silent && said.state === "unassigned") return el("div", { class: "wall-now", "data-state": "unassigned", hidden: true });
-  if (!now.workId) return stateLead(wall, shown, said, silent, now.last, now.next);
+  if (!now.workId) return stateLead(wall, shown, said, silent, now.last, ledWith(now));
   const when = silent ? `${lastHeard(shown)}, so this may have changed since` : "On the wall now";
   if (now.failure) {
     return el("div", { class: "wall-now" }, [
@@ -982,16 +963,25 @@ function workFigure(wall, work, when, kind) {
   ]);
 }
 
+/* The upcoming work a dark wall with nothing logged leads with (`darkLead`), or
+ * null. Decided here once, for the lead and for the row under it: the row skips
+ * exactly the work the lead drew, and a first work that could not be read leads
+ * nothing and stays in the row with its failure. */
+function ledWith(now) {
+  if (!now || !now.shown || now.shown.state !== "dark" || now.workId || now.last) return null;
+  const first = now.next.length ? now.next[0] : null;
+  return first && first.work ? first : null;
+}
+
 /* The next three works the wall's schedule puts up, each small, with when it
  * goes up. Nothing while the wall has no feed: there is nothing coming. */
 function nextUp(wall, now) {
-  // A dark wall with nothing logged leads with the first of these (`darkLead`),
-  // so the row starts at the second rather than drawing that work twice.
-  const ledWithNext = Boolean(now && now.shown && now.shown.state === "dark" && !now.workId && !now.last);
-  const next = now ? now.next.slice(ledWithNext ? 1 : 0) : [];
+  // So the row starts at the second rather than drawing the lead's work twice.
+  const led = Boolean(ledWith(now));
+  const next = now ? now.next.slice(led ? 1 : 0) : [];
   if (!next.length) return el("div", { class: "wall-next", hidden: true });
   return el("div", { class: "wall-next" }, [
-    el("h3", { class: "wall-next-title", text: ledWithNext ? "Then" : "Up next" }),
+    el("h3", { class: "wall-next-title", text: led ? "Then" : "Up next" }),
     el(
       "ol",
       { class: "wall-next-list" },
@@ -1389,23 +1379,48 @@ const EXCLUSION_WORDS = {
  * where it shows (the Player and screen, and its label panels), how it rotates,
  * which shapes it shows, and its mat. Each part is set by its own act and says so
  * in place, as the panels always have, so a change made in one part is never held
- * hostage by another. A rename repaints the page, because the name is on it. */
+ * hostage by another. The card is repainted when the dialog closes after any part
+ * changed something: the name, the Player and the labels close it at once, since
+ * the card is where they show; the rotation, shapes and mat leave it open to go
+ * on working in, and the card's *Changes*, next works and what it cannot show
+ * catch up on the way out. */
 function editWall(wall, manifest, shownBy) {
-  openPanel({
+  const edit = editing();
+  edit.panel = openPanel({
     title: `Edit ${wall.name}`,
     body: [
-      nameSection(wall),
-      whereSection(wall, shownBy),
-      labelsSection(wall, shownBy),
-      ...(manifest ? playbackPanels(wall, manifest) : []),
-      manifest ? matPanel(wall) : null,
+      nameSection(wall, edit.done),
+      whereSection(wall, shownBy, edit.done),
+      labelsSection(wall, shownBy, edit.done),
+      ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
+      manifest ? matPanel(wall, edit.changed) : null,
     ],
+    onClose: edit.closed,
   });
+}
+
+/* What a dialog that changes walls needs: `changed` when an act lands, `done`
+ * when it lands and the dialog has nothing more to do, and `closed` for
+ * `openPanel`'s `onClose`, which repaints the page if anything changed. A dialog
+ * left by a link repaints nothing here: the page it went to paints itself. The
+ * dialog is closed by its own handle, so this never closes a panel it did not
+ * open. */
+function editing() {
+  const edit = { panel: null, wrote: false };
+  edit.changed = () => (edit.wrote = true);
+  edit.done = () => {
+    edit.changed();
+    edit.panel.close();
+  };
+  edit.closed = () => {
+    if (edit.wrote && state.view === "walls") refresh();
+  };
+  return edit;
 }
 
 /* The wall's name. The server refuses an empty one or one another wall has, in
  * words this dialog shows beside the field. */
-function nameSection(wall) {
+function nameSection(wall, done) {
   const nameId = `wall-name-${wall.wall_id}`;
   const field = el("input", { id: nameId, type: "text", value: wall.name });
   return el("div", { class: "panel" }, [
@@ -1422,21 +1437,11 @@ function nameSection(wall) {
             event.currentTarget,
             `rename ${wall.name}`,
             () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}`, { method: "POST", body: JSON.stringify({ name: field.value }) }),
-            { then: () => closeAndRefresh() },
+            { then: done },
           ),
       }),
     ]),
   ]);
-}
-
-/* Close the open panel and repaint the page, whose cards say what the act
- * changed. One panel is open at a time (each is modal), so it is the one the act
- * was in; the pressed control is not carried here, because an event's
- * `currentTarget` is gone by the time an awaited act settles. */
-function closeAndRefresh() {
-  const dialog = document.querySelector("dialog.panel-dialog[open]");
-  if (dialog) dialog.close();
-  return refresh();
 }
 
 /* The screens a client reported, by name, with whether something is connected:
@@ -1449,7 +1454,7 @@ function screensOf(client) {
 /* Which Player shows the wall, and on which screen: the line that says what the
  * Player last reported about it, then the two pickers and *Show it there*. None
  * takes the wall off its Player; its theme stays hung. */
-function whereSection(wall, shownBy) {
+function whereSection(wall, shownBy, done) {
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const playerId = `wall-player-${wall.wall_id}`;
   const screenId = `wall-screen-${wall.wall_id}`;
@@ -1467,7 +1472,7 @@ function whereSection(wall, shownBy) {
         ? screens.map((output) =>
             el("option", {
               value: output.name,
-              text: `${output.name}${output.connected ? "" : " · nothing connected"}`,
+              text: `${screenName(output.name)}${output.connected ? "" : " · nothing connected"}`,
               selected: client && client.client_id === wall.client_id && output.name === wall.output,
             }),
           )
@@ -1500,7 +1505,7 @@ function whereSection(wall, shownBy) {
                     body: JSON.stringify({ client_id: player.value, output: screen.value }),
                   })
                 : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
-            { then: () => closeAndRefresh() },
+            { then: done },
           ),
       }),
     ]),
@@ -1508,38 +1513,38 @@ function whereSection(wall, shownBy) {
 }
 
 /* The label panels captioning the wall, each with *Stop captioning*, then one to
- * add from those the Players reported that caption nothing here. */
-function labelsSection(wall, shownBy) {
+ * add from those the Players reported that caption no wall: the server refuses a
+ * panel captioning another wall until it is taken off that one, so offering it
+ * would offer a choice that cannot succeed. */
+function labelsSection(wall, shownBy, done) {
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
-  const captioning = new Set((wall.labels || []).map((label) => label.label_id));
   const offered = clients.flatMap((client) =>
-    (client.label_outputs || [])
-      .filter((label) => !captioning.has(label.label_id))
-      .map((label) => ({ client, output: label.output })),
+    (client.label_outputs || []).filter((label) => label.wall_id == null).map((label) => ({ client, output: label.output })),
   );
   const pickId = `wall-label-${wall.wall_id}`;
   const pick = el(
     "select",
     { id: pickId },
-    offered.map(({ client, output }, at) => el("option", { value: String(at), text: `${output} on ${client.name}` })),
+    offered.map(({ client, output }, at) => el("option", { value: String(at), text: panelName(output, client) })),
   );
+  const ownerOf = (label) => (shownBy.byId ? shownBy.byId.get(label.client_id) : null);
   return el("div", { class: "panel" }, [
     el("h3", { text: "Label panel" }),
     labelsLine(wall),
     ...(wall.labels || []).map((label) =>
       el("div", { class: "row" }, [
-        el("span", { text: `${label.output} on ${label.client_name || "a client whose name could not be read"}` }),
+        el("span", { text: panelName(label.output, ownerOf(label), label.client_name) }),
         el("button", {
           class: "action quiet",
           type: "button",
           text: "Stop captioning",
-          "aria-label": `Stop ${label.output} captioning ${wall.name}`,
+          "aria-label": `Stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
           onclick: (event) =>
             attempt(
               event.currentTarget,
-              `stop ${label.output} captioning ${wall.name}`,
+              `stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
               () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels/${encodeURIComponent(label.label_id)}`, { method: "DELETE" }),
-              { then: () => closeAndRefresh() },
+              { then: done },
             ),
         }),
       ]),
@@ -1556,13 +1561,13 @@ function labelsSection(wall, shownBy) {
               const { client, output } = offered[Number(pick.value)];
               return attempt(
                 event.currentTarget,
-                `caption ${wall.name} with ${output}`,
+                `caption ${wall.name} with ${panelName(output, client)}`,
                 () =>
                   api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels`, {
                     method: "POST",
                     body: JSON.stringify({ client_id: client.client_id, output }),
                   }),
-                { then: () => closeAndRefresh() },
+                { then: done },
               );
             },
           }),
@@ -1573,9 +1578,19 @@ function labelsSection(wall, shownBy) {
   ]);
 }
 
-/* *Add wall…*: a name, and where it shows if that is known now. A theme is hung
- * from the new card's Hanging picker, which asks first as every hang does. */
-function addWallOpener(shownBy) {
+/* A label panel in the words a person reads (`information-architecture.md`
+ * § Vocabulary): *the label panel on Hall Pi*. Its port is named only when that
+ * Player has more than one, since then it is the one thing telling them apart.
+ * `clientName` stands in when the Player itself could not be read. */
+function panelName(output, client, clientName = null) {
+  const name = client ? client.name : clientName || "a Player whose name could not be read";
+  const several = Boolean(client && (client.label_outputs || []).length > 1);
+  return several ? `label panel ${output} on ${name}` : `the label panel on ${name}`;
+}
+
+/* *Add wall…*: its name. Its Player is chosen with the new card's *Edit…*, and a
+ * theme hung from its Hanging picker, which asks first as every hang does. */
+function addWallOpener() {
   return el("button", {
     class: "action quiet",
     type: "button",
@@ -1584,6 +1599,7 @@ function addWallOpener(shownBy) {
     onclick: () => {
       const nameId = "new-wall-name";
       const name = el("input", { id: nameId, type: "text", placeholder: "Hall" });
+      const edit = editing();
       const add = el("button", {
         class: "action",
         type: "button",
@@ -1593,15 +1609,16 @@ function addWallOpener(shownBy) {
             event.currentTarget,
             `add the wall ${name.value.trim() || "with no name"}`,
             () => api("/api/walls", { method: "POST", body: JSON.stringify({ name: name.value }) }),
-            { then: () => closeAndRefresh() },
+            { then: edit.done },
           ),
       });
-      openPanel({
+      edit.panel = openPanel({
         title: "Add a wall",
         lead: "A wall is a place that shows art. Once it is added, choose its Player with Edit… and what it hangs with Hanging, on its card.",
         closeLabel: "Cancel",
         body: [el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), name])],
         actions: [add],
+        onClose: edit.closed,
       });
     },
   });
@@ -1612,10 +1629,10 @@ function addWallOpener(shownBy) {
  * server leaves the rest as they are: a body carrying the other panel's
  * settings as this page first drew them would put back whatever was set since,
  * here or on another surface. */
-function playbackPanels(wall, manifest) {
+function playbackPanels(wall, manifest, changed) {
   const send = (changes) =>
     api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, { method: "PUT", body: JSON.stringify(changes) });
-  return [rotationPanel(wall, manifest, send), shapesPanel(wall, send)];
+  return [rotationPanel(wall, manifest, send, changed), shapesPanel(wall, send, changed)];
 }
 
 /* The wall's orders in the curator's words, in the order the picker offers
@@ -1636,7 +1653,7 @@ const ORDER_CHOICES = [
  * default. The facts say what the wall plays at now, the default resolved, and
  * are asked of the server again (`GET /api/manifest`) after Set rather than worked out here,
  * since only the server knows the default. */
-function rotationPanel(wall, manifest, send) {
+function rotationPanel(wall, manifest, send, changed) {
   const intervalId = `interval-${wall.wall_id}`;
   const orderId = `order-${wall.wall_id}`;
   const interval = el("input", {
@@ -1654,8 +1671,8 @@ function rotationPanel(wall, manifest, send) {
     order.append(el("option", { value, text: words, selected: String(wall.shuffle ?? "") === value }));
   }
   const now = el("div", {}, [rotationFacts(manifest)]);
-  // Said here and the panel left as it is, as the mat's is: a repaint would
-  // close the disclosure the curator just worked in.
+  // Said here and the dialog left open, as the mat's is; the card catches up
+  // when it closes (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
   return el("div", { class: "panel" }, [
     el("h3", { text: "How it rotates" }),
@@ -1693,6 +1710,7 @@ function rotationPanel(wall, manifest, send) {
               }),
             {
               then: async () => {
+                changed();
                 const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
                 fill(now, rotationFacts(fresh));
                 said.textContent = `Rotation on ${wall.name}: ${rotationWords(fresh)}.`;
@@ -1721,7 +1739,7 @@ const SHAPE_CHOICES = [
  * beside them as a hint and never applied. A range that leaves nothing is
  * honoured and the wall goes dark, so after Set the panel says the server's own
  * summary, which says that. */
-function shapesPanel(wall, send) {
+function shapesPanel(wall, send, changed) {
   const pickerId = `shapes-${wall.wall_id}`;
   const tallestId = `tallest-${wall.wall_id}`;
   const widestId = `widest-${wall.wall_id}`;
@@ -1743,8 +1761,8 @@ function shapesPanel(wall, send) {
   });
   for (const field of [tallest, widest]) field.addEventListener("input", () => (picker.value = chosen()));
   const now = el("div", {}, [shapeFacts(wall)]);
-  // Said here and the panel left as it is, as the mat's is: a repaint would
-  // close the disclosure the curator just worked in.
+  // Said here and the dialog left open, as the mat's is; the card catches up
+  // when it closes (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
   return el("div", { class: "panel" }, [
     el("h3", { text: "Shapes it shows" }),
@@ -1767,6 +1785,7 @@ function shapesPanel(wall, send) {
             () => send({ tallest: tallest.value.trim() || null, widest: widest.value.trim() || null }),
             {
               then: async (answer) => {
+                changed();
                 tallest.value = answer.tallest ?? "";
                 widest.value = answer.widest ?? "";
                 picker.value = chosen();
@@ -1823,11 +1842,11 @@ const MAT_CHOICES = [
 /* How the wall's Player draws the mat. The colour is always the work's own and
  * the width the Player's, so this chooses only how much of the screen the mat
  * fills. */
-function matPanel(wall) {
+function matPanel(wall, changed) {
   const pickerId = `mat-${wall.wall_id}`;
   const picker = el("select", { id: pickerId });
-  // Said here and the panel left as it is: nothing else on the card changes, and
-  // a repaint would close the disclosure the curator just worked in.
+  // Said here and the dialog left open; the card catches up when it closes
+  // (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
   for (const [value, words] of MAT_CHOICES) {
     picker.append(el("option", { value, text: words, selected: (wall.mat_mode || "") === value }));
@@ -1852,6 +1871,7 @@ function matPanel(wall) {
               }),
             {
               then: (answer) => {
+                changed();
                 const [, , words] = MAT_CHOICES.find(([value]) => value === (answer.mat_mode || ""));
                 said.textContent = `Mat on ${wall.name}: ${words}.`;
               },

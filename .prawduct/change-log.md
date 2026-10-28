@@ -89,15 +89,19 @@ the page rules. This is the first of three plans (#389 and #390 are the others).
   (it was *Not this one again*); *Hanging*, whose theme's name is the picker that
   hangs another; the next three; History and, only when there are some, the works
   it cannot show. Its settings (name, Player and screen, label panels, rotation,
-  shapes, mat) are its *Edit…* dialog; the card names its Player only as a problem.
+  shapes, mat) are its *Edit…* dialog, which names a screen *HDMI 1* and a label
+  panel *the label panel on {Player}* rather than their ports, and the card is
+  repainted when it closes; the card names its Player only as a problem.
 - **The scene** is assembled in the *Scene…* dialog, whose search says "Search your
   library"; a live one is a line above the cards.
 - `core/editing.js` is the dialog shell the next two plans reuse.
 
 **Tests:** about forty browser assertions rewritten, each naming the ruling that
 changed it; new tests for the badge, the facts line, the keyboard path, the card's
-spacing, renaming, putting a wall on a screen, its labels, and a wall added,
-assigned and hung through the page with its feed published.
+spacing, renaming, putting a wall on a screen, its labels, the card after the
+dialog closes, a dark wall whose next work cannot be read, and a wall added,
+assigned and hung through the page whose feed, read with its Player's token,
+carries the work hung.
 
 **Not in this:** deleting a wall (#391); Settings › Clients still carries its own
 assignment controls until the Players plan (#390).

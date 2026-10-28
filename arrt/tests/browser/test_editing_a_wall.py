@@ -10,6 +10,7 @@ the default, so a control that changed only the page would fail.
 import json
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
 from arrt.persistence.records import MatMethod, RenditionKind
@@ -87,7 +88,9 @@ def test_where_it_shows_puts_the_wall_on_a_players_screen_and_none_takes_it_off(
     assert player.input_value() == ""
     player.select_option(hall.id)
     screen = dialog.get_by_label("Screen", exact=True)
-    assert screen.locator("option").all_inner_texts() == ["hdmi-a-1", "hdmi-a-2 · nothing connected"]
+    # In a person's words (`information-architecture.md` § Vocabulary), the port
+    # the value the server is sent.
+    assert screen.locator("option").all_inner_texts() == ["HDMI 1", "HDMI 2 · nothing connected"]
     # Not the first screen offered, so a picker that sent its default would fail.
     screen.select_option("hdmi-a-2")
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
@@ -118,7 +121,7 @@ def test_a_label_panel_is_added_from_the_dialog_and_stopped_there(ui, services, 
     services.clients.remove_label(the_wall.id, label_id=labelled.label.id)
 
     dialog = open_edit(ui, the_wall.name)
-    dialog.get_by_label(f"Caption {the_wall.name} with", exact=True).select_option(label="epd-0 on Hall Pi")
+    dialog.get_by_label(f"Caption {the_wall.name} with", exact=True).select_option(label="the label panel on Hall Pi")
     dialog.get_by_role("button", name=f"Caption {the_wall.name} with this label panel").click()
     ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
 
@@ -126,9 +129,54 @@ def test_a_label_panel_is_added_from_the_dialog_and_stopped_there(ui, services, 
     assert (label["output"], label["client_id"]) == ("epd-0", hall.id)
 
     dialog = open_edit(ui, the_wall.name)
-    dialog.get_by_role("button", name=f"Stop epd-0 captioning {the_wall.name}").click()
+    dialog.get_by_role("button", name=f"Stop the label panel on Hall Pi captioning {the_wall.name}").click()
     ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
     assert walls_read(ui)[the_wall.id]["labels"] == []
+
+
+def test_a_label_panel_captioning_another_wall_is_not_offered(ui, services, the_wall, hall):
+    """The server refuses a panel that captions another wall, so the picker offers
+    only the free one; with two on the Player, each is told apart by its port."""
+    study = services.display.add_wall(name="Study")
+    services.clients.add_label(study.id, client_id=hall.id, output="epd-0")
+    freed = services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-1")
+    services.clients.remove_label(the_wall.id, label_id=freed.label.id)
+
+    dialog = open_edit(ui, the_wall.name)
+    offered = dialog.get_by_label(f"Caption {the_wall.name} with", exact=True).locator("option").all_inner_texts()
+    assert offered == ["label panel epd-1 on Hall Pi"]
+
+
+def test_a_rotation_set_in_the_dialog_is_on_the_card_once_it_closes(ui, services, the_wall, a_theme_to_hang):
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
+    dialog = open_edit(ui, the_wall.name)
+    changes = card(ui, the_wall.name).locator(".wall-hanging dt:text-is('Changes') + dd")
+    before = changes.inner_text()
+    dialog.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("7")
+    dialog.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
+    dialog.locator(".wall-said", has_text="Rotation on").wait_for()
+    # Left open to go on working in: the card catches up when it closes.
+    ui.page.keyboard.press("Escape")
+    ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
+
+    assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 7 * 60
+    card(ui, the_wall.name).locator(".wall-hanging dt:text-is('Changes') + dd", has_text="7 minutes").wait_for()
+    assert "7 minutes" not in before
+
+
+def test_close_and_cancel_change_nothing(ui, services, the_wall, hall):
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_label("Name", exact=True).fill("Not saved")
+    dialog.get_by_role("button", name="Close").click()
+    ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
+    assert services.display.get_wall(the_wall.id).name == the_wall.name
+
+    ui.page.get_by_role("button", name="Add wall…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.get_by_label("Name", exact=True).fill("Study")
+    dialog.get_by_role("button", name="Cancel").click()
+    ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
+    assert [view.wall.name for view in services.display.survey_walls()] == [the_wall.name]
 
 
 def test_escape_closes_the_dialog_and_changes_nothing(ui, services, the_wall, hall):
@@ -157,8 +205,12 @@ def a_theme_to_hang(services, work_with_an_image, service, settings, decodable_j
     return theme
 
 
-def test_a_wall_added_here_can_be_put_on_a_screen_and_hung_and_its_feed_is_published(ui, services, hall, a_theme_to_hang):
-    """Add wall…, then its Edit… and its Hanging picker: the new wall ends with a published feed."""
+def test_a_wall_added_here_can_be_put_on_a_screen_and_hung_and_its_feed_is_published(
+    ui, services, server_url, hall, a_theme_to_hang
+):
+    """Add wall…, then its Edit… and its Hanging picker: the new wall's feed, read as
+    its Player reads it, carries the work hung. The Player itself is arrt-player's,
+    walked on the real wall by the plan's operator walk."""
     ui.open("#walls")
     ui.page.get_by_role("button", name="Add wall…").click()
     dialog = ui.page.locator("dialog.panel-dialog")
@@ -169,7 +221,7 @@ def test_a_wall_added_here_can_be_put_on_a_screen_and_hung_and_its_feed_is_publi
 
     dialog = open_edit(ui, "Study")
     dialog.get_by_label("Player for Study", exact=True).select_option(hall.id)
-    dialog.get_by_label("Screen", exact=True).select_option("hdmi-a-1")
+    dialog.get_by_label("Screen", exact=True).select_option(label="HDMI 1")
     dialog.get_by_role("button", name="Show Study there").click()
     ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
 
@@ -179,7 +231,10 @@ def test_a_wall_added_here_can_be_put_on_a_screen_and_hung_and_its_feed_is_publi
 
     assert walls_read(ui)[study.id]["client_id"] == hall.id
     assert services.display.hanging_on(study.id).id == a_theme_to_hang.id
-    assert services.display.published_manifest_v2(study.id) is not None
+    token = services.access.issue(hall.id).token
+    answer = httpx.get(f"{server_url}/walls/{study.id}/manifest/v2", headers={"Authorization": f"Bearer {token}"})
+    assert answer.status_code == 200
+    assert [work["label"]["title"] for work in answer.json()["works"].values()] == ["Nighthawks"]
 
 
 def test_adding_a_wall_with_a_taken_name_is_refused_in_the_dialog(ui, services, the_wall):
