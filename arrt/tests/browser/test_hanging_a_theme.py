@@ -85,10 +85,6 @@ def test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour(ui, a_them
     ui.page.wait_for_selector("section.wall")
 
     ui.open(f"#theme/{a_theme.id}")
-    # Only the fragment changes, so the page is not reloaded and `open` can return
-    # with Walls still painted. Its cards carry a screen-state badge, which a bare
-    # `.badge` would read in place of the theme's.
-    ui.page.locator("section.wall").first.wait_for(state="detached")
     ui.page.wait_for_selector(".badge")
     badge = ui.page.locator(".badge").first
     assert "on Study" in badge.inner_text()

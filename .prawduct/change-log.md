@@ -66,7 +66,7 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
-## 2026-10-28: A Theme test stops reading the Walls page's badge
+## 2026-10-28: The browser suite's `open` loads the page again, and `navigate` moves within it
 
 <!-- prawduct: scope=fix-hanging-badge-race -->
 
@@ -77,11 +77,18 @@ Player'". It hangs a theme, which lands on Walls, then opens the Theme page agai
 Walls rebuild, Walls cards carry a screen-state badge, and the test's bare `.badge`
 read that badge in place of the theme's.
 
-**What changed:** the test waits for the Walls cards to leave before it reads the badge.
-No product code changed.
+The cause is the shared helper, not that one test. Any `ui.open` to the page already
+loaded was a hashchange, so its waits could be met by the screen still painted. A test
+that opened a page again to read what the server kept was reading what the client held.
 
-**Tests:** 0 failures in 60 runs with the wait, against the failure reproduced
-locally without it.
+**What changed:** `ui.open` reloads when only the fragment would change, so every open
+is a load. The new `ui.navigate` moves within the client and keeps its memory, for the
+three Ask tests about a page the curator comes back to, which need that. No product
+code changed.
+
+**Tests:** the Theme test failed about once in twelve runs against the old helper, and
+0 times in 40 against the new one. The full browser suite passes with the helper
+changed.
 
 ## 2026-10-27: Walls, rebuilt to the page rules (UI pass, part 1)
 
