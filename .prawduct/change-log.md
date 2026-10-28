@@ -66,6 +66,23 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-28: A Theme test stops reading the Walls page's badge
+
+<!-- prawduct: scope=fix-hanging-badge-race -->
+
+**Why:** `test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour` failed once
+in #394's CI, and locally about once in twelve runs, with "assert 'on Study' in '▲ No
+Player'". It hangs a theme, which lands on Walls, then opens the Theme page again. That
+`open` changes only the fragment, so it can return with Walls still painted. Since the
+Walls rebuild, Walls cards carry a screen-state badge, and the test's bare `.badge`
+read that badge in place of the theme's.
+
+**What changed:** the test waits for the Walls cards to leave before it reads the badge.
+No product code changed.
+
+**Tests:** 0 failures in 60 runs with the wait, against the failure reproduced
+locally without it.
+
 ## 2026-10-27: Walls, rebuilt to the page rules (UI pass, part 1)
 
 <!-- prawduct: scope=ui-pass-walls | release=v0.7.0 -->
