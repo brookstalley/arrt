@@ -105,13 +105,14 @@ def card(ui, wall):
 
 
 def setup_line(ui, wall, kind):
-    """A line of the wall's setup disclosure, opened first: which Player and
-    screen show it, and which label captions it, moved off the card by ruling 4
-    of 2026-10-27 (the wall's Edit… dialog will hold them)."""
-    setup = card(ui, wall).locator("details.wall-setup")
-    if setup.get_attribute("open") is None:
-        setup.locator("summary").click()
-    return card(ui, wall).locator(kind)
+    """A line of the wall's Edit… dialog, opened first: which Player and screen
+    show it, and which label captions it, moved off the card by ruling 4 of
+    2026-10-27."""
+    if not ui.page.locator("dialog.panel-dialog[open]").count():
+        card(ui, wall).get_by_role("button", name=f"Edit {wall.name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+    return dialog.locator(kind)
 
 
 def open_walls(ui, *, debug=False):

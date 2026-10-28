@@ -45,6 +45,11 @@ export function openPanel({ title, lead = null, body = [], actions = [], closeLa
     if (onClose) onClose();
   });
   close.addEventListener("click", () => dialog.close());
+  // A link in the panel goes to another page, and the panel belongs to the one it
+  // was opened on: left open, it would sit modal over the next page.
+  const leave = () => dialog.close();
+  window.addEventListener("hashchange", leave, { once: true });
+  dialog.addEventListener("close", () => window.removeEventListener("hashchange", leave));
   document.body.append(dialog);
   dialog.showModal();
   close.focus();

@@ -10,6 +10,27 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walls, rebuilt to the page rules — added 2026-10-27
+
+**`build-plan-ui-pass-walls.md` chunk 05.** On the NAS, once the release with this
+branch is deployed. Open Walls beside the wall.
+
+- **The card in each state you can reach:** showing art (*Showing* badge), screen
+  off (*Screen off*, the last-shown work dimmed under "Off since …"), and, if you
+  unplug or turn the set to a programme, the others. Say if any badge word reads
+  as plumbing.
+- **Skip and Remove….** Skip moves the wall on. Remove… asks from this theme or
+  from every wall; check the work leaves as said and stays in the library.
+- **Hanging.** Choose another theme in the picker, answer the question, and see
+  the wall change; decline it once and see the picker go back.
+- **Edit….** Rename the wall. Then *Add wall…* "Hall", put it on HDMI 2 of Living
+  room Pi in its Edit…, hang a theme on it, and see it reach the Player.
+- **Scene….** Assemble one, apply it, see the line above the cards and the
+  *Scene* badge on the wall once it reaches it, and Release.
+- **The words and the weight.** Judge the page against the prototype: does the
+  Edit… dialog hold too much, and does anything you use daily now take a step it
+  did not?
+
 ### The wall runs from brookstalley/arrt-player — added 2026-10-27
 
 **`build-plan-wave-5-split.md` chunk 06.** The Pi's checkout becomes a clone of

@@ -144,7 +144,7 @@ export async function viewWalls(generation) {
     generation,
     heading(),
     pageFacts(walls.walls, nows),
-    toolbar({ actions: [sceneOpener(scene)] }),
+    toolbar({ actions: [addWallOpener(shownBy), sceneOpener(scene)] }),
     scene.node,
     el("div", { class: "walls" }, sections),
     walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null,
@@ -249,6 +249,10 @@ async function clientListing() {
  * else on this screen happens to no screen at all — so it is said, with the way
  * to Settings › Clients, where a wall is assigned. */
 function assignmentLine(wall, shownBy) {
+  // No Player, or a display two clients claim: the card says it, and in the Edit…
+  // dialog the Player picker reads None, so this says nothing more (a state is
+  // worded once).
+  if ((wall.display && wall.display.fault) || !wall.client_id) return null;
   // A display two clients report is shown by neither, whatever `client_id`
   // still names, so the fault is said in place of the assignment.
   if (wall.display && wall.display.fault) {
@@ -426,6 +430,15 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
     el("header", { class: "wall-head" }, [
       el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
       stateBadge(wall, now, live),
+      // The wall's settings, one step away (the page rules of 2026-10-27).
+      el("button", {
+        class: "action quiet wall-edit",
+        type: "button",
+        text: "Edit…",
+        "aria-haspopup": "dialog",
+        "aria-label": `Edit ${wall.name}…`,
+        onclick: () => editWall(wall, manifest, shownBy),
+      }),
     ]),
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
@@ -446,7 +459,6 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
     hangingFacts(wall, themes, manifest),
     card.next,
     footer(wall, manifest),
-    setup(wall, manifest, shownBy),
   ]);
 }
 
@@ -1373,20 +1385,226 @@ const EXCLUSION_WORDS = {
   outside_wall_shape: "Outside this wall's shapes",
 };
 
-/* How the wall is set up: how it rotates, which shapes it shows, and how its
- * mat is drawn. Behind a disclosure, because the card is about the work on the
- * wall; its *Edit…* dialog is where this moves next. What of its theme does not
- * reach it is the card's foot (`footer`). */
-function setup(wall, manifest, shownBy) {
-  return el("details", { class: "wall-setup" }, [
-    el("summary", { text: `How ${wall.name} is set up` }),
-    // Which Player and screen show it, and which label panel captions it: the
-    // wall's configuration (ruling 4 of 2026-10-27), so behind this disclosure
-    // rather than on the card, until the wall's Edit… dialog holds it.
-    el("div", { class: "panel" }, [el("h3", { text: "Where it shows" }), assignmentLine(wall, shownBy), labelsLine(wall)]),
-    ...(manifest ? playbackPanels(wall, manifest) : []),
-    manifest ? matPanel(wall) : null,
+/* *Edit…*: the wall's settings in one dialog (ruling 4 of 2026-10-27): its name,
+ * where it shows (the Player and screen, and its label panels), how it rotates,
+ * which shapes it shows, and its mat. Each part is set by its own act and says so
+ * in place, as the panels always have, so a change made in one part is never held
+ * hostage by another. A rename repaints the page, because the name is on it. */
+function editWall(wall, manifest, shownBy) {
+  openPanel({
+    title: `Edit ${wall.name}`,
+    body: [
+      nameSection(wall),
+      whereSection(wall, shownBy),
+      labelsSection(wall, shownBy),
+      ...(manifest ? playbackPanels(wall, manifest) : []),
+      manifest ? matPanel(wall) : null,
+    ],
+  });
+}
+
+/* The wall's name. The server refuses an empty one or one another wall has, in
+ * words this dialog shows beside the field. */
+function nameSection(wall) {
+  const nameId = `wall-name-${wall.wall_id}`;
+  const field = el("input", { id: nameId, type: "text", value: wall.name });
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Name" }),
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), field]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Rename",
+        "aria-label": `Rename ${wall.name}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `rename ${wall.name}`,
+            () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}`, { method: "POST", body: JSON.stringify({ name: field.value }) }),
+            { then: () => closeAndRefresh() },
+          ),
+      }),
+    ]),
   ]);
+}
+
+/* Close the open panel and repaint the page, whose cards say what the act
+ * changed. One panel is open at a time (each is modal), so it is the one the act
+ * was in; the pressed control is not carried here, because an event's
+ * `currentTarget` is gone by the time an awaited act settles. */
+function closeAndRefresh() {
+  const dialog = document.querySelector("dialog.panel-dialog[open]");
+  if (dialog) dialog.close();
+  return refresh();
+}
+
+/* The screens a client reported, by name, with whether something is connected:
+ * what the Player picker's screen choice offers. */
+function screensOf(client) {
+  const outputs = client && client.heartbeat && Array.isArray(client.heartbeat.outputs) ? client.heartbeat.outputs : [];
+  return outputs.filter((output) => output.kind !== "epd");
+}
+
+/* Which Player shows the wall, and on which screen: the line that says what the
+ * Player last reported about it, then the two pickers and *Show it there*. None
+ * takes the wall off its Player; its theme stays hung. */
+function whereSection(wall, shownBy) {
+  const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
+  const playerId = `wall-player-${wall.wall_id}`;
+  const screenId = `wall-screen-${wall.wall_id}`;
+  const player = el("select", { id: playerId }, [
+    el("option", { value: "", text: "None", selected: !wall.client_id }),
+    ...clients.map((client) => el("option", { value: client.client_id, text: client.name, selected: client.client_id === wall.client_id })),
+  ]);
+  const screen = el("select", { id: screenId });
+  const fillScreens = () => {
+    const client = shownBy.byId ? shownBy.byId.get(player.value) : null;
+    const screens = screensOf(client);
+    fill(
+      screen,
+      ...(screens.length
+        ? screens.map((output) =>
+            el("option", {
+              value: output.name,
+              text: `${output.name}${output.connected ? "" : " · nothing connected"}`,
+              selected: client && client.client_id === wall.client_id && output.name === wall.output,
+            }),
+          )
+        : [el("option", { value: "", text: client ? "It has not reported its screens" : "—", disabled: true, selected: true })]),
+    );
+    screen.disabled = !client || !screens.length;
+  };
+  player.addEventListener("change", fillScreens);
+  fillScreens();
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Where it shows" }),
+    assignmentLine(wall, shownBy),
+    shownBy.failure ? el("p", { class: "note", text: `The Players could not be read — ${shownBy.failure}.` }) : null,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: playerId, text: `Player for ${wall.name}` }), player]),
+      el("div", { class: "field" }, [el("label", { for: screenId, text: "Screen" }), screen]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Show it there",
+        "aria-label": `Show ${wall.name} there`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            player.value ? `show ${wall.name} on that screen` : `take ${wall.name} off its Player`,
+            () =>
+              player.value
+                ? api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, {
+                    method: "POST",
+                    body: JSON.stringify({ client_id: player.value, output: screen.value }),
+                  })
+                : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
+            { then: () => closeAndRefresh() },
+          ),
+      }),
+    ]),
+  ]);
+}
+
+/* The label panels captioning the wall, each with *Stop captioning*, then one to
+ * add from those the Players reported that caption nothing here. */
+function labelsSection(wall, shownBy) {
+  const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
+  const captioning = new Set((wall.labels || []).map((label) => label.label_id));
+  const offered = clients.flatMap((client) =>
+    (client.label_outputs || [])
+      .filter((label) => !captioning.has(label.label_id))
+      .map((label) => ({ client, output: label.output })),
+  );
+  const pickId = `wall-label-${wall.wall_id}`;
+  const pick = el(
+    "select",
+    { id: pickId },
+    offered.map(({ client, output }, at) => el("option", { value: String(at), text: `${output} on ${client.name}` })),
+  );
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Label panel" }),
+    labelsLine(wall),
+    ...(wall.labels || []).map((label) =>
+      el("div", { class: "row" }, [
+        el("span", { text: `${label.output} on ${label.client_name || "a client whose name could not be read"}` }),
+        el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Stop captioning",
+          "aria-label": `Stop ${label.output} captioning ${wall.name}`,
+          onclick: (event) =>
+            attempt(
+              event.currentTarget,
+              `stop ${label.output} captioning ${wall.name}`,
+              () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels/${encodeURIComponent(label.label_id)}`, { method: "DELETE" }),
+              { then: () => closeAndRefresh() },
+            ),
+        }),
+      ]),
+    ),
+    offered.length
+      ? el("div", { class: "row" }, [
+          el("div", { class: "field" }, [el("label", { for: pickId, text: `Caption ${wall.name} with` }), pick]),
+          el("button", {
+            class: "action",
+            type: "button",
+            text: "Caption it",
+            "aria-label": `Caption ${wall.name} with this label panel`,
+            onclick: (event) => {
+              const { client, output } = offered[Number(pick.value)];
+              return attempt(
+                event.currentTarget,
+                `caption ${wall.name} with ${output}`,
+                () =>
+                  api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels`, {
+                    method: "POST",
+                    body: JSON.stringify({ client_id: client.client_id, output }),
+                  }),
+                { then: () => closeAndRefresh() },
+              );
+            },
+          }),
+        ])
+      : wall.labels && wall.labels.length
+        ? null
+        : el("p", { class: "muted", text: "No Player has reported a label panel." }),
+  ]);
+}
+
+/* *Add wall…*: a name, and where it shows if that is known now. A theme is hung
+ * from the new card's Hanging picker, which asks first as every hang does. */
+function addWallOpener(shownBy) {
+  return el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Add wall…",
+    "aria-haspopup": "dialog",
+    onclick: () => {
+      const nameId = "new-wall-name";
+      const name = el("input", { id: nameId, type: "text", placeholder: "Hall" });
+      const add = el("button", {
+        class: "action",
+        type: "button",
+        text: "Add wall",
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `add the wall ${name.value.trim() || "with no name"}`,
+            () => api("/api/walls", { method: "POST", body: JSON.stringify({ name: name.value }) }),
+            { then: () => closeAndRefresh() },
+          ),
+      });
+      openPanel({
+        title: "Add a wall",
+        lead: "A wall is a place that shows art. Once it is added, choose its Player with Edit… and what it hangs with Hanging, on its card.",
+        closeLabel: "Cancel",
+        body: [el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), name])],
+        actions: [add],
+      });
+    },
+  });
 }
 
 /* The rotation and shapes panels, which share one route

@@ -3157,15 +3157,6 @@ section.offered + section.offered {
   display: none;
 }
 
-.wall-setup {
-  margin-top: var(--space-4);
-}
-
-.wall-setup > summary {
-  cursor: pointer;
-  color: var(--text-muted);
-}
-
 /* -- History: the event log --------------------------------------------------- */
 
 .history-kinds {

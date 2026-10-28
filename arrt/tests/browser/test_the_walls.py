@@ -234,9 +234,13 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    # The setup's panels, behind their disclosure, and nothing else.
-    assert ui.page.locator("section.wall details.wall-setup .panel h3").all_text_contents() == [
+    # The wall's settings, in its Edit… dialog (ruling 4 of 2026-10-27), and
+    # nothing else.
+    ui.page.get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    assert ui.page.locator("dialog.panel-dialog .panel h3").all_text_contents() == [
+        "Name",
         "Where it shows",
+        "Label panel",
         "How it rotates",
         "Shapes it shows",
         "Mat",
@@ -693,20 +697,27 @@ def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_
     assert "Player token" not in ui.text()
     assert "WALL_TOKEN" not in ui.text()
     assert "is not built yet" not in ui.text()
-    # One line inside each wall's own section, and none outside them.
-    assert ui.page.locator("section.wall p.wall-client").count() == 2
-    assert ui.page.locator("#view > p.wall-client").count() == 0
+    # Which client shows each wall is in that wall's Edit… dialog since ruling 4
+    # of 2026-10-27, not on the cards; the card says it only when it is a
+    # problem, here the study, which no Player shows.
+    assert ui.page.locator("#view p.wall-client").count() == 0
+    assert _client_line(ui, the_wall.name).count() == 1
+    study_card = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{study.name}')"))
+    assert study_card.locator(".wall-problem").count() == 1
     assert study.name in ui.text()
 
 
 def _client_line(ui, wall_name):
-    """The wall's Where-it-shows line, in its setup disclosure (ruling 4 of
-    2026-10-27 moved it off the card; the Edit… dialog will hold it)."""
+    """The wall's Where-it-shows line, in its Edit… dialog (ruling 4 of 2026-10-27
+    moved it off the card). One dialog is open at a time, so any other closes first."""
+    if ui.page.locator("dialog.panel-dialog[open]").count():
+        ui.page.keyboard.press("Escape")
+        ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
     section = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{wall_name}')"))
-    setup = section.locator("details.wall-setup")
-    if setup.get_attribute("open") is None:
-        setup.locator("summary").click()
-    return section.locator("p.wall-client")
+    section.get_by_role("button", name=f"Edit {wall_name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+    return dialog.locator("p.wall-client")
 
 
 #: Stamped when written (`_report`), so the report is young enough to speak for
@@ -753,7 +764,10 @@ def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, ser
     assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi"
     # The other wall's line is its own: an assignment painted under every wall
     # would read correctly with one wall and be wrong with two.
-    assert _client_line(ui, "Study").inner_text().startswith("No Player shows this wall.")
+    # A wall with no Player says so on its card (the page rules of 2026-10-27); its
+    # Edit… dialog's Player picker reads None rather than repeating the sentence.
+    study = ui.page.locator("section.wall", has=ui.page.locator("h2.wall-title:has-text('Study')"))
+    assert study.locator(".wall-problem").inner_text().startswith("No Player shows this wall.")
 
 
 def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui, services, settings, the_wall):

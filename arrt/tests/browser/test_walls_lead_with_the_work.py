@@ -94,6 +94,15 @@ def card(ui, wall):
     return ui.page.locator(f"section.wall[data-wall='{wall.id}']")
 
 
+def open_edit(ui, wall):
+    """The wall's Edit… dialog, which holds its settings since ruling 4 of
+    2026-10-27 (they were the card's *How {wall} is set up* disclosure)."""
+    card(ui, wall).get_by_role("button", name=f"Edit {wall.name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+    return dialog
+
+
 def open_walls(ui):
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
@@ -409,8 +418,7 @@ def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter,
 
 def test_the_mat_is_chosen_from_the_cards_setup_and_handed_back_to_the_player(ui, services, the_wall, winter):
     open_walls(ui)
-    setup = card(ui, the_wall).locator("details.wall-setup")
-    setup.locator("summary").click()
+    setup = open_edit(ui, the_wall)
     picker = setup.get_by_label(f"Mat on {the_wall.name}", exact=True)
     assert picker.locator("option").all_inner_texts() == [
         "Player's own choice",
@@ -437,16 +445,15 @@ def test_the_mat_is_chosen_from_the_cards_setup_and_handed_back_to_the_player(ui
 def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter):
     services.display.set_mat_mode(the_wall.id, "none")
     open_walls(ui)
-    card(ui, the_wall).locator("details.wall-setup summary").click()
+    setup = open_edit(ui, the_wall)
 
-    assert card(ui, the_wall).get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"
+    assert setup.get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"
 
 
 def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, winter):
     """Minutes on the screen, seconds in the store; the facts are read back from the server's build."""
     open_walls(ui)
-    setup = card(ui, the_wall).locator("details.wall-setup")
-    setup.locator("summary").click()
+    setup = open_edit(ui, the_wall)
     minutes = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
     order = setup.get_by_label(f"Order on {the_wall.name}", exact=True)
     assert order.locator("option").all_inner_texts() == ["Default", "As curated", "Shuffled"]
@@ -476,8 +483,7 @@ def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, win
 def test_a_rotation_of_no_minutes_is_refused_in_words_and_nothing_is_sent(ui, services, the_wall, winter):
     services.display.set_playback(the_wall.id, rotation_interval_seconds=931)
     open_walls(ui)
-    setup = card(ui, the_wall).locator("details.wall-setup")
-    setup.locator("summary").click()
+    setup = open_edit(ui, the_wall)
 
     setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("0")
     setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
@@ -490,8 +496,7 @@ def test_minutes_that_are_not_a_number_are_not_read_as_the_default(ui, services,
     """A number field holding "e" reports an empty value; sent, that would reset the wall to the default."""
     services.display.set_playback(the_wall.id, rotation_interval_seconds=931)
     open_walls(ui)
-    setup = card(ui, the_wall).locator("details.wall-setup")
-    setup.locator("summary").click()
+    setup = open_edit(ui, the_wall)
     field = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
 
     field.fill("")
@@ -507,18 +512,14 @@ def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, wi
     """To two places: 931 seconds is not shown as 15.516666666666667."""
     services.display.set_playback(the_wall.id, rotation_interval_seconds=seconds, shuffle=True)
     open_walls(ui)
-    card(ui, the_wall).locator("details.wall-setup summary").click()
-
-    setup = card(ui, the_wall)
+    setup = open_edit(ui, the_wall)
     assert setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).input_value() == shown
     assert setup.get_by_label(f"Order on {the_wall.name}", exact=True).input_value() == "true"
 
 
 def open_setup(ui, wall):
     open_walls(ui)
-    setup = card(ui, wall).locator("details.wall-setup")
-    setup.locator("summary").click()
-    return setup
+    return open_edit(ui, wall)
 
 
 def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, winter):
