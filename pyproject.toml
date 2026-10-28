@@ -1,6 +1,6 @@
 [project]
 name = "arrt-governance"
-version = "0.6.0"
+version = "0.7.0"
 description = "The repository's governance suite: the checks that read more than one project, plus repo-wide tool config."
 requires-python = ">=3.12"
 # `dotenv_values` reads this checkout's `.env` in the deployment-values guard,
