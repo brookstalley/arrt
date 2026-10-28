@@ -25,6 +25,7 @@ from itertools import pairwise, permutations
 from pathlib import Path
 
 import pytest
+from arrt_contract import schema as contract_schema
 from PIL import Image
 
 from arrt.library.acquisition.color import format_hex, hex_distance, parse_hex, rgb_to_lab, scale_lightness
@@ -125,7 +126,7 @@ def test_every_corpus_colour_is_one_the_feed_can_send(corpus):
     sends on its first pass, and a Player refuses a feed whose colour breaks the
     contract's pattern. The server no longer draws the mat; this is the one thing
     about a colour it still owes a Player."""
-    schema = json.loads((CORPUS_PATH.parent / "contract" / "schemas" / "manifest.v2.schema.json").read_text(encoding="utf-8"))
+    schema = contract_schema("schemas/manifest.v2.schema.json")
     pattern = re.compile(schema["$defs"]["work"]["properties"]["mat_color"]["pattern"])
 
     for record in corpus:

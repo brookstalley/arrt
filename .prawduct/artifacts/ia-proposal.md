@@ -162,6 +162,7 @@ label facts. Below it: what it is drawn from (a theme, an artist or a selection)
 how long that lasts ("until changed" or "until Friday, then back to *Modern*");
 and the next three works.
 
+*(Amended by Rulings (2026-10-27): the card below is the 2026-10-01 design, and rulings 2–6 of that day change it.)*
 The controls on each card are **Skip**, **Not this one again**, and **Change**.
 *Not this one again* asks one question, *from this theme* or *from every wall*,
 because S8 says "nothing else changed" and those are two different changes.
@@ -416,3 +417,43 @@ wall, and #370's filter will sit with them. Built on
 `feature/wall-rotation-settings` (#353).
 
 
+
+## Rulings (2026-10-27)
+
+The owner walked Walls on the newly deployed server and found it *"very jumbled and
+haphazard"*: no way to add or rename a wall; a scene search that did not say it searched the
+library; *"Drawing from All works, until changed"* with nothing to change it beside it;
+*"Assigned to Living room Pi"* reading as a detail of the theme when it is the wall's
+configuration; *Skip*, *History* and *Change* mixing buttons and a link; *Not showing*
+weighted above what it qualifies. They asked for a pass over several pages *"to really get
+a coherent design"*.
+
+The builder answered with eleven page rules and a clickable prototype of Walls, Artworks,
+Work, Themes, a theme and Settings › Players, built on the product's tokens and the owner's
+real library (a private Claude artifact, not committed: it carries the library's pictures and
+this repository is public). The owner reviewed it: *"Everything else looks great"*, with three
+changes, then *"yes to all"* to the four questions it asked (the fourth asked again with a corrected premise, ruling 6). The wording of each option is the
+builder's; the choice is the owner's.
+
+| # | Decision | Ruling |
+|---|---|---|
+| 1 | How a page reads | **The page rules**, recorded in `design-direction.md` § Component Patterns: a page opens with its name, one line of facts and a toolbar; acts on its subject live in the toolbar; a thing's settings live in its *Edit…* dialog; a fact that can be changed is its own control; lists act on a selection; an exception stays quiet until it stops the page's job. The rules the patterns already held (one filled act, a link goes and a button acts, a badge only where its value varies) are pointed to, not restated. |
+| 2 | *Not this one again* | **Remove…** *"Too cute and too similar to skip."* The act and its two choices are unchanged (from this theme, or from every wall); its name is. |
+| 3 | *Until changed* | **Gone.** *"If it's an affordance to change it, great, but if it's just telling me I could… not useful."* A wall card reads *Hanging [All works ▾]*, and the theme's name is the control that changes it (rule 1). |
+| 4 | A wall's configuration | **In the wall's *Edit…* dialog**: its name (renaming is new), the Player and screen it is on, its label panel, playback, fit and mat, and deleting it. Assigning a wall and its label move here from Settings › Clients. **Add wall…** is new, in Walls' toolbar. **No page per wall**: Walls stays one card per wall, with History a link in the card's footer. |
+| 5 | Scene | **A dialog**, opened from Walls' toolbar, whose search says *Search your library*. A live scene is one line at the top of Walls, with *Release*. |
+| 6 | A wall whose screen is off | **The last-shown work, dimmed, and the next work only when nothing has been logged**, under a line saying since when the screen is off. **Re-ruled the same day.** The builder first put the question with a wrong premise (that the server cannot know what was last shown), and the owner chose the next work. The server does know: `last_shown`, read from the showings log, which started with this release, so it is empty until a wall has shown something. Asked again with that fact, the owner chose the last-shown work, falling back to the next. This keeps ruling 3 of 2026-10-11 and covers the empty log. |
+| 7 | *Clients* | **Players**, the device at a wall. Settings › Players is a table, one row per Player (status, its screens and the walls on them, its label panel), with rename, the token and removal in the row's *Edit…*. |
+| 8 | The Work page | **No rights.** *"Good database info but not useful in the home."* Hang is its one filled act; Add to theme and Edit beside it; Archive and Match on Wikidata behind ⋯; the mat a control in its facts. |
+| 9 | Themes and a theme | **An index of themes** (a picture of each, its size, where it hangs) **and a theme page that acts on a selection**: *Remove from theme* for the selected works, a drag handle for order, name and description in *Edit…*, and one *Hang…* dialog that ticks the walls hanging it, in place of *Take down*. |
+
+**The builder departed from the prototype in one place, and the owner can overrule it.** The
+prototype drew *Delete* and *Remove* in red. `design-direction.md` § Component Patterns says
+*there is no destructive style*: removal is confirmed in words, because colour reaches the
+reader before the label. The owner approved the prototype without being asked about that rule,
+so the build keeps the rule. *(Builder's call, 2026-10-27.)*
+
+**What follows.** Three plans, one per group of pages, each its own PR: Walls first
+(`build-plan-ui-pass-walls.md`), because it is where the owner's findings are and it needs the
+two server changes (renaming a wall; a screen that calls the existing `POST /walls`); then the
+Work and Artworks pages; then Themes, a theme and Settings › Players.

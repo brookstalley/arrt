@@ -65,12 +65,17 @@ RUN uv sync --frozen --no-dev
 # installed (it needs a downloaded Chromium), so the browser suite stays where
 # it runs today.
 FROM base AS test
+# The contract package is a dev dependency at `../contract`, which from `/app`
+# is `/contract`, so it is in place before the sync that installs it. Its
+# `player-contract.md` is a symlink to the artifact, which the build of the
+# package carries, so the artifact goes where the link points.
+COPY --from=repo contract /contract
+COPY --from=repo .prawduct/artifacts/player-contract.md /.prawduct/artifacts/player-contract.md
 RUN uv sync --frozen
 COPY tests ./tests
-# Where the tests look for them: three levels above a test file, which in the
+# Where the tests look for it: three levels above a test file, which in the
 # image is the filesystem root.
 COPY --from=repo all.json /all.json
-COPY --from=repo contract /contract
 RUN uv run --frozen pytest -q -p no:cacheprovider
 
 FROM base AS app

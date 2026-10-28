@@ -1,6 +1,6 @@
 [project]
 name = "arrt"
-version = "0.6.0"
+version = "0.7.0"
 description = "Curation plane — discovery, acquisition, catalogue, and the MCP + HTTP surfaces."
 # Held by the 3tears packages Ask's agent depends on, each of which declares the
 # same floor. What holds it is stated once, in `project-preferences.md` §
@@ -127,6 +127,11 @@ dev = [
     # Declared rather than inherited, because an indirect copy disappears the
     # day the package that brings it changes its own dependencies.
     "jsonschema>=4.23",
+    # **The contract both sides are tested against**, read through the package
+    # rather than by a path of this project's own, so the version a project
+    # depends on is the contract it is tested against. Arrt owns the source in
+    # `contract/`; a Player outside this repository takes a released tag.
+    "arrt-contract",
     # The OpenRouter SDK's errors, which Ask's model raises (3tears-models over
     # langchain-openrouter): the cap test raises the one production does.
     # Declared for the reason jsonschema is, and unpinned because 3tears' pins
@@ -174,6 +179,11 @@ dev = [
 # server, catalogue and image fixtures instead of rebuilding each state through
 # the HTTP API, which a Node harness would have had to do.
 browser = ["pytest-playwright>=0.5"]
+
+[tool.uv.sources]
+# An editable path while the contract lives in this repository, so a contract
+# change and the code it changes land in one commit with every suite behind it.
+arrt-contract = { path = "../contract", editable = true }
 
 [build-system]
 requires = ["hatchling"]

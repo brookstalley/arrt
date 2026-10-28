@@ -46,7 +46,14 @@ type Playability = PlayableWork | Unplayable
 #: may record these and no others: a Get or a verdict is the Library's own act,
 #: written where it happens.
 PROGRAMMING_ACTS: Final[frozenset[EventKind]] = frozenset(
-    {EventKind.HUNG, EventKind.LEFT_THEME, EventKind.EXCLUDED, EventKind.ALLOWED}
+    {
+        EventKind.HUNG,
+        EventKind.LEFT_THEME,
+        EventKind.EXCLUDED,
+        EventKind.ALLOWED,
+        EventKind.SCENE_APPLIED,
+        EventKind.SCENE_ENDED,
+    }
 )
 
 

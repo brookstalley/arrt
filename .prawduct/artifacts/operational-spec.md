@@ -62,7 +62,7 @@ but a diff across every one of them.
 
 **The account was created at the cutover on 2026-08-11 and now exists** (uid 102).
 It had not survived the Pi's rebuild onto a fresh card — see
-`platform-and-dependency-findings.md` § That card is gone — so this table is the
+`arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md` § That card is gone — so this table is the
 record of what was made, and the specification for making it again on the next
 machine:
 
@@ -257,8 +257,8 @@ persistent fault stays legible in `systemctl status` and keeps writing to the
 journal instead of going quiet. The retry interval is also what makes the setting
 safe: without it, "retry forever" would mean retrying at 100 ms.
 
-*(Applied to the recovered 2024 loader unit on 2026-08-02, which is the plane
-running the wall today. The rule is stated for all units rather than that one,
+*(Applied first to the recovered 2024 loader unit on 2026-08-02, which retired
+with the 2024 plane at wave 5. The rule is stated for all units rather than that one,
 because the same defaults ship with every unit file and the new display and
 curation units are written against this section.)*
 
@@ -632,8 +632,8 @@ that will actually get run rather than skipped.
 | Restart one plane | Safe at any time, in either order. The other is unaffected by design |
 | Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`pictures/` is never reclaimed, by norm** (`data-model.md` § Direction, 2026-10-06): every picture fetched from outside is kept, two files each, and the store has no ceiling. Its files and bytes are on the health panel, counted at most ten minutes ago, so its growth is a figure to watch rather than a chore. **`previews/` is debris since the same day**: the startup import moves every file a row names into the store, logging `pictures.imported` with its counts; once that line reports `done`, `rm -rf previews/` loses nothing, including files no row ever named (#62). It matters here because § Risks opens with the SD card as the top operational risk |
 | **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd arrt && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |
-| Bound the journal | Install `deploy/journald.conf.d/10-bound-the-journal.conf` and restart `systemd-journald`. **`SystemMaxUse=` alone is not enough** — Raspberry Pi OS ships `Storage=volatile`, so the journal is in RAM and `RuntimeMaxUse=` is the directive that binds; the drop-in sets both. Verify with journald's own `Journal ... max` startup line, not `systemd-analyze cat-config`, which only proves the file parses — see § Risks |
-| **Decide on a TV firmware update** | Auto-update is **off** (2026-08-04) and the set is held at 1310 with 1400 offered. Nothing arrives on its own, so this recurs whenever there is a reason to update. Default answer is stay: the update is one-way and every measured fact about this set is firmware-scoped. If one is ever taken, re-run `python tv_api_check.py --image <a 4K composite>` — it is what says which behaviours moved |
+| Bound the journal | On the Pi, install `arrt-player:deploy/journald.conf.d/10-bound-the-journal.conf` and restart `systemd-journald`. **`SystemMaxUse=` alone is not enough** — Raspberry Pi OS ships `Storage=volatile`, so the journal is in RAM and `RuntimeMaxUse=` is the directive that binds; the drop-in sets both. Verify with journald's own `Journal ... max` startup line, not `systemd-analyze cat-config`, which only proves the file parses — see § Risks |
+| **Decide on a TV firmware update** | Auto-update is **off** (2026-08-04) and the set is held at 1310 with 1400 offered. Nothing arrives on its own, so this recurs whenever there is a reason to update. Default answer is stay: the update is one-way and every measured fact about this set is firmware-scoped. If one is ever taken, re-run `arrt-player:tools/tv_api_check.py --image <a 4K composite>` (`uv run python tools/tv_api_check.py` in an arrt-player checkout) — it is what says which behaviours moved |
 | **Diagnosis after a reboot** | There is none from the journal: `Storage=volatile` means it does not survive one. If the wall froze and the Pi restarted, `journalctl` holds nothing about the run that failed. **Do not reach for `Storage=persistent` here** — it was declined on 2026-08-04 and switching it reverses a recorded decision and puts logging on the card, which is the top operational risk. Diagnose from the health surface's heartbeat age or the catalogue instead; see § Risks |
 | Patch curation's CPython | `uv python upgrade 3.14`, then rebuild the venv and restart. **`apt upgrade` does not do this** — it patches the display plane's 3.13 only |
 | Re-pair the TV | Rotates the pairing token. Nothing to untrack first — `token_file` was untracked 2026-07-27 and the token now resolves under `ART_ROOT`, outside the checkout, so a `git pull` no longer deletes it and re-pairing needs no repo work at all. Just re-pair at the hardware. *(Updated 2026-08-01: this row still ordered an untracking step that is done, and carried a `git pull` hazard `security-model.md` withdrew on 2026-07-27.)* See `security-model.md` |
@@ -753,7 +753,7 @@ storage medium is no longer the open question; the backup is.
 
 **The journal is bounded explicitly, for a narrower reason than this section once
 gave.** Structured logging is the product's primary observability signal and both
-planes log continuously to it. `deploy/journald.conf.d/10-bound-the-journal.conf`
+planes log continuously to it. `arrt-player:deploy/journald.conf.d/10-bound-the-journal.conf`
 sets **256M** with 32M segments, on **both** ceilings — `SystemMaxUse=` for a
 persistent journal and `RuntimeMaxUse=` for the volatile one this machine actually
 uses — so the file is correct whichever storage mode is in force.
@@ -808,7 +808,7 @@ been taken. Two consequences worth stating:
   recommendation is to stay on 1310 unless a release note shows 1400 fixes
   something wanted. Staying costs nothing known and keeps the set on behaviour that
   has been *measured*; every figure in
-  `platform-and-dependency-findings.md` § The television was taken against 1310.
+  `arrt-player:.prawduct/artifacts/platform-and-dependency-findings.md` § The television was taken against 1310.
   The counter-argument, security patching, is weak for a LAN device behind NAT on a
   network `security-model.md` already treats as the trust boundary.
 - **What makes this recoverable in knowledge, if not in firmware**, is

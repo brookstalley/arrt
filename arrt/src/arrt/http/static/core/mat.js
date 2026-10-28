@@ -3,8 +3,8 @@
  * The server composes no canvas: each Player draws a work inside its mat, by
  * the rule in `player-contract.md` § Layout. The Work page shows the work as a
  * wall shows it, mat and all, so it draws by the same rule. `matLayout` is that
- * rule, ported line for line from the Player's `layout`
- * (`arrt-player/src/arrt_player/compose.py`), and the browser suite runs every
+ * rule, ported line for line from the Player's `layout` (`src/arrt_player/
+ * compose.py` in brookstalley/arrt-player), and the browser suite runs every
  * vector in `contract/vectors/mat-geometry.json` through it, so the two cannot
  * drift without a test saying so.
  *

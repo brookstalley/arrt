@@ -112,11 +112,18 @@ def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls
         assert f"epd-0 on Hall Pi now captions {wall.name}." in panel(ui, hall).inner_text()
         assert panel(ui, hall).locator(".client-labels tbody tr").inner_text().split("\t")[-1] == wall.name
         open_walls(ui)
-        line = wall_card(ui, wall).locator(".wall-labels")
-        assert line.inner_text().startswith("Captioned by a label on Hall Pi.")
-        for other in three_walls:
-            if other is not wall:
-                assert wall_card(ui, other).locator(".wall-labels").count() == 0
+        # In each wall's Edit… dialog (ruling 4 of 2026-10-27 moved a wall's
+        # label off the card), opened one wall at a time.
+        for each in three_walls:
+            wall_card(ui, each).get_by_role("button", name=f"Edit {each.name}…").click()
+            dialog = ui.page.locator("dialog.panel-dialog")
+            dialog.wait_for()
+            if each is wall:
+                assert dialog.locator(".wall-labels").inner_text().startswith("Captioned by a label on Hall Pi.")
+            else:
+                assert dialog.locator(".wall-labels").count() == 0
+            ui.page.keyboard.press("Escape")
+            dialog.wait_for(state="detached")
         previous = wall
 
 
@@ -139,8 +146,14 @@ def test_a_label_already_captioning_a_wall_is_refused_for_a_second(ui, services,
     [label] = services.clients.get_client_view(hall.id).label_outputs
     assert label.wall_id == living.id
     open_walls(ui)
-    assert wall_card(ui, living).locator(".wall-labels").count() == 1
-    assert wall_card(ui, study).locator(".wall-labels").count() == 0
+    # Each wall's label is in its Edit… dialog (ruling 4 of 2026-10-27).
+    for wall, expected in ((living, 1), (study, 0)):
+        wall_card(ui, wall).get_by_role("button", name=f"Edit {wall.name}…").click()
+        dialog = ui.page.locator("dialog.panel-dialog")
+        dialog.wait_for()
+        assert dialog.locator(".wall-labels").count() == expected
+        ui.page.keyboard.press("Escape")
+        dialog.wait_for(state="detached")
 
 
 def test_a_client_with_no_panel_says_it_has_nothing_to_caption_with(ui, services, hall):
@@ -165,7 +178,9 @@ def test_a_frame_two_clients_report_is_a_fault_both_pages_name(ui, services, hal
         assert fault.inner_text().startswith("▲ ")
 
     open_walls(ui)
-    line = wall_card(ui, living).locator(".wall-client")
+    # A fault is a problem, so the card says it (the page rules of 2026-10-27:
+    # where a wall shows is said on the card only when it is one).
+    line = wall_card(ui, living).locator(".wall-problem")
     assert "Hall Pi and Study Mac both report" in line.inner_text()
     # Neither shows it, whatever the wall's record still names.
     assert "Shown by" not in line.inner_text()

@@ -1,5 +1,5 @@
-# Run the two default suites, the three planes' lint, and the check that the
-# drift schedule is still alive.
+# Run the default suites, their lint, and the check that the drift schedule is
+# still alive.
 #
 # WHAT THIS IS FOR. Until this file existed, the repo had two workflows and
 # neither ran the suites that gate correctness: `api-drift.yml` runs the live
@@ -17,15 +17,12 @@
 #
 # ONE JOB PER SUITE. They are independent projects with independent interpreters
 # and no shared state, so one job would only serialise them and report a single
-# conclusion for three unrelated things. Separately, each names which plane broke.
-# The display leg joined them on 2026-08-06 with that plane's first module — it
-# had lint and nothing to test until then.
+# conclusion for unrelated things. Separately, each names which project broke.
+# Arrt Player's suites run in its own repository, brookstalley/arrt-player.
 #
-# LINT IS STILL ITS OWN JOB. That was originally because lint covered three
-# planes where tests covered two, and it now holds for a different reason: a
-# lint failure and a test failure want different fixes from different people, and
-# folding them together means a formatting nit reports as "the display plane is
-# broken" on a pull request.
+# LINT IS ITS OWN JOB: a lint failure and a test failure want different fixes
+# from different people, and folding them together means a formatting nit
+# reports as "the server is broken" on a pull request.
 
 name: Default suites
 
@@ -44,7 +41,7 @@ permissions:
 
 jobs:
   root:
-    name: "The 2024 modules"
+    name: "The governance suite"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -95,8 +92,12 @@ jobs:
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
 
-  arrt-player:
-    name: "The display plane"
+  contract:
+    name: "The contract package"
+    # Arrt owns the contract, and a released version of this package is what
+    # Arrt Player, in its own repository, pins. So the package's own suite (schemas
+    # against fixtures, the vectors against their reference statements, and the
+    # wheel carrying its data) gates every change to it, as each plane's does.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -104,90 +105,15 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - name: Run the display suite
-        working-directory: arrt-player
-        # `--ignore=tests/raster` for the same reason the curation leg carries
-        # its one: that directory `importorskip`s the `raster` group, a default
-        # `uv sync` does not install it, and the resulting collection skip is
-        # read by the guard below as a provisioning failure. The typesetting it
-        # holds is not skipped in CI — it has its own job, immediately below,
-        # which installs the group and asserts the tests really ran.
-        # `tests/test_default_suite_ci_scope.py` derives this list rather than
-        # trusting it, in both directions.
-        #
-        # Nothing here reaches a television. The set is behind an abstract base
-        # and the suite drives a double, which is why this leg can run on a
-        # GitHub runner at all.
-        run: uv run pytest tests --ignore=tests/raster -v --junitxml=results.xml
+      - name: Run the contract suite
+        working-directory: contract
+        run: uv run pytest tests -v --junitxml=results.xml
       - name: Fail if nothing actually ran
         if: always()
-        run: python3 .github/scripts/assert_tests_ran.py arrt-player/results.xml
-
-  typesetting:
-    name: "The display plane's typesetting"
-    # ITS OWN JOB BECAUSE IT NEEDS A TEXT STACK THE OTHER LEGS DO NOT. The label
-    # is typeset with Pango through PyGObject, which is an optional group: a
-    # device with a television and no e-paper panel installs neither, and the
-    # laptop this product is developed on cannot build PyGObject at all. Folding
-    # these into the display leg would mean either installing the group for every
-    # run or never running them, and the second is what "the accessibility surface
-    # is untested" looks like from the outside.
-    #
-    # Nothing here touches a panel — `omni_epd` is the *other* optional group and
-    # installs on a Raspberry Pi and nowhere else. This job renders into a memory
-    # buffer and reads the bytes back, which is why it can run on a GitHub runner.
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-      - name: Install the text stack the typesetter builds and renders against
-        # Two unrelated needs, and missing either one fails in a way that blames
-        # this code for the machine it ran on.
-        #
-        # **The build half.** PyPI carries no PyGObject wheel at all, and only
-        # Windows wheels for pycairo — `arrt-player/uv.lock` is the record — so on
-        # this runner both compile from source and want cairo's and
-        # girepository's headers. The Pi measurement recorded in
-        # `platform-and-dependency-findings.md` saw PyGObject arrive prebuilt and
-        # needed no headers; that was aarch64 and it does not transfer here,
-        # which is precisely how this job failed the first time it ever ran.
-        #
-        # **The render half.** Pango picks a face per glyph through fontconfig,
-        # and a runner with no font installed resolves every one of them to
-        # nothing — which does not fail, it renders blank. That would pass the
-        # shape assertions and fail the ink ones.
-        #
-        # The girepository dev package was renamed when PyGObject moved to
-        # girepository-2.0, and the runner image decides which name exists. It is
-        # probed rather than guessed: a wrong literal here is a red job that says
-        # nothing about the typesetter, which is the failure this whole job
-        # exists to avoid.
-        run: |
-          sudo apt-get update
-          girepository=libgirepository-2.0-dev
-          apt-cache show "$girepository" > /dev/null 2>&1 || girepository=libgirepository1.0-dev
-          echo "girepository dev package: $girepository"
-          sudo apt-get install -y --no-install-recommends \
-            "$girepository" \
-            libcairo2-dev \
-            libpango1.0-dev \
-            pkg-config \
-            fonts-dejavu-core
-      - name: Run the typesetting tests
-        working-directory: arrt-player
-        run: uv run --group raster pytest tests/raster -v --junitxml=results.xml
-      - name: Fail if nothing actually ran
-        # The guard matters more here than on any other leg. These tests skip
-        # themselves when the group is absent, so a mis-provisioned job reports a
-        # green run that executed no line of the typesetter.
-        if: always()
-        run: python3 .github/scripts/assert_tests_ran.py arrt-player/results.xml
+        run: python3 .github/scripts/assert_tests_ran.py contract/results.xml
 
   lint:
-    name: "Lint and format, all three planes"
+    name: "Lint and format, the governance suite, the server and the contract"
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -195,7 +121,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - name: The 2024 modules
+      - name: The governance suite
         run: |
           uv run ruff check .
           uv run black --check .
@@ -204,8 +130,8 @@ jobs:
         run: |
           uv run ruff check .
           uv run black --check .
-      - name: The display plane
-        working-directory: arrt-player
+      - name: The contract package
+        working-directory: contract
         run: |
           uv run ruff check .
           uv run black --check .

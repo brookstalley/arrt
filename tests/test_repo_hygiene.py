@@ -3,7 +3,7 @@
 This exists because of a real near-miss: the stock Python `.gitignore` carries an
 unanchored `MANIFEST` rule for the setuptools artifact, and on a case-insensitive
 filesystem (macOS) that also matched `arrt/src/arrt/programming/manifest/` — the
-theme-manifest builder, which is the only channel between the two planes. The
+feed builder, which publishes what every Player shows. The
 package existed on disk, imports succeeded, and tests passed; it was simply never
 committed. A fresh clone, or the Pi, would have had a missing module.
 
@@ -15,14 +15,29 @@ import pathlib
 import subprocess
 
 import pytest
+from repository import ROOT, projects
 
-#: Every tree whose absence from a fresh clone would matter. `arrt/tests`
-#: carries almost all of the curation plane's coverage, and a tree the guard does
+#: Every tree whose absence from a fresh clone would matter: each project's
+#: `src` and `tests`, its `tools` where it has one, and the root's own `tests`.
+#: A project's tests carry almost all of its coverage, and a tree the guard does
 #: not walk is exactly the tree this guard was built for: the suite stays green
-#: locally while the clone and the Pi quietly lose it. The `tools/` trees are
-#: here because the operator runs them by hand on the Pi — `arrt-player/tools` holds the
-#: only code that presses power on the television.
-SOURCE_TREES = ("arrt/src", "arrt/tests", "arrt/tools", "arrt-player/src", "arrt-player/tests", "arrt-player/tools", "tests")
+#: locally while the clone quietly loses it. The `tools/` trees are here because
+#: an operator runs them by hand.
+SOURCE_TREES = (
+    "tests",
+    *(
+        f"{project}/{tree}"
+        for project in projects()
+        for tree in ("src", "tests", "tools")
+        if tree != "tools" or (ROOT / project / "tools").is_dir()
+    ),
+)
+
+
+@pytest.fixture(autouse=True)
+def _at_the_repository_root(monkeypatch):
+    """Every path and git call below is relative to the repository root, wherever pytest was started."""
+    monkeypatch.chdir(ROOT)
 
 
 def _ignored(paths: list[pathlib.Path]) -> list[str]:
@@ -88,24 +103,16 @@ def test_the_tv_token_is_not_tracked():
     assert not offenders, f"credential files must never be tracked: {offenders}"
 
 
-#: The loader unit, whose environment dependency is otherwise invisible.
-LOADER_UNIT = pathlib.Path("deploy/samsung-frame-art-loader.service")
-
-#: The two units that actually run the wall, and the restart policy each one is
-#: supposed to have. **They are not the same policy and a shared assertion would
-#: be wrong**: the display plane's downtime is visible on the wall and it should
-#: come back from anything, while a clean exit from the curation plane is somebody
-#: stopping it on purpose and it should stay stopped — the wall goes on rotating
-#: the last manifest either way.
+#: The systemd unit for running the server outside its container, and the
+#: restart policy it is supposed to have.
+#: A clean exit from the server is somebody stopping it on purpose and it should
+#: stay stopped; the walls go on rotating the feed they last pulled either way.
+#: Arrt Player's unit is guarded in its own repository, where its own restart
+#: policy (`always`) is pinned.
 #:
-#: These carry every property the loader-unit guards below exist to protect, and
-#: until this entry existed **none of them was checked on the units that run in
-#: production**. The guarded unit is the 2024 one: retired, never installed, and
-#: deleted at the legacy retirement — so the guard would have left with the code
-#: it guards, having never once covered the units it matters for. That stopped
-#: being hypothetical on 2026-08-11, when both of these were enabled on the Pi.
+#: A mapping, not one path, because the properties below are each unit's own and a
+#: second unit joins them by being listed here.
 LIVE_UNITS = {
-    pathlib.Path("deploy/display.service"): "always",
     pathlib.Path("deploy/curation.service"): "on-failure",
 }
 
@@ -122,53 +129,17 @@ def _directives_of(unit: pathlib.Path) -> dict[str, list[str]]:
     return directives
 
 
-def test_the_loader_unit_declares_its_environment_file():
-    """`config.py` raises at import without five deployment values, and the unit is
-    what has to supply them.
-
-    Declared without a `-` prefix on purpose: systemd treats a missing
-    `EnvironmentFile=` as fatal and names the path it wanted, which is a far better
-    failure than the import-time crash that a silently absent file produces.
-    Prefixing it with `-` would restore exactly the silence this guard exists to
-    prevent, so the assertion covers the prefix and not merely the directive.
-    """
-    values = _directives_of(LOADER_UNIT).get("EnvironmentFile", [])
-    assert values, "the loader unit must declare EnvironmentFile= — config.py requires five variables at import"
-    assert not any(v.startswith("-") for v in values), f"EnvironmentFile= must not be optional (`-` prefix): {values}"
-
-
-def test_the_loader_unit_cannot_silently_stop_retrying():
-    """systemd's stock rate limit gives up after 5 starts in 10s.
-
-    With `Restart=always` and no override, an import-time failure burns that whole
-    allowance in about half a second and parks the unit in `failed` — a dark
-    television and a service that stopped trying, which is the opposite of the
-    product's requirement that an unattended failure be visible without inspecting
-    the wall. Retrying on a real interval, forever, keeps the fault legible in the
-    journal and in `systemctl status`.
-    """
-    directives = _directives_of(LOADER_UNIT)
-    assert directives.get("Restart") == ["always"], "the loader is meant to come back from anything"
-    assert directives.get("StartLimitIntervalSec") == [
-        "0"
-    ], "start rate limiting must be disabled, or a crash loop ends in a silent permanent `failed`"
-
-    restart_sec = directives.get("RestartSec", [])
-    assert restart_sec, "RestartSec= must be set; the 100ms default is what exhausts the burst allowance"
-    assert int(restart_sec[0]) >= 5, f"RestartSec= must leave a real gap between attempts, got {restart_sec[0]}"
-
-
 @pytest.mark.parametrize("unit", sorted(LIVE_UNITS), ids=lambda p: p.stem)
 def test_a_live_unit_declares_its_environment_file(unit: pathlib.Path):
-    """Same requirement as the loader unit, on the units that actually run.
+    """A unit that runs declares its environment file, un-prefixed.
 
-    `config.py` raises at import without its deployment values, and an
+    The server's settings refuse to start without their deployment values, and an
     `EnvironmentFile=` the unit does not declare — or declares with a `-` prefix,
     making it optional — turns a missing file into an import-time crash nobody
     connects back to a file that was never placed.
     """
     values = _directives_of(unit).get("EnvironmentFile", [])
-    assert values, f"{unit.name} must declare EnvironmentFile=; both planes require deployment values at import"
+    assert values, f"{unit.name} must declare EnvironmentFile=; the server requires deployment values at import"
     assert not any(v.startswith("-") for v in values), f"{unit.name}: EnvironmentFile= must not be optional: {values}"
 
 
@@ -179,12 +150,10 @@ def test_a_live_unit_cannot_silently_stop_retrying(unit: pathlib.Path):
     Five starts in ten seconds is exhausted in about half a second by a fault that
     reproduces on every start, leaving `failed` permanently after five log lines.
     That is the failure the product's requirement about unattended faults being
-    visible exists to prevent, and it applies to whichever plane hits it.
+    visible exists to prevent.
     """
     directives = _directives_of(unit)
-    assert directives.get("Restart") == [
-        LIVE_UNITS[unit]
-    ], f"{unit.name}: restart policy is deliberate and differs per plane — see LIVE_UNITS for why"
+    assert directives.get("Restart") == [LIVE_UNITS[unit]], f"{unit.name}: restart policy is deliberate — see LIVE_UNITS for why"
     assert directives.get("StartLimitIntervalSec") == [
         "0"
     ], f"{unit.name}: start rate limiting must be disabled, or a crash loop ends in a silent permanent `failed`"
@@ -209,8 +178,8 @@ def test_the_curation_unit_treats_a_clean_stop_as_success():
     correct in every place anybody reads — and the fault it reintroduces appears
     only on a real stop against a real machine.
 
-    Only the curation unit: `display.service` runs `Restart=always`, where the
-    exit status does not decide whether it comes back.
+    A unit under `Restart=always` would not need it: there, the exit status does
+    not decide whether it comes back.
     """
     unit = pathlib.Path("deploy/curation.service")
     assert LIVE_UNITS[unit] == "on-failure", "this test's premise is the on-failure policy pinned above"
@@ -252,20 +221,3 @@ def test_a_live_unit_names_its_interpreter_absolutely(unit: pathlib.Path):
     for value in exec_starts:
         assert value.startswith("/"), f"{unit.name}: ExecStart= must be absolute, got {value!r}"
         assert not value.startswith("/usr/bin/env "), f"{unit.name}: ExecStart= must not resolve through env: {value!r}"
-
-
-def test_the_display_unit_gives_the_television_time_to_let_go():
-    """A SIGKILL inside a TV connection leaves the set holding a half-open channel.
-
-    A connection attempt is roughly 15s of blocking construction plus the 30s
-    art-channel ceiling, and a SIGTERM landing inside one is honoured when that
-    pass ends rather than during it — measured at ~22s against a sleeping set,
-    with ~45s the worst case. Below that the unit starts SIGKILLing live
-    connections, and the set refuses the next one for minutes. This is a floor
-    against *shortening* it; what ships is systemd's 90s default, which clears it.
-    """
-    directives = _directives_of(pathlib.Path("deploy/display.service"))
-    timeout = directives.get("TimeoutStopSec", [])
-    assert timeout, "display.service must state TimeoutStopSec= rather than inherit it silently"
-    assert int(timeout[0]) >= 45, f"TimeoutStopSec= must clear the ~45s worst-case television pass, got {timeout[0]}"
-    assert directives.get("KillSignal") == ["SIGTERM"], "the plane closes the television on SIGTERM; nothing else does"

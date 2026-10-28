@@ -1,4 +1,4 @@
-"""Where code and tests live: the root only shrinks, and every test sits in its plane's `tests/`.
+"""Where code and tests live: no code at the root, and every test sits in its plane's `tests/`.
 
 Two preferences in `project-preferences.md` § Testing and § File organization,
 which went two Norm Health sweeps with no mechanism. Both are structural, so both
@@ -8,38 +8,19 @@ get a test rather than a reviewer's memory.
 import pathlib
 import subprocess
 
+from repository import projects
+
 _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-#: The root plane's modules on 2026-10-05, when this guard was written. The rule is
-#: that nothing new is added at the root: new code goes in a plane package. So the
-#: set may lose members (the 2024 modules leave at wave 5, and the hand-run tools
-#: move to `arrt-player/tools` before the extraction) and may never gain one. A module
-#: that leaves is deleted from this list in the same commit, which is the only edit
-#: this list should ever see.
-_ROOT_MODULES = frozenset(
-    {
-        "ai.py",
-        "art.py",
-        "config.py",
-        "display.py",
-        "image_utils.py",
-        "local.py",
-        "metadata.py",
-        "panel_check.py",
-        "remote_test.py",
-        "source_utils.py",
-        "spi_test.py",
-        "tv_api_check.py",
-        "tv_delete.py",
-        "tvart.py",
-        "urls_to_json.py",
-    }
-)
+#: The root holds no modules. Code goes in a plane package or a plane's `tools/`;
+#: the root is the governance suite, its CI scripts and tool configuration.
+_ROOT_MODULES: frozenset[str] = frozenset()
 
-#: Each plane's test tree. `testpaths = ["tests"]` in every plane's `pyproject.toml`
-#: means a `test_*.py` anywhere else is never collected, so it would look like a
-#: test and guard nothing.
-_TEST_TREES = ("tests/", "arrt/tests/", "arrt-player/tests/")
+
+#: Each project's test tree and the root's, derived from the projects present.
+#: `testpaths = ["tests"]` in every `pyproject.toml` means a `test_*.py` anywhere
+#: else is never collected, so it would look like a test and guard nothing.
+_TEST_TREES = ("tests/", *(f"{project}/tests/" for project in projects()))
 
 
 def _tracked() -> list[str]:
@@ -54,10 +35,9 @@ def _tracked() -> list[str]:
 def test_nothing_new_is_added_at_the_root():
     present = {name for name in _tracked() if "/" not in name and name.endswith(".py")}
 
-    assert present, "no root modules found; has the layout moved?"
     assert present <= _ROOT_MODULES, (
         f"new modules at the repository root: {sorted(present - _ROOT_MODULES)}. "
-        "New code goes in a plane package (arrt/src, arrt-player/src, or a plane's tools/)."
+        "New code goes in a project's package (its src/) or its tools/."
     )
 
 

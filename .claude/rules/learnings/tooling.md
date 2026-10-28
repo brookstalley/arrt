@@ -2,7 +2,7 @@
 paths:
   - "pyproject.toml"
   - "arrt/pyproject.toml"
-  - "arrt-player/pyproject.toml"
+  - "contract/pyproject.toml"
   - "tests/preferences/**"
 ---
 # Learnings — tooling

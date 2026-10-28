@@ -147,10 +147,12 @@ def test_a_wall_with_no_theme_names_that_wall_and_carries_the_control_that_fixes
 
     assert _reasons_named(ui) == ["no theme hung"]
     assert f"Nothing is hanging on {the_wall.name}." in ui.text()
-    # The control, named for this wall in its label as well as on its button.
-    assert ui.page.locator("label", has_text=f"Theme for {the_wall.name}").count() == 1
-    assert ui.page.locator("button", has_text=f"Hang on {the_wall.name}").count() == 1
+    # The control is the Hanging fact itself (ruling 3 of 2026-10-27: a fact that
+    # can be changed is its own control), named for this wall in its label.
+    # There is no separate Hang button to press after choosing.
+    assert ui.page.locator("label", has_text=f"Hanging on {the_wall.name}").count() == 1
     assert ui.page.locator(f"select#hang-{the_wall.id}").count() == 1
+    assert ui.page.locator("button", has_text="Hang on").count() == 0
 
 
 def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, the_wall):
@@ -166,6 +168,9 @@ def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, th
     assert "No theme has been created yet" in ui.text()
     assert ui.page.locator("a", has_text="Create a theme").count() == 1
     assert ui.page.locator("select").count() == 0
+    # Nor does the reason point at a picker that is not there.
+    assert f"Nothing is hanging on {the_wall.name}." in ui.text()
+    assert "Choose a theme under Hanging" not in ui.text()
 
 
 # -- reason two: an empty theme -----------------------------------------------
@@ -216,20 +221,26 @@ def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, s
 
 
 def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_theme, the_wall):
-    """The panels are not withheld because the wall is empty.
+    """The setup's panels are not withheld because the wall is empty.
 
-    A section that appeared only when there was something to report would train a
-    reader to take its absence for "everything is fine" — which is the same rule
-    the exclusions panel is never omitted under.
+    The exclusions are no longer one of them: the owner's page rules of
+    2026-10-27 (`design-direction.md`, "How a page reads") keep an exception
+    quiet until it blocks, so the works a wall cannot show are a link at the
+    card's foot, there only when there are some (`test_the_card_lists_no_theme_inventory`
+    and the footer tests hold that).
     """
     services.display.activate_theme(a_theme.id, wall_id=the_wall.id)
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    # The setup's panels, behind their disclosure, and nothing else.
-    assert ui.page.locator("section.wall details.wall-setup .panel h3").all_text_contents() == [
-        "Not showing (0)",
+    # The wall's settings, in its Edit… dialog (ruling 4 of 2026-10-27), and
+    # nothing else.
+    ui.page.get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    assert ui.page.locator("dialog.panel-dialog .panel h3").all_text_contents() == [
+        "Name",
+        "Where it shows",
+        "Label panel",
         "How it rotates",
         "Shapes it shows",
         "Mat",
@@ -369,7 +380,9 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_full
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    ui.page.click(f"button:has-text('Hang on {the_wall.name}')")
+    # Choosing in the Hanging picker is the act (ruling 3 of 2026-10-27: it was
+    # a picker and a "Hang on …" button); the question still comes first.
+    ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
     ui.page.wait_for_selector("dialog.confirm[open]")
 
     assert ui.page.inner_text("dialog.confirm .confirm-title") == f"Hang {a_full_theme.name} on {the_wall.name}?"
@@ -385,13 +398,17 @@ def test_declining_the_question_leaves_the_wall_exactly_as_it_was(ui, services, 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    ui.page.click(f"button:has-text('Hang on {the_wall.name}')")
+    # Choosing in the Hanging picker is the act (ruling 3 of 2026-10-27: it was
+    # a picker and a "Hang on …" button); the question still comes first.
+    ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert services.display.hanging_on(the_wall.id) is None
     assert _reasons_named(ui) == ["no theme hung"]
+    # The picker is put back, so it does not claim a theme the wall does not hang.
+    assert ui.page.input_value(f"select#hang-{the_wall.id}") == ""
 
 
 def test_confirming_hangs_it_and_the_wall_repaints_from_what_was_published(ui, services, a_full_theme, the_wall):
@@ -403,13 +420,22 @@ def test_confirming_hangs_it_and_the_wall_repaints_from_what_was_published(ui, s
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    ui.page.click(f"button:has-text('Hang on {the_wall.name}')")
+    # Choosing in the Hanging picker is the act (ruling 3 of 2026-10-27: it was
+    # a picker and a "Hang on …" button); the question still comes first.
+    ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
-    ui.page.wait_for_selector(f".wall-source:has-text('Drawing from {a_full_theme.name}, until changed.')")
+    # The card is drawn again from a fresh read: its picker names what now hangs
+    # ("until changed" is gone, ruling 3 of 2026-10-27), and with every work of the
+    # theme on the wall there is no count of works it cannot show.
+    # Waited for by the "Changes" fact, which only a wall with a published theme
+    # has: the picker's own value is set the moment it is chosen, before the
+    # question is even answered, so it cannot tell a repaint from a choice.
+    ui.page.wait_for_selector("section.wall .wall-hanging dt:text-is('Changes')")
+    assert ui.page.input_value(f"select#hang-{the_wall.id}") == a_full_theme.id
 
     assert services.display.hanging_on(the_wall.id).id == a_full_theme.id
-    assert "All 1 work in this theme is on the wall." in ui.text()
+    assert ui.page.locator("section.wall button.wall-kept").count() == 0
 
 
 # -- skip ----------------------------------------------------------------------
@@ -472,10 +498,12 @@ def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     assert _reasons_named(ui) == []
-    # The panel that does answer it, naming the work and what it is missing.
-    ui.page.click(f"summary:has-text('How {the_wall.name} is set up')")
-    assert "Not showing (1)" in ui.text()
-    assert "No mat colour has been chosen" in ui.text()
+    # The panel that does answer it, naming the work and what it is missing,
+    # opened from the card's foot (the page rules of 2026-10-27 put the works a
+    # wall cannot show there, as a count that opens the list).
+    ui.page.click("section.wall button.wall-kept")
+    panel = ui.page.locator("dialog.panel-dialog")
+    assert "No mat colour has been chosen" in panel.inner_text()
     assert _skip(ui, the_wall.name).count() == 0
 
 
@@ -557,7 +585,9 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
 
     assert ui.page.locator("section.wall").count() == 1
     assert ui.page.locator("h2.wall-title").all_inner_texts() == [the_wall.name]
-    assert ui.page.locator("button", has_text="Hang on ").all_inner_texts() == [f"Hang on {the_wall.name}"]
+    # The control naming its own wall is the Hanging picker's label (ruling 3 of
+    # 2026-10-27; it was a "Hang on …" button).
+    assert ui.page.locator("label", has_text="Hanging on ").all_text_contents() == [f"Hanging on {the_wall.name}"]
 
     services.display.add_wall(name="Study")
     # Reloaded rather than navigated to: the address is already `#walls`, and a
@@ -568,9 +598,9 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
 
     assert ui.page.locator("section.wall").count() == 2
     assert ui.page.locator("h2.wall-title").all_inner_texts() == ["Study", the_wall.name]
-    assert sorted(ui.page.locator("button", has_text="Hang on ").all_inner_texts()) == [
-        "Hang on Study",
-        f"Hang on {the_wall.name}",
+    assert sorted(ui.page.locator("label", has_text="Hanging on ").all_text_contents()) == [
+        "Hanging on Study",
+        f"Hanging on {the_wall.name}",
     ]
 
 
@@ -587,8 +617,10 @@ def test_each_walls_controls_belong_to_that_walls_own_section(ui, services, a_th
     ui.page.wait_for_selector("section.wall")
 
     study = ui.page.locator("section.wall", has_text="Study")
-    assert study.locator("button", has_text="Hang on ").all_inner_texts() == ["Hang on Study"]
-    assert study.locator("label").all_inner_texts() == ["Theme for Study"]
+    # The Hanging picker and its label, inside Study's own card (ruling 3 of
+    # 2026-10-27 made the picker the control; it was a picker and a Hang button).
+    assert study.locator("label", has_text="Hanging on ").all_text_contents() == ["Hanging on Study"]
+    assert study.locator("select.fact-picker").count() == 1
 
 
 # -- the focus rule ------------------------------------------------------------
@@ -657,7 +689,7 @@ def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     study = services.display.add_wall(name="Study")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     assert ui.page.locator("section.wall").count() == 2
     assert ui.page.locator(".player-token").count() == 0
@@ -665,15 +697,27 @@ def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_
     assert "Player token" not in ui.text()
     assert "WALL_TOKEN" not in ui.text()
     assert "is not built yet" not in ui.text()
-    # One line inside each wall's own section, and none outside them.
-    assert ui.page.locator("section.wall p.wall-client").count() == 2
-    assert ui.page.locator("#view > p.wall-client").count() == 0
+    # Which client shows each wall is in that wall's Edit… dialog since ruling 4
+    # of 2026-10-27, not on the cards; the card says it only when it is a
+    # problem, here the study, which no Player shows.
+    assert ui.page.locator("#view p.wall-client").count() == 0
+    assert _client_line(ui, the_wall.name).count() == 1
+    study_card = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{study.name}')"))
+    assert study_card.locator(".wall-problem").count() == 1
     assert study.name in ui.text()
 
 
 def _client_line(ui, wall_name):
+    """The wall's Where-it-shows line, in its Edit… dialog (ruling 4 of 2026-10-27
+    moved it off the card). One dialog is open at a time, so any other closes first."""
+    if ui.page.locator("dialog.panel-dialog[open]").count():
+        ui.page.keyboard.press("Escape")
+        ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
     section = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{wall_name}')"))
-    return section.locator("p.wall-client")
+    section.get_by_role("button", name=f"Edit {wall_name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+    return dialog.locator("p.wall-client")
 
 
 #: Stamped when written (`_report`), so the report is young enough to speak for
@@ -712,15 +756,18 @@ def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, ser
     # The output by its port name is engineering detail, named with `?debug`
     # (the owner's ruling 1 of 2026-10-11); without it the line ends at the client.
     ui.open("?debug#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-1"
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
     assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi"
     # The other wall's line is its own: an assignment painted under every wall
     # would read correctly with one wall and be wrong with two.
-    assert _client_line(ui, "Study").inner_text().startswith("No client shows this wall.")
+    # A wall with no Player says so on its card (the page rules of 2026-10-27); its
+    # Edit… dialog's Player picker reads None rather than repeating the sentence.
+    study = ui.page.locator("section.wall", has=ui.page.locator("h2.wall-title:has-text('Study')"))
+    assert study.locator(".wall-problem").inner_text().startswith("No Player shows this wall.")
 
 
 def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui, services, settings, the_wall):
@@ -735,7 +782,7 @@ def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui,
     study = services.display.add_wall(name="Study")
     services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-1")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     dark = _client_line(ui, the_wall.name).inner_text()
     assert dark == "Assigned to Hall Pi, where no screen is detected (off or unplugged)"
@@ -769,7 +816,7 @@ def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, s
         _report(settings, hall, document)
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     line = _client_line(ui, the_wall.name).inner_text()
     assert line == f"Assigned to Hall Pi. {words}"
@@ -780,10 +827,12 @@ def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, s
 def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_assigned(ui, services, the_wall):
     services.clients.add_client(name="Hall Pi")
     ui.open("#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
-    line = _client_line(ui, the_wall.name)
-    assert line.inner_text() == "No client shows this wall. Assign it in Settings › Clients"
+    # Said on the card itself, because it is a problem (the page rules of
+    # 2026-10-27), and in the ruled word, Player.
+    line = ui.page.locator("section.wall p.wall-problem")
+    assert line.inner_text() == "No Player shows this wall. Assign it in Settings › Clients"
     link = line.get_by_role("link", name="Assign it in Settings › Clients")
     assert link.get_attribute("href") == "#clients"
 
@@ -803,7 +852,7 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     ui.serve("**/api/clients", (503, {"error": "the client listing is down"}))
     # Which output is engineering detail, said with `?debug` (ruling 1 of 2026-10-11).
     ui.open("?debug#walls")
-    ui.page.wait_for_selector("section.wall p.wall-client")
+    ui.page.wait_for_selector("section.wall .wall-controls")
 
     line = _client_line(ui, the_wall.name).inner_text()
     # The listing carries the client's report as well as its name, so without it

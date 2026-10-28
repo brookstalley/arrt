@@ -1,9 +1,8 @@
 """How the static import guards read this repository's source.
 
-Shared by `test_plane_isolation.py` and `test_seam_imports.py`, so the two guards
-cannot disagree about what counts as an import: a relative import, a `from x
-import y` that names a submodule, and an import spelled as a string all read the
-same way in both.
+Behind the seam guard (`test_seam_imports.py`); Arrt Player's plane-isolation
+guard carries a copy of it. A relative import, a `from x import y` that names a
+submodule, and an import spelled as a string all count as imports.
 """
 
 import ast

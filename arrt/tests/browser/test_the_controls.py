@@ -26,8 +26,11 @@ ROUTES = ux_walk.declared_routes(ux_walk.APP_JS.read_text(encoding="utf-8"))
 PAGES = sorted(key for key, route in ROUTES.items() if route.page)
 
 #: The pages whose suite library draws a row of acts after something, so the
-#: spacing check has a row to measure there.
-PAGES_WITH_ROWS = {"discover", "walls"}
+#: spacing check has a row to measure there. Walls left on 2026-10-27: each wall
+#: is now a card laid out as a flex column (the page rules of that day), whose
+#: gap spaces every row in it, which the check below skips by design and
+#: `test_a_wall_cards_rows_are_a_step_apart` measures instead.
+PAGES_WITH_ROWS = {"discover"}
 
 MEASURE = """(probeValue) => {
   const probe = document.createElement('div');
@@ -80,6 +83,24 @@ def test_a_row_of_acts_sits_a_step_below_what_precedes_it(ui, key):
     if key in PAGES_WITH_ROWS:
         assert gaps, f"{key} drew no row of acts after anything"
     assert not flush, f"rows closer than one step to what precedes them: {flush}"
+
+
+def test_a_wall_cards_rows_are_a_step_apart(ui):
+    """A wall's card spaces its parts by its column's gap: at least one step, so
+    a row of acts in it is never flush with what precedes it."""
+    _settled(ui, "walls")
+    step = ui.page.evaluate(MEASURE, "var(--space-4)")
+    gap = ui.page.evaluate("() => parseFloat(getComputedStyle(document.querySelector('section.wall')).rowGap)")
+    display = ui.page.evaluate("() => getComputedStyle(document.querySelector('section.wall')).display")
+    assert display == "flex"
+    assert gap >= step - 0.5, f"a wall card's rows are {gap}px apart, under one step ({step}px)"
+    # And spaced once: the row rule's margin is not added on top of the gap
+    # (`app.css`: a flex column of rows is left to its gap).
+    margins = ui.page.evaluate(
+        "() => [...document.querySelectorAll('section.wall > .row')].map((n) => getComputedStyle(n).marginTop)"
+    )
+    assert margins, "the suite's wall drew no row to measure"
+    assert all(margin == "0px" for margin in margins), margins
 
 
 def test_an_artist_page_spaces_its_wikidata_line_and_reactions_alike(ui, service):

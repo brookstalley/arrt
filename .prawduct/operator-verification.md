@@ -10,6 +10,75 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Walls, rebuilt to the page rules — added 2026-10-27
+
+**`build-plan-ui-pass-walls.md` chunk 05.** On the NAS, once the release with this
+branch is deployed. Open Walls beside the wall.
+
+- **The card in each state you can reach:** showing art (*Showing* badge), screen
+  off (*Screen off*, the last-shown work dimmed under "Off since …"), and, if you
+  unplug or turn the set to a programme, the others. Say if any badge word reads
+  as plumbing.
+- **Skip and Remove….** Skip moves the wall on. Remove… asks from this theme or
+  from every wall; check the work leaves as said and stays in the library.
+- **Hanging.** Choose another theme in the picker, answer the question, and see
+  the wall change; decline it once and see the picker go back.
+- **Edit….** Rename the wall. Then *Add wall…* "Hall", put it on HDMI 2 of Living
+  room Pi in its Edit…, hang a theme on it, and see it reach the Player.
+- **Scene….** Assemble one, apply it, see the line above the cards and the
+  *Scene* badge on the wall once it reaches it, and Release.
+- **Older pending steps below that name *Change*, *How {wall} is set up* or its
+  *Mat* and *Shapes it shows*:** those controls are now the card's Hanging picker
+  and its *Edit…* dialog; do the step there.
+- **The words and the weight.** Judge the page against the prototype: does the
+  Edit… dialog hold too much, and does anything you use daily now take a step it
+  did not?
+
+### The wall runs from brookstalley/arrt-player — added 2026-10-27
+
+**`build-plan-wave-5-split.md` chunk 06.** The Pi's checkout becomes a clone of
+arrt-player, following that repository's runbook
+(`.prawduct/runbooks/moving-the-pi-player-to-a-new-revision.md` § The first
+time: off the monorepo checkout), and `display.service` names `/opt/arrt-player`.
+The old checkout stays in place as the way back until you retire it, and is not
+pulled: this repository's `develop` no longer carries `deploy/display.service`
+or `arrt-player/`. Check:
+
+- **The wall resumes from its cache.** The unit is active, and the journal
+  shows `client.started` and each wall's `pull.adopted` with no re-upload storm.
+- **Its heartbeat reaches Arrt.** Settings › Clients shows the client reporting
+  within a minute.
+- **A republish reaches it.** Hang a different theme (or add a work to the hung
+  one) and see the wall's next `pull.adopted`.
+
+The homelab repository's references to the old checkout are yours to update.
+
+### Scenes on the two walls — added 2026-10-26
+
+**`build-plan-wave-4f-scenes.md` chunk 03.** Both walls up, the Frame in art
+mode. On Walls, the *Scene* section above the cards.
+
+- **Together.** Pick a work for the HDMI wall and one for the Frame. Watch
+  the Pi's journal log the Frame's upload before you press *Apply*. Apply a
+  5-minute preview and time the gap between the two walls changing. Under two
+  seconds is expected; near ten means the Frame was not staged, which is a
+  defect in the server, not the Player.
+- **Waiting.** Switch the Frame to a TV programme, apply a scene, and see
+  Walls say "Hall is waiting for the television to be free" (your wall's
+  name). Switch back to art mode and see it reach the scene. This is the
+  first time `in_use` is read off the real set; a wrong reading is #309's
+  chunk 05 finding.
+- **The server gone.** Apply a preview, stop the server (`docker stop` on
+  the NAS), and see both walls return to their schedules on their own when
+  it ends. Start the server and see Walls agree.
+- **Hold and Release.** Hold, then Release, and see both walls resume where
+  their schedules are.
+- **The words.** "Preparing the walls", "Scene until {time}", "Scene, held
+  until released", "{wall} is showing it", "{wall} cannot show it, so it
+  shows its schedule." (keep a picked work off every wall to see it), and a card's "A scene shows {work}
+  here until {time}. Skip moves the schedule beneath it, …". Say if any reads
+  as plumbing, or if the card's sentence is too long beside *Skip*.
+
 ### The mat control — added 2026-10-16
 
 **`build-plan-ui-mat-selection-labels.md` chunk 03, #91.** Open a work you
@@ -376,8 +445,9 @@ browser suite only; not yet deployed. Check, on the NAS after deploy:
 **`build-plan-rename-arrt-player.md`.** Postarr is now Arrt Player: the project
 is `arrt-player/` and the module `arrt_player`. Until the Pi takes this, its
 `display.service` names a directory and module that no longer exist after a
-pull. The steps and the way back are in `deploy/README.md` § The Player renamed
-Arrt Player. Check: the unit is active, the journal's logger names start
+pull. The steps and the way back are in Arrt Player's `deploy/README.md`
+§ The Player renamed Arrt Player (brookstalley/arrt-player). The walk at the top
+of this queue, moving the Pi onto a clone of that repository, covers this one. Check: the unit is active, the journal's logger names start
 `arrt_player.`, and the next rotation logs `label.drawn` on `epd-0`.
 
 **Entries below this one are dated and keep the paths of their day.** Read
@@ -2707,6 +2777,8 @@ with the below-floor work pictured and marked `is_on_offer: false`.
 
 ### The loader unit starts clean with its declared `EnvironmentFile=` — added 2026-08-02
 
+**Closed 2026-10-26 (wave 5), unwalked.** The unit this checks, `samsung-frame-art-loader.service`, was the 2024 loader's, never ran in production after the cutover, and was deleted with the 2024 modules; the units that run (`display.service`, `curation.service`) are held to the same `EnvironmentFile=` rule by `tests/test_repo_hygiene.py`. The steps below are the record, not an instruction.
+
 > **DISCHARGED 2026-08-11, by the cutover rather than by running this item.** The
 > question this was kept for — does an un-prefixed `EnvironmentFile=` start clean
 > on the real machine — is answered, on the units that matter. Both
@@ -2759,6 +2831,8 @@ the checkout's absolute paths are machine-specific and already flagged as such i
 `deploy/README.md`.
 
 ### The samsungtvws move, against the live television — added 2026-08-01
+
+**Closed 2026-10-26 (wave 5).** The half still owing below asked whether `pip install -r requirements.txt` installs on the Pi. That install path retired with the 2024 plane; the Player installs with uv from its own lockfile, which has run on the Pi since 2026-08-07 (`deploy/README.md`). The television half was answered on 2026-08-06. To re-run the check today, from the Player's checkout: `uv run python tools/tv_api_check.py --image <a JPEG>`. The commands below are the record.
 
 **Status: the television half is answered; the Pi half is not.** The 2026-08-06
 run reached the set and passed, so what the library does against real hardware is

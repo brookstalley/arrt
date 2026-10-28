@@ -8,15 +8,16 @@ is what `survey_walls` reads.
 
 import json
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
+from arrt_contract import root
+from arrt_contract import schema as contract_schema
 
 from arrt.programming.display_state import ScreenState, display_state_of
 from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.heartbeat import STALE_AFTER_SECONDS
 
-CONTRACT = Path(__file__).resolve().parents[3] / "contract" / "fixtures" / "heartbeat.v1"
+CONTRACT = root() / "fixtures" / "heartbeat.v1"
 NOW = datetime(2026, 10, 8, 20, 0, tzinfo=UTC)
 
 
@@ -177,7 +178,7 @@ def test_the_server_knows_exactly_the_states_the_schema_names():
     The server's own two (unassigned, silent) are the only states it has that a
     controller cannot report.
     """
-    schema = json.loads((Path(__file__).parents[3] / "contract" / "schemas" / "heartbeat.v1.schema.json").read_text())
+    schema = contract_schema("schemas/heartbeat.v1.schema.json")
     named = set(schema["properties"]["display_state"]["properties"]["state"]["enum"])
 
     assert set(heartbeat.REPORTED_DISPLAY_STATES) == named
@@ -189,6 +190,6 @@ def test_the_server_knows_exactly_the_states_the_schema_names():
 
 def test_the_label_document_names_exactly_the_servers_states():
     """The label schema's states are the server's seven, so a label and Walls name the same states."""
-    schema = json.loads((Path(__file__).parents[3] / "contract" / "schemas" / "label.v1.schema.json").read_text())
+    schema = contract_schema("schemas/label.v1.schema.json")
 
     assert set(schema["properties"]["display_state"]["properties"]["state"]["enum"]) == {state.value for state in ScreenState}

@@ -6,15 +6,15 @@ checks whether anyone read it, so curation being absent changes nothing about th
 wall. Curation reading a stale one, or none at all, is likewise not an error — it
 is an observation, and this module's job is to report it as one.
 
-**Nothing here decides whether the display plane is healthy.** It reports what was
+**Nothing here decides whether a Player is healthy.** It reports what was
 found and how old it is, in absolute terms. A green dot is a verdict, and a
 verdict computed from a file that may simply be young is how a health surface
 starts lying: the reader is told the age and decides.
 
-The writer is the display plane's — `arrt-player/src/arrt_player/heartbeat.py`, which
-declares the same two names and is held to them by
-`tests/preferences/test_heartbeat_contract.py`, since neither plane can import
-the other to check. A heartbeat that has never been written is still an ordinary
+The writer is Arrt Player's — `src/arrt_player/heartbeat.py` in
+brookstalley/arrt-player, which declares the same names; each side holds its own
+to the contract (`arrt/tests/contract/test_heartbeat_key.py` here), since neither
+can import the other to check. A heartbeat that has never been written is still an ordinary
 answer and is reported as one: a fresh deployment has no writer running yet, and
 that is a true and useful thing to say rather than a zero that reads like a
 reading.
@@ -49,10 +49,10 @@ HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "display-heartbeat-{wall_id}.json"
 #: reason. Everything else in the document is the writer's to shape.
 REPORTED_AT_KEY: Final[str] = "reported_at"
 
-#: How often a Player reports each wall's heartbeat: `arrt-player/src/arrt_player/
-#: heartbeat.py`'s `INTERVAL_SECONDS`. Written again here because neither plane
-#: imports the other; `tests/preferences/test_staleness_threshold.py` holds this,
-#: the Player's and the browser's (`static/core/outputs.js`) to one number.
+#: How often a Player reports each wall's heartbeat: Arrt Player's
+#: `INTERVAL_SECONDS`. Written again here because neither side imports the other;
+#: each holds its copy to the contract's `timing()`, and
+#: `arrt/tests/contract/test_staleness_threshold.py` holds this and the browser's.
 INTERVAL_SECONDS: Final[float] = 60.0
 
 #: Past this age a wall's report says nothing about now, and the wall is

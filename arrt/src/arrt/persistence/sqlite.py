@@ -58,6 +58,10 @@ from arrt.persistence.records import (
     Rendition,
     RenditionKind,
     RightsStatus,
+    Scene,
+    SceneLifetime,
+    ScenePin,
+    SceneStatus,
     Showing,
     Source,
     SourceClass,
@@ -429,6 +433,35 @@ CREATE TABLE IF NOT EXISTS showings (
 
 CREATE INDEX IF NOT EXISTS showings_by_work ON showings(work_id, last_seen_at);
 
+-- Scenes: a work per wall, applied together over each wall's schedule
+-- (`player-contract.md` § Scenes). Programming's own. `status` is stored as
+-- written; a live preview whose `until` has passed reads as ended without a
+-- write (`Scene.status_at`). New tables, so `CREATE TABLE IF NOT EXISTS`
+-- reaches an older file unaided.
+CREATE TABLE IF NOT EXISTS scenes (
+    id          TEXT PRIMARY KEY,
+    status      TEXT NOT NULL CHECK (status IN ('draft', 'live', 'ended')),
+    lifetime    TEXT CHECK (lifetime IN ('preview', 'hold')),
+    starts_at   TEXT,
+    until       TEXT,
+    created_at  TEXT NOT NULL,
+    ended_at    TEXT
+);
+
+-- Every feed write asks for the live scenes and the draft, so the lookup is by
+-- status and does not grow with the ended scenes kept behind them.
+CREATE INDEX IF NOT EXISTS scenes_by_status ON scenes(status);
+
+-- One wall's work in a scene. The scene is a foreign key, within Programming;
+-- the wall is not, so a wall removed leaves its scene readable; `work_id` is an
+-- opaque reference to a Library work.
+CREATE TABLE IF NOT EXISTS scene_pins (
+    scene_id  TEXT NOT NULL REFERENCES scenes(id),
+    wall_id   TEXT NOT NULL,
+    work_id   TEXT NOT NULL,
+    PRIMARY KEY (scene_id, wall_id)
+);
+
 -- The history: one row per act, the Library's, written where each act happens
 -- and from the day this table arrived (nothing earlier is recovered). No
 -- foreign keys, deliberately: a history outlives what it names, and walls and
@@ -511,6 +544,13 @@ _BY_WALL_ID: Final[tuple[OrderBy, ...]] = (OrderBy("wall_id"),)
 
 #: Oldest exclusion first, the work id breaking a tie, so the list is the same twice.
 _BY_EXCLUDED: Final[tuple[OrderBy, ...]] = (OrderBy("excluded_at"), OrderBy("artwork_id"))
+
+#: Oldest scene first, the id breaking a tie, so the list is the same twice.
+_BY_CREATED: Final[tuple[OrderBy, ...]] = (OrderBy("created_at"), OrderBy("id"))
+
+#: A scene's pins, by wall.
+_BY_SCENE_WALL: Final[tuple[OrderBy, ...]] = (OrderBy("scene_id"), OrderBy("wall_id"))
+_PIN_KEY: Final[tuple[str, ...]] = ("scene_id", "wall_id")
 
 #: Grouped by kind so a work's facets read as a vocabulary rather than a list.
 _BY_KIND_VALUE: Final[tuple[OrderBy, ...]] = (OrderBy("kind"), OrderBy("value", ignore_case=True), OrderBy("id"))
@@ -1224,6 +1264,36 @@ class SqliteCatalogue(TableAdapter):
     def list_exclusions(self) -> Sequence[WorkExclusion]:
         return self._list("work_exclusions", None, _BY_EXCLUDED, _exclusion)
 
+    # -- scenes ---------------------------------------------------------------
+
+    def add_scene(self, scene: Scene) -> None:
+        self._add("scenes", _scene_row(scene), subject=f"scene {scene.id!r}")
+
+    def get_scene(self, scene_id: str) -> Scene | None:
+        return self._get("scenes", {"id": scene_id}, _scene)
+
+    def update_scene(self, scene: Scene) -> None:
+        self._update("scenes", ("id",), _scene_row(scene), subject=f"scene {scene.id!r}")
+
+    def list_scenes(self, status: SceneStatus | None = None) -> Sequence[Scene]:
+        return self._list("scenes", None if status is None else {"status": str(status)}, _BY_CREATED, _scene)
+
+    def remove_scene(self, scene_id: str) -> None:
+        self._delete("scenes", {"id": scene_id})
+
+    def set_pin(self, pin: ScenePin) -> None:
+        self._store.upsert(
+            "scene_pins",
+            {"scene_id": pin.scene_id, "wall_id": pin.wall_id, "work_id": pin.work_id},
+            pk=_PIN_KEY,
+        )
+
+    def remove_pin(self, scene_id: str, wall_id: str) -> None:
+        self._delete("scene_pins", {"scene_id": scene_id, "wall_id": wall_id})
+
+    def list_pins(self, scene_id: str) -> Sequence[ScenePin]:
+        return self._list("scene_pins", {"scene_id": scene_id}, _BY_SCENE_WALL, _pin)
+
     # -- the history ----------------------------------------------------------
 
     def add_event(self, event: HistoryEvent) -> None:
@@ -1654,6 +1724,34 @@ def _assignment(row: Mapping[str, Any]) -> ThemeAssignment:
         theme_id=row["theme_id"],
         assigned_at=require_datetime(row["assigned_at"], "assigned_at"),
     )
+
+
+def _scene_row(scene: Scene) -> dict[str, Any]:
+    return {
+        "id": scene.id,
+        "status": str(scene.status),
+        "lifetime": None if scene.lifetime is None else str(scene.lifetime),
+        "starts_at": to_iso(scene.starts_at),
+        "until": to_iso(scene.until),
+        "created_at": to_iso(scene.created_at),
+        "ended_at": to_iso(scene.ended_at),
+    }
+
+
+def _scene(row: Mapping[str, Any]) -> Scene:
+    return Scene(
+        id=row["id"],
+        status=SceneStatus(row["status"]),
+        lifetime=None if row["lifetime"] is None else SceneLifetime(row["lifetime"]),
+        starts_at=from_iso(row["starts_at"]),
+        until=from_iso(row["until"]),
+        created_at=require_datetime(row["created_at"], "created_at"),
+        ended_at=from_iso(row["ended_at"]),
+    )
+
+
+def _pin(row: Mapping[str, Any]) -> ScenePin:
+    return ScenePin(scene_id=row["scene_id"], wall_id=row["wall_id"], work_id=row["work_id"])
 
 
 def _exclusion(row: Mapping[str, Any]) -> WorkExclusion:

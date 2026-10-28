@@ -31,9 +31,9 @@
 import { ago } from "./dates.js";
 import { GLYPHS } from "./glyphs.js";
 
-/* How often a Player reports, both its client heartbeat and each wall's:
- * `arrt-player/src/arrt_player/heartbeat.py`'s `INTERVAL_SECONDS`, which
- * `tests/preferences/test_staleness_threshold.py` holds this to. */
+/* How often a Player reports, both its client heartbeat and each wall's: the
+ * contract's `timing.json`, which `arrt/tests/contract/test_staleness_threshold.py`
+ * holds this to. */
 export const HEARTBEAT_INTERVAL_SECONDS = 60;
 
 /* Three missed reports, not one: a report a few seconds late is a busy Pi, and
@@ -70,6 +70,15 @@ export function screenState(heartbeat, outputName) {
  * decided, so the Clients rows and the Walls line cannot come to disagree. */
 export function outputState(output) {
   return output.connected ? DETECTED : NOT_DETECTED;
+}
+
+/* A screen in the words a person reads (`information-architecture.md`
+ * § Vocabulary: *HDMI 1*, not `hdmi-a-1`). The Player names its ports as the
+ * kernel does, `hdmi-a-1` for the first HDMI connector; a port with no
+ * person's name here is shown as the Player names it, never guessed at. */
+export function screenName(outputName) {
+  const hdmi = /^hdmi-[a-z]-(\d+)$/.exec(outputName);
+  return hdmi ? `HDMI ${hdmi[1]}` : outputName;
 }
 
 /* The Clients table's Screen column: glyph and word, as every badge here is.

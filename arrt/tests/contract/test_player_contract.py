@@ -20,13 +20,14 @@ import shutil
 from pathlib import Path
 
 import pytest
+from arrt_contract import root
 from feed_guard import problems
 
 from arrt.library.facade import UnplayableReason
 from arrt.persistence.records import RenditionKind
 from arrt.programming.manifest import heartbeat
 
-CONTRACT = Path(__file__).resolve().parents[3] / "contract"
+CONTRACT = root()
 
 
 @pytest.fixture

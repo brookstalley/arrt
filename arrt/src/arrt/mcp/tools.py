@@ -35,7 +35,15 @@ from arrt.library.services.survey import FIT_BANDS
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
 from arrt.persistence.records import ArtworkStatus, EventKind, VocabularyKind, WorkOrder
-from arrt.programming.display import DEFAULT_SHUFFLE, IN_ORDER, PLAYERS_OWN_MAT, SHUFFLED, MatMode
+from arrt.programming.display import (
+    DEFAULT_SHUFFLE,
+    IN_ORDER,
+    MAX_PREVIEW_MINUTES,
+    PLAYERS_OWN_MAT,
+    PREVIEW_MINUTES,
+    SHUFFLED,
+    MatMode,
+)
 from arrt.programming.shape import ANY as ANY_SHAPE
 from arrt.services.works_filter import SHOWN_PERIODS
 
@@ -1282,10 +1290,17 @@ _WALL_ID = Param(
     required=True,
 )
 
+_SCENE_ID = Param(
+    name="scene_id",
+    type="string",
+    description="The scene, as action='draft_scene' or action='scenes' names it.",
+    required=True,
+)
+
 ART_THEME: Final = ToolRecord(
     name="art_theme",
     title="Art themes",
-    summary="Group works into themes, and hang a theme on a named wall.",
+    summary="Group works into themes, hang a theme on a named wall, and show a work per wall together as a scene.",
     read_only=False,
     destructive=True,
     open_world=False,
@@ -1508,11 +1523,89 @@ ART_THEME: Final = ToolRecord(
                 "This is how a theme that is refused by action='delete' becomes deletable.",
             ),
         ),
+        Action(
+            name="scenes",
+            description="Return the scene live on the walls and the one being assembled.",
+            example="art_theme(action='scenes')",
+            tips=(
+                (
+                    "A scene is a work per wall, shown together over each wall's schedule. Each wall in it says "
+                    "whether its Player reports showing the scene (reached) and what its screen is doing: in_use "
+                    "is somebody watching television, and that wall waits until the set is free."
+                ),
+            ),
+        ),
+        Action(
+            name="draft_scene",
+            description="Start assembling a scene, or return the one being assembled.",
+            example="art_theme(action='draft_scene')",
+            tips=("The answer's scene_id is what every other scene action takes. There is one draft at a time.",),
+        ),
+        Action(
+            name="pin_scene",
+            description="Put a work on a named wall in the scene being assembled.",
+            example="art_theme(action='pin_scene', scene_id='<a scene_id>', wall_id='<a wall_id>', artwork_id='<an artwork_id>')",
+            params=(_SCENE_ID, _WALL_ID, _ARTWORK_ID),
+            tips=(
+                (
+                    "The wall starts preparing the work at once (staging), so the walls switch together when "
+                    "the scene is applied. Nothing is shown until then."
+                ),
+                (
+                    "Refused, in the words art_display(action='show_now') uses, for a work that cannot reach a "
+                    "wall or one kept off every wall; refused for a wall with nothing ever hung on it."
+                ),
+            ),
+        ),
+        Action(
+            name="unpin_scene",
+            description="Take a named wall out of the scene being assembled.",
+            example="art_theme(action='unpin_scene', scene_id='<a scene_id>', wall_id='<a wall_id>')",
+            params=(_SCENE_ID, _WALL_ID),
+        ),
+        Action(
+            name="discard_scene",
+            description="Forget the scene being assembled.",
+            example="art_theme(action='discard_scene', scene_id='<a scene_id>')",
+            params=(_SCENE_ID,),
+        ),
+        Action(
+            name="apply_scene",
+            description="Show the scene on its walls now, as a preview or held.",
+            example="art_theme(action='apply_scene', scene_id='<a scene_id>', lifetime='preview', minutes=20)",
+            params=(
+                _SCENE_ID,
+                Param(
+                    name="lifetime",
+                    type="string",
+                    description="preview (ends after minutes) or hold (until released).",
+                    required=True,
+                    choices=("preview", "hold"),
+                ),
+                Param(
+                    name="minutes",
+                    type="integer",
+                    description=f"A preview's length; {PREVIEW_MINUTES} when omitted, {MAX_PREVIEW_MINUTES} at most.",
+                    minimum=1,
+                    maximum=MAX_PREVIEW_MINUTES,
+                ),
+            ),
+            tips=(
+                "Any other live scene ends. Each wall returns to its schedule on its own when a preview ends.",
+                "A hold takes no minutes and stays until action='release_scene'.",
+            ),
+        ),
+        Action(
+            name="release_scene",
+            description="End the live scene; each wall returns to its schedule.",
+            example="art_theme(action='release_scene', scene_id='<a scene_id>')",
+            params=(_SCENE_ID,),
+        ),
     ),
 )
 
-#: Shared by `add_wall`, `add_client` and `rename_client`, and described for all
-#: three because the wire schema publishes one description per name.
+#: Shared by `add_wall`, `rename_wall`, `add_client` and `rename_client`, and described
+#: for all four because the wire schema publishes one description per name.
 _NAME = Param(
     name="name",
     type="string",
@@ -1610,6 +1703,16 @@ ART_DISPLAY: Final = ToolRecord(
             ),
         ),
         Action(
+            name="rename_wall",
+            description="Give a wall a new name.",
+            example="art_display(action='rename_wall', wall_id='<a wall_id>', name='Hall')",
+            params=(_WALL_ID, _NAME),
+            tips=(
+                "Refuses a name that is empty or that another wall has.",
+                "What the wall hangs, its client and its settings are unchanged, and nothing is republished.",
+            ),
+        ),
+        Action(
             name="set_mat_mode",
             description="Choose how a named wall's Player draws the mat, or leave it to the Player.",
             example="art_display(action='set_mat_mode', wall_id='<a wall_id>', mode='full')",
@@ -1684,9 +1787,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description=(
-                "Report what each wall's display last said about itself and when, and how much the picture store keeps."
-            ),
+            description=("Report each wall's last display report and when, and how much the picture store keeps."),
             example="art_display(action='status')",
             tips=(
                 (
@@ -1863,7 +1964,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="add_label",
-            description="Caption a named wall with one of a client's label outputs, by the label output's name.",
+            description="Caption a named wall with one of a client's label outputs, by its name.",
             example="art_display(action='add_label', wall_id='<a wall_id>', client_id='<a client_id>', output='epd-0')",
             params=(_WALL_ID, _CLIENT_ID, _OUTPUT),
             tips=(

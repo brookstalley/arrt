@@ -178,9 +178,9 @@
 - **Contract:** the **theme manifest** — one versioned JSON document *per wall*,
   written atomically (temp + `os.replace`) into the shared `ART_ROOT` and polled by
   display at ~1 s. Its filename is a template both planes declare separately and
-  may not import from each other; `tests/preferences/test_heartbeat_contract.py`
-  compares the two copies, and pins the literal, because both sides moving together
-  is still a break. It carries a schema version, the active theme, rotation settings
+  may not import from each other. *(The file channel is gone; since wave 5 each
+  plane holds the heartbeat's instant key to the contract's `instant_key` in its
+  own suite, which pins it, because both sides moving together is still a break.)* It carries a schema version, the active theme, rotation settings
   (`rotation_interval_seconds`, `shuffle`), a directive block (`sequence`,
   optional `pinned_work_id`), and an ordered list of entries — work id, render
   path, and the label fields.
@@ -205,7 +205,7 @@
   channel from curation to display (`architecture.md` § Direction). A change that
   adds a second one is a norm departure requiring a recorded decision. Since
   2026-08-06 the norm is enforced mechanically rather than by judgement:
-  `tests/preferences/test_plane_isolation.py` (issue #7) parses every display
+  `arrt-player:tests/test_plane_isolation.py` (issue #7) parses every display
   module, follows imports transitively through this repository's own files, and
   fails on a curation import or an HTTP client — the television websocket
   exempted, because talking to the set is that plane's job.
@@ -252,7 +252,7 @@
   document and immutable media, pulled into a Player-local cache, are the only
   channel". The recorded decision is in `re-architecture.md` § Seam 2, and the
   norm's own entry is in `architecture.md` § Direction.
-  `tests/preferences/test_plane_isolation.py` forbids an HTTP client in the
+  `arrt-player:tests/test_plane_isolation.py` forbids an HTTP client in the
   display plane today. **It must change in the wave-2 chunk that adds the pull**:
   allow exactly the manifest, media and heartbeat client, and keep refusing
   curation imports. Loosening the guard ahead of that chunk would disarm it.
@@ -469,7 +469,7 @@
 
 ### display ↔ television
 
-- **Exists:** **yes**, as of 2026-08-06 — `arrt-player/src/arrt_player/tv/client.py` is the
+- **Exists:** **yes**, as of 2026-08-06 — `arrt-player:src/arrt_player/tv/client.py` is the
   interface and `samsung.py` the one implementation.
 - **Producer:** the television (a foreign device running Tizen). **Consumer:**
   display plane. **Crosses a machine boundary**, over two websockets and a REST
@@ -491,15 +491,15 @@
   event and changes nothing whenever the panel is dark, while every other verb
   succeeds. So **no state-changing verb here is believed on its return** —
   uploads and removals read the set's list back, and selections read what it says
-  it is displaying. `samsung-tv-state-findings.md` is the state-by-state map, and
+  it is displaying. `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` is the state-by-state map, and
   it is the artifact to read before adding a verb.
-- **Tested at the seam and only at the seam** — `arrt-player/tests/test_samsung_client.py`
+- **Tested at the seam and only at the seam** — `arrt-player:tests/test_samsung_client.py`
   stubs the library, because the daemon suite runs against `FakeTv` and proves
   nothing about this file. A mutation sweep once deleted the close-on-failure here
   with no test objecting, for exactly that reason.
 - **Direction changed 2026-09-30 — see `re-architecture.md` § Player outputs.**
   This surface is unchanged and goes to the Player whole, moving with it to the
-  new repository in wave 5. `samsung-tv-state-findings.md` stays its authority.
+  new repository in wave 5. `arrt-player:.prawduct/artifacts/samsung-tv-state-findings.md` stays its authority.
   - It becomes **one of two output families** behind a higher-level "show this
     work" interface. The Frame is *push-to-appliance* (upload, select, confirm
     by announcement). The other family is **framebuffer**: an HDMI LCD on a Pi,
@@ -512,7 +512,7 @@
 
 ### display ↔ its label typesetter (`Measure` / `Block`)
 
-- **Exists:** **yes**, as of 2026-08-11 — `arrt-player/src/arrt_player/panel/layout.py`
+- **Exists:** **yes**, as of 2026-08-11 — `arrt-player:src/arrt_player/panel/layout.py`
   declares `Measure` and returns `Block`s; the daemon hands a surface's own
   measurer in and never supplies one of its own.
 - **Producer:** `layout.py`. **Consumers:** every surface that can be drawn to or
@@ -558,7 +558,7 @@
 - **Producer:** environment / config file. **Consumer:** both planes.
 - **Contract:** no hardcoded deployment values in source. Now mechanically
   enforced rather than Critic-enforced:
-  `tests/test_config.py::test_no_source_file_carries_a_deployment_value` fails on
+  `tests/preferences/test_deployment_values.py::test_no_source_file_carries_a_deployment_value` fails on
   a private address or a named home directory in any module line, and on the
   deployment's published paths in code; its sibling compares every tracked file
   against this checkout's own `.env` values (rebuilt 2026-10-05, so that the guard

@@ -66,6 +66,231 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-27: Walls, rebuilt to the page rules (UI pass, part 1)
+
+<!-- prawduct: scope=ui-pass-walls | release=v0.7.0 -->
+
+**Why:** the owner walked Walls on the newly deployed server and found it jumbled:
+no way to add or rename a wall, a scene search that did not say what it searched,
+"Drawing from All works, until changed" with nothing to change it beside it, the
+wall's Player shown as if it were a fact about the theme, and buttons and links
+mixed in one row. A clickable prototype of six pages on the owner's real library
+was approved with three changes; `ia-proposal.md` § Rulings (2026-10-27) records
+the rulings, and `design-direction.md` § Component Patterns, "How a page reads",
+the page rules. This is the first of three plans (#389 and #390 are the others).
+
+**What changed:**
+- **A wall can be renamed** (`POST /api/walls/{id}`, `art_display(action='rename_wall')`),
+  and a taken name is refused as "Another wall is already called '…'." by add and
+  rename alike.
+- **Walls** opens with its name, one line of facts and a toolbar (*Add wall…*,
+  *Scene…*). Each card: the wall's name and its screen's state as a badge; the work
+  on it (a dark screen: the last shown, dimmed, else the next); *Skip* and *Remove…*
+  (it was *Not this one again*); *Hanging*, whose theme's name is the picker that
+  hangs another; the next three; History and, only when there are some, the works
+  it cannot show. Its settings (name, Player and screen, label panels, rotation,
+  shapes, mat) are its *Edit…* dialog, which names a screen *HDMI 1* and a label
+  panel *the label panel on {Player}* rather than their ports, and the card is
+  repainted when it closes; the card names its Player only as a problem.
+- **The scene** is assembled in the *Scene…* dialog, whose search says "Search your
+  library"; a live one is a line above the cards.
+- `core/editing.js` is the dialog shell the next two plans reuse.
+
+**Tests:** about forty browser assertions rewritten, each naming the ruling that
+changed it; new tests for the badge, the facts line, the keyboard path, the card's
+spacing, renaming, putting a wall on a screen, its labels, the card after the
+dialog closes, a dark wall whose next work cannot be read, and a wall added,
+assigned and hung through the page whose feed, read with its Player's token,
+carries the work hung.
+
+**Not in this:** deleting a wall (#391); Settings › Clients still carries its own
+assignment controls until the Players plan (#390).
+
+## 2026-10-27: Arrt without the Player (wave 5, part 2)
+
+<!-- prawduct: scope=wave-5-split | release=v0.7.0 -->
+
+**Why:** Arrt Player now lives in its own repository,
+[brookstalley/arrt-player](https://github.com/brookstalley/arrt-player),
+extracted with its history and green on its own CI (`build-plan-wave-5-split.md`
+chunk 04). This repository becomes Arrt, the server, and stops carrying a copy
+of the Player that nothing here builds or deploys (chunk 05).
+
+**What changed:**
+- **`arrt-player/` is gone**, and so are the Player's deploy files
+  (`deploy/display.service`, the journald bound, `deploy/pi-freeze-2024.txt`),
+  its artifacts (the Frame's state, HDMI output, Apple platform, and platform
+  and dependency findings), the Pi runbook and the `display.md` learnings. Each
+  is in arrt-player, carried at chunk 04; the tree removed here was the
+  extracted tip exactly.
+- **CI runs three suites:** the governance suite, the server and the contract.
+  The display leg, the typesetting job and the display lint step are gone, and
+  so are the CI-scope guard's two display tests. `project-state.yaml`'s
+  `test_commands` and `tests_dirs` drop the Player's suite.
+- **The scans of CI's pytest lines match `pytest` as a whole word.** Both the
+  scope guard and the CI-scope guard stopped inside `pytest-cov` or `./pytest`,
+  so `uv run --with pytest-cov pytest …` was split at the wrong word and an
+  unscoped run could read as scoped. The review of chunk 04 found it in the
+  matcher chunk 04 had widened, from the literal `uv run pytest` to anything
+  between `uv run` and `pytest`. The CI-scope guard now uses the same matcher.
+- **The norm index drops the four rows only the Player's code can hold** (the
+  television belongs to whoever is using it; the Player never requires the
+  server; the e-paper label's legibility; the Player's only channel), which
+  arrt-player's index carries. The mixed rows keep the server's guard, and the
+  index says where the Player's halves are.
+- **The records say what this repository is.** CLAUDE.md's commands, the
+  README, `deploy/README.md` (the server's deployment, with each release's
+  server half; the Pi's record is arrt-player's), `.env.example` (the keys the
+  server reads), and the live artifacts, which name a Player file as
+  `arrt-player:<path>`. `re-architecture.md` closes wave 5, and
+  `architecture.md` records the two repositories and the pinned contract.
+  History (the change log, archived and released plans, dated rulings) keeps
+  the paths of its day.
+- **Every file a live record cites now resolves in this tree or names its
+  repository** (`tests/preferences/test_citations_resolve.py`, new). A sweep keyed
+  on the Player's old directory had missed the departed deploy files and findings
+  cited by bare name, among them an instruction to install the moved journald
+  drop-in; those citations now read `arrt-player:<path>`. The CI pytest matcher
+  also sees a quoted `run:` value, and is shared by both of its scans.
+- **Ten of the Player's issues moved to brookstalley/arrt-player** (#16 to #25
+  there: #41, #103, #104, #105, #107, #153, #182, #184, #326, #384 here), with the
+  labels the transfer dropped restored. The rest stay here.
+- **Queued for the operator:** the wall moving onto a clone of arrt-player
+  (`operator-verification.md`), which is chunk 06.
+
+**Tests changed in what they assert:**
+- *Deleted with the code they guarded, each carried to arrt-player at chunk 04:*
+  the display unit's restart policy and stop timeout, and the CI-scope guard's
+  display-leg and typesetting-job tests.
+- *Strengthened:* the CI scope check's fixture carries `pytest` inside an
+  option's value and in quoted `run:` values, each watched failing against the
+  matcher before it.
+- *New:* the citation guard, watched failing on every record it then fixed.
+
+**Rolling back:** no data changes, and nothing deployed reads this repository's
+copy of the Player: the Pi moves to arrt-player at chunk 06. Until it does, its
+old checkout keeps the files on disk and must not be pulled. Checking out a
+commit before this one restores the tree.
+
+## 2026-10-26: The contract becomes a package, the root clears, and every cross-plane guard holds where it will survive the split (wave 5, part 1; #33)
+
+<!-- prawduct: scope=wave-5-split | release=v0.7.0 -->
+
+**Why:** Wave 5 splits Arrt Player into its own repository
+(`re-architecture.md` § Order of work). Before the history can be cut, the
+contract both sides test against has to be something a repository outside
+this one can depend on, and every guard that read both planes from the root
+has to hold in a suite that survives the cut (`build-plan-wave-5-split.md`,
+chunks 01 to 03). The owner chose a published package, as a git tag for now.
+
+**What changed:**
+- **`contract/` is the `arrt-contract` package** (`player-contract.md`
+  § The package): the schemas, fixtures, vectors, routes and timing, the
+  rules a schema cannot state (`semantic_errors`), and `player-contract.md`
+  itself, at one version (1.0.0). The data stays where the specification
+  names it; the wheel carries it. The server's and the Player's suites read
+  it through the package, each as an editable dev dependency; the contract
+  has its own suite, CI leg and `test_commands` entry.
+- **The contract says three things it only implied:** the heartbeat's
+  instant key (`instant_key()`), the 60-second heartbeat interval and the
+  three-interval stale threshold (`timing.json`), and the label corpus
+  (`vectors/label-corpus.json`) that renderers measure against.
+- **The root holds no code.** `tv_api_check.py`, `tv_delete.py` and
+  `panel_check.py` moved to `arrt-player/tools/` and read the Player's own
+  settings (the owner ratified this in place of carrying the 2024
+  `config.py`). The Player declares `requests>=2.32`, which `tv_api_check.py`
+  imports and the television client already installed, so the Pi's install
+  does not change. The 2024 modules, `requirements.txt` and the 2024 systemd
+  unit are deleted, and `.env.example` drops the three settings only they read
+  (`OPENAI_KEY`, `EPD_TYPE`, `USE_ART_LABEL`). The root project is renamed
+  `arrt-governance`. `all.json` stays: the server's seed reads it.
+- **#33 is finished:** the broad-except rule (`BLE001`) now holds in every
+  project with no per-file exception, because the root's last one went with
+  the 2024 modules. It closes when this merges.
+- **Each agreement between the planes is held by each side against the
+  contract**, in its own suite: the heartbeat key, the timing, the label
+  corpus (Arrt against its seed tables, the Player's copy against the
+  vector). The plane-isolation guard moved whole into the Player's suite.
+  The root's repository-wide scans derive their scope from the projects
+  present, and the Player carries its own copies.
+- **The server image's test stage installs the contract.** Its suite in the
+  image still fails for reasons this work did not cause (#386).
+
+**Tests changed in what they assert:**
+- *Moved, unchanged in what they assert:* the contract's schema, fixture,
+  vector and label-rule tests (`contract/tests/`), and the plane-isolation
+  guard (`arrt-player/tests/test_plane_isolation.py`).
+- *Restated against the contract:* the heartbeat-key, staleness and
+  label-corpus guards, each split into a server half and a Player half that
+  hold their own constant to the package instead of reading the other
+  plane's source. Each half was watched failing against a re-break.
+- *Deleted with the code they tested:* the 2024 `config.py` tests and the
+  2024 dezoomify argv test; the two tests of the deleted 2024 unit (the live
+  units' tests assert the same properties); and ten `tv_delete` tests of
+  `remove_from_tv`, `forgettable_ids` and `describe_removal`, whose only
+  caller was the deleted `tvart.py`. Two of those asserted that a refusal's
+  message names its cause; they were rewritten against
+  `delete_list_confirmed`, which carries that message.
+
+**Rolling back:** no data changes. A checkout before this one reads the
+contract from `contract/` by path, so rolling back is checking out the older
+commit; nothing a running wall or server stores is touched.
+
+## 2026-10-26: Scenes — a work per wall, shown together (wave 4f)
+
+<!-- prawduct: scope=wave-4f-scenes | release=v0.7.0 -->
+
+**Why:** The owner's MVP for wave 4f: "the HDMI display on rpi and samsung
+frame transitioning at the same time to related works that I pick manually."
+The Player has honoured a feed's `scene` and `staging` since wave 4c; nothing
+on the server wrote them (`build-plan-wave-4f-scenes.md`).
+
+**What changed:**
+- **Scenes are Programming state.** Two tables, `scenes` and `scene_pins`;
+  a draft, live or ended scene, a preview or a hold. Keep is deferred until
+  Programming has something to keep a scene into.
+- **Every feed carries the control layer.** One function now spells and
+  writes a wall's feed, and asks the store for the wall's live scene and the
+  draft's staged works on every write, so no publish path can drop a live
+  scene. A pinned work archived or kept off every wall leaves that wall's
+  feed at once, and Walls says why the wall shows its schedule instead; it
+  comes back when the work is restored or allowed again.
+- **Walls has a Scene section** above the cards: pick a work per wall (each
+  pick stages it), *Apply* as a 5, 20 or 60 minute preview or *Hold*, both
+  asked first naming each wall and its work; once live, whether each wall has
+  reached it, from its heartbeat, and *Release*. A card says when a scene is
+  showing on it.
+- **`/api/scenes`** routes, and seven `art_theme` actions for agents. A
+  preview lasts at most a day (1,440 minutes); longer is refused (400), and
+  a hold is how a scene stays longer.
+- **History** records a scene applied and ended on each wall (released,
+  replaced, or its time run out).
+
+**End to end, on this Mac (2026-10-26).** A server booted from this branch
+with two walls, each hanging a theme, and Arrt Player's real Frame and screen
+wall loops run beside their real pulls against it, with the suite's Frame
+double and screen double in place of the television and the HDMI output.
+Pinning a work to each wall had the Frame double holding the staged upload
+within a second, while both walls went on showing their schedules. Applying
+as a hold switched both walls within the same 50 ms poll, and both
+heartbeats reported the scene. Release put both back on the schedule works
+they showed before. A one-minute preview, applied and then the server
+stopped, ended on both walls 60.1 s after Apply, with the server down. The
+Frame double uploads at once, so this shows the upload happens before Apply,
+not how long a real one takes; the walk at the wall times that.
+
+**Rolling back:** a build before this one reads each History row through
+`EventKind(...)` and fails on the new `scene.applied` and `scene.ended`
+rows, so History would not load once any scene has been applied. Before
+rolling back, delete them: `DELETE FROM history_events WHERE kind IN
+('scene.applied', 'scene.ended')`. Release any live scene first, or a held
+scene stays in a wall's feed until the older server next rewrites that
+wall. The `scenes` and `scene_pins` tables are left behind unread.
+
+**Tests changed in what they assert:** the Walls nesting test lists the
+Scene's `h2` among the page's headings, beside one per wall; its claims of
+one `h2` per wall and panels a rank below are unchanged.
+
 ## 2026-10-16: The brand goes home, held works select everywhere, and the Work page shows and chooses the mat (#317, #346, #91)
 
 <!-- prawduct: scope=ui-mat-selection-labels | release=v0.6.0 -->

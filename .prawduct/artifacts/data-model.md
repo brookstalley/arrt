@@ -2257,7 +2257,7 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
-| `kind` | enum | required | `EventKind` (`persistence/records.py`): `get.started`, `get.finished`, `work.accepted`, `work.rejected`, `work.archived`, `work.restored`, `wall.hung`, `work.left_theme`, `work.excluded`, `work.allowed`. |
+| `kind` | enum | required | `EventKind` (`persistence/records.py`): `get.started`, `get.finished`, `work.accepted`, `work.rejected`, `work.archived`, `work.restored`, `wall.hung`, `work.left_theme`, `work.excluded`, `work.allowed`, `scene.applied`, `scene.ended` (from 2026-10-26: one line per wall a scene pins, `work_id` its work, `detail` the scene's id, the wall's name, the work's title, and `lifetime` and `until` when applied or `how` it ended: `released`, `replaced` or `ran_out`, with `ended_at`, when it ended, since a run-out is noticed later). |
 | `occurred_at` | datetime | required | |
 | `work_id` | UUID | nullable; not a foreign key | The Library work. Null for a rejected candidate, which never became one (its id is in `detail`). |
 | `run_id` | UUID | nullable; not a foreign key | The Get. |
@@ -2273,8 +2273,9 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 > each run start (`start_discovery_run`, `start_resolve_run`, `start_get_run`),
 > each ending (decline, complete, fail, halt, cancel, and `interrupted` at
 > startup), and each verdict; `CatalogueService` at archive and restore.
-> Programming writes `wall.hung`, `work.left_theme`, `work.excluded` and
-> `work.allowed` through `LibraryFacade.record`, which refuses any other kind,
+> Programming writes `wall.hung`, `work.left_theme`, `work.excluded`,
+> `work.allowed`, `scene.applied` and `scene.ended` through
+> `LibraryFacade.record`, which refuses any other kind,
 > **after** its own change commits (after a split there is no shared transaction,
 > and a history line for a hang that rolled back would be false).
 
@@ -3117,6 +3118,22 @@ and `show_now` and `next` republish the schedule; scenes and staging are 4f.)*
 The manifest also lists works under
 **staging**, so Players fetch and compose a scene's works while it is being
 assembled. Wave 4.
+*(Wave 4f, 2026-10-26: built less keep, which waits for a pin or a playlist to
+keep into (`build-plan-wave-4f-scenes.md`). Two tables: `scenes` (id, status of
+draft, live or ended; lifetime of preview or hold; `starts_at`, `until`,
+`created_at`, `ended_at`) and `scene_pins` (scene, wall, work; one work per wall
+per scene). A live preview past its `until` reads as ended without a write
+(`Scene.status_at`), and a heartbeat writes the end down. Whether a wall
+reached the scene is never stored: it is the heartbeat's `scene_id`. A draft's
+pins are the staging; a live scene's pin is the wall's `scene`. Both keys are
+derived from these tables at every feed write, never read back from the feed.
+Answers: which scene is live and until when, which walls it pins to which work,
+what a draft stages on each wall, and when a scene was applied and ended.
+**Retention:** a discarded draft is deleted; an applied scene is kept, ended,
+with its pins. Nothing prunes them. The bound is the curator's hand: a scene is
+applied by a person, a few a day at most, so a decade is tens of thousands of
+small rows, and the per-write lookup reads by an index on `status` rather than
+scanning them.)*
 
 ### Quality profile *(Library)*
 

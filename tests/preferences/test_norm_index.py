@@ -35,20 +35,17 @@ NORM_INDEX = REPOSITORY_ROOT / ".prawduct" / "artifacts" / "project-preferences.
 
 
 #: Every directory in this repository that holds a test tree, as the prefix a
-#: reference to one is written with — `""` for the root plane, `arrt/`,
-#: `arrt-player/`.
+#: reference to one is written with — `""` for the root, `arrt/`, `contract/`.
 #:
-#: **Derived rather than listed.** A literal alternation of plane prefixes goes
-#: wrong the day a plane gains a suite and nobody adds it. The regex is
-#: unanchored, so a missing `arrt-player/` would not make `arrt-player/tests/test_epaper.py`
-#: fail to match — it
-#: matched the *tail*, `tests/test_epaper.py`, and resolved against the root
-#: plane where no such file exists. A row naming a real, passing display-plane
-#: guard therefore failed this file, and the diagnostic pointed at the row rather
-#: than at the scanner. That is the third time this index's own machinery has gone
-#: stale by carrying a count or a list of planes (see the `black` and `T20` rows
-#: in the artifact), which is why the plane set is now computed here instead: a
-#: fourth plane is picked up by existing.
+#: **Derived rather than listed.** A literal alternation of prefixes goes wrong
+#: the day a project gains a suite and nobody adds it. The regex is unanchored, so
+#: a missing `contract/` would not make `contract/tests/test_vectors.py` fail to
+#: match — it matches the *tail*, `tests/test_vectors.py`, and resolves against the
+#: root where no such file exists. A row naming a real, passing guard then fails
+#: this file, and the diagnostic points at the row rather than at the scanner. This
+#: index's own machinery has gone stale that way more than once by carrying a count
+#: or a list of planes (see the `black` and `T20` rows in the artifact), which is
+#: why the set is computed here: a new project is picked up by existing.
 def _plane_prefixes() -> list[str]:
     """`""` for the root plane, then one `name/` per plane that has a test tree."""
     nested = sorted(path.parent.name + "/" for path in REPOSITORY_ROOT.glob("*/tests") if path.is_dir())

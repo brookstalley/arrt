@@ -11,6 +11,7 @@ path that produced it.
 """
 
 import json
+from datetime import datetime
 
 import pytest
 from mcp import ClientSession
@@ -692,3 +693,76 @@ async def test_showing_an_archived_work_is_refused_rather_than_shown(server_url,
 
     assert errored is True
     assert "archived" in payload["error"]
+
+
+# -- scenes ---------------------------------------------------------------------
+
+
+async def test_an_agent_can_show_a_work_per_wall_together_and_release_it(server_url, wall_settings, ready_work, wall):
+    """Every scene act through the tool surface, with a non-default length, ending at the feed the Player polls."""
+    theme_id = await _a_theme(server_url)
+    await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    dali = ready_work("Dalí")
+
+    draft, _ = await call(server_url, "art_theme", action="draft_scene")
+    pinned, errored = await call(
+        server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=dali.id
+    )
+    assert errored is False
+    assert [(entry["wall_id"], entry["work_id"], entry["title"]) for entry in pinned["walls"]] == [(wall, dali.id, "Dalí")]
+    feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
+    assert feed["staging"] == [dali.id]
+
+    applied, _ = await call(
+        server_url, "art_theme", action="apply_scene", scene_id=draft["scene_id"], lifetime="preview", minutes=7
+    )
+    assert (applied["status"], applied["lifetime"]) == ("live", "preview")
+    # Seven, not the default twenty: the length reached the service through the binding.
+    span = datetime.fromisoformat(applied["until"]) - datetime.fromisoformat(applied["starts_at"])
+    assert span.total_seconds() == 7 * 60
+    feed = json.loads(wall_settings.manifest_v2_path(wall).read_text())
+    assert feed["scene"]["work_id"] == dali.id
+    listed, _ = await call(server_url, "art_theme", action="scenes")
+    assert listed["live"]["scene_id"] == draft["scene_id"]
+    assert listed["draft"] is None
+
+    released, _ = await call(server_url, "art_theme", action="release_scene", scene_id=draft["scene_id"])
+    assert released["status"] == "ended"
+    assert released["ended_at"] is not None
+    assert "scene" not in json.loads(wall_settings.manifest_v2_path(wall).read_text())
+
+
+async def test_a_scene_is_unpinned_and_discarded_through_the_surface(server_url, wall_settings, ready_work, wall):
+    theme_id = await _a_theme(server_url)
+    await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    draft, _ = await call(server_url, "art_theme", action="draft_scene")
+    await call(
+        server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=ready_work("Dalí").id
+    )
+
+    unpinned, _ = await call(server_url, "art_theme", action="unpin_scene", scene_id=draft["scene_id"], wall_id=wall)
+    assert unpinned["walls"] == []
+    discarded, _ = await call(server_url, "art_theme", action="discard_scene", scene_id=draft["scene_id"])
+    assert discarded["discarded"] == draft["scene_id"]
+    listed, _ = await call(server_url, "art_theme", action="scenes")
+    assert (listed["live"], listed["draft"]) == (None, None)
+
+
+async def test_a_scene_refusal_reaches_the_agent_in_the_services_words(server_url, ready_work, wall):
+    theme_id = await _a_theme(server_url)
+    await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    draft, _ = await call(server_url, "art_theme", action="draft_scene")
+    plain = ready_work("Plain", master=False)
+
+    pinned, _ = await call(
+        server_url, "art_theme", action="pin_scene", scene_id=draft["scene_id"], wall_id=wall, artwork_id=plain.id
+    )
+    released, _ = await call(server_url, "art_theme", action="release_scene", scene_id=draft["scene_id"])
+
+    assert pinned["success"] is False
+    assert "cannot be shown on the wall" in pinned["error"]
+    assert released["success"] is False
+    assert "nothing to release" in released["error"]

@@ -1,27 +1,20 @@
 [project]
-name = "samsung-frame-art-loader-legacy"
-version = "0.6.0"
-description = "The 2024 modules that run the wall today, plus repo-wide tool config."
+name = "arrt-governance"
+version = "0.7.0"
+description = "The repository's governance suite: the checks that read more than one project, plus repo-wide tool config."
 requires-python = ">=3.12"
+# `dotenv_values` reads this checkout's `.env` in the deployment-values guard,
+# with the parser both planes load it through.
 dependencies = ["python-dotenv"]
 
-# The legacy runtime dependency set stays in requirements.txt — that is what is
-# installed on the Pi and it is not being migrated, since these modules are
-# retired once the two planes are built. This project exists so `uv run pytest`
-# works at the root and so tool configuration has one home.
+# There is no code at the root, only tests (`tests/preferences/test_file_organization.py`
+# holds it so). This project exists so `uv run pytest` works here and so tool
+# configuration has one home.
 [dependency-groups]
 dev = [
     "pytest>=8",
     "ruff>=0.6",
     "black>=24",
-    # **The Player contract's schemas are checked with this**, against real
-    # documents, so the contract under contract/ is tested rather than trusted.
-    # Declared rather than inherited, because an indirect copy disappears the
-    # day the package that brings it changes its own dependencies.
-    "jsonschema>=4.23",
-    # Imported directly by the root contract test to resolve one schema's $ref
-    # into another, so declared for the same reason as jsonschema above.
-    "referencing>=0.35",
     # Reads `.prawduct/project-state.yaml` in the artifact-manifest guard, which
     # checks a YAML document's structure and so parses it rather than grepping it.
     "pyyaml>=6",
@@ -38,12 +31,12 @@ line-length = 130
 # targets happen to produce identical output for this code today, which is
 # exactly why nobody would notice the plane split had stopped holding for
 # formatting while it still held for lint.
-extend-exclude = "^/(arrt|arrt-player)/"
+extend-exclude = "^/(arrt|contract)/"
 
 [tool.ruff]
 line-length = 130
 target-version = "py312"
-extend-exclude = ["arrt", "arrt-player"]
+extend-exclude = ["arrt", "contract"]
 
 [tool.ruff.lint]
 # Mechanical rows from the project-preferences norm index, migrated from the
@@ -54,16 +47,11 @@ extend-exclude = ["arrt", "arrt-player"]
 #   B    bugbear — mutable defaults, shadowed loop vars
 #   T20  no print(); this project logs
 #   TRY  no bare `raise Exception`, no swallowed context
-# `N` and `BLE` since 2026-10-05 (the owner, at the Norm Health sweep). The root
-# takes only these two of the planes' `ALL`, because its 2024 modules leave at the
-# legacy retirement (wave 5) and fixing them for every rule buys nothing; `N818`
-# is ignored for the reason the planes give.
+# `N` and `BLE` since 2026-10-05 (the owner, at the Norm Health sweep); `N818` is
+# ignored for the reason the planes give.
 select = ["E", "F", "I", "UP", "B", "T20", "TRY", "N", "BLE"]
 ignore = [
     "N818",
-    # f-strings in logging calls are pervasive in the 2024 modules and are not
-    # worth a mass rewrite of code scheduled for deletion.
-    "TRY400",
     "TRY003",
 ]
 
@@ -72,45 +60,13 @@ ignore = [
 # `::error::...` lines off a step's standard output to raise annotations, so
 # `print()` here is the mechanism rather than a substitute for logging — a
 # logger writing to stderr would produce a job that fails with its reason
-# invisible in the summary. This is a third category, and it is written above
-# the two groups below rather than appended to either: the legacy group is dated
-# debt and the operator-tools group is hand-run commands, and this file's own
-# comments make both of those lists load-bearing.
+# invisible in the summary.
 ".github/scripts/*.py" = ["T20"]
 
-# The 2024 modules that still run the wall. They are deleted once both planes
-# exist, so their remaining findings are cosmetic debt with a scheduled end
-# date, and a mass restyle of doomed code would only make that diff unreadable.
-# Deliberately NOT relaxed here: B006, and all of F except F841 — the
-# unbound-name class produced real defects in this codebase, so it still fails
-# the build. F841 (assigned-but-never-used) is waived below: it is pervasive in
-# these modules and is a tidiness rule, not a correctness one.
-# `config.py` is excluded from this list: it was rewritten and is held to the
-# strict set, as is everything under `arrt/` and `tests/`.
-# `BLE001` on four of these: their unwaived broad catches are the broad-except
-# norm's dated departure, and leave with the modules at the legacy retirement.
-"ai.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
-"art.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "E402"]
-"display.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "E402"]
-"image_utils.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
-"local.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007"]
-"metadata.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
-"source_utils.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
-"tvart.py" = ["T20", "E501", "F841", "TRY002", "TRY201", "TRY300", "B007", "BLE001"]
-# Operator tools run by hand; print() is their output, not logging.
-#
-# THIS GROUP IS READ AS A LIST. The `logging` only / `print()` norm in
-# .prawduct/artifacts/project-preferences.md points at the entries below this
-# comment instead of restating their names, so every entry from here to the end
-# of the table must be a hand-run operator tool the norm does not apply to.
-# A legacy module carrying `T20` as dated debt goes ABOVE this comment, with the
-# rest of its group — appending one here would silently reclassify it as a tool
-# the rule was never meant to reach, inverting the distinction that row protects.
-"tv_api_check.py" = ["T20"]
-"spi_test.py" = ["T20", "E501", "F841", "E402"]
-"remote_test.py" = ["T20", "E501", "F841"]
-"urls_to_json.py" = ["T20", "E501", "F841"]
+# The hand-run operator tools are not here: each lives in its plane's `tools/`,
+# whose `pyproject.toml` lets `print()` be their output.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+# `tests/repository.py` is shared by the guards in `tests/` and `tests/preferences/`.
+pythonpath = ["tests"]

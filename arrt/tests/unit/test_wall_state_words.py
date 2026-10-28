@@ -8,13 +8,13 @@ one it forgot. So the seven are checked against the label schema's states, which
 are the server's, in both directions.
 """
 
-import json
 import re
 from pathlib import Path
 
+from arrt_contract import schema as contract_schema
+
 ROOT = Path(__file__).resolve().parents[3]
 WALLS = ROOT / "arrt" / "src" / "arrt" / "http" / "static" / "screens" / "walls.js"
-LABEL_SCHEMA = ROOT / "contract" / "schemas" / "label.v1.schema.json"
 
 #: Worded where the card is built rather than in the table.
 WORDED_IN_THE_CARD = {"showing_art", "silent"}
@@ -28,7 +28,7 @@ def _state_words() -> set[str]:
 
 
 def _schema_states() -> set[str]:
-    schema = json.loads(LABEL_SCHEMA.read_text(encoding="utf-8"))
+    schema = contract_schema("schemas/label.v1.schema.json")
     return set(schema["properties"]["display_state"]["properties"]["state"]["enum"])
 
 
