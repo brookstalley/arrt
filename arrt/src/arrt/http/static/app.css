@@ -2152,11 +2152,131 @@ th {
    The one screen whose primary content is the art itself rather than a report
    about it. */
 
-/* One wall's whole section. Separated by space rather than by a rule: with three
-   walls a reader has to be able to see where one room's account ends, and a line
-   between them would draw a border across a page of paintings. */
+/* The walls, one card each (`design-direction.md` § Component Patterns, Cards:
+   a block of facts and acts about one thing). Side by side where the page is
+   wide enough for two, so a second room sits beside the first rather than a
+   screen below it. */
+.walls {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 30rem), 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
 section.wall {
-  margin-bottom: var(--space-8);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+section.wall > * {
+  margin: 0;
+}
+
+/* The wall's name and its screen's state in one word, on one line. */
+.wall-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.wall-head .wall-title {
+  margin: 0;
+}
+
+.wall-badge-showing_art {
+  color: var(--good);
+  border-color: var(--good);
+  background: var(--good-quiet);
+}
+
+.wall-badge-unassigned,
+.wall-badge-no_screen,
+.wall-badge-silent {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: var(--warn-quiet);
+}
+
+/* A dark screen's work, dimmed: it is not on the wall now, and it should not
+   read as if it were. The words above it say so; the dimming only agrees. */
+.wall-dim .wall-now-picture img {
+  opacity: 0.45;
+  filter: grayscale(0.5);
+}
+
+.wall-now-state {
+  margin: 0 0 var(--space-2);
+  color: var(--text-strong);
+}
+
+/* Hanging is a fact whose value is the control: set in the facts' type, with
+   the select's own border, so it reads as the value and as something to press. */
+.fact-picker {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-strong);
+  min-height: var(--control-h-compact);
+  max-width: 100%;
+}
+
+/* The card's foot: where its account continues. A rule above it, as a section's
+   end, and the links and the panel's opener in one row. */
+.wall-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.page-facts {
+  margin: 0 0 var(--space-4);
+}
+
+/* A panel over the page (`core/editing.js`): its body and lead. Its box is set
+   beside the confirmation's, below. */
+
+.panel-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.panel-dialog-lead {
+  margin: 0 0 var(--space-4);
+}
+
+/* Remove…'s two answers: each a whole button, its consequence under it. */
+.remove-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  height: auto;
+  padding: var(--space-3);
+  text-align: left;
+  border: 1px solid var(--border-strong);
+}
+
+.remove-choice-what {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.remove-choice-sub {
+  font-size: var(--text-sm);
 }
 
 /* The Scene, above the walls: a work per wall, shown together. Set apart by
@@ -2187,13 +2307,6 @@ section.scene {
 
 .scene-walls {
   margin: 0 0 var(--space-3);
-}
-
-/* The wall's controls, held apart from the account of what is on it: hanging a
-   different theme is the one act on this screen that other people in the house
-   see, and it should not read as another row of facts. */
-.wall-controls {
-  margin-bottom: var(--space-5);
 }
 
 /* Which client shows the wall, under its title: a fact about where the picture
@@ -2383,11 +2496,11 @@ button.action:disabled:hover {
 
 /* A row of acts sits one step below whatever precedes it, never flush: a
    sentence, a list of facts, another row. Rows inside a flex column (`.stack`,
-   `.stack-tight`) are already spaced by its gap, and are left to it; a new
-   flex column of rows needs adding here, or its rows are spaced twice. */
-:not(.stack, .stack-tight, .row) > * + .row,
-:not(.stack, .stack-tight, .row) > * + .identity,
-:not(.stack, .stack-tight, .row) > .row + * {
+   `.stack-tight`, a wall's card) are already spaced by its gap, and are left to
+   it; a new flex column of rows needs adding here, or its rows are spaced twice. */
+:not(.stack, .stack-tight, .row, section.wall) > * + .row,
+:not(.stack, .stack-tight, .row, section.wall) > * + .identity,
+:not(.stack, .stack-tight, .row, section.wall) > .row + * {
   margin-top: var(--space-4);
 }
 
@@ -2584,7 +2697,8 @@ dl.facts dd {
    is made of, one step nearer the reader. Chrome yields to the artwork on this
    surface, and a dialog is the one place a design is most tempted to forget
    that. */
-dialog.confirm {
+dialog.confirm,
+dialog.panel-dialog {
   max-width: 32rem;
   background: var(--surface-1);
   color: var(--text);
@@ -2599,7 +2713,8 @@ dialog.confirm {
    to change is usually on it — the wall, the theme, the work being archived.
    `--scrim` is the token for exactly this: type-bearing chrome laid over
    something whose colours are not ours to predict. */
-dialog.confirm::backdrop {
+dialog.confirm::backdrop,
+dialog.panel-dialog::backdrop {
   background: var(--scrim);
 }
 
@@ -2619,6 +2734,14 @@ dialog.confirm::backdrop {
   flex-wrap: wrap;
   gap: var(--space-3);
   justify-content: flex-end;
+}
+
+/* A panel (`core/editing.js`) is the confirmation's box, wider, because what it
+   holds is a choice or a list rather than one sentence. After the shared rule
+   above, which it overrides. */
+dialog.panel-dialog {
+  max-width: 40rem;
+  width: calc(100vw - 2 * var(--space-4));
 }
 
 /* -- the work screen ------------------------------------------------------- */
@@ -3030,58 +3153,8 @@ section.offered + section.offered {
   font-size: var(--text-sm);
 }
 
-.wall-source {
-  margin: 0 0 var(--space-2);
-}
-
-.wall-controls > * + * {
-  margin-top: var(--space-3);
-}
-
-.not-again {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.not-again-choice:not([hidden]) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.not-again-choice p {
-  margin: 0;
-}
-
-/* The summary is Change's button, so it wears an act's shape (`.action`
-   above) and keeps the browser's disclosure triangle out of a row of buttons. */
-.wall-change > summary {
-  list-style: none;
-  cursor: pointer;
-}
-
-.wall-change > summary::-webkit-details-marker {
-  display: none;
-}
-
-.wall-change[open] > summary {
-  margin-bottom: var(--space-2);
-}
-
 .wall-said:empty {
   display: none;
-}
-
-.wall-setup {
-  margin-top: var(--space-4);
-}
-
-.wall-setup > summary {
-  cursor: pointer;
-  color: var(--text-muted);
 }
 
 /* -- History: the event log --------------------------------------------------- */

@@ -66,6 +66,46 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-27: Walls, rebuilt to the page rules (UI pass, part 1)
+
+<!-- prawduct: scope=ui-pass-walls -->
+
+**Why:** the owner walked Walls on the newly deployed server and found it jumbled:
+no way to add or rename a wall, a scene search that did not say what it searched,
+"Drawing from All works, until changed" with nothing to change it beside it, the
+wall's Player shown as if it were a fact about the theme, and buttons and links
+mixed in one row. A clickable prototype of six pages on the owner's real library
+was approved with three changes; `ia-proposal.md` § Rulings (2026-10-27) records
+the rulings, and `design-direction.md` § Component Patterns, "How a page reads",
+the page rules. This is the first of three plans (#389 and #390 are the others).
+
+**What changed:**
+- **A wall can be renamed** (`POST /api/walls/{id}`, `art_display(action='rename_wall')`),
+  and a taken name is refused as "Another wall is already called '…'." by add and
+  rename alike.
+- **Walls** opens with its name, one line of facts and a toolbar (*Add wall…*,
+  *Scene…*). Each card: the wall's name and its screen's state as a badge; the work
+  on it (a dark screen: the last shown, dimmed, else the next); *Skip* and *Remove…*
+  (it was *Not this one again*); *Hanging*, whose theme's name is the picker that
+  hangs another; the next three; History and, only when there are some, the works
+  it cannot show. Its settings (name, Player and screen, label panels, rotation,
+  shapes, mat) are its *Edit…* dialog, which names a screen *HDMI 1* and a label
+  panel *the label panel on {Player}* rather than their ports, and the card is
+  repainted when it closes; the card names its Player only as a problem.
+- **The scene** is assembled in the *Scene…* dialog, whose search says "Search your
+  library"; a live one is a line above the cards.
+- `core/editing.js` is the dialog shell the next two plans reuse.
+
+**Tests:** about forty browser assertions rewritten, each naming the ruling that
+changed it; new tests for the badge, the facts line, the keyboard path, the card's
+spacing, renaming, putting a wall on a screen, its labels, the card after the
+dialog closes, a dark wall whose next work cannot be read, and a wall added,
+assigned and hung through the page whose feed, read with its Player's token,
+carries the work hung.
+
+**Not in this:** deleting a wall (#391); Settings › Clients still carries its own
+assignment controls until the Players plan (#390).
+
 ## 2026-10-27: Arrt without the Player (wave 5, part 2)
 
 <!-- prawduct: scope=wave-5-split -->

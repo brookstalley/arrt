@@ -243,6 +243,35 @@ to say what the stylesheet holds and to add the patterns the October review
 found ungoverned. The earlier text named `.btn`, `.primary` and `.danger`
 classes the client never had.*
 
+- **How a page reads** *(the owner's rulings of 2026-10-27, `ia-proposal.md`
+  § Rulings (2026-10-27), ruling 1)*. Every page is built the same way, so that
+  where a thing is follows from what it is:
+  - **A page opens with its name, one line of facts and its toolbar.** Nothing
+    else sits above the content: no form, no explanation, no section that is not
+    the page's subject. A detail page's way back is a breadcrumb link above the
+    name, never a button.
+  - **Acts on the page's subject are in the toolbar**: acts on the left in order
+    of use, and View, Sort, Filters and Select on the right. An act on one card of
+    a page of cards (Skip on a wall) sits on that card, under what it acts on.
+    One filled act per region (Buttons, below). An act that opens a dialog ends
+    in "…".
+  - **A thing's settings are in its *Edit…* dialog**, reached from its toolbar
+    or its card: a wall's name, Player, screen, label, playback, fit and mat; a
+    theme's name and description; a Player's name and token. The page shows what
+    is true now. A setting appears on the page only when it is a problem (a wall
+    with no Player). Deleting the thing is the last thing in its dialog.
+  - **A fact that can be changed is its own control.** *Hanging [All works ▾]*:
+    the value opens the choice, so no separate *Change* sits elsewhere, and no
+    words say that it could be changed.
+  - **A list acts on a selection.** A table or grid of things has a Select mode;
+    the acts on what is selected take the toolbar's left side. A row has at most
+    one quiet *Edit…*; order is a drag handle. Never one button per row.
+  - **An exception stays quiet until it stops the page's job**: one muted line or
+    link at the end of what it qualifies (*2 works can't be shown here*). It
+    becomes a notice above the content only when it stops the page doing what it
+    is for.
+  - **One word per thing**, the ones `information-architecture.md` § Vocabulary
+    gives, in the sidebar, a heading, a button, an empty state and a tool alike.
 - **Headings** — one treatment per level. A page's `h1` is its name at
   `--text-3xl` in the label serif, weight 500, on every page, Walls included.
   *(Until 2026-10-08 it was `--text-lg`, because "the art on it is what is

@@ -5,18 +5,23 @@
  * layout). It was the home page until the library took that place, as it has in
  * every *arr app.
  *
+ * **Built to "How a page reads"** (`design-direction.md` § Component Patterns;
+ * the owner's rulings of 2026-10-27, `ia-proposal.md`): the page's name, one line
+ * of facts, and a toolbar holding the page's acts; then one card per wall.
+ *
  * **Each card leads with what the wall's screen is doing** (`labels-and-surfaces.md`
  * § Display state), which the server derives for each wall and `/api/walls`
- * carries as `display_state`. When it is showing art, that is the work on the
- * wall now (`ia-proposal.md` § Walls), large, with its label facts and a link to
- * its page; otherwise the state in plain words, because a screen somebody is
- * watching television on is not a wall with nothing hung, and under it, while a
- * screen is there, the work the wall showed last (ruling 3 of 2026-10-11).
- * Then the next three works its schedule puts up. Below it, what the wall draws from and for
- * how long, then the three acts — **Skip**, **Not this one again** and
- * **Change** — and the way to the wall's history. What the theme holds in full
- * is the theme's page; this card is about the one work a person in the room is
- * looking at.
+ * carries as `display_state`, as a badge at the card's head beside the wall's
+ * name. Showing art: the work on the wall now, large, with its label facts and a
+ * link to its page. A dark screen: the work it showed last, dimmed, or the next
+ * one while nothing has been logged (ruling 6 of 2026-10-27). Any other state in
+ * plain words, because a screen somebody is watching television on is not a wall
+ * with nothing hung. Under the work, the card's acts, **Skip** and **Remove…**;
+ * then *Hanging*, whose theme's name is the control that hangs another, and how
+ * the wall plays it; then the next three works. Its foot holds the links out:
+ * History, and the works it cannot show. What the theme holds in full is the
+ * theme's page; this card is about the one work a person in the room is looking
+ * at. Which Player and screen show the wall is said only when it is a problem.
  *
  * **One wall is the degenerate case of many, never a special case.** There is one
  * section per wall and no single-wall layout for a second display to replace: with
@@ -51,7 +56,7 @@
  * decision applied here rather than a gap. Mean time to detection on this surface
  * is bounded by how often the curator opens the page, and a background timer
  * would add load to a Pi without changing it. The one exception is bounded and
- * asked for: after Skip or *Not this one again*, the card watches the wall's
+ * asked for: after Skip or *Remove…*, the card watches the wall's
  * display state until it names the next work (`awaitNext`), and replaces only the
  * work it leads with and the next three under it, so the focus stays wherever
  * the curator left it. Any other
@@ -67,13 +72,15 @@ import { absentImage, facts, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { counted } from "../core/counting.js";
 import { DEBUG } from "../core/debug.js";
+import { openPanel } from "../core/editing.js";
 import { hangTheme } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
-import { screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
+import { screenName, screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
 import { clientLink } from "../core/places.js";
 import { link, refresh } from "../core/router.js";
 import { state } from "../core/state.js";
+import { toolbar } from "../core/toolbar.js";
 
 /* How often the card asks for the wall's heartbeat while it waits for the work
  * after a Skip. The run view's interval, the fastest anything here repaints. */
@@ -129,15 +136,53 @@ export async function viewWalls(generation) {
 
   const live = scenes ? scenes.live : null;
   const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live));
-  const scene = { walls: walls.walls, node: el("section", { class: "scene", "aria-labelledby": "scene-title" }) };
+  // The live scene, if any, is one line above the cards; assembling one is the
+  // Scene… dialog's. Both are painted from the same read, by `paintScene`.
+  const scene = { walls: walls.walls, scenes, node: el("section", { class: "scene", "aria-label": "Scene", hidden: true }), panel: null };
   paintScene(scene, scenes);
-  render(generation, heading(), scene.node, ...sections, walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null);
+  render(
+    generation,
+    heading(),
+    pageFacts(walls.walls, nows),
+    toolbar({ actions: [addWallOpener(), sceneOpener(scene)] }),
+    scene.node,
+    el("div", { class: "walls" }, sections),
+    walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null,
+  );
 }
 
 /* The page's heading, at the size every page's `h1` has: Walls is a page
  * among the others, with no larger heading of its own. */
 function heading() {
   return el("h1", { text: "Walls" });
+}
+
+/* The one line of facts under the page's name: how many walls, and how many
+ * are showing art now. Counted from each wall's display state, the same reading
+ * its card's badge is drawn from. */
+function pageFacts(walls, nows) {
+  const showing = nows.filter((now) => now && now.shown && now.shown.state === "showing_art").length;
+  return el("p", { class: "muted page-facts", text: `${counted(walls.length, "wall")} · ${showing} showing art now` });
+}
+
+/* *Scene…*: the dialog that assembles a scene, or changes the one being
+ * assembled. The live one is not in it: that is the line above the cards. */
+function sceneOpener(scene) {
+  return el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Scene…",
+    "aria-haspopup": "dialog",
+    onclick: () => {
+      scene.panel = openPanel({
+        title: "Scene",
+        lead: "Show chosen works on your walls together, for a while. Each wall then goes back to what it hangs.",
+        body: [],
+        onClose: () => (scene.panel = null),
+      });
+      paintScene(scene, scene.scenes);
+    },
+  });
 }
 
 /* The fact the MCP surface already states after an unhang, said here too: taking
@@ -153,6 +198,28 @@ function heading() {
  * block rather than a mark on each row. */
 function takeDownNote() {
   return el("p", { class: "note", text: "A wall goes on showing what it was showing until a theme is hung." });
+}
+
+/* Which Player shows this wall, said only when it is a problem
+ * (`design-direction.md` § Component Patterns, "How a page reads": a setting
+ * appears on the page only when it is one). A wall nobody shows is an ordinary
+ * state (`clients.md` § The model), and the one where everything else on this
+ * card happens to no screen at all; a display two clients report is shown by
+ * neither, whatever `client_id` still names. */
+function assignmentProblem(wall) {
+  if (wall.display && wall.display.fault) {
+    return el("p", { class: "note wall-problem wall-fault" }, [
+      el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
+      link({ view: "clients" }, { text: "See Settings › Clients" }),
+    ]);
+  }
+  if (!wall.client_id) {
+    return el("p", { class: "muted wall-problem" }, [
+      el("span", { text: "No Player shows this wall. " }),
+      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
+    ]);
+  }
+  return null;
 }
 
 /* Every client by its id, or why they could not be read.
@@ -172,29 +239,16 @@ async function clientListing() {
 }
 
 /* Which client this wall is assigned to, on which output, and whether a screen
- * is there to show it — or that no client is assigned.
+ * is there to show it.
  *
  * "Shown by" only where the client reports a screen detected on that output, in
  * a report young enough to speak for now (`core/outputs.js` says why); otherwise
- * the assignment, and what the report says or why it cannot. A wall nobody shows
- * is an ordinary state (`clients.md` § The model), and the one where everything
- * else on this screen happens to no screen at all — so it is said, with the way
- * to Settings › Clients, where a wall is assigned. */
+ * the assignment, and what the report says or why it cannot. */
 function assignmentLine(wall, shownBy) {
-  // A display two clients report is shown by neither, whatever `client_id`
-  // still names, so the fault is said in place of the assignment.
-  if (wall.display && wall.display.fault) {
-    return el("p", { class: "note wall-client wall-fault" }, [
-      el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-      link({ view: "clients" }, { text: "See Settings › Clients" }),
-    ]);
-  }
-  if (!wall.client_id) {
-    return el("p", { class: "muted wall-client" }, [
-      el("span", { text: "No client shows this wall. " }),
-      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
-    ]);
-  }
+  // No Player, or a display two clients claim: the card says it, and in the Edit…
+  // dialog the Player picker reads None, so this says nothing more (a state is
+  // worded once).
+  if ((wall.display && wall.display.fault) || !wall.client_id) return null;
   const client = shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   // A port is named only with `?debug` (the owner's ruling 1 of 2026-10-11),
   // and a screen the lead already calls off is not called off again here.
@@ -354,27 +408,66 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
   return el("section", { class: "wall", "data-wall": wall.wall_id }, [
     // `h2` for the wall and `h3` for what is in it, so the nesting survives a
     // second wall: a reader navigating by heading gets each room with its own
-    // work inside it.
-    el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
+    // work inside it. The badge beside it is the screen's state in one word.
+    el("header", { class: "wall-head" }, [
+      el("h2", { class: "wall-title", tabindex: "-1", "data-arrive": state.params.wall === wall.wall_id, text: wall.name }),
+      stateBadge(wall, now, live),
+      // The wall's settings, one step away (the page rules of 2026-10-27).
+      el("button", {
+        class: "action quiet wall-edit",
+        type: "button",
+        text: "Edit…",
+        "aria-haspopup": "dialog",
+        "aria-label": `Edit ${wall.name}…`,
+        onclick: () => editWall(wall, manifest, shownBy),
+      }),
+    ]),
     card.lead,
-    card.next,
-    sourceLine(wall),
-    assignmentLine(wall, shownBy),
-    labelsLine(wall),
+    // Which Player shows the wall is its configuration, and is said here only
+    // when it is a problem: no Player, or a screen two Players claim.
+    assignmentProblem(wall),
     // The server's sentence, so Walls and the tool surface say the same thing
-    // about a Player that cannot read this server's feed.
+    // about a Player that cannot read this server's feed. Under the lead, which
+    // leads the card whatever else it has to say.
     wall.feed_notice ? el("p", { class: "note wall-feed" }, [el("span", { text: `${GLYPHS.problem} ${wall.feed_notice}` })]) : null,
-    // The server's own sentence about how much of the theme reached the wall,
-    // and not repeated when a reason below is about to say the same thing in
-    // more useful words: a screen states a fact once, and two copies of one fact
-    // invite the reader to look for the difference between them.
-    manifest && reason !== "empty-theme" ? summaryLine(manifest) : null,
-    ...emptiness(reason, wall, build, beats),
     sceneLine(wall, live),
-    controls(card, themes, reason, manifest),
+    acts(card, reason, manifest),
     card.said,
-    manifest ? setup(wall, manifest) : null,
+    // Said only when none of the theme reaches the wall, which is when it stops
+    // the wall's job; otherwise the count of works it cannot show is a link at
+    // the card's foot (rule: an exception stays quiet until it blocks).
+    manifest && reason !== "empty-theme" && manifest.entries.length === 0 ? summaryLine(manifest) : null,
+    ...emptiness(reason, wall, build, beats, themes),
+    hangingFacts(wall, themes, manifest),
+    card.next,
+    footer(wall, manifest),
   ]);
+}
+
+/* The screen's state in one word, at the card's head: glyph, word and colour,
+ * as every badge is (`design-direction.md` § Component Patterns, Badges). The
+ * words are the ruled ones (`information-architecture.md` § Vocabulary). */
+const BADGES = {
+  showing_art: ["good", "Showing"],
+  dark: ["none", "Screen off"],
+  in_use: ["waiting", "In use"],
+  no_screen: ["problem", "No screen"],
+  unassigned: ["problem", "No Player"],
+  silent: ["problem", "Not reporting"],
+  unreachable: ["unknown", "Not known"],
+};
+
+function stateBadge(wall, now, live) {
+  const entry = live ? live.walls.find((each) => each.wall_id === wall.wall_id) : null;
+  if (entry && entry.reached) return badge("putForward", "Scene", "wall-badge-scene");
+  const stateName = now && now.shown ? now.shown.state : wall.client_id ? null : "unassigned";
+  if (!stateName) return null;
+  const [glyph, word] = BADGES[stateName] || BADGES.unreachable;
+  return badge(glyph, word, `wall-badge-${stateName}`);
+}
+
+function badge(glyph, word, kind) {
+  return el("span", { class: `badge wall-badge ${kind}` }, [el("span", { class: "glyph", "aria-hidden": "true", text: GLYPHS[glyph] }), word]);
 }
 
 /* The Scene: a work per wall, shown together over each wall's schedule
@@ -399,23 +492,32 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
  * One draft and one live scene, as the builder holds them; the server would
  * take more, and a draft made elsewhere (over MCP) shows here as the draft. */
 function paintScene(scene, scenes, focus = null) {
-  // Focusable by script only, so Discard, which removes the control that had
-  // focus, can hand it to the section's heading rather than the page's body.
-  const parts = [el("h2", { id: "scene-title", class: "scene-title", tabindex: "-1", "data-scene-focus": "scene-title", text: "Scene" })];
-  if (!scenes) {
-    parts.push(el("p", { class: "note", text: "This page could not read the scene, so it cannot be shown or changed here. Reload to try again." }));
-  } else {
-    if (scenes.live) parts.push(...liveScene(scene, scenes.live));
-    if (!scenes.live || scenes.draft) parts.push(...sceneBuilder(scene, scenes.draft));
+  scene.scenes = scenes;
+  // The line above the cards: a live scene, or that the scene could not be read.
+  // Hidden otherwise, rather than an empty block between the toolbar and the cards.
+  const unread = !scenes;
+  scene.node.hidden = !(unread || scenes.live);
+  if (unread) {
+    fill(scene.node, el("p", { class: "note", text: "This page could not read the scene, so it cannot be shown or changed here. Reload to try again." }));
+  } else if (scenes.live) {
+    fill(scene.node, ...liveScene(scene, scenes.live));
   }
-  fill(scene.node, ...parts);
+  if (!scene.panel) return;
+  // The dialog: what is being assembled, or that nothing can be while a scene is
+  // unreadable. Focusable by script only, so Discard, which removes the control
+  // that had focus, can hand it to the dialog's own lead rather than the page.
+  const parts = [el("span", { id: "scene-title", class: "visually-hidden", tabindex: "-1", "data-scene-focus": "scene-title", text: "Scene" })];
+  if (unread) parts.push(el("p", { class: "note", text: "The scene could not be read. Close this and reload to try again." }));
+  else if (scenes.live && !scenes.draft) parts.push(el("p", { class: "muted", text: `${sceneSpan(scenes.live)}. Release it, above the walls, before assembling another.` }));
+  else parts.push(...sceneBuilder(scene, scenes.draft));
+  fill(scene.panel.body, ...parts);
   if (focus) {
-    const target = scene.node.querySelector(`[data-scene-focus="${focus}"]`);
+    const target = scene.panel.body.querySelector(`[data-scene-focus="${focus}"]`);
     if (target) target.focus();
   }
 }
 
-/* Read the scene again and repaint the section, keeping focus on `focus`. */
+/* Read the scene again and repaint, keeping focus on `focus`. */
 async function repaintScene(scene, focus = null) {
   paintScene(scene, await api("/api/scenes/live"), focus);
 }
@@ -517,13 +619,13 @@ function sceneBuilder(scene, draft) {
 function pickRow(scene, draft, wall) {
   const pin = draft ? draft.walls.find((entry) => entry.wall_id === wall.wall_id) : null;
   const inputId = `scene-find-${wall.wall_id}`;
-  const query = el("input", { id: inputId, type: "search", "data-scene-focus": `find-${wall.wall_id}` });
+  const query = el("input", { id: inputId, type: "search", "aria-label": `Search your library for ${wall.name}`, "data-scene-focus": `find-${wall.wall_id}` });
   const found = el("ul", { class: "scene-found", "aria-label": `Works found for ${wall.name}` });
   const findButton = el("button", {
     class: "action quiet",
     type: "button",
-    text: "Find",
-    "aria-label": `Search the library for ${wall.name}`,
+    text: "Search",
+    "aria-label": `Search your library for ${wall.name}`,
     onclick: (event) => findWorks(event.currentTarget, scene, draft, wall, query.value, found),
   });
   query.addEventListener("keydown", (event) => {
@@ -552,7 +654,10 @@ function pickRow(scene, draft, wall) {
           }),
         ])
       : el("p", { class: "muted scene-pick", text: "Nothing picked." }),
-    el("div", { class: "row" }, [el("div", { class: "field" }, [el("label", { for: inputId, text: `Find a work for ${wall.name}` }), query]), findButton]),
+    // Says what it searches: only the works held, as Artworks' search does
+    // (ruling 5 of 2026-10-27). The wall's name is in the field's accessible
+    // name, so a reader moving by form field hears which wall each is for.
+    el("div", { class: "row" }, [el("div", { class: "field" }, [el("label", { for: inputId, text: "Search your library" }), query]), findButton]),
     found,
   ]);
 }
@@ -637,7 +742,14 @@ function applyControls(scene, draft) {
                 method: "POST",
                 body: JSON.stringify(lifetime === "hold" ? { lifetime } : { lifetime, minutes }),
               }),
-            { then: (applied) => watchScene(scene, applied.scene_id) },
+            {
+              then: (applied) => {
+                // The dialog's work is done: what the walls do next is the line
+                // above the cards, which the watch repaints.
+                if (scene.panel) scene.panel.close();
+                return watchScene(scene, applied.scene_id);
+              },
+            },
           )
         : false,
     );
@@ -706,7 +818,9 @@ const STATE_WORDS = {
   in_use: "Somebody is using the screen",
   dark: "Its screen is off",
   no_screen: "No screen",
-  unassigned: "Not assigned to a screen",
+  // Not drawn in a lead (the badge and the problem line say it), and held here
+  // because every state the server sends has its words.
+  unassigned: "No Player",
   unreachable: "Not known",
 };
 
@@ -718,7 +832,8 @@ function stateWords(state) {
 
 /* The lead for a wall that names no work: the state, and since when, then the
  * work it showed last, large, where the server has one. */
-function stateLead(wall, shown, said, silent, last) {
+function stateLead(wall, shown, said, silent, last, first) {
+  if (!silent && said.state === "dark") return darkLead(wall, shown, last, first);
   const words = said.state === "showing_art" ? `A picture ${wall.name} did not put there` : stateWords(said.state);
   const lines = silent
     ? [el("p", { class: "wall-now-when", text: lastHeard(shown) }), el("p", { class: "muted", text: `When it last reported: ${words}.` })]
@@ -741,6 +856,20 @@ function stateLead(wall, shown, said, silent, last) {
           shown.since ? el("p", { class: "muted", text: `Since ${readable(shown.since)}` }) : null,
         ];
   return el("div", { class: "wall-now", "data-state": shown.state }, [...lines, last ? lastShownFigure(wall, last) : null]);
+}
+
+/* A dark screen: the work it showed last, dimmed, or, while the wall has shown
+ * nothing the server logged, the work that comes on when the screen does (ruling
+ * 6 of 2026-10-27, which keeps ruling 3 of 2026-10-11 and falls back for an
+ * empty log). Under one line saying since when the screen has been off. */
+function darkLead(wall, shown, last, first) {
+  // "Screen off" is the badge's, at the card's head; this line says since when,
+  // so the card says the screen is off once.
+  const since = shown.since ? `Off since ${readable(shown.since)}` : "Off";
+  let figure = null;
+  if (last) figure = lastShownFigure(wall, last);
+  else if (first) figure = workFigure(wall, first.work, `Next, when the screen comes on, from ${readable(first.slot.starts_at)}`, "wall-last");
+  return el("div", { class: "wall-now wall-dim", "data-state": shown.state }, [el("p", { class: "wall-now-state", text: since }), figure]);
 }
 
 /* The work the wall showed last, as large as the work on it would be, under
@@ -785,7 +914,10 @@ function nowShowing(wall, now) {
   }
   const silent = shown.state === "silent";
   const said = silent ? shown.last : shown;
-  if (!now.workId) return stateLead(wall, shown, said, silent, now.last);
+  // No Player: the badge says so and the line under it has the way to fix it,
+  // so the lead adds nothing (a state is worded once, 2026-10-27).
+  if (!silent && said.state === "unassigned") return el("div", { class: "wall-now", "data-state": "unassigned", hidden: true });
+  if (!now.workId) return stateLead(wall, shown, said, silent, now.last, ledWith(now));
   const when = silent ? `${lastHeard(shown)}, so this may have changed since` : "On the wall now";
   if (now.failure) {
     return el("div", { class: "wall-now" }, [
@@ -831,13 +963,25 @@ function workFigure(wall, work, when, kind) {
   ]);
 }
 
+/* The upcoming work a dark wall with nothing logged leads with (`darkLead`), or
+ * null. Decided here once, for the lead and for the row under it: the row skips
+ * exactly the work the lead drew, and a first work that could not be read leads
+ * nothing and stays in the row with its failure. */
+function ledWith(now) {
+  if (!now || !now.shown || now.shown.state !== "dark" || now.workId || now.last) return null;
+  const first = now.next.length ? now.next[0] : null;
+  return first && first.work ? first : null;
+}
+
 /* The next three works the wall's schedule puts up, each small, with when it
  * goes up. Nothing while the wall has no feed: there is nothing coming. */
 function nextUp(wall, now) {
-  const next = now ? now.next : [];
+  // So the row starts at the second rather than drawing the lead's work twice.
+  const led = Boolean(ledWith(now));
+  const next = now ? now.next.slice(led ? 1 : 0) : [];
   if (!next.length) return el("div", { class: "wall-next", hidden: true });
   return el("div", { class: "wall-next" }, [
-    el("h3", { class: "wall-next-title", text: "Next" }),
+    el("h3", { class: "wall-next-title", text: led ? "Then" : "Up next" }),
     el(
       "ol",
       { class: "wall-next-list" },
@@ -860,29 +1004,12 @@ function nextUp(wall, now) {
   ]);
 }
 
-/* What the wall draws from, and for how long: a theme by its name and a link to
- * it, or "a selection" for works hung by choosing them, whose theme is a made-up
- * name the curator never gave (`api-contract.md` § History, selections and
- * *Not this one again*). Every hang lasts until something else is hung, which is
- * said, because the wave-4 schedule will make it a choice. */
-function sourceLine(wall) {
-  if (!wall.theme) return null;
-  if (wall.theme.hidden) {
-    return el("p", { class: "wall-source", text: "Drawing from a selection, until changed." });
-  }
-  return el("p", { class: "wall-source" }, [
-    "Drawing from ",
-    link({ view: "theme", id: wall.theme.theme_id }, { text: wall.theme.name }),
-    ", until changed.",
-  ]);
-}
-
 /* The four reasons, dispatched. Each is its own function below, and that is not
  * decoration: they are four branches with four texts and four fixes, and a
  * dispatch that fell through to a shared sentence would be the single "nothing is
  * showing" this screen exists not to say. */
-function emptiness(reason, wall, build, beats) {
-  if (reason === "no-theme") return noThemeHung(wall);
+function emptiness(reason, wall, build, beats, themes) {
+  if (reason === "no-theme") return noThemeHung(wall, themes);
   if (reason === "empty-theme") return emptyTheme(wall, build.manifest);
   if (reason === "silent") return planeSilent(wall, beats.byWall.get(wall.wall_id));
   if (reason === "unreachable") return unreachable(cannotReach(wall, build, beats));
@@ -891,14 +1018,16 @@ function emptiness(reason, wall, build, beats) {
 
 /* Reason one: no theme has been hung here.
  *
- * The fix is Change in this wall's own section, a few lines below — opened
- * already when nothing is hung — so the sentence points at it rather than
+ * The fix is the Hanging picker in this wall's own card, a few lines below,
+ * so the sentence points at it rather than
  * sending the curator to another screen for the one act this screen is named for. */
-function noThemeHung(wall) {
+function noThemeHung(wall, themes) {
+  // Pointing at the picker only when it is there: with no theme to choose, the
+  // Hanging line below says so and offers to create one.
   return [
     el("p", {
       class: "muted",
-      text: `Nothing is hanging on ${wall.name}. Choose a theme below and hang it there.`,
+      text: themes.length ? `Nothing is hanging on ${wall.name}. Choose a theme under Hanging, below.` : `Nothing is hanging on ${wall.name}.`,
     }),
   ];
 }
@@ -982,15 +1111,15 @@ function cannotReach(wall, build, beats) {
   return `The curation plane answered for ${wall.name}, and the reading that speaks for the display plane did not — ${beats.failure} — so nothing here can say whether anything is on the wall.`;
 }
 
-/* Skip, Not this one again, Change, and the wall's history: the card's acts.
+/* Skip and Remove…: the card's acts, under the work they act on.
  *
  * **No take-down control here, deliberately.** Taking down lives on the theme,
  * where it exists to make a theme deletable. It would also read wrong here: a
  * take-down rewrites no manifest, so pressing it on the screen whose whole job is
- * to say what is on the wall would leave the section reading "nothing is hanging"
- * while the television went on showing the pictures. Change is the act on this
- * screen that actually changes the wall. */
-function controls(card, themes, reason, manifest) {
+ * to say what is on the wall would leave the card reading "nothing is hanging"
+ * while the television went on showing the pictures. Hanging another theme is
+ * the act on this screen that actually changes the wall (`hangingFacts`). */
+function acts(card, reason, manifest) {
   const { wall } = card;
   // Only where something is actually up. A wall showing nothing has no
   // schedule to move on through (the server refuses the step), and offering it
@@ -1002,18 +1131,12 @@ function controls(card, themes, reason, manifest) {
   // of the four reasons — `considered` counts entries plus exclusions, so it
   // reads as hanging — and it published an empty rotation.
   const live = reason === "hanging" && manifest.entries.length > 0;
-  return el("div", { class: "wall-controls" }, [
-    el("div", { class: "row" }, [
-      live ? skipButton(card) : null,
-      // Only with a work to name: the display state's, which is the one a person in
-      // the room is tired of. A wall that has not said what it shows has
-      // nothing for this to be about.
-      card.now && card.now.workId && wall.theme ? notAgain(card) : null,
-      // A link, shaped as one: it goes to another page, where Skip beside it acts.
-      wall.theme ? link({ view: "history", params: { wall: wall.wall_id } }, { class: "wall-history", text: "History", "aria-label": `History of ${wall.name}` }) : null,
-    ]),
-    change(wall, themes),
-  ]);
+  // Only with a work to name: the display state's, which is the one a person in
+  // the room is tired of. A wall that has not said what it shows has nothing
+  // for this to be about.
+  const removable = Boolean(card.now && card.now.workId && wall.theme);
+  if (!live && !removable) return null;
+  return el("div", { class: "row wall-acts" }, [live ? skipButton(card) : null, removable ? removeButton(card) : null]);
 }
 
 /* Skip: the next work in this wall's rotation, and only this wall's.
@@ -1044,44 +1167,35 @@ function skipButton(card) {
   });
 }
 
-/* *Not this one again*, and the one question it asks: from this theme, or from
- * every wall. Two different changes (S8 says "nothing else changed"), so the
- * curator says which; neither is Archive, which would take the work out of the
- * library. The choice opens beside the button rather than in a dialog, because
- * the question is the act: there is nothing to confirm once it is answered. */
-function notAgain(card) {
+/* *Remove…* (it was *Not this one again*: ruling 2 of 2026-10-27), and the one
+ * question it asks: from this theme, or from every wall. Two different changes
+ * (S8 says "nothing else changed"), so the curator says which; neither is
+ * Archive, which would take the work out of the library. The question is a
+ * dialog whose two answers are the act, so there is nothing further to confirm. */
+function removeButton(card) {
   const { wall } = card;
-  const choiceId = `not-again-${wall.wall_id}`;
-  const choice = el("div", { class: "not-again-choice", id: choiceId, hidden: true });
-  const opener = el("button", {
+  return el("button", {
     class: "action quiet",
     type: "button",
-    text: "Not this one again",
-    "aria-expanded": "false",
-    "aria-controls": choiceId,
-    "aria-label": `Not this one again on ${wall.name}`,
-    onclick: () => {
-      const open = choice.hidden;
-      choice.hidden = !open;
-      opener.setAttribute("aria-expanded", String(open));
-      if (open) fillChoice(card, choice, opener);
-    },
+    text: "Remove…",
+    "aria-haspopup": "dialog",
+    "aria-label": `Remove the work on ${wall.name}…`,
+    onclick: () => askWhere(card),
   });
-  return el("span", { class: "not-again" }, [opener, choice]);
 }
 
 /* The two answers, built when the question is opened so they name the work the
  * card leads with then, which a Skip may have changed since the card was drawn. */
-function fillChoice(card, choice, opener) {
+function askWhere(card) {
   const { wall } = card;
   const title = card.now.work ? card.now.work.title : "this work";
   const from = wall.theme.hidden ? "this selection" : wall.theme.name;
-  const answer = (scope, text, label, act) =>
+  let panel = null;
+  const answer = (scope, text, sub, act) =>
     el("button", {
-      class: "action quiet",
+      class: "action quiet remove-choice",
       type: "button",
-      text,
-      "aria-label": label,
+      "aria-label": `${text}: ${sub}`,
       onclick: (event) =>
         attempt(
           event.currentTarget,
@@ -1093,22 +1207,23 @@ function fillChoice(card, choice, opener) {
             }),
           {
             then: () => {
-              choice.hidden = true;
-              opener.setAttribute("aria-expanded", "false");
-              return awaitNext(card, notAgainSaid(wall, title, scope, from), scope === "every_wall" ? card.now.workId : null);
+              panel.close();
+              return awaitNext(card, removedSaid(wall, title, scope, from), scope === "every_wall" ? card.now.workId : null);
             },
           },
         ),
-    });
-  fill(
-    choice,
-    el("p", { text: `Not ${title} again — from where?` }),
-    answer("theme", `From ${from}`, `Not ${title} again, from ${from}`, `take ${title} out of ${from}`),
-    answer("every_wall", "From every wall", `Not ${title} again, from every wall`, `keep ${title} off every wall`),
-  );
+    }, [el("span", { class: "remove-choice-what", text }), el("span", { class: "muted remove-choice-sub", text: sub })]);
+  panel = openPanel({
+    title: `Remove ${title} from ${wall.name}`,
+    closeLabel: "Cancel",
+    body: [
+      answer("theme", `Take it out of ${from}`, "It stays in your library and in your other themes.", `take ${title} out of ${from}`),
+      answer("every_wall", "Keep it off every wall", "It stays in your library and its themes, and no wall shows it.", `keep ${title} off every wall`),
+    ],
+  });
 }
 
-function notAgainSaid(wall, title, scope, from) {
+function removedSaid(wall, title, scope, from) {
   const done =
     scope === "every_wall"
       ? `${title} is kept off every wall. It stays in the library and in its themes.`
@@ -1116,56 +1231,92 @@ function notAgainSaid(wall, title, scope, from) {
   return `${done} ${wall.name} shows its next work when its display next reports.`;
 }
 
-/* Change: hang a theme on this wall instead. Open already when nothing is
- * hung, because reason one points at it.
+/* *Hanging*: what the wall hangs, as the control that hangs another (ruling 3
+ * of 2026-10-27: a fact that can be changed is its own control, and no words
+ * say that it could be), and how the wall plays it.
  *
  * **A picker rather than a button per theme**, the opposite of the choice
  * `screens/theme.js` makes for walls, and for the reason stated there: a button
- * per target suits a small set, and the themes are the side that grows. It
- * carries the wall's name on its label as well as on the button, so a curator
- * tabbing into the control knows which room it belongs to without reading
- * upward. Selections are not offered: the server leaves them out of the list. */
-function change(wall, themes) {
+ * per target suits a small set, and the themes are the side that grows. Its
+ * accessible name carries the wall's, so a reader moving by form field knows
+ * which room it belongs to. Choosing a theme asks first (`core/hanging.js`, the
+ * one wording of hanging), and a declined question puts the picker back.
+ * Selections are not offered: the server leaves them out of the list, so a wall
+ * hanging one shows it as the picker's first, unchoosable entry. */
+function hangingFacts(wall, themes, manifest) {
   if (!themes.length) {
-    return el("div", { class: "row wall-change" }, [
-      el("p", { class: "muted", text: "No theme has been created yet, so there is nothing to hang here." }),
+    // Nothing to choose, so no picker: a control with no choice in it is a dead
+    // end. A wall hanging a selection still says so.
+    return el("div", { class: "row wall-hanging wall-controls" }, [
+      wall.theme
+        ? el("p", { text: "Hanging a selection. No theme has been created to hang instead." })
+        : el("p", { class: "muted", text: "No theme has been created yet, so there is nothing to hang here." }),
       link({ view: "theme" }, { class: "action", text: "Create a theme" }),
     ]);
   }
-
   const pickerId = `hang-${wall.wall_id}`;
-  const picker = el("select", { id: pickerId });
-  for (const placement of themes) {
-    picker.append(el("option", { value: placement.theme.theme_id, text: placement.theme.name }));
-  }
-
-  return el("details", { class: "wall-change", open: !wall.theme }, [
-    el("summary", { class: "action quiet", text: "Change", "aria-label": `Change what ${wall.name} draws from` }),
-    el("div", { class: "row" }, [
-      el("div", { class: "field" }, [el("label", { for: pickerId, text: `Theme for ${wall.name}` }), picker]),
-      el("button", {
-        class: "action",
-        type: "button",
-        text: `Hang on ${wall.name}`,
-        onclick: (event) => hang(event.currentTarget, wall, themes, picker.value),
-      }),
-    ]),
+  const current = wall.theme && !wall.theme.hidden ? wall.theme.theme_id : "";
+  const picker = el("select", { id: pickerId, class: "fact-picker" }, [
+    !wall.theme ? el("option", { value: "", text: "Nothing — choose a theme", disabled: true, selected: true }) : null,
+    wall.theme && wall.theme.hidden ? el("option", { value: "", text: "A selection", disabled: true, selected: true }) : null,
+    ...themes.map((placement) => el("option", { value: placement.theme.theme_id, text: placement.theme.name, selected: placement.theme.theme_id === current })),
+  ]);
+  picker.addEventListener("change", async () => {
+    const chosen = themes.find((placement) => placement.theme.theme_id === picker.value);
+    const hung = await hangTheme({ control: picker, themeId: chosen.theme.theme_id, themeName: chosen.theme.name, wall, then: refresh });
+    if (!hung) picker.value = current;
+  });
+  // `wall-controls`: the card's one control every card has, which is what a
+  // test (and a reader) waits for to know the card is drawn.
+  return el("dl", { class: "facts wall-hanging wall-controls" }, [
+    // The visible term is the word; the field's own label names the wall too.
+    el("dt", { "aria-hidden": "true", text: "Hanging" }),
+    el("dd", {}, [el("label", { for: pickerId, class: "visually-hidden", text: `Hanging on ${wall.name}` }), picker]),
+    manifest ? el("dt", { text: "Changes" }) : null,
+    manifest ? el("dd", { text: playsWords(manifest) }) : null,
   ]);
 }
 
-/* Repaints in place, because the result of this act is on this screen — and it
- * repaints from the published manifest rather than from optimism: `refresh`
- * re-reads everything, so nothing here assumes the activation put up what the
- * preview said it would.
- *
- * The question, the preview and the request are `core/hanging.js`'s — the Theme
- * screen asks the same one, and one act must not have two wordings. */
-function hang(control, wall, themes, themeId) {
-  const chosen = themes.find((placement) => placement.theme.theme_id === themeId);
-  return hangTheme({ control, themeId, themeName: chosen.theme.name, wall, then: refresh });
+/* How the wall plays what hangs on it, in one line: the interval and the order,
+ * the default resolved by the server (`GET /api/manifest`). */
+function playsWords(manifest) {
+  return `every ${durationWords(manifest.rotation_interval_seconds)}, ${manifest.shuffle ? "shuffled" : "in the theme's order"}`;
 }
 
-/* After a Skip or *Not this one again*: say what happens next, then watch this
+/* The card's foot: the places this wall's account continues. History is a link
+ * because it goes to another page; the works this wall cannot show are a list too
+ * long for the card, so they open in a panel, and the line is there only when
+ * there are any (an exception stays quiet until it blocks). */
+function footer(wall, manifest) {
+  const kept = manifest ? manifest.exclusions : [];
+  if (!wall.theme && !kept.length) return null;
+  return el("footer", { class: "wall-foot" }, [
+    wall.theme ? link({ view: "history", params: { wall: wall.wall_id } }, { class: "wall-history", text: "History", "aria-label": `History of ${wall.name}` }) : null,
+    kept.length
+      ? el("button", {
+          class: "action quiet wall-kept",
+          type: "button",
+          "aria-haspopup": "dialog",
+          text: `${counted(kept.length, "work")} can't be shown here…`,
+          "aria-label": `${counted(kept.length, "work")} can't be shown on ${wall.name}: see which and why`,
+          onclick: () =>
+            openPanel({
+              title: `Not on ${wall.name}`,
+              lead: "Every work this wall draws from that is not on it, and why.",
+              body: [
+                table(
+                  "Every work this wall draws from that is not on it, and exactly why.",
+                  ["Title", "Reason", "What is missing"],
+                  kept.map((x) => [x.title, EXCLUSION_WORDS[x.reason] || x.reason, x.detail]),
+                ),
+              ],
+            }),
+        })
+      : null,
+  ]);
+}
+
+/* After a Skip or *Remove…*: say what happens next, then watch this
  * wall's display state until it names a different work, and lead the card with it.
  *
  * `gone` is a work that must not be taken for the new one even if the wall
@@ -1224,30 +1375,253 @@ const EXCLUSION_WORDS = {
   outside_wall_shape: "Outside this wall's shapes",
 };
 
-/* How the wall is set up: what of its theme is not reaching it, how it
- * rotates, which shapes it shows, and how its mat is drawn. Behind a disclosure, because the card is about the work on the wall;
- * this is what to open when the wall is not doing what was expected. */
-function setup(wall, manifest) {
-  return el("details", { class: "wall-setup" }, [
-    el("summary", { text: `How ${wall.name} is set up` }),
-    el("div", { class: "panel" }, [
-      // Never omitted when empty: a section that appeared only on trouble would
-      // train a reader to take its absence as "everything is fine".
-      el("h3", { text: `Not showing (${manifest.exclusions.length})` }),
-      manifest.exclusions.length
-        ? table(
-            "Every work this wall draws from that is not on it, and exactly why.",
-            ["Title", "Reason", "What is missing"],
-            manifest.exclusions.map((x) => [x.title, EXCLUSION_WORDS[x.reason] || x.reason, x.detail]),
-          )
-        : el("p", {
-            class: "muted",
-            text: `Every work it draws from reaches the wall: ${counted(manifest.entries.length, "work")} in rotation.`,
-          }),
+/* *Edit…*: the wall's settings in one dialog (ruling 4 of 2026-10-27): its name,
+ * where it shows (the Player and screen, and its label panels), how it rotates,
+ * which shapes it shows, and its mat. Each part is set by its own act and says so
+ * in place, as the panels always have, so a change made in one part is never held
+ * hostage by another. The card is repainted when the dialog closes after any part
+ * changed something: the name, the Player and the labels close it at once, since
+ * the card is where they show; the rotation, shapes and mat leave it open to go
+ * on working in, and the card's *Changes*, next works and what it cannot show
+ * catch up on the way out. */
+function editWall(wall, manifest, shownBy) {
+  const edit = editing();
+  edit.panel = openPanel({
+    title: `Edit ${wall.name}`,
+    body: [
+      nameSection(wall, edit.done),
+      whereSection(wall, shownBy, edit.done),
+      labelsSection(wall, shownBy, edit.done),
+      ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
+      manifest ? matPanel(wall, edit.changed) : null,
+    ],
+    onClose: edit.closed,
+  });
+}
+
+/* What a dialog that changes walls needs: `changed` when an act lands, `done`
+ * when it lands and the dialog has nothing more to do, and `closed` for
+ * `openPanel`'s `onClose`, which repaints the page if anything changed. A dialog
+ * left by a link repaints nothing here: the page it went to paints itself. The
+ * dialog is closed by its own handle, so this never closes a panel it did not
+ * open. */
+function editing() {
+  const edit = { panel: null, wrote: false };
+  edit.changed = () => (edit.wrote = true);
+  edit.done = () => {
+    edit.changed();
+    edit.panel.close();
+  };
+  edit.closed = () => {
+    if (edit.wrote && state.view === "walls") refresh();
+  };
+  return edit;
+}
+
+/* The wall's name. The server refuses an empty one or one another wall has, in
+ * words this dialog shows beside the field. */
+function nameSection(wall, done) {
+  const nameId = `wall-name-${wall.wall_id}`;
+  const field = el("input", { id: nameId, type: "text", value: wall.name });
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Name" }),
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), field]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Rename",
+        "aria-label": `Rename ${wall.name}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `rename ${wall.name}`,
+            () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}`, { method: "POST", body: JSON.stringify({ name: field.value }) }),
+            { then: done },
+          ),
+      }),
     ]),
-    ...playbackPanels(wall, manifest),
-    matPanel(wall),
   ]);
+}
+
+/* The screens a client reported, by name, with whether something is connected:
+ * what the Player picker's screen choice offers. */
+function screensOf(client) {
+  const outputs = client && client.heartbeat && Array.isArray(client.heartbeat.outputs) ? client.heartbeat.outputs : [];
+  return outputs.filter((output) => output.kind !== "epd");
+}
+
+/* Which Player shows the wall, and on which screen: the line that says what the
+ * Player last reported about it, then the two pickers and *Show it there*. None
+ * takes the wall off its Player; its theme stays hung. */
+function whereSection(wall, shownBy, done) {
+  const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
+  const playerId = `wall-player-${wall.wall_id}`;
+  const screenId = `wall-screen-${wall.wall_id}`;
+  const player = el("select", { id: playerId }, [
+    el("option", { value: "", text: "None", selected: !wall.client_id }),
+    ...clients.map((client) => el("option", { value: client.client_id, text: client.name, selected: client.client_id === wall.client_id })),
+  ]);
+  const screen = el("select", { id: screenId });
+  const fillScreens = () => {
+    const client = shownBy.byId ? shownBy.byId.get(player.value) : null;
+    const screens = screensOf(client);
+    fill(
+      screen,
+      ...(screens.length
+        ? screens.map((output) =>
+            el("option", {
+              value: output.name,
+              text: `${screenName(output.name)}${output.connected ? "" : " · nothing connected"}`,
+              selected: client && client.client_id === wall.client_id && output.name === wall.output,
+            }),
+          )
+        : [el("option", { value: "", text: client ? "It has not reported its screens" : "—", disabled: true, selected: true })]),
+    );
+    screen.disabled = !client || !screens.length;
+  };
+  player.addEventListener("change", fillScreens);
+  fillScreens();
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Where it shows" }),
+    assignmentLine(wall, shownBy),
+    shownBy.failure ? el("p", { class: "note", text: `The Players could not be read — ${shownBy.failure}.` }) : null,
+    el("div", { class: "row" }, [
+      el("div", { class: "field" }, [el("label", { for: playerId, text: `Player for ${wall.name}` }), player]),
+      el("div", { class: "field" }, [el("label", { for: screenId, text: "Screen" }), screen]),
+      el("button", {
+        class: "action",
+        type: "button",
+        text: "Show it there",
+        "aria-label": `Show ${wall.name} there`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            player.value ? `show ${wall.name} on that screen` : `take ${wall.name} off its Player`,
+            () =>
+              player.value
+                ? api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, {
+                    method: "POST",
+                    body: JSON.stringify({ client_id: player.value, output: screen.value }),
+                  })
+                : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
+            { then: done },
+          ),
+      }),
+    ]),
+  ]);
+}
+
+/* The label panels captioning the wall, each with *Stop captioning*, then one to
+ * add from those the Players reported that caption no wall: the server refuses a
+ * panel captioning another wall until it is taken off that one, so offering it
+ * would offer a choice that cannot succeed. */
+function labelsSection(wall, shownBy, done) {
+  const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
+  const offered = clients.flatMap((client) =>
+    (client.label_outputs || []).filter((label) => label.wall_id == null).map((label) => ({ client, output: label.output })),
+  );
+  const pickId = `wall-label-${wall.wall_id}`;
+  const pick = el(
+    "select",
+    { id: pickId },
+    offered.map(({ client, output }, at) => el("option", { value: String(at), text: panelName(output, client) })),
+  );
+  const ownerOf = (label) => (shownBy.byId ? shownBy.byId.get(label.client_id) : null);
+  return el("div", { class: "panel" }, [
+    el("h3", { text: "Label panel" }),
+    labelsLine(wall),
+    ...(wall.labels || []).map((label) =>
+      el("div", { class: "row" }, [
+        el("span", { text: panelName(label.output, ownerOf(label), label.client_name) }),
+        el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Stop captioning",
+          "aria-label": `Stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
+          onclick: (event) =>
+            attempt(
+              event.currentTarget,
+              `stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
+              () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels/${encodeURIComponent(label.label_id)}`, { method: "DELETE" }),
+              { then: done },
+            ),
+        }),
+      ]),
+    ),
+    offered.length
+      ? el("div", { class: "row" }, [
+          el("div", { class: "field" }, [el("label", { for: pickId, text: `Caption ${wall.name} with` }), pick]),
+          el("button", {
+            class: "action",
+            type: "button",
+            text: "Caption it",
+            "aria-label": `Caption ${wall.name} with this label panel`,
+            onclick: (event) => {
+              const { client, output } = offered[Number(pick.value)];
+              return attempt(
+                event.currentTarget,
+                `caption ${wall.name} with ${panelName(output, client)}`,
+                () =>
+                  api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels`, {
+                    method: "POST",
+                    body: JSON.stringify({ client_id: client.client_id, output }),
+                  }),
+                { then: done },
+              );
+            },
+          }),
+        ])
+      : wall.labels && wall.labels.length
+        ? null
+        : el("p", { class: "muted", text: "No Player has reported a label panel." }),
+  ]);
+}
+
+/* A label panel in the words a person reads (`information-architecture.md`
+ * § Vocabulary): *the label panel on Hall Pi*. Its port is named only when that
+ * Player has more than one, since then it is the one thing telling them apart.
+ * `clientName` stands in when the Player itself could not be read. */
+function panelName(output, client, clientName = null) {
+  const name = client ? client.name : clientName || "a Player whose name could not be read";
+  const several = Boolean(client && (client.label_outputs || []).length > 1);
+  return several ? `label panel ${output} on ${name}` : `the label panel on ${name}`;
+}
+
+/* *Add wall…*: its name. Its Player is chosen with the new card's *Edit…*, and a
+ * theme hung from its Hanging picker, which asks first as every hang does. */
+function addWallOpener() {
+  return el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Add wall…",
+    "aria-haspopup": "dialog",
+    onclick: () => {
+      const nameId = "new-wall-name";
+      const name = el("input", { id: nameId, type: "text", placeholder: "Hall" });
+      const edit = editing();
+      const add = el("button", {
+        class: "action",
+        type: "button",
+        text: "Add wall",
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `add the wall ${name.value.trim() || "with no name"}`,
+            () => api("/api/walls", { method: "POST", body: JSON.stringify({ name: name.value }) }),
+            { then: edit.done },
+          ),
+      });
+      edit.panel = openPanel({
+        title: "Add a wall",
+        lead: "A wall is a place that shows art. Once it is added, choose its Player with Edit… and what it hangs with Hanging, on its card.",
+        closeLabel: "Cancel",
+        body: [el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), name])],
+        actions: [add],
+        onClose: edit.closed,
+      });
+    },
+  });
 }
 
 /* The rotation and shapes panels, which share one route
@@ -1255,10 +1629,10 @@ function setup(wall, manifest) {
  * server leaves the rest as they are: a body carrying the other panel's
  * settings as this page first drew them would put back whatever was set since,
  * here or on another surface. */
-function playbackPanels(wall, manifest) {
+function playbackPanels(wall, manifest, changed) {
   const send = (changes) =>
     api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, { method: "PUT", body: JSON.stringify(changes) });
-  return [rotationPanel(wall, manifest, send), shapesPanel(wall, send)];
+  return [rotationPanel(wall, manifest, send, changed), shapesPanel(wall, send, changed)];
 }
 
 /* The wall's orders in the curator's words, in the order the picker offers
@@ -1279,7 +1653,7 @@ const ORDER_CHOICES = [
  * default. The facts say what the wall plays at now, the default resolved, and
  * are asked of the server again (`GET /api/manifest`) after Set rather than worked out here,
  * since only the server knows the default. */
-function rotationPanel(wall, manifest, send) {
+function rotationPanel(wall, manifest, send, changed) {
   const intervalId = `interval-${wall.wall_id}`;
   const orderId = `order-${wall.wall_id}`;
   const interval = el("input", {
@@ -1297,8 +1671,8 @@ function rotationPanel(wall, manifest, send) {
     order.append(el("option", { value, text: words, selected: String(wall.shuffle ?? "") === value }));
   }
   const now = el("div", {}, [rotationFacts(manifest)]);
-  // Said here and the panel left as it is, as the mat's is: a repaint would
-  // close the disclosure the curator just worked in.
+  // Said here and the dialog left open, as the mat's is; the card catches up
+  // when it closes (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
   return el("div", { class: "panel" }, [
     el("h3", { text: "How it rotates" }),
@@ -1336,6 +1710,7 @@ function rotationPanel(wall, manifest, send) {
               }),
             {
               then: async () => {
+                changed();
                 const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
                 fill(now, rotationFacts(fresh));
                 said.textContent = `Rotation on ${wall.name}: ${rotationWords(fresh)}.`;
@@ -1364,7 +1739,7 @@ const SHAPE_CHOICES = [
  * beside them as a hint and never applied. A range that leaves nothing is
  * honoured and the wall goes dark, so after Set the panel says the server's own
  * summary, which says that. */
-function shapesPanel(wall, send) {
+function shapesPanel(wall, send, changed) {
   const pickerId = `shapes-${wall.wall_id}`;
   const tallestId = `tallest-${wall.wall_id}`;
   const widestId = `widest-${wall.wall_id}`;
@@ -1386,8 +1761,8 @@ function shapesPanel(wall, send) {
   });
   for (const field of [tallest, widest]) field.addEventListener("input", () => (picker.value = chosen()));
   const now = el("div", {}, [shapeFacts(wall)]);
-  // Said here and the panel left as it is, as the mat's is: a repaint would
-  // close the disclosure the curator just worked in.
+  // Said here and the dialog left open, as the mat's is; the card catches up
+  // when it closes (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
   return el("div", { class: "panel" }, [
     el("h3", { text: "Shapes it shows" }),
@@ -1410,6 +1785,7 @@ function shapesPanel(wall, send) {
             () => send({ tallest: tallest.value.trim() || null, widest: widest.value.trim() || null }),
             {
               then: async (answer) => {
+                changed();
                 tallest.value = answer.tallest ?? "";
                 widest.value = answer.widest ?? "";
                 picker.value = chosen();
@@ -1466,11 +1842,11 @@ const MAT_CHOICES = [
 /* How the wall's Player draws the mat. The colour is always the work's own and
  * the width the Player's, so this chooses only how much of the screen the mat
  * fills. */
-function matPanel(wall) {
+function matPanel(wall, changed) {
   const pickerId = `mat-${wall.wall_id}`;
   const picker = el("select", { id: pickerId });
-  // Said here and the panel left as it is: nothing else on the card changes, and
-  // a repaint would close the disclosure the curator just worked in.
+  // Said here and the dialog left open; the card catches up when it closes
+  // (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
   for (const [value, words] of MAT_CHOICES) {
     picker.append(el("option", { value, text: words, selected: (wall.mat_mode || "") === value }));
@@ -1495,6 +1871,7 @@ function matPanel(wall) {
               }),
             {
               then: (answer) => {
+                changed();
                 const [, , words] = MAT_CHOICES.find(([value]) => value === (answer.mat_mode || ""));
                 said.textContent = `Mat on ${wall.name}: ${words}.`;
               },

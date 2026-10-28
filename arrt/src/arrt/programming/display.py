@@ -657,8 +657,33 @@ class DisplayService:
         """
         wall = Wall(id=str(uuid.uuid4()), name=require_text(name, field="name"), created_at=datetime.now(UTC))
         with self._store.transaction():
+            self._refuse_a_taken_name(wall)
             store_write(self._store.add_wall, wall)
         return wall
+
+    def rename_wall(self, wall_id: str, *, name: str) -> Wall:
+        """Give a wall a new name; a name another wall has is refused, as at `add_wall`.
+
+        **Nothing is republished.** A feed names works and slots, never the wall
+        (`player-contract.md`), so a Player sees no change. What changes is what a
+        person reads: Walls, History, and every confirmation that names the wall.
+        """
+        wall = self.get_wall(wall_id)
+        renamed = replace(wall, name=require_text(name, field="name"))
+        with self._store.transaction():
+            self._refuse_a_taken_name(renamed)
+            store_write(self._store.update_wall, renamed)
+        log.info("Wall %r is now called %r.", wall.name, renamed.name)
+        return renamed
+
+    def _refuse_a_taken_name(self, wall: Wall) -> None:
+        """Refuse a name another wall has, in words a person reads in a dialog.
+
+        The file's UNIQUE constraint still holds the rule; this says it first, because
+        the store's own refusal ("already stored") is about rows, not rooms.
+        """
+        if any(other.name == wall.name and other.id != wall.id for other in self._store.list_walls()):
+            raise ServiceError(f"Another wall is already called {wall.name!r}.")
 
     # -- writes: themes and membership ----------------------------------------
 

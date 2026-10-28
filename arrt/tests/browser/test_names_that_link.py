@@ -50,6 +50,16 @@ def client_address(client):
     return f"#clients?client={client.id}"
 
 
+def open_wall_setup(ui, wall):
+    """Which client shows a wall, and which captions it, are in the wall's Edit…
+    dialog since ruling 4 of 2026-10-27 took them off the card; opened here so
+    their links can be read."""
+    edit = ui.page.locator(f"#view section[data-wall='{wall.id}']").get_by_role("button", name=f"Edit {wall.name}…")
+    edit.wait_for()
+    edit.click()
+    ui.page.locator("dialog.panel-dialog").wait_for()
+
+
 def links_named(ui, scope, name):
     """Every link inside `scope` whose text is `name`."""
     ui.page.wait_for_selector(f"{scope} a:text-is('{name}')")
@@ -117,7 +127,8 @@ def test_status_links_each_walls_reading_to_the_wall(ui, a_health_reading):
 def test_walls_links_the_client_that_shows_the_wall(ui, services, the_wall, hall):
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
     ui.open("#walls")
-    clients = links_named(ui, f"#view section[data-wall='{the_wall.id}']", hall.name)
+    open_wall_setup(ui, the_wall)
+    clients = links_named(ui, "dialog.panel-dialog", hall.name)
     # The client that shows it, and the client whose label captions it.
     assert clients.count() == 2
     for at in range(clients.count()):
@@ -137,7 +148,8 @@ def test_a_wall_link_brings_that_walls_card_to_the_reader(ui, the_wall, hung):
 
 def test_a_client_link_brings_that_clients_panel_to_the_reader(ui, the_wall, hall):
     ui.open("#walls")
-    links_named(ui, "#view", hall.name).first.click()
+    open_wall_setup(ui, the_wall)
+    links_named(ui, "dialog.panel-dialog", hall.name).first.click()
     ui.page.wait_for_function(
         "(id) => document.activeElement && document.activeElement.closest(`section[data-client='${id}']`)", arg=hall.id
     )
@@ -186,7 +198,8 @@ def test_a_label_whose_client_cannot_be_named_is_said_in_words_not_an_empty_link
 
     ui.page.route("**/api/walls", nameless_first)
     ui.open("#walls")
-    line = ui.page.locator(f"#view section[data-wall='{the_wall.id}'] .wall-labels")
+    open_wall_setup(ui, the_wall)
+    line = ui.page.locator("dialog.panel-dialog .wall-labels")
     line.wait_for()
 
     assert "a label on a client whose name could not be read" in line.inner_text()

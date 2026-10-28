@@ -104,6 +104,17 @@ def card(ui, wall):
     return ui.page.locator(f"section.wall[data-wall='{wall.id}']")
 
 
+def setup_line(ui, wall, kind):
+    """A line of the wall's Edit… dialog, opened first: which Player and screen
+    show it, and which label captions it, moved off the card by ruling 4 of
+    2026-10-27."""
+    if not ui.page.locator("dialog.panel-dialog[open]").count():
+        card(ui, wall).get_by_role("button", name=f"Edit {wall.name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+    return dialog.locator(kind)
+
+
 def open_walls(ui, *, debug=False):
     ui.open(f"{'?debug' if debug else ''}#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
@@ -115,20 +126,62 @@ def test_with_the_screen_off_the_card_shows_the_last_shown_work_large(ui, the_wa
     lead = card(ui, the_wall).locator(".wall-now")
     last = lead.locator("figure.wall-last")
     last.wait_for()
-    assert lead.locator(".wall-now-state").inner_text() == "Its screen is off"
+    # "Screen off" is the card's badge; the lead says since when (ruling 6 of
+    # 2026-10-27, which also dims the work: it is not on the wall now).
+    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
+    assert "wall-dim" in lead.get_attribute("class")
     assert last.locator(".wall-now-when").inner_text().startswith("Last on the wall, until ")
     assert last.get_by_alt_text("Automat").count() == 1
     assert last.get_by_role("link", name="Automat").get_attribute("href").startswith(f"#work/{went_dark.id}")
     assert "size=large" in last.locator("img").get_attribute("src")
 
 
-def test_a_wall_that_has_shown_nothing_leads_with_its_state_alone(ui, services, the_wall, hopper):
+def test_a_wall_that_has_shown_nothing_leads_with_the_next_work_dimmed(ui, services, the_wall, hopper):
+    """Ruling 6 of 2026-10-27: with nothing logged, the work that comes on when the
+    screen does. Renamed from *…leads with its state alone*, which the ruling replaced."""
+    upcoming = services.display.get_wall_view(the_wall.id).upcoming
+    assert upcoming, "the fixture must schedule works, or there is no next work to lead with"
     report_state(services, the_wall, "dark", since=datetime.now(UTC) - timedelta(minutes=1))
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for()
-    assert lead.locator(".wall-now-state").inner_text() == "Its screen is off"
+    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
+    figure = lead.locator("figure.wall-last")
+    assert figure.locator(".wall-now-when").inner_text().startswith("Next, when the screen comes on")
+    assert figure.locator("a").get_attribute("href").startswith(f"#work/{upcoming[0].work_id}")
+    # The row under it starts at the second, so the first is not drawn twice.
+    nxt = card(ui, the_wall).locator(".wall-next")
+    assert nxt.locator("h3").inner_text() == "Then"
+    assert upcoming[0].work_id not in (nxt.inner_html())
+
+
+def test_a_next_work_that_cannot_be_read_leads_nothing_and_stays_in_the_row(ui, services, the_wall, hopper):
+    """The lead and the row decide together which work the lead drew: one that
+    could not be read is not drawn, so the row keeps it with its failure."""
+    upcoming = services.display.get_wall_view(the_wall.id).upcoming
+    first = upcoming[0].work_id
+    assert len({slot.work_id for slot in upcoming[:3]}) > 1, "the row must hold another work"
+    report_state(services, the_wall, "dark", since=datetime.now(UTC) - timedelta(minutes=1))
+    ui.page.route(f"**/api/works/{first}", lambda route: route.fulfill(status=500, json={"error": "the catalogue is busy"}))
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    lead.wait_for()
+    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
+    assert lead.locator("figure").count() == 0
+    nxt = card(ui, the_wall).locator(".wall-next")
+    assert nxt.locator("h3").inner_text() == "Up next"
+    assert nxt.locator("li").first.inner_text().startswith("A work that could not be read")
+
+
+def test_a_dark_wall_with_nothing_scheduled_leads_with_its_state_alone(ui, services, the_wall):
+    report_state(services, the_wall, "dark", since=datetime.now(UTC) - timedelta(minutes=1))
+    open_walls(ui)
+
+    lead = card(ui, the_wall).locator(".wall-now")
+    lead.wait_for()
+    assert lead.locator(".wall-now-state").inner_text().startswith("Off since ")
     assert lead.locator("figure").count() == 0
 
 
@@ -137,9 +190,11 @@ def test_the_screen_being_off_is_said_once(ui, the_wall, went_dark):
     card(ui, the_wall).locator("figure.wall-last").wait_for()
 
     text = card(ui, the_wall).inner_text()
-    assert text.count("screen is off") == 1
+    # Once, in the badge (ruling 6 of 2026-10-27 put the state there).
+    assert text.lower().count("screen off") == 1
+    assert "screen is off" not in text
     assert "no screen is detected" not in text
-    assert card(ui, the_wall).locator(".wall-client").inner_text() == "Assigned to Hall Pi"
+    assert setup_line(ui, the_wall, ".wall-client").inner_text() == "Assigned to Hall Pi"
 
 
 def test_no_port_is_named_without_debug(ui, services, the_wall, went_dark, hall):
@@ -150,7 +205,7 @@ def test_no_port_is_named_without_debug(ui, services, the_wall, went_dark, hall)
     text = card(ui, the_wall).inner_text()
     assert "hdmi-a-1" not in text
     assert "epd-0" not in text
-    assert card(ui, the_wall).locator(".wall-labels").inner_text().startswith("Captioned by a label on Hall Pi.")
+    assert setup_line(ui, the_wall, ".wall-labels").inner_text().startswith("Captioned by a label on Hall Pi.")
 
 
 def test_debug_names_the_ports(ui, services, the_wall, went_dark, hall):
@@ -158,8 +213,8 @@ def test_debug_names_the_ports(ui, services, the_wall, went_dark, hall):
     open_walls(ui, debug=True)
     card(ui, the_wall).locator("figure.wall-last").wait_for()
 
-    assert card(ui, the_wall).locator(".wall-client").inner_text() == "Assigned to Hall Pi on hdmi-a-1"
-    assert card(ui, the_wall).locator(".wall-labels").inner_text().startswith("Captioned by epd-0 on Hall Pi.")
+    assert setup_line(ui, the_wall, ".wall-client").inner_text() == "Assigned to Hall Pi on hdmi-a-1"
+    assert setup_line(ui, the_wall, ".wall-labels").inner_text().startswith("Captioned by epd-0 on Hall Pi.")
 
 
 def test_the_next_three_are_the_schedules_next_three(ui, services, the_wall, hopper, went_dark):
@@ -187,27 +242,35 @@ def test_a_wall_with_no_feed_says_nothing_is_next(ui, the_wall):
     assert card(ui, the_wall).locator(".wall-next li").count() == 0
 
 
-def test_history_is_a_link_and_change_is_a_button(ui, the_wall, went_dark):
+def test_history_is_a_link_and_hanging_is_a_control(ui, the_wall, went_dark):
+    """Renamed from *…and change is a button*: Change became the Hanging picker
+    (ruling 3 of 2026-10-27), which is a form control with a border, and History
+    stays a link with none, in the card's foot."""
     open_walls(ui)
-    history = card(ui, the_wall).get_by_role("link", name=f"History of {the_wall.name}")
-    change = card(ui, the_wall).locator(".wall-change > summary")
+    history = card(ui, the_wall).locator("footer.wall-foot").get_by_role("link", name=f"History of {the_wall.name}")
+    picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
 
     assert "action" not in (history.get_attribute("class") or "")
-    shape = lambda locator: locator.evaluate(  # noqa: E731 -- one read, two subjects
-        "node => { const style = getComputedStyle(node); return [style.borderTopStyle, style.display]; }"
-    )
-    assert shape(change) == ["solid", "inline-flex"]
-    assert shape(history)[0] == "none"
+
+    def border(locator):
+        return locator.evaluate("node => getComputedStyle(node).borderTopStyle")
+
+    assert border(picker) == "solid"
+    assert border(history) == "none"
 
 
 def test_a_wall_no_screen_shows_leads_with_that_and_not_with_what_it_showed(ui, services, the_wall, went_dark):
     services.clients.unassign_wall(the_wall.id)
     open_walls(ui)
 
+    # Hidden since 2026-10-27: the badge says No Player and the line under it has
+    # the way to fix it, so the lead adds nothing (a state is worded once).
     lead = card(ui, the_wall).locator(".wall-now")
-    lead.wait_for()
+    lead.wait_for(state="attached")
     assert lead.get_attribute("data-state") == "unassigned"
+    assert lead.is_hidden()
     assert lead.locator("figure").count() == 0
+    assert card(ui, the_wall).locator("figure").count() == 0
 
 
 @pytest.mark.parametrize(("state", "words"), [("in_use", "Somebody is using the screen"), ("unreachable", "Not known")])

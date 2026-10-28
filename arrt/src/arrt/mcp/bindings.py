@@ -1414,6 +1414,11 @@ def _add_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any
     return ok(wall=_wall_fields(services, services.display.add_wall(name=arguments["name"])))
 
 
+def _rename_wall(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    renamed = services.display.rename_wall(arguments["wall_id"], name=arguments["name"])
+    return ok(wall=_wall_fields(services, renamed))
+
+
 def _set_mat_mode(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     mode = arguments["mode"]
     wall = services.display.set_mat_mode(arguments["wall_id"], None if mode == PLAYERS_OWN_MAT else mode)
@@ -1756,6 +1761,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_theme", "release_scene"): _release_scene,
     ("art_display", "walls"): _list_walls,
     ("art_display", "add_wall"): _add_wall,
+    ("art_display", "rename_wall"): _rename_wall,
     ("art_display", "set_mat_mode"): _set_mat_mode,
     ("art_display", "set_playback"): _set_playback,
     ("art_display", "status"): _wall_status,
