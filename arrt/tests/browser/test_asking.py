@@ -370,9 +370,9 @@ class TestEnter:
         ask(ui, "Something wintry")
         ui.page.wait_for_selector(".ask-turn")
 
-        ui.open("#walls")
+        ui.navigate("#walls")
         ui.page.wait_for_selector("#view h1")
-        ui.open("#discover")
+        ui.navigate("#discover")
         ui.page.wait_for_selector(".ask-waiting")
 
         assert ui.page.locator("#view button:text-is('Ask')").is_disabled()
@@ -406,9 +406,9 @@ def test_a_thread_with_something_said_offers_no_examples(ui, ask_model):
     ui.page.wait_for_selector(".ask-ending:has-text('cost')")
 
     assert ui.page.locator(".ask-examples").count() == 0
-    ui.open("#walls")
+    ui.navigate("#walls")
     ui.page.wait_for_selector("#view h1")
-    ui.open("#discover")
+    ui.navigate("#discover")
     ui.page.wait_for_selector(".ask-turn")
     assert ui.page.locator(".ask-examples").count() == 0
 
@@ -421,9 +421,9 @@ def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
     live = _settled_turn(ui)
 
-    ui.open("#walls")
+    ui.navigate("#walls")
     ui.page.wait_for_selector("#view h1")
-    ui.open("#discover")
+    ui.navigate("#discover")
     ui.page.wait_for_selector(".ask-turn")
 
     assert _settled_turn(ui) == live
