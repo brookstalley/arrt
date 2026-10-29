@@ -96,6 +96,10 @@ holding its acts.
 - `core/toolbar.js` gains `actionMenu` (⋯), sharing `menuButton`'s keyboard;
   `core/membership.js` gains `themeChoice`, the picker both *Add to theme…*
   dialogs use.
+- A panel (`core/editing.js`) closed by a control leaves the page at once, not
+  when the browser's queued `close` event runs. Until then, a question asked in
+  the same click (*Hang…*'s wall choice) shared the page with the closed panel's
+  title, and the browser suite read the wrong one on CI.
 
 **No server change.** Every act calls a route that already existed.
 
