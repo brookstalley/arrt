@@ -51,7 +51,9 @@ PAGES = {
 
 #: Every sidebar page: its route, and a heading that proves it painted.
 SIDEBAR_PAGES = [
-    ("collection", "works"),
+    # Its name since every page opens with it (ruling 1 of 2026-10-27); it was
+    # the count, "N works", until then.
+    ("collection", "Artworks"),
     ("discover", "Ask"),
     ("theme", "Themes"),
     ("topics", "Topics"),
@@ -197,16 +199,17 @@ def test_the_sidebar_links_are_real_addresses(ui, seeded_service):
 
 def test_the_product_opens_on_artworks(ui, seeded_service):
     """Rewritten from *opens on the Walls*: the owner ruled the home is the library,
-    as it is in every *arr app."""
+    as it is in every *arr app. Waits on the facts line, which only the painted
+    list has, since the heading is the page's name from the first paint."""
     ui.open()
-    ui.page.wait_for_selector("#view h1:has-text('works')")
+    ui.page.wait_for_selector("#view .page-facts")
 
     assert lit(ui, "collection").count() == 1
 
 
 def test_an_address_naming_nothing_lands_on_artworks(ui, seeded_service):
     ui.open("#nonsense")
-    ui.page.wait_for_selector("#view h1:has-text('works')")
+    ui.page.wait_for_selector("#view .page-facts")
 
     assert lit(ui, "collection").count() == 1
 
@@ -790,7 +793,7 @@ def test_a_search_is_in_the_address_and_narrows_the_grid(ui, service, seeded_ser
     ui.page.fill("#search", "singular study")
     ui.page.press("#search", "Enter")
     ui.page.click("section[aria-labelledby='results-held-works'] a:text-is('Open in Artworks')")
-    ui.page.wait_for_selector("#view h1:has-text('matching')")
+    ui.page.wait_for_selector("#view .page-facts:has-text('filtered by the search')")
 
     assert ui.page.evaluate("() => window.location.hash") == "#collection?q=singular%20study"
     found = ui.page.locator("ul.grid li.card").count()
@@ -810,19 +813,21 @@ def test_the_search_is_the_catalogue_s_and_not_this_screen_s(ui, service, seeded
     Medium is the field that tells the two apart: a client-side filter reading
     title and artist cannot find this work however many pages it fetched, so this
     test fails the moment the search stops being the catalogue's. The count in
-    the heading is the second half of the same claim — it is a statement about
+    the facts line is the second half of the same claim — it is a statement about
     the catalogue, not about this page.
     """
     service.add_artwork(title="Untitled", medium="Tempera on panel")
 
     ui.open("#collection?q=Tempera")
-    ui.page.wait_for_selector("#view h1:has-text('matching')")
+    ui.page.wait_for_selector("#view .page-facts")
 
     assert ui.page.locator("ul.grid li.card").count() == 1
-    # "1 work", not "1 works". The heading pluralises as of the chunk that gave
-    # the grid its rails: a theme holding one work made the old wording visible
-    # often enough to fix, and this line is the copy it was asserting.
-    assert ui.page.inner_text("#view h1") == "1 work matching \u201cTempera\u201d"
+    # "1 work", not "1 works": a theme holding one work made the old wording
+    # visible often enough to fix. The count and the search moved from the
+    # heading to the facts line under it, which names the search in the empty
+    # state's words, when the page took its name as its heading (ruling 1 of
+    # 2026-10-27).
+    assert ui.page.inner_text("#view .page-facts") == "1 work \u00b7 filtered by the search \u201cTempera\u201d"
 
 
 def test_a_search_finds_a_work_by_its_artist(ui, seeded_service):
@@ -856,7 +861,7 @@ def test_a_bookmarked_search_reopens_with_the_box_filled_in(ui, seeded_service):
     """Otherwise the grid is narrowed and the control that narrowed it is blank —
     a curator seeing a short collection with no visible reason."""
     ui.open("#collection?q=study")
-    ui.page.wait_for_selector("#view h1:has-text('matching')")
+    ui.page.wait_for_selector("#view .page-facts:has-text('filtered by the search')")
 
     assert ui.page.input_value("#search") == "study"
 

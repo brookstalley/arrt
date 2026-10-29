@@ -35,6 +35,7 @@
 import { attempt } from "../core/acting.js";
 import { fetchFilterCounts, fetchWorksFrom, fetchWorksPage, worksFilterBody } from "../core/api.js";
 import { absentImage, fitBadge, noPicture, shortfallNote, statusBadge, workName } from "../core/badges.js";
+import { noun } from "../core/counting.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { goWithParams, link } from "../core/router.js";
 import { clearSearchLink } from "../core/search.js";
@@ -186,7 +187,7 @@ function facetsFor(params) {
 
 /* Whether any rail narrowing is chosen: a facet, a size band, *Not on any
  * wall* or *Last shown*. The theme is asked about separately, since the
- * heading names it. */
+ * line of facts names it (`factsText`). */
 function anyFacetChosen(chosen) {
   return FACET_KINDS.some((kind) => chosen[kind].length) || chosen[FIT].length > 0 || notOnWall() || shownPeriod() !== null;
 }
@@ -620,8 +621,8 @@ function railsHidden() {
   return state.params.filters === "hidden";
 }
 
-/* The *arr toolbar over the works: *Select* on the left, its action bar at the
- * foot of the window while it is on; View, Sort and Filter on the right
+/* The *arr toolbar over the works: *Select* on the left, and the acts on what
+ * is selected beside it while it is on; View, Sort and Filter on the right
  * (`core/toolbar.js`).
  *
  * A theme filtered here is in the Sort menu's order, as any filter is; its
@@ -649,7 +650,7 @@ function pageToolbar(density, selection) {
       onclick: () => goWithParams({ filters: railsHidden() ? "" : "hidden" }),
     }),
   ];
-  return toolbar({ actions: selection ? [selection.toggle] : [], controls });
+  return toolbar({ actions: selection ? [selection.toggle, selection.bar] : [], controls });
 }
 
 /* -- the three empty states -------------------------------------------------- */
@@ -723,21 +724,31 @@ function filterPhrase(query, chosen, shownTheme) {
   return parts.join(", and ");
 }
 
-/* -- the heading ------------------------------------------------------------- */
+/* -- the page's head -------------------------------------------------------- */
 
-/* What the filter holds, in one sentence.
+/* The page's name, as every page opens (`design-direction.md` § Component
+ * Patterns, "How a page reads"): the same word as the sidebar's, whatever the
+ * list is narrowed to. What it holds is the facts line under it. */
+function heading() {
+  return el("h1", { text: "Artworks" });
+}
+
+/* What the filter holds, in one line: the count, then what narrows it, in the
+ * words the empty state names a filter by (`filterPhrase`), so the two can
+ * never describe one narrowing two ways.
  *
  * `total` is the server's count over everything the filter selects. How many of
  * those are on screen so far is said beside *Show more* instead: the grid pages
- * as the curator scrolls, so "25 of 2,003" in the heading would read as a
- * shortfall when it is only the first page. */
-function headingText(total, query, shownTheme) {
-  // A theme holding one work read "1 works", which the grid could get away with
-  // while the only number it ever printed was a whole catalogue's.
-  const noun = total === 1 ? "work" : "works";
-  const matching = query ? ` matching “${query}”` : "";
-  const within = shownTheme ? ` in “${shownTheme.name}”` : "";
-  return `${total} ${noun}${matching}${within}`;
+ * as the curator scrolls, so "25 of 2,003" here would read as a shortfall when
+ * it is only the first page. */
+function factsText(total, query, chosen, shownTheme) {
+  const count = `${total.toLocaleString("en-US")} ${noun(total, "work")}`;
+  const narrowing = filterPhrase(query, chosen, shownTheme);
+  return narrowing ? `${count} · filtered by ${narrowing}` : count;
+}
+
+function pageFacts(total, query, chosen, shownTheme) {
+  return el("p", { class: "muted page-facts", text: factsText(total, query, chosen, shownTheme) });
 }
 
 /* -- paging ------------------------------------------------------------------ */
@@ -768,12 +779,14 @@ export async function viewCollection(generation) {
   // Said, not drawn. How much there is decides the density and the density
   // decides the geometry, so a placeholder painted before the first page has
   // answered can only guess — see `skeletonGrid` for what that cost when it did.
-  // The heading is the one thing that can be painted now, and it is the same
-  // element the real heading replaces, so it holds its own place.
-  render(generation, el("h1", { text: "Loading the collection…" }));
+  // The page's name is the one thing that can be painted now, and the real
+  // paint draws the same heading, so nothing above the works moves. The facts
+  // line waits for the count; a test waiting on `.page-facts` waits for the
+  // works, where one waiting on the heading would be met here.
+  render(generation, heading(), el("p", { class: "muted", text: "Loading the collection…" }));
 
   // The search, the facets and the theme go to the server, which is what makes
-  // the count in the heading a statement about the catalogue rather than about
+  // the count in the line of facts a statement about the catalogue rather than about
   // this screen's first page — and what lets the three compose.
   const sort = offeredSort();
   const narrowing = (theme) => ({ theme, notOnWall: notOnWall(), shown: shownPeriod() });
@@ -819,12 +832,13 @@ export async function viewCollection(generation) {
   const themes = page.themes;
   const shownTheme = themes.find((option) => option.selected) || null;
   let total = page.total;
-  const heading = el("h1", { text: headingText(total, query, shownTheme) });
+  const facts = pageFacts(total, query, chosen, shownTheme);
 
   if (!page.works.length) {
     render(
       generation,
-      heading,
+      heading(),
+      facts,
       collectionLayout(page, chosen, shownTheme, density, null, [staleTheme, nothingShown(query, chosen, shownTheme)]),
     );
     return;
@@ -872,10 +886,10 @@ export async function viewCollection(generation) {
       afterRemoval: async ({ removed, complete }) => {
         removedSoFar += removed.length;
         total -= removed.length;
-        // The heading counted what was there before the removal, and a count
-        // that no longer matches the tiles under it is the silent lie this
-        // surface exists to refuse.
-        heading.textContent = headingText(total, query, shownTheme);
+        // The facts line counted what was there before the removal, and a
+        // count that no longer matches the tiles under it is the silent lie
+        // this surface exists to refuse.
+        facts.textContent = factsText(total, query, chosen, shownTheme);
         remember();
         // A theme whose last member has just gone is empty, and an empty grid
         // with no sentence reads as a broken screen rather than as a theme
@@ -1014,8 +1028,9 @@ export async function viewCollection(generation) {
 
   render(
     generation,
-    heading,
-    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more, selection.bar]),
+    heading(),
+    facts,
+    collectionLayout(page, chosen, shownTheme, density, selection, [staleTheme, shown, more]),
   );
   remember();
 

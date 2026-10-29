@@ -3,8 +3,8 @@
  * Artworks, an Artist's page, the search results and a Topic's page all offer
  * the same thing, Sonarr's *Select* mode (`build-plan-lists-settings-and-scale.md`
  * Chunk 05, #285): a toggle whose label says which mode the page is in, ticks
- * on the works only while it is on, and an action bar holding *Select all* and
- * every act valid for what is ticked. Held works can be added to a theme —
+ * on the works only while it is on, and the acts beside the toggle, in the
+ * page's toolbar: *Select all* and every act valid for what is ticked. Held works can be added to a theme —
  * including *New theme…*, so a theme is made from a selection without leaving
  * the list — or archived; works the library does not hold can be got.
  *
@@ -28,26 +28,10 @@ import { api } from "./api.js";
 import { workName } from "./badges.js";
 import { confirmAct } from "./confirm.js";
 import { counted } from "./counting.js";
+import { openPanel } from "./editing.js";
 import { getSelection } from "./getting.js";
-import { addedSentence, addWorksToTheme, stoppedSentence } from "./membership.js";
-import { el, fill } from "./render.js";
-
-/* The theme picker's value for *New theme…*. Theme ids are UUIDs, so it cannot
- * collide with one. */
-const NEW_THEME = "new";
-
-/* Two names for one theme: the curator's spacing and capitals are not a second
- * theme, as a Get's *New theme…* already rules (`core/getting.js`). */
-function sameName(one, other) {
-  return one.trim().toLowerCase() === other.trim().toLowerCase();
-}
-
-/* The themes a held selection can be added to, from `GET /api/themes`'s answer:
- * one mapping for every list that offers the held half, so a change to that
- * answer's shape is one edit. */
-export function themeChoices(response) {
-  return response.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name }));
-}
+import { addedSentence, addWorksToTheme, stoppedSentence, themeChoice } from "./membership.js";
+import { el } from "./render.js";
 
 /* `held`, for a list of works the library holds:
  *   - `themes`: `[{ theme_id, name }]` a selection can be added to;
@@ -97,28 +81,21 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   /* -- the held half -------------------------------------------------------- */
 
   const themes = held ? held.themes.filter((theme) => !(held.shownTheme && theme.theme_id === held.shownTheme.theme_id)) : [];
-  const picker = held ? el("select", { id: "add-to-theme" }) : null;
-  const naming = held ? el("input", { type: "text", id: "add-to-theme-name", autocomplete: "off" }) : null;
-  const namingField = held
-    ? el("span", { class: "selection-field", hidden: true }, [el("label", { for: "add-to-theme-name", text: "Name for the new theme" }), naming])
-    : null;
-  const paintPicker = (chosen) => {
-    fill(
-      picker,
-      ...themes.map((theme) => el("option", { value: theme.theme_id, text: theme.name })),
-      el("option", { value: NEW_THEME, text: "New theme…" }),
-    );
-    picker.value = chosen || (themes.length ? themes[0].theme_id : NEW_THEME);
-  };
-  if (picker) paintPicker(null);
-  const add = held ? el("button", { class: "action selection-add", type: "button" }) : null;
+  // Every theme is known to the picker, the shown one included, so a new
+  // theme typed with its name joins it rather than being refused or doubled.
+  const choice = held ? themeChoice(themes, { known: held.themes, onChange: () => settle() }) : null;
+  // *Add to theme…* in the toolbar opens the choice of theme; the act itself is
+  // the dialog's, named for what it will do, and only it is filled: the opener
+  // commits nothing. The choice is a dialog rather than
+  // a picker in the toolbar because the toolbar sticks while the list scrolls,
+  // and a picker with its name field beside it filled half a phone's screen.
+  const add = held ? el("button", { class: "action quiet selection-add", type: "button", "aria-haspopup": "dialog", text: "Add to theme…" }) : null;
+  const confirmAdd = held ? el("button", { class: "action add-confirm", type: "button" }) : null;
+  let addPanel = null;
   const archive = held ? el("button", { class: "action quiet selection-archive", type: "button" }) : null;
   const remove = held && held.shownTheme ? el("button", { class: "action quiet selection-remove", type: "button" }) : null;
 
-  const destination = () => {
-    if (picker.value !== NEW_THEME) return picker.options[picker.selectedIndex].text;
-    return naming.value.trim() || "a new theme";
-  };
+  const destination = () => choice.destination();
 
   /* -- the registry half ---------------------------------------------------- */
 
@@ -150,13 +127,13 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     toggle.hidden = !hasItems();
     const works = counted(heldCount(), "work");
     if (add) {
-      add.disabled = heldCount() === 0 || (picker.value === NEW_THEME && !naming.value.trim());
-      add.textContent = heldCount() ? `Add ${works} to ${destination()}` : `Add to ${destination()}`;
-      namingField.hidden = picker.value !== NEW_THEME;
+      add.disabled = heldCount() === 0;
+      confirmAdd.disabled = heldCount() === 0 || !choice.ready();
+      confirmAdd.textContent = heldCount() ? `Add ${works} to ${destination()}` : `Add to ${destination()}`;
     }
     if (archive) {
       archive.disabled = heldCount() === 0;
-      archive.textContent = heldCount() ? `Archive ${works}` : "Archive";
+      archive.textContent = heldCount() ? `Archive ${works}…` : "Archive…";
     }
     if (remove) {
       remove.disabled = heldCount() === 0;
@@ -215,6 +192,11 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     prune();
     toggle.textContent = selecting ? "Stop selecting" : "Select";
     bar.hidden = !selecting;
+    // The toolbar holding the acts stays in reach while the list scrolls under
+    // it, and only while it holds them: at rest it scrolls away with the page,
+    // as every other page's toolbar does, and leaves a phone its height.
+    const holder = toggle.closest(".page-toolbar");
+    if (holder) holder.classList.toggle("selecting", selecting);
     for (const box of heldBoxes.values()) box.hidden = !selecting;
     for (const box of registryBoxes) box.hidden = !selecting;
     // Leaving the mode drops the ticks: a selection nobody can see would be
@@ -247,42 +229,36 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     announcement.focus();
   };
 
-  if (picker) {
-    picker.addEventListener("change", settle);
-    naming.addEventListener("input", settle);
-  }
-
-  /* The theme the picker names, made first when it is *New theme…*. A typed
-   * name that is already a theme joins it. Once made it is offered and chosen,
-   * so a second press joins it rather than making another. */
-  async function chosenTheme() {
-    if (picker.value !== NEW_THEME) return themes.find((theme) => theme.theme_id === picker.value);
-    const wanted = naming.value.trim();
-    const taken = themes.find((theme) => sameName(theme.name, wanted));
-    if (taken) {
-      picker.value = taken.theme_id;
-      return taken;
-    }
-    const created = await api("/api/themes", { method: "POST", body: JSON.stringify({ name: wanted }) });
-    const made = { theme_id: created.theme_id, name: created.name };
-    themes.push(made);
-    paintPicker(made.theme_id);
-    naming.value = "";
-    return made;
-  }
-
   if (add) {
+    // Cancel and Escape leave the keyboard on *Add to theme…*: the platform's
+    // dialog hands focus back to what opened it as it closes.
     add.addEventListener("click", () => {
+      addPanel = openPanel({
+        title: `Add ${counted(heldCount(), "work")} to a theme`,
+        body: choice.fields,
+        actions: [confirmAdd],
+        closeLabel: "Cancel",
+        onClose: () => (addPanel = null),
+      });
+      settle();
+    });
+    confirmAdd.addEventListener("click", () => {
       const asked = heldCount();
-      return attempt(add, `add ${counted(asked, "work")} to ${destination()}`, async () => {
-        const theme = await chosenTheme();
+      // Closed before the sentence takes the keyboard, so the dialog handing
+      // focus back to *Add to theme…* as it closes does not take it from there.
+      const finish = (sentence) => {
+        if (addPanel) addPanel.close();
+        done(sentence);
+      };
+      return attempt(confirmAdd, `add ${counted(asked, "work")} to ${destination()}`, async () => {
+        const theme = await choice.chosen();
         if (everything) {
           const outcome = await api(`/api/themes/${encodeURIComponent(theme.theme_id)}/works/bulk`, {
             method: "POST",
             body: JSON.stringify(body()),
           });
           if (held.onAdded) held.onAdded(theme, outcome.added);
-          done(addedSentence({ added: outcome.added, wanted: outcome.added, already: outcome.already }, theme.name));
+          finish(addedSentence({ added: outcome.added, wanted: outcome.added, already: outcome.already }, theme.name));
           return;
         }
         let outcome;
@@ -299,12 +275,12 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
           settle();
           if (failure.progress) say(stoppedSentence(failure.progress, theme.name));
           // Rethrown so the server's own words for the refusal are said beside
-          // Add. The sentence above says how far it got; only the server can
+          // the dialog's Add, which stays open to try again. The sentence above says how far it got; only the server can
           // say why it stopped.
           throw failure;
         }
         if (held.onAdded) held.onAdded(theme, outcome.added);
-        done(addedSentence(outcome, theme.name));
+        finish(addedSentence(outcome, theme.name));
       });
     });
   }
@@ -371,16 +347,16 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
 
   const heldGroup = held
     ? el("div", { class: "selection-group" }, [
-        el("span", { class: "selection-field" }, [el("label", { for: "add-to-theme", text: "Theme" }), picker]),
-        namingField,
         add,
         remove,
         archive,
       ])
     : null;
 
-  // Fixed to the foot of the window while it is shown, so its acts stay in
-  // reach however far down the list the ticking went.
+  // In the toolbar, after the toggle that shows it: the acts on what is selected
+  // take the toolbar's left side (`design-direction.md` § Component Patterns,
+  // "How a page reads"). A page puts it there with `toolbar({ actions:
+  // [selection.toggle, selection.bar] })`, and the toolbar sticks while it shows.
   const bar = el("div", { class: "selection", role: "region", "aria-label": "Selection", hidden: true }, [
     el("div", { class: "selection-group" }, [announcement, selectAll]),
     heldGroup,

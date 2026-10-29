@@ -52,7 +52,7 @@ COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/Hunters.jpg"
 BY_BRUEGEL = RegistryCreator(qid=ItemId(BRUEGEL), name=RegistryText("Pieter Bruegel the Elder"))
 
 WORKS = "section[aria-labelledby='representative-works']"
-#: The page's selection bar (`core/selecting.js`), where a Get from the topic's
+#: The selection's acts in the page's toolbar (`core/selecting.js`), where a Get from the topic's
 #: works lives since every list shares one selection model.
 BAR = "#view .selection"
 ARTISTS = "section[aria-labelledby='topic-artists']"
@@ -577,13 +577,15 @@ def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, h
     open_topic(ui)
     works_answered(ui)
     ui.page.click("#view button.select-toggle")
-    ui.page.wait_for_selector(f"{BAR} .get-into option[value='new']", state="attached")
-
-    picker = ui.page.locator(BAR).get_by_label("Add to", exact=True)
-    assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
-    assert not ui.page.locator(BAR).get_by_label("New theme's name").is_visible()
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
-    ui.page.click(f"{BAR} .get-control button.action")
+    # *Add to* is in the dialog *Get…* opens (ruling 1 of 2026-10-27).
+    ui.page.click(f"{BAR} button.get-open")
+    ui.page.wait_for_selector("dialog .get-into option[value='new']", state="attached")
+
+    picker = ui.page.locator("dialog").get_by_label("Add to", exact=True)
+    assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
+    assert not ui.page.locator("dialog").get_by_label("New theme's name").is_visible()
+    ui.page.click("dialog button.get-confirm")
 
     ui.page.wait_for_selector(f"{BAR} .get-status a:text-is('Open the Get')")
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
@@ -599,10 +601,10 @@ def test_get_from_a_topic_whose_name_is_a_theme_joins_it(ui, services, held, all
     open_topic(ui)
     works_answered(ui)
     ui.page.click("#view button.select-toggle")
-    ui.page.wait_for_selector(f"{BAR} .get-into option[value='new']", state="attached")
-
     ui.page.check(f"{WORKS} tr:has-text('The Harvesters') input[type='checkbox']")
-    ui.page.click(f"{BAR} .get-control button.action")
+    ui.page.click(f"{BAR} button.get-open")
+    ui.page.wait_for_selector("dialog .get-into option[value='new']", state="attached")
+    ui.page.click("dialog button.get-confirm")
 
     ui.page.wait_for_selector(f"{BAR} .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": theme.id}]

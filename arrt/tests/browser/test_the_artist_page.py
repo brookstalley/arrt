@@ -358,10 +358,12 @@ class TestTheArtistPage:
         artist, work = rothko
         _page(ui, artist)
 
-        # In *Select* mode, whose bar holds Add for every list (`core/selecting.js`).
+        # In *Select* mode, whose acts in the toolbar hold *Add to theme…* for
+        # every list (`core/selecting.js`); the theme is chosen in its dialog.
         ui.page.click("#view button.select-toggle")
         ui.page.check(f"input[aria-label^='Select {work.title},']")
         ui.page.click("#view .selection button.selection-add")
+        ui.page.click("dialog button.add-confirm")
         ui.page.wait_for_selector("text=Added 1 work to Colour fields.")
 
         theme = next(t for t in services.display.list_themes() if t.name == "Colour fields")
@@ -399,7 +401,8 @@ class TestTheWaysIn:
         ui.open(f"#work/{work.id}")
         ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
 
-        ui.page.click("dl.facts a:has-text('Mark Rothko')")
+        # In the line of facts under the title (ruling 8 of 2026-10-27).
+        ui.page.click(".work-facts a:has-text('Mark Rothko')")
         ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
 
 

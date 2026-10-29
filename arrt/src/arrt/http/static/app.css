@@ -1163,7 +1163,8 @@ h1 {
   box-shadow: var(--shadow-2);
 }
 
-.toolbar-menu [role="menuitemradio"] {
+.toolbar-menu [role="menuitemradio"],
+.toolbar-menu [role="menuitem"] {
   display: flex;
   align-items: center;
   min-height: var(--control-h-compact);
@@ -1175,7 +1176,9 @@ h1 {
 }
 
 .toolbar-menu [role="menuitemradio"]:hover,
-.toolbar-menu [role="menuitemradio"]:focus {
+.toolbar-menu [role="menuitemradio"]:focus,
+.toolbar-menu [role="menuitem"]:hover,
+.toolbar-menu [role="menuitem"]:focus {
   background: var(--surface-1);
   color: var(--text-strong);
 }
@@ -1183,6 +1186,13 @@ h1 {
 .toolbar-menu [role="menuitemradio"][aria-checked="true"] {
   font-weight: 600;
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* A menu opened from the toolbar's left side (⋯) opens rightward from its
+   trigger, so on a phone it stays on the screen. */
+.page-toolbar-actions .toolbar-menu {
+  right: auto;
+  left: 0;
 }
 
 /* The rails put away: the works take the whole width. */
@@ -1223,25 +1233,38 @@ h1 {
   text-underline-offset: 2px;
 }
 
-/* The selection's action bar (`core/selecting.js`), one shape on every list:
-   held at the foot of the window while *Select* is on, so its acts stay in
-   reach however far down the list the ticking went. Sticky rather than fixed,
-   so at the end of the list it settles under the last row instead of covering
-   it. */
+/* The acts on a selection (`core/selecting.js`), one shape on every list: in
+   the toolbar's left side, after *Select*, while it is on. No box of their own:
+   they are the toolbar's acts, as View and Sort are its controls. */
 .selection {
-  position: sticky;
-  bottom: 0;
-  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
-  margin-top: var(--space-4);
-  padding: var(--space-3);
-  background: var(--surface-1);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-2);
+}
+
+/* The toolbar holding them sticks to the top of the window, so they stay in
+   reach however far down the list the ticking went; at rest it scrolls away
+   with the page. Sticky rather than fixed, so it never leaves the list it acts
+   on. Its ground is the page's, so the works pass under it rather than through
+   it, and a rule marks where it ends. */
+.page-toolbar.selecting {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding-block: var(--space-2);
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--border);
+}
+
+/* On a phone the acts alone wrap to three rows, and View, Sort and the filters
+   took two more, a third of the screen held over the works. They go while
+   *Select* is on: each repaints the list, which drops the selection, so none is
+   a thing to press mid-selection. *Stop selecting* brings them back. */
+@media (max-width: 40rem) {
+  .page-toolbar.selecting .page-toolbar-controls {
+    display: none;
+  }
 }
 
 .selection-group {
@@ -1286,9 +1309,33 @@ h1 {
   margin-top: var(--space-4);
 }
 
-/* Get's own control, inside the bar: no margin of its own there. */
-.selection .get-control {
+/* Get's own control, among the selection's acts in the toolbar: none of the
+   space a row of acts takes below what precedes it, since here it is beside
+   them, not under them. `.row.get-control` because the spacing rule's `:not()`
+   counts as `section.wall`, which outranks two classes. Its sentence keeps no
+   paragraph margins either, which would make its row taller than its
+   neighbours'. */
+.selection > .row.get-control,
+.selection .get-status {
   margin-block: 0;
+}
+
+/* Get this work as a page's toolbar act (a work the library does not hold):
+   the toolbar spaces its acts, and the tier stands on the button's line, not
+   the middle of the label and field beside it. */
+.page-toolbar-actions > .row.get-control {
+  margin-block: 0;
+}
+
+.page-toolbar-actions > .get-control > .badge-tier {
+  align-self: flex-end;
+  line-height: var(--control-h);
+}
+
+/* The tier in a Get's dialog, under *Add to*: at the start of its line, as the
+   field above it is. Its own rule centres it beside a button in a row. */
+.panel-dialog-body > .badge-tier {
+  align-self: flex-start;
 }
 
 .selection-field {
@@ -2548,7 +2595,8 @@ button.action:disabled:hover {
   margin-block: var(--space-4);
 }
 
-/* Add to, beside the Get it names a destination for. Its fields carry no margin
+/* Add to, beside the Get it names a destination for, or above it in a
+   selection's Get dialog. Its fields carry no margin
    of their own here, so the row's gap is the only spacing between them. */
 .get-into .field {
   margin-bottom: 0;
@@ -2778,29 +2826,64 @@ dialog.panel-dialog {
   border-radius: var(--radius-sm);
 }
 
-/* The mat control under the Work page's picture: each choice a named swatch,
+/* The mat, a fact that is its own control (`screens/work.js`): its value in
+   the line of facts opens the choices under the toolbar, each a named swatch,
    its colour the catalogue's (`--swatch`, set on the element). The one being
    shown on the picture is marked by its border as well as its pressed state, and
    the current one is disabled and says "(current)", so neither rests on colour. */
-.mat-control {
-  margin-top: var(--space-4);
-}
-
-.mat-control summary {
-  display: flex;
+.fact-control {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  min-height: var(--control-h-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
   cursor: pointer;
 }
 
-.mat-control[open] summary {
-  margin-bottom: var(--space-3);
+/* "Mat" stays on the line with its value, and the value sits on the line's
+   middle rather than standing on its baseline. */
+.fact-with-control {
+  white-space: nowrap;
+}
+
+.work-facts .fact-control {
+  vertical-align: middle;
+}
+
+.fact-control > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fact-control:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.mat-control {
+  margin: 0 0 var(--space-4);
+}
+
+.fact-control .mat-swatch {
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--swatch);
 }
 
 .mat-control .mat-swatch {
   width: var(--space-5);
   height: var(--space-5);
   background: var(--swatch);
+}
+
+.mat-status:empty {
+  display: none;
 }
 
 .mat-option {
@@ -3031,18 +3114,12 @@ section.offered + section.offered {
   margin: 0 0 var(--space-5);
 }
 
-.state-strip .wall-picker {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+.state-strip .kept-off {
+  margin: 0;
 }
 
 .state-strip .strip-said {
   margin: 0;
-}
-
-.secondary-actions {
-  margin-top: var(--space-4);
 }
 
 .described {

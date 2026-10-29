@@ -37,13 +37,16 @@ export function storeIdentity(kind, id, qid) {
  * serves it; `onChanged` repaints from the route's answer. */
 /* `quietWhenUnmatched`, on a page that says elsewhere that the record has no
  * item (the Artist page's *Their work*): the line then names no state, so the
- * page says it once (`ux-review-2026-10.md` finding E16). */
-export function identityControl(kind, record, onChanged, { quietWhenUnmatched = false } = {}) {
+ * page says it once (`ux-review-2026-10.md` finding E16).
+ * `open`, inside a dialog that was opened to correct the item (the Work page's
+ * *Match on Wikidata…*): the form shows at once and there is no *Edit*, since
+ * opening the dialog was the asking. */
+export function identityControl(kind, record, onChanged, { quietWhenUnmatched = false, open = false } = {}) {
   const id = kind === "work" ? record.artwork_id : record.artist_id;
   const said = el("p", { class: "muted", "aria-live": "polite" });
   const field = el("input", { id: `identity-${kind}`, type: "text", inputmode: "text", autocomplete: "off", placeholder: "Q…", spellcheck: "false" });
   const use = el("button", { class: "action", type: "button", text: "Use this item", hidden: true });
-  const form = el("div", { class: "stack", hidden: true }, [
+  const form = el("div", { class: "stack", hidden: !open }, [
     el("div", { class: "row" }, [
       el("div", { class: "field" }, [el("label", { for: `identity-${kind}`, text: "Wikidata item" }), field]),
       el("button", { class: "action quiet", type: "button", text: "Look up", onclick: () => guard(lookUp) }),
@@ -111,7 +114,7 @@ export function identityControl(kind, record, onChanged, { quietWhenUnmatched = 
   });
 
   return el("div", { class: "stack identity" }, [
-    el("div", { class: "row identity-now" }, [el("p", { class: "muted" }, [currentWords(record, { quietWhenUnmatched })]), edit]),
+    el("div", { class: "row identity-now" }, [el("p", { class: "muted" }, [currentWords(record, { quietWhenUnmatched })]), open ? null : edit]),
     form,
   ]);
 }
