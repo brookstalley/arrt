@@ -104,7 +104,7 @@ def a_topic_held(services, service):
 
 
 HELD_ACTS = ["button.selection-add", "button.selection-archive"]
-GET_ACTS = [".get-control button.action"]
+GET_ACTS = ["button.get-open"]
 
 #: Each list, the address that opens it, and the acts its bar must offer. A
 #: list holding both kinds offers both halves' acts: one that wires only one
@@ -184,6 +184,36 @@ def test_every_list_offers_the_same_select_controls(ui, a_list):
 
     assert toggle.inner_text() == "Select"
     assert ticks(ui).evaluate_all("boxes => boxes.every((box) => !box.checked)"), "leaving the mode kept the ticks"
+
+
+@pytest.mark.parametrize("a_list", ["search"], indirect=True)
+def test_both_halves_acts_fit_the_toolbar_in_two_rows(ui, a_list):
+    """Search results hold both halves of a selection: the held works' acts and
+    the Get. Their destinations are chosen in dialogs, so at a desktop's width
+    the sticky toolbar is two rows (its acts, then View's side), where the
+    pickers inline wrapped it to four. Asserted from its drawn height, against
+    the height of one of its buttons."""
+    ui.page.set_viewport_size({"width": 1280, "height": 800})
+    address, _ = a_list
+    open_list(ui, address)
+    ui.page.click("#view button.select-toggle")
+
+    bar = ui.page.locator("#view .page-toolbar").first.bounding_box()
+    row = ui.page.locator("#view button.select-toggle").bounding_box()
+    assert bar is not None
+    assert row is not None
+    assert bar["height"] < 3 * row["height"], f"the toolbar is {bar['height']}px tall with rows of {row['height']}px"
+    # *Get…* stands on the line the held half's acts do: the shared spacing for
+    # a row of acts set it a step below them once it was among them.
+    get = ui.page.locator("#view button.get-open").bounding_box()
+    select_all = ui.page.locator("#view button.select-all").bounding_box()
+    assert get is not None
+    assert select_all is not None
+    assert get["y"] == select_all["y"]
+    # Both openers are quiet: neither commits, and two filled acts side by side
+    # would break one filled act per region (`design-direction.md` § Buttons).
+    for opener in ("button.selection-add", "button.get-open"):
+        assert "quiet" in ui.page.locator(f"#view {opener}").get_attribute("class").split(), opener
 
 
 def toolbar_position(ui) -> str:
@@ -308,7 +338,9 @@ def test_a_theme_is_made_from_a_selection_without_leaving_artworks(ui, services,
     theme = next(t for t in services.display.list_themes() if t.name == "Night pieces")
     assert set(services.display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
     # The dialog closed on the add, and the keyboard is on the sentence saying so.
-    assert ui.page.locator("dialog").count() == 0
+    # Closed, not gone: `core/editing.js` removes a closed dialog in its `close`
+    # event, a task later, so counting `dialog` raced that removal.
+    assert ui.page.locator("dialog[open]").count() == 0
     assert ui.page.evaluate("() => document.activeElement.classList.contains('selection-status')")
     # Made once and then chosen, so a second add joins it rather than making another.
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
@@ -398,6 +430,9 @@ def test_select_all_then_archive_archives_every_match(ui, seeded_service, studie
     ui.page.wait_for_selector("ul.grid li.card")
     ui.page.click("button.select-toggle")
     ui.page.click(".selection button.select-all")
+    # It asks first, so its name ends in "…" (the page rules: an act that opens
+    # a dialog), and it counts what it will archive.
+    assert ui.page.inner_text("button.selection-archive") == f"Archive {PAST_ONE_PAGE} works…"
 
     ui.page.click("button.selection-archive")
     ui.page.click("dialog.confirm button:has-text('Archive')")

@@ -108,7 +108,7 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
     ui.page.click("#view button.select-toggle")
     rows.locator("input[type='checkbox']").check()
     assert ui.page.locator("#view .selection button.selection-archive").is_enabled()
-    assert ui.page.locator("#view .selection .get-control button.action").is_disabled()
+    assert ui.page.locator("#view .selection button.get-open").is_disabled()
 
 
 def test_a_work_in_review_says_so_links_to_the_review_and_offers_no_get(ui, harvesters_waiting):
@@ -169,10 +169,21 @@ def test_the_artist_page_shows_a_work_in_review_without_a_get(ui, harvesters_wai
 
 
 def test_get_shows_it_is_free_before_it_is_pressed(ui):
-    """A Get spends nothing by construction, and says so with the tier every spending control carries."""
+    """A Get spends nothing by construction, and says so with the tier every spending control carries.
+
+    In the dialog *Get…* opens, after *Add to*, where the Get it qualifies is
+    pressed; the toolbar holds only the opener (ruling 1 of 2026-10-27)."""
     ui.open(f"#artist/{BRUEGEL}")
     ui.page.click("#view button.select-toggle")
-    get = ui.page.locator("#view .get-control button.action")
+    ui.page.locator("#view section table input[type='checkbox']").first.check()
+    ui.page.click("#view button.get-open")
+    get = ui.page.locator("dialog button.get-confirm")
     get.wait_for()
 
-    assert " ".join(get.locator("xpath=following-sibling::*[1]").inner_text().split()) == "Cost: Free"
+    assert " ".join(ui.page.inner_text("dialog .badge-tier").split()) == "Cost: Free"
+    assert ui.page.locator("#view .get-control .badge-tier").count() == 0, "the tier is said once, in the dialog"
+    tier = ui.page.locator("dialog .badge-tier").bounding_box()
+    field = ui.page.locator("dialog .get-into").bounding_box()
+    assert tier is not None
+    assert field is not None
+    assert tier["x"] == field["x"], "the tier starts its line, under Add to, rather than centred"

@@ -113,10 +113,11 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   };
   if (picker) paintPicker(null);
   // *Add to theme…* in the toolbar opens the choice of theme; the act itself is
-  // the dialog's, named for what it will do. The choice is a dialog rather than
+  // the dialog's, named for what it will do, and only it is filled: the opener
+  // commits nothing. The choice is a dialog rather than
   // a picker in the toolbar because the toolbar sticks while the list scrolls,
   // and a picker with its name field beside it filled half a phone's screen.
-  const add = held ? el("button", { class: "action selection-add", type: "button", "aria-haspopup": "dialog", text: "Add to theme…" }) : null;
+  const add = held ? el("button", { class: "action quiet selection-add", type: "button", "aria-haspopup": "dialog", text: "Add to theme…" }) : null;
   const confirmAdd = held ? el("button", { class: "action add-confirm", type: "button" }) : null;
   let addPanel = null;
   const archive = held ? el("button", { class: "action quiet selection-archive", type: "button" }) : null;

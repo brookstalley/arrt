@@ -1299,9 +1299,21 @@ h1 {
   margin-top: var(--space-4);
 }
 
-/* Get's own control, inside the bar: no margin of its own there. */
-.selection .get-control {
+/* Get's own control, among the selection's acts in the toolbar: none of the
+   space a row of acts takes below what precedes it, since here it is beside
+   them, not under them. `.row.get-control` because the spacing rule's `:not()`
+   counts as `section.wall`, which outranks two classes. Its sentence keeps no
+   paragraph margins either, which would make its row taller than its
+   neighbours'. */
+.selection > .row.get-control,
+.selection .get-status {
   margin-block: 0;
+}
+
+/* The tier in a Get's dialog, under *Add to*: at the start of its line, as the
+   field above it is. Its own rule centres it beside a button in a row. */
+.panel-dialog-body > .badge-tier {
+  align-self: flex-start;
 }
 
 .selection-field {
@@ -2561,7 +2573,8 @@ button.action:disabled:hover {
   margin-block: var(--space-4);
 }
 
-/* Add to, beside the Get it names a destination for. Its fields carry no margin
+/* Add to, beside the Get it names a destination for, or above it in a
+   selection's Get dialog. Its fields carry no margin
    of their own here, so the row's gap is the only spacing between them. */
 .get-into .field {
   margin-bottom: 0;

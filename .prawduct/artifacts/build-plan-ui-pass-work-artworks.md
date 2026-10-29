@@ -121,6 +121,11 @@ the goal or prior choice that settled it.)*
 - 02: the stale-theme note stays a notice above the works rather than a muted line: when the address's theme is gone, the works shown are not what was asked for, which stops the page's job (the exception rule's own test).
 - 02: `core/toolbar.js` is unchanged. The sticky state is a class `core/selecting.js` sets on the toolbar holding its toggle, so the toolbar keeps knowing no screen.
 - 02: the axe scan ran by hand, as Walls' did: the suite does not fetch axe-core (`arrt/tools/ux_walk.py` does). `ux_walk.scan` from a temporary test over the suite's fixtures reported clean on Artworks, an Artist page, Search results and a Topic page, each with Select off and on, 2026-10-29.
+- 03: both openers, *Add to theme…* and *Get N works…*, are quiet; the dialog's button is the filled act. Neither opener commits anything, and Search results put both in one toolbar, where two filled acts would break one-per-region (`design-direction.md` § Buttons). This changes 02's *Add to theme…*, which was filled.
+- 03: `getAndSay` takes a `started` hook that closes the dialog before the sentence takes the keyboard, for 02's reason; its re-break fails the first Get test.
+- 03: chunk 02's test that the dialog was gone after an add counted `dialog` elements, and raced `core/editing.js` removing a closed one a task later; it failed once under load. It now counts `dialog[open]`.
+- 03: in the toolbar, the shared spacing for a row of acts (`:not(…) > * + .row`) set *Get…* a step below its neighbours, and the tier was centred in the dialog; both found by photograph, fixed in `app.css`, and held by position assertions that fail on the re-break.
+- 03 (after its review): Done-when 1 on Search results was missing, and is now two tests, into a chosen theme and a new one. What "read back from the server" means for a Get: the suite answers `POST /api/gets` in the page, because a real Get asks Wikidata and the image sources, so a test holds the body sent and reads from the server only what the server keeps before the Get (a new theme). The Cancel and Escape tests hold that nothing was sent. The comment edit in `screens/collection.js` is chunk 02's review observation O-3, riding this commit.
 
 **Level:** High for Work, Medium for 02. Work's layout and words are settled by
 ruling 8 and the Walls page it now matches. 02 moves a shared bar on four pages
@@ -163,7 +168,7 @@ the phone and dark-mode photographs. Then 04, the owner on the deployed server.
     "2,003 works in “Garden”", becomes that line. The stale-theme note follows
     the exception rule: one muted line, a notice only when it stops the page.
   - `arrt/src/arrt/http/static/core/selecting.js`: the action bar's acts (*Select
-    all*, *Add to theme…*, *Remove from*, *Archive…*, *Get N works*) and its count take
+    all*, *Add to theme…*, *Remove from*, *Archive…*, *Get N works…*) and its count take
     the toolbar's left side while Select is on, in place of the bar at the
     window's foot. The live region that announces an act's outcome stays.
     *Add to theme…* opens a dialog holding the theme picker and *New theme…*'s

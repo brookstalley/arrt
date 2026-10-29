@@ -779,10 +779,10 @@ export async function viewCollection(generation) {
   // Said, not drawn. How much there is decides the density and the density
   // decides the geometry, so a placeholder painted before the first page has
   // answered can only guess — see `skeletonGrid` for what that cost when it did.
-  // The heading is the one thing that can be painted now, and it is the same
-  // element the real heading replaces, so it holds its own place.
-  // The facts line waits for the count; a test waiting on `.page-facts` waits
-  // for the works, where one waiting on the heading would be met here.
+  // The page's name is the one thing that can be painted now, and the real
+  // paint draws the same heading, so nothing above the works moves. The facts
+  // line waits for the count; a test waiting on `.page-facts` waits for the
+  // works, where one waiting on the heading would be met here.
   render(generation, heading(), el("p", { class: "muted", text: "Loading the collection…" }));
 
   // The search, the facets and the theme go to the server, which is what makes
