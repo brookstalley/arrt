@@ -225,9 +225,8 @@ export async function viewTopic(qid, generation) {
   // Where the selection's toggle and bar go once the works to tick have arrived
   // (`showWorks`), since a Get from them is named after the topic.
   const toggleSlot = el("span");
-  const barSlot = el("span");
   const heldGrid = el("ul", { class: "grid" });
-  render(generation, el("p", {}, [backLink()]), head, toggleSlot, heldSection(page.works, heldGrid), worksSection, artistsSection, barSlot);
+  render(generation, el("p", {}, [backLink()]), head, toggleSlot, heldSection(page.works, heldGrid), worksSection, artistsSection);
 
   // After the page is drawn, all three at once, each into its own section. The
   // works wait for the head as well: a period's are headed with its years, and
@@ -261,8 +260,7 @@ export async function viewTopic(qid, generation) {
     }
     if (!selection) {
       selection = topicSelection(page.works, heldGrid, themes, defaultName(page, known));
-      if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ actions: [selection.toggle] }));
-      if (barSlot.isConnected) barSlot.replaceWith(selection.bar);
+      if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ actions: [selection.toggle, selection.bar] }));
     }
     paintWorks(worksSection, known, works, selection);
   };

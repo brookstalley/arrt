@@ -5,7 +5,7 @@ scope: ui-pass-work-artworks
 branch: feature/ui-pass-work-artworks
 base: develop
 working-branches: []
-partition: serial, one worktree. 02 changes `core/selecting.js` and `core/toolbar.js`, which 03's Work page then uses (its *Add to theme…* reuses the selection's theme picker, its ⋯ is 02's actions menu), and both rewrite browser tests over the same fixtures. Nothing can be handed to a second builder without the two colliding.
+partition: serial, one worktree. 02 and 03 both change `core/selecting.js` and the selection tests over the same fixtures, and 04's Work page reuses 02's *Add to theme…* dialog and 03's Get dialog shape, so nothing can be handed to a second builder without the three colliding.
 depends_on:
   - artifact: ia-proposal
   - artifact: information-architecture
@@ -114,11 +114,19 @@ correcting its Wikidata item) are one step away behind ⋯.
 **Decisions made mid-build:** *(appended while building; one line each, naming
 the goal or prior choice that settled it.)*
 
+- 02: the toolbar sticks only while Select is on, the plan's named fallback taken up front: at rest nothing on its left side needs reaching from far down a list, and a phone keeps its height (the tradeoff below).
+- 02: *Add to theme…* opens a dialog holding the theme picker and the new theme's name. The plan moved the bar's acts into the toolbar as they were; photographed, the picker and name field wrapped the toolbar to four rows on a desktop and half a phone screen while it stuck, which the Level had named as the open question. An act that opens a dialog ends in "…" (the page rules), and 04's *Add to theme…* on Work reuses the same dialog. *Archive…* gains its "…" by the same rule, since it asks first.
+- 02 (after the photographs): Get's own *Add to* picker sits in the toolbar the same way on Search, a Topic and an Artist page, so it gets the same treatment in a chunk of its own, 03, and Work moves to 04. Found by building; the alignment pass did not settle it.
+- 02: on a phone, View, Sort and the filters leave the sticky toolbar while Select is on: still five rows there after the dialog, and each of the three repaints the list, which drops the selection (`goWithParams` navigates and the page builds a new selection).
+- 02: the stale-theme note stays a notice above the works rather than a muted line: when the address's theme is gone, the works shown are not what was asked for, which stops the page's job (the exception rule's own test).
+- 02: `core/toolbar.js` is unchanged. The sticky state is a class `core/selecting.js` sets on the toolbar holding its toggle, so the toolbar keeps knowing no screen.
+- 02: the axe scan ran by hand, as Walls' did: the suite does not fetch axe-core (`arrt/tools/ux_walk.py` does). `ux_walk.scan` from a temporary test over the suite's fixtures reported clean on Artworks, an Artist page, Search results and a Topic page, each with Select off and on, 2026-10-29.
+
 **Level:** High for Work, Medium for 02. Work's layout and words are settled by
 ruling 8 and the Walls page it now matches. 02 moves a shared bar on four pages
 and makes the toolbar sticky, and how that reads on a phone is not something the
 rulings show. What raises it: the phone and dark photographs from
-`arrt/tools/ux_walk.py` after 02, before 03 builds on it.
+`arrt/tools/ux_walk.py` after 02, before 03 and 04 build on it.
 
 ## Scaffolding
 
@@ -127,7 +135,7 @@ pytest`, with `uv sync --group browser`) and the root suite are the harness.
 
 ### Verification Strategy
 
-After 02 and after 03: run the branch locally against a copy of the NAS
+After 02 and after 04: run the branch locally against a copy of the NAS
 catalogue and walk both pages as the owner would: select across pages and add
 to a theme, archive from a filter, hang a work from its page, change its mat,
 archive and restore it, match it on Wikidata. Then `arrt/tools/ux_walk.py` for
@@ -155,11 +163,13 @@ the phone and dark-mode photographs. Then 04, the owner on the deployed server.
     "2,003 works in “Garden”", becomes that line. The stale-theme note follows
     the exception rule: one muted line, a notice only when it stops the page.
   - `arrt/src/arrt/http/static/core/selecting.js`: the action bar's acts (*Select
-    all*, *Add to*, *Remove from*, *Archive*, *Get N works*) and its count take
+    all*, *Add to theme…*, *Remove from*, *Archive…*, *Get N works*) and its count take
     the toolbar's left side while Select is on, in place of the bar at the
     window's foot. The live region that announces an act's outcome stays.
-  - `arrt/src/arrt/http/static/core/toolbar.js` and `app.css`: the toolbar is
-    sticky under the top bar on a list page.
+    *Add to theme…* opens a dialog holding the theme picker and *New theme…*'s
+    name field, whose button is the act.
+  - `app.css`: the toolbar is sticky while Select is on; on a phone, View, Sort
+    and the filters step out of it until Select ends.
   - The other three lists, `screens/artists.js`, `screens/search.js` and
     `screens/topics.js`, only as far as they place the bar.
   - The Artworks row of `information-architecture.md` § Screen Inventory and
@@ -179,7 +189,27 @@ the phone and dark-mode photographs. Then 04, the owner on the deployed server.
      toolbar stays visible after scrolling a long grid (asserted from its
      bounding box, not its class).
 
-### Chunk 03: The Work page
+### Chunk 03: Get's choice in a dialog
+
+- **Type:** code
+- **Visual change:** yes
+- **Surfaces:** `arrt/src/arrt/http/static/core/getting.js` (`getSelection`):
+  the registry half of a selection puts *Get N works…* in the toolbar, and its
+  *Add to* theme picker, the new theme's name and the tier mark move into the
+  dialog it opens, whose button is the act, as 02 did for *Add to theme…*.
+  The single *Get this work* on a QID page keeps its inline control, which is
+  not in a toolbar. Also the Search, Topic and Artist tests that drive a Get
+  from a selection, each rewritten assertion naming ruling 1.
+- **Done when:**
+  1. The browser suite gets works from a selection on Search results, a Topic
+     and an Artist page into an existing theme and a new one, read back from
+     the server.
+  2. Cancel and Escape in the dialog get nothing (asserted from the server)
+     and return the keyboard to *Get N works…*.
+  3. On Search results with both halves, the toolbar fits two rows at
+     1280px (asserted from its bounding box).
+
+### Chunk 04: The Work page
 
 - **Type:** cumulative-final
 - **Visual change:** yes
@@ -222,9 +252,9 @@ the phone and dark-mode photographs. Then 04, the owner on the deployed server.
   5. Committed, then the one `/prawduct:critic cumulative`, and
      `/prawduct:pr create` when the owner asks.
 
-### Chunk 04: In the house
+### Chunk 05: In the house
 
-The owner's walk, from the operator-verification entry 03 writes, on the NAS
+The owner's walk, from the operator-verification entry 04 writes, on the NAS
 after the release deploys: Artworks on a phone and a desktop, selecting across
 pages; a work's page, hanging it, its mat, and ⋯; and whether both read as the
 prototype did.
@@ -237,12 +267,13 @@ on any list.
 
 ## Governance Checkpoints
 
-**Commit & PR cadence:** commit per chunk after its review. 02 gets its chunk
-review; 03's cumulative makes the branch PR-ready. One PR to `develop`.
+**Commit & PR cadence:** commit per chunk after its review. 02 and 03 get
+their chunk reviews; 04's cumulative makes the branch PR-ready. One PR to
+`develop`.
 
-- After 02: the photographs of the sticky toolbar on a phone, before 03 builds
-  on the same toolbar.
-- After 03 (cumulative): the full bundle.
+- After 02: the photographs of the sticky toolbar on a phone, before 03 and 04
+  build on the same toolbar.
+- After 04 (cumulative): the full bundle.
 
 ## Status
 

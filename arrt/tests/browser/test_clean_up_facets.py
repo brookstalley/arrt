@@ -227,8 +227,9 @@ def test_select_all_under_last_shown_sends_it_and_reaches_only_its_works(ui, ser
     ui.page.click("button.select-toggle")
 
     ui.page.click(".selection button.select-all")
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Never up.')")
 
     assert sent[0]["filter"]["shown"] == "never"

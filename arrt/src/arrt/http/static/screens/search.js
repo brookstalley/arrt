@@ -137,7 +137,7 @@ export async function viewSearch(generation) {
     generation,
     el("p", {}, [backLink()]),
     el("h1", { text: `Results for “${query}”` }),
-    toolbar({ actions: [selection.toggle] }),
+    toolbar({ actions: [selection.toggle, selection.bar] }),
     top,
     el("section", { class: "panel", "aria-labelledby": "results-held" }, [
       el("h2", { id: "results-held", text: "Held" }),
@@ -150,7 +150,6 @@ export async function viewSearch(generation) {
       registryNote,
       ...KINDS.map(([kind]) => sections["not-held"][kind]),
     ]),
-    selection.bar,
   );
 
   const registry = { found: null, named: null };

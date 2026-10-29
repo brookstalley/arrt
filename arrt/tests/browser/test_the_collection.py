@@ -222,7 +222,9 @@ def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, serv
     # The default at this scale is the contact sheet — image only, uniform tiles.
     assert ui.page.locator("ul.grid.contact-sheet").count() == 1
     assert ui.page.locator("li.card").count() == 0
-    assert ui.page.inner_text("h1") == f"{held} works"
+    # In the facts line, in the empty state's words, since the heading became the
+    # page's name (ruling 1 of 2026-10-27).
+    assert ui.page.inner_text("#view .page-facts") == f"{held:,} works"
     # One page at first, so reaching the rest is something the screen has to do.
     assert ui.page.locator("ul.grid li.tile").count() < held
 
@@ -524,7 +526,9 @@ def test_a_theme_in_the_filter_rail_narrows_the_grid(ui, a_theme_holding_one_wor
     theme_option(ui, theme).click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert ui.page.inner_text("h1") == "1 work in “Baroque”"
+    # In the facts line, in the empty state's words, since the heading became the
+    # page's name (ruling 1 of 2026-10-27).
+    assert ui.page.inner_text("#view .page-facts") == "1 work · filtered by the theme “Baroque”"
     assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
     # Pressing it again is how it is turned off.
     theme_option(ui, theme).click()
@@ -561,11 +565,14 @@ def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui
     # filter there is no theme to remove from, so Remove is not drawn at all.
     assert ui.page.locator("button.selection-remove").count() == 0
     assert ui.page.is_disabled("button.selection-add")
-    assert ui.page.inner_text("label[for='add-to-theme']") == "Theme"
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
-    # The button says the whole act: how many, and into what.
-    assert ui.page.inner_text("button.selection-add") == "Add 2 works to Baroque"
+    # The theme is chosen in the dialog *Add to theme…* opens, since the acts
+    # moved into the toolbar (ruling 1 of 2026-10-27), and the dialog's button
+    # says the whole act: how many, and into what.
+    ui.page.click("button.selection-add")
+    assert ui.page.inner_text("dialog label[for='add-to-theme']") == "Theme"
+    assert ui.page.inner_text("dialog button.add-confirm") == "Add 2 works to Baroque"
 
 
 def test_leaving_select_mode_hides_the_ticks_and_drops_them(ui, a_theme_holding_one_work):
@@ -612,7 +619,10 @@ def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_s
     # Both narrowings still in force and still shown as chosen.
     assert ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism").count() == 1
     assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
-    assert ui.page.inner_text("h1") == "1 work in “Baroque”"
+    # In the facts line, in the empty state's words, since the heading became the
+    # page's name (ruling 1 of 2026-10-27).
+    # Both narrowings, since the line names each one; the heading named the theme alone.
+    assert ui.page.inner_text("#view .page-facts") == "1 work · filtered by the theme “Baroque”, and movement “Realism”"
     # A theme filtered here is in the Sort menu's order, so the menu is offered.
     assert ui.page.locator(".page-toolbar button", has_text="Sort").count() == 1
 
@@ -668,6 +678,7 @@ def test_adding_moves_the_rails_count_without_a_repaint(ui, display, a_theme_hol
     enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.click("button.selection-add")
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
     assert theme_option(ui, theme).inner_text() == "Baroque (2)"
@@ -685,8 +696,9 @@ def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_th
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
     assert "2 selected." in ui.text()
 
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 2 works to Baroque.')")
 
     # Still on the screen it started on, with the same works under it.
@@ -710,8 +722,9 @@ def test_editing_membership_does_not_drop_the_keyboard_to_the_top_of_the_page(ui
     ui.page.wait_for_selector("ul.grid li.card")
     enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
     assert ui.focused() == "Added 1 work to Baroque."
@@ -732,7 +745,9 @@ def test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left(ui, dis
     ui.page.click("button.selection-remove")
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert ui.page.inner_text("h1") == "1 work in “Baroque”"
+    # In the facts line, in the empty state's words, since the heading became the
+    # page's name (ruling 1 of 2026-10-27).
+    assert ui.page.inner_text("#view .page-facts") == "1 work · filtered by the theme “Baroque”"
     # The rail is recounted by the server after the tile goes, so its count is
     # waited for: read at once, it races the recount and can see the old one.
     # A rail that never recounts still fails here, by timing out.
@@ -818,8 +833,11 @@ def test_a_collection_with_no_themes_offers_select_with_something_behind_it(ui, 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     enter_select_mode(ui)
+    # The picker is in the dialog *Add to theme…* opens, which a tick enables.
+    ui.page.locator("input.tile-select").first.check()
+    ui.page.click("button.selection-add")
 
-    picker = ui.page.locator("#add-to-theme")
+    picker = ui.page.locator("dialog #add-to-theme")
     assert picker.locator("option").all_inner_texts() == ["New theme…"]
     assert picker.input_value() == "new"
     assert ui.page.locator("button.selection-archive").count() == 1
@@ -838,10 +856,14 @@ def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_ho
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_selector("ul.grid li.card")
     enter_select_mode(ui)
+    # The picker is in the dialog *Add to theme…* opens, which a tick enables;
+    # Remove is in the toolbar behind it.
+    ui.page.locator("input.tile-select").first.check()
+    assert ui.page.locator("button.selection-remove").count() == 1
+    ui.page.click("button.selection-add")
 
     assert ui.page.locator(f"#add-to-theme option[value='{theme.id}']").count() == 0
     assert ui.page.locator("#add-to-theme option").all_inner_texts() == ["New theme…"]
-    assert ui.page.locator("button.selection-remove").count() == 1
 
 
 def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_theme_holding_one_work):
@@ -859,8 +881,9 @@ def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_th
     enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque. 1 was already in it.')")
 
     assert ui.page.locator("#error").is_hidden(), "a duplicate in the selection was reported as a failure"
@@ -903,12 +926,13 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
+    ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", theme.id)
     # The live region holds one sentence, and before the click it is this one — so
     # the outcome waited for below is text only the refusal can have produced.
     assert "2 selected." in ui.text()
 
-    ui.page.click("button.selection-add")
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 of 2 to Baroque.')")
 
     # Read whole rather than by substring: how far the loop got and what pressing
@@ -920,9 +944,10 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
 
     # Why it stopped is the server's sentence, not one composed here: the failure
     # is rethrown precisely so it is said beside Add, in the server's own words,
-    # under the region's account of how far the loop got.
+    # under the region's account of how far the loop got. Beside the dialog's
+    # Add, which stays open so the retry is the same press.
     assert (
-        ui.said_beside(ui.page.locator("button.selection-add"))
+        ui.said_beside(ui.page.locator("dialog button.add-confirm"))
         == f"Couldn't add 2 works to Baroque: {refusal} Nothing was changed."
     )
 
@@ -937,8 +962,8 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     assert theme_option(ui, theme).inner_text() == "Baroque (2)"
 
     # The retry is pressing the same button, so it has to still be pressable.
-    assert ui.page.is_enabled("button.selection-add")
-    ui.page.click("button.selection-add")
+    assert ui.page.is_enabled("dialog button.add-confirm")
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
     # The clause that matters: one further write, carrying the work that was
@@ -966,7 +991,9 @@ def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_them
 
     assert NOTHING_MATCHES in ui.text()
     assert "the theme \u201cBaroque\u201d" in ui.text()
-    assert ui.page.inner_text("h1") == "0 works in \u201cBaroque\u201d"
+    # In the facts line since the heading became the page's name (ruling 1 of
+    # 2026-10-27); the count still follows the removal.
+    assert ui.page.inner_text("#view .page-facts") == "0 works \u00b7 filtered by the theme \u201cBaroque\u201d"
 
 
 def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):

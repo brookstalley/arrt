@@ -188,11 +188,10 @@ async function oneArtist(artistId, generation) {
       about,
       tasteControls(artist),
     ]),
-    toolbar({ actions: [selection.toggle] }),
+    toolbar({ actions: [selection.toggle, selection.bar] }),
     heldSection(works, held, selection),
     registrySection,
     similarSection,
-    selection.bar,
   );
 
   // After the page is drawn, and into its own section: see the module's note
@@ -254,10 +253,9 @@ async function registryArtist(qid, generation) {
       heldNote,
       ...(view.unlinked || []).map((artist) => namesakeOffer(artist, qid)),
     ]),
-    toolbar({ actions: [selection.toggle] }),
+    toolbar({ actions: [selection.toggle, selection.bar] }),
     registrySection,
     similarSection,
-    selection.bar,
   );
   paintRegistry(registrySection, about, view, { name: view.name && view.name !== qid ? view.name : null, selection });
   await paintSimilar(similarSection, qid);
