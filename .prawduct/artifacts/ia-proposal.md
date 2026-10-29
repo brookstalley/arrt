@@ -453,6 +453,14 @@ prototype drew *Delete* and *Remove* in red. `design-direction.md` § Component 
 reader before the label. The owner approved the prototype without being asked about that rule,
 so the build keeps the rule. *(Builder's call, 2026-10-27.)*
 
+**No *Edit…* on a work, for now** *(the owner, 2026-10-29)*. Ruling 8 put *Edit…* beside
+Hang. Planning the Work page found nothing for it to open: no route changes a work's title,
+date, medium, description or artist, and ruling 8 itself places the two things a work can
+change elsewhere (the mat in its facts, the Wikidata match behind ⋯). Asked whether to leave
+it out, build editing of a work's catalogue fields, or put the mat and the match inside it,
+the owner chose to leave it out until a work has a setting. Editing a work's fields is on the
+backlog (#396); `build-plan-ui-pass-work-artworks.md` builds the page without it.
+
 **What follows.** Three plans, one per group of pages, each its own PR: Walls first
 (`build-plan-ui-pass-walls.md`), because it is where the owner's findings are and it needs the
 two server changes (renaming a wall; a screen that calls the existing `POST /walls`); then the
