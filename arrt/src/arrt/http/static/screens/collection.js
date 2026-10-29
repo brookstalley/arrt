@@ -187,7 +187,7 @@ function facetsFor(params) {
 
 /* Whether any rail narrowing is chosen: a facet, a size band, *Not on any
  * wall* or *Last shown*. The theme is asked about separately, since the
- * heading names it. */
+ * line of facts names it (`factsText`). */
 function anyFacetChosen(chosen) {
   return FACET_KINDS.some((kind) => chosen[kind].length) || chosen[FIT].length > 0 || notOnWall() || shownPeriod() !== null;
 }
@@ -786,7 +786,7 @@ export async function viewCollection(generation) {
   render(generation, heading(), el("p", { class: "muted", text: "Loading the collection…" }));
 
   // The search, the facets and the theme go to the server, which is what makes
-  // the count in the heading a statement about the catalogue rather than about
+  // the count in the line of facts a statement about the catalogue rather than about
   // this screen's first page — and what lets the three compose.
   const sort = offeredSort();
   const narrowing = (theme) => ({ theme, notOnWall: notOnWall(), shown: shownPeriod() });

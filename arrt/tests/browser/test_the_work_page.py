@@ -164,6 +164,32 @@ def test_the_mat_fact_keeps_its_word_and_sits_on_the_line(ui, hangable, width):
     assert abs((value[0] + value[1]) / 2 - (word[0] + word[1]) / 2) <= 2
 
 
+def test_the_line_of_facts_says_who_when_what_how_big_and_the_mat(ui, service, settings, decodable_jpeg):
+    """The facts under the title, read as a sighted curator reads them: the artist
+    with nationality and life as a label gives them, then date, medium, size, and
+    the mat's visible value (ruling 8 of 2026-10-27)."""
+    hopper = service.add_artist(name="Edward Hopper", nationality="American", lifespan_text="1882–1967")
+    work = service.add_artwork(
+        title="Automat", artist_id=hopper.id, date_created="1927", medium="Oil on canvas", dimensions="71.4 × 91.4 cm"
+    )
+
+    open_work(ui, work)
+    ui.page.wait_for_selector(".work-facts")
+
+    assert ui.page.inner_text(".work-facts") == "Edward Hopper (American, 1882–1967) · 1927 · Oil on canvas · 71.4 × 91.4 cm"
+    assert ui.page.locator(".work-facts a").get_attribute("href").startswith(f"#artist/{hopper.id}")
+
+
+def test_the_mat_fact_shows_its_value_in_words(ui, hangable):
+    work = hangable("Automat")
+
+    open_work(ui, work)
+    ui.page.wait_for_selector(".work-facts .mat-trigger:not(:disabled)")
+
+    # Spaces normalised: the value's swatch and words are laid out inside the button.
+    assert " ".join(ui.page.inner_text(".work-facts").split()).endswith("· Mat Chosen by the vision model ▾")
+
+
 # -- absences --------------------------------------------------------------------
 
 
@@ -381,6 +407,25 @@ def test_add_to_a_new_theme_makes_it_and_adds_the_work(ui, api, services, hangab
     assert [theme["theme"]["name"] for theme in api.get("/api/themes").json()["themes"]].count("Rainy days") == 1
 
 
+def test_a_new_theme_named_as_one_already_holding_it_joins_that_theme(ui, api, services, hangable):
+    """The themes holding the work are not offered, but they are still themes: typed
+    as a new one, in other capitals, the name joins the theme rather than making a
+    second or being refused by the store."""
+    work = hangable("Automat")
+    holding = services.display.add_theme(name="Late night")
+    services.display.add_to_theme(theme_id=holding.id, artwork_id=work.id)
+
+    open_work(ui, work)
+    ui.page.click(ADD)
+    ui.page.wait_for_selector("dialog.panel-dialog[open] #add-to-theme")
+    ui.page.fill("#add-to-theme-name", "late NIGHT")
+    ui.page.click("dialog[open] .add-confirm")
+    ui.page.wait_for_selector(".state-strip .strip-said:text-is('Added Automat to Late night.')")
+
+    assert [theme["theme"]["name"] for theme in api.get("/api/themes").json()["themes"]] == ["Late night"]
+    assert theme_ids_holding(api, work.id) == {"Late night"}
+
+
 def test_cancel_and_escape_in_add_to_theme_add_nothing(ui, api, services, hangable):
     work = hangable("Automat")
     services.display.add_theme(name="Late night")
@@ -494,6 +539,29 @@ def test_an_archived_work_offers_no_hang(ui, service, hangable):
     assert ui.page.locator(".page-toolbar button.action:not(.quiet)").all_inner_texts() == ["Restore"]
     ui.page.click(MORE)
     assert ui.page.locator(".toolbar-menu [role='menuitem']").all_inner_texts() == ["Match on Wikidata…"]
+
+
+def test_restoring_a_work_kept_off_every_wall_puts_the_keyboard_on_add(ui, service, services, hangable):
+    """An archive leaves the exclusion as it was, so after Restore Hang… is there
+    but hidden: the keyboard goes to the first act the toolbar shows."""
+    work = hangable("Automat")
+    wall = first_wall(services)
+    theme = services.display.add_theme(name="Late night")
+    services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+    services.display.activate_theme(theme.id, wall_id=wall.id)
+    services.display.exclude_work(work.id, wall_id=wall.id)
+
+    open_work(ui, work)
+    more(ui, "Archive…")
+    ui.page.click(".confirm-actions button:text-is('Archive')")
+    ui.page.wait_for_selector(".page-toolbar button:text-is('Restore')")
+    ui.page.click(".page-toolbar button:text-is('Restore')")
+    ui.page.click(".confirm-actions button:text-is('Restore')")
+    ui.page.wait_for_selector(".page-toolbar button:text-is('Restore')", state="detached")
+
+    assert service.get_artwork(work.id).artwork.status == "accepted"
+    assert ui.page.locator(HANG).is_hidden()
+    assert ui.focused() == "Add to theme…"
 
 
 def test_restoring_puts_the_keyboard_on_hang(ui, service, hangable):

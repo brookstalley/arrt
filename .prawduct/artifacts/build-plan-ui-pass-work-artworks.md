@@ -17,7 +17,7 @@ governed_by:
     dispositions:
       - "§ Direction, the *arr layout (sidebar sections, a toolbar on list pages, *arr names) → conforms: Artworks and Work keep their slots and routes; the toolbar every list page has gains the selection's acts on its left, as Sonarr's does"
       - "§ Direction, navigation is a link and an act is a button → conforms: a work's artist, its walls and its themes are links in its facts; Hang…, Add to theme…, ⋯ and its items are buttons. `test_navigation_is_a_link.py` covers the new code"
-      - "§ More than one wall (every act that changes a wall names the wall in its control and its confirmation) → conforms: Hang… names each wall in its dialog and its confirmation, through `core/hanging.js` as today"
+      - "§ More than one wall (every act that changes a wall names the wall in its control and its confirmation) → conforms: Hang… names each wall in its dialog and its confirmation, through `arrt/src/arrt/http/static/core/hanging.js` as today"
       - "§ Vocabulary → conforms: Hang…, Add to theme…, Archive…, Restore, Match on Wikidata…, Artworks, theme"
   - artifact: design-direction
     dispositions:
@@ -26,11 +26,11 @@ governed_by:
       - "§ Component Patterns, Buttons (one filled act per region; no destructive style) → conforms: Hang… is the Work page's filled act, and Restore takes its place on an archived work, which cannot hang; Archive… carries no danger style, as `ia-proposal.md` § Rulings (2026-10-27) records against the prototype's red"
   - artifact: accessibility-spec
     dispositions:
-      - "norm 2 (WCAG 2.1 AA on the browser; colour never the sole carrier of state) → conforms: the ⋯ menu is an ARIA menu of `menuitem`s with the keyboard `menuButton` already has, and its trigger's accessible name is *More acts on {title}*, never the glyph; dialogs are `core/editing.js`'s `<dialog>`; the mat picker names each colour in words beside its swatch; the axe scan runs on Artworks, Work, an Artist, a Topic and Search results"
+      - "norm 2 (WCAG 2.1 AA on the browser; colour never the sole carrier of state) → conforms: the ⋯ menu is an ARIA menu of `menuitem`s with the keyboard `menuButton` already has, and its trigger's accessible name is *More acts on {title}*, never the glyph; dialogs are `arrt/src/arrt/http/static/core/editing.js`'s `<dialog>`; the mat picker names each colour in words beside its swatch; the axe scan runs on Artworks, Work, an Artist, a Topic and Search results"
       - "norm 1 (the e-paper label) → inapplicable because nothing here changes what a Player draws"
   - artifact: architecture
     dispositions:
-      - "operation logic lives only in the service layer; MCP and HTTP are thin → inapplicable because no server code changes: every act on both pages already has a route (`POST /themes/{id}/works`, the hang routes `core/hanging.js` calls, `/works/{id}/archive`, `/restore`, `/mat`, `/wikidata`)"
+      - "operation logic lives only in the service layer; MCP and HTTP are thin → inapplicable because no server code changes: every act on both pages already has a route (`POST /themes/{id}/works`, the hang routes `arrt/src/arrt/http/static/core/hanging.js` calls, `/works/{id}/archive`, `/restore`, `/mat`, `/wikidata`)"
   - artifact: security-model
     dispositions:
       - "§ Direction (text from outside Arrt reaches the page as text) → conforms: a work's title, artist and description come from museums and Wikidata and are set with `textContent` through `el()`, in the dialogs' titles as on the page"
@@ -123,7 +123,7 @@ the goal or prior choice that settled it.)*
 - 02: the axe scan ran by hand, as Walls' did: the suite does not fetch axe-core (`arrt/tools/ux_walk.py` does). `ux_walk.scan` from a temporary test over the suite's fixtures reported clean on Artworks, an Artist page, Search results and a Topic page, each with Select off and on, 2026-10-29.
 - 03: both openers, *Add to theme…* and *Get N works…*, are quiet; the dialog's button is the filled act. Neither opener commits anything, and Search results put both in one toolbar, where two filled acts would break one-per-region (`design-direction.md` § Buttons). This changes 02's *Add to theme…*, which was filled.
 - 03: `getAndSay` takes a `started` hook that closes the dialog before the sentence takes the keyboard, for 02's reason; its re-break fails the first Get test.
-- 03: chunk 02's test that the dialog was gone after an add counted `dialog` elements, and raced `core/editing.js` removing a closed one a task later; it failed once under load. It now counts `dialog[open]`.
+- 03: chunk 02's test that the dialog was gone after an add counted `dialog` elements, and raced `arrt/src/arrt/http/static/core/editing.js` removing a closed one a task later; it failed once under load. It now counts `dialog[open]`.
 - 03: in the toolbar, the shared spacing for a row of acts (`:not(…) > * + .row`) set *Get…* a step below its neighbours, and the tier was centred in the dialog; both found by photograph, fixed in `app.css`, and held by position assertions that fail on the re-break.
 - 03 (after its review): Done-when 1 on Search results was missing, and is now two tests, into a chosen theme and a new one. What "read back from the server" means for a Get: the suite answers `POST /api/gets` in the page, because a real Get asks Wikidata and the image sources, so a test holds the body sent and reads from the server only what the server keeps before the Get (a new theme). The Cancel and Escape tests hold that nothing was sent. The comment edit in `screens/collection.js` is chunk 02's review observation O-3, riding this commit.
 
@@ -236,8 +236,8 @@ the phone and dark-mode photographs. Then 04, the owner on the deployed server.
   - the toolbar: *Hang…* (the filled act), *Add to theme…*, and ⋯ holding
     *Archive…* and *Match on Wikidata…*. An archived work's toolbar has
     *Restore* as its filled act and no *Hang…* (an archived work cannot hang).
-    *Hang…* opens a dialog of walls (`core/editing.js`) in place of today's row
-    of buttons, and asks through `core/hanging.js` as now. *Add to theme…* opens
+    *Hang…* opens a dialog of walls (`arrt/src/arrt/http/static/core/editing.js`) in place of today's row
+    of buttons, and asks through `arrt/src/arrt/http/static/core/selection.js` (`hangSelection`) as now. *Add to theme…* opens
     the selection's theme picker for this one work, *New theme…* included.
   - the walls and themes it is on, as facts with links, and *Kept off every
     wall* with *Allow on walls again* only when it is (an exception, quiet).

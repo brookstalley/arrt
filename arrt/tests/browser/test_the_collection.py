@@ -866,6 +866,24 @@ def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_ho
     assert ui.page.locator("#add-to-theme option").all_inner_texts() == ["New theme…"]
 
 
+def test_typing_the_shown_themes_name_joins_it_rather_than_making_another(ui, display, a_theme_holding_one_work):
+    """Not offered is not unknown: a new theme typed with the shown theme's name, in
+    other capitals, joins it, where checking only the offered themes made a second."""
+    theme, works = a_theme_holding_one_work
+
+    ui.open(f"#collection?theme={theme.id}")
+    ui.page.wait_for_selector("ul.grid li.card")
+    enter_select_mode(ui)
+    ui.page.locator("input.tile-select").first.check()
+    ui.page.click("button.selection-add")
+    ui.page.fill("#add-to-theme-name", theme.name.upper())
+    ui.page.click("dialog button.add-confirm")
+    ui.page.wait_for_selector(f".selection-status:has-text('{theme.name}')")
+
+    assert [t.name for t in display.list_themes()] == [theme.name]
+    assert display.theme_work_ids(theme.id) == [works[0].id]
+
+
 def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_theme_holding_one_work):
     """The store refuses a duplicate, so the loop must not walk into one.
 

@@ -243,14 +243,18 @@ def test_a_room_with_nothing_hanging_is_not_asked_and_does_not_break_the_questio
 # -- the act -------------------------------------------------------------------
 
 
-def test_declining_the_question_leaves_the_work_where_it_was(ui, ready_work, hang, service):
+@pytest.mark.parametrize("decline", ["Cancel", "Escape"])
+def test_declining_the_question_leaves_the_work_where_it_was(ui, ready_work, hang, service, decline):
     """The caller owns the act, and a "no" is an answer rather than a delay."""
     work = ready_work(title="Nighthawks")
     hang(work)
 
     open_work(ui, work)
     ask(ui, "Archive")
-    ui.page.click(".confirm-actions button:has-text('Cancel')")
+    if decline == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        ui.page.click(".confirm-actions button:has-text('Cancel')")
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert service.get_artwork(work.id).artwork.status == "accepted"
@@ -299,6 +303,23 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
     # This work has no picture to hang, so the keyboard goes to the first act
     # that stands where Restore stood (ruling 8; `test_the_work_page.py` holds Hang…).
     assert ui.focused() == "Add to theme…"
+
+
+@pytest.mark.parametrize("decline", ["Cancel", "Escape"])
+def test_declining_restore_leaves_the_work_archived(ui, ready_work, service, decline):
+    work = ready_work(title="Nighthawks")
+    service.archive_artwork(work.id)
+
+    open_work(ui, work)
+    ask(ui, "Restore")
+    if decline == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        ui.page.click(".confirm-actions button:has-text('Cancel')")
+    ui.page.wait_for_selector("dialog.confirm", state="detached")
+
+    assert service.get_artwork(work.id).artwork.status == "archived"
+    assert ui.focused() == "Restore"
 
 
 def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service):

@@ -50,8 +50,7 @@ import { wallLinks } from "../core/places.js";
 import { backLink, link, redirect, setTitle } from "../core/router.js";
 import { hangSelection } from "../core/selection.js";
 import { openPanel } from "../core/editing.js";
-import { addWorksToTheme, themeChoice } from "../core/membership.js";
-import { themeChoices } from "../core/selecting.js";
+import { addWorksToTheme, offeredThemes, themeChoice } from "../core/membership.js";
 import { actionMenu, toolbar } from "../core/toolbar.js";
 import { DEBUG } from "../core/debug.js";
 
@@ -158,7 +157,7 @@ async function viewRegistryWork(qid, generation) {
     generation,
     el("p", {}, [backLink()]),
     el("h1", { text: title }),
-    factLine.length ? el("p", { class: "muted page-facts work-facts" }, factLine.flatMap((part, at) => (at ? [" · ", part] : [part]))) : null,
+    factLine.length ? factsLine(factLine) : null,
     toolbar({ actions: [getOne(qid)] }),
     el("div", { class: "panel" }, [
       top,
@@ -735,7 +734,10 @@ function paint(detail, generation, { where, focus = null }) {
   // Only if the paint actually landed. `render` declines a paint whose
   // navigation has been superseded, and focusing a control that was never put on
   // the page would move the keyboard onto a detached node.
-  const target = focus === "primary" ? page.hang || restoring || page.add : focus === "more" ? page.more.querySelector("button") : null;
+  // The first act the toolbar shows: *Hang…* is there but hidden while the
+  // work is kept off every wall, which an archive and a restore leave as it was.
+  const shown = [page.hang, restoring, page.add].find((control) => control && !control.hidden);
+  const target = focus === "primary" ? shown : focus === "more" ? page.more.querySelector("button") : null;
   if (target && document.contains(target)) target.focus();
 }
 
@@ -751,7 +753,12 @@ function workFacts(work, mat) {
           : [],
       ])
     : null;
-  const parts = [artist, work.date_created, work.medium, work.dimensions, mat ? mat.fact : null].filter(Boolean);
+  return factsLine([artist, work.date_created, work.medium, work.dimensions, mat ? mat.fact : null].filter(Boolean));
+}
+
+/* The line of facts under a work's title, held or not, each part text or a
+ * node, in one shape. */
+function factsLine(parts) {
   return el("p", { class: "muted page-facts work-facts" }, parts.flatMap((part, at) => (at ? [" · ", part] : [part])));
 }
 
@@ -1070,7 +1077,7 @@ async function addToTheme(control, page) {
   const { work } = page;
   let themes = null;
   const read = await attempt(control, `add ${work.title} to a theme`, async () => {
-    themes = themeChoices(await api("/api/themes"));
+    themes = offeredThemes(await api("/api/themes"));
   });
   if (!read) return;
   const holding = new Set(page.where.placements.themes.map((placement) => placement.theme.theme_id));
@@ -1079,7 +1086,7 @@ async function addToTheme(control, page) {
     confirm.disabled = !choice.ready();
     confirm.textContent = `Add to ${choice.destination()}`;
   };
-  const choice = themeChoice(themes.filter((theme) => !holding.has(theme.theme_id)), { onChange: settle });
+  const choice = themeChoice(themes.filter((theme) => !holding.has(theme.theme_id)), { known: themes, onChange: settle });
   settle();
   const panel = openPanel({ title: `Add ${work.title} to a theme`, body: choice.fields, actions: [confirm], closeLabel: "Cancel" });
   confirm.addEventListener("click", () =>

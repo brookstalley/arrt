@@ -26,7 +26,8 @@
 import { api, apiLines } from "../core/api.js";
 import { facts, noPicture, workName } from "../core/badges.js";
 import { counted } from "../core/counting.js";
-import { selectionMode, themeChoices } from "../core/selecting.js";
+import { offeredThemes } from "../core/membership.js";
+import { selectionMode } from "../core/selecting.js";
 import { toolbar } from "../core/toolbar.js";
 import {
   gettable,
@@ -334,7 +335,7 @@ function topicSelection(heldWorks, grid, themes, name) {
     held:
       themes && heldWorks.length
         ? {
-            themes: themeChoices(themes),
+            themes: offeredThemes(themes),
             filter: null,
             total: 0,
             // Archived works leave circulation, and so leave *In your library*.

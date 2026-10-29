@@ -22,7 +22,8 @@
  * Every string from the registry is untrusted text, shown as text. */
 
 import { api } from "../core/api.js";
-import { selectionMode, themeChoices } from "../core/selecting.js";
+import { offeredThemes } from "../core/membership.js";
+import { selectionMode } from "../core/selecting.js";
 import { gettable, heldPicture, lifeDates, named, reviewMark, stateMark, statePicture, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
 import { backLink, link, setTitle } from "../core/router.js";
@@ -118,7 +119,7 @@ export async function viewSearch(generation) {
   const selection = selectionMode({
     held: themes
       ? {
-          themes: themeChoices(themes),
+          themes: offeredThemes(themes),
           filter: null,
           total: 0,
           // An archived work leaves circulation, and so leaves the Held group.

@@ -33,13 +33,6 @@ import { getSelection } from "./getting.js";
 import { addedSentence, addWorksToTheme, stoppedSentence, themeChoice } from "./membership.js";
 import { el } from "./render.js";
 
-/* The themes a held selection can be added to, from `GET /api/themes`'s answer:
- * one mapping for every list that offers the held half, so a change to that
- * answer's shape is one edit. */
-export function themeChoices(response) {
-  return response.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name }));
-}
-
 /* `held`, for a list of works the library holds:
  *   - `themes`: `[{ theme_id, name }]` a selection can be added to;
  *   - `shownTheme`: the theme the list is filtered to, if any. It is not
@@ -88,7 +81,9 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   /* -- the held half -------------------------------------------------------- */
 
   const themes = held ? held.themes.filter((theme) => !(held.shownTheme && theme.theme_id === held.shownTheme.theme_id)) : [];
-  const choice = held ? themeChoice(themes, { onChange: () => settle() }) : null;
+  // Every theme is known to the picker, the shown one included, so a new
+  // theme typed with its name joins it rather than being refused or doubled.
+  const choice = held ? themeChoice(themes, { known: held.themes, onChange: () => settle() }) : null;
   // *Add to theme…* in the toolbar opens the choice of theme; the act itself is
   // the dialog's, named for what it will do, and only it is filled: the opener
   // commits nothing. The choice is a dialog rather than
