@@ -30,18 +30,8 @@ import { confirmAct } from "./confirm.js";
 import { counted } from "./counting.js";
 import { openPanel } from "./editing.js";
 import { getSelection } from "./getting.js";
-import { addedSentence, addWorksToTheme, stoppedSentence } from "./membership.js";
-import { el, fill } from "./render.js";
-
-/* The theme picker's value for *New theme…*. Theme ids are UUIDs, so it cannot
- * collide with one. */
-const NEW_THEME = "new";
-
-/* Two names for one theme: the curator's spacing and capitals are not a second
- * theme, as a Get's *New theme…* already rules (`core/getting.js`). */
-function sameName(one, other) {
-  return one.trim().toLowerCase() === other.trim().toLowerCase();
-}
+import { addedSentence, addWorksToTheme, stoppedSentence, themeChoice } from "./membership.js";
+import { el } from "./render.js";
 
 /* The themes a held selection can be added to, from `GET /api/themes`'s answer:
  * one mapping for every list that offers the held half, so a change to that
@@ -98,20 +88,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   /* -- the held half -------------------------------------------------------- */
 
   const themes = held ? held.themes.filter((theme) => !(held.shownTheme && theme.theme_id === held.shownTheme.theme_id)) : [];
-  const picker = held ? el("select", { id: "add-to-theme" }) : null;
-  const naming = held ? el("input", { type: "text", id: "add-to-theme-name", autocomplete: "off" }) : null;
-  const namingField = held
-    ? el("span", { class: "selection-field", hidden: true }, [el("label", { for: "add-to-theme-name", text: "Name for the new theme" }), naming])
-    : null;
-  const paintPicker = (chosen) => {
-    fill(
-      picker,
-      ...themes.map((theme) => el("option", { value: theme.theme_id, text: theme.name })),
-      el("option", { value: NEW_THEME, text: "New theme…" }),
-    );
-    picker.value = chosen || (themes.length ? themes[0].theme_id : NEW_THEME);
-  };
-  if (picker) paintPicker(null);
+  const choice = held ? themeChoice(themes, { onChange: () => settle() }) : null;
   // *Add to theme…* in the toolbar opens the choice of theme; the act itself is
   // the dialog's, named for what it will do, and only it is filled: the opener
   // commits nothing. The choice is a dialog rather than
@@ -123,10 +100,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
   const archive = held ? el("button", { class: "action quiet selection-archive", type: "button" }) : null;
   const remove = held && held.shownTheme ? el("button", { class: "action quiet selection-remove", type: "button" }) : null;
 
-  const destination = () => {
-    if (picker.value !== NEW_THEME) return picker.options[picker.selectedIndex].text;
-    return naming.value.trim() || "a new theme";
-  };
+  const destination = () => choice.destination();
 
   /* -- the registry half ---------------------------------------------------- */
 
@@ -159,9 +133,8 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     const works = counted(heldCount(), "work");
     if (add) {
       add.disabled = heldCount() === 0;
-      confirmAdd.disabled = heldCount() === 0 || (picker.value === NEW_THEME && !naming.value.trim());
+      confirmAdd.disabled = heldCount() === 0 || !choice.ready();
       confirmAdd.textContent = heldCount() ? `Add ${works} to ${destination()}` : `Add to ${destination()}`;
-      namingField.hidden = picker.value !== NEW_THEME;
     }
     if (archive) {
       archive.disabled = heldCount() === 0;
@@ -261,37 +234,13 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
     announcement.focus();
   };
 
-  if (picker) {
-    picker.addEventListener("change", settle);
-    naming.addEventListener("input", settle);
-  }
-
-  /* The theme the picker names, made first when it is *New theme…*. A typed
-   * name that is already a theme joins it. Once made it is offered and chosen,
-   * so a second press joins it rather than making another. */
-  async function chosenTheme() {
-    if (picker.value !== NEW_THEME) return themes.find((theme) => theme.theme_id === picker.value);
-    const wanted = naming.value.trim();
-    const taken = themes.find((theme) => sameName(theme.name, wanted));
-    if (taken) {
-      picker.value = taken.theme_id;
-      return taken;
-    }
-    const created = await api("/api/themes", { method: "POST", body: JSON.stringify({ name: wanted }) });
-    const made = { theme_id: created.theme_id, name: created.name };
-    themes.push(made);
-    paintPicker(made.theme_id);
-    naming.value = "";
-    return made;
-  }
-
   if (add) {
     // Cancel and Escape leave the keyboard on *Add to theme…*: the platform's
     // dialog hands focus back to what opened it as it closes.
     add.addEventListener("click", () => {
       addPanel = openPanel({
         title: `Add ${counted(heldCount(), "work")} to a theme`,
-        body: [el("span", { class: "selection-field" }, [el("label", { for: "add-to-theme", text: "Theme" }), picker]), namingField],
+        body: choice.fields,
         actions: [confirmAdd],
         closeLabel: "Cancel",
         onClose: () => (addPanel = null),
@@ -307,7 +256,7 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
         done(sentence);
       };
       return attempt(confirmAdd, `add ${counted(asked, "work")} to ${destination()}`, async () => {
-        const theme = await chosenTheme();
+        const theme = await choice.chosen();
         if (everything) {
           const outcome = await api(`/api/themes/${encodeURIComponent(theme.theme_id)}/works/bulk`, {
             method: "POST",

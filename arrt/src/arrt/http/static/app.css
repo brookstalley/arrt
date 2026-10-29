@@ -1163,7 +1163,8 @@ h1 {
   box-shadow: var(--shadow-2);
 }
 
-.toolbar-menu [role="menuitemradio"] {
+.toolbar-menu [role="menuitemradio"],
+.toolbar-menu [role="menuitem"] {
   display: flex;
   align-items: center;
   min-height: var(--control-h-compact);
@@ -1175,7 +1176,9 @@ h1 {
 }
 
 .toolbar-menu [role="menuitemradio"]:hover,
-.toolbar-menu [role="menuitemradio"]:focus {
+.toolbar-menu [role="menuitemradio"]:focus,
+.toolbar-menu [role="menuitem"]:hover,
+.toolbar-menu [role="menuitem"]:focus {
   background: var(--surface-1);
   color: var(--text-strong);
 }
@@ -1183,6 +1186,13 @@ h1 {
 .toolbar-menu [role="menuitemradio"][aria-checked="true"] {
   font-weight: 600;
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* A menu opened from the toolbar's left side (⋯) opens rightward from its
+   trigger, so on a phone it stays on the screen. */
+.page-toolbar-actions .toolbar-menu {
+  right: auto;
+  left: 0;
 }
 
 /* The rails put away: the works take the whole width. */
@@ -1308,6 +1318,18 @@ h1 {
 .selection > .row.get-control,
 .selection .get-status {
   margin-block: 0;
+}
+
+/* Get this work as a page's toolbar act (a work the library does not hold):
+   the toolbar spaces its acts, and the tier stands on the button's line, not
+   the middle of the label and field beside it. */
+.page-toolbar-actions > .row.get-control {
+  margin-block: 0;
+}
+
+.page-toolbar-actions > .get-control > .badge-tier {
+  align-self: flex-end;
+  line-height: var(--control-h);
 }
 
 /* The tier in a Get's dialog, under *Add to*: at the start of its line, as the
@@ -2804,29 +2826,64 @@ dialog.panel-dialog {
   border-radius: var(--radius-sm);
 }
 
-/* The mat control under the Work page's picture: each choice a named swatch,
+/* The mat, a fact that is its own control (`screens/work.js`): its value in
+   the line of facts opens the choices under the toolbar, each a named swatch,
    its colour the catalogue's (`--swatch`, set on the element). The one being
    shown on the picture is marked by its border as well as its pressed state, and
    the current one is disabled and says "(current)", so neither rests on colour. */
-.mat-control {
-  margin-top: var(--space-4);
-}
-
-.mat-control summary {
-  display: flex;
+.fact-control {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
+  min-height: var(--control-h-compact);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-strong);
+  font: inherit;
   cursor: pointer;
 }
 
-.mat-control[open] summary {
-  margin-bottom: var(--space-3);
+/* "Mat" stays on the line with its value, and the value sits on the line's
+   middle rather than standing on its baseline. */
+.fact-with-control {
+  white-space: nowrap;
+}
+
+.work-facts .fact-control {
+  vertical-align: middle;
+}
+
+.fact-control > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fact-control:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.mat-control {
+  margin: 0 0 var(--space-4);
+}
+
+.fact-control .mat-swatch {
+  width: var(--space-4);
+  height: var(--space-4);
+  background: var(--swatch);
 }
 
 .mat-control .mat-swatch {
   width: var(--space-5);
   height: var(--space-5);
   background: var(--swatch);
+}
+
+.mat-status:empty {
+  display: none;
 }
 
 .mat-option {
@@ -3057,18 +3114,12 @@ section.offered + section.offered {
   margin: 0 0 var(--space-5);
 }
 
-.state-strip .wall-picker {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+.state-strip .kept-off {
+  margin: 0;
 }
 
 .state-strip .strip-said {
   margin: 0;
-}
-
-.secondary-actions {
-  margin-top: var(--space-4);
 }
 
 .described {

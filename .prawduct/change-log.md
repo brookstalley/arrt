@@ -66,6 +66,50 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-29: Artworks and a work's page, rebuilt to the page rules (UI pass, part 2)
+
+<!-- prawduct: scope=ui-pass-work-artworks -->
+
+**Why:** the second of the three plans that build the owner's rulings of
+2026-10-27 (`ia-proposal.md` § Rulings (2026-10-27), #389). Artworks and Work
+now open as Walls does: the page's name, one line of facts, and a toolbar
+holding its acts.
+
+**What changed:**
+- **Artworks** is headed *Artworks*, with a line of facts saying how many works
+  and what narrows them. **On every list** (Artworks, an Artist, a Topic, Search
+  results), *Select*'s acts sit in the toolbar, which stays at the top of the
+  window while Select is on. *Add to theme…* and *Get N works…* each open a
+  dialog holding the theme picker and the new theme's name. The selection bar no
+  longer sits at the foot of the window.
+- **A work's page** opens with its way back, its title, one line of facts and its
+  toolbar. The facts are the artist (a link, with nationality and life), date,
+  medium, size, and *Mat [colour ▾]*, whose value opens the mat choices. The
+  toolbar holds *Hang…* (the one filled act; several walls are offered in a
+  dialog), *Add to theme…* (the selection's dialog, for this one work), and ⋯
+  holding *Archive…* and *Match on Wikidata…*. An archived work has *Restore* in
+  place of *Hang…*. Walls and themes sit beside the picture. A work kept off every
+  wall says so in one quiet line, with *Allow on walls again*. The Rights fact is
+  gone (ruling 8). There is no *Edit…*: the owner ruled on 2026-10-29 that it
+  waits until a work has a setting (#396). A work the library does not hold
+  (`#work/Q…`) opens under the same head, with *Get this work* as its act.
+- `core/toolbar.js` gains `actionMenu` (⋯), sharing `menuButton`'s keyboard;
+  `core/membership.js` gains `themeChoice`, the picker both *Add to theme…*
+  dialogs use.
+
+**No server change.** Every act calls a route that already existed.
+
+**Tests:** browser tests pinning the old positions and words were rewritten, each
+naming the ruling that moved it. New tests cover Add to theme into an existing
+and a new theme, Cancel and Escape in each dialog (read back from the server),
+the ⋯ keyboard, the absences (no Rights, no *Edit…*, no *Hang…* when archived, no
+kept-off line when not kept off), and the positions photographs found wrong.
+Each new test was watched failing on a re-break of the code it defends. The axe
+scan (by hand, `arrt/tools/ux_walk.py`) is clean on the four lists and on a
+held, an archived and a not-held work.
+
+**Rollback:** revert the branch's merge; there is no data or contract change.
+
 ## 2026-10-28: The browser suite's `open` loads the page again, and `navigate` moves within it
 
 <!-- prawduct: scope=fix-hanging-badge-race -->

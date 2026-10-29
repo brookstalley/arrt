@@ -1,5 +1,6 @@
 /* Work — one work at full size, what it is said to be, where it hangs, and the
- * acts that hang it, take it out of circulation and put it back.
+ * acts that hang it, add it to a theme, take it out of circulation and put it
+ * back.
  *
  * Contextual: reached from a tile in Artworks, a tile on a Wall, or a row in
  * Review, and it **returns to the page it was opened from**. That is the
@@ -8,10 +9,11 @@
  * this screen's route out used to be "← All works" whatever route in had been
  * taken.
  *
- * **The picture comes first and the label sits under it.** The governing rule is
- * that the artwork is the primary content on every screen that shows one and
- * chrome yields to it; a title above the image puts a line of interface between
- * the reader and the thing they opened.
+ * **It opens as every page does**: the way back, the title, one line of facts
+ * and the toolbar (`design-direction.md` § How a page reads; ruling 8 of
+ * 2026-10-27). Then the picture, the largest thing on the page, with its label
+ * beside it; the artwork is the primary content on every screen that shows
+ * one, and the head above it is kept to those three lines so it yields.
  *
  * **There is no delete of a work here, and there is no route that could do one.**
  * `Artwork.status` is `accepted` or `archived`, restoration is permitted, and the
@@ -47,6 +49,10 @@ import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCe
 import { wallLinks } from "../core/places.js";
 import { backLink, link, redirect, setTitle } from "../core/router.js";
 import { hangSelection } from "../core/selection.js";
+import { openPanel } from "../core/editing.js";
+import { addWorksToTheme, themeChoice } from "../core/membership.js";
+import { themeChoices } from "../core/selecting.js";
+import { actionMenu, toolbar } from "../core/toolbar.js";
 import { DEBUG } from "../core/debug.js";
 
 /* The typed vocabulary a work is filed under, in the words a label uses.
@@ -144,26 +150,23 @@ async function viewRegistryWork(qid, generation) {
     page.image ? el("p", { class: "muted", text: WIKIDATA_PICTURE_LINE }) : null,
   ]);
   const look = el("section", { class: "panel look", "aria-labelledby": "look-heading" });
+  // The same head as a held work's: the way back, the title, one line of facts
+  // and the toolbar, whose filled act here is *Get this work*.
+  const made = page.creators.length ? el("span", {}, page.creators.flatMap((person, at) => (at ? [", ", personLink(person)] : [personLink(person)]))) : null;
+  const factLine = [made, page.year === null ? null : year(page.year), page.media.join(", ") || null, workSize(page.height_cm, page.width_cm)].filter(Boolean);
   render(
     generation,
     el("p", {}, [backLink()]),
+    el("h1", { text: title }),
+    factLine.length ? el("p", { class: "muted page-facts work-facts" }, factLine.flatMap((part, at) => (at ? [" · ", part] : [part]))) : null,
+    toolbar({ actions: [getOne(qid)] }),
     el("div", { class: "panel" }, [
       top,
       el("div", { class: "card-footer" }, [stateMark({ wanted: page.wanted, image: Boolean(page.image) })]),
-    ]),
-    el("div", { class: "panel" }, [
-      el("h1", { text: title }),
-      facts([
-        ["Artist", page.creators.length ? el("span", {}, page.creators.flatMap((person, at) => (at ? [", ", personLink(person)] : [personLink(person)]))) : null],
-        ["Date", page.year === null ? null : year(page.year)],
-        ["Size", workSize(page.height_cm, page.width_cm)],
-        ["Medium", page.media.join(", ")],
-        ["Held by", page.holders.length ? page.holders.map(holderLine).join("; ") : null],
-      ]),
+      facts([["Held by", page.holders.length ? page.holders.map(holderLine).join("; ") : null]]),
       el("p", { class: "muted" }, [wikidataLink(qid, `Wikidata ${qid}`)]),
-      getOne(qid),
-      el("p", { class: "muted", text: GET_LINE }),
     ]),
+    el("p", { class: "muted", text: GET_LINE }),
     look,
     maker ? theirWork : null,
   );
@@ -393,24 +396,42 @@ function matName(mat, presets) {
   return "Chosen another way";
 }
 
-/* The mat control: each one-press mat and the work's own derived colour, as a
- * named swatch. Choosing one shows it on the picture above, as a wall would
- * draw it, and nothing is recorded until *Use this mat*; *Keep the current
- * mat* puts the picture back. Every choice here is free, and the previous
- * colour is kept by the store, so a choice is never lost.
+/* The mat, as a fact that is its own control (`design-direction.md` § How a
+ * page reads): *Mat [Warm grey ▾]* in the line of facts under the title, whose
+ * value opens the choices. Each one-press mat and the work's own derived
+ * colour is a named swatch; choosing one shows it on the picture, as a wall
+ * would draw it, and nothing is recorded until *Use this mat*; *Keep the
+ * current mat* puts the picture back. Every choice here is free, and the
+ * previous colour is kept by the store, so a choice is never lost.
  *
  * **The derivation is offered only when it would change the mat**: an option
  * that does nothing is a press that teaches the curator the control lies.
  *
- * **Folded to one line under the picture until opened**: the mat is changed
- * rarely, and open it would stand between the picture and the work's title,
- * which on a phone pushes the page's heading a screen down. Open, it stays
- * beside the picture its preview is drawn on. */
+ * **The choices open under the toolbar, above the picture**, not in a dialog:
+ * a modal would lay its backdrop over the very picture the preview is drawn
+ * on. Returns `{ fact, panel, status }`: the value in the facts line, the
+ * choices it opens, and the line that says what was kept. */
 function matControl(work, picture, { onChosen = () => {} } = {}) {
-  const summary = el("summary", {}, [el("span", { text: "Mat" })]);
-  const body = el("div", { class: "stack" }, [el("p", { class: "muted", text: "Reading the mat…" })]);
+  const shown = el("span", { text: "Reading…" });
+  const trigger = el("button", {
+    class: "fact-control mat-trigger",
+    type: "button",
+    disabled: true,
+    "aria-expanded": "false",
+    "aria-controls": "mat-choices",
+    "aria-label": "Mat: reading",
+  }, [shown, el("span", { "aria-hidden": "true", text: " ▾" })]);
+  const body = el("div", { class: "stack" });
+  const panel = el("div", { class: "mat-control", id: "mat-choices", role: "group", "aria-label": "Choose a mat", hidden: true }, [body]);
   const status = el("p", { class: "muted mat-status", "aria-live": "polite" });
-  const section = el("details", { class: "mat-control" }, [summary, body, status]);
+  trigger.addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+    trigger.setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) {
+      const first = panel.querySelector("button:not(:disabled)");
+      if (first) first.focus();
+    }
+  });
 
   const paintControl = (mat) => {
     const current = mat.current;
@@ -436,7 +457,7 @@ function matControl(work, picture, { onChosen = () => {} } = {}) {
             chosen = option;
             for (const other of buttons) other.setAttribute("aria-pressed", String(other === button));
             if (picture) picture.paint(option.hex);
-            previewing.textContent = `Showing ${option.label.toLowerCase()} on the picture above.`;
+            previewing.textContent = `Showing ${option.label.toLowerCase()} on the picture.`;
             confirm.hidden = false;
           },
         },
@@ -462,29 +483,40 @@ function matControl(work, picture, { onChosen = () => {} } = {}) {
           if (picture) picture.paint(next.current ? next.current.hex_rgb : null);
           paintControl(next);
           onChosen(next);
+          // Kept, so the choices fold away and the keyboard goes back to the
+          // fact, which now names the new mat.
+          panel.hidden = true;
+          trigger.setAttribute("aria-expanded", "false");
+          trigger.focus();
           status.textContent = `The mat is now ${option.label.toLowerCase()}. The walls showing it are sent the new colour.`;
         },
       });
     });
-    fill(
-      summary,
-      current ? swatch(current.hex_rgb) : null,
-      el("span", { text: current ? `Mat: ${matName(current, mat.presets)}` : "Mat: none chosen yet" }),
-    );
-    fill(body, el("div", { class: "row mat-options", role: "group", "aria-label": "Choose a mat" }, buttons), confirm);
+    const name = current ? matName(current, mat.presets) : "None chosen yet";
+    fill(shown, current ? swatch(current.hex_rgb) : null, el("span", { text: name }));
+    trigger.setAttribute("aria-label", `Mat: ${name}`);
+    trigger.disabled = false;
+    fill(body, el("div", { class: "row mat-options" }, buttons), confirm);
   };
 
   // Read here and said here when it fails: the page's banner is another
   // act's to fill, and a control left on "Reading…" would never say it stopped.
   api(`${workPath(work.artwork_id)}/mat`).then(
     (mat) => {
-      if (section.isConnected) paintControl(mat);
+      if (trigger.isConnected) paintControl(mat);
     },
     () => {
+      fill(shown, el("span", { text: "Unknown" }));
+      trigger.setAttribute("aria-label", "Mat: unknown");
+      trigger.disabled = false;
       fill(body, el("p", { class: "note", text: "The mat's choices could not be read just now. Reload the page to try again." }));
     },
   );
-  return section;
+  return {
+    fact: el("span", { class: "fact-with-control" }, [el("span", { text: "Mat " }), trigger]),
+    panel,
+    status,
+  };
 }
 
 /* A colour as a small square, drawn only for a colour the catalogue would hold,
@@ -609,72 +641,124 @@ async function paintTheirWork(section, maker, qid) {
 
 /* Draw the whole screen from one dossier and where the work is.
  *
- * Separate from the fetch because archive and restore answer with the same
- * dossier `GET /api/works/{id}` does — so the act repaints from what the server
- * actually recorded rather than from the client's opinion of what it asked for.
- * Neither changes which themes hold the work, so `where` — the work's
- * placements, which the state strip refreshes after its own acts — is carried over.
+ * Separate from the fetch because archive, restore and a new Wikidata match
+ * answer with the same dossier `GET /api/works/{id}` does — so the act repaints
+ * from what the server actually recorded rather than from the client's opinion
+ * of what it asked for. None changes which themes hold the work, so `where` —
+ * the work's placements, which the strip refreshes after its own acts — is
+ * carried over.
  *
- * `focusAction` is how the keyboard survives that repaint. The act's own button
- * is replaced by its opposite, and a screen that rebuilt itself under a focused
- * control would drop focus to `<body>`, leaving the next Tab at the top of the
- * page. This is not a poll — the accessibility rule that a poll must never move
- * focus is about paints the curator did not ask for, and this one is the direct
- * answer to a button they pressed.
+ * `focus` is how the keyboard survives that repaint: "primary" puts it on the
+ * toolbar's filled act (Restore after an archive, Hang… after a restore),
+ * "more" back on ⋯. The act's own control is replaced, and a screen that
+ * rebuilt itself under a focused control would drop focus to `<body>`, leaving
+ * the next Tab at the top of the page. This is not a poll — the accessibility
+ * rule that a poll must never move focus is about paints the curator did not
+ * ask for, and this one is the direct answer to a press.
  *
- * **The picture is the largest thing here**: on this page the subject is the
- * work. It is drawn from the master, inside its mat as a wall draws it (a
- * Player draws its own at each wall, by the same rule). The title under
- * it is the page's one `h1`, and the state strip under that says where the work
- * is and offers *Hang…*, the act a curator most often comes here for. Archive is
- * secondary, after the facts: it takes the work out of the whole library, and
- * the loudest button on a page reached from a wall must not be that one. */
-function paint(detail, generation, { where, focusAction = false }) {
+ * **The page opens as every page does** (`design-direction.md` § How a page
+ * reads): the way back, the title as the one `h1`, one line of facts (the mat
+ * among them, as its own control), and the toolbar. *Hang…* is its one filled
+ * act, the one a curator most often comes here for; the rare acts, archiving
+ * and correcting the Wikidata item, are behind ⋯, since the loudest button on
+ * a page reached from a wall must not take the work out of the whole library.
+ * An archived work cannot hang, so *Restore* takes the filled place.
+ *
+ * **Then the picture, the largest thing here**, beside its label: where the
+ * work hangs, and what the museum says of it. It is drawn from the master,
+ * inside its mat as a wall draws it (a Player draws its own at each wall, by
+ * the same rule). There is no Rights fact: good catalogue data, of no use in
+ * the home (ruling 8 of 2026-10-27); the sources table below keeps each
+ * source's rights. */
+function paint(detail, generation, { where, focus = null }) {
   const work = detail.work;
+  const archived = work.status !== "accepted";
   setTitle(generation, work.title);
   const picture = work.image.available ? heroPicture(work, detail) : null;
   const image = picture ? enlargeableHero(work, picture) : el("div", { class: "card-image work-picture-absent" }, [noPicture(work.image.note)]);
   const missingMat = picture ? noMatNote(detail) : null;
-  const action = circulationControl(work, generation, where);
+  const mat = picture ? matControl(work, picture, { onChosen: (chosen) => chosen.current && missingMat && missingMat.remove() }) : null;
+
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
-  paintStrip(strip, work, where);
+  const page = { work, generation, where, strip, hang: null, add: null, more: null };
+  page.hang = !archived && work.image.available
+    ? el("button", { class: "action", type: "button", text: "Hang…", "aria-haspopup": "dialog", onclick: (event) => chooseWall(event.currentTarget, page) })
+    : null;
+  const restoring = archived
+    ? el("button", { class: "action", type: "button", text: "Restore", onclick: (event) => restore(event.currentTarget, page) })
+    : null;
+  page.add = el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Add to theme…",
+    "aria-haspopup": "dialog",
+    onclick: (event) => addToTheme(event.currentTarget, page),
+  });
+  page.more = actionMenu({
+    label: `More acts on ${work.title}`,
+    items: [
+      archived ? null : { label: "Archive…", act: (trigger) => archive(trigger, page) },
+      { label: "Match on Wikidata…", act: (trigger) => matchOnWikidata(trigger, page) },
+    ].filter(Boolean),
+  });
+  paintStrip(page);
 
-  const head = [
-    el("div", { class: "panel work-hero" }, [
-      image,
-      missingMat,
-      el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work)]),
-      picture ? matControl(work, picture, { onChosen: (mat) => mat.current && missingMat && missingMat.remove() }) : null,
-      work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
-    ]),
-    el("div", { class: "panel work-label" }, [
-      el("h1", { text: work.title }),
-      strip,
-      facts([
-        ["Artist", work.artist ? artistLink(work.artist) : null],
-        ["Nationality", work.artist ? work.artist.nationality : null],
-        ["Lifespan", work.artist ? work.artist.lifespan_text : null],
-        ["Date", work.date_created],
-        ["Medium", work.medium],
-        ["Dimensions", work.dimensions],
-        ["Rights", work.rights],
-        // No "Status" row, and its absence is the rule rather than an omission.
-        // A screen states a fact once: the badge under the picture already says
-        // `archived` when that is true and says nothing when it is not, which is
-        // the same inversion the derivation footnote uses. A second, plainer copy
-        // three lines below would invite the reader to look for the difference
-        // between them, and one of the two would eventually be the stale one.
-        ["Description", work.description ? emphasised(work.description) : null],
+  render(
+    generation,
+    el("p", {}, [backLink()]),
+    el("h1", { text: work.title }),
+    workFacts(work, mat),
+    toolbar({ actions: [page.hang || restoring, page.add, page.more] }),
+    mat ? mat.panel : null,
+    mat ? mat.status : null,
+    el("div", { class: "work-head" }, [
+      el("div", { class: "panel work-hero" }, [
+        image,
+        missingMat,
+        el("div", { class: "card-footer" }, [statusBadge(work), fitBadge(work)]),
+        work.fit_note ? el("p", { class: "muted", text: work.fit_note }) : null,
       ]),
-      el("div", { class: "row secondary-actions" }, [action]),
-      // The control repaints from the dossier the route answers with, as
-      // archive and restore do.
-      identityControl("work", work, (answer) => paint(answer, generation, { where })),
+      el("div", { class: "panel work-label" }, [
+        strip,
+        facts([
+          ["Wikidata", work.wikidata_qid ? wikidataLink(work.wikidata_qid, work.wikidata_qid) : null],
+          // No "Status" row, and its absence is the rule rather than an omission.
+          // A screen states a fact once: the badge under the picture already says
+          // `archived` when that is true and says nothing when it is not, which is
+          // the same inversion the derivation footnote uses.
+          ["Description", work.description ? emphasised(work.description) : null],
+        ]),
+      ]),
     ]),
-  ];
+    el("div", { class: "work-record" }, recordPanels(detail, generation, where)),
+  );
+  // Only if the paint actually landed. `render` declines a paint whose
+  // navigation has been superseded, and focusing a control that was never put on
+  // the page would move the keyboard onto a detached node.
+  const target = focus === "primary" ? page.hang || restoring || page.add : focus === "more" ? page.more.querySelector("button") : null;
+  if (target && document.contains(target)) target.focus();
+}
 
-  // The picture beside its label, as on a gallery wall; then the record, each
-  // part a section of its own, two to a row where the page is wide enough.
+/* The one line of facts under the title, as a museum label begins: who made it
+ * (a link to their page, with their nationality and life as a label gives
+ * them), when, in what, how big, and the mat it is shown in. */
+function workFacts(work, mat) {
+  const artist = work.artist
+    ? el("span", {}, [
+        artistLink(work.artist),
+        ...[work.artist.nationality, work.artist.lifespan_text].filter(Boolean).length
+          ? [` (${[work.artist.nationality, work.artist.lifespan_text].filter(Boolean).join(", ")})`]
+          : [],
+      ])
+    : null;
+  const parts = [artist, work.date_created, work.medium, work.dimensions, mat ? mat.fact : null].filter(Boolean);
+  return el("p", { class: "muted page-facts work-facts" }, parts.flatMap((part, at) => (at ? [" · ", part] : [part])));
+}
+
+/* The record below the picture and its label, each part a section of its own,
+ * two to a row where the page is wide enough. */
+function recordPanels(detail, generation, where) {
+  const work = detail.work;
   const panels = [facetPanel(detail.facets)];
 
   panels.push(
@@ -743,17 +827,7 @@ function paint(detail, generation, { where, focusAction = false }) {
   );
 
   if (DEBUG) panels.push(matPanel(detail.mat_colors));
-
-  render(
-    generation,
-    el("p", {}, [backLink()]),
-    el("div", { class: "work-head" }, head),
-    el("div", { class: "work-record" }, panels),
-  );
-  // Only if the paint actually landed. `render` declines a paint whose
-  // navigation has been superseded, and focusing a control that was never put on
-  // the page would move the keyboard onto a detached node.
-  if (focusAction && document.contains(action)) action.focus();
+  return panels;
 }
 
 /* What this work is said to be, in the vocabulary the collection filters by. */
@@ -839,18 +913,18 @@ function matPanel(matColors) {
   ]);
 }
 
-/* -- the state strip: which walls and themes the work is on, and Hang… -------
+/* -- the state strip: which walls and themes the work is on ------------------
  *
  * Read from `GET /api/works/{id}/placements`, which lists every theme holding
  * the work with the walls hanging each, selections included. **A selection is
  * said as its wall**, never by its made-up theme name: the curator chose works,
  * not a theme. The server deletes a selection once no wall hangs it; one read
- * hanging nowhere would be an old hang, and is not said at all. A real theme is named, and links to its page.
+ * hanging nowhere would be an old hang, and is not said at all. A real theme is
+ * named, and links to its page.
  *
- * Its acts — *Hang…* and *Allow on walls again* — repaint the strip alone, from
- * the placements read afresh after the act, and put the keyboard back on
- * *Hang…*, the control that stands where the pressed one stood or beside it. */
-
+ * The acts that change it — *Hang…* and *Add to theme…* in the toolbar, and
+ * *Allow on walls again* in the strip — repaint the strip alone, from the
+ * placements read afresh after the act, with a sentence in its status line. */
 
 function placementsPath(artworkId) {
   return `${workPath(artworkId)}/placements`;
@@ -876,103 +950,106 @@ function joined(parts) {
   return parts.flatMap((part, at) => (at ? ["; ", ...part] : part));
 }
 
-/* Paint the strip from `where.placements`. `said` is a sentence about the act
- * just taken, kept in the strip's status line; `focusHang` puts the keyboard on
- * *Hang…* (or on the undo while it is the strip's only control). */
-function paintStrip(strip, work, where, { said = "", focusHang = false } = {}) {
-  const placements = where.placements;
+/* Paint the strip from `page.where.placements`. `said` is a sentence about the
+ * act just taken, kept in the strip's status line.
+ *
+ * **Kept off every wall is an exception, and quiet**: one muted line at the end
+ * of what it qualifies, with its undo, said only when it is true. While it is,
+ * *Hang…* leaves the toolbar, since a hang would put up a work every wall is
+ * told to keep down. */
+function paintStrip(page, { said = "" } = {}) {
+  const { work, strip } = page;
+  const placements = page.where.placements;
   const held = work.status === "accepted";
   const themes = placements.themes.filter((placement) => !placement.theme.hidden);
   const walls = wallsHanging(placements);
-  const kept = placements.excluded_at;
+  const kept = held ? placements.excluded_at : null;
 
   const lines = [];
-  if (held && kept) {
-    lines.push(["Walls", `Kept off every wall since ${dated(kept)}.`]);
-  } else if (held) {
+  if (held && !kept) {
     lines.push(["Walls", walls.length ? el("span", {}, wallLinks(walls)) : "Not hanging on any wall."]);
   }
   lines.push(["Themes", themes.length ? el("span", {}, joined(themes.map(themeLine))) : "In no theme."]);
 
-  const status = el("p", { class: "strip-said", role: "status" });
-  const picker = el("div", { class: "row wall-picker", hidden: true });
-  let control = null;
-  if (held && kept) {
-    control = el("button", {
-      class: "action",
-      type: "button",
-      text: "Allow on walls again",
-      onclick: (event) => allowAgain(event.currentTarget, strip, work, where),
-    });
-  } else if (held && work.image.available) {
-    control = el("button", {
-      class: "action",
-      type: "button",
-      text: "Hang…",
-      "aria-expanded": "false",
-      onclick: (event) => chooseWall(event.currentTarget, picker, strip, work, where),
-    });
-  }
+  const keptLine = kept
+    ? el("p", { class: "muted kept-off" }, [
+        `Kept off every wall since ${dated(kept)}. `,
+        el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Allow on walls again",
+          onclick: (event) => allowAgain(event.currentTarget, page),
+        }),
+      ])
+    : null;
+  if (page.hang) page.hang.hidden = Boolean(kept);
 
-  fill(strip, facts(lines), control ? el("div", { class: "row" }, [control]) : null, picker, status);
+  const status = el("p", { class: "strip-said", role: "status" });
+  fill(strip, facts(lines), keptLine, status);
   // Filled a task later, as a live region must be to be heard
   // (`accessibility-spec.md` § Announcement and semantics).
   if (said) window.setTimeout(() => (status.textContent = said), 0);
-  if (focusHang && control) control.focus();
 }
 
-/* Read the placements afresh and repaint the strip with a sentence about the act. */
-async function refreshStrip(strip, work, where, said) {
-  where.placements = await api(placementsPath(work.artwork_id));
-  if (strip.isConnected) paintStrip(strip, work, where, { said, focusHang: true });
+/* Read the placements afresh and repaint the strip with a sentence about the
+ * act, putting the keyboard on `focus`, the control that stands where the
+ * pressed one stood. */
+async function refreshStrip(page, said, focus) {
+  page.where.placements = await api(placementsPath(page.work.artwork_id));
+  if (!page.strip.isConnected) return;
+  paintStrip(page, { said });
+  if (focus && !focus.hidden) focus.focus();
 }
 
 /* *Hang…*: the walls are read when it is pressed, never from an earlier paint,
- * since what hangs on each is part of the question. One wall is asked about
- * directly; several are offered, one button each, beside the control. */
-async function chooseWall(control, picker, strip, work, where) {
+ * since what hangs on each is part of the question. With one wall the question
+ * is asked directly, since a choice of one is not a choice; with several, a
+ * dialog offers each, and the one pressed is asked about. */
+async function chooseWall(control, page) {
+  const { work } = page;
   let walls = null;
   const read = await attempt(control, `hang ${work.title}`, async () => {
     walls = (await api("/api/walls")).walls;
   });
   if (!read) return;
-  if (!walls.length) {
-    fill(picker, el("p", { class: "muted", text: "There is no wall to hang it on yet." }));
-    picker.hidden = false;
-    return;
-  }
   if (walls.length === 1) {
-    await hangOn(control, walls[0], strip, work, where);
+    await hangOn(control, walls[0], page);
     return;
   }
-  const close = () => {
-    picker.hidden = true;
-    fill(picker);
-    control.setAttribute("aria-expanded", "false");
-    control.focus();
-  };
-  fill(
-    picker,
-    el("span", { class: "muted", text: "On which wall?" }),
-    ...walls.map((wall) =>
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: wall.name,
-        onclick: (event) => hangOn(event.currentTarget, wall, strip, work, where),
-      }),
-    ),
-    el("button", { class: "action quiet", type: "button", text: "Cancel", onclick: close }),
-  );
-  picker.hidden = false;
-  control.setAttribute("aria-expanded", "true");
-  picker.querySelector("button").focus();
+  if (!walls.length) {
+    openPanel({ title: `Hang ${work.title}`, lead: "There is no wall to hang it on yet." });
+    return;
+  }
+  const panel = openPanel({
+    title: `Hang ${work.title} on…`,
+    body: [
+      el(
+        "div",
+        { class: "stack wall-choices" },
+        walls.map((wall) =>
+          el("button", {
+            class: "action quiet",
+            type: "button",
+            text: wall.name,
+            // The choice closes first, so the question that follows hands the
+            // keyboard back to *Hang…*, not to a dialog that is gone.
+            onclick: () => {
+              panel.close();
+              hangOn(control, wall, page);
+            },
+          }),
+        ),
+      ),
+    ],
+    closeLabel: "Cancel",
+  });
 }
 
 /* Ask, hang, and say what reached the wall: the build names a work that was
  * hung and cannot be shown yet, and why, which a curator should hear now rather
  * than notice at the wall. */
-async function hangOn(control, wall, strip, work, where) {
+async function hangOn(control, wall, page) {
+  const { work } = page;
   await hangSelection({
     control,
     artworkIds: [work.artwork_id],
@@ -981,16 +1058,48 @@ async function hangOn(control, wall, strip, work, where) {
     then: async (build) => {
       const left = build.exclusions.find((exclusion) => exclusion.artwork_id === work.artwork_id);
       const said = left ? `Hung on ${build.wall_name}, but it cannot be shown yet: ${left.detail}` : `Hung on ${build.wall_name}.`;
-      await refreshStrip(strip, work, where, said);
+      await refreshStrip(page, said, page.hang);
     },
   });
 }
 
-/* The undo for *Not this one again* from every wall. The work goes back on the
- * walls whose theme holds it as the undo lands, and the sentence says so. */
-async function allowAgain(control, strip, work, where) {
+/* *Add to theme…*: the selection's dialog (`core/membership.js`), for this one
+ * work. The themes are read when it is pressed; a theme already holding the
+ * work is not offered, since adding it there would do nothing. */
+async function addToTheme(control, page) {
+  const { work } = page;
+  let themes = null;
+  const read = await attempt(control, `add ${work.title} to a theme`, async () => {
+    themes = themeChoices(await api("/api/themes"));
+  });
+  if (!read) return;
+  const holding = new Set(page.where.placements.themes.map((placement) => placement.theme.theme_id));
+  const confirm = el("button", { class: "action add-confirm", type: "button" });
+  const settle = () => {
+    confirm.disabled = !choice.ready();
+    confirm.textContent = `Add to ${choice.destination()}`;
+  };
+  const choice = themeChoice(themes.filter((theme) => !holding.has(theme.theme_id)), { onChange: settle });
+  settle();
+  const panel = openPanel({ title: `Add ${work.title} to a theme`, body: choice.fields, actions: [confirm], closeLabel: "Cancel" });
+  confirm.addEventListener("click", () =>
+    attempt(confirm, `add ${work.title} to ${choice.destination()}`, async () => {
+      const theme = await choice.chosen();
+      await addWorksToTheme(theme.theme_id, [work.artwork_id]);
+      // Closed before the strip takes the keyboard, so the dialog handing
+      // focus back to its opener does not land after it.
+      panel.close();
+      await refreshStrip(page, `Added ${work.title} to ${theme.name}.`, control);
+    }),
+  );
+}
+
+/* The undo for *Remove…* from every wall. The work goes back on the walls whose
+ * theme holds it as the undo lands, and the sentence says so. */
+async function allowAgain(control, page) {
+  const { work } = page;
   await attempt(control, `allow ${work.title} on walls again`, () => api(`/api/exclusions/${encodeURIComponent(work.artwork_id)}`, { method: "DELETE" }), {
-    then: () => refreshStrip(strip, work, where, ALLOWED_AGAIN),
+    then: () => refreshStrip(page, ALLOWED_AGAIN, page.hang),
   });
 }
 
@@ -998,29 +1107,31 @@ async function allowAgain(control, strip, work, where) {
  * an agent and a click are told one thing about when the work returns. */
 const ALLOWED_AGAIN = RESTORE_CONSEQUENCE;
 
-/* Archive, or Restore — whichever this work's status leaves available.
- *
- * One control rather than two, because the two acts are the two directions of
- * one state machine and offering the unavailable one would be offering a
- * refusal. Nothing alarming either way: both are ordinary reversible acts, and
- * there is no danger class in this stylesheet to reach for.
- *
- * **Archive is quiet; Restore is not.** A held work's page is reached to look
- * at it or hang it, and a filled Archive was the loudest button in reach of a
- * curator who had only wanted a picture off one wall. An archived work's page
- * has one thing to offer, and Restore is it. */
-function circulationControl(work, generation, where) {
-  const archived = work.status !== "accepted";
-  return el("button", {
-    class: archived ? "action" : "action quiet",
-    type: "button",
-    text: archived ? "Restore" : "Archive",
-    onclick: (event) =>
-      archived ? restore(event.currentTarget, work, generation, where) : archive(event.currentTarget, work, generation, where),
+/* *Match on Wikidata…*: which item the work is, corrected in a dialog
+ * (`core/identity.js`), its form open since opening the dialog was the asking.
+ * The page repaints from the record the route answers with. */
+function matchOnWikidata(trigger, page) {
+  const { work } = page;
+  const panel = openPanel({
+    title: `Match ${work.title} on Wikidata`,
+    body: [
+      identityControl("work", work, (answer) => {
+        panel.close();
+        paint(answer, page.generation, { where: page.where, focus: "more" });
+      }, { open: true }),
+    ],
   });
 }
 
-async function archive(control, work, generation, where) {
+/* *Archive…* behind ⋯, and *Restore* in its place once it is archived.
+ *
+ * The two directions of one state machine, so a page offers only the one the
+ * work's status leaves available. Nothing alarming either way: both are
+ * ordinary reversible acts, and there is no danger class in this stylesheet to
+ * reach for. `control` is what was pressed (⋯ for Archive…), and a refusal is
+ * said beside it. */
+async function archive(control, page) {
+  const { work } = page;
   const act = `archive ${work.title}`;
   let showing = null;
   // The walls are asked before the question, which needs them; a failure there
@@ -1036,11 +1147,12 @@ async function archive(control, work, generation, where) {
   });
   if (!agreed) return;
   await attempt(control, act, () => api(`${workPath(work.artwork_id)}/archive`, { method: "POST" }), {
-    then: (detail) => paint(detail, generation, { where, focusAction: true }),
+    then: (detail) => paint(detail, page.generation, { where: page.where, focus: "primary" }),
   });
 }
 
-async function restore(control, work, generation, where) {
+async function restore(control, page) {
+  const { work } = page;
   const agreed = await confirmAct({
     title: `Restore ${work.title}?`,
     consequence: RESTORE_CONSEQUENCE,
@@ -1048,7 +1160,7 @@ async function restore(control, work, generation, where) {
   });
   if (!agreed) return;
   await attempt(control, `restore ${work.title}`, () => api(`${workPath(work.artwork_id)}/restore`, { method: "POST" }), {
-    then: (detail) => paint(detail, generation, { where, focusAction: true }),
+    then: (detail) => paint(detail, page.generation, { where: page.where, focus: "primary" }),
   });
 }
 

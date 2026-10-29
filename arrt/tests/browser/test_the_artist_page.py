@@ -401,7 +401,8 @@ class TestTheWaysIn:
         ui.open(f"#work/{work.id}")
         ui.page.wait_for_selector(f"#view h1:has-text('{work.title}')")
 
-        ui.page.click("dl.facts a:has-text('Mark Rothko')")
+        # In the line of facts under the title (ruling 8 of 2026-10-27).
+        ui.page.click(".work-facts a:has-text('Mark Rothko')")
         ui.page.wait_for_selector("#view h1:has-text('Mark Rothko')")
 
 

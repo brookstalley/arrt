@@ -10,6 +10,27 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Artworks and a work's page, rebuilt to the page rules — added 2026-10-29
+
+**`build-plan-ui-pass-work-artworks.md` chunk 05.** On the NAS, once the release
+with this branch is deployed, on a phone and on a desktop.
+
+- **Artworks.** The heading and its line of facts; narrow by a theme and a facet
+  and see the line say so. *Select*, scroll a long way down, and check the
+  toolbar is still in reach; select across pages, *Add to theme…* (an existing
+  theme and *New theme…*), and *Archive…* from a filter.
+- **The other lists.** On an Artist, a Topic and Search results, select works and
+  add them to a theme; select works not held and *Get N works…* into a theme.
+- **A work's page.** *Hang…* on one wall, answer the question, and see it reach
+  the wall; *Add to theme…*; change the mat from its fact and see the preview on
+  the picture before *Use this mat*; from ⋯, *Archive…*, then *Restore*; and
+  *Match on Wikidata…* on a work whose item is wrong or missing.
+- **A work not held** (search for a painting you do not have): the same head, and
+  *Get this work* in its toolbar.
+- **The words and the weight.** Judge both pages against the prototype: does
+  anything you use daily now take a step it did not, and does the sticky toolbar
+  crowd a phone?
+
 ### Walls, rebuilt to the page rules — added 2026-10-27
 
 **`build-plan-ui-pass-walls.md` chunk 05.** On the NAS, once the release with this

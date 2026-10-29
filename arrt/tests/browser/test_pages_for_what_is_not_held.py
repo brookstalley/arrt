@@ -111,16 +111,34 @@ class TestAWorkNotHeld:
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("#view h1:text-is('The Hunters in the Snow')")
 
-        facts = ui.page.locator("#view dl.facts").inner_text()
-        assert "Pieter Brueghel the Elder" in facts
-        assert "1565" in facts
-        assert "oil paint, panel" in facts
-        assert "Kunsthistorisches Museum (GG_1838)" in facts
+        # Who, when and in what are the line of facts under the title, as on a
+        # held work's page (ruling 8 of 2026-10-27); who holds it, in the facts below.
+        line = ui.page.locator("#view .work-facts").inner_text()
+        assert "Pieter Brueghel the Elder" in line
+        assert "1565" in line
+        assert "oil paint, panel" in line
+        assert _fact(ui, "Held by") == "Kunsthistorisches Museum (GG_1838)"
         assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Not held · Image found"
         image = ui.page.locator("#view img.detail-image")
         assert image.get_attribute("src") == f"{COMMONS}?width=1200"
         assert image.get_attribute("referrerpolicy") == "no-referrer"
         assert ui.page.locator(f"#view a[href='https://www.wikidata.org/wiki/{HUNTERS}']").count() == 1
+
+    def test_get_this_work_is_the_toolbars_act_with_its_cost_on_its_line(self, ui):
+        """The same head as a held work's (ruling 8 of 2026-10-27): Get this work in
+        the toolbar, and its cost on the button's line, not the middle of the field
+        and its label, as a photograph found it."""
+        ui.open(f"#work/{HUNTERS}")
+        ui.page.wait_for_selector(".page-toolbar button:text-is('Get this work')")
+
+        button, tier = ui.page.evaluate("""() => {
+            const box = (node) => { const b = node.getBoundingClientRect(); return [b.top, b.bottom]; };
+            return [
+                box(document.querySelector('.page-toolbar button.action')),
+                box(document.querySelector('.page-toolbar .badge-tier')),
+            ];
+        }""")
+        assert abs((button[0] + button[1]) / 2 - (tier[0] + tier[1]) / 2) <= 3
 
     def test_it_says_how_big_the_work_is_and_how_big_its_picture_is(self, ui):
         """Size among the facts, as a museum label gives it; the picture's pixels and fit under it,
@@ -128,7 +146,8 @@ class TestAWorkNotHeld:
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("#view .picture-size")
 
-        assert _fact(ui, "Size") == "117 × 162 cm (46.1 × 63.8 in)"
+        # Size in the line of facts, as a museum label gives it (ruling 8).
+        assert ui.page.locator("#view .work-facts").inner_text().endswith("· 117 × 162 cm (46.1 × 63.8 in)")
         size = ui.page.locator("#view .picture-size")
         # Meeting the minimum is not news, so no badge follows the pixels.
         assert " ".join(size.inner_text().split()) == "6,000 × 4,400 px"
@@ -139,13 +158,13 @@ class TestAWorkNotHeld:
         ui.page.wait_for_selector("#view .picture-size")
 
         assert " ".join(ui.page.locator("#view .picture-size").inner_text().split()) == "300 × 200 px ▲ below minimum"
-        assert _fact(ui, "Size") is None
+        assert " cm" not in ui.page.locator("#view .work-facts").inner_text()
 
     def test_with_one_dimension_and_no_picture_size_it_says_only_what_it_knows(self, ui):
         ui.open("#work/Q9")
         ui.page.wait_for_selector("#view h1:text-is('Half measured')")
 
-        assert _fact(ui, "Size") == "117 cm high (46.1 in)"
+        assert ui.page.locator("#view .work-facts").inner_text().endswith("117 cm high (46.1 in)")
         assert ui.page.locator("#view .picture-size").count() == 0
 
     def test_it_says_whose_picture_this_is_and_what_get_asks(self, ui):
@@ -186,7 +205,7 @@ class TestAWorkNotHeld:
 
     def test_its_unheld_artist_opens_their_page_here(self, ui):
         ui.open(f"#work/{HUNTERS}")
-        ui.page.click("#view dl.facts a:has-text('Pieter Brueghel the Elder')")
+        ui.page.click("#view .work-facts a:has-text('Pieter Brueghel the Elder')")
 
         ui.page.wait_for_selector("#view h1:text-is('Pieter Brueghel the Elder')")
         assert _hash(ui).split("?")[0] == f"#artist/{BRUEGEL}"
@@ -194,7 +213,7 @@ class TestAWorkNotHeld:
     def test_a_held_artist_opens_the_library_page(self, ui, rothko):
         artist, _work = rothko
         ui.open("#work/Q8")
-        ui.page.click("#view dl.facts a:has-text('Mark Rothko')")
+        ui.page.click("#view .work-facts a:has-text('Mark Rothko')")
 
         ui.page.wait_for_function("(id) => window.location.hash.split('?')[0] === `#artist/${id}`", arg=artist.id)
 
