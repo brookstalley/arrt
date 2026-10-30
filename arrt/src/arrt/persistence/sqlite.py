@@ -1179,6 +1179,9 @@ class SqliteCatalogue(TableAdapter):
     def update_wall(self, wall: Wall) -> None:
         self._update("walls", BY_ID, _wall_row(wall), subject=f"wall {wall.name!r}")
 
+    def remove_wall(self, wall_id: str) -> None:
+        self._store.delete("walls", {"id": wall_id})
+
     # -- clients --------------------------------------------------------------
 
     def add_client(self, client: Client) -> None:

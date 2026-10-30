@@ -1166,6 +1166,18 @@ def rename_wall(request: Request, wall_id: str, body: CreateWall) -> WallOut:
     return _wall(services, services.display.get_wall_view(wall_id))
 
 
+@router.delete("/walls/{wall_id}")
+def delete_wall(request: Request, wall_id: str) -> WallListOut:
+    """Forget a wall for good: what it hangs comes down, its screen and label panels are freed.
+
+    Its history stays. Answers with the walls that remain, for the reason
+    `delete_theme` gives: a delete changes the list it was made from.
+    """
+    services = _services(request)
+    services.display.delete_wall(wall_id)
+    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
+
+
 @router.post("/walls/{wall_id}/client")
 def assign_wall(request: Request, wall_id: str, body: AssignWall) -> WallAssignmentOut:
     """Show this wall on one of a client's outputs, by the output's name.

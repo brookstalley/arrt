@@ -394,6 +394,30 @@ def test_a_heartbeat_from_a_client_not_showing_the_wall_is_refused_and_kept_as_n
 # -- admission --------------------------------------------------------------------------
 
 
+def test_a_deleted_wall_is_dropped_from_its_players_document_and_its_routes_answer_403(
+    server_url, services, playing, token, hall_pi, wall_id, study
+):
+    """What a Player meets when its wall is deleted: what an unassigned wall gives it, so no contract change."""
+    services.clients.assign_wall(study, client_id=hall_pi.id, output="hdmi-a-2")
+    client_url = server_url + ROUTES["client"]["path"]
+    before = httpx.get(client_url, headers=_bearer(token))
+    assert {wall["wall_id"] for wall in before.json()["walls"]} == {wall_id, study}
+
+    services.display.delete_wall(wall_id)
+
+    after = httpx.get(client_url, headers={**_bearer(token), "If-None-Match": before.headers["ETag"]})
+    assert after.status_code == 200, "the document changed, so its ETag did"
+    assert [wall["wall_id"] for wall in after.json()["walls"]] == [study]
+    feed = httpx.get(server_url + _feed(wall_id), headers=_bearer(token))
+    assert feed.status_code == 403
+    beat = httpx.post(
+        server_url + _path("heartbeat", wall_id=wall_id),
+        json={"reported_at": "2026-10-30T12:00:00+00:00"},
+        headers=_bearer(token),
+    )
+    assert beat.status_code == 403
+
+
 @pytest.mark.parametrize("route", ["manifest_major", "heartbeat"])
 def test_every_wall_route_admits_only_the_client_the_wall_is_assigned_to(server_url, playing, token, study_token, wall_id, route):
     """Own wall admitted; another client's token is 403; no valid client token is 401."""

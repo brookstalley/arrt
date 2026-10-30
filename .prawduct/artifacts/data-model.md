@@ -971,6 +971,19 @@ and output, so every wall stays on its screen, then drops both columns and the
 token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
 drops both columns from a catalogue that has them.
 
+**How a wall begins and ends** *(2026-10-30, `build-plan-delete-a-wall.md`,
+#391)*. The first is made by `migrations.establish_the_wall` when the file has
+never had a `walls` table: a new file, or one from before walls. A file whose
+`walls` table is empty is one whose curator deleted them all, and it opens with
+none; Walls then offers *Add wall…*. `DisplayService.delete_wall` forgets a wall
+for good, deciding each row that names it: its `ThemeAssignment` goes (a
+selection nothing else hangs is retired), its label outputs caption nothing, its
+display is freed with the row, its pin in a draft scene goes, and its feed and
+heartbeat files are removed after the commit. Its Showings, its History and an
+applied scene's pins stay, as their own sections say a removed wall leaves them.
+No event records the delete, as none records a theme deleted or a client
+removed.
+
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
 the display it is shown on, and the presentation choices the curator made for
 the room (§ Wall settings). It is not a device. The credential belongs to the
@@ -2267,7 +2280,10 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 
 > **No foreign keys, deliberately.** A history outlives what it names, and walls
 > and themes are Programming's (seam rule 3). That is why `detail` copies names
-> rather than leaving them to be joined.
+> rather than leaving them to be joined. Every kind that names a wall carries
+> `wall_name` from 2026-10-30 (`work.left_theme` and `work.excluded` gained it
+> then), so a deleted wall's history still names it; an older event of those two
+> kinds reads "a wall no longer recorded".
 >
 > **Who writes which kind.** The Library writes its own: `DiscoveryService` at
 > each run start (`start_discovery_run`, `start_resolve_run`, `start_get_run`),

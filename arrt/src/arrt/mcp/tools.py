@@ -1686,7 +1686,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="add_wall",
-            description="Record a wall — a place where art hangs. It arrives with nothing on it.",
+            description="Record a wall, a place where art hangs. It arrives with nothing on it.",
             example="art_display(action='add_wall', name='Living room')",
             params=(_NAME,),
             tips=(
@@ -1710,6 +1710,19 @@ ART_DISPLAY: Final = ToolRecord(
             tips=(
                 "Refuses a name that is empty or that another wall has.",
                 "What the wall hangs, its client and its settings are unchanged, and nothing is republished.",
+            ),
+        ),
+        Action(
+            name="delete_wall",
+            description="Forget a wall for good; its history stays.",
+            example="art_display(action='delete_wall', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=(
+                (
+                    "What it hangs comes down and the theme stays; its screen and label panels are freed for other "
+                    "walls; its Player stops showing it on its next poll. A live scene goes on for the walls left."
+                ),
+                "Not undoable: ask the curator first, naming the wall. The last wall may be deleted too.",
             ),
         ),
         Action(
@@ -1787,7 +1800,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description=("Report each wall's last display report and when, and how much the picture store keeps."),
+            description=("Report each wall's last report and when, and the picture store's size."),
             example="art_display(action='status')",
             tips=(
                 (
@@ -1808,7 +1821,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="sync",
-            description="Rebuild the theme manifest so a named wall converges on what is hanging there.",
+            description="Rebuild a named wall's manifest from what is hanging there.",
             example="art_display(action='sync', wall_id='<a wall_id>')",
             params=(_WALL_ID, _SYNC_THEME_ID),
             tips=(
@@ -1899,7 +1912,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="remove_client",
-            description="Forget a client. Its token stops working and the walls it showed are left without one.",
+            description="Forget a client: its token stops working, and its walls are left unshown.",
             example="art_display(action='remove_client', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
@@ -1912,7 +1925,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="issue_client_token",
-            description="Issue a client's token, replacing any it had. The answer is the only place it appears.",
+            description="Issue a client's token, replacing any it had; only the answer shows it.",
             example="art_display(action='issue_client_token', client_id='<a client_id>')",
             params=(_CLIENT_ID,),
             tips=(
