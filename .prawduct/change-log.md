@@ -92,7 +92,8 @@ and label panel are now set in one place, the wall's *Edit…*.
 - **Walls:** *No Player shows this wall* opens the wall's *Edit…*. A placement
   the server keeps but cannot confirm says the server's notice in that dialog,
   which stays open to read it (Players said it until this change). Walls' screen
-  picker names a Frame *Samsung Frame*.
+  picker names a Frame *Samsung Frame*, and a screen another wall uses as
+  *HDMI 1 · shows Hall*.
 - **Themes** opens with its name, a line of facts (how many, which is the
   default) and *New theme…*, a dialog of name and description whose *Create*
   opens the new theme's page.
