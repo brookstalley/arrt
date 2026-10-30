@@ -1,110 +1,92 @@
-/* Clients — the installed Players this server knows, and which walls each shows.
+/* Players — the devices at the walls this server knows, one row each.
  *
  * **A page under Settings**, where Radarr keeps Settings › Download Clients: the
  * server's list of the external programs it works with (`clients.md` ruling 1,
- * `information-architecture.md` § The *arr layout). A client is a name and one
- * token; it shows the walls assigned to it, each on one of its outputs, and its
- * host learns them from this server — so assigning a wall here needs no edit on
- * the host. Its label outputs (e-paper panels) are mapped to walls here too, any
- * wall on any client, and a display two clients report is said in both panels.
+ * `information-architecture.md` § The *arr layout). A Player is a name and one
+ * token. The server's records, routes and tools call it a client, a contract
+ * with what calls them; a person reads *Player* (§ Vocabulary).
  *
- * **The token is shown once, and only here.** The server keeps a verifier, so the
- * answer that issued a token is the only place it ever exists outside the host.
- * It is carried across exactly one repaint in `reveal` and dropped as that paint
- * reads it: a reload, or any later act, and it is gone, which is the truth about
- * it rather than a limitation of the page.
+ * **What is true now, and its settings one step away** (`design-direction.md`
+ * § Component Patterns, "How a page reads"; ruling 7 of 2026-10-27). A row says
+ * whether the Player is reporting, its screens and the wall on each, and its
+ * label panel and the wall it captions. Its name, its token and removing it are
+ * its *Edit…*. Which wall a screen or a panel shows is the wall's setting, so it
+ * is set in the wall's own *Edit…* on Walls, and this page only says it.
  *
- * **Every state is said in words.** No client yet, no token yet, a client that
- * has not reported its outputs, a report that could not be read, a client that
- * reported none, a client showing no wall: each has its own sentence, because
- * each sends the curator somewhere different.
+ * **The token is shown once, in the dialog that issued it.** The server keeps a
+ * verifier, so that answer is the only place the token ever exists outside the
+ * Player. Closing the dialog, or a reload, and it is gone, which is the truth
+ * about it rather than a limitation of the page.
  *
- * **Every act names its client**, in the control's accessible name and in any
+ * **Every state is said in words.** No Player yet, no token yet, never reported,
+ * a report that could not be read, one too old to speak for now, a Player that
+ * reported no screen: each has its own words, because each sends the curator
+ * somewhere different.
+ *
+ * **Every act names its Player**, in the control's accessible name and in any
  * question it asks, for the reason `core/confirm.js` gives. Rotating and removing
  * ask first, because each can leave a wall dark: a rotated token refuses the
- * Player holding the old one, and a removed client leaves its walls with nothing
- * showing them. Assigning and unassigning do not ask; each is undone by the
- * other, on this page.
+ * Player holding the old one, and a removed Player leaves its walls with nothing
+ * showing them.
  *
  * TEXT IS SET WITH textContent, NEVER innerHTML — the rule is at `core/render.js`,
- * and a client's name and its outputs' names are text somebody else typed.
+ * and a Player's name and its outputs' names are text somebody else typed.
  */
 
 import { attempt, failedSentence } from "../core/acting.js";
 import { api } from "../core/api.js";
-import { facts, table } from "../core/badges.js";
+import { facts } from "../core/badges.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { confirmAct } from "../core/confirm.js";
 import { agree, counted } from "../core/counting.js";
 import { dated } from "../core/dates.js";
-import { isStale, screenCell, screenPhrase, STALE_AFTER_SECONDS } from "../core/outputs.js";
+import { openPanel } from "../core/editing.js";
+import { isStale, screenCell, screenName } from "../core/outputs.js";
 import { el, emptyState, render } from "../core/render.js";
 import { wallLink } from "../core/places.js";
 import { refresh } from "../core/router.js";
 import { state } from "../core/state.js";
+import { toolbar } from "../core/toolbar.js";
 
-/* The output kinds `player-contract.md` names, in the words a curator reads. */
-const KIND_WORDS = {
-  frame: "Samsung Frame",
-  framebuffer: "Screen",
-};
-
-/* The label output kinds the client heartbeat names, in the words a curator reads. */
-const LABEL_KIND_WORDS = {
-  epaper: "E-paper panel",
-};
-
-/* A token just issued, for the one paint that shows it: `{ clientId, token }`. */
-let reveal = null;
-
-/* What the last act should leave said, and where the keyboard goes after the
- * repaint it caused: `{ clientId, text }` inside that client's panel, or
- * `{ text }` above the list when the client it was about is gone. */
+/* What the last act should leave said, above the table, across the repaint it
+ * caused. */
 let outcome = null;
 
 export async function viewClients(generation) {
+  // The walls come along for the label panels: a panel may caption a wall on
+  // another Player, which this Player's own listing does not name.
   const [listing, walls] = await Promise.all([api("/api/clients"), api("/api/walls")]);
-  // Read and dropped together, before anything can fail between them: a token
-  // that survived into a second paint would be shown twice.
-  const shown = reveal;
+  const wallNames = new Map(walls.walls.map((wall) => [wall.wall_id, wall.name]));
   const said = outcome;
-  reveal = null;
   outcome = null;
 
-  const clients = listing.clients;
-  const names = new Map(clients.map((client) => [client.client_id, client.name]));
-  const loose = said && !said.clientId ? spoken(said.text) : null;
+  const players = listing.clients;
+  // Arrived at by its address (`#clients?client=<id>`), which kept its spelling
+  // when the page became Players, as every renamed page's has.
+  const asked = state.params.client;
+  const reporting = players.filter((player) => statusOf(player).reporting).length;
+  // One sentence per fault, though each Player in it carries it: the server's
+  // sentence names them all, so it is said once.
+  const faults = [...new Set(players.flatMap((player) => player.faults.map((fault) => fault.description)))];
 
   render(
     generation,
-    el("h1", { text: "Clients" }),
+    el("h1", { text: "Players" }),
     el("p", {
-      class: "muted",
-      // What the page is for, said once; how a Player learns its walls is in
-      // the token's own instructions, where it is acted on.
-      text: "The Players at your walls, and which walls each one shows.",
+      class: "muted page-facts",
+      text: players.length ? `${counted(players.length, "Player")} · ${reporting} reporting` : counted(0, "Player"),
     }),
-    addPanel(),
-    loose,
-    ...(clients.length
-      ? clients.map((client) => clientPanel(client, walls.walls, names, shown, said))
-      : [
-          emptyState(
-            "No client is recorded yet.",
-            "Add one for each host that runs a Player; its walls are assigned here once it exists.",
-          ),
-        ]),
+    toolbar({ actions: [addOpener()] }),
+    said ? spoken(said) : null,
+    players.length
+      ? playersTable(players, asked, wallNames)
+      : emptyState(
+          "No Player is recorded yet.",
+          "Add one for each Player at a wall. Which wall it shows is set in that wall's Edit…, on Walls.",
+        ),
+    ...faults.map((text) => el("p", { class: "note player-fault", text: `${GLYPHS.problem} ${text}` })),
   );
 
-  // Only onto a node the paint actually put on the page: `render` declines a
-  // paint whose navigation was superseded, and focusing a detached node moves
-  // the keyboard nowhere.
-  const token = document.getElementById("client-token");
-  if (shown && token) {
-    token.focus();
-    token.select();
-    return;
-  }
   const status = document.querySelector("#view [data-said]");
   if (said && status) status.focus();
 }
@@ -114,542 +96,365 @@ function spoken(text) {
   return el("p", { class: "note", role: "status", tabindex: "-1", "data-said": "", text });
 }
 
-/* Recording a client, and issuing its token in the same act.
- *
- * A client with no token is admitted nowhere, so a curator adding one always
- * wants the token next; two clicks for one intention would be a step to forget.
- * If the issue fails after the add succeeded, the client is listed with its own
- * "Issue a token", and its panel says the issue failed and why. */
-function addPanel() {
-  const name = el("input", { type: "text", id: "new-client-name", autocomplete: "off" });
-  return el("div", { class: "panel" }, [
-    el("h2", { text: "Add a client" }),
-    el("div", { class: "row" }, [
-      el("div", { class: "field" }, [el("label", { for: "new-client-name", text: "Name of the new client" }), name]),
-      el("button", {
+/* One row per Player. Built here rather than with `badges.js`' `table`, because
+ * a row carries what that helper's rows cannot: the Player it is, for an
+ * address that asks for it, and its *Edit…*. The same classes, so a phone reads
+ * each row as a card under its columns' names. */
+function playersTable(players, asked, wallNames) {
+  const headers = ["Player", "Status", "Screens", "Label panel"];
+  const cell = (label, children) => el("td", { "data-label": label }, children);
+  return el("div", { class: "table-scroll" }, [
+    el("table", { class: "stacked players" }, [
+      el("caption", { text: "Players this server knows." }),
+      el("thead", {}, [
+        el("tr", {}, [
+          ...headers.map((header) => el("th", { scope: "col", text: header })),
+          el("th", { scope: "col" }, [el("span", { class: "visually-hidden", text: "Settings" })]),
+        ]),
+      ]),
+      el(
+        "tbody",
+        {},
+        players.map((player) =>
+          el(
+            "tr",
+            {
+              "data-player": player.client_id,
+              tabindex: asked === player.client_id ? "-1" : null,
+              "data-arrive": asked === player.client_id,
+            },
+            [
+              cell("Player", [el("span", { class: "player-name", text: player.name })]),
+              cell("Status", [statusCell(player)]),
+              cell("Screens", [screensCell(player)]),
+              cell("Label panel", [labelCell(player, wallNames)]),
+              el("td", { class: "player-edit" }, [editOpener(player)]),
+            ],
+          ),
+        ),
+      ),
+    ]),
+  ]);
+}
+
+/* Whether the Player is reporting, in a glyph and a word, and the age of what
+ * it last said. A Player with no token is admitted nowhere, so that is its
+ * state whatever an old report says. */
+function statusOf(player) {
+  const beat = player.heartbeat;
+  if (!player.token_issued_at) return { glyph: GLYPHS.none, word: "No token", more: "Admitted nowhere until one is issued, in Edit…" };
+  if (beat.absent) return { glyph: GLYPHS.none, word: "Never reported", more: null };
+  if (beat.problem) return { glyph: GLYPHS.problem, word: "Report unreadable", more: beat.description };
+  if (isStale(beat)) return { glyph: GLYPHS.waiting, word: `Not heard from since ${dated(beat.reported_at)}`, more: null };
+  return { glyph: GLYPHS.good, word: "Reporting", more: beat.description, reporting: true };
+}
+
+function statusCell(player) {
+  const status = statusOf(player);
+  return el("div", { class: "player-status" }, [
+    el("span", { text: `${status.glyph} ${status.word}` }),
+    status.more ? el("span", { class: "muted", text: status.more }) : null,
+  ]);
+}
+
+/* Each screen the Player reported, its state, and the wall on it; and a wall
+ * set on a screen the report does not list, which still shows nothing there.
+ * Said in a sentence where there is nothing to list. */
+function screensCell(player) {
+  const beat = player.heartbeat;
+  const readable = !beat.absent && !beat.problem;
+  const reported = readable ? beat.outputs : [];
+  const stale = isStale(beat);
+  const wallsOn = new Map();
+  for (const wall of player.walls) wallsOn.set(wall.output, [...(wallsOn.get(wall.output) || []), wall]);
+  const names = [...new Set([...reported.map((each) => each.name), ...wallsOn.keys()])];
+  if (!names.length) {
+    const why = beat.absent
+      ? "Not reported yet."
+      : beat.problem
+        ? "Not known: its last report could not be read."
+        : "It reported no screen.";
+    return el("p", { class: "muted", text: why });
+  }
+  const byName = new Map(reported.map((each) => [each.name, each]));
+  return el(
+    "ul",
+    { class: "player-list" },
+    names.map((name) => {
+      const output = byName.get(name);
+      const size = output && output.screen ? `, ${output.screen[0]} × ${output.screen[1]}` : "";
+      const state = output ? screenCell(output, stale) : `${GLYPHS.waiting} not in its last report`;
+      const walls = wallsOn.get(name) || [];
+      return el("li", {}, [
+        el("span", { text: `${screenName(name, output ? output.kind : null)}${size} · ${state}` }),
+        el("span", {}, walls.length ? ["Shows ", ...joined(walls.map((wall) => wallLink(wall.wall_id, wall.name)))] : ["No wall"]),
+      ]);
+    }),
+  );
+}
+
+/* Each label panel, whether it is answering, and the wall it captions. Named by
+ * its port only where the Player has several, as Walls names it. */
+function labelCell(player, wallNames) {
+  const beat = player.heartbeat;
+  const readable = !beat.absent && !beat.problem;
+  const reported = readable ? beat.label_outputs || [] : [];
+  const stale = isStale(beat);
+  const records = new Map(player.label_outputs.map((record) => [record.output, record]));
+  const names = [...new Set([...reported.map((each) => each.name), ...records.keys()])];
+  if (!names.length) {
+    return el("p", { class: "muted", text: readable ? "None reported." : "Not known until it reports." });
+  }
+  const byName = new Map(reported.map((each) => [each.name, each]));
+  return el(
+    "ul",
+    { class: "player-list" },
+    names.map((name) => {
+      const each = byName.get(name);
+      const record = records.get(name);
+      const port = names.length > 1 ? `${name} · ` : "";
+      const size = each && each.size ? `, ${each.size[0]} × ${each.size[1]}` : "";
+      const state = each ? panelState(each, stale) : `${GLYPHS.waiting} not in its last report`;
+      return el("li", {}, [
+        el("span", { text: `${port}${state}${size}` }),
+        el("span", {}, record && record.wall_id ? ["Captions ", captionedWall(record.wall_id, wallNames)] : ["No wall"]),
+      ]);
+    }),
+  );
+}
+
+/* A label may caption a wall on any Player, so it is named from the walls'
+ * own listing. One that listing does not hold is said as one rather than drawn
+ * as a link with no words in it. */
+function captionedWall(wallId, wallNames) {
+  return wallNames.has(wallId) ? wallLink(wallId, wallNames.get(wallId)) : "a wall this page could not name";
+}
+
+/* A panel's state. Not answering is a panel that would not open or whose last
+ * draw failed, which is a fault, unlike a television switched off. */
+function panelState(output, stale) {
+  if (stale) return `${GLYPHS.waiting} not known now (was ${output.connected ? "answering" : "not answering"})`;
+  return output.connected ? `${GLYPHS.good} answering` : `${GLYPHS.problem} not answering`;
+}
+
+function joined(nodes) {
+  return nodes.flatMap((node, at) => (at ? [", ", node] : [node]));
+}
+
+/* *Add Player…*: its name, and its token issued in the same act, since a Player
+ * with no token is admitted nowhere. If the issue fails after the add, the
+ * Player is listed with *Issue a token* in its *Edit…*, and the sentence above
+ * the table says why. */
+function addOpener() {
+  return el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Add Player…",
+    "aria-haspopup": "dialog",
+    onclick: () => {
+      const nameId = "new-player-name";
+      const name = el("input", { id: nameId, type: "text", autocomplete: "off", placeholder: "Hall Pi" });
+      let panel = null;
+      const add = el("button", {
         class: "action",
         type: "button",
-        text: "Add the client",
+        text: "Add Player",
         onclick: (event) =>
           attempt(
             event.currentTarget,
-            name.value.trim() ? `add ${name.value.trim()}` : "add the client",
+            name.value.trim() ? `add ${name.value.trim()}` : "add the Player",
             () => api("/api/clients", { method: "POST", body: JSON.stringify({ name: name.value }) }),
             {
-              then: async (client) => {
-                try {
-                  await issue(client);
-                } catch (failure) {
-                  // The repaint below replaces this panel, so the failure is
-                  // said in the new client's own, beside its "Issue a token".
-                  outcome = { clientId: client.client_id, text: failedSentence(`issue a token for ${client.name}`, failure) };
-                }
-                await refresh();
+              then: async (player) => {
+                panel.close();
+                await issueInto(player, `${player.name} is added.`);
               },
             },
           ),
-      }),
-    ]),
-  ]);
+      });
+      panel = openPanel({
+        title: "Add a Player",
+        lead: "A Player is the device at a wall. Its token is issued as it is added and shown once. Which wall it shows is set in that wall's Edit…, on Walls.",
+        closeLabel: "Cancel",
+        body: [el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), name])],
+        actions: [add],
+      });
+      name.focus();
+    },
+  });
 }
 
-async function issue(client) {
-  const issued = await api(`/api/clients/${encodeURIComponent(client.client_id)}/token`, { method: "POST" });
-  reveal = { clientId: client.client_id, token: issued.token };
-}
-
-function clientPanel(client, walls, names, shown, said) {
-  const heading = el("h2", { tabindex: "-1", "data-arrive": state.params.client === client.client_id, text: client.name });
-  return el("section", { class: "panel client", "data-client": client.client_id }, [
-    heading,
-    shown && shown.clientId === client.client_id ? tokenOnce(client, shown.token) : null,
-    said && said.clientId === client.client_id ? spoken(said.text) : null,
-    facts([
-      [
-        "Token",
-        client.token_issued_at
-          ? `Issued ${when(client.token_issued_at)}`
-          : "None issued yet, so it is admitted to nothing until one is.",
-      ],
-      ["Last report", client.heartbeat.description],
-    ]),
-    ...faults(client),
-    outputs(client),
-    shownWalls(client),
-    assignForm(client, walls, names),
-    labels(client, walls),
-    acts(client),
-  ]);
-}
-
-function when(iso) {
-  return dated(iso);
+/* Issue a token and show it once, in a dialog of its own; the page repaints
+ * when that dialog closes. A failure is said above the table instead. */
+async function issueInto(player, lead = null) {
+  let issued;
+  try {
+    issued = await api(`/api/clients/${encodeURIComponent(player.client_id)}/token`, { method: "POST" });
+  } catch (failure) {
+    outcome = [lead, failedSentence(`issue a token for ${player.name}`, failure)].filter(Boolean).join(" ");
+    await refresh();
+    return;
+  }
+  tokenOnce(player, issued.token, lead);
 }
 
 /* The token, the one time it exists here, and what to do with it.
  *
  * In a read-only field rather than as text, so it is selected whole and copied
- * whole; focused and selected by the paint that shows it. The address a host
- * needs is the one this browser reached the server at, which is said as such:
- * a Player on another network may reach it by another name. */
-function tokenOnce(client, token) {
-  return el("div", { class: "note token-once" }, [
-    el("p", {
-      text: `This is ${client.name}'s new token, and the only time it is shown: only a verifier of it is kept, so copy it now.`,
-    }),
-    el("div", { class: "field" }, [
-      el("label", { for: "client-token", text: `Token for ${client.name}` }),
-      el("input", { type: "text", id: "client-token", readonly: true, value: token, spellcheck: "false", autocomplete: "off" }),
-    ]),
-    el("p", {
-      text:
-        `In the Player's settings on ${client.name}'s host, set CLIENT_TOKEN to this token, and SERVER_URL to this ` +
-        `server's address as that host reaches it — from this browser, ${window.location.origin}.`,
-    }),
-  ]);
-}
-
-/* What the client last said about its outputs.
- *
- * Three ways to have nothing to list, and each is its own sentence: never
- * reported, reported something unreadable, and reported that it has no outputs.
- * The first two are already the facts' "Last report", so here they say what that
- * means for choosing an output. */
-function outputs(client) {
-  const beat = client.heartbeat;
-  let body;
-  if (beat.absent) {
-    body = el("p", { class: "muted", text: `${client.name} has not reported its outputs yet, so none can be listed.` });
-  } else if (beat.problem) {
-    body = el("p", { class: "muted", text: `${client.name}'s last report could not be read, so its outputs are not known.` });
-  } else if (!beat.outputs.length) {
-    body = el("p", { class: "muted", text: `${client.name} reported that it has no outputs.` });
-  } else {
-    const stale = isStale(beat);
-    body = table(
-      `Outputs ${client.name} last reported.`,
-      ["Output", "Kind", "Screen", "Size"],
-      beat.outputs.map((output) => [
-        output.name,
-        KIND_WORDS[output.kind] || output.kind,
-        screenCell(output, stale),
-        output.screen ? `${output.screen[0]} × ${output.screen[1]}` : "size unknown",
-      ]),
-      // Cards on a phone, as Status's sources are: four columns of a Player's
-      // report cannot fit 342 px without breaking its outputs' names.
-      { stacked: true },
-    );
-    // Said once above the table rather than in every row: it is one fact about
-    // the report, and Walls reads the same threshold (`core/outputs.js`).
-    if (stale) {
-      body = el("div", {}, [
+ * whole; focused and selected as the dialog opens. The address a Player needs
+ * is the one this browser reached the server at, which is said as such: a
+ * Player on another network may reach it by another name. */
+function tokenOnce(player, token, lead) {
+  const field = el("input", { type: "text", id: "player-token", readonly: true, value: token, spellcheck: "false", autocomplete: "off" });
+  openPanel({
+    title: `${player.name}'s token`,
+    lead,
+    body: [
+      el("div", { class: "token-once" }, [
         el("p", {
-          class: "note client-stale",
+          text: `This is ${player.name}'s new token, and the only time it is shown: only a verifier of it is kept, so copy it now.`,
+        }),
+        el("div", { class: "field" }, [el("label", { for: "player-token", text: `Token for ${player.name}` }), field]),
+        el("p", {
           text:
-            `${client.name}'s report is older than ${STALE_AFTER_SECONDS / 60} minutes, three missed reports, ` +
-            "so whether a screen is on each output now is not known.",
+            `In ${player.name}'s settings, set CLIENT_TOKEN to this token, and SERVER_URL to this server's ` +
+            `address as that Player reaches it — from this browser, ${window.location.origin}.`,
         }),
-        body,
-      ]);
-    }
-  }
-  return el("div", { class: "client-outputs" }, [el("h3", { text: "Outputs" }), body]);
-}
-
-/* Each display this client reports that another client reports too.
- *
- * Neither client shows the wall on it until one stops, and no client decides
- * which: the curator does, at the hosts (`player-contract.md` § Transport). The
- * server's sentence names every client involved, and is said in each one's panel,
- * so whichever the curator opens first tells them. */
-function faults(client) {
-  return client.faults.map((fault) => el("p", { class: "note client-fault", text: `${GLYPHS.problem} ${fault.description}` }));
-}
-
-/* What the client last said of its label outputs, which wall each captions, and
- * the means to change that.
- *
- * **A label output is mapped here, beside the outputs, for the reason walls are
- * assigned here**: a client's surfaces are this page's subject, as a download
- * client's are Radarr's (`information-architecture.md` § The *arr layout). Walls
- * says which labels caption each wall, and links here.
- *
- * A label output the server holds a record of and the last report does not list
- * is still shown, and said to be absent from the report: it captions a wall,
- * and hiding it would hide the mapping that is drawing nothing. */
-function labels(client, walls) {
-  const id = client.client_id;
-  const beat = client.heartbeat;
-  const readable = !beat.absent && !beat.problem;
-  const reported = readable ? beat.label_outputs || [] : [];
-  const stale = isStale(beat);
-  const records = new Map(client.label_outputs.map((record) => [record.output, record]));
-  const wallNames = new Map(walls.map((wall) => [wall.wall_id, wall.name]));
-  const names = [...new Set([...reported.map((each) => each.name), ...records.keys()])];
-  const heading = el("h3", { text: "Labels" });
-  if (!names.length) {
-    return el("div", { class: "client-labels" }, [
-      heading,
-      el("p", {
-        class: "muted",
-        text: readable
-          ? `${client.name} reported no label output, so it has nothing to caption a wall with.`
-          : `${client.name}'s label outputs are not known until it reports.`,
-      }),
-    ]);
-  }
-  const byName = new Map(reported.map((each) => [each.name, each]));
-  const rows = names.map((name) => {
-    const each = byName.get(name);
-    const record = records.get(name);
-    const captions = !(record && record.wall_id)
-      ? "No wall"
-      : wallNames.has(record.wall_id)
-        ? wallLink(record.wall_id, wallNames.get(record.wall_id))
-        : "a wall this page could not name";
-    if (!each) return [name, "—", `${GLYPHS.waiting} not in its last report`, "—", captions];
-    return [
-      name,
-      LABEL_KIND_WORDS[each.kind] || each.kind,
-      panelCell(each, stale),
-      each.size ? `${each.size[0]} × ${each.size[1]}` : "size unknown",
-      captions,
-    ];
+      ]),
+    ],
+    closeLabel: "Done",
+    onClose: () => refresh(),
   });
-  const mapped = names.map((name) => records.get(name)).filter((record) => record && record.wall_id);
-  return el("div", { class: "client-labels" }, [
-    heading,
-    table(`Label outputs ${client.name} last reported.`, ["Label output", "Kind", "Panel", "Size", "Captions"], rows, { stacked: true }),
-    mapped.length
-      ? el(
-          "ul",
-          { class: "client-label-list" },
-          mapped.map((record) => stopCaptioning(client, record, wallNames.get(record.wall_id) || "its wall", wallNames.has(record.wall_id))),
-        )
-      : null,
-    captionForm(client, walls, names, records, wallNames, id),
-  ]);
+  field.focus();
+  field.select();
 }
 
-/* The Panel column. `connected` false is a panel that would not open or whose
- * last draw failed, which is a fault, unlike a television switched off. */
-function panelCell(output, stale) {
-  if (stale) return `${GLYPHS.waiting} not known now (was ${output.connected ? "answering" : "not answering"})`;
-  return output.connected ? `${GLYPHS.good} answering` : `${GLYPHS.problem} not answering`;
-}
-
-function stopCaptioning(client, record, wallName, named) {
-  return el("li", {}, [
-    el("span", {}, [`${record.output} captions `, named ? wallLink(record.wall_id, wallName) : wallName]),
-    el("button", {
-      class: "action quiet",
-      type: "button",
-      text: `Stop captioning ${wallName}`,
-      "aria-label": `Stop ${record.output} on ${client.name} captioning ${wallName}`,
-      onclick: (event) =>
-        attempt(
-          event.currentTarget,
-          `stop ${record.output} on ${client.name} captioning ${wallName}`,
-          () =>
-            api(`/api/walls/${encodeURIComponent(record.wall_id)}/labels/${encodeURIComponent(record.label_id)}`, {
-              method: "DELETE",
-            }),
-          {
-            then: async () => {
-              outcome = { clientId: client.client_id, text: `${record.output} no longer captions ${wallName}. It shows nothing until it captions a wall.` };
-              await refresh();
-            },
-          },
-        ),
-    }),
-  ]);
-}
-
-/* Captioning a wall with one of this client's label outputs. Every wall is
- * offered, on any client: a label captions whichever wall the curator chooses.
- * One already captioning a wall is offered with that wall's name, and the
- * server refuses it until it is stopped, as it does a second wall on an output. */
-function captionForm(client, walls, names, records, wallNames, id) {
-  const heading = el("h4", { text: "Caption a wall" });
-  if (!walls.length) {
-    return el("div", { class: "client-caption" }, [heading, el("p", { class: "muted", text: "No wall is recorded, so there is nothing to caption." })]);
-  }
-  const labelPicker = el("select", { id: `caption-label-${id}`, "aria-label": `Label output of ${client.name}` });
-  const free = names.find((name) => !(records.get(name) && records.get(name).wall_id));
-  for (const name of names) {
-    const record = records.get(name);
-    const busy = record && record.wall_id ? `, captions ${wallNames.get(record.wall_id) || "a wall"}` : "";
-    labelPicker.append(el("option", { value: name, text: `${name}${busy}`, selected: name === free }));
-  }
-  const wallPicker = el("select", { id: `caption-wall-${id}`, "aria-label": `Wall for ${client.name}'s label` });
-  for (const wall of walls) wallPicker.append(el("option", { value: wall.wall_id, text: wall.name }));
-  return el("div", { class: "client-caption" }, [
-    heading,
-    el("div", { class: "row" }, [
-      el("div", { class: "field" }, [el("label", { for: `caption-label-${id}`, text: "Label output" }), labelPicker]),
-      el("div", { class: "field" }, [el("label", { for: `caption-wall-${id}`, text: "Wall" }), wallPicker]),
-      el("button", {
+/* A Player's settings: its name, its token, and removing it, last. */
+function editOpener(player) {
+  return el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Edit…",
+    "aria-label": `Edit ${player.name}…`,
+    "aria-haspopup": "dialog",
+    onclick: () => {
+      let wrote = false;
+      let panel = null;
+      const nameId = `player-name-${player.client_id}`;
+      const field = el("input", { id: nameId, type: "text", value: player.name, autocomplete: "off" });
+      const renameButton = el("button", {
         class: "action",
         type: "button",
-        text: "Caption the wall",
-        "aria-label": `Caption a wall with ${client.name}'s label`,
-        onclick: (event) => caption(event.currentTarget, client, labelPicker, wallPicker, walls),
-      }),
-    ]),
-  ]);
-}
-
-function caption(control, client, labelPicker, wallPicker, walls) {
-  const wall = walls.find((each) => each.wall_id === wallPicker.value);
-  const output = labelPicker.value;
-  return attempt(
-    control,
-    `caption ${wall.name} with ${output} on ${client.name}`,
-    () =>
-      api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels`, {
-        method: "POST",
-        body: JSON.stringify({ client_id: client.client_id, output }),
-      }),
-    {
-      then: async (answer) => {
-        const placed = `${output} on ${client.name} now captions ${wall.name}.`;
-        outcome = { clientId: client.client_id, text: answer.notice ? `${placed} ${answer.notice}` : placed };
-        await refresh();
-      },
-    },
-  );
-}
-
-function shownWalls(client) {
-  return el("div", { class: "client-walls" }, [
-    el("h3", { text: "Walls assigned to it" }),
-    client.walls.length
-      ? el(
-          "ul",
-          { class: "client-wall-list" },
-          client.walls.map((wall) =>
-            el("li", {}, [
-              el("span", {}, [wallLink(wall.wall_id, wall.name), `, on ${wall.output}`]),
-              el("button", {
-                class: "action quiet",
-                type: "button",
-                text: `Unassign ${wall.name}`,
-                "aria-label": `Unassign ${wall.name} from ${client.name}`,
-                onclick: (event) =>
-                  attempt(
-                    event.currentTarget,
-                    `unassign ${wall.name} from ${client.name}`,
-                    () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
-                    {
-                      then: async () => {
-                        outcome = {
-                          clientId: client.client_id,
-                          text: `${wall.name} is no longer assigned to ${client.name}. It keeps its theme.`,
-                        };
-                        await refresh();
-                      },
-                    },
-                  ),
-              }),
-            ]),
+        text: "Rename",
+        "aria-label": `Rename ${player.name}`,
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            `rename ${player.name}`,
+            () => api(`/api/clients/${encodeURIComponent(player.client_id)}`, { method: "POST", body: JSON.stringify({ name: field.value }) }),
+            {
+              then: (renamed) => {
+                outcome = `${player.name} is now called ${renamed.name}. Its token and its walls are unchanged.`;
+                wrote = true;
+                panel.close();
+              },
+            },
           ),
-        )
-      : el("p", { class: "muted", text: `${client.name} has no wall assigned yet.` }),
-  ]);
-}
-
-/* Placing a wall on one of this client's outputs.
- *
- * The output is chosen from what the client last reported where there is a
- * readable report with outputs in it, and typed otherwise — a client being set
- * up before its first run has reported nothing, and the server keeps the
- * assignment either way, with a notice that is shown here. An output already
- * showing a wall is listed with that wall's name: the server refuses a second,
- * and says so in the banner, so the choice is not hidden from a curator who
- * means to unassign the other next. */
-function assignForm(client, walls, names) {
-  const id = client.client_id;
-  const candidates = walls.filter((wall) => wall.client_id !== id);
-  const heading = el("h3", { text: "Assign a wall" });
-  if (!candidates.length) {
-    return el("div", { class: "client-assign" }, [
-      heading,
-      el("p", {
-        class: "muted",
-        text: walls.length ? `Every wall is already assigned to ${client.name}.` : "No wall is recorded, so there is nothing to assign.",
-      }),
-    ]);
-  }
-
-  const wallPicker = el("select", { id: `assign-wall-${id}`, "aria-label": `Wall for ${client.name}` });
-  for (const wall of candidates) {
-    const elsewhere = wall.client_id ? `, now assigned to ${names.get(wall.client_id) || "another client"} on ${wall.output}` : "";
-    wallPicker.append(el("option", { value: wall.wall_id, text: `${wall.name}${elsewhere}` }));
-  }
-
-  const beat = client.heartbeat;
-  const reported = !beat.absent && !beat.problem && beat.outputs.length ? beat.outputs : null;
-  const occupied = new Map(client.walls.map((wall) => [wall.output, wall.name]));
-  const stale = isStale(beat);
-  let output;
-  let guidance = null;
-  if (reported) {
-    output = el("select", { id: `assign-output-${id}`, "aria-label": `Output of ${client.name}` });
-    // The first output showing nothing is the one offered, since the server
-    // refuses a second wall on an output that already has one.
-    const free = reported.find((each) => !occupied.has(each.name));
-    for (const each of reported) {
-      const showing = occupied.has(each.name) ? `, has ${occupied.get(each.name)}` : "";
-      output.append(
-        el("option", { value: each.name, text: `${each.name} (${screenPhrase(each, stale)}${showing})`, selected: each === free }),
-      );
-    }
-  } else {
-    output = el("input", {
-      type: "text",
-      id: `assign-output-${id}`,
-      placeholder: "hdmi-a-1",
-      autocomplete: "off",
-      "aria-label": `Output of ${client.name}`,
-    });
-    guidance = el("p", { class: "muted", text: unreportedSentence(client) });
-  }
-
-  return el("div", { class: "client-assign" }, [
-    heading,
-    guidance,
-    el("div", { class: "row" }, [
-      el("div", { class: "field" }, [el("label", { for: `assign-wall-${id}`, text: "Wall" }), wallPicker]),
-      el("div", { class: "field" }, [el("label", { for: `assign-output-${id}`, text: "Output" }), output]),
-      el("button", {
-        class: "action",
-        type: "button",
-        text: `Assign to ${client.name}`,
-        onclick: (event) => assign(event.currentTarget, client, wallPicker, output, candidates),
-      }),
-    ]),
-  ]);
-}
-
-function unreportedSentence(client) {
-  const beat = client.heartbeat;
-  const why = beat.absent
-    ? `${client.name} has not reported its outputs yet`
-    : beat.problem
-      ? `${client.name}'s last report could not be read`
-      : `${client.name} reported no outputs`;
-  return `${why}, so type the name of the output that will show the wall, as the Player names it — for example hdmi-a-1.`;
-}
-
-function assign(control, client, wallPicker, output, candidates) {
-  const wall = candidates.find((each) => each.wall_id === wallPicker.value);
-  return attempt(
-    control,
-    `assign ${wall.name} to ${client.name}`,
-    () =>
-      api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, {
-        method: "POST",
-        body: JSON.stringify({ client_id: client.client_id, output: output.value }),
-      }),
-    {
-      then: async (answer) => {
-        const placed = `${wall.name} is now assigned to ${client.name} on ${answer.wall.output}.`;
-        // The server's notice, when there is one, is the part the curator has
-        // to act on, so it is said after the fact it qualifies rather than in
-        // its place.
-        outcome = { clientId: client.client_id, text: answer.notice ? `${placed} ${answer.notice}` : placed };
-        await refresh();
-      },
-    },
-  );
-}
-
-function acts(client) {
-  const id = client.client_id;
-  const rename = el("input", { type: "text", id: `rename-client-${id}`, value: client.name, "aria-label": `Name of ${client.name}` });
-  return el("div", { class: "row client-acts" }, [
-    el("div", { class: "field" }, [el("label", { for: `rename-client-${id}`, text: "Name" }), rename]),
-    el("button", {
-      class: "action quiet",
-      type: "button",
-      text: "Rename",
-      "aria-label": `Rename ${client.name}`,
-      onclick: (event) =>
-        attempt(
-          event.currentTarget,
-          `rename ${client.name}`,
-          () => api(`/api/clients/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ name: rename.value }) }),
-          {
-            then: async (renamed) => {
-              outcome = { clientId: id, text: `${client.name} is now called ${renamed.name}. Its token and its walls are unchanged.` };
-              await refresh();
+      });
+      const tokenAct = player.token_issued_at
+        ? el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Rotate the token…",
+            "aria-label": `Rotate ${player.name}'s token…`,
+            onclick: () => {
+              panel.close();
+              rotate(player);
             },
-          },
-        ),
-    }),
-    client.token_issued_at
-      ? el("button", {
-          class: "action quiet",
-          type: "button",
-          text: "Rotate the token",
-          "aria-label": `Rotate ${client.name}'s token`,
-          onclick: (event) => rotate(event.currentTarget, client),
-        })
-      : el("button", {
-          class: "action quiet",
-          type: "button",
-          text: "Issue a token",
-          "aria-label": `Issue a token for ${client.name}`,
-          onclick: (event) => attempt(event.currentTarget, `issue a token for ${client.name}`, () => issue(client), { then: () => refresh() }),
-        }),
-    el("button", {
-      class: "action quiet",
-      type: "button",
-      text: "Remove",
-      "aria-label": `Remove ${client.name}`,
-      onclick: (event) => remove(event.currentTarget, client),
-    }),
-  ]);
+          })
+        : el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Issue a token",
+            "aria-label": `Issue a token for ${player.name}`,
+            onclick: () => {
+              panel.close();
+              issueInto(player);
+            },
+          });
+      const removeAct = el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Remove…",
+        "aria-label": `Remove ${player.name}…`,
+        onclick: () => {
+          panel.close();
+          remove(player);
+        },
+      });
+      panel = openPanel({
+        title: `Edit ${player.name}`,
+        body: [
+          el("div", { class: "panel" }, [
+            el("h3", { text: "Name" }),
+            el("div", { class: "row" }, [el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), field]), renameButton]),
+          ]),
+          el("div", { class: "panel" }, [
+            el("h3", { text: "Token" }),
+            facts([
+              [
+                "Token",
+                player.token_issued_at ? `Issued ${dated(player.token_issued_at)}` : "None issued yet, so it is admitted to nothing until one is.",
+              ],
+            ]),
+            el("div", { class: "row" }, [tokenAct]),
+          ]),
+          el("div", { class: "panel" }, [el("h3", { text: "Remove" }), el("div", { class: "row" }, [removeAct])]),
+        ],
+        onClose: () => {
+          if (wrote) refresh();
+        },
+      });
+    },
+  });
 }
 
-async function rotate(control, client) {
+async function rotate(player) {
   const agreed = await confirmAct({
-    title: `Rotate ${client.name}'s token?`,
+    title: `Rotate ${player.name}'s token?`,
     // The consequence that matters is the dark wall, so it leads.
     consequence:
-      `${client.name}'s Player is refused from the moment the new token is issued until its settings carry it, ` +
-      "so the walls assigned to it stop changing until then. The new token is shown once, here.",
+      `${player.name} is refused from the moment the new token is issued until its settings carry it, ` +
+      "so the walls it shows stop changing until then. The new token is shown once.",
     confirmLabel: "Rotate the token",
   });
-  if (!agreed) return;
-  await attempt(control, `rotate ${client.name}'s token`, () => issue(client), { then: () => refresh() });
+  if (agreed) await issueInto(player);
 }
 
-async function remove(control, client) {
-  const walls = client.walls.map((wall) => wall.name);
-  const captioning = client.label_outputs.filter((label) => label.wall_id).length;
-  // Its label outputs go with it, so any that caption a wall stop: said, since
-  // the walls they caption may be on other clients and stay otherwise as they are.
-  const labelsGo = captioning ? ` ${agree(captioning, "Its label stops", `Its ${captioning} labels stop`)} captioning.` : "";
+async function remove(player) {
+  const walls = player.walls.map((wall) => wall.name);
+  const captioning = player.label_outputs.filter((label) => label.wall_id).length;
+  // Its label panels go with it, so any that caption a wall stop: said, since
+  // the walls they caption may be on other Players and stay otherwise as they are.
+  const labelsGo = captioning ? ` ${agree(captioning, "Its label panel stops", `Its ${captioning} label panels stop`)} captioning.` : "";
   const agreed = await confirmAct({
-    title: `Remove ${client.name}?`,
+    title: `Remove ${player.name}?`,
     consequence: walls.length
-      ? `Its token stops working at once, and ${listed(walls)} will be left without a client. ` +
-        `${agree(walls.length, "It keeps its theme", "They keep their themes")} until assigned to another.${labelsGo}`
-      : `Its token stops working at once. No wall is assigned to it, so no wall is affected.${labelsGo}`,
-    confirmLabel: `Remove ${client.name}`,
+      ? `Its token stops working at once, and ${listed(walls)} will be left without a Player. ` +
+        `${agree(walls.length, "It keeps its theme", "They keep their themes")} until put on another.${labelsGo}`
+      : `Its token stops working at once. It shows no wall, so no wall is affected.${labelsGo}`,
+    confirmLabel: `Remove ${player.name}`,
   });
   if (!agreed) return;
-  await attempt(control, `remove ${client.name}`, () => api(`/api/clients/${encodeURIComponent(client.client_id)}`, { method: "DELETE" }), {
-    then: async () => {
-      outcome = {
-        text: walls.length
-          ? `${client.name} is removed. ${counted(walls.length, "wall")} now ${agree(walls.length, "has", "have")} no client: ${listed(walls)}.`
-          : `${client.name} is removed. It showed no wall.`,
-      };
-      await refresh();
-    },
-  });
+  try {
+    await api(`/api/clients/${encodeURIComponent(player.client_id)}`, { method: "DELETE" });
+    outcome = walls.length
+      ? `${player.name} is removed. ${counted(walls.length, "wall")} now ${agree(walls.length, "has", "have")} no Player: ${listed(walls)}.`
+      : `${player.name} is removed. It showed no wall.`;
+  } catch (failure) {
+    outcome = failedSentence(`remove ${player.name}`, failure);
+  }
+  await refresh();
 }
 
 /* "Study", "Study and Hall", "Study, Hall and Landing". */

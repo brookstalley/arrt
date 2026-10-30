@@ -16,7 +16,8 @@ pytest.importorskip(
 from payloads import a_taste, an_affinity
 
 #: The pages, in the order the index and the sidebar list them.
-PAGES = [("clients", "Clients"), ("sources", "Sources"), ("taste", "Taste")]
+#: Players kept its address, `#clients`, when ruling 7 of 2026-10-27 renamed it.
+PAGES = [("clients", "Players"), ("sources", "Sources"), ("taste", "Taste")]
 
 
 def test_the_sidebars_settings_opens_the_index(ui):

@@ -2362,43 +2362,34 @@ section.scene {
   margin: 0 0 var(--space-3);
 }
 
-/* -- clients ---------------------------------------------------------------- */
+/* -- players ---------------------------------------------------------------- */
 
-/* One client's parts, spaced as the panel's own sections: what it reported,
-   what it shows, how to give it more, and the acts on the client itself. */
-.client > * + * {
-  margin-top: var(--space-4);
-}
-
-.client :is(.client-outputs, .client-walls, .client-assign) p {
-  margin: 0 0 var(--space-2);
-}
-
-/* A picker's options carry an output's state and the wall it shows, and are
-   longer than a phone is wide: the control shrinks to the panel instead. */
-.client .field,
-.client select {
-  max-width: 100%;
-  min-width: 0;
-}
-
-/* A wall the client shows, or a label output and the wall it captions, with
-   the control that takes it off, on one line where there is room and wrapping
-   beneath the name where there is not. */
-:is(.client-wall-list, .client-label-list) {
+/* A row's screens and its label panels: one per line, each its state and then
+   the wall on it, wrapping beneath where a phone has no room beside. */
+.player-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-:is(.client-wall-list, .client-label-list) li {
+.player-list li + li {
+  margin-top: var(--space-2);
+}
+
+.player-list li,
+.player-status {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--border);
+  gap: 0 var(--space-3);
   overflow-wrap: anywhere;
+}
+
+.players td p {
+  margin: 0;
+}
+
+.player-fault {
+  margin-top: var(--space-4);
 }
 
 /* The token, the one time it is shown: wide enough to read whole, and never
@@ -3268,12 +3259,6 @@ section.offered + section.offered {
   min-width: 9rem;
   color: var(--text-muted);
   font-size: var(--text-sm);
-}
-
-/* -- Clients: a report too old to speak for now -------------------------------- */
-
-.client-stale {
-  margin: 0 0 var(--space-2);
 }
 
 /* Search and the Artist page: a registry work or artist waiting for review. A

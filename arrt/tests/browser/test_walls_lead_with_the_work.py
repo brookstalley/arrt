@@ -386,7 +386,7 @@ def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, 
     assert card(ui, the_wall).locator("figure").count() == 0
     assert card(ui, the_wall).locator(".wall-badge-unassigned").inner_text().strip().endswith("No Player")
     assert "Not assigned to a screen" not in card(ui, the_wall).inner_text()
-    assert card(ui, the_wall).get_by_role("link", name="Assign it in Settings › Clients").count() == 1
+    assert card(ui, the_wall).get_by_role("button", name=f"Choose the Player for {the_wall.name}…").count() == 1
 
 
 def test_a_silent_wall_says_when_it_was_last_heard_from_and_what_it_said(ui, services, the_wall, winter):

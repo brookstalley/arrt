@@ -204,19 +204,30 @@ function takeDownNote() {
  * (`design-direction.md` § Component Patterns, "How a page reads": a setting
  * appears on the page only when it is one). A wall nobody shows is an ordinary
  * state (`clients.md` § The model), and the one where everything else on this
- * card happens to no screen at all; a display two clients report is shown by
- * neither, whatever `client_id` still names. */
-function assignmentProblem(wall) {
+ * card happens to no screen at all; a display two Players report is shown by
+ * neither, whatever `client_id` still names.
+ *
+ * No Player is mended in this wall's own *Edit…*, where its Player and screen
+ * are set (ruling 4 of 2026-10-27), so the line opens it. A fault is mended at
+ * the Players, in their settings, and Settings › Players names both. */
+function assignmentProblem(wall, edit) {
   if (wall.display && wall.display.fault) {
     return el("p", { class: "note wall-problem wall-fault" }, [
       el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-      link({ view: "clients" }, { text: "See Settings › Clients" }),
+      link({ view: "clients" }, { text: "See Settings › Players" }),
     ]);
   }
   if (!wall.client_id) {
     return el("p", { class: "muted wall-problem" }, [
       el("span", { text: "No Player shows this wall. " }),
-      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
+      el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Choose its Player…",
+        "aria-haspopup": "dialog",
+        "aria-label": `Choose the Player for ${wall.name}…`,
+        onclick: edit,
+      }),
     ]);
   }
   return null;
@@ -259,28 +270,24 @@ function assignmentLine(wall, shownBy) {
     { class: "muted wall-client" },
     client
       ? wallScreenParts(clientLink(client.client_id, client.name), client.name, output, screenState(client.heartbeat, wall.output), client.heartbeat, { offSaid })
-      : [`Assigned to ${output ? `${output} of ` : ""}a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
+      : [`Assigned to ${output ? `${output} of ` : ""}a Player whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
   );
 }
 
-/* Which label outputs caption this wall, and on which client each is.
+/* Which label panels caption this wall, and on which Player each is.
  *
- * Said only when there is one: most walls have no label, and a line saying so
- * on every card would be noise. Labels are mapped in Settings › Clients, beside
- * the client's other surfaces, and this line links there. */
+ * Said only when there is one, at the head of the *Edit…* dialog's label
+ * section, whose controls under it are where a label is changed. */
 function labelsLine(wall) {
   if (!wall.labels || !wall.labels.length) return null;
-  // A client the server could not name is said as one rather than drawn as a
+  // A Player the server could not name is said as one rather than drawn as a
   // link with no words in it.
   const named = wall.labels.map((label) => [
     // The panel's port only with `?debug`, as the wall's own is.
     DEBUG ? `${label.output} on ` : "a label on ",
-    label.client_name ? clientLink(label.client_id, label.client_name) : "a client whose name could not be read",
+    label.client_name ? clientLink(label.client_id, label.client_name) : "a Player whose name could not be read",
   ]);
-  return el("p", { class: "muted wall-labels" }, [
-    el("span", {}, ["Captioned by ", ...listedParts(named), ". "]),
-    link({ view: "clients" }, { text: "Change in Settings › Clients" }),
-  ]);
+  return el("p", { class: "muted wall-labels" }, [el("span", {}, ["Captioned by ", ...listedParts(named), "."])]);
 }
 
 /* "a", "a and b", "a, b and c", of items that are each a list of parts (text
@@ -425,7 +432,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
     // when it is a problem: no Player, or a screen two Players claim.
-    assignmentProblem(wall),
+    assignmentProblem(wall, () => editWall(wall, manifest, shownBy)),
     // The server's sentence, so Walls and the tool surface say the same thing
     // about a Player that cannot read this server's feed. Under the lead, which
     // leads the card whatever else it has to say.
@@ -1472,7 +1479,7 @@ function whereSection(wall, shownBy, done) {
         ? screens.map((output) =>
             el("option", {
               value: output.name,
-              text: `${screenName(output.name)}${output.connected ? "" : " · nothing connected"}`,
+              text: `${screenName(output.name, output.kind)}${output.connected ? "" : " · nothing connected"}`,
               selected: client && client.client_id === wall.client_id && output.name === wall.output,
             }),
           )

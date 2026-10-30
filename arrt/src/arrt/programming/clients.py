@@ -88,7 +88,7 @@ class DisplayFault:
         shown = f"so neither shows {self.wall.name}" if self.wall is not None else "so neither may show a wall on it"
         return (
             f"{names} both report the display {self.identity}, {shown} until one of them stops. "
-            "A display is configured on one client; remove it from the others' settings."
+            "A display is configured on one Player; remove it from the others' settings."
         )
 
 

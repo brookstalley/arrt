@@ -25,7 +25,7 @@
  * that crashed or lost its network leaves its last report behind, and that
  * report goes on saying "connected" for as long as anyone reads it. So past the
  * threshold the output is *stale*: not known now, with the report's age said.
- * Clients and Walls both read the threshold from here, so one report cannot be
+ * Players and Walls both read the threshold from here, so one report cannot be
  * current on one page and stale on the other. */
 
 import { ago } from "./dates.js";
@@ -67,21 +67,24 @@ export function screenState(heartbeat, outputName) {
 }
 
 /* The state of one output the report lists. The one place "detected" is
- * decided, so the Clients rows and the Walls line cannot come to disagree. */
+ * decided, so the Players rows and the Walls line cannot come to disagree. */
 export function outputState(output) {
   return output.connected ? DETECTED : NOT_DETECTED;
 }
 
 /* A screen in the words a person reads (`information-architecture.md`
  * § Vocabulary: *HDMI 1*, not `hdmi-a-1`). The Player names its ports as the
- * kernel does, `hdmi-a-1` for the first HDMI connector; a port with no
- * person's name here is shown as the Player names it, never guessed at. */
-export function screenName(outputName) {
+ * kernel does, `hdmi-a-1` for the first HDMI connector, and a Samsung Frame by
+ * its kind (`player-contract.md`), since it is reached over the network rather
+ * than at a port; a port with no person's name here is shown as the Player
+ * names it, never guessed at. */
+export function screenName(outputName, kind = null) {
+  if (kind === "frame") return "Samsung Frame";
   const hdmi = /^hdmi-[a-z]-(\d+)$/.exec(outputName);
   return hdmi ? `HDMI ${hdmi[1]}` : outputName;
 }
 
-/* The Clients table's Screen column: glyph and word, as every badge here is.
+/* The Players table's screens: glyph and word, as every badge here is.
  * From a stale report it says what was reported and that it is not known now. */
 export function screenCell(output, stale = false) {
   if (stale) return `${GLYPHS.waiting} not known now (was ${outputState(output) === DETECTED ? "detected" : "none detected"})`;

@@ -321,7 +321,10 @@ def test_on_a_phone_the_filter_rail_shows_that_it_scrolls(ui, service):
     assert cue != "none", "a rail cut at the edge with no sign it scrolls"
 
 
-def test_on_a_phone_clients_tables_fit_and_keep_identifiers_whole(ui, services, settings):
+def test_on_a_phone_the_players_table_fits_and_keeps_its_names_whole(ui, services, settings):
+    """Each row is a card on a phone (`table.stacked`), and a screen's name and
+    size never break across lines: *HDMI 1* split from its number reads as two
+    things. The ports themselves are no longer shown (§ Vocabulary)."""
     hall = services.clients.add_client(name="Hall Pi")
     reported = {
         "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -337,18 +340,19 @@ def test_on_a_phone_clients_tables_fit_and_keep_identifiers_whole(ui, services, 
     services.clients.add_label(wall.id, client_id=hall.id, output="epd-0")
     ui.page.set_viewport_size(PHONE)
     ui.open("#clients")
-    ui.page.wait_for_selector(f"#view section[data-client='{hall.id}'] td:text-is('hdmi-a-1')")
+    ui.page.wait_for_selector(f"#view tr[data-player='{hall.id}'] td[data-label='Screens'] li")
     report = ui.page.evaluate("""() => ({
           overflowing: [...document.querySelectorAll('#view .table-scroll')]
             .filter((n) => n.scrollWidth > n.clientWidth + 1).length,
+          checked: [...document.querySelectorAll('#view td')].filter((td) => /HDMI \\d+|\\d+ × \\d+/.test(td.textContent)).length,
           broken: [...document.querySelectorAll('#view td')]
-            .filter((td) => /\\b(hdmi|epd)-[\\w-]+/.test(td.textContent))
+            .filter((td) => /HDMI \\d+|\\d+ × \\d+/.test(td.textContent))
             .filter((td) => {
             const walker = document.createTreeWalker(td, NodeFilter.SHOW_TEXT);
             for (let text = walker.nextNode(); text; text = walker.nextNode()) {
-              const at = text.textContent.search(/\\b(hdmi|epd)-[\\w-]+/);
+              const at = text.textContent.search(/HDMI \\d+|\\d+ × \\d+/);
               if (at < 0) continue;
-              const word = text.textContent.slice(at).match(/^[\\w-]+/)[0];
+              const word = text.textContent.slice(at).match(/^(HDMI \\d+|\\d+ × \\d+)/)[0];
               const range = document.createRange();
               range.setStart(text, at);
               range.setEnd(text, at + word.length);
@@ -358,6 +362,8 @@ def test_on_a_phone_clients_tables_fit_and_keep_identifiers_whole(ui, services, 
             return false;
           }).length,
         })""")
+    # The screens and the label panel's size: a guard with nothing to read passes.
+    assert report.pop("checked") >= 2
     assert report == {"overflowing": 0, "broken": 0}
 
 
