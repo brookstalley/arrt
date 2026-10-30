@@ -62,14 +62,19 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str, seed: 
     caller reads before the schema runs. Such a file with no wall in it is one
     whose curator deleted them all, which is theirs to do: seeding one back on
     every restart would undo the delete. A file with no `walls` table is new, or
-    predates walls, and both still get one. One edge is accepted: a new file
-    interrupted after its schema committed and before this ran opens next time
-    with no wall, and Walls offers *Add wall…*.
+    predates walls, and both still get one; one from before walls is recognised
+    by its `themes.is_active` too, so an open interrupted before this ran still
+    carries its hung theme. One edge is accepted: a *new* file interrupted after
+    its schema committed and before this ran opens next time with no wall, and
+    Walls offers *Add wall…*.
     """
-    if _walls(connection):
-        _drop_what_the_wall_replaced(connection)
-        return
-    if not seed:
+    # A file from before walls still carries `themes.is_active` until this has
+    # run to the end, so it is carried even when an interrupted open left an
+    # empty `walls` table behind and the caller saw one.
+    carry = seed or _has_column(connection, "themes", "is_active")
+    if _walls(connection) or not carry:
+        if not _walls(connection):
+            log.info("No wall is recorded; Walls offers Add wall….")
         _drop_what_the_wall_replaced(connection)
         return
 
@@ -480,7 +485,8 @@ def file_had_table(path: Path | str, table: str) -> bool:
     """
     if not Path(path).exists():
         return False
-    connection = sqlite3.connect(f"{Path(path).as_uri()}?mode=ro", uri=True)
+    # Resolved, because `as_uri` refuses a relative path, and `ART_ROOT` may be one.
+    connection = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
     try:
         found = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone()
     finally:

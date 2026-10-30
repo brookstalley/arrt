@@ -973,9 +973,11 @@ drops both columns from a catalogue that has them.
 
 **How a wall begins and ends** *(2026-10-30, `build-plan-delete-a-wall.md`,
 #391)*. The first is made by `migrations.establish_the_wall` when the file has
-never had a `walls` table: a new file, or one from before walls. A file whose
-`walls` table is empty is one whose curator deleted them all, and it opens with
-none; Walls then offers *Add wall…*. `DisplayService.delete_wall` forgets a wall
+never had a `walls` table: a new file, or one from before walls (recognised by
+`themes.is_active` too, so an interrupted first open still carries its hung
+theme). A file whose `walls` table is empty opens with none, and Walls offers
+*Add wall…*: almost always a curator who deleted them all, and otherwise a new
+file whose first open was interrupted, which lands in the same designed state. `DisplayService.delete_wall` forgets a wall
 for good, deciding each row that names it: its `ThemeAssignment` goes (a
 selection nothing else hangs is retired), its label outputs caption nothing, its
 display is freed with the row, its pin in a draft scene goes, and its feed and

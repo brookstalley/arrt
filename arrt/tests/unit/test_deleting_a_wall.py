@@ -8,11 +8,12 @@ so a delete that took both walls' rows would fail.
 """
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
 from arrt.persistence.file import open_catalogue_file
-from arrt.persistence.records import EventKind, RenditionKind
+from arrt.persistence.records import EventKind, RenditionKind, Showing
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.services.errors import ServiceError
 
@@ -214,7 +215,38 @@ def test_a_live_scene_goes_on_for_the_other_wall_and_its_record_keeps_both_pins(
     assert display.live_scene() is None
 
 
+def test_a_live_scene_released_after_its_wall_is_deleted_names_only_the_walls_left(
+    services, display, mastered, two_walls, store, caplog
+):
+    hall, study = two_walls
+    draft = display.draft_scene().scene.id
+    display.pin_scene(draft, study, mastered("Golconda").id)
+    display.pin_scene(draft, hall, mastered("Persistence").id)
+    display.apply_scene(draft, lifetime="hold")
+    display.delete_wall(study)
+
+    with caplog.at_level("WARNING", logger="arrt.programming.display"):
+        display.release_scene(draft)
+
+    ended = services.catalogue.list_events(kinds=[EventKind.SCENE_ENDED]).events
+    assert [event.wall_id for event in ended] == [hall]
+    assert ended[0].detail["wall_name"] == display.get_wall(hall).name
+    assert not [record for record in caplog.records if "has no feed" in record.getMessage()]
+
+
 # -- its history -------------------------------------------------------------------------
+
+
+def test_its_showings_stay(display, store, two_walls):
+    hall, study = two_walls
+    moment = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
+    for wall in (hall, study):
+        store.save_showing(Showing(wall_id=wall, work_id=f"work-on-{wall}", started_at=moment, last_seen_at=moment))
+
+    display.delete_wall(study)
+
+    assert store.latest_showing(study).work_id == f"work-on-{study}"
+    assert set(store.last_shown_by_work()) == {f"work-on-{hall}", f"work-on-{study}"}
 
 
 def test_its_history_stays_and_names_it(services, display, mastered, two_walls):

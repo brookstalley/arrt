@@ -100,6 +100,22 @@ add one. Today a wall that is no longer a place is stuck on Walls for good.
   ruling 2: "the scene goes on" for the walls left, and an applied scene's pins
   are its record, `data-model.md` § Scenes retention.)*
 
+**Decisions made mid-build:**
+- **Five `art_display` action descriptions shortened** (`status`, `sync`,
+  `add_wall`, `remove_client`, `issue_client_token`), meaning kept, so the tool's
+  description stays inside the 2 KB a client reads (`test_mcp_surface.py`'s
+  budget) with `delete_wall` in it. Settled by "do it right": the alternative,
+  leaving `delete_wall` out of the menu, hides it from an agent.
+- **A new file interrupted between its schema and its first wall opens with
+  none**, and Walls offers *Add wall…*: the state ruling 4 already designed. A
+  file from before walls is recognised by `themes.is_active` and still carried.
+  *(Inferred; not an alignment-pass miss, since ruling 4 settles what an empty
+  catalogue looks like.)*
+- **A live scene's pin on a deleted wall** goes through one helper
+  (`DisplayService._pins_on_held_walls`) on every scene path, so the wall has
+  left the scene everywhere at once: no feed republished, no history line, no
+  name.
+
 **Carried from the #400 review** (`fix/walls-stale-edit`, the branch below):
 the press guard keys on the wall, not the button, so *Choose its Player…* and
 *Edit…* on one card cannot open two dialogs; a read that returns to a Walls
@@ -156,3 +172,11 @@ precedent to follow.
   - The #400 carry-overs each have a test seen to fail first.
   - The axe scan covers the dialog and the empty page.
   - The full browser suite, the three suites, and `/prawduct:critic cumulative`.
+
+## Verification record
+
+- 03: the axe scan ran by hand, as the UI pass's did (the suite does not fetch
+  axe-core): `ux_walk.scan` from a temporary test over the suite's fixtures, on a
+  wall hanging a theme with a Player and a label panel: its *Edit…* with
+  *Delete…*, the *Delete Study?* question, and the empty Walls page, at 1280 wide
+  light and 390 wide dark: clean, 2026-10-30. The temporary test is not kept.

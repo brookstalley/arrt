@@ -1649,10 +1649,8 @@ class DisplayService:
         walls: list[SceneWall] = []
         answers = self._library.playable(sorted({pin.work_id for pin in view.pins}))
         kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
-        for pin in view.pins:
+        for pin in self._pins_on_held_walls(view.pins):
             wall = self._store.get_wall(pin.wall_id)
-            if wall is None:
-                continue
             contents = heartbeat.read(self._settings.heartbeat_path(wall.id)).contents or {}
             walls.append(
                 SceneWall(
@@ -1717,11 +1715,9 @@ class DisplayService:
             for work_id, answer in self._library.playable(sorted({pin.work_id for pin in pins})).items()
             if isinstance(answer, PlayableWork)
         }
-        for pin in pins:
+        for pin in self._pins_on_held_walls(pins):
             wall = self._store.get_wall(pin.wall_id)
-            words: dict[str, object] = {"scene_id": scene.id, **detail}
-            if wall is not None:
-                words["wall_name"] = wall.name
+            words: dict[str, object] = {"scene_id": scene.id, **detail, "wall_name": wall.name}
             if pin.work_id in titles:
                 words["title"] = titles[pin.work_id]
             self._library.record(ProgrammingAct(kind=kind, wall_id=pin.wall_id, work_id=pin.work_id, detail=words))
@@ -1741,16 +1737,30 @@ class DisplayService:
             if scene.status_at(now) is SceneStatus.ENDED and scene.until is not None
         ]
 
+    def _pins_on_held_walls(self, pins: Iterable[ScenePin]) -> list[ScenePin]:
+        """The pins whose wall the store still holds.
+
+        A wall deleted while a scene was live leaves its pin as the scene's record
+        (`delete_wall`), and has left the scene: it is shown nothing, named in no
+        new history line, and its feed, removed with it, is not republished.
+        Every path that acts on a scene's pins takes them through here, so none
+        meets the deleted wall in a way of its own.
+        """
+        held = {wall.id for wall in self._store.list_walls()}
+        return [pin for pin in pins if pin.wall_id in held]
+
     def _wall_names(self, wall_ids: Iterable[str]) -> str:
-        names = []
-        for wall_id in wall_ids:
-            wall = self._store.get_wall(wall_id)
-            names.append(repr(wall.name) if wall is not None else wall_id)
-        return ", ".join(names) or "no wall"
+        held = {wall.id: wall.name for wall in self._store.list_walls()}
+        return ", ".join(repr(held[wall_id]) for wall_id in wall_ids if wall_id in held) or "no wall"
 
     def _patch_walls(self, wall_ids: Iterable[str]) -> None:
-        """Republish each wall's feed as it stands, so it carries the control layer as the store now says."""
-        for wall_id in dict.fromkeys(wall_ids):
+        """Republish each wall's feed as it stands, so it carries the control layer as the store now says.
+
+        A wall the store no longer holds is passed over: it was deleted, and its
+        feed with it.
+        """
+        held = {wall.id for wall in self._store.list_walls()}
+        for wall_id in dict.fromkeys(wall_id for wall_id in wall_ids if wall_id in held):
             feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
             if feed is None:
                 # A wall with no feed has nothing to show a scene over, and a pin

@@ -554,3 +554,37 @@ def test_the_last_wall_deleted_leaves_a_page_that_offers_add_wall_and_it_works(u
     added.get_by_role("button", name="Add wall").click()
     card(ui, "Study").wait_for()
     assert [wall["name"] for wall in walls_read(ui).values()] == ["Study"]
+
+
+def test_delete_says_a_selection_goes_and_counts_label_panels(ui, services, the_wall, hall, work_with_an_image):
+    study = services.display.add_wall(name="Study")
+    services.display.hang_selection([work_with_an_image(title="Golconda").id], wall_id=study.id)
+    panels = [{"name": f"epd-{n}", "kind": "epaper", "connected": True, "size": [800, 480]} for n in (0, 1)]
+    services.clients.record_heartbeat(
+        hall.id, REPORT | {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "label_outputs": panels}
+    )
+    for panel in panels:
+        services.clients.add_label(study.id, client_id=hall.id, output=panel["name"])
+
+    dialog = open_edit(ui, "Study")
+    dialog.get_by_role("button", name="Delete Study…").click()
+
+    assert _confirm(ui).locator(".confirm-consequence").inner_text() == (
+        "It hangs a selection, which goes once no wall hangs it. Its 2 label panels stop captioning. "
+        "Its history stays. The wall cannot be brought back."
+    )
+
+
+def test_delete_names_no_player_it_could_not_read(ui, services, the_wall, hall):
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.route(
+        "**/api/clients", lambda route: route.fulfill(status=500, content_type="application/json", body='{"error": "down"}')
+    )
+
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_role("button", name=f"Delete {the_wall.name}…").click()
+
+    assert _confirm(ui).locator(".confirm-consequence").inner_text() == (
+        "Its Player stops showing it. Its history stays. The wall cannot be brought back."
+    )
