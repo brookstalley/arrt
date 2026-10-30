@@ -64,9 +64,9 @@ export function statusReading(health) {
   if (!Array.isArray(health.walls)) {
     troubles.push("The health reading carries no walls");
   } else if (health.walls.length === 0) {
-    // A wall is created when the plane first opens the catalogue, so none is a
-    // state worth saying out loud rather than reporting as well: nothing can be
-    // shown at all, and no heartbeat is missing to say so.
+    // A new catalogue gets a wall, so none means every wall was deleted: a
+    // state worth saying out loud rather than reporting as well, because nothing
+    // can be shown at all and no heartbeat is missing to say so.
     troubles.push("No wall is recorded");
   } else {
     for (const wall of health.walls) {

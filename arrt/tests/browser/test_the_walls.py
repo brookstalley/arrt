@@ -246,6 +246,7 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
         "How it rotates",
         "Shapes it shows",
         "Mat",
+        "Delete",
     ]
 
 

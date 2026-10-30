@@ -120,16 +120,14 @@ export async function viewWalls(generation) {
   const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall)));
 
   if (!walls.walls.length) {
-    // Not one of the four, and stated rather than left as an empty page: a wall
-    // is recorded when the plane first opens the catalogue, so none at all is a
-    // fact about the deployment rather than about anybody's curation.
+    // Not one of the four, and stated rather than left as an empty page. A new
+    // catalogue gets a wall; none at all means the curator deleted them, so the
+    // way back is the toolbar's *Add wall…*, where it always is.
     render(
       generation,
       heading(),
-      emptyState(
-        "No wall is recorded, so there is nowhere to hang anything.",
-        "A wall is created when the plane first opens the catalogue.",
-      ),
+      toolbar({ actions: [addWallOpener()] }),
+      emptyState("No wall is recorded, so there is nowhere to hang anything.", "Add a wall to give art a place to hang."),
     );
     return;
   }
@@ -180,7 +178,7 @@ function sceneOpener(scene) {
       // on, and a wall added or renamed since is one it offers. A scene that
       // cannot be read opens the dialog to say so; walls that cannot be read
       // leave the ones the page has.
-      const fresh = await readingOnce(event.currentTarget, () =>
+      const fresh = await readingOnce("scene", event.currentTarget, () =>
         Promise.all([api("/api/scenes/live").catch(() => null), api("/api/walls").catch(() => null)]),
       );
       if (!fresh) return;
@@ -1413,7 +1411,7 @@ async function editWall(control, painted) {
   let wall = null;
   let shownBy = null;
   let feed = null;
-  const read = await readingOnce(control, () =>
+  const read = await readingOnce(`edit-${painted.wall_id}`, control, () =>
     attempt(control, `open ${painted.name}'s settings`, async () => {
       const [walls, listing] = await Promise.all([api("/api/walls"), clientListing()]);
       wall = walls.walls.find((each) => each.wall_id === painted.wall_id);
@@ -1439,25 +1437,81 @@ async function editWall(control, painted) {
         : null,
       ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
       manifest ? matPanel(wall, edit.changed) : null,
+      el("div", { class: "panel" }, [
+        el("h3", { text: "Delete" }),
+        el("div", { class: "row" }, [
+          el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Delete…",
+            "aria-label": `Delete ${wall.name}…`,
+            // Asked with this dialog closed, so the question is the only one on
+            // the page, as a theme's is; a refusal is said beside the control
+            // that opened the dialog.
+            onclick: () => {
+              edit.panel.close();
+              deleteWall(control, wall, shownBy);
+            },
+          }),
+        ]),
+      ]),
     ],
     onClose: edit.closed,
   });
 }
 
-/* Run a dialog's read once per press. A second press while the first read is
- * out does nothing, so two dialogs never stack; and a read that comes back after
- * the curator has left Walls opens nothing over the page they went to. Answers
- * what the read did, or null for a press that was ignored or arrived too late. */
-const reading = new WeakSet();
+/* *Delete…*: forgets the wall for good (the owner's rulings of 2026-10-30,
+ * `build-plan-delete-a-wall.md`). The question names what goes with it and what
+ * stays, from what *Edit…* read when it was pressed: the theme it hangs stays,
+ * its Player stops showing it, its label panels caption nothing, and its history
+ * stays. Then the page is painted again, from the walls that remain. */
+async function deleteWall(control, wall, shownBy) {
+  const confirmed = await confirmAct({
+    title: `Delete ${wall.name}?`,
+    consequence: deletingSays(wall, shownBy),
+    confirmLabel: `Delete ${wall.name}`,
+  });
+  if (!confirmed) return;
+  await attempt(control, `delete ${wall.name}`, () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}`, { method: "DELETE" }), {
+    then: () => {
+      if (state.view === "walls") refresh();
+    },
+  });
+}
 
-async function readingOnce(control, read) {
-  if (reading.has(control)) return null;
-  reading.add(control);
+function deletingSays(wall, shownBy) {
+  const player = wall.client_id && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
+  const panels = wall.labels.length;
+  return [
+    wall.theme
+      ? wall.theme.hidden
+        ? "It hangs a selection, which goes once no wall hangs it."
+        : `It hangs ${wall.theme.name}, which stays in your themes.`
+      : null,
+    player ? `${player.name} stops showing it.` : wall.client_id ? "Its Player stops showing it." : null,
+    panels ? (panels === 1 ? "Its label panel stops captioning." : `Its ${panels} label panels stop captioning.`) : null,
+    "Its history stays. The wall cannot be brought back.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/* Run a dialog's read once per dialog. A second press while the first read is
+ * out does nothing, so two dialogs never stack, keyed by the dialog rather than
+ * the button because two buttons open a wall's *Edit…* (the card's, and *Choose
+ * its Player…*). A read that comes back after its button has gone — the curator
+ * left Walls, or left and came back to a page painted since — opens nothing.
+ * Answers what the read did, or null for a press ignored or arriving too late. */
+const reading = new Set();
+
+async function readingOnce(key, control, read) {
+  if (reading.has(key)) return null;
+  reading.add(key);
   try {
     const answer = await read();
-    return state.view === "walls" ? answer : null;
+    return state.view === "walls" && control.isConnected ? answer : null;
   } finally {
-    reading.delete(control);
+    reading.delete(key);
   }
 }
 
