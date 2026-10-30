@@ -532,7 +532,7 @@ other field.
 
 **Two levels of report, kept apart.** The **client heartbeat** (`POST
 /client/heartbeat`) says which outputs a client has, whether each is connected,
-and at what size. Settings › Clients shows it with its age. **Each wall's
+and at what size. Settings › Players shows it with its age. **Each wall's
 heartbeat** stays what it was: the work on the screen and the last error. A
 screen that is unplugged shows up in the first as `connected: false`, while the
 wall's own heartbeat keeps beating, because its worker keeps rotating.
@@ -551,7 +551,7 @@ The Player's journal events for a client and an HDMI wall:
 
 **A Player that has stopped leaves the text console on an HDMI screen**: the
 kernel gives the screen back when the process lets go of the display card. On
-the wall, that is how an outage looks, and Settings › Clients shows the client
+the wall, that is how an outage looks, and Settings › Players shows the Player
 heartbeat ageing.
 
 ### The backup records that it succeeded, and the panel reads its age

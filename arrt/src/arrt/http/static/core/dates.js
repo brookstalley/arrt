@@ -12,7 +12,7 @@
  *
  * **The ages are the server's `observations.in_words` and `ago`, written again
  * here**, because Walls states the age of a client's report beside a line it
- * composes itself, while Clients prints the server's own sentence ("It last
+ * composes itself, while Players prints the server's own sentence ("It last
  * reported 4 minutes ago."). One report must read the same on both pages, so
  * the units, the boundaries and the rounding are the server's exactly: Python's
  * `round` sends a half to the even neighbour, and `Math.round` would not.

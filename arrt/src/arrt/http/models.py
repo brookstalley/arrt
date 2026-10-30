@@ -1989,18 +1989,20 @@ class CreateTheme(BaseModel):
     description: str | None = None
 
 
-class RenameTheme(BaseModel):
-    """The new name, and deliberately nothing else.
+class EditTheme(BaseModel):
+    """A theme's name, and its description when the body names one.
 
-    `update_theme` can also change a description, and this body cannot reach
-    it. That is the route's scope rather than an oversight:
-    the service distinguishes "leave this alone" from "clear it" with a sentinel,
-    and a request model whose optional fields default to `None` would erase a
-    theme's description every time a curator corrected a typo in its name.
-    A body that can only say one thing cannot say that one by accident.
+    `update_theme` distinguishes "leave this alone" from "clear it" with a
+    sentinel, because `None` means "no description". So the route reads the
+    description only from a body that carries the key (`model_fields_set`), as
+    `SetPlayback` does: a body with only a name leaves the description as it
+    was, and one carrying `"description": null` clears it. A default of `None`
+    read as a value would erase a description every time a curator corrected a
+    typo in a name.
     """
 
     name: str
+    description: str | None = None
 
 
 class CreateWall(BaseModel):

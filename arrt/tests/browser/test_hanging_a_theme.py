@@ -2,13 +2,16 @@
 
 The theme panel is where the single-wall assumption was most visible in the
 client: one "Put on the wall" button, and a badge that said "on the wall" with no
-room to say which. Neither is expressible as JSON, so neither Python suite runs a
+room to say which. A theme's page now hangs it through *Hang…*, a dialog of
+every wall by name (ruling 9 of 2026-10-27). Neither is expressible as JSON, so neither Python suite runs a
 line of it — this does.
 
 **These tests are here rather than in a screen chunk because the client changed
 in this one.** Chunks 04, 05 and 09 rebuild these screens; until they do, this is
 the only executed coverage the per-wall controls have.
 """
+
+import json
 
 import pytest
 
@@ -27,89 +30,161 @@ def a_theme(services):
     return services.display.add_theme(name="Late night")
 
 
+def _open_hang(ui, theme):
+    """A theme's *Hang…*: since ruling 9 of 2026-10-27 one dialog of every wall,
+    ticked where the theme hangs, in place of a button per wall and *Take down*."""
+    ui.open(f"#theme/{theme.id}")
+    ui.page.locator("#view .page-toolbar button", has_text="Hang…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.wait_for()
+    return dialog
+
+
+def _walls_offered(dialog):
+    """Each wall the dialog offers, by its label, and whether it is ticked."""
+    return {
+        dialog.locator(f"label[for='{box.get_attribute('id')}']").inner_text(): box.is_checked()
+        for box in dialog.locator("input[type='checkbox']").all()
+    }
+
+
 def test_the_control_names_the_wall_it_would_hang_on(ui, a_theme):
-    """ "Hang on the living room", never "Put on the wall".
+    """A wall by its name, never "the wall".
 
     A label that reads correctly today only because there is one possible target
     is a sentence that silently becomes wrong, and the label is the last place a
     curator can catch a mistake before the room changes.
     """
-    ui.open(f"#theme/{a_theme.id}")
-    ui.page.wait_for_selector(".panel")
+    dialog = _open_hang(ui, a_theme)
 
-    walls = ui.page.locator("button", has_text="Hang on ")
-    assert walls.count() == 1
-    assert walls.first.inner_text() == "Hang on The wall"
+    assert _walls_offered(dialog) == {"The wall": False}
 
 
 def test_a_second_wall_becomes_a_second_choice_rather_than_a_different_screen(ui, a_theme, services):
     """One wall is the degenerate case of many, and the layout does not switch.
 
     The single-wall rendering is the many-wall rendering with one entry in it, so
-    a second display adds a button rather than replacing a control.
+    a second display adds a tick rather than replacing a control.
     """
     services.display.add_wall(name="Study")
 
-    ui.open(f"#theme/{a_theme.id}")
-    ui.page.wait_for_selector(".panel")
+    dialog = _open_hang(ui, a_theme)
 
-    offered = ui.page.locator("button", has_text="Hang on ")
-    assert sorted(offered.all_inner_texts()) == ["Hang on Study", "Hang on The wall"]
+    assert _walls_offered(dialog) == {"Study": False, "The wall": False}
 
 
 def test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour(ui, a_theme, services):
-    """The badge carries a glyph and the wall's own name beside any colour.
+    """The page says where it hangs by the wall's own name, a link, never by colour.
 
     Two claims in one, and both matter: colour is never the sole carrier of
     state, and "on the wall" is not a thing that can be said once there is more
-    than one.
+    than one. Since ruling 9 of 2026-10-27 it is said in the page's facts, and
+    *Hang…* shows the wall it hangs on ticked and the other free to tick.
     """
     services.display.add_wall(name="Study")
-    ui.open(f"#theme/{a_theme.id}")
-    ui.page.wait_for_selector(".panel")
-
-    ui.page.click("text=Hang on Study")
-    # Through the confirmation, which this screen gained when the chunk that owns
-    # it adopted `core/confirm.js`: activation is the one act that changes what
+    dialog = _open_hang(ui, a_theme)
+    dialog.locator("label:text-is('Study')").click()
+    dialog.get_by_role("button", name="Hang", exact=True).click()
+    # Through the confirmation: activation is the one act that changes what
     # other people in the house see, and flow 6 requires it be asked about. What
     # the question says is asserted in `test_the_theme_screen.py`; here it is the
     # gate between the click and the write.
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
-    # Waited on the wall view the hang lands on, not on a heading. The theme
-    # screen already has an `h1`, so waiting for one waits for nothing — and the
-    # reload below is then free to overtake the POST, after which the theme is
-    # not hanging anywhere and the badge this test is about never appears. The
-    # walls screen is painted only once the activate has come back, which is
-    # exactly the fact the reload needs to be true.
-    ui.page.wait_for_selector("section.wall")
+    facts = ui.page.locator("#view .theme-facts")
+    ui.page.wait_for_selector("#view .theme-facts a:text-is('Study')")
 
-    ui.open(f"#theme/{a_theme.id}")
-    ui.page.wait_for_selector(".badge")
-    badge = ui.page.locator(".badge").first
-    assert "on Study" in badge.inner_text()
-    assert badge.locator(".glyph").count() == 1
-    # And the wall it is not on is still offered, so hanging it in both rooms is
-    # a second click rather than a different screen.
-    assert ui.page.locator("button", has_text="Hang on ").all_inner_texts() == ["Hang on The wall"]
+    assert "Hanging on Study" in facts.inner_text()
+    assert facts.get_by_role("link", name="Study").count() == 1
+    assert "The wall" not in facts.inner_text()
+    dialog = _open_hang(ui, a_theme)
+    assert _walls_offered(dialog) == {"Study": True, "The wall": False}
 
 
 def test_a_hung_theme_can_be_taken_down_from_the_wall_it_is_on(ui, a_theme, services):
     """The route out of the delete refusal, exercised where a curator meets it.
 
-    A theme hanging anywhere is undeletable, and this button is what makes that
-    absolute rule survivable rather than a dead end.
+    A theme hanging anywhere is undeletable, and this is what makes that absolute
+    rule survivable rather than a dead end: unticking the wall in *Hang…*, asked
+    once, since ruling 9 of 2026-10-27 (*Take down from …* until then, unasked).
     """
     wall = services.display.survey_walls()[0].wall
     services.display.activate_theme(a_theme.id, wall_id=wall.id)
 
-    ui.open(f"#theme/{a_theme.id}")
-    ui.page.wait_for_selector(".badge")
+    dialog = _open_hang(ui, a_theme)
+    dialog.locator(f"label:text-is('{wall.name}')").click()
+    dialog.get_by_role("button", name="Hang", exact=True).click()
+    ui.page.wait_for_selector("dialog.confirm[open]")
+    assert ui.page.inner_text("dialog.confirm .confirm-title") == f"Take Late night down from {wall.name}?"
+    assert "goes on showing what it shows until something else is hung there" in ui.page.inner_text(
+        "dialog.confirm .confirm-consequence"
+    )
+    ui.page.click("dialog.confirm .confirm-actions button:has-text('Take down')")
+    ui.page.wait_for_function("() => !document.querySelector('#view .theme-facts').textContent.includes('Hanging on')")
 
-    ui.page.click(f"text=Take down from {wall.name}")
-    ui.page.wait_for_selector("button:has-text('Hang on ')")
+    assert services.display.hanging_on(wall.id) is None
 
-    assert ui.page.locator(".badge").count() == 0
+
+def test_one_hang_puts_it_up_on_one_wall_and_takes_it_down_from_another(ui, a_theme, services):
+    """Two changes, one question naming both walls, and only the changed walls sent."""
+    the_wall = services.display.survey_walls()[0].wall
+    study = services.display.add_wall(name="Study")
+    landing = services.display.add_wall(name="Landing")
+    services.display.activate_theme(a_theme.id, wall_id=the_wall.id)
+    services.display.activate_theme(a_theme.id, wall_id=landing.id)
+
+    dialog = _open_hang(ui, a_theme)
+    sent = []
+
+    def note(request):
+        if request.url.endswith("/activate"):
+            sent.append(("POST", "activate", json.loads(request.post_data)["wall_id"]))
+        elif request.method == "DELETE" and request.url.endswith("/theme"):
+            sent.append(("DELETE", request.url.split("/api/walls/")[1].split("/")[0], None))
+
+    ui.page.on("request", note)
+    dialog.locator("label:text-is('Study')").click()
+    dialog.locator(f"label:text-is('{the_wall.name}')").click()
+    dialog.get_by_role("button", name="Hang", exact=True).click()
+    ui.page.wait_for_selector("dialog.confirm[open]")
+    assert (
+        ui.page.inner_text("dialog.confirm .confirm-title") == f"Hang Late night on Study and take it down from {the_wall.name}?"
+    )
+    consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
+    assert consequence.startswith("Study: ")
+    assert f"Everyone in the house sees Study and {the_wall.name} change." in consequence
+    assert "Landing" not in consequence
+    ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
+    ui.page.wait_for_selector("#view .theme-facts a:text-is('Study')")
+
+    hanging = {
+        wall["name"]: wall["theme"] for wall in ui.page.evaluate("() => fetch('/api/walls').then((r) => r.json())")["walls"]
+    }
+    assert hanging["Study"]["theme_id"] == a_theme.id
+    assert hanging["Landing"]["theme_id"] == a_theme.id
+    assert hanging[the_wall.name] is None
+    # Landing was ticked and left ticked, so nothing was sent for it: one hang,
+    # for Study, and one take-down, for the wall.
+    assert sent == [("POST", "activate", study.id), ("DELETE", the_wall.id, None)]
+
+
+@pytest.mark.parametrize("leave", ["unchanged", "Cancel", "Escape"])
+def test_leaving_hang_as_it_was_or_closing_it_sends_nothing(ui, a_theme, services, leave):
+    wall = services.display.survey_walls()[0].wall
+    dialog = _open_hang(ui, a_theme)
+    if leave == "unchanged":
+        dialog.get_by_role("button", name="Hang", exact=True).click()
+    elif leave == "Escape":
+        dialog.locator(f"label:text-is('{wall.name}')").click()
+        ui.page.keyboard.press("Escape")
+    else:
+        dialog.locator(f"label:text-is('{wall.name}')").click()
+        dialog.get_by_role("button", name="Cancel").click()
+    dialog.wait_for(state="detached")
+    ui.page.wait_for_timeout(300)
+
+    assert ui.page.locator("dialog.confirm").count() == 0
+    assert ui.requests_matching("/api/manifest") == []
     assert services.display.hanging_on(wall.id) is None
 
 

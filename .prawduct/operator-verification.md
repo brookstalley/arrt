@@ -10,6 +10,26 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Settings › Players, Themes and a theme's page, rebuilt to the page rules — added 2026-10-29
+
+**`build-plan-ui-pass-themes-players.md` chunk 05.** On the NAS, once the release
+with this branch is deployed, on a phone and on a desktop.
+
+- **Settings › Players.** Each Player's row: does its status, its screens and the
+  wall on each, and its label panel match what is at the wall? *Edit…* one,
+  rename it and rename it back; do not rotate a token you are not ready to
+  re-enter on the Player.
+- **A wall's Player.** On Walls, *Edit…* a wall and check *Where it shows* and
+  *Label panel* are the only places these are set now.
+- **Themes.** The heading, its line of facts and *New theme…*; make a theme with
+  a description and land on its page.
+- **A theme's page.** Drag a work to a new place, on the phone with a finger and
+  on the desktop with the mouse; move one with the arrow keys. Select two works
+  and *Remove from {theme}*. *Edit…* its description. *Hang…* it on a second wall
+  and take it down again, reading the question each time.
+- **The words and the weight.** Judge all three against the prototype: does
+  anything you use daily now take a step it did not?
+
 ### Artworks and a work's page, rebuilt to the page rules — added 2026-10-29
 
 **`build-plan-ui-pass-work-artworks.md` chunk 05.** On the NAS, once the release

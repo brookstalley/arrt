@@ -461,6 +461,15 @@ it out, build editing of a work's catalogue fields, or put the mat and the match
 the owner chose to leave it out until a work has a setting. Editing a work's fields is on the
 backlog (#396); `build-plan-ui-pass-work-artworks.md` builds the page without it.
 
+**No *Add a work* on a theme's page** *(the owner, 2026-10-29)*. Ruling 9 lists
+a theme page's acts and does not name the picker the page had, of every work in
+the library with *Add*. On *All works* it listed the whole library, and the page
+rules put nothing but the name, the facts and the toolbar above the content.
+Asked whether to drop it for a link to Artworks, keep adding behind an *Add
+works…* dialog with a search, or offer no add at all, the owner chose the link:
+*Add works* in the theme's toolbar goes to Artworks, where *Add to theme…* acts
+on a selection. `build-plan-ui-pass-themes-players.md` builds the page so.
+
 **What follows.** Three plans, one per group of pages, each its own PR: Walls first
 (`build-plan-ui-pass-walls.md`), because it is where the owner's findings are and it needs the
 two server changes (renaming a wall; a screen that calls the existing `POST /walls`); then the

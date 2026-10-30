@@ -64,6 +64,7 @@ from arrt.http.models import (
     DisplayFaultOut,
     DisplayOut,
     DisplayStateOut,
+    EditTheme,
     EstimateOut,
     ExcludedWorkListOut,
     ExcludedWorkOut,
@@ -117,7 +118,6 @@ from arrt.http.models import (
     RegistryWorkFoundOut,
     RegistryWorkOut,
     RegistryWorkPageOut,
-    RenameTheme,
     RenditionOut,
     ReportedLabelOutputOut,
     ReportedOutputOut,
@@ -1024,8 +1024,8 @@ def create_theme(request: Request, body: CreateTheme) -> ThemeOut:
 
 
 @router.post("/themes/{theme_id}")
-def rename_theme(request: Request, theme_id: str, body: RenameTheme) -> ThemeOut:
-    """Change a theme's name.
+def edit_theme(request: Request, theme_id: str, body: EditTheme) -> ThemeOut:
+    """Change a theme's name, and its description when the body names one.
 
     **`POST` rather than `PATCH`**, following this surface's own convention: it
     writes with `POST` and removes with `DELETE`, and one surface with two
@@ -1036,7 +1036,8 @@ def rename_theme(request: Request, theme_id: str, body: RenameTheme) -> ThemeOut
     surrounded by whitespace comes back trimmed — and a screen painting its own
     input would show a name the catalogue does not hold.
     """
-    return _theme(_services(request).display.update_theme(theme_id, name=body.name))
+    description = body.description if "description" in body.model_fields_set else UNSET
+    return _theme(_services(request).display.update_theme(theme_id, name=body.name, description=description))
 
 
 @router.delete("/themes/{theme_id}")

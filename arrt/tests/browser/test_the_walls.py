@@ -824,21 +824,25 @@ def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, s
     assert "no screen is detected" not in line
 
 
-def test_an_unassigned_wall_says_no_client_shows_it_and_links_to_where_one_is_assigned(ui, services, the_wall):
-    services.clients.add_client(name="Hall Pi")
+def test_an_unassigned_wall_says_no_player_shows_it_and_opens_where_one_is_chosen(ui, services, the_wall):
+    hall = services.clients.add_client(name="Hall Pi")
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     # Said on the card itself, because it is a problem (the page rules of
-    # 2026-10-27), and in the ruled word, Player.
+    # 2026-10-27), and in the ruled word, Player. Its mend is the wall's own
+    # Edit…, where a Player is chosen since ruling 7 of 2026-10-27 took that
+    # off Settings › Players, which it linked to until then.
     line = ui.page.locator("section.wall p.wall-problem")
-    assert line.inner_text() == "No Player shows this wall. Assign it in Settings › Clients"
-    link = line.get_by_role("link", name="Assign it in Settings › Clients")
-    assert link.get_attribute("href") == "#clients"
+    assert line.inner_text() == "No Player shows this wall. Choose its Player…"
+    assert line.get_by_role("link").count() == 0
+    line.get_by_role("button", name=f"Choose the Player for {the_wall.name}…").click()
 
-    link.click()
-    ui.page.wait_for_selector("#view h1:has-text('Clients')")
-    assert ui.page.locator("nav.sidebar a[data-view='clients'][aria-current='page']").count() == 1
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.wait_for()
+    assert dialog.locator(".confirm-title").inner_text() == f"Edit {the_wall.name}"
+    picker = dialog.get_by_label(f"Player for {the_wall.name}", exact=True)
+    assert hall.name in picker.locator("option").all_inner_texts()
 
 
 def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_wall(ui, services, the_wall):
@@ -849,7 +853,7 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     """
     hall = services.clients.add_client(name="Hall Pi")
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
-    ui.serve("**/api/clients", (503, {"error": "the client listing is down"}))
+    ui.serve("**/api/clients", (503, {"error": "the Player listing is down"}))
     # Which output is engineering detail, said with `?debug` (ruling 1 of 2026-10-11).
     ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
@@ -857,6 +861,6 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     line = _client_line(ui, the_wall.name).inner_text()
     # The listing carries the client's report as well as its name, so without it
     # whether a screen is there is unknown too, and "Shown" would claim it.
-    assert line == "Assigned to hdmi-a-1 of a client whose name and report could not be read — the client listing is down"
+    assert line == "Assigned to hdmi-a-1 of a Player whose name and report could not be read — the Player listing is down"
     assert ui.page.locator("#error").is_hidden()
     assert "Nothing is hanging on" in ui.text()

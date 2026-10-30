@@ -7,7 +7,7 @@
  * one line per page instead of opening each (`information-architecture.md`
  * § The *arr layout).
  *
- * The pages are listed in the sidebar's order, Taste last: Clients and Sources
+ * The pages are listed in the sidebar's order, Taste last: Players and Sources
  * are what the server works with, and Taste is what it has come to believe. Each
  * row is a link because it navigates (§ Direction: navigation is a link, an act
  * is a button). The lines are written here rather than read from the route
@@ -21,8 +21,8 @@ import { link } from "../core/router.js";
 const PAGES = [
   {
     view: "clients",
-    label: "Clients",
-    holds: "The Players that show your walls: their tokens, what they last reported, and which wall each output shows.",
+    label: "Players",
+    holds: "The devices at your walls: whether each is reporting, its screens and label panel and the walls on them, and its token.",
   },
   {
     view: "sources",

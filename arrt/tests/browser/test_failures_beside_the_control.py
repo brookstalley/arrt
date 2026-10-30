@@ -81,13 +81,19 @@ def test_a_server_fault_does_not_claim_nothing_changed(review):
 
 
 def test_a_refused_hang_is_said_beside_the_hang_control(ui, services):
+    """Beside *Hang…*, the theme page's control since ruling 9 of 2026-10-27 (a
+    *Hang on {wall}* button per wall until then), and the page does not repaint
+    over it, since nothing changed."""
     late = services.display.add_theme(name="Late night")
     refusal = "The wall is being rebuilt; try again in a moment."
     ui.serve("**/api/themes/*/activate", (409, {"error": refusal}))
     ui.open(f"#theme/{late.id}")
-    hang = ui.page.locator("button:text-is('Hang on The wall')")
+    hang = ui.page.locator("#view .page-toolbar button", has_text="Hang…")
 
     hang.click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.locator("label:text-is('The wall')").click()
+    dialog.get_by_role("button", name="Hang", exact=True).click()
     ui.page.wait_for_selector("dialog.confirm[open]")
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
 
@@ -95,3 +101,41 @@ def test_a_refused_hang_is_said_beside_the_hang_control(ui, services):
     # The screen stayed: a refused hang is not a reason to leave for the walls.
     assert ui.page.url.endswith(f"#theme/{late.id}")
     assert hang.is_enabled()
+
+
+def test_a_hang_refused_part_way_says_which_wall_and_shows_what_changed(ui, services):
+    """Two walls: the first hangs, the second is refused. The page repaints to say
+    where it hangs now, and the refusal, naming the wall it stopped at, is said
+    where it outlives that repaint."""
+    late = services.display.add_theme(name="Late night")
+    the_wall = services.display.survey_walls()[0].wall
+    # Walls are hung in the order they are listed, by name: Study, then The wall,
+    # so refusing the second is a refusal after a wall has changed.
+    study = services.display.add_wall(name="Study")
+    refusal = "The wall is being rebuilt."
+    answered = []
+
+    def refuse_the_second(route):
+        answered.append(route.request.post_data)
+        if the_wall.id in route.request.post_data:
+            route.fulfill(status=409, json={"error": refusal})
+        else:
+            route.continue_()
+
+    ui.page.route("**/api/themes/*/activate", refuse_the_second)
+    ui.open(f"#theme/{late.id}")
+    ui.page.locator("#view .page-toolbar button", has_text="Hang…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.locator("label:text-is('Study')").click()
+    dialog.locator("label:text-is('The wall')").click()
+    dialog.get_by_role("button", name="Hang", exact=True).click()
+    ui.page.wait_for_selector("dialog.confirm[open]")
+    ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
+
+    elsewhere = ui.page.locator("#failures-elsewhere p")
+    elsewhere.wait_for()
+    ui.page.wait_for_function("() => document.querySelector('#failures-elsewhere p').textContent.includes('Couldn')")
+    ui.page.wait_for_selector("#view .theme-facts a")
+    assert [wall.name for wall in services.display.walls_hanging(late.id)] == [study.name]
+    assert f"Couldn't hang Late night on The wall: {refusal}" in elsewhere.inner_text()
+    assert ui.page.locator("#view .theme-facts").inner_text().endswith("Hanging on Study")

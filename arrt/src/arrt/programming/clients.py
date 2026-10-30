@@ -11,7 +11,7 @@ theme, and so lives here in Programming beside the walls it changes.
 **Every rule about a valid assignment is here**, and the store's unique indexes
 are only the weaker statements of three of them: one display per output of a
 client, one wall per display, one label output per name on a client. HTTP
-(Settings › Clients, Walls) and MCP (`art_display`) both bind it.
+(Settings › Players, Walls) and MCP (`art_display`) both bind it.
 
 **Who shows a wall is read in one place, `Placements`**, because three readers
 ask it and must agree: `GET /client` (which walls a client starts), admission to
@@ -88,7 +88,7 @@ class DisplayFault:
         shown = f"so neither shows {self.wall.name}" if self.wall is not None else "so neither may show a wall on it"
         return (
             f"{names} both report the display {self.identity}, {shown} until one of them stops. "
-            "A display is configured on one client; remove it from the others' settings."
+            "A display is configured on one Player; remove it from the others' settings."
         )
 
 
@@ -547,7 +547,7 @@ class ClientService:
 
         Refused, and nothing written, if it is not a document this server can
         read — so the listing never shows a report it would call unreadable. The
-        file is what Settings › Clients reads; the records are what walls and
+        file is what Settings › Players reads; the records are what walls and
         labels are placed on (`_reconcile_display` says how each output is
         matched to one).
         """
@@ -736,7 +736,7 @@ class ClientService:
     def _notice(self, display: Display, client: Client | None) -> str | None:
         if client is None:
             return (
-                f"No client reports the display {display.identity} now, so nothing shows this wall until one does. "
+                f"No Player reports the display {display.identity} now, so nothing shows this wall until one does. "
                 "The assignment is kept either way."
             )
         fault = self.placements.survey().faults.get(display.identity)
@@ -755,7 +755,7 @@ class ClientService:
             reported = ", ".join(repr(name) for name in sorted(names)) or "none"
             return (
                 f"{client.name} last reported these outputs: {reported}. {output!r} is not among them, "
-                "so the client cannot show this wall until it has an output by that name."
+                "so the Player cannot show this wall until it has an output by that name."
             )
         return None
 
@@ -770,7 +770,7 @@ class ClientService:
             reported = ", ".join(repr(name) for name in sorted(names)) or "none"
             return (
                 f"{client.name} last reported these label outputs: {reported}. {output!r} is not among them, "
-                "so nothing captions this wall there until the client has a label output by that name."
+                "so nothing captions this wall there until the Player has a label output by that name."
             )
         return None
 

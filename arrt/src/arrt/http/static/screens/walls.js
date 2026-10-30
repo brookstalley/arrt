@@ -204,19 +204,30 @@ function takeDownNote() {
  * (`design-direction.md` § Component Patterns, "How a page reads": a setting
  * appears on the page only when it is one). A wall nobody shows is an ordinary
  * state (`clients.md` § The model), and the one where everything else on this
- * card happens to no screen at all; a display two clients report is shown by
- * neither, whatever `client_id` still names. */
-function assignmentProblem(wall) {
+ * card happens to no screen at all; a display two Players report is shown by
+ * neither, whatever `client_id` still names.
+ *
+ * No Player is mended in this wall's own *Edit…*, where its Player and screen
+ * are set (ruling 4 of 2026-10-27), so the line opens it. A fault is mended at
+ * the Players, in their settings, and Settings › Players names both. */
+function assignmentProblem(wall, edit) {
   if (wall.display && wall.display.fault) {
     return el("p", { class: "note wall-problem wall-fault" }, [
       el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-      link({ view: "clients" }, { text: "See Settings › Clients" }),
+      link({ view: "clients" }, { text: "See Settings › Players" }),
     ]);
   }
   if (!wall.client_id) {
     return el("p", { class: "muted wall-problem" }, [
       el("span", { text: "No Player shows this wall. " }),
-      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
+      el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Choose its Player…",
+        "aria-haspopup": "dialog",
+        "aria-label": `Choose the Player for ${wall.name}…`,
+        onclick: edit,
+      }),
     ]);
   }
   return null;
@@ -259,28 +270,24 @@ function assignmentLine(wall, shownBy) {
     { class: "muted wall-client" },
     client
       ? wallScreenParts(clientLink(client.client_id, client.name), client.name, output, screenState(client.heartbeat, wall.output), client.heartbeat, { offSaid })
-      : [`Assigned to ${output ? `${output} of ` : ""}a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
+      : [`Assigned to ${output ? `${output} of ` : ""}a Player whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
   );
 }
 
-/* Which label outputs caption this wall, and on which client each is.
+/* Which label panels caption this wall, and on which Player each is.
  *
- * Said only when there is one: most walls have no label, and a line saying so
- * on every card would be noise. Labels are mapped in Settings › Clients, beside
- * the client's other surfaces, and this line links there. */
+ * Said only when there is one, at the head of the *Edit…* dialog's label
+ * section, whose controls under it are where a label is changed. */
 function labelsLine(wall) {
   if (!wall.labels || !wall.labels.length) return null;
-  // A client the server could not name is said as one rather than drawn as a
+  // A Player the server could not name is said as one rather than drawn as a
   // link with no words in it.
   const named = wall.labels.map((label) => [
     // The panel's port only with `?debug`, as the wall's own is.
     DEBUG ? `${label.output} on ` : "a label on ",
-    label.client_name ? clientLink(label.client_id, label.client_name) : "a client whose name could not be read",
+    label.client_name ? clientLink(label.client_id, label.client_name) : "a Player whose name could not be read",
   ]);
-  return el("p", { class: "muted wall-labels" }, [
-    el("span", {}, ["Captioned by ", ...listedParts(named), ". "]),
-    link({ view: "clients" }, { text: "Change in Settings › Clients" }),
-  ]);
+  return el("p", { class: "muted wall-labels" }, [el("span", {}, ["Captioned by ", ...listedParts(named), "."])]);
 }
 
 /* "a", "a and b", "a, b and c", of items that are each a list of parts (text
@@ -425,7 +432,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
     // when it is a problem: no Player, or a screen two Players claim.
-    assignmentProblem(wall),
+    assignmentProblem(wall, () => editWall(wall, manifest, shownBy)),
     // The server's sentence, so Walls and the tool surface say the same thing
     // about a Player that cannot read this server's feed. Under the lead, which
     // leads the card whatever else it has to say.
@@ -1047,7 +1054,9 @@ function emptyTheme(wall, manifest) {
       // § Screen Inventory lists "a wall's theme control" as an entry point to
       // the Theme screen, and a link naming one theme that lands on a list of
       // all of them makes the curator find it again — on the one screen whose
-      // sentence directly above says which theme is the problem.
+      // sentence directly above says which theme is the problem. Its page has
+      // *Add works*, which goes on to Artworks (the owner's ruling of
+      // 2026-10-29, `ia-proposal.md`).
       link({ view: "theme", id: manifest.theme.theme_id }, { class: "action quiet", text: `Add works to ${manifest.theme.name}` }),
     ]),
   ];
@@ -1390,8 +1399,8 @@ function editWall(wall, manifest, shownBy) {
     title: `Edit ${wall.name}`,
     body: [
       nameSection(wall, edit.done),
-      whereSection(wall, shownBy, edit.done),
-      labelsSection(wall, shownBy, edit.done),
+      whereSection(wall, shownBy, edit),
+      labelsSection(wall, shownBy, edit),
       ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
       manifest ? matPanel(wall, edit.changed) : null,
     ],
@@ -1454,7 +1463,7 @@ function screensOf(client) {
 /* Which Player shows the wall, and on which screen: the line that says what the
  * Player last reported about it, then the two pickers and *Show it there*. None
  * takes the wall off its Player; its theme stays hung. */
-function whereSection(wall, shownBy, done) {
+function whereSection(wall, shownBy, edit) {
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const playerId = `wall-player-${wall.wall_id}`;
   const screenId = `wall-screen-${wall.wall_id}`;
@@ -1466,13 +1475,17 @@ function whereSection(wall, shownBy, done) {
   const fillScreens = () => {
     const client = shownBy.byId ? shownBy.byId.get(player.value) : null;
     const screens = screensOf(client);
+    // A screen showing another wall is offered with that wall's name: the server
+    // refuses a second wall on it, and says so beside *Show it there*, so the
+    // choice is not hidden from a curator who means to move the other next.
+    const showing = new Map((client ? client.walls : []).filter((each) => each.wall_id !== wall.wall_id).map((each) => [each.output, each.name]));
     fill(
       screen,
       ...(screens.length
         ? screens.map((output) =>
             el("option", {
               value: output.name,
-              text: `${screenName(output.name)}${output.connected ? "" : " · nothing connected"}`,
+              text: `${screenName(output.name, output.kind)}${output.connected ? "" : " · nothing connected"}${showing.has(output.name) ? ` · shows ${showing.get(output.name)}` : ""}`,
               selected: client && client.client_id === wall.client_id && output.name === wall.output,
             }),
           )
@@ -1482,6 +1495,7 @@ function whereSection(wall, shownBy, done) {
   };
   player.addEventListener("change", fillScreens);
   fillScreens();
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
   return el("div", { class: "panel" }, [
     el("h3", { text: "Where it shows" }),
     assignmentLine(wall, shownBy),
@@ -1505,18 +1519,37 @@ function whereSection(wall, shownBy, done) {
                     body: JSON.stringify({ client_id: player.value, output: screen.value }),
                   })
                 : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
-            { then: done },
+            { then: closeUnlessNoticed(edit, said) },
           ),
       }),
     ]),
+    said,
   ]);
+}
+
+/* What a write that places a wall or a label does next. The server keeps an
+ * assignment it cannot confirm (a display no Player reports now, a port the
+ * Player has not listed) and says so in `notice`, which is the part the curator
+ * has to act on: said here, in the section that made it, with the dialog left
+ * open to read it. Otherwise the dialog closes, for the card to show the change. */
+function closeUnlessNoticed(edit, said) {
+  return (answer) => {
+    if (!answer || !answer.notice) {
+      edit.done();
+      return;
+    }
+    edit.changed();
+    said.textContent = answer.notice;
+    said.hidden = false;
+  };
 }
 
 /* The label panels captioning the wall, each with *Stop captioning*, then one to
  * add from those the Players reported that caption no wall: the server refuses a
  * panel captioning another wall until it is taken off that one, so offering it
  * would offer a choice that cannot succeed. */
-function labelsSection(wall, shownBy, done) {
+function labelsSection(wall, shownBy, edit) {
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const offered = clients.flatMap((client) =>
     (client.label_outputs || []).filter((label) => label.wall_id == null).map((label) => ({ client, output: label.output })),
@@ -1544,7 +1577,7 @@ function labelsSection(wall, shownBy, done) {
               event.currentTarget,
               `stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
               () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels/${encodeURIComponent(label.label_id)}`, { method: "DELETE" }),
-              { then: done },
+              { then: edit.done },
             ),
         }),
       ]),
@@ -1567,7 +1600,7 @@ function labelsSection(wall, shownBy, done) {
                     method: "POST",
                     body: JSON.stringify({ client_id: client.client_id, output }),
                   }),
-                { then: done },
+                { then: closeUnlessNoticed(edit, said) },
               );
             },
           }),
@@ -1575,6 +1608,7 @@ function labelsSection(wall, shownBy, done) {
       : wall.labels && wall.labels.length
         ? null
         : el("p", { class: "muted", text: "No Player has reported a label panel." }),
+    said,
   ]);
 }
 

@@ -256,7 +256,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q49 | Which client drives that display? Asked by `GET /client` (the client's own walls), by admission to the per-wall routes, and by Walls. | Owner 2026-10-08 (same) |
 | Q50 | Which label outputs caption this wall? Asked by Walls and by `GET /client` (the labels a client renders). | Owner 2026-10-08 (`labels-and-surfaces.md` ruling 3) |
 | Q51 | Which client holds each label output? Asked by `GET /client` and by admission to `GET /labels/{label_id}`. | Owner 2026-10-08 (same) |
-| Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Clients, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
+| Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Players, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
 | Q53 | Which work did this wall show last, and until when, whatever its screen does now? Asked by Walls for a dark screen, and by its MCP twin. | Owner 2026-10-11 (ruling 3) and 2026-10-14 (#316) |
 | Q54 | Has this work ever been shown on any wall? Asked by Artworks' *Never shown*. | Owner 2026-10-14 (#316) |
 | Q55 | Which works has no wall shown since this instant? Asked by Artworks' *Not in the last month / 3 months / a year*. | Owner 2026-10-15 (#316) |

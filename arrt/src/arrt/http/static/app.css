@@ -2362,43 +2362,34 @@ section.scene {
   margin: 0 0 var(--space-3);
 }
 
-/* -- clients ---------------------------------------------------------------- */
+/* -- players ---------------------------------------------------------------- */
 
-/* One client's parts, spaced as the panel's own sections: what it reported,
-   what it shows, how to give it more, and the acts on the client itself. */
-.client > * + * {
-  margin-top: var(--space-4);
-}
-
-.client :is(.client-outputs, .client-walls, .client-assign) p {
-  margin: 0 0 var(--space-2);
-}
-
-/* A picker's options carry an output's state and the wall it shows, and are
-   longer than a phone is wide: the control shrinks to the panel instead. */
-.client .field,
-.client select {
-  max-width: 100%;
-  min-width: 0;
-}
-
-/* A wall the client shows, or a label output and the wall it captions, with
-   the control that takes it off, on one line where there is room and wrapping
-   beneath the name where there is not. */
-:is(.client-wall-list, .client-label-list) {
+/* A row's screens and its label panels: one per line, each its state and then
+   the wall on it, wrapping beneath where a phone has no room beside. */
+.player-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-:is(.client-wall-list, .client-label-list) li {
+.player-list li + li {
+  margin-top: var(--space-2);
+}
+
+.player-list li,
+.player-status {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2) 0;
-  border-bottom: 1px solid var(--border);
+  gap: 0 var(--space-3);
   overflow-wrap: anywhere;
+}
+
+.players td p {
+  margin: 0;
+}
+
+.player-fault {
+  margin-top: var(--space-4);
 }
 
 /* The token, the one time it is shown: wide enough to read whole, and never
@@ -3270,12 +3261,6 @@ section.offered + section.offered {
   font-size: var(--text-sm);
 }
 
-/* -- Clients: a report too old to speak for now -------------------------------- */
-
-.client-stale {
-  margin: 0 0 var(--space-2);
-}
-
 /* Search and the Artist page: a registry work or artist waiting for review. A
    link to the review it waits on, so it reads as a mark to act on, between
    held and not held; glyph and word carry the state. */
@@ -3811,9 +3796,9 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
 .ask-ending { font-size: var(--text-sm); color: var(--text-muted); margin: 0; }
 
 /* -- one theme's members --------------------------------------------------
-   Each row leads with the work on its mat, small enough that a theme of sixty
-   is still a list, large enough to tell one work from the next. The position
-   is a field of its own width, sized for three figures. */
+   Each row leads with its drag handle, then the work on its mat, small enough
+   that a theme of sixty is still a list, large enough to tell one work from the
+   next. */
 .member-picture {
   width: 4rem;
   height: 4rem;
@@ -3826,13 +3811,127 @@ table.select-column:not(:has(input[type="checkbox"]:not([hidden]))) :is(th, td):
   object-fit: contain;
 }
 
+/* The placeholder's words fit the small square whole: its padding is the
+   square's, and a stacked table's `overflow-wrap: anywhere` broke "picture"
+   mid-word on a phone. */
 .member-picture .card-image-absent {
   font-size: var(--text-xs);
+  padding: var(--space-1);
+  overflow-wrap: normal;
 }
 
-input.theme-position {
-  width: 4.5rem;
-  font-variant-numeric: tabular-nums;
+/* On a phone a member is one compact card, not a column of labelled cells: the
+   handle and its tick, the picture, and beside it the title, artist and size,
+   which say what they are without a heading over each. A theme of sixty stays a
+   list a thumb can drag through. */
+@media (max-width: 40rem) {
+  .theme-members-table.stacked tr {
+    display: grid;
+    grid-template-columns: auto 4rem minmax(0, 1fr);
+    column-gap: var(--space-3);
+    align-items: start;
+  }
+
+  .theme-members-table.stacked td.member-handle {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .theme-members-table.stacked td[data-label="Picture"] {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+
+  .theme-members-table.stacked td:is([data-label="Title"], [data-label="Artist"], [data-label="Size"]) {
+    grid-column: 3;
+    padding: 0;
+  }
+
+  table.theme-members-table.stacked td[data-label]::before {
+    content: none;
+  }
+
+  .member-handle .select-box {
+    margin-left: 0;
+  }
+}
+
+/* While selecting on a phone the page's own acts step out of the sticky toolbar,
+   as Artworks' View and Sort do: the acts on what is selected are the ones in
+   reach, and *Stop selecting* brings the others back. */
+@media (max-width: 40rem) {
+  .page-toolbar.selecting .page-act {
+    display: none;
+  }
+}
+
+/* The handle: a target a finger can hold (44 px, WCAG 2.5.5's size), and
+   `touch-action: none`, so dragging it on a phone moves the work rather than
+   scrolling the page. The tick beside it while *Select* is on. */
+.member-handle {
+  white-space: nowrap;
+}
+
+.drag-handle {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.member-handle .select-box {
+  margin-left: var(--space-2);
+}
+
+/* While a work is dragged, its row is quieter and the row it would land on
+   carries a rule on the side it lands at: a mark of position, with no
+   colour carrying it alone (the rule is the shape). */
+.theme-members-table tr.dragging {
+  opacity: 0.5;
+}
+
+.theme-members-table tr.drop-target td {
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+
+.theme-members-table tr.drop-target.drop-below td {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.theme-description {
+  margin: var(--space-4) 0 0;
+  max-width: 65ch;
+}
+
+/* *Hang…*'s walls: one tick per line, each with its wall's name. */
+.hang-walls {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 /* A raw sentence shown under `?debug` carries a path wider than a phone, and
