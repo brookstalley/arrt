@@ -258,12 +258,14 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     assert ui.page.locator(".panel h2").count() == 0
     # The panels left the cards for each wall's Edit… dialog (ruling 4 of
     # 2026-10-27), so none sits beside another wall's on the page; opened, one
-    # wall's dialog has its own title and its six panels a rank below it.
+    # wall's dialog has its own title and its seven panels a rank below it.
     assert ui.page.locator("#view .panel h3").count() == 0
     ui.page.locator(f"section.wall[data-wall='{the_wall.id}'] button.wall-edit").click()
     dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
     assert dialog.locator("h2").all_text_contents() == [f"Edit {the_wall.name}"]
-    assert dialog.locator(".panel h3").count() == 6
+    # Name, where it shows, label panel, rotation, shapes, mat and Delete.
+    assert dialog.locator(".panel h3").count() == 7
     # And with nothing empty there is no take-down note: a caption with nothing
     # to caption. This is the other half of the guard the sibling test above
     # exercises, and without it the guard could be deleted with the suite green.

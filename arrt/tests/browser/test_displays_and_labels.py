@@ -108,9 +108,8 @@ def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls
             dialog = open_edit(ui, previous)
             dialog.get_by_role("button", name=f"Stop the label panel on Hall Pi captioning {previous.name}").click()
             dialog.wait_for(state="detached")
-            # The cards repaint from a fresh read once the dialog closes, and a
-            # dialog opened from a card before then offers what was true before
-            # the stop: the panel, still captioning, is not offered.
+            # The cards repaint once the dialog closes; waiting for it means the
+            # Edit… pressed next is on the new card, not one about to be replaced.
             stale.wait_for_element_state("hidden")
         dialog = open_edit(ui, wall)
         dialog.get_by_label(f"Caption {wall.name} with", exact=True).select_option(label="the label panel on Hall Pi")
@@ -128,6 +127,34 @@ def test_the_panel_captions_each_display_in_turn(ui, services, hall, three_walls
             ui.page.keyboard.press("Escape")
             dialog.wait_for(state="detached")
         previous = wall
+
+
+def test_edit_opened_before_the_page_repaints_offers_what_is_true_now(ui, services, hall, three_walls):
+    """*Edit…* reads the wall and its Players when pressed, not from the page's last paint.
+
+    The panel is stopped with the request *Stop captioning* sends, from the page
+    but outside any dialog, so no repaint follows it: this page does not poll, and
+    a dialog built from the paint before the stop would still see the panel
+    captioning Living and offer it to no other wall.
+    """
+    living, study, _ = three_walls
+    label = services.clients.add_label(living.id, client_id=hall.id, output="epd-0").label
+    open_walls(ui)
+    stopped = ui.page.evaluate(
+        "(path) => fetch(path, { method: 'DELETE' }).then((r) => r.status)",
+        f"/api/walls/{living.id}/labels/{label.id}",
+    )
+    assert stopped == 200
+
+    dialog = open_edit(ui, study)
+    offered = dialog.get_by_label(f"Caption {study.name} with", exact=True).locator("option").all_inner_texts()
+    assert "the label panel on Hall Pi" in offered
+    ui.page.keyboard.press("Escape")
+    dialog.wait_for(state="detached")
+
+    # And the wall that lost it no longer says it is captioned.
+    dialog = open_edit(ui, living)
+    assert dialog.locator(".wall-labels").count() == 0
 
 
 def test_a_player_with_no_panel_says_it_reported_none(ui, services, hall):

@@ -10,6 +10,25 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Deleting a wall, and Edit… reading what is true — added 2026-10-30
+
+**`build-plan-delete-a-wall.md` chunk 03, and #400.** On the NAS, once the release
+with this branch is deployed. Make a spare wall for this rather than deleting one
+you use: *Add wall…*, name it, put it on a Player's spare screen if there is one,
+and hang a theme on it.
+
+- **The question.** *Edit…* the spare wall, then *Delete…*. Does *Delete {wall}?*
+  say what you would want to know before saying yes: the theme it hangs (which
+  stays), the Player that stops showing it, its label panel, that its history
+  stays? Cancel once, then delete it.
+- **Afterwards.** The wall is gone from Walls; the theme is still on Themes; on
+  Settings › Players its screen shows no wall, and its Player's screen stops
+  showing the spare wall within a poll or two.
+- **Fresh dialogs.** On Walls, stop a label panel captioning one wall in its
+  *Edit…*, and open another wall's *Edit…* at once: the panel is offered.
+- **The words and the weight.** Is *Delete…* where you would look for it, last in
+  *Edit…*, and quiet rather than alarming, as a theme's is?
+
 ### Settings › Players, Themes and a theme's page, rebuilt to the page rules — added 2026-10-29
 
 **`build-plan-ui-pass-themes-players.md` chunk 05.** On the NAS, once the release

@@ -389,3 +389,50 @@ def test_dropping_the_directives_is_safe_to_run_again(tmp_path):
     finally:
         catalogue.close()
     assert "directives" not in _names(path, "table")
+
+
+def test_an_old_file_whose_first_open_was_interrupted_still_carries_its_hung_theme(tmp_path):
+    """An empty `walls` table beside `themes.is_active` is an unfinished move, not a curator's delete."""
+    path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("CREATE TABLE walls (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    try:
+        [wall] = catalogue.list_walls()
+        assert wall.name == "Living room"
+        assert catalogue.get_assignment(wall.id).theme_id == "t1"
+    finally:
+        catalogue.close()
+
+
+def test_a_catalogue_opened_by_a_relative_path_opens_again(tmp_path, monkeypatch):
+    """`ART_ROOT` may be relative; asking whether the file had walls must not refuse it."""
+    monkeypatch.chdir(tmp_path)
+    SqliteCatalogue(open_catalogue_file("catalogue.sqlite", wall_name="Living room")).close()
+
+    again = SqliteCatalogue(open_catalogue_file("catalogue.sqlite", wall_name="Living room"))
+    try:
+        assert [wall.name for wall in again.list_walls()] == ["Living room"]
+    finally:
+        again.close()
+
+
+def test_a_file_whose_walls_were_all_deleted_opens_with_none_and_says_so(tmp_path, caplog):
+    path = tmp_path / "catalogue.sqlite"
+    first = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    [wall] = first.list_walls()
+    first.remove_wall(wall.id)
+    first.close()
+
+    with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
+        again = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    try:
+        assert again.list_walls() == []
+        assert any("No wall is recorded" in record.getMessage() for record in caplog.records)
+    finally:
+        again.close()

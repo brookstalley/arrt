@@ -120,16 +120,14 @@ export async function viewWalls(generation) {
   const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall)));
 
   if (!walls.walls.length) {
-    // Not one of the four, and stated rather than left as an empty page: a wall
-    // is recorded when the plane first opens the catalogue, so none at all is a
-    // fact about the deployment rather than about anybody's curation.
+    // Not one of the four, and stated rather than left as an empty page. A new
+    // catalogue gets a wall; none at all means the curator deleted them, so the
+    // way back is the toolbar's *Add wall…*, where it always is.
     render(
       generation,
       heading(),
-      emptyState(
-        "No wall is recorded, so there is nowhere to hang anything.",
-        "A wall is created when the plane first opens the catalogue.",
-      ),
+      toolbar({ actions: [addWallOpener()] }),
+      emptyState("No wall is recorded, so there is nowhere to hang anything.", "Add a wall to give art a place to hang."),
     );
     return;
   }
@@ -137,7 +135,8 @@ export async function viewWalls(generation) {
   const live = scenes ? scenes.live : null;
   const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live));
   // The live scene, if any, is one line above the cards; assembling one is the
-  // Scene… dialog's. Both are painted from the same read, by `paintScene`.
+  // Scene… dialog's, which reads the scene again when pressed. Both are painted
+  // by `paintScene`.
   const scene = { walls: walls.walls, scenes, node: el("section", { class: "scene", "aria-label": "Scene", hidden: true }), panel: null };
   paintScene(scene, scenes);
   render(
@@ -173,14 +172,25 @@ function sceneOpener(scene) {
     type: "button",
     text: "Scene…",
     "aria-haspopup": "dialog",
-    onclick: () => {
+    onclick: async (event) => {
+      // Read when pressed, not from the page's last paint: a draft assembled or a
+      // scene released elsewhere (over MCP) since then is what this dialog acts
+      // on, and a wall added or renamed since is one it offers. A scene that
+      // cannot be read opens the dialog to say so; walls that cannot be read
+      // leave the ones the page has.
+      const fresh = await readingOnce("scene", event.currentTarget, () =>
+        Promise.all([api("/api/scenes/live").catch(() => null), api("/api/walls").catch(() => null)]),
+      );
+      if (!fresh) return;
+      const [scenes, walls] = fresh;
+      if (walls) scene.walls = walls.walls;
       scene.panel = openPanel({
         title: "Scene",
         lead: "Show chosen works on your walls together, for a while. Each wall then goes back to what it hangs.",
         body: [],
         onClose: () => (scene.panel = null),
       });
-      paintScene(scene, scene.scenes);
+      paintScene(scene, scenes);
     },
   });
 }
@@ -426,13 +436,13 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
         text: "Edit…",
         "aria-haspopup": "dialog",
         "aria-label": `Edit ${wall.name}…`,
-        onclick: () => editWall(wall, manifest, shownBy),
+        onclick: (event) => editWall(event.currentTarget, wall),
       }),
     ]),
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
     // when it is a problem: no Player, or a screen two Players claim.
-    assignmentProblem(wall, () => editWall(wall, manifest, shownBy)),
+    assignmentProblem(wall, (event) => editWall(event.currentTarget, wall)),
     // The server's sentence, so Walls and the tool surface say the same thing
     // about a Player that cannot read this server's feed. Under the lead, which
     // leads the card whatever else it has to say.
@@ -1393,7 +1403,25 @@ const EXCLUSION_WORDS = {
  * the card is where they show; the rotation, shapes and mat leave it open to go
  * on working in, and the card's *Changes*, next works and what it cannot show
  * catch up on the way out. */
-function editWall(wall, manifest, shownBy) {
+async function editWall(control, painted) {
+  // Read when pressed, never from the page's last paint: a write in another
+  // dialog, or on another surface, lands before any repaint that follows it, and
+  // a dialog drawn from that paint offers what the write just changed (a label
+  // panel still captioning the wall it was taken off, a screen still taken).
+  let wall = null;
+  let shownBy = null;
+  let feed = null;
+  const read = await readingOnce(`edit-${painted.wall_id}`, control, () =>
+    attempt(control, `open ${painted.name}'s settings`, async () => {
+      const [walls, listing] = await Promise.all([api("/api/walls"), clientListing()]);
+      wall = walls.walls.find((each) => each.wall_id === painted.wall_id);
+      if (!wall) throw new Error("it is no longer recorded; reload the page");
+      shownBy = listing;
+      feed = await built(wall);
+    }),
+  );
+  if (!read) return;
+  const manifest = feed.manifest || null;
   const edit = editing();
   edit.panel = openPanel({
     title: `Edit ${wall.name}`,
@@ -1401,11 +1429,90 @@ function editWall(wall, manifest, shownBy) {
       nameSection(wall, edit.done),
       whereSection(wall, shownBy, edit),
       labelsSection(wall, shownBy, edit),
+      // The rotation, shapes and mat are set against the wall's feed; when it
+      // cannot be read they are not offered, and the dialog says why rather
+      // than leaving the curator to notice three panels missing.
+      feed.failure
+        ? el("p", { class: "note wall-feed-unread", text: `Its rotation, shapes and mat cannot be set here: the wall's feed could not be read — ${feed.failure}.` })
+        : null,
       ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
       manifest ? matPanel(wall, edit.changed) : null,
+      el("div", { class: "panel" }, [
+        el("h3", { text: "Delete" }),
+        el("div", { class: "row" }, [
+          el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Delete…",
+            "aria-label": `Delete ${wall.name}…`,
+            // Asked with this dialog closed, so the question is the only one on
+            // the page, as a theme's is; a refusal is said beside the control
+            // that opened the dialog.
+            onclick: () => {
+              edit.panel.close();
+              deleteWall(control, wall, shownBy);
+            },
+          }),
+        ]),
+      ]),
     ],
     onClose: edit.closed,
   });
+}
+
+/* *Delete…*: forgets the wall for good (the owner's rulings of 2026-10-30,
+ * `build-plan-delete-a-wall.md`). The question names what goes with it and what
+ * stays, from what *Edit…* read when it was pressed: the theme it hangs stays,
+ * its Player stops showing it, its label panels caption nothing, and its history
+ * stays. Then the page is painted again, from the walls that remain. */
+async function deleteWall(control, wall, shownBy) {
+  const confirmed = await confirmAct({
+    title: `Delete ${wall.name}?`,
+    consequence: deletingSays(wall, shownBy),
+    confirmLabel: `Delete ${wall.name}`,
+  });
+  if (!confirmed) return;
+  await attempt(control, `delete ${wall.name}`, () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}`, { method: "DELETE" }), {
+    then: () => {
+      if (state.view === "walls") refresh();
+    },
+  });
+}
+
+function deletingSays(wall, shownBy) {
+  const player = wall.client_id && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
+  const panels = wall.labels.length;
+  return [
+    wall.theme
+      ? wall.theme.hidden
+        ? "It hangs a selection, which goes once no wall hangs it."
+        : `It hangs ${wall.theme.name}, which stays in your themes.`
+      : null,
+    player ? `${player.name} stops showing it.` : wall.client_id ? "Its Player stops showing it." : null,
+    panels ? (panels === 1 ? "Its label panel stops captioning." : `Its ${panels} label panels stop captioning.`) : null,
+    "Its history stays. The wall cannot be brought back.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/* Run a dialog's read once per dialog. A second press while the first read is
+ * out does nothing, so two dialogs never stack, keyed by the dialog rather than
+ * the button because two buttons open a wall's *Edit…* (the card's, and *Choose
+ * its Player…*). A read that comes back after its button has gone — the curator
+ * left Walls, or left and came back to a page painted since — opens nothing.
+ * Answers what the read did, or null for a press ignored or arriving too late. */
+const reading = new Set();
+
+async function readingOnce(key, control, read) {
+  if (reading.has(key)) return null;
+  reading.add(key);
+  try {
+    const answer = await read();
+    return state.view === "walls" && control.isConnected ? answer : null;
+  } finally {
+    reading.delete(key);
+  }
 }
 
 /* What a dialog that changes walls needs: `changed` when an act lands, `done`

@@ -66,6 +66,76 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-30: A wall can be deleted (#391)
+
+<!-- prawduct: scope=delete-a-wall -->
+
+**Why:** a wall that was no longer a place stayed on Walls for good: nothing in
+the server could delete one. The owner ruled on 2026-10-30
+(`build-plan-delete-a-wall.md` § Goals): permanent, the history stays; a wall in
+the live scene leaves it and the scene goes on; a theme hanging on it does not
+stop the delete; the last wall may go.
+
+**What changed:**
+- **The server.** `DisplayService.delete_wall`, `DELETE /api/walls/{wall_id}` and
+  `art_display(action='delete_wall')`. What the wall hangs comes down and the
+  theme stays (a selection nothing else hangs is retired); its label panels stay
+  recorded and caption nothing; its screen is freed; its pick in a scene being
+  assembled goes; its feed and heartbeat files are removed. Its showings,
+  history and the live scene's record stay. A Player that showed it meets what
+  an unassigned wall gives it, so the contract is unchanged.
+- **A file emptied of walls stays empty.** The first wall is made only when the
+  file has never had a `walls` table (a new file, or one from before walls), so
+  deleting the last wall is not undone at the next restart.
+- **History names a deleted wall.** `work.left_theme` and `work.excluded` carry
+  `wall_name` from now on, as `wall.hung` does.
+- **Walls.** *Delete…* last in a wall's *Edit…*, asked with the dialog closed,
+  naming the theme it hangs (which stays), the Player that stops showing it, its
+  label panels, and that its history stays. With no wall, the page offers
+  *Add wall…*.
+- **Edit… guarded per wall** (from the #400 review): *Choose its Player…* and
+  *Edit…* pressed together open one dialog, and a read that returns to a page
+  painted since opens nothing.
+- **MCP.** `art_display`'s action menu is held to a 2 KB budget, so five existing
+  action descriptions were shortened to make room for `delete_wall` (`status`,
+  `sync`, `add_wall`, `remove_client`, `issue_client_token`), meaning kept.
+- Tests: a unit test per dependant, each with a second wall keeping its own; the
+  route and tool over a real server; the Player's document and routes after a
+  delete; browser tests for *Delete…*, Cancel, the last wall and the carry-overs,
+  each seen to fail on the code before. Three existing browser tests now count
+  *Delete* among the dialog's panels.
+
+**Passed only on retry:** `test_asking.py::test_a_returning_page_draws_the_thread_as_it_was`
+failed once in the parallel browser suite and passed three times alone; Asking
+is untouched here.
+
+Closes #391.
+
+## 2026-10-30: Walls' Edit… and Scene… read what is true when pressed (#400)
+
+<!-- prawduct: scope=walls-stale-edit -->
+
+**Why:** a wall's *Edit…* was drawn from the page's last paint, so one opened
+after a write the page had not repainted for (another dialog's, or one made over
+MCP) offered pre-write state: a label panel just stopped was offered to no wall.
+*Scene…* had the same shape: a draft assembled over MCP since the paint was not
+in it. Walls does not poll, so the window lasted until the next repaint.
+
+**What changed:**
+- *Edit…* reads the walls, the Players and the wall's feed when pressed, and
+  opens from that. A feed that cannot be read is said in the dialog, where the
+  rotation, shapes and mat it holds would be. A wall deleted since the page
+  painted refuses beside *Edit…* and opens nothing.
+- *Scene…* reads the scene and the walls when pressed, so a wall added or
+  renamed since the page painted is offered as it is now.
+- A second press while a dialog's read is out does nothing, and a read that
+  returns after the curator has left Walls opens nothing over the next page.
+- Tests: browser tests for each of the above, each seen to fail on the code
+  before it. Two existing tests that read a dialog the moment it was clicked now
+  wait for it to open.
+
+Closes #400.
+
 ## 2026-10-29: Settings › Players, Themes and a theme's page, rebuilt to the page rules (UI pass, part 3)
 
 <!-- prawduct: scope=ui-pass-themes-players -->

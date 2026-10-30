@@ -685,6 +685,62 @@ class DisplayService:
         if any(other.name == wall.name and other.id != wall.id for other in self._store.list_walls()):
             raise ServiceError(f"Another wall is already called {wall.name!r}.")
 
+    def delete_wall(self, wall_id: str) -> Wall:
+        """Forget a wall for good, freeing its screen and its label panels; its history stays.
+
+        The owner's rulings of 2026-10-30 (`build-plan-delete-a-wall.md` § Goals),
+        each row that names the wall decided rather than left to a foreign key:
+
+        - **What it hangs comes down**, and a selection nothing else hangs is
+          retired as `clear_wall` retires one. The theme stays: it is not the
+          wall's, and a theme hung here is no reason to refuse.
+        - **Its label panels stay recorded and caption nothing**, offered to
+          other walls as any free panel is. Its screen is freed with the row.
+        - **Its pick in a scene being assembled goes**, or the draft could never
+          be applied. In the live scene its pin is kept: that is the scene's
+          record, and the scene goes on for the walls left (`scene_walls`
+          skips a wall no longer recorded).
+        - **Its showings and history stay**, as `data-model.md` says they
+          outlive a wall; no event is written for the delete, as none is for a
+          theme deleted or a Player removed.
+        - **Its feed and heartbeat files go**, after the commit, as a removed
+          Player's report does. Its Player stops showing it on its next poll:
+          `GET /client` no longer lists it, and its routes answer 403 for a wall
+          the server does not hold (`player-contract.md`).
+
+        The last wall may go too; the file then opens with none
+        (`migrations.establish_the_wall`). Returns the wall as it was, so a
+        caller can name it.
+        """
+        wall = self.get_wall(wall_id)
+        with self._store.transaction():
+            assignment = self._store.get_assignment(wall_id)
+            if assignment is not None:
+                store_write(self._store.remove_assignment, wall_id)
+                self._retire_selection(assignment)
+            for label in self._store.list_label_outputs():
+                if label.wall_id == wall_id:
+                    store_write(self._store.update_label_output, replace(label, wall_id=None))
+            for draft in self._store.list_scenes(SceneStatus.DRAFT):
+                if any(pin.wall_id == wall_id for pin in self._store.list_pins(draft.id)):
+                    store_write(self._store.remove_pin, draft.id, wall_id)
+            store_write(self._store.remove_wall, wall_id)
+        # After the commit, for the reason `ClientService.remove_client` gives:
+        # files nothing will read again would otherwise sit under the art root.
+        self._settings.manifest_v2_path(wall_id).unlink(missing_ok=True)
+        self._settings.heartbeat_path(wall_id).unlink(missing_ok=True)
+        log.info(
+            "Deleted wall %r (%s)%s.",
+            wall.name,
+            wall_id,
+            (
+                f"; took down {self.get_theme(assignment.theme_id).name!r}"
+                if assignment and self._store.get_theme(assignment.theme_id)
+                else ""
+            ),
+        )
+        return wall
+
     # -- writes: themes and membership ----------------------------------------
 
     def set_mat_mode(self, wall_id: str, mode: MatMode | str | None) -> Wall:
@@ -1010,7 +1066,10 @@ class DisplayService:
                 wall_id=wall_id,
                 theme_id=theme.id,
                 work_id=artwork_id,
-                detail={"theme_name": theme.name, "selection": theme.hidden},
+                # The wall's name too, as a hang carries it: a history outlives
+                # the wall it names, and once that wall is deleted this is the
+                # only place its name is kept.
+                detail={"theme_name": theme.name, "selection": theme.hidden, "wall_name": wall.name},
             )
         )
         return theme
@@ -1026,15 +1085,22 @@ class DisplayService:
         history so that wall's history shows the act. It changes nothing else.
         """
         self._require_held(artwork_id)
-        if wall_id is not None:
-            self.get_wall(wall_id)
+        looking_at = self.get_wall(wall_id) if wall_id is not None else None
         if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
             raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
         exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
         with self._store.transaction():
             store_write(self._store.add_exclusion, exclusion)
             self._withdraw(artwork_id, [wall.id for wall in self._store.list_walls()], cause="being kept off every wall")
-        self._library.record(ProgrammingAct(kind=EventKind.EXCLUDED, wall_id=wall_id, work_id=artwork_id))
+        self._library.record(
+            ProgrammingAct(
+                kind=EventKind.EXCLUDED,
+                wall_id=wall_id,
+                work_id=artwork_id,
+                # Named for the reason `leave_theme` names it.
+                detail={"wall_name": looking_at.name} if looking_at else {},
+            )
+        )
         return exclusion
 
     def allow_work(self, artwork_id: str) -> None:
@@ -1583,10 +1649,8 @@ class DisplayService:
         walls: list[SceneWall] = []
         answers = self._library.playable(sorted({pin.work_id for pin in view.pins}))
         kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
-        for pin in view.pins:
+        for pin in self._pins_on_held_walls(view.pins):
             wall = self._store.get_wall(pin.wall_id)
-            if wall is None:
-                continue
             contents = heartbeat.read(self._settings.heartbeat_path(wall.id)).contents or {}
             walls.append(
                 SceneWall(
@@ -1651,11 +1715,9 @@ class DisplayService:
             for work_id, answer in self._library.playable(sorted({pin.work_id for pin in pins})).items()
             if isinstance(answer, PlayableWork)
         }
-        for pin in pins:
+        for pin in self._pins_on_held_walls(pins):
             wall = self._store.get_wall(pin.wall_id)
-            words: dict[str, object] = {"scene_id": scene.id, **detail}
-            if wall is not None:
-                words["wall_name"] = wall.name
+            words: dict[str, object] = {"scene_id": scene.id, **detail, "wall_name": wall.name}
             if pin.work_id in titles:
                 words["title"] = titles[pin.work_id]
             self._library.record(ProgrammingAct(kind=kind, wall_id=pin.wall_id, work_id=pin.work_id, detail=words))
@@ -1675,16 +1737,30 @@ class DisplayService:
             if scene.status_at(now) is SceneStatus.ENDED and scene.until is not None
         ]
 
+    def _pins_on_held_walls(self, pins: Iterable[ScenePin]) -> list[ScenePin]:
+        """The pins whose wall the store still holds.
+
+        A wall deleted while a scene was live leaves its pin as the scene's record
+        (`delete_wall`), and has left the scene: it is shown nothing, named in no
+        new history line, and its feed, removed with it, is not republished.
+        Every path that acts on a scene's pins takes them through here, so none
+        meets the deleted wall in a way of its own.
+        """
+        held = {wall.id for wall in self._store.list_walls()}
+        return [pin for pin in pins if pin.wall_id in held]
+
     def _wall_names(self, wall_ids: Iterable[str]) -> str:
-        names = []
-        for wall_id in wall_ids:
-            wall = self._store.get_wall(wall_id)
-            names.append(repr(wall.name) if wall is not None else wall_id)
-        return ", ".join(names) or "no wall"
+        held = {wall.id: wall.name for wall in self._store.list_walls()}
+        return ", ".join(repr(held[wall_id]) for wall_id in wall_ids if wall_id in held) or "no wall"
 
     def _patch_walls(self, wall_ids: Iterable[str]) -> None:
-        """Republish each wall's feed as it stands, so it carries the control layer as the store now says."""
-        for wall_id in dict.fromkeys(wall_ids):
+        """Republish each wall's feed as it stands, so it carries the control layer as the store now says.
+
+        A wall the store no longer holds is passed over: it was deleted, and its
+        feed with it.
+        """
+        held = {wall.id for wall in self._store.list_walls()}
+        for wall_id in dict.fromkeys(wall_id for wall_id in wall_ids if wall_id in held):
             feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
             if feed is None:
                 # A wall with no feed has nothing to show a scene over, and a pin

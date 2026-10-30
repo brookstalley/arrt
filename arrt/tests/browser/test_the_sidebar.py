@@ -596,7 +596,7 @@ def test_the_indicator_refuses_to_report_well_from_a_reading_it_did_not_take(ui,
 
 
 def test_a_deployment_with_no_wall_at_all_is_not_reported_as_well(ui, a_health_reading):
-    """A wall is created when the plane first opens the catalogue, so none is a state.
+    """A new catalogue gets a wall, so none (every wall deleted) is a state to say.
 
     Nothing can be shown at all, and there is no missing heartbeat to say so —
     which is exactly the shape of silence an empty list would sail through.

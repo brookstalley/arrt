@@ -237,6 +237,8 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     # The wall's settings, in its Edit… dialog (ruling 4 of 2026-10-27), and
     # nothing else.
     ui.page.get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    # It opens once it has read the wall, which it does when pressed.
+    ui.page.locator("dialog.panel-dialog").wait_for()
     assert ui.page.locator("dialog.panel-dialog .panel h3").all_text_contents() == [
         "Name",
         "Where it shows",
@@ -244,6 +246,7 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
         "How it rotates",
         "Shapes it shows",
         "Mat",
+        "Delete",
     ]
 
 

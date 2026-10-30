@@ -19,6 +19,7 @@ import logging
 import sqlite3
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Final
 
 log = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ DEFAULT_WALL_NAME: Final[str] = "The wall"
 _DROP_COLUMN_SINCE: Final[tuple[int, int, int]] = (3, 35, 0)
 
 
-def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> None:
+def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str, seed: bool = True) -> None:
     """Move a single-wall catalogue onto `Wall` and `ThemeAssignment`.
 
     Before 2026-08-12 a theme was hung by a boolean on the theme itself — one
@@ -56,8 +57,24 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str) -> Non
     **The name is written once.** A wall that already exists keeps the name it
     has — it is the curator's word by then, and configuration must not overwrite
     it on the next restart. Nothing here renames a wall.
+
+    **`seed` is false for a file that already had a `walls` table**, which the
+    caller reads before the schema runs. Such a file with no wall in it is one
+    whose curator deleted them all, which is theirs to do: seeding one back on
+    every restart would undo the delete. A file with no `walls` table is new, or
+    predates walls, and both still get one; one from before walls is recognised
+    by its `themes.is_active` too, so an open interrupted before this ran still
+    carries its hung theme. One edge is accepted: a *new* file interrupted after
+    its schema committed and before this ran opens next time with no wall, and
+    Walls offers *Add wall…*.
     """
-    if _walls(connection):
+    # A file from before walls still carries `themes.is_active` until this has
+    # run to the end, so it is carried even when an interrupted open left an
+    # empty `walls` table behind and the caller saw one.
+    carry = seed or _has_column(connection, "themes", "is_active")
+    if _walls(connection) or not carry:
+        if not _walls(connection):
+            log.info("No wall is recorded; Walls offers Add wall….")
         _drop_what_the_wall_replaced(connection)
         return
 
@@ -457,3 +474,21 @@ def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
         connection.execute(f'ALTER TABLE themes DROP COLUMN "{column}"')
     connection.commit()
     log.info("Dropped themes.rotation_interval_seconds and themes.shuffle; they are the wall's now.")
+
+
+def file_had_table(path: Path | str, table: str) -> bool:
+    """Whether the file holds `table` before this open's schema creates it.
+
+    Asked before the store opens, because the schema creates every table it
+    names: afterwards a new file and an emptied one look alike. Read-only, so a
+    path that does not exist yet is not created by asking.
+    """
+    if not Path(path).exists():
+        return False
+    # Resolved, because `as_uri` refuses a relative path, and `ART_ROOT` may be one.
+    connection = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        found = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone()
+    finally:
+        connection.close()
+    return found is not None

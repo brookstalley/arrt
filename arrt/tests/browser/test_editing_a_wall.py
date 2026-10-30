@@ -353,3 +353,238 @@ def test_adding_a_wall_with_a_taken_name_is_refused_in_the_dialog(ui, services, 
     failure.wait_for()
     assert f"Another wall is already called '{the_wall.name}'." in failure.inner_text()
     assert len(services.display.survey_walls()) == 1
+
+
+# -- read when pressed ---------------------------------------------------------
+#
+# Edit… reads the wall, its Players and its feed when pressed. The tests below
+# hold that read open with a route the test releases itself, so what happens
+# while it is out is asked about at a moment the test chooses.
+
+
+def holding(ui, pattern):
+    """Hold requests matching `pattern` until `release()`; `stop()` lets later ones through.
+
+    Answers (held, stop, release).
+    """
+    held = []
+    holding_now = [True]
+
+    def hold(route):
+        if holding_now[0]:
+            held.append(route)
+        else:
+            route.continue_()
+
+    def stop():
+        holding_now[0] = False
+
+    def release():
+        stop()
+        for route in held:
+            route.continue_()
+
+    ui.page.route(pattern, hold)
+    return held, stop, release
+
+
+def test_a_second_press_while_the_read_is_out_opens_one_dialog(ui, the_wall):
+    ui.open("#walls")
+    held, _, release = holding(ui, "**/api/walls")
+    edit = card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…")
+    edit.click()
+    edit.click()
+    release()
+
+    ui.page.locator("dialog.panel-dialog").wait_for()
+    assert len(held) == 1
+    assert ui.page.locator("dialog.panel-dialog").count() == 1
+
+
+def test_a_read_that_returns_after_leaving_walls_opens_nothing_on_the_next_page(ui, the_wall):
+    ui.open("#walls")
+    held, stop, release = holding(ui, "**/api/walls")
+    card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    stop()
+    ui.page.evaluate("() => { location.hash = '#clients'; }")
+    ui.page.wait_for_selector("#view h1:text-is('Players')")
+    assert len(held) == 1
+    with ui.page.expect_response("**/api/walls"):
+        release()
+    # The read's other half, the Players, answers after the walls; past it the
+    # handler has nothing left to wait on.
+    ui.page.wait_for_load_state("networkidle")
+
+    assert ui.page.locator("dialog.panel-dialog").count() == 0
+
+
+def test_a_feed_that_cannot_be_read_is_said_in_the_dialog(ui, services, the_wall, a_theme_to_hang):
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
+    ui.open("#walls")
+    ui.page.route(
+        "**/api/manifest?*",
+        lambda route: route.fulfill(status=500, content_type="application/json", body='{"error": "the feed is unreadable"}'),
+    )
+    card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+
+    assert dialog.locator(".panel h3").all_text_contents() == ["Name", "Where it shows", "Label panel", "Delete"]
+    said = dialog.locator(".wall-feed-unread").inner_text()
+    assert said.startswith("Its rotation, shapes and mat cannot be set here: the wall's feed could not be read")
+    assert "the feed is unreadable" in said
+
+
+def test_a_wall_gone_since_the_page_painted_is_said_beside_its_edit_and_opens_nothing(ui, services, the_wall):
+    study = services.display.add_wall(name="Study")
+    ui.open("#walls")
+    services.display.delete_wall(study.id)
+
+    edit = card(ui, "Study").get_by_role("button", name="Edit Study…")
+    edit.click()
+
+    said = card(ui, "Study").get_by_text("Couldn't open Study's settings")
+    said.wait_for()
+    assert "it is no longer recorded; reload the page" in said.inner_text()
+    assert ui.page.locator("dialog.panel-dialog").count() == 0
+
+
+def test_choose_its_player_and_edit_pressed_together_open_one_dialog(ui, the_wall):
+    ui.open("#walls")
+    held, _, release = holding(ui, "**/api/walls")
+    head = card(ui, the_wall.name)
+    head.get_by_role("button", name=f"Choose the Player for {the_wall.name}…").click()
+    head.get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    release()
+
+    ui.page.locator("dialog.panel-dialog").wait_for()
+    assert len(held) == 1
+    assert ui.page.locator("dialog.panel-dialog").count() == 1
+
+
+def test_a_read_that_returns_after_leaving_and_coming_back_opens_nothing(ui, the_wall):
+    ui.open("#walls")
+    held, stop, release = holding(ui, "**/api/walls")
+    card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    stop()
+    ui.page.evaluate("() => { location.hash = '#clients'; }")
+    ui.page.wait_for_selector("#view h1:text-is('Players')")
+    ui.page.evaluate("() => { location.hash = '#walls'; }")
+    ui.page.wait_for_selector("section.wall .wall-title")
+    assert len(held) == 1
+    with ui.page.expect_response("**/api/walls"):
+        release()
+    ui.page.wait_for_load_state("networkidle")
+
+    assert ui.page.locator("dialog.panel-dialog").count() == 0
+
+
+# -- Delete… -------------------------------------------------------------------
+
+
+def _confirm(ui):
+    dialog = ui.page.locator("dialog.confirm[open]")
+    dialog.wait_for()
+    return dialog
+
+
+def test_delete_names_what_goes_and_what_stays_and_the_wall_is_gone(ui, services, settings, the_wall, hall, a_theme_to_hang):
+    study = services.display.add_wall(name="Study")
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=study.id)
+    services.clients.record_heartbeat(
+        hall.id,
+        REPORT
+        | {
+            "reported_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "label_outputs": [{"name": "epd-0", "kind": "epaper", "connected": True, "size": [800, 480]}],
+        },
+    )
+    services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-1")
+    services.clients.add_label(study.id, client_id=hall.id, output="epd-0")
+
+    dialog = open_edit(ui, "Study")
+    assert dialog.locator(".panel h3").all_text_contents()[-1] == "Delete"
+    dialog.get_by_role("button", name="Delete Study…").click()
+    confirm = _confirm(ui)
+
+    assert confirm.locator(".confirm-title").inner_text() == "Delete Study?"
+    assert confirm.locator(".confirm-consequence").inner_text() == (
+        "It hangs Winter, which stays in your themes. Hall Pi stops showing it. "
+        "Its label panel stops captioning. Its history stays. The wall cannot be brought back."
+    )
+    assert ui.page.locator("dialog.panel-dialog").count() == 0, "asked with the Edit… dialog closed"
+    confirm.get_by_role("button", name="Delete Study").click()
+    card(ui, "Study").wait_for(state="detached")
+
+    assert set(walls_read(ui)) == {the_wall.id}
+    assert services.display.get_theme(a_theme_to_hang.id).name == "Winter"
+    players = ui.page.evaluate("() => fetch('/api/clients').then((r) => r.json())")["clients"]
+    assert [label["wall_id"] for label in players[0]["label_outputs"]] == [None], "the panel stays, captioning nothing"
+    assert card(ui, the_wall.name).count() == 1
+
+
+def test_cancel_deletes_nothing(ui, services, the_wall):
+    services.display.add_wall(name="Study")
+    dialog = open_edit(ui, "Study")
+    dialog.get_by_role("button", name="Delete Study…").click()
+    confirm = _confirm(ui)
+    assert confirm.locator(".confirm-consequence").inner_text() == "Its history stays. The wall cannot be brought back."
+    confirm.get_by_role("button", name="Cancel").click()
+    confirm.wait_for(state="detached")
+
+    assert {wall["name"] for wall in walls_read(ui).values()} == {the_wall.name, "Study"}
+
+
+def test_the_last_wall_deleted_leaves_a_page_that_offers_add_wall_and_it_works(ui, services, the_wall):
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_role("button", name=f"Delete {the_wall.name}…").click()
+    _confirm(ui).get_by_role("button", name=f"Delete {the_wall.name}").click()
+
+    empty = ui.page.locator("#view .empty")
+    empty.wait_for()
+    assert [line for line in empty.inner_text().split("\n") if line] == [
+        "No wall is recorded, so there is nowhere to hang anything.",
+        "Add a wall to give art a place to hang.",
+    ]
+    assert walls_read(ui) == {}
+
+    ui.page.get_by_role("button", name="Add wall…").click()
+    added = ui.page.locator("dialog.panel-dialog")
+    added.get_by_label("Name", exact=True).fill("Study")
+    added.get_by_role("button", name="Add wall").click()
+    card(ui, "Study").wait_for()
+    assert [wall["name"] for wall in walls_read(ui).values()] == ["Study"]
+
+
+def test_delete_says_a_selection_goes_and_counts_label_panels(ui, services, the_wall, hall, work_with_an_image):
+    study = services.display.add_wall(name="Study")
+    services.display.hang_selection([work_with_an_image(title="Golconda").id], wall_id=study.id)
+    panels = [{"name": f"epd-{n}", "kind": "epaper", "connected": True, "size": [800, 480]} for n in (0, 1)]
+    services.clients.record_heartbeat(
+        hall.id, REPORT | {"reported_at": datetime.now(UTC).isoformat(timespec="seconds"), "label_outputs": panels}
+    )
+    for panel in panels:
+        services.clients.add_label(study.id, client_id=hall.id, output=panel["name"])
+
+    dialog = open_edit(ui, "Study")
+    dialog.get_by_role("button", name="Delete Study…").click()
+
+    assert _confirm(ui).locator(".confirm-consequence").inner_text() == (
+        "It hangs a selection, which goes once no wall hangs it. Its 2 label panels stop captioning. "
+        "Its history stays. The wall cannot be brought back."
+    )
+
+
+def test_delete_names_no_player_it_could_not_read(ui, services, the_wall, hall):
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.route(
+        "**/api/clients", lambda route: route.fulfill(status=500, content_type="application/json", body='{"error": "down"}')
+    )
+
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_role("button", name=f"Delete {the_wall.name}…").click()
+
+    assert _confirm(ui).locator(".confirm-consequence").inner_text() == (
+        "Its Player stops showing it. Its history stays. The wall cannot be brought back."
+    )
