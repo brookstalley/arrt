@@ -124,8 +124,8 @@ in it. Walls does not poll, so the window lasted until the next repaint.
 **What changed:**
 - *Edit…* reads the walls, the Players and the wall's feed when pressed, and
   opens from that. A feed that cannot be read is said in the dialog, where the
-  rotation, shapes and mat it holds would be. A wall missing from the read
-  refuses beside *Edit…*; nothing removes a wall yet, so it waits on #391.
+  rotation, shapes and mat it holds would be. A wall deleted since the page
+  painted refuses beside *Edit…* and opens nothing.
 - *Scene…* reads the scene and the walls when pressed, so a wall added or
   renamed since the page painted is offered as it is now.
 - A second press while a dialog's read is out does nothing, and a read that
