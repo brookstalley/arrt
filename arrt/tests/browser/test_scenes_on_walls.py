@@ -187,6 +187,17 @@ def test_a_draft_assembled_elsewhere_after_the_page_painted_is_what_scene_opens(
     ui.page.locator(f"{BUILDER} .scene-wall:has(.scene-wall-name:text-is('Study')) .scene-pick:has-text('Golconda')").wait_for()
 
 
+def test_a_wall_added_after_the_page_painted_is_offered_in_scene(ui, two_walls, services):
+    ui.open("#walls")
+    ui.page.locator("section.wall .wall-controls").first.wait_for()
+    services.display.add_wall(name="Landing")
+
+    _open_scene(ui)
+
+    names = ui.page.locator(f"{BUILDER} .scene-wall-name").all_inner_texts()
+    assert sorted(names) == ["Landing", "Study", "The wall"]
+
+
 def test_a_wall_whose_work_was_kept_off_says_it_cannot_show_it(ui, two_walls, services):
     walls, persistence, golconda = two_walls
     display = services.display

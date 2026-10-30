@@ -353,3 +353,83 @@ def test_adding_a_wall_with_a_taken_name_is_refused_in_the_dialog(ui, services, 
     failure.wait_for()
     assert f"Another wall is already called '{the_wall.name}'." in failure.inner_text()
     assert len(services.display.survey_walls()) == 1
+
+
+# -- read when pressed ---------------------------------------------------------
+#
+# Edit… reads the wall, its Players and its feed when pressed. The tests below
+# hold that read open with a route the test releases itself, so what happens
+# while it is out is asked about at a moment the test chooses.
+
+
+def holding(ui, pattern):
+    """Hold requests matching `pattern` until `release()`; `stop()` lets later ones through.
+
+    Answers (held, stop, release).
+    """
+    held = []
+    holding_now = [True]
+
+    def hold(route):
+        if holding_now[0]:
+            held.append(route)
+        else:
+            route.continue_()
+
+    def stop():
+        holding_now[0] = False
+
+    def release():
+        stop()
+        for route in held:
+            route.continue_()
+
+    ui.page.route(pattern, hold)
+    return held, stop, release
+
+
+def test_a_second_press_while_the_read_is_out_opens_one_dialog(ui, the_wall):
+    ui.open("#walls")
+    held, _, release = holding(ui, "**/api/walls")
+    edit = card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…")
+    edit.click()
+    edit.click()
+    release()
+
+    ui.page.locator("dialog.panel-dialog").wait_for()
+    assert len(held) == 1
+    assert ui.page.locator("dialog.panel-dialog").count() == 1
+
+
+def test_a_read_that_returns_after_leaving_walls_opens_nothing_on_the_next_page(ui, the_wall):
+    ui.open("#walls")
+    held, stop, release = holding(ui, "**/api/walls")
+    card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    stop()
+    ui.page.evaluate("() => { location.hash = '#clients'; }")
+    ui.page.wait_for_selector("#view h1:text-is('Players')")
+    assert len(held) == 1
+    with ui.page.expect_response("**/api/walls"):
+        release()
+    # The read's other half, the Players, answers after the walls; past it the
+    # handler has nothing left to wait on.
+    ui.page.wait_for_load_state("networkidle")
+
+    assert ui.page.locator("dialog.panel-dialog").count() == 0
+
+
+def test_a_feed_that_cannot_be_read_is_said_in_the_dialog(ui, services, the_wall, a_theme_to_hang):
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
+    ui.open("#walls")
+    ui.page.route(
+        "**/api/manifest?*",
+        lambda route: route.fulfill(status=500, content_type="application/json", body='{"error": "the feed is unreadable"}'),
+    )
+    card(ui, the_wall.name).get_by_role("button", name=f"Edit {the_wall.name}…").click()
+    dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
+
+    assert dialog.locator(".panel h3").all_text_contents() == ["Name", "Where it shows", "Label panel"]
+    said = dialog.locator(".wall-feed-unread").inner_text()
+    assert said.startswith("Its rotation, shapes and mat cannot be set here: the wall's feed could not be read")
+    assert "the feed is unreadable" in said

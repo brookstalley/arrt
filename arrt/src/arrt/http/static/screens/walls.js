@@ -137,7 +137,8 @@ export async function viewWalls(generation) {
   const live = scenes ? scenes.live : null;
   const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live));
   // The live scene, if any, is one line above the cards; assembling one is the
-  // Scene… dialog's. Both are painted from the same read, by `paintScene`.
+  // Scene… dialog's, which reads the scene again when pressed. Both are painted
+  // by `paintScene`.
   const scene = { walls: walls.walls, scenes, node: el("section", { class: "scene", "aria-label": "Scene", hidden: true }), panel: null };
   paintScene(scene, scenes);
   render(
@@ -173,11 +174,18 @@ function sceneOpener(scene) {
     type: "button",
     text: "Scene…",
     "aria-haspopup": "dialog",
-    onclick: async () => {
+    onclick: async (event) => {
       // Read when pressed, not from the page's last paint: a draft assembled or a
       // scene released elsewhere (over MCP) since then is what this dialog acts
-      // on. One that cannot be read opens the dialog to say so.
-      const scenes = await api("/api/scenes/live").catch(() => null);
+      // on, and a wall added or renamed since is one it offers. A scene that
+      // cannot be read opens the dialog to say so; walls that cannot be read
+      // leave the ones the page has.
+      const fresh = await readingOnce(event.currentTarget, () =>
+        Promise.all([api("/api/scenes/live").catch(() => null), api("/api/walls").catch(() => null)]),
+      );
+      if (!fresh) return;
+      const [scenes, walls] = fresh;
+      if (walls) scene.walls = walls.walls;
       scene.panel = openPanel({
         title: "Scene",
         lead: "Show chosen works on your walls together, for a while. Each wall then goes back to what it hangs.",
@@ -1404,15 +1412,18 @@ async function editWall(control, painted) {
   // panel still captioning the wall it was taken off, a screen still taken).
   let wall = null;
   let shownBy = null;
-  let manifest = null;
-  const read = await attempt(control, `open ${painted.name}'s settings`, async () => {
-    const [walls, listing] = await Promise.all([api("/api/walls"), clientListing()]);
-    wall = walls.walls.find((each) => each.wall_id === painted.wall_id);
-    if (!wall) throw new Error("it is no longer recorded; reload the page");
-    shownBy = listing;
-    manifest = (await built(wall)).manifest || null;
-  });
+  let feed = null;
+  const read = await readingOnce(control, () =>
+    attempt(control, `open ${painted.name}'s settings`, async () => {
+      const [walls, listing] = await Promise.all([api("/api/walls"), clientListing()]);
+      wall = walls.walls.find((each) => each.wall_id === painted.wall_id);
+      if (!wall) throw new Error("it is no longer recorded; reload the page");
+      shownBy = listing;
+      feed = await built(wall);
+    }),
+  );
   if (!read) return;
+  const manifest = feed.manifest || null;
   const edit = editing();
   edit.panel = openPanel({
     title: `Edit ${wall.name}`,
@@ -1420,11 +1431,34 @@ async function editWall(control, painted) {
       nameSection(wall, edit.done),
       whereSection(wall, shownBy, edit),
       labelsSection(wall, shownBy, edit),
+      // The rotation, shapes and mat are set against the wall's feed; when it
+      // cannot be read they are not offered, and the dialog says why rather
+      // than leaving the curator to notice three panels missing.
+      feed.failure
+        ? el("p", { class: "note wall-feed-unread", text: `Its rotation, shapes and mat cannot be set here: the wall's feed could not be read — ${feed.failure}.` })
+        : null,
       ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
       manifest ? matPanel(wall, edit.changed) : null,
     ],
     onClose: edit.closed,
   });
+}
+
+/* Run a dialog's read once per press. A second press while the first read is
+ * out does nothing, so two dialogs never stack; and a read that comes back after
+ * the curator has left Walls opens nothing over the page they went to. Answers
+ * what the read did, or null for a press that was ignored or arrived too late. */
+const reading = new WeakSet();
+
+async function readingOnce(control, read) {
+  if (reading.has(control)) return null;
+  reading.add(control);
+  try {
+    const answer = await read();
+    return state.view === "walls" ? answer : null;
+  } finally {
+    reading.delete(control);
+  }
 }
 
 /* What a dialog that changes walls needs: `changed` when an act lands, `done`
