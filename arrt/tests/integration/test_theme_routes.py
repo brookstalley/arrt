@@ -113,6 +113,30 @@ class TestRenamingATheme:
         after = services.display.get_theme(theme["theme_id"])
         assert (after.name, after.description) == ("Winter", "After hours")
 
+    def test_a_description_named_in_the_body_is_stored_and_answered_with(self, http, services):
+        """A theme's *Edit…* sends its name and its description together
+        (ruling 9 of 2026-10-27), so the body carries a description when it names one."""
+        theme = _theme(http, "Late night")
+
+        answer = http.post(f"/api/themes/{theme['theme_id']}", json={"name": "Late night", "description": "After hours"})
+
+        assert answer.status_code == 200
+        assert answer.json()["description"] == "After hours"
+        assert services.display.get_theme(theme["theme_id"]).description == "After hours"
+
+    def test_a_null_description_clears_it_and_an_absent_one_does_not(self, http, services):
+        """Presence is the switch: `null` is "no description", leaving it out is "unchanged"."""
+        theme = _theme(http, "Late night")
+        services.display.update_theme(theme["theme_id"], description="After hours")
+
+        http.post(f"/api/themes/{theme['theme_id']}", json={"name": "Winter"})
+        assert services.display.get_theme(theme["theme_id"]).description == "After hours"
+
+        answer = http.post(f"/api/themes/{theme['theme_id']}", json={"name": "Winter", "description": None})
+
+        assert answer.json()["description"] is None
+        assert services.display.get_theme(theme["theme_id"]).description is None
+
 
 class TestDeletingATheme:
     def test_an_unhung_theme_goes_and_the_answer_is_what_remains(self, http):

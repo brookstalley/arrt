@@ -583,7 +583,8 @@ class TestOneThemeHasItsOwnAddress:
 
         assert ui.page.locator("li.theme-card h2", has_text="Winter").count() == 1
         assert ui.page.locator("li.theme-card h2", has_text="Late night").count() == 1
-        assert ui.page.locator("#new-theme-name").count() == 1
+        # Creating is the index's one act, behind *New theme…* (ruling 9 of 2026-10-27).
+        assert ui.page.get_by_role("button", name="New theme…").count() == 1
 
     def test_every_act_is_offered_from_the_addressed_view(self, ui, two_themes):
         """Every act on a theme is on its own page, which is now the only place they are.
@@ -718,10 +719,18 @@ class TestTheDefaultTheme:
         assert self._card(ui, all_works).locator(".badge-default").count() == 0
 
     def test_with_no_default_the_screen_says_where_acceptances_go(self, ui, winter):
+        """On the index a quiet line after the cards (the exception rule of 2026-10-27:
+        it does not stop the index's job), and the facts line says it too."""
         ui.open("#theme")
         _index_painted(ui)
 
-        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
+        line = ui.page.locator("#view p.no-default")
+        assert line.count() == 1
+        assert "No theme is the default" in line.inner_text()
+        assert "muted" in line.get_attribute("class")
+        assert ui.page.locator("#view .page-facts").inner_text().endswith("none is the default")
+        # After the cards, not above them.
+        assert line.evaluate("(node) => !!node.previousElementSibling.matches('ul.theme-cards')")
 
     def test_one_themes_own_page_says_it_too(self, ui, winter):
         """The note is about where acceptances go, not about the index, so both paths carry it."""
@@ -741,7 +750,8 @@ class TestTheDefaultTheme:
         ui.open("#theme")
         _index_painted(ui)
 
-        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 0
+        assert ui.page.locator("#view p.no-default").count() == 0
+        assert ui.page.locator("#view .page-facts").inner_text().endswith("All works is the default")
 
     def test_deleting_the_default_shows_the_servers_reason(self, ui, all_works):
         self._open(ui, all_works)

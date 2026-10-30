@@ -34,10 +34,12 @@ import { api, fetchAllWorks } from "../core/api.js";
 import { fitBadge, noPicture, shortfallNote, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
 import { GLYPHS } from "../core/glyphs.js";
+import { openPanel } from "../core/editing.js";
 import { hangTheme } from "../core/hanging.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wallLinks } from "../core/places.js";
 import { backLink, backRow, go, link, notFound, refresh, setTitle } from "../core/router.js";
+import { toolbar } from "../core/toolbar.js";
 
 /* How many pictures a card's strip holds: the server's `THEME_CARD_PICTURES`,
  * which is how many it sends. Every card keeps this many slots, filled or not,
@@ -56,48 +58,96 @@ export async function viewTheme(themeId, generation) {
  * about either: a curator on one theme's page who could make it the default
  * should know that nothing is the default now, and so should one looking at
  * the set of them. */
-function noDefaultNote(placements) {
+function noDefaultNote(placements, { quiet = false } = {}) {
   if (!placements.length || placements.some((entry) => entry.theme.is_default)) return null;
   return el("p", {
-    class: "note",
+    class: quiet ? "muted no-default" : "note no-default",
     text: "No theme is the default, so works you accept join no theme. Make one the default to have them land there.",
   });
 }
 
 /* -- the index -------------------------------------------------------------- */
 
+/* The index opens as every page does (`design-direction.md` § Component
+ * Patterns, "How a page reads"; ruling 9 of 2026-10-27): its name, one line of
+ * facts, and a toolbar whose act is *New theme…*, the one act the index has,
+ * since a theme not yet made has no page to be made on. Every other act on a
+ * theme is on that theme's page. */
 async function themeIndex(generation) {
   // The listing alone: each entry carries its count, its first pictures and its
   // walls, so ten themes are one read rather than ten reads of their works.
   const themes = await api("/api/themes");
 
-  const name = el("input", { type: "text", id: "new-theme-name", required: true });
-  const create = el("div", { class: "row" }, [
-    el("div", { class: "field" }, [el("label", { for: "new-theme-name", text: "New theme" }), name]),
-    el("button", {
-      class: "action",
-      type: "button",
-      text: "Create",
-      onclick: (event) =>
-        attempt(
-          event.currentTarget,
-          name.value.trim() ? `create ${name.value.trim()}` : "create the theme",
-          () => api("/api/themes", { method: "POST", body: JSON.stringify({ name: name.value }) }),
-          { then: () => refresh() },
-        ),
-    }),
-  ]);
-
   render(
     generation,
     backRow(),
     el("h1", { text: "Themes" }),
-    create,
-    noDefaultNote(themes.themes),
+    indexFacts(themes.themes),
+    toolbar({ actions: [newThemeOpener()] }),
     themes.themes.length
       ? el("ul", { class: "grid theme-cards" }, themes.themes.map(themeCard))
-      : emptyState("No themes yet.", "Create one, then add works to it from Artworks or from its own page."),
+      : emptyState("No themes yet.", "Make one with New theme…, then add works to it from Artworks."),
+    // About where acceptances go rather than about any card, and it does not
+    // stop the index's job, so it is a quiet line after what it qualifies.
+    noDefaultNote(themes.themes, { quiet: true }),
   );
+}
+
+/* How many themes, and which is the default: the one fact about the set that
+ * no card says alone. */
+function indexFacts(placements) {
+  const chosen = placements.find((entry) => entry.theme.is_default);
+  const count = placements.length === 1 ? "1 theme" : `${placements.length} themes`;
+  const parts = placements.length ? [count, chosen ? `${chosen.theme.name} is the default` : "none is the default"] : [count];
+  return el("p", { class: "muted page-facts", text: parts.join(" · ") });
+}
+
+/* *New theme…*: its name and description, then *Create*, which goes to the
+ * new theme's page, where its works are added and it is hung. */
+function newThemeOpener() {
+  return el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "New theme…",
+    "aria-haspopup": "dialog",
+    onclick: () => {
+      const name = el("input", { type: "text", id: "new-theme-name", autocomplete: "off" });
+      const description = el("textarea", { id: "new-theme-description", rows: "3" });
+      let panel = null;
+      const create = el("button", {
+        class: "action",
+        type: "button",
+        text: "Create",
+        onclick: (event) =>
+          attempt(
+            event.currentTarget,
+            name.value.trim() ? `create ${name.value.trim()}` : "create the theme",
+            () =>
+              api("/api/themes", {
+                method: "POST",
+                // An empty description is no description, not one of nothing.
+                body: JSON.stringify({ name: name.value, description: description.value.trim() || null }),
+              }),
+            {
+              then: (made) => {
+                panel.close();
+                go("theme", made.theme_id);
+              },
+            },
+          ),
+      });
+      panel = openPanel({
+        title: "New theme",
+        closeLabel: "Cancel",
+        body: [
+          el("div", { class: "field" }, [el("label", { for: "new-theme-name", text: "Name" }), name]),
+          el("div", { class: "field" }, [el("label", { for: "new-theme-description", text: "Description" }), description]),
+        ],
+        actions: [create],
+      });
+      name.focus();
+    },
+  });
 }
 
 /* One theme's card: a link to its page, and what a curator choosing between

@@ -153,11 +153,13 @@ def _titles_after_paint(ui):
 
 
 def test_the_index_offers_no_act_on_a_theme(ui, winter):
-    """Rename, delete, hanging and membership are the theme page's, and only creating is here."""
+    """Rename, delete, hanging and membership are the theme page's, and only creating is here,
+    behind *New theme…* since ruling 9 of 2026-10-27 (it was a field and *Create* above the cards)."""
     ui.open("#theme")
     ui.page.wait_for_selector("li.theme-card")
 
-    assert ui.page.locator("#view button").all_inner_texts() == ["Create"]
+    assert ui.page.locator("#view button").all_inner_texts() == ["New theme…"]
+    assert ui.page.locator("#view input").count() == 0
     assert ui.page.locator("#view select").count() == 0
     assert ui.page.locator("#view table").count() == 0
 
@@ -321,3 +323,75 @@ def test_a_refused_move_leaves_the_field_free_and_sends_nothing_more(ui, winter)
     assert len(ui.requests_matching("/position")) == 1
     assert field.input_value() == "4"
     assert _titles(ui) == list(TITLES)
+
+
+# -- the page's head and New theme… (ruling 9 of 2026-10-27) -------------------------
+
+
+def test_the_index_opens_with_its_name_its_facts_and_its_toolbar(ui, services, winter):
+    """The page rules: the name, one line of facts, then the toolbar, and no form above the cards."""
+    all_works = services.display.add_theme(name="All works")
+    services.display.make_default(all_works.id)
+    ui.open("#theme")
+    ui.page.wait_for_selector("li.theme-card")
+
+    order = ui.page.locator("#view").evaluate(
+        "node => [...node.children].filter((child) => child.tagName !== 'P' || child.classList.contains('page-facts'))"
+        ".slice(0, 4).map((child) => child.tagName + '.' + child.className)"
+    )
+    assert order[0].startswith("H1")
+    assert "page-facts" in order[1]
+    assert "page-toolbar" in order[2]
+    assert "theme-cards" in order[3]
+    assert ui.page.locator("#view .page-facts").inner_text() == "2 themes · All works is the default"
+
+
+@pytest.mark.parametrize("described", [True, False])
+def test_new_theme_creates_it_with_its_description_and_opens_it(ui, services, described):
+    ui.open("#theme")
+    ui.page.get_by_role("button", name="New theme…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.get_by_label("Name", exact=True).fill("  Late night  ")
+    if described:
+        dialog.get_by_label("Description", exact=True).fill("After hours, low light")
+    else:
+        # Spaces alone are no description, not one of nothing.
+        dialog.get_by_label("Description", exact=True).fill("   ")
+    dialog.get_by_role("button", name="Create").click()
+    dialog.wait_for(state="detached")
+
+    ui.page.wait_for_selector("#view h1:has-text('Late night')")
+    [made] = [theme for theme in services.display.list_themes() if theme.name == "Late night"]
+    assert made.description == ("After hours, low light" if described else None)
+    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{made.id}"
+
+
+@pytest.mark.parametrize("leave", ["Cancel", "Escape"])
+def test_leaving_new_theme_creates_nothing(ui, services, winter, leave):
+    before = {theme.id for theme in services.display.list_themes()}
+    ui.open("#theme")
+    ui.page.get_by_role("button", name="New theme…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.get_by_label("Name", exact=True).fill("Late night")
+    if leave == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        dialog.get_by_role("button", name="Cancel").click()
+    dialog.wait_for(state="detached")
+
+    assert {theme.id for theme in services.display.list_themes()} == before
+    assert ui.page.evaluate("() => document.activeElement.textContent") == "New theme…"
+
+
+def test_a_refused_name_is_said_in_the_dialog_and_nothing_is_made(ui, services, winter):
+    before = {theme.id for theme in services.display.list_themes()}
+    ui.open("#theme")
+    ui.page.get_by_role("button", name="New theme…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.get_by_label("Name", exact=True).fill("   ")
+    create = dialog.get_by_role("button", name="Create")
+    create.click()
+
+    assert "Couldn't create the theme" in ui.said_beside(create)
+    assert dialog.is_visible()
+    assert {theme.id for theme in services.display.list_themes()} == before

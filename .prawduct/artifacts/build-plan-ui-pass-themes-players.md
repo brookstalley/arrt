@@ -129,6 +129,10 @@ the goal or prior choice that settled it.)*
 - 02: a label panel's captioned wall is named from `GET /api/walls`, since it may be a wall on another Player, which the Player's own listing does not name (found by its test).
 - 02: the axe scan ran by hand, as parts 1 and 2's did (the suite does not fetch axe-core): `ux_walk.scan` from a temporary test over the suite's fixtures, a Player reporting two screens and a panel captioning a wall beside one with no token, was clean on Players, *Add Player…*, *Edit…* and the token dialog, at 1280 and 390 wide, light and dark, 2026-10-29.
 - 02, flagged, not fixed here: on Walls, a wall's *Edit…* opened in the moment before the page repaints after another dialog's write offers what was true before that write (a panel just stopped is not offered until the repaint lands). Found by a test under parallel load, which now waits for the repaint as a curator would see it; the window is one repaint, and the fix (each dialog reading a fresh listing as it opens) is Walls' and is for the backlog.
+- 03: *Create* in *New theme…* opens the new theme's page rather than repainting the index: that page is where its works are added and it is hung, so the next act is there. The plan said only that the dialog creates.
+- 03: that no theme is the default is a muted line after the cards on the index (it does not stop the index's job, the exception rule), and the facts line says which theme is the default; on a theme's page it stays as it is until 04.
+- 03: `test_form_rows.py` held "a field and its button share a bottom edge" on the index's *Create* row, which ruling 9 removed; it now measures the same shape in a wall's *Edit…* (*Name* and *Rename*), recorded in its docstring.
+- 03: the axe scan ran by hand on the index and *New theme…*, a theme with a picture beside an empty one, at 1280 and 390 wide, light and dark: clean, 2026-10-29. Photographed: the dialog's two fields share a width, and the quiet line sits after the cards.
 
 **Level:** High for Players and the Themes index, whose layout and words the
 rulings and the two earlier plans settle. Medium for a theme's page: the drag
@@ -206,8 +210,8 @@ deployed server.
 - **Type:** code
 - **Visual change:** yes
 - **Surfaces:**
-  - `arrt/src/arrt/http/models.py` `RenameTheme` (renamed for what it now
-    carries) and `api.py` `rename_theme`: an optional `description`, passed to
+  - `arrt/src/arrt/http/models.py` `EditTheme` (was `RenameTheme`, renamed
+    for what it now carries) and `api.py` `rename_theme`: an optional `description`, passed to
     `update_theme` only when the body names it; a curation-suite test that a
     rename leaves the description, that a description is set and that `null`
     clears it. `api-contract.md`'s `POST /api/themes/{id}` row, additive.
