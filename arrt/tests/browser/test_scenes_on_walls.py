@@ -169,6 +169,24 @@ def test_discard_forgets_the_picks(ui, two_walls, services):
     assert ui.page.evaluate("document.activeElement && document.activeElement.id") == "scene-title"
 
 
+def test_a_draft_assembled_elsewhere_after_the_page_painted_is_what_scene_opens(ui, two_walls, services):
+    """*Scene…* reads the scene when opened, not from the page's last paint.
+
+    The draft is assembled through the service the MCP tools call, after Walls
+    painted and with no repaint since (this page does not poll): a dialog drawn
+    from that paint would offer an empty builder and lose the pick.
+    """
+    walls, _, golconda = two_walls
+    ui.open("#walls")
+    ui.page.locator("section.wall .wall-controls").first.wait_for()
+    draft = services.display.draft_scene()
+    services.display.pin_scene(draft.scene.id, walls["Study"], golconda.id)
+
+    _open_scene(ui)
+
+    ui.page.locator(f"{BUILDER} .scene-wall:has(.scene-wall-name:text-is('Study')) .scene-pick:has-text('Golconda')").wait_for()
+
+
 def test_a_wall_whose_work_was_kept_off_says_it_cannot_show_it(ui, two_walls, services):
     walls, persistence, golconda = two_walls
     display = services.display

@@ -262,6 +262,7 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     assert ui.page.locator("#view .panel h3").count() == 0
     ui.page.locator(f"section.wall[data-wall='{the_wall.id}'] button.wall-edit").click()
     dialog = ui.page.locator("dialog.panel-dialog")
+    dialog.wait_for()
     assert dialog.locator("h2").all_text_contents() == [f"Edit {the_wall.name}"]
     assert dialog.locator(".panel h3").count() == 6
     # And with nothing empty there is no take-down note: a caption with nothing

@@ -66,6 +66,27 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-30: Walls' Edit… and Scene… read what is true when pressed (#400)
+
+<!-- prawduct: scope=walls-stale-edit -->
+
+**Why:** a wall's *Edit…* was drawn from the page's last paint, so one opened
+after a write the page had not repainted for (another dialog's, or one made over
+MCP) offered pre-write state: a label panel just stopped was offered to no wall.
+*Scene…* had the same shape: a draft assembled over MCP since the paint was not
+in it. Walls does not poll, so the window lasted until the next repaint.
+
+**What changed:**
+- *Edit…* reads the walls, the Players and the wall's feed when pressed, and
+  opens from that. A wall no longer recorded says so beside *Edit…* and opens
+  nothing.
+- *Scene…* reads the scene when pressed.
+- Tests: two browser tests, each making the write behind the page and then
+  opening the dialog, each seen to fail on the code before. Four existing tests
+  that read a dialog the moment it was clicked now wait for it to open.
+
+Closes #400.
+
 ## 2026-10-29: Settings › Players, Themes and a theme's page, rebuilt to the page rules (UI pass, part 3)
 
 <!-- prawduct: scope=ui-pass-themes-players -->

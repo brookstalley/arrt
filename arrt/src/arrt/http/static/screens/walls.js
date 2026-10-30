@@ -173,14 +173,18 @@ function sceneOpener(scene) {
     type: "button",
     text: "Scene…",
     "aria-haspopup": "dialog",
-    onclick: () => {
+    onclick: async () => {
+      // Read when pressed, not from the page's last paint: a draft assembled or a
+      // scene released elsewhere (over MCP) since then is what this dialog acts
+      // on. One that cannot be read opens the dialog to say so.
+      const scenes = await api("/api/scenes/live").catch(() => null);
       scene.panel = openPanel({
         title: "Scene",
         lead: "Show chosen works on your walls together, for a while. Each wall then goes back to what it hangs.",
         body: [],
         onClose: () => (scene.panel = null),
       });
-      paintScene(scene, scene.scenes);
+      paintScene(scene, scenes);
     },
   });
 }
@@ -426,13 +430,13 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
         text: "Edit…",
         "aria-haspopup": "dialog",
         "aria-label": `Edit ${wall.name}…`,
-        onclick: () => editWall(wall, manifest, shownBy),
+        onclick: (event) => editWall(event.currentTarget, wall),
       }),
     ]),
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
     // when it is a problem: no Player, or a screen two Players claim.
-    assignmentProblem(wall, () => editWall(wall, manifest, shownBy)),
+    assignmentProblem(wall, (event) => editWall(event.currentTarget, wall)),
     // The server's sentence, so Walls and the tool surface say the same thing
     // about a Player that cannot read this server's feed. Under the lead, which
     // leads the card whatever else it has to say.
@@ -1393,7 +1397,22 @@ const EXCLUSION_WORDS = {
  * the card is where they show; the rotation, shapes and mat leave it open to go
  * on working in, and the card's *Changes*, next works and what it cannot show
  * catch up on the way out. */
-function editWall(wall, manifest, shownBy) {
+async function editWall(control, painted) {
+  // Read when pressed, never from the page's last paint: a write in another
+  // dialog, or on another surface, lands before any repaint that follows it, and
+  // a dialog drawn from that paint offers what the write just changed (a label
+  // panel still captioning the wall it was taken off, a screen still taken).
+  let wall = null;
+  let shownBy = null;
+  let manifest = null;
+  const read = await attempt(control, `open ${painted.name}'s settings`, async () => {
+    const [walls, listing] = await Promise.all([api("/api/walls"), clientListing()]);
+    wall = walls.walls.find((each) => each.wall_id === painted.wall_id);
+    if (!wall) throw new Error("it is no longer recorded; reload the page");
+    shownBy = listing;
+    manifest = (await built(wall)).manifest || null;
+  });
+  if (!read) return;
   const edit = editing();
   edit.panel = openPanel({
     title: `Edit ${wall.name}`,
