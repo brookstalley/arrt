@@ -1475,13 +1475,17 @@ function whereSection(wall, shownBy, edit) {
   const fillScreens = () => {
     const client = shownBy.byId ? shownBy.byId.get(player.value) : null;
     const screens = screensOf(client);
+    // A screen showing another wall is offered with that wall's name: the server
+    // refuses a second wall on it, and says so beside *Show it there*, so the
+    // choice is not hidden from a curator who means to move the other next.
+    const showing = new Map((client ? client.walls : []).filter((each) => each.wall_id !== wall.wall_id).map((each) => [each.output, each.name]));
     fill(
       screen,
       ...(screens.length
         ? screens.map((output) =>
             el("option", {
               value: output.name,
-              text: `${screenName(output.name, output.kind)}${output.connected ? "" : " · nothing connected"}`,
+              text: `${screenName(output.name, output.kind)}${output.connected ? "" : " · nothing connected"}${showing.has(output.name) ? ` · shows ${showing.get(output.name)}` : ""}`,
               selected: client && client.client_id === wall.client_id && output.name === wall.output,
             }),
           )

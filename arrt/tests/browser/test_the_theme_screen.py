@@ -450,8 +450,9 @@ class TestHanging:
         _hang(ui, wall.name)
         ui.page.wait_for_selector("dialog.confirm[open]")
 
-        # Each wall it goes up on, by name, then the build's own summary for it.
-        assert ui.page.inner_text("dialog.confirm .confirm-consequence").startswith(f"{wall.name}: {preview.summarise()}")
+        # One wall's question, worded as Walls' is (`core/hanging.js`): the title
+        # names the wall, and the build's own summary leads the consequence.
+        assert ui.page.inner_text("dialog.confirm .confirm-consequence").startswith(preview.summarise())
 
     def test_declining_leaves_the_wall_alone(self, ui, winter, services):
         """Escape is a no, and a no here means nothing was published."""
@@ -828,3 +829,87 @@ class TestTheDefaultTheme:
         # Beside the page's *Edit…*, whose dialog held *Delete…* (ruling 9 of 2026-10-27).
         edit = ui.page.locator("#view .page-toolbar button", has_text="Edit…")
         assert "Make another theme the default first" in ui.said_beside(edit)
+
+
+class TestEditingTheDescription:
+    """A theme's description, edited in its *Edit…* with its name (ruling 9 of
+    2026-10-27), each read back from the server.
+
+    *Save* sends the name and the description together, so a rename keeps the
+    description only because the box holds it: the second test is the one that
+    fails if the box stopped being filled from the theme.
+    """
+
+    def _save(self, ui, *, name=None, description=None):
+        dialog = _edit(ui)
+        if name is not None:
+            dialog.get_by_label("Name", exact=True).fill(name)
+        if description is not None:
+            dialog.get_by_label("Description", exact=True).fill(description)
+        dialog.get_by_role("button", name="Save", exact=False).click()
+        dialog.wait_for(state="detached")
+
+    def test_a_description_set_in_edit_is_stored_and_shown(self, ui, winter, services):
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+
+        self._save(ui, description="Snow and ice")
+        ui.page.wait_for_selector("#view .theme-description:text-is('Snow and ice')")
+
+        assert services.display.get_theme(winter.id).description == "Snow and ice"
+
+    def test_renaming_keeps_the_description_the_theme_has(self, ui, winter, services):
+        services.display.update_theme(winter.id, description="After hours")
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+        assert _edit(ui).get_by_label("Description", exact=True).input_value() == "After hours"
+        ui.page.keyboard.press("Escape")
+
+        self._save(ui, name="Late night")
+        ui.page.wait_for_selector("#view h1:has-text('Late night')")
+
+        stored = services.display.get_theme(winter.id)
+        assert (stored.name, stored.description) == ("Late night", "After hours")
+
+    def test_a_description_cleared_to_spaces_is_no_description(self, ui, winter, services):
+        services.display.update_theme(winter.id, description="After hours")
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+
+        self._save(ui, description="   ")
+        ui.page.wait_for_function("() => !document.querySelector('#view .theme-description')")
+
+        assert services.display.get_theme(winter.id).description is None
+
+    @pytest.mark.parametrize("leave", ["Close", "Escape"])
+    def test_leaving_edit_changes_nothing(self, ui, winter, services, leave):
+        services.display.update_theme(winter.id, description="After hours")
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+        dialog = _edit(ui)
+        dialog.get_by_label("Name", exact=True).fill("Late night")
+        dialog.get_by_label("Description", exact=True).fill("Something else")
+        if leave == "Escape":
+            ui.page.keyboard.press("Escape")
+        else:
+            dialog.get_by_role("button", name="Close").click()
+        dialog.wait_for(state="detached")
+
+        stored = services.display.get_theme(winter.id)
+        assert (stored.name, stored.description) == ("Winter", "After hours")
+        assert ui.page.locator("#view h1").inner_text() == "Winter"
+
+    @pytest.mark.parametrize("leave", ["Cancel", "Escape"])
+    def test_declining_delete_keeps_the_theme_in_the_catalogue(self, ui, winter, services, leave):
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+        _delete(ui)
+        ui.page.wait_for_selector("dialog.confirm[open]")
+        if leave == "Escape":
+            ui.page.keyboard.press("Escape")
+        else:
+            ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
+        ui.page.wait_for_selector("dialog.confirm", state="detached")
+
+        assert winter.id in [theme.id for theme in services.display.list_themes()]
+        assert _titles(ui) == list(POLLOCKS)

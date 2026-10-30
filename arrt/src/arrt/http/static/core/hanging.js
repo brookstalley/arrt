@@ -1,69 +1,43 @@
-/* Putting a theme on a wall — the one act the IA gives a confirmation contract to.
+/* Putting a theme on walls — the one act the IA gives a confirmation contract to.
  *
- * **In `core/` because two screens perform the identical act.** The Theme screen
- * offers "Hang on the living room" beside a theme; the Walls screen offers a
- * theme picker beside a wall. Same question, same endpoint, same sentence — and
- * `screens/` modules may not import each other (`architecture.md` § Components &
- * Responsibilities), so shared vocabulary lives here or it lives twice. It lived
- * twice until Critic review found it, down to the wording of the question, which
- * is the shape this repository has already been bitten by once: a sentence
- * duplicated across two files with a comment in each saying they must match and
- * nothing checking it.
+ * **In `core/` because two screens perform it.** Walls' Hanging picker puts a
+ * theme on one wall; a theme's page puts it up on, and takes it down from, the
+ * walls ticked in its *Hang…* (ruling 9 of 2026-10-27). `screens/` modules may
+ * not import each other (`architecture.md` § Components & Responsibilities), so
+ * the question lives here, once: `hangTheme` is `hangOnWalls` with one wall. It
+ * lived twice once, down to the wording, until a review found it, which is the
+ * shape this repository has been bitten by: a sentence duplicated across two
+ * files with a comment in each saying they must match and nothing checking it.
  *
  * **The sentence matters more than the request does.** Hanging is the act flow 6
  * singles out for a confirmation, because it is the one that changes what other
- * people in the house see. A change made to the question in one screen and not
- * the other ships two different questions for one act, and the curator has no
- * way to know which one they answered.
+ * people in the house see, and a curator answering two wordings of one act has
+ * no way to know which they answered.
  *
  * **The preview is fetched at the moment the question is asked**, never taken
  * from whatever the screen last painted: the consequence sentence is a statement
- * about the manifest that would result now, and a stale one would promise a wall
+ * about the feed that would result now, and a stale one would promise a wall
  * something a rebuild is about to contradict.
  *
- * **What each screen does afterwards is theirs**, which is the only thing that
- * genuinely differed — the Theme screen leaves for the Walls screen to show the
- * result, the Walls screen repaints in place. That is the parameter.
+ * **What each screen does afterwards is theirs** (`then`): both repaint in place.
  */
 
 import { attempt, reportElsewhere } from "./acting.js";
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
 
-/* Ask, and hang if the answer is yes. `control` is what was pressed, and a
- * preview or a hang that fails is said beside it (`core/acting.js`).
+/* Ask, and hang `themeName` on `wall` if the answer is yes: Walls' Hanging
+ * picker. One wall's case of `hangOnWalls`, so the two screens ask one question
+ * in one wording. `control` is what was pressed, and a preview or a hang that
+ * fails is said beside it (`core/acting.js`).
  *
  * Returns whether it hung, so a caller can tell a declined question from a
  * completed one without inferring it from the screen not having changed.
  *
- * The question names the theme *and* the wall even while there is one wall. A
- * sentence that reads correctly today only because there is a single possible
- * target is the last place a mistake could have been caught, and it silently
- * stops being true when the second display arrives. */
-export async function hangTheme({ control, themeId, themeName, wall, then }) {
-  const act = `hang ${themeName} on ${wall.name}`;
-  let preview = null;
-  const previewed = await attempt(control, act, async () => {
-    preview = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}&theme_id=${encodeURIComponent(themeId)}`);
-  });
-  if (!previewed) return false;
-  const confirmed = await confirmAct({
-    title: `Hang ${themeName} on ${wall.name}?`,
-    consequence: `${preview.summary} Everyone in the house sees ${wall.name} change.`,
-    confirmLabel: "Hang",
-  });
-  if (!confirmed) return false;
-
-  return attempt(
-    control,
-    act,
-    () =>
-      api(`/api/themes/${encodeURIComponent(themeId)}/activate`, {
-        method: "POST",
-        body: JSON.stringify({ wall_id: wall.wall_id }),
-      }),
-    { then },
-  );
+ * Unlike a theme's *Hang…*, it hangs even what is hanging already: that is how
+ * Walls republishes a wall's feed (the picker lists the theme showing too). */
+export function hangTheme({ control, themeId, themeName, wall, then }) {
+  return hangOnWalls({ control, themeId, themeName, hangOn: [wall], takeDownFrom: [], then });
 }
 
 /* *Hang…* on a theme's page: the walls ticked where it should hang, as one
@@ -72,7 +46,7 @@ export async function hangTheme({ control, themeId, themeName, wall, then }) {
  * unticked; a wall left as it was is in neither and is sent nothing, so a
  * theme already hanging is never re-hung from here (that republish is Walls').
  *
- * **One question naming every wall it changes**, for `hangTheme`'s reason: the
+ * **One question naming every wall it changes**, for the module's reason: the
  * act changes what other people in the house see, so each wall is named, with
  * the server's preview for each wall it goes up on, fetched as the question is
  * asked. Taking down rewrites no feed: the wall goes on showing what it shows
@@ -84,11 +58,17 @@ export async function hangTheme({ control, themeId, themeName, wall, then }) {
  * a wall had changed is said where it outlives the repaint
  * (`core/acting.js` `reportElsewhere`), naming the wall it stopped at. */
 export async function hangOnWalls({ control, themeId, themeName, hangOn, takeDownFrom, then }) {
+  // The question names the theme *and* each wall even while there is one wall.
+  // A sentence that reads correctly today only because there is a single
+  // possible target is the last place a mistake could have been caught. A lone
+  // hang's preview needs no wall's name before it, since the title has just
+  // said which wall; with more than one change, each preview says its wall.
+  const lone = hangOn.length === 1 && !takeDownFrom.length;
   const previews = [];
-  const previewed = await attempt(control, `hang ${themeName}`, async () => {
+  const previewed = await attempt(control, lone ? `hang ${themeName} on ${hangOn[0].name}` : `hang ${themeName}`, async () => {
     for (const wall of hangOn) {
       const preview = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}&theme_id=${encodeURIComponent(themeId)}`);
-      previews.push(`${wall.name}: ${preview.summary}`);
+      previews.push(lone ? preview.summary : `${wall.name}: ${preview.summary}`);
     }
   });
   if (!previewed) return false;

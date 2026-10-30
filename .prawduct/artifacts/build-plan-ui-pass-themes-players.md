@@ -99,7 +99,7 @@ it hang". Each opens the way Walls, Artworks and Work now do.
 - `tests/preferences/test_screen_tables.py` holds the IA's screen tables and
   sidebar order against `app.js`: the Clients → Players rename lands in the
   route table, `SCREEN_NAMES` and the IA in one commit.
-- `pages.py` `UI_PATHS` gains `/players`, keeping `/clients`.
+- The address stays `#clients` (§ Navigation Structure), so `pages.py` `UI_PATHS` does not change. *(The plan first had it gain `/players`; see Decisions, 02.)*
 - Browser tests pin today's wording (*Clients*, *Take down from …*, the per-row
   ↑ ↓ buttons, the inline rename). Each assertion rewritten for that reason
   names the ruling that changed it, in the same commit (`core.md`, "When you
@@ -146,7 +146,9 @@ the goal or prior choice that settled it.)*
 rulings and the two earlier plans settle. Medium for a theme's page: the drag
 handle is new to the product, and how it reads on a phone is not something the
 rulings show. What raises it: the phone photographs of 04 from
-`arrt/tools/ux_walk.py`, and a keyboard-only reorder in the browser suite.
+`arrt/tools/ux_walk.py`, and a keyboard-only reorder in the browser suite. *(Both done in 04: the photographs found three
+phone faults, fixed and held by tests, and the suite reorders by keyboard and by
+drag, so a theme's page is High too.)*
 
 ## Scaffolding
 
@@ -219,7 +221,7 @@ deployed server.
 - **Visual change:** yes
 - **Surfaces:**
   - `arrt/src/arrt/http/models.py` `EditTheme` (was `RenameTheme`, renamed
-    for what it now carries) and `api.py` `rename_theme`: an optional `description`, passed to
+    for what it now carries) and `api.py` `edit_theme` (was `rename_theme`): an optional `description`, passed to
     `update_theme` only when the body names it; a curation-suite test that a
     rename leaves the description, that a description is set and that `null`
     clears it. `api-contract.md`'s `POST /api/themes/{id}` row, additive.
@@ -251,10 +253,10 @@ deployed server.
   - the toolbar: *Hang…* (the filled act), *Edit…*, and Select on the right;
     with Select on, *Remove from theme* on the selection, as part 2's lists act.
   - *Hang…* opens a dialog of every wall, ticked where the theme hangs; *Hang*
-    asks once through `core/hanging.js`, naming each wall it hangs on and each it
+    asks once through `arrt/src/arrt/http/static/core/hanging.js`, naming each wall it hangs on and each it
     takes the theme down from, and only changed walls are sent. No walls: the
     dialog says so, in today's words. A fresh catalogue seeds one wall
-    (`persistence/migrations.py`) and nothing deletes a wall, so the case is
+    (`arrt/src/arrt/persistence/migrations.py`) and nothing deletes a wall, so the case is
     kept for a catalogue whose walls were removed by hand, not built for.
   - *Edit…*: *Name*, *Description*, *Make this the default* (absent on the
     default), *Delete…* last (asks first; the server's refusal for a hung theme
@@ -270,7 +272,7 @@ deployed server.
   - *Add works* in the toolbar, a link to Artworks (the ruling above); the
     *Add a work* picker and its *Add* are gone.
   - Walls' empty-theme note, whose *Add works to {theme}* links to the theme's
-    page for its picker (`screens/walls.js`): it keeps landing on that theme,
+    page for its picker (`arrt/src/arrt/http/static/screens/walls.js`): it keeps landing on that theme,
     whose *Add works* goes on to Artworks (see Decisions, 04).
 
   Also `app.css`; the theme's half of the Themes row of

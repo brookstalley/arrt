@@ -1024,7 +1024,7 @@ def create_theme(request: Request, body: CreateTheme) -> ThemeOut:
 
 
 @router.post("/themes/{theme_id}")
-def rename_theme(request: Request, theme_id: str, body: EditTheme) -> ThemeOut:
+def edit_theme(request: Request, theme_id: str, body: EditTheme) -> ThemeOut:
     """Change a theme's name, and its description when the body names one.
 
     **`POST` rather than `PATCH`**, following this surface's own convention: it

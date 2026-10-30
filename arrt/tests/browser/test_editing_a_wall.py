@@ -139,7 +139,10 @@ def test_a_placement_the_server_cannot_confirm_is_said_in_the_dialog_which_stays
 
     dialog = open_edit(ui, the_wall.name)
     dialog.get_by_label(f"Player for {the_wall.name}", exact=True).select_option(hall.id)
-    dialog.get_by_label("Screen", exact=True).select_option("frame")
+    screens = dialog.get_by_label("Screen", exact=True)
+    # A Frame is named by its kind on Walls too, never by its port (§ Vocabulary).
+    assert "Samsung Frame" in screens.locator("option").all_inner_texts()
+    screens.select_option("frame")
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
 
     notice = dialog.locator(".wall-notice:not([hidden])")
@@ -163,6 +166,31 @@ def test_a_placement_the_server_confirms_says_nothing_and_closes(ui, services, t
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
     dialog.wait_for(state="detached")
     assert ui.page.locator(".wall-notice:not([hidden])").count() == 0
+
+
+def test_a_screen_showing_another_wall_is_named_and_a_second_wall_is_refused_beside_the_act(ui, services, the_wall, hall):
+    """Carried from Settings › Clients' assign (retired with ruling 7 of 2026-10-27),
+    where assigning now is: a screen showing another wall is offered with that
+    wall's name, and the server's refusal of a second is said beside *Show it
+    there*, with nothing moved."""
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    study = services.display.add_wall(name="Study")
+
+    dialog = open_edit(ui, study.name)
+    dialog.get_by_label(f"Player for {study.name}", exact=True).select_option(hall.id)
+    screen = dialog.get_by_label("Screen", exact=True)
+    assert screen.locator("option").all_inner_texts() == [f"HDMI 1 · shows {the_wall.name}", "HDMI 2 · nothing connected"]
+    screen.select_option("hdmi-a-1")
+    show = dialog.get_by_role("button", name=f"Show {study.name} there")
+    show.click()
+
+    assert "already shows" in ui.said_beside(show)
+    assert walls_read(ui)[study.id]["client_id"] is None
+    assert walls_read(ui)[the_wall.id]["output"] == "hdmi-a-1"
+    # The wall's own screen is not called taken in its own dialog.
+    ui.page.keyboard.press("Escape")
+    dialog = open_edit(ui, the_wall.name)
+    assert "shows" not in " ".join(dialog.get_by_label("Screen", exact=True).locator("option").all_inner_texts())
 
 
 def test_a_label_panel_is_added_from_the_dialog_and_stopped_there(ui, services, settings, the_wall, hall):

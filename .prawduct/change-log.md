@@ -107,8 +107,8 @@ and label panel are now set in one place, the wall's *Edit…*.
   loads the whole library.
 
 **Server:** `POST /api/themes/{id}` takes an optional `description`, read only
-when the body names it (`null` clears it), additive (`api-contract.md`). Five
-person-read server sentences say Player.
+when the body names it (`null` clears it), additive (`api-contract.md`). The
+server's person-read sentences about Players say Player.
 
 **Tests:** browser tests pinning Clients and the old theme page were rewritten,
 each naming the ruling that moved it; those that drove controls the rulings
@@ -123,6 +123,8 @@ on Players, Themes and a theme with each dialog open.
 
 **Rollback:** revert the branch's merge; the description field is additive and
 nothing is stored differently.
+
+Retires: "Assign it in Settings › Clients", "Change in Settings › Clients", "See Settings › Clients", "is assigned on Settings › Clients" — a wall's Player and label are set in its own Edit… since ruling 7 of 2026-10-27, and the page is Players.
 
 ## 2026-10-29: Artworks and a work's page, rebuilt to the page rules (UI pass, part 2)
 

@@ -1998,8 +1998,7 @@ class EditTheme(BaseModel):
     `SetPlayback` does: a body with only a name leaves the description as it
     was, and one carrying `"description": null` clears it. A default of `None`
     read as a value would erase a description every time a curator corrected a
-    typo in a name, which is why the body carried a name alone until a theme's
-    *Edit…* needed both (ruling 9 of 2026-10-27).
+    typo in a name.
     """
 
     name: str
