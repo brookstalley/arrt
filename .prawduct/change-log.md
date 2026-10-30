@@ -135,6 +135,19 @@ in it. Walls does not poll, so the window lasted until the next repaint.
   wait for it to open.
 
 Closes #400.
+## 2026-10-30: A session without the Prawduct plugin says so at start
+
+<!-- prawduct: scope=install-tripwire -->
+
+**Why:** a Claude Code profile with no Prawduct install for this repo ran
+ungoverned with nothing saying so (the `install-reference-tripwire-missing`
+advisory).
+
+**What changed:**
+- `.claude/settings.json` gains a SessionStart hook, written by
+  `prawduct-hook install-tripwire --apply`. It prints nothing when Prawduct is
+  installed for this repo, and a warning when it is not or cannot be checked.
+  Every other key is kept.
 
 ## 2026-10-29: Settings › Players, Themes and a theme's page, rebuilt to the page rules (UI pass, part 3)
 
