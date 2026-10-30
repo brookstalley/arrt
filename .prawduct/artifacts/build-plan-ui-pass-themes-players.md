@@ -63,9 +63,8 @@ Players stops offering them.
 ## Goals
 
 **Response taken:** proceed, citing #390 and the rulings. The design is the
-owner's, approved from the prototype. One question is put to the owner with
-this plan (below, *Add a work*); it gates chunk 04 only, and 02 and 03 build
-while it is open.
+owner's, approved from the prototype. One gap, *Add a work*, which ruling 9
+does not name, was put to the owner on 2026-10-29 and ruled (below).
 
 **Product:** Players answers "what devices does this house have, and are they
 working"; Themes answers "what playlists do I have, and where is each
@@ -109,15 +108,15 @@ it hang". Each opens the way Walls, Artworks and Work now do.
 
 - None yet.
 
-**Open for the owner (gates 04):** *Add a work* on a theme's page. Today a
-theme's page has a picker of every work in the library and *Add*. Ruling 9
-lists the page's acts and does not name it; the page rules say nothing but the
-name, the facts and the toolbar sits above the content, and *All works* holds
-the whole library, so the picker is a list of every work. Adding already lives
-where the works are: *Add to theme…* on every list's selection and on a work's
-page. The builder's recommendation: drop the picker, and put *Add works* in
-the toolbar as a link to Artworks, where *Add to theme…* is. The other choice
-keeps an *Add works…* dialog with a search of the library on the theme's page.
+**Ruled with this plan: no *Add a work* on a theme's page** *(the owner,
+2026-10-29)*. Today a theme's page has a picker of every work in the library
+and *Add*. Ruling 9 lists the page's acts and does not name it; the page rules
+put nothing but the name, the facts and the toolbar above the content; and on
+*All works* the picker lists the whole library. Asked whether to drop it for a
+link to Artworks, keep adding behind an *Add works…* dialog with a search, or
+offer no add at all, the owner chose the link: the toolbar's *Add works* goes
+to Artworks, where *Add to theme…* acts on a selection with the pictures and
+filters beside it. Recorded in `ia-proposal.md` § Rulings (2026-10-27).
 
 **Decisions made mid-build:** *(appended while building; one line each, naming
 the goal or prior choice that settled it.)*
@@ -241,7 +240,8 @@ deployed server.
   - the members in order, each row its picture, title and artist (links), its
     size against the walls (`too_small_for`), and a drag handle; no per-row
     buttons. The shortfall note stays an exception, quiet.
-  - *Add a work* per the owner's answer.
+  - *Add works* in the toolbar, a link to Artworks (the ruling above); the
+    *Add a work* picker and its *Add* are gone.
 
   Also `app.css`; the theme's half of the Themes row of
   `information-architecture.md` and its Information Hierarchy and Screen
@@ -257,7 +257,8 @@ deployed server.
      in one confirmation naming both, read back from `GET /api/walls`; leaving
      the ticks as they were sends nothing.
   3. Absence tests: no *Take down*; no ↑, ↓, *Move to top* or *Move to bottom*;
-     no per-row *Remove*; no *Make this the default* on the default theme.
+     no per-row *Remove*; no *Make this the default* on the default theme; no
+     *Add a work* picker.
   4. Cancel or Escape in each dialog changes nothing, asserted from the server;
      the axe scan is clean on a theme with Select on and off and each dialog
      open, phone and desktop.
