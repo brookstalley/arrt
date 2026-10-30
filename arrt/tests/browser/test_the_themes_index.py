@@ -185,30 +185,27 @@ def test_an_empty_theme_does_not_claim_its_pictures_are_missing(ui, services):
 
 
 # -- ordering on the theme page ------------------------------------------------
+#
+# A drag handle per row since ruling 9 of 2026-10-27 (a Position field per row
+# from #352 until then, and four buttons before that). The handle is a button,
+# so the keyboard moves a work too: the arrows one place, Home and End to the
+# ends.
 
 
-def _move(ui, title, place):
-    """Type a work's new place into its Position field and commit it."""
-    field = ui.page.locator(f"input[aria-label='Position of {title}']")
-    field.fill(str(place))
-    field.press("Enter")
+def _handle(ui, title):
+    return ui.page.locator(f"button.drag-handle[aria-label='Move {title}']")
 
 
-def test_move_to_top_and_bottom_take_a_work_to_either_end(ui, winter):
-    """From the middle, so neither end is where the work already was.
-
-    *(Since 2026-10-14, #352: the ends are reached by typing 1 or the last place
-    into the work's Position field, where *Move to top* and *Move to bottom*
-    were buttons.)*
-    """
+def test_home_and_end_take_a_work_to_either_end(ui, winter):
+    """From the middle, so neither end is where the work already was."""
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
 
-    _move(ui, "Convergence", 1)
+    _handle(ui, "Convergence").press("Home")
     _first_row_becomes(ui, "Convergence")
     assert _titles(ui) == ["Convergence", "Autumn Rhythm", "Blue Poles", "Number 1"]
 
-    _move(ui, "Autumn Rhythm", 4)
+    _handle(ui, "Autumn Rhythm").press("End")
     _last_row_becomes(ui, "Autumn Rhythm")
     assert _titles(ui) == ["Convergence", "Blue Poles", "Number 1", "Autumn Rhythm"]
 
@@ -218,56 +215,73 @@ def test_move_to_top_and_bottom_take_a_work_to_either_end(ui, winter):
     assert _titles(ui) == ["Convergence", "Blue Poles", "Number 1", "Autumn Rhythm"]
 
 
-def test_the_moves_are_operated_from_the_keyboard(ui, winter):
-    """No drag: each move is the work's Position field, typed into or stepped by
-    its arrows, committed with Enter or by leaving it.
-
-    *(Since 2026-10-14, #352: a field where four buttons were; both ways a
-    keyboard commits a field are exercised.)*
-    """
+def test_the_keyboard_stays_on_the_work_it_moves_and_hears_where_it_landed(ui, winter):
+    """Each press is one move, repainted from the answer; the keyboard is put back
+    on the moved work's handle, so the next press moves the same work, and the
+    live region says where it landed."""
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
 
-    field = ui.page.locator("input[aria-label='Position of Number 1']")
-    field.focus()
-    ui.page.keyboard.press("ControlOrMeta+A")
-    ui.page.keyboard.type("1")
-    ui.page.keyboard.press("Enter")
+    _handle(ui, "Number 1").focus()
+    ui.page.keyboard.press("Home")
     _first_row_becomes(ui, "Number 1")
-    # The repaint replaced the field, and the keyboard is on the new one, at
-    # the work's new place: the next press is for the same work.
+    ui.page.wait_for_function("() => document.activeElement.getAttribute('aria-label') === 'Move Number 1'")
+    assert ui.page.locator("#view [aria-live='polite']", has_text="Number 1 moved to 1 of 4.").count() == 1
+
+    ui.page.keyboard.press("ArrowDown")
     ui.page.wait_for_function(
-        "() => document.activeElement.getAttribute('aria-label') === 'Position of Number 1'"
-        " && document.activeElement.value === '1'"
+        "() => document.querySelectorAll(\"tbody tr td[data-label='Title']\")[1].textContent === 'Number 1'"
     )
-
-    for _ in range(3):
-        ui.page.keyboard.press("ArrowUp")
-    ui.page.keyboard.press("Tab")
-    _last_row_becomes(ui, "Number 1")
-    # One move for the typed place and one for the three steps: the arrows
-    # change the number, and only leaving the field commits it.
+    ui.page.wait_for_function("() => document.activeElement.getAttribute('aria-label') === 'Move Number 1'")
     assert len(ui.requests_matching("/position")) == 2
+    assert _titles(ui) == ["Autumn Rhythm", "Number 1", "Blue Poles", "Convergence"]
 
-    assert _titles(ui) == list(TITLES)
-    assert ui.page.locator("[draggable='true']").count() == 0
+
+def test_dragging_a_handle_drops_the_work_where_the_pointer_leaves_it(ui, winter):
+    """By pointer, onto the first row: the work lands there, read back from the server."""
+    ui.open(f"#theme/{winter.id}")
+    ui.page.wait_for_selector("tbody tr")
+
+    start = _handle(ui, "Convergence").bounding_box()
+    target = ui.page.locator("tbody tr").first.bounding_box()
+    ui.page.mouse.move(start["x"] + start["width"] / 2, start["y"] + start["height"] / 2)
+    ui.page.mouse.down()
+    ui.page.mouse.move(start["x"] + start["width"] / 2, target["y"] + 4, steps=8)
+    # Marked where it will land before it is let go, on the side it lands.
+    assert ui.page.locator("tbody tr.drop-target").count() == 1
+    assert ui.page.locator("tbody tr.drop-target.drop-below").count() == 0
+    ui.page.mouse.up()
+    _first_row_becomes(ui, "Convergence")
+
+    ui.open(f"#theme/{winter.id}")
+    ui.page.wait_for_selector("tbody tr")
+    assert _titles(ui) == ["Convergence", "Autumn Rhythm", "Blue Poles", "Number 1"]
+    # A finger drags the handle rather than scrolling the page.
+    assert _handle(ui, "Convergence").evaluate("(node) => getComputedStyle(node).touchAction") == "none"
+
+
+def test_a_drag_let_go_where_it_started_sends_nothing(ui, winter):
+    ui.open(f"#theme/{winter.id}")
+    ui.page.wait_for_selector("tbody tr")
+
+    start = _handle(ui, "Blue Poles").bounding_box()
+    ui.page.mouse.move(start["x"] + 5, start["y"] + 5)
+    ui.page.mouse.down()
+    ui.page.mouse.move(start["x"] + 6, start["y"] + 6, steps=3)
+    ui.page.mouse.up()
+    ui.page.wait_for_timeout(300)
+
+    assert ui.requests_matching("/position") == []
+    assert ui.page.locator("tbody tr.drop-target").count() == 0
 
 
 def test_the_ends_offer_no_move_to_where_a_work_already_is(ui, winter):
-    """The field offers the places 1 to 4, and a place that is the work's own sends nothing.
-
-    *(Since 2026-10-14, #352: held on the Position field's range and on what
-    it sends, where the end buttons were disabled.)*
-    """
+    """Home on the first work and End on the last send nothing."""
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
 
-    first = ui.page.locator("input[aria-label='Position of Autumn Rhythm']")
-    last = ui.page.locator("input[aria-label='Position of Number 1']")
-    assert [first.get_attribute("min"), first.get_attribute("max"), first.input_value()] == ["1", "4", "1"]
-    assert [last.get_attribute("min"), last.get_attribute("max"), last.input_value()] == ["1", "4", "4"]
-    _move(ui, "Autumn Rhythm", 1)
-    _move(ui, "Number 1", 4)
+    _handle(ui, "Autumn Rhythm").press("Home")
+    _handle(ui, "Number 1").press("End")
     ui.page.wait_for_timeout(300)
     assert ui.requests_matching("/position") == []
 
@@ -299,29 +313,29 @@ def test_renaming_a_theme_renames_the_tab(ui, winter):
     ui.page.wait_for_selector("tbody tr")
     assert re.match(r"^Winter\b", ui.page.title())
 
-    ui.page.fill(f"#rename-{winter.id}", "Late night")
-    ui.page.click("button[aria-label='Rename Winter']")
+    # In the theme's *Edit…* since ruling 9 of 2026-10-27.
+    ui.page.click("#view .page-toolbar button[aria-label='Edit Winter…']")
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.get_by_label("Name", exact=True).fill("Late night")
+    dialog.get_by_role("button", name="Save Winter").click()
     ui.page.wait_for_selector("#view h1:has-text('Late night')")
 
     assert re.match(r"^Late night\b", ui.page.title())
     assert "Winter" not in ui.page.title()
 
 
-def test_a_refused_move_leaves_the_field_free_and_sends_nothing_more(ui, winter):
-    """The server refused it: the field goes back to the work's place, and leaving it sends nothing."""
+def test_a_refused_move_is_said_beside_its_handle_and_moves_nothing(ui, winter):
+    """The server refused it: the order stays, one request was sent, and the reason
+    is said beside the handle that asked (`core/acting.js`)."""
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
     ui.serve("**/api/themes/*/works/*/position", [(400, {"error": "That move was refused."})])
 
-    _move(ui, "Number 1", 1)
-    # The refusal is said beside the field (`core/acting.js`), and the field
-    # goes back to the work's place.
-    field = ui.page.locator("input[aria-label='Position of Number 1']")
-    ui.page.wait_for_function("() => document.querySelector(\"input[aria-label='Position of Number 1']\").value === '4'")
-    ui.page.keyboard.press("Tab")
-    ui.page.wait_for_timeout(300)
+    handle = _handle(ui, "Number 1")
+    handle.press("Home")
+
+    assert ui.said_beside(handle).startswith("Couldn't move Number 1 to position 1: That move was refused.")
     assert len(ui.requests_matching("/position")) == 1
-    assert field.input_value() == "4"
     assert _titles(ui) == list(TITLES)
 
 

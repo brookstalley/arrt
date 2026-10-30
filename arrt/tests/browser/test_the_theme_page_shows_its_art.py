@@ -5,7 +5,8 @@ page was a wall of buttons with no art and no links:
 - 61 rows of five acts made a 7,256 px page of 305 boxes.
 - Titles, artists and the wall badge were plain text, and the Size column was
   empty.
-- *Add a work* on *All works* offered only works already in it.
+- *Add a work* on *All works* offered only works already in it (the picker went
+  on 2026-10-29: works are added from Artworks).
 - On a phone the acts were off-screen in a sideways scroller.
 Ruling 2 of 2026-10-11 settled that a theme is never shuffled.
 """
@@ -66,33 +67,20 @@ def test_a_row_costs_two_boxes_not_five(ui, evening):
     assert per_row == [2, 2, 2]
 
 
-def test_add_a_work_offers_only_works_not_in_the_theme(ui, evening):
-    theme, _hopper, members, outside = evening
+def test_works_are_added_from_artworks_and_the_page_has_no_picker(ui, evening):
+    """*Add a work* offered every work in the library and *Add*; on *All works*,
+    which holds them, it offered only works already in it (finding 31). The
+    owner ruled on 2026-10-29 (`ia-proposal.md` § Rulings (2026-10-27)) that a
+    theme's page has no picker: *Add works* goes to Artworks, where *Add to
+    theme…* acts on a selection. The two tests that held what the picker offered
+    went with it."""
+    theme, *_ = evening
     open_theme(ui, theme)
-    offered = ui.page.locator(f"#add-{theme.id} option").evaluate_all("(options) => options.map((o) => o.value)")
-    assert outside.id in offered
-    assert not {work.id for work in members} & set(offered)
 
-    # Added, it leaves the picker.
-    ui.page.select_option(f"#add-{theme.id}", value=outside.id)
-    ui.page.click("button:text-is('Add')")
-    ui.page.wait_for_function("() => document.querySelectorAll('tbody tr').length === 4")
-    offered = ui.page.locator(f"#add-{theme.id} option").evaluate_all("(options) => options.map((o) => o.value)")
-    assert outside.id not in offered
-
-
-def test_a_theme_holding_every_work_says_so_rather_than_offering_any(ui, services, service):
-    work = service.add_artwork(title="The only work")
-    every = services.display.add_theme(name="All works")
-    services.display.add_to_theme(theme_id=every.id, artwork_id=work.id, position=0)
-    # The seeded catalogue's own works go in too, so nothing is left to add.
-    for at, entry in enumerate(service.list_artworks(limit=100).entries):
-        if entry.artwork.id != work.id:
-            services.display.add_to_theme(theme_id=every.id, artwork_id=entry.artwork.id, position=at + 1)
-    open_theme(ui, every)
-
-    assert ui.page.locator(f"#add-{every.id}").is_hidden()
-    assert ui.page.locator("#view p", has_text="Every work in the library is in All works.").is_visible()
+    assert ui.page.locator("#view select").count() == 0
+    assert ui.page.locator("#view button:text-is('Add')").count() == 0
+    add = ui.page.locator("#view .page-toolbar").get_by_role("link", name="Add works")
+    assert add.get_attribute("href") == "#collection"
 
 
 def test_nothing_on_the_page_speaks_of_shuffle(ui, evening):
@@ -131,3 +119,54 @@ def test_on_a_phone_every_act_is_reachable_without_a_sideways_scroll(ui, evening
             return c ? c.scrollWidth <= c.clientWidth + 1 : true; })(),
         })""")
     assert report == {"scrollers": 0, "offscreen": 0, "caption": True}
+
+
+def test_on_a_phone_a_member_is_one_compact_card(ui, evening):
+    """Found by photograph (2026-10-29): each member was a column of labelled cells,
+    about 300 px a work, and "No picture" broke mid-word in its square. A member
+    is now one card, the picture beside its title, with no heading over each
+    value, and the placeholder's words whole."""
+    theme, *_ = evening
+    ui.page.set_viewport_size(PHONE)
+    open_theme(ui, theme)
+    report = ui.page.evaluate("""() => {
+          const rows = [...document.querySelectorAll('#view tbody tr')];
+          const labels = [...document.querySelectorAll('#view tbody td')]
+            .map((td) => getComputedStyle(td, '::before').content)
+            .filter((content) => content && content !== 'none' && content !== 'normal');
+          const broken = [...document.querySelectorAll('#view .member-picture .card-image-absent span')].filter((span) => {
+            const range = document.createRange();
+            range.selectNodeContents(span);
+            const words = span.textContent.split(' ').length;
+            return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size > words;
+          }).length;
+          const sideBySide = rows.every((row) => {
+            const picture = row.querySelector("td[data-label='Picture']").getBoundingClientRect();
+            const title = row.querySelector("td[data-label='Title']").getBoundingClientRect();
+            return title.left >= picture.right && Math.abs(title.top - picture.top) < 24;
+          });
+          const tallest = Math.max(...rows.map((row) => row.getBoundingClientRect().height));
+          return { tallest, labels: labels.length, broken, sideBySide };
+        }""")
+    assert report["tallest"] < 140, report
+    assert report == {"tallest": report["tallest"], "labels": 0, "broken": 0, "sideBySide": True}
+
+
+def test_on_a_phone_the_pages_own_acts_step_out_while_selecting(ui, evening):
+    """Found by photograph: *Hang…*, *Edit…* and *Add works* beside the selection's
+    acts made the sticky toolbar six rows on a phone. They step out while *Select*
+    is on, as Artworks' View and Sort do, and come back with *Stop selecting*."""
+    theme, *_ = evening
+    ui.page.set_viewport_size(PHONE)
+    open_theme(ui, theme)
+    toolbar = ui.page.locator("#view .page-toolbar")
+    hang = toolbar.locator("button", has_text="Hang…")
+    assert hang.is_visible()
+
+    toolbar.locator("button.select-toggle").click()
+    assert hang.is_hidden()
+    assert toolbar.get_by_role("link", name="Add works").is_hidden()
+    assert toolbar.locator("button.selection-remove").is_visible()
+
+    toolbar.locator("button.select-toggle").click()
+    assert hang.is_visible()

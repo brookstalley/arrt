@@ -26,7 +26,7 @@
  * result, the Walls screen repaints in place. That is the parameter.
  */
 
-import { attempt } from "./acting.js";
+import { attempt, reportElsewhere } from "./acting.js";
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
 
@@ -64,4 +64,69 @@ export async function hangTheme({ control, themeId, themeName, wall, then }) {
       }),
     { then },
   );
+}
+
+/* *Hang…* on a theme's page: the walls ticked where it should hang, as one
+ * change asked once (ruling 9 of 2026-10-27, in place of a button per wall and
+ * *Take down*). `hangOn` are the walls newly ticked and `takeDownFrom` those
+ * unticked; a wall left as it was is in neither and is sent nothing, so a
+ * theme already hanging is never re-hung from here (that republish is Walls').
+ *
+ * **One question naming every wall it changes**, for `hangTheme`'s reason: the
+ * act changes what other people in the house see, so each wall is named, with
+ * the server's preview for each wall it goes up on, fetched as the question is
+ * asked. Taking down rewrites no feed: the wall goes on showing what it shows
+ * until something else is hung, and the question says so.
+ *
+ * Returns whether every change was made. `then` runs when any wall changed, so
+ * the page repaints to what is now true. A refusal before anything changed is
+ * said beside `control` and nothing repaints, so the sentence stays; one after
+ * a wall had changed is said where it outlives the repaint
+ * (`core/acting.js` `reportElsewhere`), naming the wall it stopped at. */
+export async function hangOnWalls({ control, themeId, themeName, hangOn, takeDownFrom, then }) {
+  const previews = [];
+  const previewed = await attempt(control, `hang ${themeName}`, async () => {
+    for (const wall of hangOn) {
+      const preview = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}&theme_id=${encodeURIComponent(themeId)}`);
+      previews.push(`${wall.name}: ${preview.summary}`);
+    }
+  });
+  if (!previewed) return false;
+  const names = (walls) => walls.map((wall) => wall.name);
+  const listed = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
+  const sentences = [...previews];
+  if (takeDownFrom.length) {
+    sentences.push(
+      `Taken down from ${listed(names(takeDownFrom))}, which ${takeDownFrom.length === 1 ? "goes" : "go"} on showing what ${takeDownFrom.length === 1 ? "it shows" : "they show"} until something else is hung there.`,
+    );
+  }
+  sentences.push(`Everyone in the house sees ${listed(names([...hangOn, ...takeDownFrom]))} change.`);
+  const confirmed = await confirmAct({
+    title: hangOn.length
+      ? `Hang ${themeName} on ${listed(names(hangOn))}${takeDownFrom.length ? ` and take it down from ${listed(names(takeDownFrom))}` : ""}?`
+      : `Take ${themeName} down from ${listed(names(takeDownFrom))}?`,
+    consequence: sentences.join(" "),
+    confirmLabel: hangOn.length ? "Hang" : "Take down",
+  });
+  if (!confirmed) return false;
+
+  const steps = [
+    ...hangOn.map((wall) => [
+      `hang ${themeName} on ${wall.name}`,
+      () => api(`/api/themes/${encodeURIComponent(themeId)}/activate`, { method: "POST", body: JSON.stringify({ wall_id: wall.wall_id }) }),
+    ]),
+    ...takeDownFrom.map((wall) => [
+      `take ${themeName} down from ${wall.name}`,
+      () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/theme`, { method: "DELETE" }),
+    ]),
+  ];
+  let changed = 0;
+  let done = true;
+  for (const [act, write] of steps) {
+    done = await attempt(changed ? null : control, act, write, { elsewhere: reportElsewhere });
+    if (!done) break;
+    changed += 1;
+  }
+  if (changed && then) await then(done);
+  return done;
 }

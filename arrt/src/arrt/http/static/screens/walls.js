@@ -1054,7 +1054,9 @@ function emptyTheme(wall, manifest) {
       // § Screen Inventory lists "a wall's theme control" as an entry point to
       // the Theme screen, and a link naming one theme that lands on a list of
       // all of them makes the curator find it again — on the one screen whose
-      // sentence directly above says which theme is the problem.
+      // sentence directly above says which theme is the problem. Its page has
+      // *Add works*, which goes on to Artworks (the owner's ruling of
+      // 2026-10-29, `ia-proposal.md`).
       link({ view: "theme", id: manifest.theme.theme_id }, { class: "action quiet", text: `Add works to ${manifest.theme.name}` }),
     ]),
   ];

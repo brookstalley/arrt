@@ -2,9 +2,12 @@
 
 A theme's name, the order its works reach the wall in, where it hangs, and
 whether it exists — none of it expressible as JSON, so neither Python suite runs
-a line of it. Membership is edited here as well as from the grid: the grid is
-where a theme gets built, and this is where a curator already looking at the
-order drops one out of it.
+a line of it. Works are added from Artworks and taken out here, on a selection
+(ruling 9 of 2026-10-27; until then each row had its own *Remove* and the page
+an *Add a work* picker). Since that ruling the page opens with its name, its
+facts and a toolbar: *Hang…* (a dialog of walls), *Edit…* (name, description,
+default, delete) and *Add works*; the order is a drag handle per row, which the
+keyboard moves too; and every changed assertion below says so.
 
 **Two of these are debts this screen carried into the chunk that owns it.** Its
 membership control read "Remove", which promises a *work* is gone when it is
@@ -86,16 +89,60 @@ def _row_becomes(ui, index, title):
     )
 
 
-def _move(ui, title, place):
-    """Type a work's new place into its Position field and commit it, as a curator does."""
-    field = ui.page.locator(f"input[aria-label='Position of {title}']")
-    field.fill(str(place))
-    field.press("Enter")
+def _press(ui, title, key):
+    """Press a key on a work's drag handle, as a curator moving it by keyboard does."""
+    ui.page.locator(f"button.drag-handle[aria-label='Move {title}']").press(key)
 
 
 def _count(ui):
-    """The member count on the panel that has a member table — Winter's, in every fixture here."""
-    return ui.page.locator(".panel", has=ui.page.locator("tbody tr")).locator("p.muted").first.inner_text()
+    """The member count, the first of the page's facts."""
+    return ui.page.locator("#view .theme-facts").inner_text().split(" · ")[0]
+
+
+def _tick(ui, title):
+    """A work's tick, shown while *Select* is on, by its accessible name."""
+    return ui.page.locator(f"tbody input.select-box[aria-label='Select {title}']")
+
+
+def _remove(ui, *titles):
+    """Select these works and remove them from the theme, from the toolbar."""
+    if ui.page.locator("button.select-toggle").inner_text() == "Select":
+        ui.page.click("button.select-toggle")
+    for title in titles:
+        _tick(ui, title).check()
+    ui.page.click("button.selection-remove")
+
+
+def _edit(ui):
+    """Open the theme's *Edit…* and return the dialog."""
+    ui.page.locator("#view .page-toolbar button", has_text="Edit…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.wait_for()
+    return dialog
+
+
+def _rename(ui, name):
+    dialog = _edit(ui)
+    dialog.get_by_label("Name", exact=True).fill(name)
+    save = dialog.get_by_role("button", name="Save", exact=False)
+    save.click()
+    return save
+
+
+def _delete(ui):
+    """*Edit…*, then *Delete…*: the question opens with the dialog closed."""
+    _edit(ui).get_by_role("button", name="Delete", exact=False).click()
+
+
+def _hang(ui, *ticked):
+    """Open *Hang…*, tick exactly these walls, and press *Hang*."""
+    ui.page.locator("#view .page-toolbar button", has_text="Hang…").click()
+    dialog = ui.page.locator("dialog.panel-dialog[open]")
+    dialog.wait_for()
+    for box in dialog.locator("input[type='checkbox']").all():
+        name = dialog.locator(f"label[for='{box.get_attribute('id')}']").inner_text()
+        box.set_checked(name in ticked)
+    dialog.get_by_role("button", name="Hang", exact=True).click()
 
 
 def _labels(ui, selector):
@@ -119,7 +166,7 @@ class TestReordering:
         _painted(ui)
         assert _titles(ui) == list(POLLOCKS)
 
-        _move(ui, "Autumn Rhythm", 2)
+        _press(ui, "Autumn Rhythm", "ArrowDown")
         _first_row_becomes(ui, "Blue Poles")
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
@@ -127,35 +174,40 @@ class TestReordering:
         _painted(ui)
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
 
-    def test_a_work_added_through_this_screen_can_then_be_moved(self, ui, winter, service):
+    def test_a_work_added_through_artworks_can_then_be_moved(self, ui, winter, service):
         """The whole round trip through the doors a curator actually uses.
 
         Every other test here starts from a fixture that hands `add_to_theme` an
-        explicit dense position, and the Add button posts an artwork and nothing
-        else — so the shape those fixtures build is one no browser can produce.
-        While an add left the work unplaced, the list this table renders and the
-        list the service renumbered were different lists, and a move against a
-        theme built this way either did nothing or sent the work the wrong way.
-        Adding first is what makes this test able to see that.
+        explicit dense position, and an add from a browser posts an artwork and
+        nothing else — so the shape those fixtures build is one no browser can
+        produce. While an add left the work unplaced, the list this table renders
+        and the list the service renumbered were different lists, and a move
+        against a theme built this way either did nothing or sent the work the
+        wrong way. Adding first is what makes this test able to see that. The add
+        is the route Artworks' *Add to theme…* sends (`POST .../works/bulk`),
+        since ruling 9 of 2026-10-27 took the picker off this page.
         """
-        service.add_artwork(title="Number 1")
+        number_1 = service.add_artwork(title="Number 1")
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
-
-        ui.page.select_option(f"#add-{winter.id}", label="Number 1")
-        ui.page.click("button:has-text('Add')")
+        ui.page.evaluate(
+            "([theme, work]) => fetch(`/api/themes/${theme}/works/bulk`, {method: 'POST',"
+            " headers: {'Content-Type': 'application/json'}, body: JSON.stringify({artwork_ids: [work]})})",
+            [winter.id, number_1.id],
+        )
+        ui.open(f"#theme/{winter.id}")
         ui.page.wait_for_function("() => document.querySelectorAll('tbody tr').length === 4")
         assert _titles(ui) == [*POLLOCKS, "Number 1"]
 
         # Waiting on a row that is *not* already what it will become — the first
         # row never changes here, so waiting on it would wait for nothing and the
         # assertion below would read the order that was already on screen.
-        _move(ui, "Number 1", 3)
+        _press(ui, "Number 1", "ArrowUp")
         _row_becomes(ui, 2, "Number 1")
         assert _titles(ui) == ["Autumn Rhythm", "Blue Poles", "Number 1", "Convergence"]
 
         # And back down, which is the direction that had never worked.
-        _move(ui, "Number 1", 4)
+        _press(ui, "Number 1", "End")
         _row_becomes(ui, 2, "Convergence")
         assert _titles(ui) == ["Autumn Rhythm", "Blue Poles", "Convergence", "Number 1"]
 
@@ -180,37 +232,34 @@ class TestReordering:
             "**/api/themes/*/works/*/position",
             a_theme_detail([a_catalogue_work(artwork_id="only-1", title="Only what the answer said")]),
         )
-        _move(ui, "Autumn Rhythm", 2)
+        _press(ui, "Autumn Rhythm", "ArrowDown")
         _first_row_becomes(ui, "Only what the answer said")
 
         assert _titles(ui) == ["Only what the answer said"]
 
     def test_the_ends_of_the_order_offer_no_move_that_would_do_nothing(self, ui, winter):
-        """A place is offered only where the order has one, and a move to where a
-        work already is sends nothing.
+        """A move to where a work already is sends nothing.
 
         *(Until 2026-10-14 the order was four buttons a row, and this test held
         that the first work's ↑ and the last's ↓ were disabled. #352 made the
-        order one Position field a row; the same rule is held on the field: it
-        offers the places 1 to N, and a place that is the work's own, typed or
-        reached by going past an end, is put back rather than sent.)*
+        order one Position field a row, and ruling 9 of 2026-10-27 a drag handle
+        a row; the same rule is held on the handle's keys: Up and Home on the
+        first work, Down and End on the last, send nothing.)*
         """
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        fields = ui.page.locator("input.theme-position")
-        assert fields.evaluate_all("(els) => els.map((el) => [el.min, el.max, el.value])") == [
-            ["1", "3", "1"],
-            ["1", "3", "2"],
-            ["1", "3", "3"],
-        ]
-        _move(ui, "Autumn Rhythm", 0)
-        _move(ui, "Autumn Rhythm", 1)
-        _move(ui, "Convergence", 9)
+        for title, key in (
+            ("Autumn Rhythm", "ArrowUp"),
+            ("Autumn Rhythm", "Home"),
+            ("Convergence", "ArrowDown"),
+            ("Convergence", "End"),
+        ):
+            _press(ui, title, key)
         ui.page.wait_for_timeout(300)
         assert ui.requests_matching("/position") == []
         assert _titles(ui) == list(POLLOCKS)
-        assert ui.page.locator("input[aria-label='Position of Convergence']").input_value() == "3"
+        assert ui.page.locator("input.theme-position").count() == 0
 
 
 class TestTheMembershipControl:
@@ -221,28 +270,29 @@ class TestTheMembershipControl:
         is no delete of one, the work stays catalogued and stays in every other
         theme, and a curator who believes removal is destructive hesitates over
         something cheap. Naming the theme is the fix that stays true — borrowing
-        "Archive" would say something false about the catalogue instead.
+        "Archive" would say something false about the catalogue instead. Since
+        ruling 9 of 2026-10-27 it is one act on a selection, in the toolbar, and
+        no row has a button of its own.
         """
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
+        assert ui.page.locator("tbody button", has_text="Remove").count() == 0
 
-        assert ui.page.locator("tbody button", has_text="Remove").all_inner_texts() == (["Remove from Winter"] * len(POLLOCKS))
+        ui.page.click("button.select-toggle")
+        _tick(ui, "Blue Poles").check()
+        _tick(ui, "Convergence").check()
+
+        remove = ui.page.locator("button.selection-remove")
+        assert remove.inner_text() == "Remove 2 works from Winter"
         # Nothing anywhere on the screen says the bare word.
-        assert ui.page.locator("button", has_text="Remove").count() == len(POLLOCKS)
-        # And the accessible name says which work as well as which theme, since
-        # three identically labelled buttons are three identical announcements.
-        assert [
-            ui.page.locator("tbody button", has_text="Remove").nth(index).get_attribute("aria-label")
-            for index in range(len(POLLOCKS))
-        ] == [f"Remove {title} from Winter" for title in POLLOCKS]
+        assert ui.page.locator("button:text-is('Remove')").count() == 0
 
     def test_removing_a_work_leaves_the_rest_in_order(self, ui, winter):
         """And repaints from the answer, which is the same shape a move gets back."""
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click("button[aria-label='Remove Blue Poles from Winter']")
-        _first_row_becomes(ui, "Autumn Rhythm")
+        _remove(ui, "Blue Poles")
         ui.page.wait_for_function("() => document.querySelectorAll('tbody tr').length === 2")
 
         assert _titles(ui) == ["Autumn Rhythm", "Convergence"]
@@ -260,7 +310,7 @@ class TestTheMembershipControl:
         _painted(ui)
         assert _count(ui) == "3 works"
 
-        ui.page.click("button[aria-label='Remove Blue Poles from Winter']")
+        _remove(ui, "Blue Poles")
         ui.page.wait_for_function("() => document.querySelectorAll('tbody tr').length === 2")
 
         assert _count(ui) == "2 works"
@@ -270,8 +320,7 @@ class TestTheMembershipControl:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        for title in ("Blue Poles", "Convergence"):
-            ui.page.click(f"button[aria-label='Remove {title} from Winter']")
+        _remove(ui, "Blue Poles", "Convergence")
         ui.page.wait_for_function("() => document.querySelectorAll('tbody tr').length === 1")
 
         assert _count(ui) == "1 work"
@@ -294,17 +343,17 @@ class TestRenaming:
         own theme and not the other.
         """
         late = services.display.add_theme(name="Late night")
-        ui.open(f"#theme/{winter.id}")
-        _painted(ui)
-
-        assert _labels(ui, "button[aria-label^='Rename ']") == ["Rename Winter"]
-        assert _labels(ui, "button[aria-label^='Delete ']") == ["Delete Winter"]
-        assert ui.page.get_attribute(f"#rename-{winter.id}", "aria-label") == "Name of Winter"
-
-        ui.open(f"#theme/{late.id}")
-        ui.page.wait_for_selector("#view h1:has-text('Late night')")
-        assert _labels(ui, "button[aria-label^='Rename ']") == ["Rename Late night"]
-        assert _labels(ui, "button[aria-label^='Delete ']") == ["Delete Late night"]
+        for theme in (winter, late):
+            ui.open(f"#theme/{theme.id}")
+            ui.page.wait_for_selector(f"#view h1:has-text('{theme.name}')")
+            # The toolbar's acts, and in *Edit…* the ones that change or destroy
+            # it (ruling 9 of 2026-10-27 moved them there from beside the name).
+            assert _labels(ui, "#view .page-toolbar button[aria-label^='Hang ']") == [f"Hang {theme.name}…"]
+            assert _labels(ui, "#view .page-toolbar button[aria-label^='Edit ']") == [f"Edit {theme.name}…"]
+            _edit(ui)
+            assert _labels(ui, "dialog button[aria-label^='Save ']") == [f"Save {theme.name}"]
+            assert _labels(ui, "dialog button[aria-label^='Delete ']") == [f"Delete {theme.name}…"]
+            ui.page.keyboard.press("Escape")
 
     def test_the_accessible_names_follow_the_new_name_too(self, ui, winter):
         """A control announcing a theme by its old name is worse than one naming none.
@@ -315,29 +364,30 @@ class TestRenaming:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.fill("#rename-" + winter.id, "Late night")
-        ui.page.click("button[aria-label='Rename Winter']")
+        _rename(ui, "Late night")
         ui.page.wait_for_selector("h1:has-text('Late night')")
 
-        assert ui.page.locator("button[aria-label='Delete Late night']").count() == 1
-        assert ui.page.locator("button[aria-label='Delete Winter']").count() == 0
-        assert ui.page.get_attribute(f"#rename-{winter.id}", "aria-label") == "Name of Late night"
+        assert ui.page.locator("button[aria-label='Edit Late night…']").count() == 1
+        assert ui.page.locator("button[aria-label='Edit Winter…']").count() == 0
+        _edit(ui)
+        assert ui.page.locator("dialog button[aria-label='Delete Late night…']").count() == 1
 
     def test_the_heading_and_the_membership_controls_both_follow_the_new_name(self, ui, winter):
         """Two places name the theme, and a rename that moved one is worse than neither.
 
-        A table still offering "Remove from Winter" under a heading reading
+        A toolbar still offering "Remove from Winter" under a heading reading
         "Late night" leaves a curator working out which of the two to believe.
         """
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.fill("#rename-" + winter.id, "Late night")
-        ui.page.click("button:has-text('Rename')")
+        _rename(ui, "Late night")
         ui.page.wait_for_selector("h1:has-text('Late night')")
+        ui.page.click("button.select-toggle")
 
-        assert ui.page.locator("button", has_text="Remove from Late night").count() == len(POLLOCKS)
+        assert ui.page.locator("button.selection-remove").inner_text() == "Remove from Late night"
         assert ui.page.locator("button", has_text="Remove from Winter").count() == 0
+        assert ui.page.title().startswith("Late night")
 
     def test_the_field_shows_the_name_the_catalogue_stored_rather_than_the_one_typed(self, ui, winter):
         """The service trims, so the two differ — and the field is where it shows.
@@ -349,22 +399,19 @@ class TestRenaming:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.fill("#rename-" + winter.id, "  Late night  ")
-        ui.page.click("button:has-text('Rename')")
+        _rename(ui, "  Late night  ")
         ui.page.wait_for_selector("h1:has-text('Late night')")
 
-        assert ui.page.input_value("#rename-" + winter.id) == "Late night"
+        assert _edit(ui).get_by_label("Name", exact=True).input_value() == "Late night"
 
     def test_a_name_with_nothing_in_it_is_refused_in_the_servers_words(self, ui, winter):
         """The rule lives in the service, and its refusal reaches the curator unchanged."""
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.fill("#rename-" + winter.id, "   ")
-        rename = ui.page.locator("button:has-text('Rename')")
-        rename.click()
+        save = _rename(ui, "   ")
 
-        assert ui.said_beside(rename) == "Couldn't rename Winter: name cannot be empty. Nothing was changed."
+        assert ui.said_beside(save) == "Couldn't save Winter: name cannot be empty. Nothing was changed."
         assert ui.page.locator("h1", has_text="Winter").count() == 1
 
 
@@ -380,7 +427,7 @@ class TestHanging:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click(f"button:has-text('Hang on {wall.name}')")
+        _hang(ui, wall.name)
         ui.page.wait_for_selector("dialog.confirm[open]")
 
         assert ui.page.inner_text("dialog.confirm .confirm-title") == f"Hang Winter on {wall.name}?"
@@ -400,10 +447,11 @@ class TestHanging:
 
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
-        ui.page.click(f"button:has-text('Hang on {wall.name}')")
+        _hang(ui, wall.name)
         ui.page.wait_for_selector("dialog.confirm[open]")
 
-        assert ui.page.inner_text("dialog.confirm .confirm-consequence").startswith(preview.summarise())
+        # Each wall it goes up on, by name, then the build's own summary for it.
+        assert ui.page.inner_text("dialog.confirm .confirm-consequence").startswith(f"{wall.name}: {preview.summarise()}")
 
     def test_declining_leaves_the_wall_alone(self, ui, winter, services):
         """Escape is a no, and a no here means nothing was published."""
@@ -411,31 +459,31 @@ class TestHanging:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click(f"button:has-text('Hang on {wall.name}')")
+        _hang(ui, wall.name)
         ui.page.wait_for_selector("dialog.confirm[open]")
         ui.page.keyboard.press("Escape")
         ui.page.wait_for_selector("dialog.confirm", state="detached")
 
         assert services.display.hanging_on(wall.id) is None
         # Still offered, so declining left the screen able to try again.
-        assert ui.page.locator("button", has_text=f"Hang on {wall.name}").count() == 1
+        assert ui.page.locator("#view .page-toolbar button", has_text="Hang…").is_enabled()
 
-    def test_confirming_hangs_it_and_lands_on_the_wall_it_changed(self, ui, winter, services):
-        """The wall view repaints from the manifest that was published, not from the preview.
-
-        Waited on the wall section rather than on a heading: the theme screen
-        already carries an `h1`, so a heading wait would match instantly and the
-        assertions below would read the state from before the click.
+    def test_confirming_hangs_it_and_the_facts_say_where(self, ui, winter, services):
+        """The page stays, and its facts say where the theme now hangs, read again
+        from the server; the wall the act changed is a link there. *(Until ruling
+        9 of 2026-10-27 it left for Walls, since hanging was a button per wall
+        and the page did not say where a theme hung.)*
         """
         wall = services.display.survey_walls()[0].wall
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click(f"button:has-text('Hang on {wall.name}')")
+        _hang(ui, wall.name)
         _confirm(ui, "Hang")
-        ui.page.wait_for_selector("section.wall")
+        ui.page.wait_for_selector(f"#view .theme-facts a:text-is('{wall.name}')")
 
         assert services.display.hanging_on(wall.id).id == winter.id
+        assert ui.page.evaluate("() => window.location.hash") == f"#theme/{winter.id}"
 
 
 class TestDeleting:
@@ -449,7 +497,7 @@ class TestDeleting:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click("button:has-text('Delete')")
+        _delete(ui)
         ui.page.wait_for_selector("dialog.confirm[open]")
 
         assert ui.page.inner_text("dialog.confirm .confirm-title") == "Delete Winter?"
@@ -461,7 +509,7 @@ class TestDeleting:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click("button:has-text('Delete')")
+        _delete(ui)
         ui.page.wait_for_selector("dialog.confirm[open]")
         ui.page.keyboard.press("Escape")
         ui.page.wait_for_selector("dialog.confirm", state="detached")
@@ -480,7 +528,7 @@ class TestDeleting:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click("button:has-text('Delete')")
+        _delete(ui)
         _confirm(ui, "Delete")
         ui.page.wait_for_selector("text=No themes yet.")
 
@@ -499,7 +547,7 @@ class TestDeleting:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        ui.page.click("button[aria-label='Delete Winter']")
+        _delete(ui)
         _confirm(ui, "Delete")
         ui.page.wait_for_selector("#view h1:has-text('Themes')")
         ui.page.wait_for_selector("li.theme-card")
@@ -527,11 +575,13 @@ class TestDeleting:
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        delete = ui.page.locator("button:has-text('Delete')")
-        delete.click()
+        _delete(ui)
         _confirm(ui, "Delete")
 
-        assert ui.said_beside(delete) == (
+        # Said beside the page's *Edit…*, which opened the act: the dialog that
+        # held *Delete…* closed as the question was asked.
+        edit = ui.page.locator("#view .page-toolbar button", has_text="Edit…")
+        assert ui.said_beside(edit) == (
             "Couldn't delete Winter: Theme 'Winter' is hanging on 'The study', 'The wall'. Hang another theme "
             "there first, or take this one down, so that what those walls show next is a choice rather than "
             "whatever was on them before. Nothing was changed."
@@ -596,10 +646,16 @@ class TestOneThemeHasItsOwnAddress:
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
 
-        assert ui.page.locator("button[aria-label='Rename Winter']").count() == 1
-        assert ui.page.locator("button[aria-label='Delete Winter']").count() == 1
-        assert ui.page.locator("input[aria-label='Position of Autumn Rhythm']").count() == 1
-        assert ui.page.locator("button:has-text('Hang on ')").count() >= 1
+        # In the toolbar since ruling 9 of 2026-10-27, and renaming and deleting
+        # in its *Edit…*; the order on a handle per row.
+        toolbar = ui.page.locator("#view .page-toolbar")
+        assert toolbar.locator("button[aria-label='Hang Winter…']").count() == 1
+        assert toolbar.locator("button[aria-label='Edit Winter…']").count() == 1
+        assert toolbar.get_by_role("link", name="Add works").get_attribute("href") == "#collection"
+        assert ui.page.locator("button.drag-handle[aria-label='Move Autumn Rhythm']").count() == 1
+        dialog = _edit(ui)
+        assert dialog.locator("button[aria-label='Save Winter']").count() == 1
+        assert dialog.locator("button[aria-label='Delete Winter…']").count() == 1
 
     def test_reordering_works_from_the_addressed_view(self, ui, two_themes):
         """One act driven end to end, because "the control is there" is not "it works".
@@ -611,7 +667,7 @@ class TestOneThemeHasItsOwnAddress:
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
 
-        _move(ui, "Autumn Rhythm", 2)
+        _press(ui, "Autumn Rhythm", "ArrowDown")
         _first_row_becomes(ui, "Blue Poles")
 
         assert _titles(ui) == ["Blue Poles", "Autumn Rhythm", "Convergence"]
@@ -626,7 +682,7 @@ class TestOneThemeHasItsOwnAddress:
         ui.open(f"#theme/{two_themes.id}")
         _painted(ui)
 
-        ui.page.click("button[aria-label='Delete Winter']")
+        _delete(ui)
         _confirm(ui, "Delete")
         ui.page.wait_for_selector("li.theme-card h2:has-text('Late night')")
 
@@ -696,21 +752,25 @@ class TestTheDefaultTheme:
         assert badge.locator(".glyph").get_attribute("aria-hidden") == "true"
         assert self._card(ui, winter).locator(".badge-default").count() == 0
 
-        # The default's own page says so too, and offers no act to become what it is.
+        # The default's own page says so too, in its facts (ruling 9 of
+        # 2026-10-27: a badge beside the name until then), and its *Edit…*
+        # offers no act to become what it is.
         self._open(ui, all_works)
-        assert ui.page.locator("#view h1 .badge-default").count() == 1
-        assert ui.page.locator("button:has-text('Make default')").count() == 0
+        assert "Default: works you accept join it" in ui.page.locator("#view .theme-facts").inner_text()
+        assert _edit(ui).locator("button", has_text="the default").count() == 0
+        ui.page.keyboard.press("Escape")
         self._open(ui, winter)
-        assert ui.page.locator("#view h1 .badge-default").count() == 0
-        assert _labels(ui, "button:has-text('Make default')") == ["Make default: Winter"]
+        assert "Default" not in ui.page.locator("#view .theme-facts").inner_text()
+        _edit(ui)
+        assert _labels(ui, "dialog button:has-text('Make this the default')") == ["Make Winter the default"]
 
     def test_making_another_the_default_moves_the_mark(self, ui, services, all_works, winter):
         self._open(ui, winter)
 
-        ui.page.click("button[aria-label='Make default: Winter']")
-        ui.page.wait_for_selector("#view h1 .badge-default")
+        _edit(ui).locator("button[aria-label='Make Winter the default']").click()
+        ui.page.wait_for_selector("#view .theme-facts:has-text('Default')")
 
-        assert ui.page.locator("button:has-text('Make default')").count() == 0
+        assert _edit(ui).locator("button", has_text="the default").count() == 0
         assert services.display.default_theme().id == winter.id
         # And it moved rather than being added: the index marks one card.
         ui.open("#theme")
@@ -734,18 +794,23 @@ class TestTheDefaultTheme:
         assert line.evaluate("(node) => !!node.previousElementSibling.matches('ul.theme-cards')")
 
     def test_one_themes_own_page_says_it_too(self, ui, winter):
-        """The note is about where acceptances go, not about the index, so both paths carry it."""
+        """The note is about where acceptances go, not about the index, so both paths carry it,
+        quiet on each since ruling 1 of 2026-10-27 (it does not stop either page's job)."""
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 
-        assert ui.page.locator("p.note", has_text="No theme is the default").count() == 1
+        line = ui.page.locator("#view p.no-default")
+        assert line.count() == 1
+        assert "No theme is the default" in line.inner_text()
+        assert "muted" in line.get_attribute("class")
 
     def test_only_the_default_says_what_joins_it(self, ui, all_works, winter):
-        joins = "Works you accept join this theme"
+        # In the facts since ruling 9 of 2026-10-27 (a line under the name until then).
+        joins = "works you accept join it"
         self._open(ui, all_works)
-        assert ui.page.locator("p.muted", has_text=joins).count() == 1
+        assert joins in ui.page.locator("#view .theme-facts").inner_text()
         self._open(ui, winter)
-        assert ui.page.locator("p.muted", has_text=joins).count() == 0
+        assert joins not in ui.page.locator("#view .theme-facts").inner_text()
 
     def test_the_note_is_absent_once_a_theme_is_the_default(self, ui, all_works):
         ui.open("#theme")
@@ -757,8 +822,9 @@ class TestTheDefaultTheme:
     def test_deleting_the_default_shows_the_servers_reason(self, ui, all_works):
         self._open(ui, all_works)
 
-        delete = ui.page.locator("button[aria-label='Delete All works']")
-        delete.click()
+        _delete(ui)
         _confirm(ui, "Delete")
 
-        assert "Make another theme the default first" in ui.said_beside(delete)
+        # Beside the page's *Edit…*, whose dialog held *Delete…* (ruling 9 of 2026-10-27).
+        edit = ui.page.locator("#view .page-toolbar button", has_text="Edit…")
+        assert "Make another theme the default first" in ui.said_beside(edit)

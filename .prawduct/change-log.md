@@ -66,6 +66,64 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-10-29: Settings › Players, Themes and a theme's page, rebuilt to the page rules (UI pass, part 3)
+
+<!-- prawduct: scope=ui-pass-themes-players -->
+
+**Why:** the last of the three plans that build the owner's rulings of
+2026-10-27 (`ia-proposal.md` § Rulings (2026-10-27), #390). Settings › Clients
+becomes Settings › Players (ruling 7), and Themes and a theme's page are rebuilt
+(ruling 9), each opening as Walls, Artworks and Work do. A wall's Player, screen
+and label panel are now set in one place, the wall's *Edit…*.
+
+**What changed:**
+- **Settings › Players** is a table, one row per Player: its status (*Reporting*,
+  *Not heard from since …*, *No token*, *Never reported*, *Report unreadable*),
+  its screens as *HDMI 1* or *Samsung Frame* with the wall on each, and its label
+  panel with the wall it captions. One *Edit…* per row: its name, its token
+  (*Rotate the token…* asks first; a token is shown once, in the dialog that
+  issued it) and *Remove…*. *Add Player…* in the toolbar. Assigning a wall and
+  captioning it left this page for the wall's *Edit…*. The address stays
+  `#clients`, as every renamed page's has.
+- **No page calls a Player a client.** The server's sentences a person reads say
+  Player too (the display fault, why a report could not be read, and the
+  notices kept with a placement it cannot confirm). The records, routes and MCP
+  tools keep `client`.
+- **Walls:** *No Player shows this wall* opens the wall's *Edit…*. A placement
+  the server keeps but cannot confirm says the server's notice in that dialog,
+  which stays open to read it (Players said it until this change). Walls' screen
+  picker names a Frame *Samsung Frame*.
+- **Themes** opens with its name, a line of facts (how many, which is the
+  default) and *New theme…*, a dialog of name and description whose *Create*
+  opens the new theme's page.
+- **A theme's page** opens with its way back, its name, a line of facts (how many
+  works, *Default* when it is, the walls it hangs on as links) and a toolbar:
+  *Hang…* (a dialog of every wall, ticked where it hangs, asked once for every
+  wall it changes; in place of a button per wall and *Take down*), *Edit…* (name
+  and description, *Make this the default*, *Delete…*) and *Add works*, a link to
+  Artworks. Works are removed by selecting them. The order is a drag handle per
+  row, dragged by pointer or finger or moved by the arrow keys, Home and End.
+  The *Add a work* picker is gone (the owner, 2026-10-29), and the page no longer
+  loads the whole library.
+
+**Server:** `POST /api/themes/{id}` takes an optional `description`, read only
+when the body names it (`null` clears it), additive (`api-contract.md`). Five
+person-read server sentences say Player.
+
+**Tests:** browser tests pinning Clients and the old theme page were rewritten,
+each naming the ruling that moved it; those that drove controls the rulings
+removed (assigning and captioning from Clients, the *Add a work* picker) were
+retired with the tests that now hold the same contract named. New tests cover
+every Players act against the server and the Player's own route, a scan for
+*client* on every sidebar page, the theme description route, *New theme…*, the
+handle by keyboard and by drag, *Hang…* across walls (exactly the changed walls
+sent), and Cancel and Escape in each new dialog. Each new test was watched
+failing on a re-break. The axe scan (by hand, `arrt/tools/ux_walk.py`) is clean
+on Players, Themes and a theme with each dialog open.
+
+**Rollback:** revert the branch's merge; the description field is additive and
+nothing is stored differently.
+
 ## 2026-10-29: Artworks and a work's page, rebuilt to the page rules (UI pass, part 2)
 
 <!-- prawduct: scope=ui-pass-work-artworks -->

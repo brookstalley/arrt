@@ -133,6 +133,14 @@ the goal or prior choice that settled it.)*
 - 03: that no theme is the default is a muted line after the cards on the index (it does not stop the index's job, the exception rule), and the facts line says which theme is the default; on a theme's page it stays as it is until 04.
 - 03: `test_form_rows.py` held "a field and its button share a bottom edge" on the index's *Create* row, which ruling 9 removed; it now measures the same shape in a wall's *Edit…* (*Name* and *Rename*), recorded in its docstring.
 - 03: the axe scan ran by hand on the index and *New theme…*, a theme with a picture beside an empty one, at 1280 and 390 wide, light and dark: clean, 2026-10-29. Photographed: the dialog's two fields share a width, and the quiet line sits after the cards.
+- 04: the selection is `core/selecting.js`'s, the theme passed as its shown theme, so *Remove from {theme}* is the one every filtered list has; it brings *Add to theme…* and *Archive…* with it, kept, since a theme's works are works like any list's. *Select* sits among the toolbar's acts as on every list (the plan said on the right; a phone hides the right side while selecting, which took *Stop selecting* with it).
+- 04: *Hang…* stays on the page and repaints, its facts now saying where the theme hangs; it went to Walls when hanging was one button per wall. Always a dialog, even with one wall, since unticking is how a theme comes down. Its one question is `hangOnWalls` in `core/hanging.js`, beside `hangTheme`, so the wording has one home.
+- 04: a refused hang is said beside *Hang…* and repaints nothing when no wall had changed, since a repaint wiped the sentence (found by `test_failures_beside_the_control.py`); refused after a wall changed, the page repaints and the sentence goes to `reportElsewhere`, which outlives it, naming the wall it stopped at.
+- 04: the drag is pointer events on the handle, not HTML drag and drop, which a phone's finger does not drive; the drop is marked on the side the work lands.
+- 04: Walls' *Add works to {theme}* keeps landing on that theme (its test's contract: a link naming one theme does not land on a list), whose *Add works* goes on to Artworks; the plan had it go to Artworks directly, which drops the theme the curator was adding to.
+- 04: photographs found three faults, each fixed in `app.css` and held by a test that fails on its re-break: a phone member was a column of labelled cells about 300 px tall (now one compact card); "No picture" broke mid-word in its square (the stacked table's `overflow-wrap: anywhere`, there before this branch); and the page's own acts beside the selection's made the sticky toolbar six rows on a phone (they step out while selecting, as Artworks' View and Sort do).
+- 04: the axe scan ran by hand on a theme with a picture, a placeholder and a description, hanging on one of two walls: the page, *Select* on with one ticked, *Hang…* and *Edit…* open, at 1280 and 390 wide, light and dark: clean, 2026-10-29.
+- 04: retired with the owner's ruling of 2026-10-29: the two tests of what *Add a work* offered (works not in the theme; *All works* offering none), replaced by one that the page has no picker and *Add works* goes to Artworks.
 
 **Level:** High for Players and the Themes index, whose layout and words the
 rulings and the two earlier plans settle. Medium for a theme's page: the drag
@@ -253,11 +261,17 @@ deployed server.
     shown as written).
   - the members in order, each row its picture, title and artist (links), its
     size against the walls (`too_small_for`), and a drag handle; no per-row
-    buttons. The shortfall note stays an exception, quiet.
+    buttons. The order is a position number field per row today (since #353,
+    chosen because a drag had no keyboard path); the handle replaces it and
+    keeps that path: a `button` named *Move {title}*, dragged by pointer (so
+    touch too), and moved by the arrow keys, Home and End, each move said in a
+    live region. The page no longer loads the whole library (that was for the
+    picker), so the shortfall note that qualified it goes with it.
   - *Add works* in the toolbar, a link to Artworks (the ruling above); the
     *Add a work* picker and its *Add* are gone.
   - Walls' empty-theme note, whose *Add works to {theme}* links to the theme's
-    page for its picker (`screens/walls.js`): it goes where adding now is.
+    page for its picker (`screens/walls.js`): it keeps landing on that theme,
+    whose *Add works* goes on to Artworks (see Decisions, 04).
 
   Also `app.css`; the theme's half of the Themes row of
   `information-architecture.md` and its Information Hierarchy and Screen
@@ -266,13 +280,13 @@ deployed server.
   fragment.
 - **Done when:**
   1. The browser suite reorders by drag and by keyboard (arrows, Home, End),
-     removes a selection across a page boundary, edits the name and the
+     removes a selection, edits the name and the
      description, makes the theme the default, and deletes one, each read back
      from the server with a non-default value.
   2. One *Hang…* that ticks one wall and unticks another hangs and takes down
      in one confirmation naming both, read back from `GET /api/walls`; leaving
      the ticks as they were sends nothing.
-  3. Absence tests: no *Take down*; no ↑, ↓, *Move to top* or *Move to bottom*;
+  3. Absence tests: no *Take down*; no position field;
      no per-row *Remove*; no *Make this the default* on the default theme; no
      *Add a work* picker.
   4. Cancel or Escape in each dialog changes nothing, asserted from the server;
