@@ -728,7 +728,8 @@ class TestTheDefaultTheme:
         assert line.count() == 1
         assert "No theme is the default" in line.inner_text()
         assert "muted" in line.get_attribute("class")
-        assert ui.page.locator("#view .page-facts").inner_text().endswith("none is the default")
+        # Said once: the facts line names a default only when there is one.
+        assert "default" not in ui.page.locator("#view .page-facts").inner_text()
         # After the cards, not above them.
         assert line.evaluate("(node) => !!node.previousElementSibling.matches('ul.theme-cards')")
 

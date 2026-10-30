@@ -94,11 +94,12 @@ async function themeIndex(generation) {
 }
 
 /* How many themes, and which is the default: the one fact about the set that
- * no card says alone. */
+ * no card says alone. That none is says the quiet line after the cards, which
+ * says what follows from it, so it is not said twice. */
 function indexFacts(placements) {
   const chosen = placements.find((entry) => entry.theme.is_default);
   const count = placements.length === 1 ? "1 theme" : `${placements.length} themes`;
-  const parts = placements.length ? [count, chosen ? `${chosen.theme.name} is the default` : "none is the default"] : [count];
+  const parts = chosen ? [count, `${chosen.theme.name} is the default`] : [count];
   return el("p", { class: "muted page-facts", text: parts.join(" · ") });
 }
 

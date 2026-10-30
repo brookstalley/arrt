@@ -146,7 +146,9 @@ def test_a_placement_the_server_cannot_confirm_is_said_in_the_dialog_which_stays
     notice.wait_for()
     assert "Hall Pi and Study Mac both report" in notice.inner_text()
     assert dialog.is_visible()
-    assert walls_read(ui)[the_wall.id]["client_id"] in (hall.id, None)
+    # Kept: the wall's record names the Player and the Frame, though neither
+    # Player shows it while both report that display.
+    assert walls_read(ui)[the_wall.id]["output"] == "frame"
     # Closed, the card catches up with what was kept.
     ui.page.keyboard.press("Escape")
     dialog.wait_for(state="detached")

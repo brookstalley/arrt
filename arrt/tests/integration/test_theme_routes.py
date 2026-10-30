@@ -98,7 +98,7 @@ class TestRenamingATheme:
         assert _names(http) == ["Late night"]
 
     def test_renaming_leaves_the_description_the_theme_was_given(self, http, services):
-        """The reason the request body cannot say anything but a name.
+        """A body naming no description leaves it as it was.
 
         `update_theme` distinguishes "leave this alone" from "clear it" with a
         sentinel, because `None` means "no description". A body whose optional
