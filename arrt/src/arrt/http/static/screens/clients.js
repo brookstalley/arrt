@@ -437,12 +437,14 @@ async function remove(player) {
   // Its label panels go with it, so any that caption a wall stop: said, since
   // the walls they caption may be on other Players and stay otherwise as they are.
   const labelsGo = captioning ? ` ${agree(captioning, "Its label panel stops", `Its ${captioning} label panels stop`)} captioning.` : "";
+  // A Player never issued a token is admitted nowhere, so there is no token to stop.
+  const token = player.token_issued_at ? "Its token stops working at once" : "It has no token";
   const agreed = await confirmAct({
     title: `Remove ${player.name}?`,
     consequence: walls.length
-      ? `Its token stops working at once, and ${listed(walls)} will be left without a Player. ` +
+      ? `${token}, and ${listed(walls)} will be left without a Player. ` +
         `${agree(walls.length, "It keeps its theme", "They keep their themes")} until put on another.${labelsGo}`
-      : `Its token stops working at once. It shows no wall, so no wall is affected.${labelsGo}`,
+      : `${token}. It shows no wall, so no wall is affected.${labelsGo}`,
     confirmLabel: `Remove ${player.name}`,
   });
   if (!agreed) return;

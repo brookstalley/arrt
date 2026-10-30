@@ -253,7 +253,17 @@ def test_a_player_with_no_token_says_so_and_issues_one_without_asking(ui, servic
     assert admitted(server_url, field.input_value()) == 200
 
 
-def test_declining_a_rotation_leaves_the_old_token_working(ui, services, hall, server_url):
+def decline(ui, leave):
+    """Answer the open question no, with its Cancel or with Escape."""
+    if leave == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
+    ui.page.wait_for_selector("dialog.confirm", state="detached")
+
+
+@pytest.mark.parametrize("leave", ["Cancel", "Escape"])
+def test_declining_a_rotation_leaves_the_old_token_working(ui, services, hall, server_url, leave):
     old = services.access.issue(hall.id).token
     open_players(ui)
 
@@ -263,8 +273,7 @@ def test_declining_a_rotation_leaves_the_old_token_working(ui, services, hall, s
     assert "Hall Pi is refused" in ui.page.inner_text("dialog.confirm .confirm-consequence")
     # The question is the only dialog on the page: Edit… closed as it asked.
     assert ui.page.locator("dialog.panel-dialog").count() == 0
-    ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
-    ui.page.wait_for_selector("dialog.confirm", state="detached")
+    decline(ui, leave)
 
     assert ui.page.locator("#player-token").count() == 0
     assert admitted(server_url, old) == 200
@@ -468,6 +477,7 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
     first, second = (shown.wall.name for shown in services.clients.get_client_view(hall.id).walls)
     both = f"{first} and {second}"
     assert f"{both} will be left without a Player" in consequence
+    assert consequence.startswith("Its token stops working at once, and ")
     assert "Landing" not in consequence
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Remove Hall Pi')")
     ui.page.wait_for_selector("#view [data-said]")
@@ -479,14 +489,14 @@ def test_removing_asks_first_and_names_the_walls_left_without_a_player(ui, servi
     assert admitted(server_url, token) == 401
 
 
-def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, the_wall):
+@pytest.mark.parametrize("leave", ["Cancel", "Escape"])
+def test_declining_a_removal_keeps_the_player_and_its_walls(ui, services, hall, the_wall, leave):
     services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     open_players(ui)
 
     edit(ui, hall).get_by_role("button", name="Remove Hall Pi…").click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
-    ui.page.wait_for_selector("dialog.confirm", state="detached")
+    decline(ui, leave)
 
     assert [view.client.id for view in services.clients.list_clients()] == [hall.id]
     assert services.clients.placement_of(the_wall.id).client.id == hall.id
@@ -501,6 +511,9 @@ def test_removing_a_player_that_shows_nothing_says_no_wall_is_affected(ui, hall)
     consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
     assert "It shows no wall, so no wall is affected." in consequence
     assert "left without a Player" not in consequence
+    # Never issued one, so no token is said to stop.
+    assert consequence.startswith("It has no token.")
+    assert "token stops working" not in consequence
 
 
 @pytest.mark.parametrize("leave", ["Cancel", "Escape"])

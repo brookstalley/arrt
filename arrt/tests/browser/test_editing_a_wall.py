@@ -114,9 +114,63 @@ def test_where_it_shows_puts_the_wall_on_a_players_screen_and_none_takes_it_off(
     assert problem.inner_text().startswith("No Player shows this wall.")
 
 
+FRAME = {
+    "name": "frame",
+    "kind": "frame",
+    "connected": True,
+    "screen": [3840, 2160],
+    "identity": "uuid:00000000-0000-4000-8000-000000000009",
+}
+
+
+def test_a_placement_the_server_cannot_confirm_is_said_in_the_dialog_which_stays_open(ui, services, settings, the_wall, hall):
+    """The server keeps an assignment it cannot confirm and says why in `notice`.
+
+    A Frame two Players both report shows no wall, so putting this one on it is
+    kept but shows nothing: the dialog says the server's sentence where the act
+    was made, rather than closing over it. Settings › Players said it until
+    ruling 7 of 2026-10-27 took assigning off that page.
+    """
+    stamp = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    for client in (hall, services.clients.add_client(name="Study Mac")):
+        document = stamp | {"outputs": [*REPORT["outputs"], FRAME]}
+        client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(document), encoding="utf-8")
+        services.clients.record_heartbeat(client.id, document)
+
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_label(f"Player for {the_wall.name}", exact=True).select_option(hall.id)
+    dialog.get_by_label("Screen", exact=True).select_option("frame")
+    dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
+
+    notice = dialog.locator(".wall-notice:not([hidden])")
+    notice.wait_for()
+    assert "Hall Pi and Study Mac both report" in notice.inner_text()
+    assert dialog.is_visible()
+    assert walls_read(ui)[the_wall.id]["client_id"] in (hall.id, None)
+    # Closed, the card catches up with what was kept.
+    ui.page.keyboard.press("Escape")
+    dialog.wait_for(state="detached")
+    card(ui, the_wall.name).locator(".wall-fault").wait_for()
+
+
+def test_a_placement_the_server_confirms_says_nothing_and_closes(ui, services, the_wall, hall):
+    """The paired case: no notice, no line, and the dialog closes as before."""
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_label(f"Player for {the_wall.name}", exact=True).select_option(hall.id)
+    dialog.get_by_label("Screen", exact=True).select_option("hdmi-a-1")
+    dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
+    dialog.wait_for(state="detached")
+    assert ui.page.locator(".wall-notice:not([hidden])").count() == 0
+
+
 def test_a_label_panel_is_added_from_the_dialog_and_stopped_there(ui, services, settings, the_wall, hall):
     # A label panel the Player has, captioning nothing: added, then stopped, which
     # leaves it recorded (`remove_label`), as a Player that reported one would.
+    # Reported, too: a panel its report does not list is kept with a notice, and
+    # the dialog stays open to say it (the test beside this one's subject).
+    panel = {"name": "epd-0", "kind": "epaper", "connected": True, "size": [800, 480]}
+    document = REPORT | {"label_outputs": [panel], "reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    client_heartbeat_path_in(settings.art_root, hall.id).write_text(json.dumps(document), encoding="utf-8")
     labelled = services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
     services.clients.remove_label(the_wall.id, label_id=labelled.label.id)
 
@@ -132,6 +186,27 @@ def test_a_label_panel_is_added_from_the_dialog_and_stopped_there(ui, services, 
     dialog.get_by_role("button", name=f"Stop the label panel on Hall Pi captioning {the_wall.name}").click()
     ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
     assert walls_read(ui)[the_wall.id]["labels"] == []
+
+
+def test_a_label_panel_the_report_does_not_list_is_kept_and_said_in_the_dialog(ui, services, the_wall, hall):
+    """Hall Pi reported its screens and no label panel, so a panel recorded for it
+    is kept with the server's notice, said in the dialog that captioned with it."""
+    labelled = services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
+    services.clients.remove_label(the_wall.id, label_id=labelled.label.id)
+
+    dialog = open_edit(ui, the_wall.name)
+    dialog.get_by_label(f"Caption {the_wall.name} with", exact=True).select_option(label="the label panel on Hall Pi")
+    dialog.get_by_role("button", name=f"Caption {the_wall.name} with this label panel").click()
+
+    notice = dialog.locator(".wall-notice:not([hidden])")
+    notice.wait_for()
+    assert notice.inner_text() == (
+        "Hall Pi last reported these label outputs: none. 'epd-0' is not among them, "
+        "so nothing captions this wall there until the Player has a label output by that name."
+    )
+    assert "client" not in notice.inner_text()
+    [label] = walls_read(ui)[the_wall.id]["labels"]
+    assert label["output"] == "epd-0"
 
 
 def test_a_label_panel_captioning_another_wall_is_not_offered(ui, services, the_wall, hall):

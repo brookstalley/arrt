@@ -1,7 +1,7 @@
 """Clients and wall assignment through `art_display`, driven by a real MCP client.
 
 `clients.md` makes a client — an installed Player — something the server knows,
-and Settings › Clients is where a curator keeps them. These are the same acts on
+and Settings › Players is where a curator keeps them. These are the same acts on
 the tool surface: thin bindings over `ClientService` and `PlayerAccess`, which
 the browser's routes call too. Every id below comes out of an earlier answer on
 this surface, never out of the store, because an action whose arguments no

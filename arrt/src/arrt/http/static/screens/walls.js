@@ -1397,8 +1397,8 @@ function editWall(wall, manifest, shownBy) {
     title: `Edit ${wall.name}`,
     body: [
       nameSection(wall, edit.done),
-      whereSection(wall, shownBy, edit.done),
-      labelsSection(wall, shownBy, edit.done),
+      whereSection(wall, shownBy, edit),
+      labelsSection(wall, shownBy, edit),
       ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
       manifest ? matPanel(wall, edit.changed) : null,
     ],
@@ -1461,7 +1461,7 @@ function screensOf(client) {
 /* Which Player shows the wall, and on which screen: the line that says what the
  * Player last reported about it, then the two pickers and *Show it there*. None
  * takes the wall off its Player; its theme stays hung. */
-function whereSection(wall, shownBy, done) {
+function whereSection(wall, shownBy, edit) {
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const playerId = `wall-player-${wall.wall_id}`;
   const screenId = `wall-screen-${wall.wall_id}`;
@@ -1489,6 +1489,7 @@ function whereSection(wall, shownBy, done) {
   };
   player.addEventListener("change", fillScreens);
   fillScreens();
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
   return el("div", { class: "panel" }, [
     el("h3", { text: "Where it shows" }),
     assignmentLine(wall, shownBy),
@@ -1512,18 +1513,37 @@ function whereSection(wall, shownBy, done) {
                     body: JSON.stringify({ client_id: player.value, output: screen.value }),
                   })
                 : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
-            { then: done },
+            { then: closeUnlessNoticed(edit, said) },
           ),
       }),
     ]),
+    said,
   ]);
+}
+
+/* What a write that places a wall or a label does next. The server keeps an
+ * assignment it cannot confirm (a display no Player reports now, a port the
+ * Player has not listed) and says so in `notice`, which is the part the curator
+ * has to act on: said here, in the section that made it, with the dialog left
+ * open to read it. Otherwise the dialog closes, for the card to show the change. */
+function closeUnlessNoticed(edit, said) {
+  return (answer) => {
+    if (!answer || !answer.notice) {
+      edit.done();
+      return;
+    }
+    edit.changed();
+    said.textContent = answer.notice;
+    said.hidden = false;
+  };
 }
 
 /* The label panels captioning the wall, each with *Stop captioning*, then one to
  * add from those the Players reported that caption no wall: the server refuses a
  * panel captioning another wall until it is taken off that one, so offering it
  * would offer a choice that cannot succeed. */
-function labelsSection(wall, shownBy, done) {
+function labelsSection(wall, shownBy, edit) {
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const offered = clients.flatMap((client) =>
     (client.label_outputs || []).filter((label) => label.wall_id == null).map((label) => ({ client, output: label.output })),
@@ -1551,7 +1571,7 @@ function labelsSection(wall, shownBy, done) {
               event.currentTarget,
               `stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
               () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels/${encodeURIComponent(label.label_id)}`, { method: "DELETE" }),
-              { then: done },
+              { then: edit.done },
             ),
         }),
       ]),
@@ -1574,7 +1594,7 @@ function labelsSection(wall, shownBy, done) {
                     method: "POST",
                     body: JSON.stringify({ client_id: client.client_id, output }),
                   }),
-                { then: done },
+                { then: closeUnlessNoticed(edit, said) },
               );
             },
           }),
@@ -1582,6 +1602,7 @@ function labelsSection(wall, shownBy, done) {
       : wall.labels && wall.labels.length
         ? null
         : el("p", { class: "muted", text: "No Player has reported a label panel." }),
+    said,
   ]);
 }
 

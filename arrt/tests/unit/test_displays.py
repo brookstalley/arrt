@@ -287,7 +287,7 @@ def test_a_display_no_client_reports_is_assigned_with_a_notice_and_shown_by_nobo
 
     assignment = clients.assign_display(wall_id, display_id="d-orphan")
 
-    assert "No client reports the display" in assignment.notice
+    assert "No Player reports the display" in assignment.notice
     assert clients.placement_of(wall_id).shown_by is None
 
 
