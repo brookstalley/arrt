@@ -96,9 +96,9 @@ stop the delete; the last wall may go.
 - **Edit… guarded per wall** (from the #400 review): *Choose its Player…* and
   *Edit…* pressed together open one dialog, and a read that returns to a page
   painted since opens nothing.
-- **MCP.** `art_display`'s action menu is at its 2 KB budget, so six action
-  descriptions were shortened to fit `delete_wall` (`status`, `sync`, `add_wall`,
-  `remove_client`, `issue_client_token`, `delete_wall` itself).
+- **MCP.** `art_display`'s action menu is held to a 2 KB budget, so five existing
+  action descriptions were shortened to make room for `delete_wall` (`status`,
+  `sync`, `add_wall`, `remove_client`, `issue_client_token`), meaning kept.
 - Tests: a unit test per dependant, each with a second wall keeping its own; the
   route and tool over a real server; the Player's document and routes after a
   delete; browser tests for *Delete…*, Cancel, the last wall and the carry-overs,
