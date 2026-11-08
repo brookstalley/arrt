@@ -40,7 +40,7 @@ record.
   attributed that branch's cumulative review (`rev-20261108T192801Z-7caeb476`) to Chunk 01
   alone, though the review spanned Chunk 02's commit (`f26b62e6`) too. Its archive stamp
   therefore reads "Chunk 02 not done", which is that attribution and not the work: Chunk 02
-  shipped in #407. Seven older plans stay live, as at v0.8.0, each with a chunk still open.
+  shipped in #407. The older plans `plan-backfill` refused stay live, as at v0.8.0, each with a chunk still open.
 
 ## What the first start does
 
