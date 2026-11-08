@@ -3,7 +3,7 @@ artifact: build-plan
 version: 2
 scope: observed-taste
 branch: feature/observed-taste
-base: feature/taste-in-ask
+base: develop
 working-branches: []
 last_validated: 2026-11-08
 depends_on:
