@@ -69,7 +69,7 @@ stops holding.
   to the work's artist inside its transaction; the docstrings that say nothing writes
   `observed`.
 - **Tests:** the thresholds at their edges (4/4, 5/5, 9 of 10, 5 beside 100); the
-  mirror; a stated row by another spelling blocks; an inferred row is replaced; a
+  mirror; a stated row by another spelling blocks; an inferred row is left alone; a
   falling ratio removes the row; wanted and unattributed count for nothing; through
   `set_verdict` (the caller), not only the function.
 - **Done when:** tests pass; committed.

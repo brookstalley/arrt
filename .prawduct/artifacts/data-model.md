@@ -1358,7 +1358,10 @@ discovery consults.
 > `declines`, not open to more; the mirror is `likes`, open to more; anything else
 > withdraws the observed row. The rule touches only rows it wrote: a `stated` or
 > `inferred` row under the same key stands, and an observed row beside it is
-> withdrawn. The rationale carries the counts.
+> withdrawn. The rationale carries the counts. Forgetting an observed row lasts
+> only until the verdicts are read again (the artist's next verdict, or the next
+> start), and Taste's Forget dialog says so; correcting it, which writes `stated`,
+> is how the curator overrules it.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
