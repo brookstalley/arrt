@@ -11,7 +11,13 @@ depends_on:
   - artifact: data-model
   - artifact: api-contract
 partition: serial — Chunk 02 calls the rule Chunk 01 writes
+lifecycle: completed
+archived: 2026-11-08
+released_in: v0.9.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 ## Goals
 

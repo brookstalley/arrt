@@ -68,7 +68,7 @@
 
 ## 2026-11-08: No box round the page when it opens
 
-<!-- prawduct: scope=view-focus-ring -->
+<!-- prawduct: scope=view-focus-ring | release=v0.9.0 -->
 
 **Why:** the owner, walking v0.8.0 on an iPad, saw "a weird box" round Ask. Every
 navigation sends focus to the view (`#view`, `tabindex="-1"`) so the next Tab starts

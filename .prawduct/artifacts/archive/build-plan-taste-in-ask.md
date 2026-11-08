@@ -12,7 +12,14 @@ depends_on:
   - artifact: api-contract
   - artifact: security-model
 partition: serial — both chunks read the same taste brief, which Chunk 01 writes
+lifecycle: completed
+archived: 2026-11-08
+released_in: v0.9.0
+unbuilt_at_archive: 1 of 2 chunks not done (Chunk 02) — the scope shipped, but this plan did not finish with it
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 ## Goals
 
