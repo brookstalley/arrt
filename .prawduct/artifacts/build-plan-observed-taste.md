@@ -57,7 +57,7 @@ stops holding.
 - **The rule re-derives at startup over every artist**, in `Services.reconcile`, so
   the household's existing verdicts become taste on the first start, and a rule
   change reaches every row (the learnings rule on stored derived values).
-- **The rationale says the counts** ("Rejected 6 of 6 works by Klimt in review"),
+- **The rationale says the counts** ("Rejected 6 of the 6 works by Gustav Klimt decided in review."),
   so Taste shows why, and so does the prompt.
 
 ## Build Chunks
