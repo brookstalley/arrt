@@ -217,6 +217,8 @@ class OpenRouterEngine:
                 "searched": completion.searched,
                 "citations": len(completion.citations),
                 "works_returned": len(works),
+                "taste_lines_told": len(request.taste.splitlines()),
+                "rejected_told": len(request.rejected),
                 "cost_usd": str(completion.cost_usd),
                 "input_tokens": completion.input_tokens,
                 "output_tokens": completion.output_tokens,

@@ -1,4 +1,4 @@
-"""Ask's agent: one thread, the surface's read tools, replies streamed as 3tears events.
+"""Ask's agent: one thread, the surface's tools in `ASK_SCOPE`, replies streamed as 3tears events.
 
 **The agent is a third thin binding over the services**, beside the MCP tools
 and the HTTP handlers. It is offered the MCP surface's own tool definitions,
@@ -70,6 +70,9 @@ TURNS_REMEMBERED: Final[int] = 10
 
 #: Graph steps allowed per model call: far more than one call takes, so only the call limit binds.
 _GRAPH_STEPS_PER_CALL: Final[int] = 10
+
+#: The tool whose `set` records taste, counted in the reply's log line.
+_TASTE_TOOL: Final[str] = "art_taste"
 
 #: One call to the surface: a tool name and its arguments in, a payload out.
 Dispatch = Callable[[str, Mapping[str, Any]], dict[str, Any]]
@@ -236,11 +239,12 @@ class Ask:
             said = stream.accumulated_content or f"(I stopped without answering: {ended}.)"
             thread.messages = _recent(tally.messages or [*sent, AIMessage(said)], TURNS_REMEMBERED)
             log.info(
-                "ask reply thread=%s ended=%s steps=%d tool_calls=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
+                "ask reply thread=%s ended=%s steps=%d tool_calls=%d taste_writes=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
                 thread.id,
                 ended,
                 tally.steps,
                 tally.tool_calls,
+                tally.taste_writes,
                 tally.cost_usd,
                 tally.uncosted,
                 time.monotonic() - started,
@@ -295,6 +299,9 @@ class _Tally:
 
     steps: int = 0
     tool_calls: int = 0
+    #: Taste the agent recorded. Threads are not stored, so this count, beside
+    #: the thread id and the time, is what says Ask wrote a judgment at all.
+    taste_writes: int = 0
     cost_usd: float = 0.0
     uncosted: int = 0
     payloads: list[object] = field(default_factory=list)
@@ -318,7 +325,9 @@ class _Tally:
         elif kind == "on_tool_start":
             self.tool_calls += 1
             self._started[event["run_id"]] = time.monotonic()
-            summary = said(event["name"], data.get("input"))
+            arguments = data.get("input")
+            self.taste_writes += _records_taste(event["name"], arguments)
+            summary = said(event["name"], arguments)
             await stream.emit_tool_call_start(tool_name=event["name"], arguments_summary=summary)
         elif kind in {"on_tool_end", "on_tool_error"}:
             elapsed = time.monotonic() - self._started.pop(event["run_id"], time.monotonic())
@@ -331,6 +340,11 @@ class _Tally:
             output = data.get("output")
             if isinstance(output, Mapping) and isinstance(output.get("messages"), list):
                 self.messages = list(output["messages"])
+
+
+def _records_taste(tool: str, arguments: object) -> bool:
+    """Whether a tool call is the one write Ask may make: `art_taste`'s `set`."""
+    return tool == _TASTE_TOOL and isinstance(arguments, Mapping) and arguments.get("action") == "set"
 
 
 def surface_tools(dispatch: Dispatch, scope: Mapping[str, frozenset[str]] = ASK_SCOPE) -> list[BaseTool]:

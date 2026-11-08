@@ -497,8 +497,13 @@ class DiscoveryRunner:
         sightings: SightingService | None = None,
         spawn: Callable[[Callable[[], None]], None] = _daemon_thread,
         check_page: Callable[[str], str] = check_fetchable,
+        taste: Callable[[], str] = lambda: "",
     ) -> None:
         self._discovery = discovery
+        #: The household's taste as phase 1 is told it (`TasteService.brief`),
+        #: read at each run's start. Empty by default: a runner built without it
+        #: asks exactly what it asked before taste reached phase 1.
+        self._taste = taste
         #: Decides whether a page a run's search cited may reach a finder: the
         #: acquisition fetch policy, raising `UrlRefused` for a LAN address or a
         #: `.local` name. A plugin's own requests are unguarded, so this is the
@@ -845,7 +850,7 @@ class DiscoveryRunner:
             request = WorkListRequest(
                 intent_text=intent_text,
                 search_allowance=self._settings.phase1_search_allowance,
-                taste=self._discovery.taste(),
+                taste=self._taste(),
                 rejected=tuple(
                     RejectedWork(title=work.proposed_title, artist=work.proposed_artist)
                     for work in self._discovery.rejected_works(REJECTED_TOLD)

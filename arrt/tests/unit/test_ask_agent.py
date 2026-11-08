@@ -218,6 +218,21 @@ async def test_the_taste_is_read_afresh_for_every_reply():
     assert system_prompt_of(model, 1).endswith("declines artist “Klimt”: offer no more")
 
 
+async def test_a_reply_that_records_taste_says_so_in_its_log_line(caplog):
+    """Threads are not stored, so the reply's log line is what says Ask wrote a judgment, and in which thread."""
+    record = ("art_taste", {"action": "set", "kind": "artist", "value": "Klimt", "sentiment": "loves", "open_to_more": True})
+    reads = ("art_taste", {"action": "list"})
+    ask = Ask(answered, ScriptedModel(replies=[calls(record, reads), says("Noted.")]), step_limit=8)
+    thread = ask.threads.open()
+
+    with caplog.at_level("INFO", logger="arrt.ask"):
+        [line async for line in ask.reply(thread, "I love Klimt")]
+
+    [logged] = [entry.getMessage() for entry in caplog.records if entry.getMessage().startswith("ask reply")]
+    assert f"thread={thread.id}" in logged
+    assert "tool_calls=2 taste_writes=1" in logged
+
+
 async def test_ask_may_record_taste_but_never_forget_it():
     """`set` reaches the surface; `delete` is answered with the teaching error and never dispatched."""
     reached = []

@@ -124,6 +124,12 @@ def validated_write(
 #: then the brief says how many it left out rather than dropping them silently.
 TASTE_TOLD: Final[int] = 200
 
+#: The longest a judgment's name or rationale is told, in characters. Both are
+#: stored unbounded and resent with every Ask reply and every phase 1 run, so a
+#: name pasted at length, or written by a steered agent, is cut here rather than
+#: carried whole into every prompt. Real names and rationales fit with room.
+TASTE_TEXT_TOLD: Final[int] = 160
+
 #: Strongest feeling first, so a brief cut at `TASTE_TOLD` keeps the judgments
 #: that most change what a model should offer.
 _SENTIMENT_ORDER: Final[tuple[AffinitySentiment, ...]] = (
@@ -160,11 +166,17 @@ def describe_taste(affinities: Sequence[Affinity], *, limit: int = TASTE_TOLD) -
 
 def _taste_line(affinity: Affinity) -> str:
     more = "keep offering more" if affinity.open_to_more else "offer no more"
-    line = f"- {affinity.sentiment} {affinity.kind} “{affinity.value}”: {more}"
+    line = f"- {affinity.sentiment} {affinity.kind} “{_told(affinity.value)}”: {more}"
     if affinity.derivation is not AffinityDerivation.STATED:
-        account = f": {affinity.rationale}" if affinity.rationale else ""
+        account = f": {_told(affinity.rationale)}" if affinity.rationale else ""
         line += f" ({affinity.derivation}{account})"
     return line
+
+
+def _told(text: str) -> str:
+    """`text` on one line and at most `TASTE_TEXT_TOLD` characters, an ellipsis marking a cut."""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= TASTE_TEXT_TOLD else flat[: TASTE_TEXT_TOLD - 1] + "…"
 
 
 class TasteService:
@@ -194,6 +206,14 @@ class TasteService:
             sentiment=None if sentiment is None else require_member(sentiment, enum=AffinitySentiment, field="sentiment"),
             derivation=(None if derivation is None else require_member(derivation, enum=AffinityDerivation, field="derivation")),
         )
+
+    def brief(self) -> str:
+        """The household's taste as every prompt is told it: `describe_taste` over `list_affinities`.
+
+        The one owner of the brief, so Ask's prompt and phase 1's read the taste
+        by the same path and cannot diverge when that read is bounded.
+        """
+        return describe_taste(self.list_affinities())
 
     def get_affinity(self, affinity_id: str) -> Affinity:
         found = self._store.get_affinity(affinity_id)

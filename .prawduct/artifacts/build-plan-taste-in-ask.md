@@ -65,6 +65,13 @@ last.
 - Chunk 02 — the request is built inside the runner's guard, because it now
   reads the catalogue, and a read that raised outside it would hold the run.
 - Chunk 02 — `REJECTED_TOLD` is 100, one per dedup key at its latest rejection.
+- Review fixes — `TasteService.brief` is the one owner of the brief, which Ask
+  and the runner both read; each name and rationale is told at most
+  `TASTE_TEXT_TOLD` characters, because a judgment is resent with every prompt;
+  Ask's reply log counts its taste writes. "Card cases" in Chunk 01 meant the
+  registry test's cases (built): a judgment carries no QID, so `cards.py` needed
+  no change. The eval composes its prompt with `ask_system("")`: its library
+  holds no taste, so it measures a household with none.
 
 ## Build Chunks
 

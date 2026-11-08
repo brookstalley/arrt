@@ -11,6 +11,7 @@ server over real HTTP.
 """
 
 import sqlite3
+import time
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -254,7 +255,9 @@ def test_phase_one_is_told_the_taste_and_the_works_already_rejected(services, en
     services.discovery.set_verdict(unattributed.id, Verdict.REJECTED)
     propose("Galatea of the Spheres", dedup_key="dali::galatea", proposed_artist="Salvador Dalí")
     services.taste.set_affinity(kind="movement", value="Surrealism", sentiment="declines", open_to_more=False)
-    runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
+    runner = DiscoveryRunner(
+        services.discovery, engine, settings.discovery_settings, spawn=lambda work: work(), taste=services.taste.brief
+    )
 
     start(runner)
 
@@ -266,6 +269,19 @@ def test_phase_one_is_told_the_taste_and_the_works_already_rejected(services, en
     }
 
 
+def test_the_runner_the_container_builds_tells_phase_one_the_taste(services, engine):
+    """Through the shipped wiring: a runner built without the taste reader would tell phase 1 nothing."""
+    services.taste.set_affinity(kind="artist", value="Klimt", sentiment="loves", open_to_more=True)
+
+    start(services.runner)
+    deadline = time.monotonic() + 5
+    while not engine.requests and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    [request] = engine.requests
+    assert request.taste == services.taste.brief() == "- loves artist “Klimt”: keep offering more"
+
+
 def test_phase_one_with_no_taste_and_nothing_rejected_is_told_neither(runner, engine):
     start(runner)
 
@@ -273,16 +289,13 @@ def test_phase_one_with_no_taste_and_nothing_rejected_is_told_neither(runner, en
     assert (request.taste, tuple(request.rejected)) == ("", ())
 
 
-def test_a_catalogue_that_cannot_be_read_for_phase_one_ends_the_run_rather_than_holding_it(
-    services, engine, settings, monkeypatch
-):
+def test_a_catalogue_that_cannot_be_read_for_phase_one_ends_the_run_rather_than_holding_it(services, engine, settings):
     """Reading the taste is a catalogue read before the engine is called; one that raises must still end the run."""
 
     def unreadable():
         raise sqlite3.OperationalError("disk I/O error")
 
-    monkeypatch.setattr(services.discovery, "taste", unreadable)
-    runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
+    runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work(), taste=unreadable)
 
     run = services.discovery.get_run(start(runner).id)
 

@@ -21,9 +21,9 @@ from pathlib import Path
 from driver import LOCAL, Outcome
 
 from arrt.ask.cards import items_in
-from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
+from arrt.ask.prompt import ASK_SCOPE, ask_system
 
-__all__ = ["ASK_SCOPE", "ASK_SYSTEM"]
+__all__ = ["ASK_SCOPE", "ask_system"]
 
 #: Tool calls a run may make before it is stopped. Generous on purpose: this
 #: chunk measures how many a request takes, and Chunk 03's limit is set from it.

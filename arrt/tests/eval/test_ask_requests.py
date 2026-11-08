@@ -15,7 +15,7 @@ what its request asked. `ART_EVAL_MODEL` picks the model.
 import os
 
 import pytest
-from ask import ASK_BUDGET, ASK_SCOPE, ASK_SYSTEM, REQUESTS, passed, record, score
+from ask import ASK_BUDGET, ASK_SCOPE, REQUESTS, ask_system, passed, record, score
 from driver import drive
 
 from arrt.library.registry.wikidata import WikidataRegistry
@@ -65,7 +65,10 @@ async def test_a_model_answers_an_ask(server_url, seeded_titles, model, web_sear
         model,
         goal=request_.goal,
         budget=ASK_BUDGET,
-        system=ASK_SYSTEM,
+        # Composed as Ask composes it. The eval's library holds no taste, so this
+        # is the prompt of a household with none recorded: the eval measures
+        # finding art, and a taste written mid-run is not fed back into it.
+        system=ask_system(""),
         scope=ASK_SCOPE,
         local_tools=web_search,
     )

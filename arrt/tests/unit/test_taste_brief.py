@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from arrt.library.services.taste import describe_taste
+from arrt.library.services.taste import TASTE_TEXT_TOLD, describe_taste
 from arrt.persistence.discovery_records import Affinity, AffinityDerivation, AffinitySentiment
 from arrt.persistence.records import VocabularyKind
 
@@ -89,3 +89,22 @@ def test_a_brief_at_its_limit_claims_nothing_left_out():
 
     assert len(lines) == 2
     assert not any("not listed" in line for line in lines)
+
+
+def test_a_name_or_rationale_past_its_length_is_cut_and_says_so():
+    """Both are stored unbounded and resent with every prompt, so the brief bounds each line, not only the count."""
+    long = "Klimt " * 100
+    brief = describe_taste([judgment(long, derivation=AffinityDerivation.INFERRED, rationale="gold\n" * 100)])
+
+    named = brief.split("“")[1].split("”")[0]
+    account = brief.split("(inferred: ")[1].rstrip(")")
+    assert len(named) == len(account) == TASTE_TEXT_TOLD
+    assert named.endswith("…")
+    assert account.endswith("…")
+    assert "\n" not in brief, "a judgment is told on one line"
+
+
+def test_a_name_at_its_length_is_told_whole():
+    exact = "x" * TASTE_TEXT_TOLD
+
+    assert f"“{exact}”" in describe_taste([judgment(exact)])
