@@ -337,6 +337,8 @@ class Services:
         sighting_service = SightingService(discovery, catalogue, route=sources.route)
         # One judge for a run and a look, so the two cannot judge a find apart.
         judge = None if pool is None else PhaseTwoEngine(pool, profile=quality_profile, registry=registry)
+        # One taste service, whose brief both Ask's prompt and phase 1's read.
+        taste_service = TasteService(discovery)
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
@@ -348,6 +350,7 @@ class Services:
             # nothing.
             collection=sources.collection,
             sightings=sighting_service,
+            taste=taste_service.brief,
             # The pages a run's search cited reach a plugin only past the fetch
             # policy, resolving names the way acquisition does: a suite's stated
             # answers, or the system's.
@@ -385,7 +388,7 @@ class Services:
             acquisition=acquisition_service,
             preparation=preparation_service,
             acquisition_queue=acquisition_queue,
-            taste=TasteService(discovery),
+            taste=taste_service,
             identity=IdentityService(catalogue, registry, on_changed=topic_sweep.nudge),
             artists=ArtistService(catalogue, registry, kept=kept, wanted=discovery_service, awaiting=discovery_service),
             registry_works=registry_works,
@@ -429,6 +432,8 @@ class Services:
         addition reaches the wall at its next roll.
         """
         self.discovery.reconcile()
+        # After discovery's own repairs, so the verdicts it reads are settled.
+        self.taste.reobserve()
         # Before anything serves: a write the last process died in leaves a
         # temporary file, and the old preview directory's files are moved into
         # the store and their rows repointed, so a card is answered from the

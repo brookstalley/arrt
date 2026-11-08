@@ -138,6 +138,23 @@ def test_a_second_turn_is_given_the_first(server_url, ask_model):
     assert shown[-3:] == ["Something wintry", "Bruegel, perhaps.", "Not Bruegel"]
 
 
+def test_taste_the_curator_states_is_recorded_as_stated_and_told_to_the_next_reply(server_url, ask_model):
+    """Through the app's own wiring: Ask's `set` reaches the taste service, and the next prompt reads it back."""
+    record = ("art_taste", {"action": "set", "kind": "artist", "value": "Klimt", "sentiment": "loves", "open_to_more": True})
+    ask_model.replies += [calls(record), says("Noted: you love Klimt."), says("Klimt, then.")]
+    thread_id = open_thread(server_url)
+
+    send(server_url, thread_id, "I love Klimt")
+    send(server_url, thread_id, "Something golden")
+
+    [stored] = httpx.get(f"{server_url}/api/affinities").json()["affinities"]
+    assert (stored["value"], stored["sentiment"], stored["derivation"]) == ("Klimt", "loves", "stated")
+    [first_system] = [message for message in ask_model.seen[0] if message.type == "system"]
+    [second_system] = [message for message in ask_model.seen[2] if message.type == "system"]
+    assert "Klimt" not in first_system.content
+    assert second_system.content.endswith("- loves artist “Klimt”: keep offering more")
+
+
 def test_a_reply_that_reaches_the_step_limit_says_so(server_url, ask_model):
     ask_model.replies += [calls(SEARCH) for _ in range(DEFAULT_ASK_STEP_LIMIT + 1)]
     events = send(server_url, open_thread(server_url), "Everything by everyone")

@@ -374,6 +374,17 @@ def artist_key(artist: str) -> str:
     return _normalise(_artist_alias(clean_name(artist)))
 
 
+def artist_prefix(artist: str) -> str | None:
+    """How every dedup key of this artist's works begins, or None for a name that normalises to nothing.
+
+    The separator is part of it, so "dali" does not match "dalinger". None rather
+    than the unattributed prefix, because works with no artist are nobody's, and
+    a caller grouping verdicts by artist must not make them one.
+    """
+    key = artist_key(artist)
+    return f"{key}{_SEPARATOR}" if key else None
+
+
 def work_dedup_key(*, title: str, artist: str | None = None) -> str:
     """Derive the identity two proposals of the same work should share.
 

@@ -35,7 +35,14 @@ governed_by:
     dispositions:
       - "§ Direction (text from outside Arrt reaches the page as text) → conforms: a work's title, artist and description come from museums and Wikidata and are set with `textContent` through `el()`, in the dialogs' titles as on the page"
 last_validated: 2026-10-29
+lifecycle: completed
+archived: 2026-11-08
+released_in: v0.8.0
+unbuilt_at_archive: "Chunk 05 has no review fact because it is the owner's walk, which no review can certify; walked and VERIFIED 2026-11-08 (operator-verification.md)"
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build Plan — the UI pass, part 2: Work and Artworks
 

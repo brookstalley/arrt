@@ -1,4 +1,4 @@
-"""Ask's agent: one thread, the surface's read tools, replies streamed as 3tears events.
+"""Ask's agent: one thread, the surface's tools in `ASK_SCOPE`, replies streamed as 3tears events.
 
 **The agent is a third thin binding over the services**, beside the MCP tools
 and the HTTP handlers. It is offered the MCP surface's own tool definitions,
@@ -37,7 +37,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_CODE, StreamingResponse
 
 from arrt.ask.cards import cards_for
-from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
+from arrt.ask.prompt import ASK_SCOPE, ask_system
 from arrt.library.discovery.openrouter import budget_spent, names_the_key_limit
 from arrt.mcp.envelope import IMAGE_BLOCKS
 from arrt.mcp.registry import HELP_ACTION
@@ -70,6 +70,9 @@ TURNS_REMEMBERED: Final[int] = 10
 
 #: Graph steps allowed per model call: far more than one call takes, so only the call limit binds.
 _GRAPH_STEPS_PER_CALL: Final[int] = 10
+
+#: The tool whose `set` records taste, counted in the reply's log line.
+_TASTE_TOOL: Final[str] = "art_taste"
 
 #: One call to the surface: a tool name and its arguments in, a payload out.
 Dispatch = Callable[[str, Mapping[str, Any]], dict[str, Any]]
@@ -131,8 +134,12 @@ class Ask:
         step_limit: int,
         local_tools: Sequence[BaseTool] = (),
         threads: Threads | None = None,
+        taste: Callable[[], str] = lambda: "",
     ) -> None:
         self._dispatch = dispatch
+        #: The household's taste as `describe_taste` renders it, read afresh for
+        #: every reply so a judgment recorded in one is in the next one's prompt.
+        self._taste = taste
         self._model = model
         self._step_limit = step_limit
         self._tools = [*surface_tools(dispatch), *local_tools]
@@ -186,10 +193,12 @@ class Ask:
         ended = "answered"
         try:
             await stream.start()
+            # On a worker thread, as every tool call is: the service layer is synchronous.
+            system = ask_system(await asyncio.to_thread(self._taste))
             agent = create_agent(
                 self._model,
                 self._tools,
-                system_prompt=ASK_SYSTEM,
+                system_prompt=system,
                 middleware=[ModelCallLimitMiddleware(run_limit=self._step_limit, exit_behavior="error")],
             )
             # The graph's own step bound is set far past the call limit, so the call
@@ -230,11 +239,12 @@ class Ask:
             said = stream.accumulated_content or f"(I stopped without answering: {ended}.)"
             thread.messages = _recent(tally.messages or [*sent, AIMessage(said)], TURNS_REMEMBERED)
             log.info(
-                "ask reply thread=%s ended=%s steps=%d tool_calls=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
+                "ask reply thread=%s ended=%s steps=%d tool_calls=%d taste_writes=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
                 thread.id,
                 ended,
                 tally.steps,
                 tally.tool_calls,
+                tally.taste_writes,
                 tally.cost_usd,
                 tally.uncosted,
                 time.monotonic() - started,
@@ -289,6 +299,9 @@ class _Tally:
 
     steps: int = 0
     tool_calls: int = 0
+    #: Taste the agent recorded. Threads are not stored, so this count, beside
+    #: the thread id and the time, is what says Ask wrote a judgment at all.
+    taste_writes: int = 0
     cost_usd: float = 0.0
     uncosted: int = 0
     payloads: list[object] = field(default_factory=list)
@@ -312,7 +325,9 @@ class _Tally:
         elif kind == "on_tool_start":
             self.tool_calls += 1
             self._started[event["run_id"]] = time.monotonic()
-            summary = said(event["name"], data.get("input"))
+            arguments = data.get("input")
+            self.taste_writes += _records_taste(event["name"], arguments)
+            summary = said(event["name"], arguments)
             await stream.emit_tool_call_start(tool_name=event["name"], arguments_summary=summary)
         elif kind in {"on_tool_end", "on_tool_error"}:
             elapsed = time.monotonic() - self._started.pop(event["run_id"], time.monotonic())
@@ -325,6 +340,11 @@ class _Tally:
             output = data.get("output")
             if isinstance(output, Mapping) and isinstance(output.get("messages"), list):
                 self.messages = list(output["messages"])
+
+
+def _records_taste(tool: str, arguments: object) -> bool:
+    """Whether a tool call is the one write Ask may make: `art_taste`'s `set`."""
+    return tool == _TASTE_TOOL and isinstance(arguments, Mapping) and arguments.get("action") == "set"
 
 
 def surface_tools(dispatch: Dispatch, scope: Mapping[str, frozenset[str]] = ASK_SCOPE) -> list[BaseTool]:
@@ -381,6 +401,8 @@ _SAID: Final[Mapping[tuple[str, str], str]] = {
     ("art_catalogue", "get"): "Reading a work in your library",
     ("art_catalogue", "topics"): "Looking at your library's topics",
     ("art_catalogue", "topic"): "Looking at a topic in your library",
+    ("art_taste", "list"): "Reading your taste",
+    ("art_taste", "set"): "Recording your taste: {sentiment} “{value}”",
 }
 
 
@@ -396,7 +418,11 @@ def said(tool: str, arguments: object) -> str:
     template = _SAID.get((tool, action))
     if template is None:
         return f"Trying {tool} {action}"
-    return template.format(q=arguments.get("q", ""))
+    return template.format(
+        q=arguments.get("q", ""),
+        sentiment=arguments.get("sentiment", ""),
+        value=arguments.get("value", ""),
+    )
 
 
 def _stopped_sentence(limit: int, tally: _Tally) -> str:

@@ -402,6 +402,37 @@ class SqliteDiscovery(TableAdapter):
     def list_wanted_works(self) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"verdict": str(Verdict.WANTED)}, _BY_TITLE, _candidate_work)
 
+    def list_rejected_works(self, limit: int) -> Sequence[CandidateWork]:
+        if limit <= 0:
+            return ()
+        # SQLite gives the bare columns of a MAX() aggregate the values of the row
+        # holding the maximum, so each work identity is read as its latest
+        # rejection. The tie-break on `id` keeps the order stable when two works
+        # were decided in the same instant.
+        rows = self._store.select_rows(
+            'SELECT *, MAX("decided_at") AS "latest" FROM candidate_works WHERE "verdict" = ? '
+            'GROUP BY "work_dedup_key" ORDER BY "latest" DESC, "id" LIMIT ?',
+            [str(Verdict.REJECTED), limit],
+        )
+        return tuple(_candidate_work(row) for row in rows)
+
+    def list_decided_works(self, key_prefix: str | None = None) -> Sequence[CandidateWork]:
+        decided = [str(Verdict.ACCEPTED), str(Verdict.REJECTED)]
+        if key_prefix is None:
+            rows = self._store.select_rows(
+                'SELECT * FROM candidate_works WHERE "verdict" IN (?, ?) ORDER BY "decided_at", "id"', decided
+            )
+        else:
+            # Compared with substr rather than LIKE, so no character in a key can
+            # act as a wildcard.
+            prefix = key_prefix
+            rows = self._store.select_rows(
+                'SELECT * FROM candidate_works WHERE "verdict" IN (?, ?) '
+                'AND substr("work_dedup_key", 1, ?) = ? ORDER BY "decided_at", "id"',
+                [*decided, len(prefix), prefix],
+            )
+        return tuple(_candidate_work(row) for row in rows)
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
 

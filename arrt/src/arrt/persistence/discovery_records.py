@@ -550,7 +550,7 @@ class AffinityDerivation(StrEnum):
     `observed` to a facet and `sourced` to a taste.
 
     **`OBSERVED` is a claim only the review path can honestly make**, and no
-    caller may write it: it means the product read the judgment out of accept and
+    caller may write it (review writes it, `taste.observe_artist`): it means the product read the judgment out of accept and
     reject behaviour, and a row asserting behaviour that never happened is
     indistinguishable afterwards from one the product earned.
 

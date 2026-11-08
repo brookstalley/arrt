@@ -4,12 +4,12 @@ import asyncio
 import json
 import threading
 
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from scripted_model import COST_PER_REPLY, ScriptedModel, calls, says, unpriced
 from threetears.agent.tools.builtin.web_search import create_web_search_tool
 
 from arrt.ask.agent import _SAID, TURNS_REMEMBERED, Ask, Threads, said, surface_tools
-from arrt.ask.prompt import ASK_SCOPE
+from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
 
 SEARCH = ("art_discovery", {"action": "search", "q": "bruegel"})
 
@@ -109,6 +109,10 @@ def test_each_tool_call_is_said_in_the_curators_words():
     assert said("art_catalogue", {"action": "help"}) == "Reading how art_catalogue works"
     assert said("art_display", {"action": "show_now"}) == "Trying art_display show_now"
     assert said("art_catalogue", None) == "Trying art_catalogue None"
+    assert (
+        said("art_taste", {"action": "set", "kind": "artist", "value": "Klimt", "sentiment": "declines"})
+        == "Recording your taste: declines “Klimt”"
+    )
 
 
 def test_every_action_in_scope_has_a_line_in_the_curators_words_and_none_outside_it():
@@ -172,3 +176,78 @@ async def test_the_model_is_sent_only_the_turns_remembered_and_the_thread_keeps_
     assert not isinstance(last_sent[0], ToolMessage)
     assert [turn.asked for turn in thread.turns] == [f"Ask {index}" for index in range(turns - TURNS_REMEMBERED, turns)]
     assert sum(isinstance(message, HumanMessage) for message in thread.messages) == TURNS_REMEMBERED
+
+
+def system_prompt_of(model: ScriptedModel, call: int = 0) -> str:
+    [system] = [message for message in model.seen[call] if isinstance(message, SystemMessage)]
+    return str(system.content)
+
+
+async def test_the_taste_is_in_the_system_prompt_below_the_standing_instruction():
+    model = ScriptedModel(replies=[says("Noted.")])
+    ask = Ask(answered, model, step_limit=8, taste=lambda: "- loves artist “Klimt”: keep offering more")
+
+    await events_of(ask)
+
+    sent = system_prompt_of(model)
+    assert sent.startswith(ASK_SYSTEM)
+    assert sent.endswith("- loves artist “Klimt”: keep offering more")
+
+
+async def test_no_taste_sends_the_standing_instruction_alone():
+    model = ScriptedModel(replies=[says("Noted.")])
+    ask = Ask(answered, model, step_limit=8, taste=lambda: "")
+
+    await events_of(ask)
+
+    assert system_prompt_of(model) == ASK_SYSTEM
+
+
+async def test_the_taste_is_read_afresh_for_every_reply():
+    """A judgment recorded in one reply has to be in the next reply's prompt."""
+    taste = ["- likes artist “Klimt”: keep offering more"]
+    model = ScriptedModel(replies=[says("One."), says("Two.")])
+    ask = Ask(answered, model, step_limit=8, taste=lambda: taste[0])
+    thread = ask.threads.open()
+
+    [line async for line in ask.reply(thread, "first")]
+    taste[0] = "- declines artist “Klimt”: offer no more"
+    [line async for line in ask.reply(thread, "second")]
+
+    assert system_prompt_of(model, 0).endswith("likes artist “Klimt”: keep offering more")
+    assert system_prompt_of(model, 1).endswith("declines artist “Klimt”: offer no more")
+
+
+async def test_a_reply_that_records_taste_says_so_in_its_log_line(caplog):
+    """Threads are not stored, so the reply's log line is what says Ask wrote a judgment, and in which thread."""
+    record = ("art_taste", {"action": "set", "kind": "artist", "value": "Klimt", "sentiment": "loves", "open_to_more": True})
+    reads = ("art_taste", {"action": "list"})
+    ask = Ask(answered, ScriptedModel(replies=[calls(record, reads), says("Noted.")]), step_limit=8)
+    thread = ask.threads.open()
+
+    with caplog.at_level("INFO", logger="arrt.ask"):
+        [line async for line in ask.reply(thread, "I love Klimt")]
+
+    [logged] = [entry.getMessage() for entry in caplog.records if entry.getMessage().startswith("ask reply")]
+    assert f"thread={thread.id}" in logged
+    assert "tool_calls=2 taste_writes=1" in logged
+
+
+async def test_ask_may_record_taste_but_never_forget_it():
+    """`set` reaches the surface; `delete` is answered with the teaching error and never dispatched."""
+    reached = []
+
+    def recording(name, arguments):
+        reached.append((name, arguments["action"]))
+        return {"success": True}
+
+    record = ("art_taste", {"action": "set", "kind": "artist", "value": "Klimt", "sentiment": "loves", "open_to_more": True})
+    forget = ("art_taste", {"action": "delete", "affinity_id": "affinity-1"})
+    model = ScriptedModel(replies=[calls(record), calls(forget), says("Done.")])
+    ask = Ask(recording, model, step_limit=8)
+
+    events = await events_of(ask)
+
+    assert reached == [("art_taste", "set")]
+    ends = [event for event in events if event["type"] == "tool_call_end"]
+    assert [event["success"] for event in ends] == [True, False]

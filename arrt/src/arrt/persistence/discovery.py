@@ -106,6 +106,25 @@ class DiscoveryStore(Protocol):
         """
         ...
 
+    def list_rejected_works(self, limit: int) -> Sequence[CandidateWork]:
+        """The works the curator rejected, newest decision first, one per work identity, at most `limit`.
+
+        What discovery's phase 1 is told not to propose again. One per dedup key,
+        because a work proposed by two runs and rejected in both is one work the
+        curator does not want, and naming it twice spends the prompt on nothing.
+        """
+        ...
+
+    def list_decided_works(self, key_prefix: str | None = None) -> Sequence[CandidateWork]:
+        """Every accepted or rejected work, across runs, or only those whose dedup key begins with `key_prefix`.
+
+        The read behind observed taste: a verdict is the curator's decision about
+        a work, and a work's dedup key begins with its artist's key, so one
+        artist's verdicts are one prefix (`dedup.artist_prefix`). `wanted` and `pending` are not
+        decisions about the work and are left out.
+        """
+        ...
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         """Return every proposal ever made for this work identity, across runs.
 

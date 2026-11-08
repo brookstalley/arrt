@@ -341,3 +341,28 @@ def test_a_paint_that_lost_its_view_does_not_retitle_the_next(ui, service, seede
     # The response has landed; give its paint the turn it would take.
     ui.page.evaluate("() => new Promise((resolve) => setTimeout(resolve, 100))")
     assert ui.page.title() == "Walls - Arrt"
+
+
+def test_the_view_takes_focus_without_drawing_a_ring_round_the_page(ui, seeded_service):
+    """Focus moves to the view on navigation so the next Tab starts in the page,
+    and the view is a starting point, not a control: no ring round the page.
+
+    The owner saw the ring on 2026-11-08, on an iPad, as "a weird box" round Ask.
+    Opened by the keyboard here, because that is when a browser counts the
+    script's focus as one to show (`:focus-visible`), as Safari did. The member
+    that keeps the fix honest: the control the next Tab reaches still draws one.
+    """
+    ui.open("#collection")
+    ui.page.wait_for_selector("#view h1")
+    ui.page.focus("nav.sidebar a[data-view='discover']")
+    ui.page.keyboard.press("Enter")
+    ui.page.wait_for_selector("#view h1:text-is('Ask')")
+    ui.page.wait_for_function("() => document.activeElement && document.activeElement.id === 'view'")
+
+    assert ui.page.locator("#view").evaluate("(view) => getComputedStyle(view).outlineStyle") == "none"
+
+    ui.page.keyboard.press("Tab")
+    reached = ui.page.evaluate("() => document.activeElement.closest('#view') !== null")
+    ring = ui.page.evaluate("() => getComputedStyle(document.activeElement).outlineStyle")
+    assert reached, "the next Tab left the page it was meant to start in"
+    assert ring != "none", "the control the next Tab reached draws no focus ring"
