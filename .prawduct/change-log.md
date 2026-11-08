@@ -66,6 +66,25 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-11-08: No box round the page when it opens
+
+<!-- prawduct: scope=view-focus-ring -->
+
+**Why:** the owner, walking v0.8.0 on an iPad, saw "a weird box" round Ask. Every
+navigation sends focus to the view (`#view`, `tabindex="-1"`) so the next Tab starts
+in the page, and the site's `:focus-visible` ring drew round the whole of it whenever
+the browser counted that focus as visible: Safari did, and Chromium does when the
+page was opened by the keyboard. It was every page opened from the sidebar, not Ask.
+
+**What changed:** `#view:focus` draws no outline. Focus still moves to the view on
+navigation and from the skip link; the control the next Tab reaches draws its ring.
+`accessibility-spec.md` says so beside the navigation rule.
+
+**Tests:** `test_the_view_takes_focus_without_drawing_a_ring_round_the_page` opens Ask
+from the sidebar by the keyboard and asserts the view has no outline, then that the
+next Tab lands inside the page on a control that has one. It failed against the old
+stylesheet (`solid`).
+
 ## 2026-11-08: One Python everywhere, and a SQLite floor that was measured
 
 <!-- prawduct: scope=one-python | release=v0.8.0 -->

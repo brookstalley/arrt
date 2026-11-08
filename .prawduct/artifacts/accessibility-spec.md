@@ -1165,6 +1165,11 @@ convenient".
   followed** — card 20 of Artworks, not the top of the grid. A screen's own *← …*
   link is Back when the entry behind is the screen it names. Pinned by
   `arrt/tests/browser/test_navigation.py` (`core/router.js`, `rememberPlace`).
+  **The view draws no focus ring of its own** *(2026-11-08)*: it is where the
+  keyboard starts, not a control, and its ring boxed the whole page whenever a
+  browser counted the script's focus as visible (Safari on an iPad did). The
+  control the next Tab reaches draws its ring as every control does. Pinned by
+  the same file (`app.css`, `#view:focus`).
 - **Every page has its own title and its own `h1`.** `document.title` is the
   page's name and the product's ("Artworks - Arrt"), and a detail page's is the
   thing it shows ("Nighthawks - Arrt"); the screen's heading is the document's
@@ -1204,7 +1209,7 @@ convenient".
 - **The System badge is a number, so the System link's name carries the words**:
   *"System: 2 problems"*, or *"System: all well"* when there is no badge. The
   top-bar indicator keeps its visible word beside it (glyph + word + colour).
-- `:focus-visible` draws a 2px outline at 2px offset, in a `--focus` token whose
+- `:focus-visible` draws a 2px outline at 2px offset (the view excepted, above), in a `--focus` token whose
   contrast against the surfaces it appears on is one of the pairs the token test
   computes. Focus visibility is therefore not a matter of care.
 - Icon-only controls carry `aria-label` naming the work they act on — *"Move
