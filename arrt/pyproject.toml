@@ -35,7 +35,10 @@ dependencies = [
     # Thumbnails. Arrived ahead of the acquisition work below because a grid of
     # 4K renditions is not a page and nothing in the standard library decodes a
     # JPEG — `seed/images.py` reads the SOF header for dimensions precisely
-    # because that needed no decoder, and downscaling does.
+    # because that needed no decoder, and downscaling does. The floor is a
+    # security floor: 13.0.0 fixes JPEG and TIFF decoder overflows and
+    # decompression-bomb bypasses (5 critical), and Pillow decodes every image the
+    # sources send, unattended. Lowering it to resolve a conflict reopens those.
     "pillow>=13.0.0",
     # The OpenRouter client's transport — the one thing in this plane that talks
     # to a foreign API. Declared 2026-08-02 when that client landed: it resolves
