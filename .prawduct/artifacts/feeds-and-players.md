@@ -93,7 +93,7 @@ proposal it was.
 | Noun | Lives in | Owns |
 |---|---|---|
 | **Feed** | A document at a URL | What to show and when: the schedule (absolute slots), the works it names (presentation master, mat colour, label text) and default presentation settings. Read-only, the same bytes for every reader, cacheable. |
-| **Channel** | A published feed with no walls behind it | A public theme. Anonymous, static, hosted anywhere. The server never learns who reads it. |
+| **Channel** | A published feed with no walls behind it | A public theme. Anonymous, static, hosted anywhere. The server never learns who reads it. *(Or served by a public Arrt, 2026-11-08: § Public channels.)* |
 | **Wall** | Programming (server) | Curatorial: a private feed (its manifest), its display (0..1), its labels (0..n), its presentation settings. Unchanged from `labels-and-surfaces.md` § The model. |
 | **Display** | Programming (server), new | One physical screen, with an identity of its own: a Frame, an HDMI connector on a host, a Mac's screen, a TV behind an Apple TV. Driven by exactly one client. A wall names a display, never a client and an output name. |
 | **Client** | A host | One install with one token. Runs a controller per display it drives and a renderer per label output it holds. Reports its displays' state and capabilities. |
@@ -216,7 +216,10 @@ wall") uses the largest size reported recently, not the latest.
   the media it names, to static hosting behind a CDN. The household's Arrt can
   do this: no public server runs, nothing at the house is reachable from the
   internet, and the cost follows bandwidth, not viewers. A cloud Arrt stays
-  possible and changes no contract.
+  possible and changes no contract. *(Direction, 2026-11-08, `agents-and-memory.md` ruling 6:
+  a running public Arrt may also serve them, the public themes and their artwork
+  for anonymous Players, with no web UI, no MCP and nothing agentic. Not soon; its
+  own requirements cycle when it comes, beside static publishing.)*
 - **Public domain only** (ruling 5). The publish step refuses a work whose chosen
   image is not `public_domain` (the image instance's own rights status, or its
   source's where the instance has none), and says which works it left out.
