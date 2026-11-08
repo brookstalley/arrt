@@ -25,12 +25,14 @@ explain nor revisit.
 import logging
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from fractions import Fraction
 from typing import Final
 
+from arrt.library.discovery.dedup import artist_key, artist_prefix
 from arrt.persistence.discovery import DiscoveryStore
-from arrt.persistence.discovery_records import Affinity, AffinityDerivation, AffinitySentiment
+from arrt.persistence.discovery_records import Affinity, AffinityDerivation, AffinitySentiment, Verdict
 from arrt.persistence.records import VocabularyKind
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member, require_text
@@ -76,8 +78,8 @@ def validated_write(
     """Turn what a caller sent into a judgment that may be stored, or refuse it.
 
     **This is the write path the derivation rules live on**, and the only one.
-    It is a function rather than a method so that every future
-    writer — the review path that will one day assert `observed`, a rebuild that
+    It is a function rather than a method so that every
+    writer — the review path that asserts `observed` (`observe_artist`), a rebuild that
     re-derives judgments when the eliciting prompt improves — goes through the
     same checks without having to be a caller of `set_affinity`.
 
@@ -117,6 +119,128 @@ def validated_write(
         rationale=account,
         artist_id=artist_id,
     )
+
+
+# -- observed taste ---------------------------------------------------------
+
+#: The fewest verdicts one way before review's decisions say anything about an
+#: artist, and the share of the artist's verdicts they must be. The owner's rule
+#: (2026-11-08, `agents-and-memory.md` open question 1): "at least 5, but with at
+#: least 90% rejections (100 approvals and 5 rejections is fine)", and the same
+#: rule for approvals.
+OBSERVED_AT_LEAST: Final[int] = 5
+OBSERVED_SHARE: Final[Fraction] = Fraction(9, 10)
+
+
+def observed_sentiment(*, accepted: int, rejected: int) -> AffinitySentiment | None:
+    """What an artist's verdicts say about them, or None when they say nothing yet.
+
+    `declines` for a run of rejections, `likes` for a run of acceptances, never
+    `loves`, which only the curator states. Both thresholds are inclusive, and the
+    share is compared as a fraction so 9 of 10 is exactly 90%.
+    """
+    total = accepted + rejected
+    if rejected >= OBSERVED_AT_LEAST and Fraction(rejected, total) >= OBSERVED_SHARE:
+        return AffinitySentiment.DECLINES
+    if accepted >= OBSERVED_AT_LEAST and Fraction(accepted, total) >= OBSERVED_SHARE:
+        return AffinitySentiment.LIKES
+    return None
+
+
+def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None:
+    """Re-derive the observed judgment of one artist from every verdict on their works, and store it.
+
+    **What review's decisions write, and the only writer of `observed`.** Called
+    for the work's artist on every accept and reject, and for every artist at
+    startup, so the row always reflects the verdicts as they stand: written when
+    the rule holds, corrected when it holds the other way, removed when it stops.
+
+    **An artist is their `artist_key`**, the identity that already makes "Dali"
+    and "Dalí" one artist when deciding whether two proposals are one work. So a
+    judgment about the same artist under another spelling is the same judgment:
+    a `stated` one anywhere under the key leaves the artist alone (the curator's
+    words outrank their verdicts), and an `inferred` one is replaced, since a
+    model's reading of the curator's words is weaker than their decisions.
+
+    Returns the observed judgment now stored, or None when there is none.
+    """
+    prefix = None if artist is None else artist_prefix(artist)
+    if artist is None or prefix is None:
+        # Unattributed works are nobody's, so they say nothing about anybody.
+        return None
+    key = artist_key(artist)
+    works = store.list_decided_works(prefix)
+    accepted = sum(work.verdict is Verdict.ACCEPTED for work in works)
+    rejected = sum(work.verdict is Verdict.REJECTED for work in works)
+    sentiment = observed_sentiment(accepted=accepted, rejected=rejected)
+
+    same_artist = [
+        affinity for affinity in store.list_affinities(kind=VocabularyKind.ARTIST) if artist_key(affinity.value) == key
+    ]
+    if any(affinity.derivation is AffinityDerivation.STATED for affinity in same_artist):
+        return None
+    observed = [affinity for affinity in same_artist if affinity.derivation is AffinityDerivation.OBSERVED]
+    if sentiment is None:
+        for stale in observed:
+            store_write(store.delete_affinity, stale.id)
+            log.info("an observed taste was withdrawn", extra={"event": "taste.unobserved", "kind": str(stale.kind)})
+        return None
+
+    # Named as the latest verdict named them; works are read oldest decision first.
+    named = next((work.proposed_artist for work in reversed(works) if work.proposed_artist), artist)
+    decided = accepted + rejected
+    rationale = (
+        f"Rejected {rejected} of the {decided} works by {named} decided in review."
+        if sentiment is AffinitySentiment.DECLINES
+        else f"Accepted {accepted} of the {decided} works by {named} decided in review."
+    )
+    write = validated_write(
+        kind=VocabularyKind.ARTIST,
+        value=named,
+        sentiment=sentiment,
+        open_to_more=sentiment is AffinitySentiment.LIKES,
+        derivation=AffinityDerivation.OBSERVED,
+        rationale=rationale,
+    )
+    now = datetime.now(UTC)
+    # Corrected in place where a judgment of this artist exists, under the name it
+    # already has: the unique index is on the name, and renaming it is not this
+    # rule's business.
+    standing = observed or [affinity for affinity in same_artist if affinity.derivation is AffinityDerivation.INFERRED]
+    if standing:
+        current = standing[0]
+        if (current.sentiment, current.open_to_more, current.derivation, current.rationale) == (
+            write.sentiment,
+            write.open_to_more,
+            write.derivation,
+            write.rationale,
+        ):
+            return current
+        corrected = replace(
+            current,
+            sentiment=write.sentiment,
+            open_to_more=write.open_to_more,
+            derivation=write.derivation,
+            rationale=write.rationale,
+            updated_at=now,
+        )
+        store_write(store.update_affinity, corrected)
+        log.info("an observed taste was corrected", extra={"event": "taste.observed", "sentiment": str(write.sentiment)})
+        return corrected
+    fresh = Affinity(
+        id=str(uuid.uuid4()),
+        kind=write.kind,
+        value=write.value,
+        sentiment=write.sentiment,
+        open_to_more=write.open_to_more,
+        derivation=write.derivation,
+        created_at=now,
+        updated_at=now,
+        rationale=write.rationale,
+    )
+    store_write(store.add_affinity, fresh)
+    log.info("an observed taste was recorded", extra={"event": "taste.observed", "sentiment": str(write.sentiment)})
+    return fresh
 
 
 #: How many judgments a prompt is told. A household's taste is tens of rows, so
@@ -214,6 +338,24 @@ class TasteService:
         by the same path and cannot diverge when that read is bounded.
         """
         return describe_taste(self.list_affinities())
+
+    def reobserve(self) -> int:
+        """Re-derive every artist's observed judgment from the verdicts as they stand; how many are stored.
+
+        Run at startup, so a catalogue holding verdicts from before review wrote
+        taste gets its observed judgments, and a change to the rule reaches every
+        row rather than only the artists decided on next. Each artist once, by
+        `artist_key`, under the name of their first verdict read; `observe_artist`
+        names the row from the latest.
+        """
+        seen: dict[str, str] = {}
+        for work in self._store.list_decided_works():
+            if work.proposed_artist and (key := artist_key(work.proposed_artist)):
+                seen.setdefault(key, work.proposed_artist)
+        # An observed row whose artist has no decided work left is withdrawn too.
+        for affinity in self._store.list_affinities(kind=VocabularyKind.ARTIST, derivation=AffinityDerivation.OBSERVED):
+            seen.setdefault(artist_key(affinity.value), affinity.value)
+        return sum(observe_artist(self._store, artist) is not None for artist in seen.values())
 
     def get_affinity(self, affinity_id: str) -> Affinity:
         found = self._store.get_affinity(affinity_id)

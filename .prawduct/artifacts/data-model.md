@@ -1351,7 +1351,13 @@ discovery consults.
 > owner's rule of 2026-11-08 (`agents-and-memory.md` open question 1). Ask reads them and writes `stated` ones since
 > 2026-11-08 (`build-plan-taste-in-ask.md`), each reply's prompt carrying
 > `describe_taste`'s rendering, and phase 1's prompt carries the same rendering
-> with the newest `REJECTED_TOLD` rejected works. Nothing writes `observed` yet.
+> with the newest `REJECTED_TOLD` rejected works. Review's verdicts write `observed`
+> ones since 2026-11-08 (`build-plan-observed-taste.md`): `taste.observe_artist`,
+> by artist (`artist_key`), on every accept and reject and for every artist at
+> startup. At least 5 rejected and at least 90% of the artist's verdicts is
+> `declines`, not open to more; the mirror is `likes`, open to more; anything else
+> withdraws the observed row. A `stated` row under the same key is never
+> overwritten, and an `inferred` one is replaced. The rationale carries the counts.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
@@ -1420,7 +1426,10 @@ to arbitrate between.
 > *Removed 2026-10-09 with the ability to write `inferred`: with only `stated`
 > writable, the strongest rank, the ranking had nothing to refuse (§ Affinity).
 > The wave that lets a weaker derivation be written again restores it, ranks and
-> all.*
+> all.* *Restored 2026-11-08 where it now matters: review writes `observed`, and
+> `taste.observe_artist` applies the ranking at that one writer, never writing
+> over `stated` and replacing `inferred`. `set` writes only `stated`, the top
+> rank, so it still has nothing to refuse.*
 >
 > **`observed` is refused at runtime by `art_taste`, while all three values are
 > published on `set`.** The registry permits one declaration of a parameter across

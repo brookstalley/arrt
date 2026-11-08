@@ -258,11 +258,12 @@ def _taste_route(route, reads, written, deleted=None):
     route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
 
-def test_the_help_names_telling_ask_among_the_ways_a_judgment_is_recorded(ui):
-    """The help lists every way a judgment gets here, and Ask records taste the curator states."""
+def test_the_help_names_review_and_telling_ask_among_the_ways_a_judgment_is_recorded(ui):
+    """The help lists every way a judgment gets here: review writes observed taste, and Ask records stated taste."""
     ui.serve("**/api/affinities*", a_taste([an_affinity()]))
     ui.open("#taste")
     ui.page.wait_for_selector(".taste-help li")
 
     ways = ui.page.locator(".taste-help li").all_text_contents()
     assert any(way.startswith("or tell Ask") for way in ways), ways
+    assert any(way.startswith("accept, or turn down, at least five of an artist's works in review") for way in ways), ways

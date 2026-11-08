@@ -416,6 +416,23 @@ class SqliteDiscovery(TableAdapter):
         )
         return tuple(_candidate_work(row) for row in rows)
 
+    def list_decided_works(self, key_prefix: str | None = None) -> Sequence[CandidateWork]:
+        decided = [str(Verdict.ACCEPTED), str(Verdict.REJECTED)]
+        if key_prefix is None:
+            rows = self._store.select_rows(
+                'SELECT * FROM candidate_works WHERE "verdict" IN (?, ?) ORDER BY "decided_at", "id"', decided
+            )
+        else:
+            # Compared with substr rather than LIKE, so no character in a key can
+            # act as a wildcard.
+            prefix = key_prefix
+            rows = self._store.select_rows(
+                'SELECT * FROM candidate_works WHERE "verdict" IN (?, ?) '
+                'AND substr("work_dedup_key", 1, ?) = ? ORDER BY "decided_at", "id"',
+                [*decided, len(prefix), prefix],
+            )
+        return tuple(_candidate_work(row) for row in rows)
+
     def list_candidate_works_by_dedup_key(self, work_dedup_key: str) -> Sequence[CandidateWork]:
         return self._list("candidate_works", {"work_dedup_key": work_dedup_key}, _BY_TITLE, _candidate_work)
 

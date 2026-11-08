@@ -39,6 +39,7 @@ from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import Fit, QualityProfile
 from arrt.library.services.remembered import checked_qid
+from arrt.library.services.taste import observe_artist
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import (
     CandidateImage,
@@ -924,6 +925,9 @@ class DiscoveryService:
                     run_id=work.discovery_run_id,
                     detail={"title": work.proposed_title, "candidate_work_id": work.id},
                 )
+                # In the verdict's transaction, so a verdict and the taste it
+                # implies commit together or not at all.
+                observe_artist(self._store, work.proposed_artist)
                 return outcome
             rejected = replace(work, verdict=target, rejected_reason=reason, decided_at=datetime.now(UTC))
             store_write(self._store.update_candidate_work, rejected)
@@ -934,6 +938,7 @@ class DiscoveryService:
                 run_id=work.discovery_run_id,
                 detail={"title": work.proposed_title, "candidate_work_id": work.id},
             )
+            observe_artist(self._store, work.proposed_artist)
         return VerdictOutcome(work=rejected)
 
     # -- reads and writes: image instances ------------------------------------

@@ -129,7 +129,9 @@ function either(parts) {
  * control is named as it reads where it is: Ask's card reactions
  * (`CARD_REACTIONS`) are lower-case, and an artist's page says *More like this*,
  * *Not this* and *Tell me more*. The corrections on this page are listed too, since a correction
- * records a judgment of its own (`core/taste.js`). Ask's agent and an assistant
+ * records a judgment of its own (`core/taste.js`). Review's verdicts write an
+ * observed one by the owner's rule (`library/services/taste.py`,
+ * `observed_sentiment`), worded here as the curator meets it. Ask's agent and an assistant
  * over MCP both write through `art_taste`, which records what it read out of
  * something the curator said. */
 function howTasteIsRecorded() {
@@ -156,6 +158,7 @@ function howTasteIsRecorded() {
         control("Keep showing me"),
         ";",
       ]),
+      el("li", {}, ["accept, or turn down, at least five of an artist's works in review, nearly all one way;"]),
       el("li", {}, ["or tell Ask, or an assistant connected to Arrt, how you feel about something; it records what it read out of what you said."]),
     ]),
   ]);
