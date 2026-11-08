@@ -121,7 +121,7 @@ Each item gets its own build plan when it starts, as the waves did.
 | | Scope | Notes |
 |---|---|---|
 | **1** | **Taste in Ask and discovery** | Ask's system prompt carries the household's affinities; Ask records taste the curator states, through the same service `art_taste` calls; phase 1's prompt carries taste and the works already rejected. No dependency, no infrastructure. |
-| **2** | **Verdicts become observed taste** | Accept and reject in review write `observed` affinities, at thresholds the owner sets (open question 1). `inferred` writes stay off until then. |
+| **2** | **Verdicts become observed taste** | Accept and reject in review write `observed` affinities, at the owner's thresholds (open question 1, answered 2026-11-08: at least 5 rejections, and at least 90% of the verdicts). `inferred` writes stay off. |
 | **3** | **MCP for the household's own agents** | `art_taste` writes for stated taste and verdicts, and whatever else a household's agent needs to do through MCP what Ask does inside Arrt (open question 5). No credential: the boundary stays the LAN. |
 | **4** | **Unattended agent settings, then Watches** | Settings: whether unattended agent work runs at all, its own monthly allowance under the cap, its cadence and its model. Then Watches, in Arrt, with what they write tagged as written unattended (input to the prompt-injection review Watches owe). The scheduler itself is shared with upgrades (`upgrades.md`), which call no model, so it is not held back by this item; only agent work behind it waits for the settings. |
 | **5** | **Optional Postgres for memory** | Off unless a Postgres address is configured; Arrt works fully without it. Brings 3tears' agent memory (and the 3tears pin from 0.65 forward), an embedding provider's cost, and its permission bundle. Built only when items 1–4 leave a memory need typed taste does not meet. |
@@ -129,8 +129,16 @@ Each item gets its own build plan when it starts, as the waves did.
 
 ## Open questions
 
-1. At what thresholds do verdicts become observed taste (how many rejections of
-   an artist, a style, a period)?
+1. ~~At what thresholds do verdicts become observed taste (how many rejections of
+   an artist, a style, a period)?~~ **Answered 2026-11-08 (the owner): "it should
+   be at least 5, but with at least 90% rejections (100 approvals and 5 rejections
+   is fine)".** Review's verdicts write an observed dislike of a thing only when
+   both hold: at least 5 of its works were rejected, and rejections are at least
+   90% of the accept-and-reject verdicts on its works. 5 rejected beside 100
+   accepted writes nothing. Still open, for item 2's plan: whether accepts write an
+   observed *like* by a mirror rule (the owner ruled on rejections only); and how
+   a style or period is counted, since a rejected work records its artist's name
+   and sometimes its Wikidata item, never its movement or era.
 2. May anything a Watch finds while nobody is watching shape taste or a later
    prompt, or only what the curator accepts?
 3. Is the monthly spend cap still meant to come from 3tears, which at 0.89 has
