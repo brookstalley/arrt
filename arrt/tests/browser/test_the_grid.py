@@ -86,14 +86,14 @@ def test_the_grid_pages_through_a_catalogue_larger_than_one_page(ui, a_catalogue
     progress every time, and stops having collected everything.
     """
     ui.open("#collection")
-    # Waited on the tiles, not on the heading. The screen now says it is loading
-    # in an `h1` of its own — the placeholder holds the real heading's place so
-    # nothing jumps when the count arrives — so `h1` stopped meaning "the grid has
-    # painted". The assertion below is unchanged; only what it waits for is.
+    # Waited on the tiles, not on the heading: the heading is the page's name
+    # from the loading paint on, so `h1` does not mean "the grid has painted".
     ui.page.wait_for_selector("ul.grid li.card")
     show_every_work(ui)
 
-    assert ui.page.inner_text("h1") == f"{a_catalogue_past_one_page} works"
+    # In the facts line, in the empty state's words, since the heading became the
+    # page's name (ruling 1 of 2026-10-27).
+    assert ui.page.inner_text("#view .page-facts") == f"{a_catalogue_past_one_page:,} works"
     assert ui.page.locator("ul.grid li.card").count() == a_catalogue_past_one_page
 
     # The count alone passes against a server that answered in one page, which
@@ -273,7 +273,9 @@ def test_the_grid_pages_past_the_old_ceiling_and_misses_nothing(ui):
 
     assert ui.page.locator("ul.grid li.card").count() == pages
     assert len(ui.requests_matching("/api/works?")) == pages
-    assert ui.page.inner_text("h1") == f"{pages} works"
+    # In the facts line, in the empty state's words, since the heading became the
+    # page's name (ruling 1 of 2026-10-27).
+    assert ui.page.inner_text("#view .page-facts") == f"{pages:,} works"
     assert "not on this page" not in ui.text()
 
 

@@ -1,7 +1,8 @@
-/* Putting a set of works into a theme: the one act two screens share.
+/* Putting a set of works into a theme: the one act several screens share.
  *
- * **In `core/` because Artworks and the Artist page both do it** to a selection,
- * and `screens/` modules never import each other (`architecture.md` § Components
+ * **In `core/` because every list does it to a selection, and the Work page to
+ * one work**, with the same *Add to theme…* dialog, and `screens/` modules
+ * never import each other (`architecture.md` § Components
  * & Responsibilities). A copy in each would be two answers to "what happens to a
  * work the theme already holds?", and only one of them would be kept right.
  *
@@ -11,6 +12,89 @@
  * works it lacks are sent. */
 
 import { api } from "./api.js";
+import { el, fill } from "./render.js";
+
+/* The theme picker's value for *New theme…*. Theme ids are UUIDs, so it cannot
+ * collide with one. */
+const NEW_THEME = "new";
+
+/* Two names for one theme: the curator's spacing and capitals are not a second
+ * theme, as a Get's *New theme…* already rules (`core/getting.js`). */
+function sameName(one, other) {
+  return one.trim().toLowerCase() === other.trim().toLowerCase();
+}
+
+/* The themes works can be added to, from `GET /api/themes`'s answer: one
+ * mapping for every page that offers *Add to theme…*, so a change to that
+ * answer's shape is one edit. */
+export function offeredThemes(response) {
+  return response.themes.map((placement) => ({ theme_id: placement.theme.theme_id, name: placement.theme.name }));
+}
+
+/* What *Add to theme…*'s dialog holds, wherever it is opened: a list's
+ * selection and one work's page ask the same question, so they ask it with one
+ * picker. `themes` is `[{ theme_id, name }]`, the themes offered; *New theme…*
+ * is always offered after them, with a field for its name.
+ *
+ * `fields` go in the dialog's body; `destination()` names the choice for the
+ * act's label; `ready()` says whether there is a choice to act on (a new theme
+ * needs its name); `chosen()` answers the theme, making it first when it is
+ * new. A typed name that is already a theme joins it, whether or not it is
+ * offered: `known` is every theme, since a caller leaves some out of the
+ * picker (the one a list is filtered to, those already holding a work), and a
+ * name checked only against the picker would be refused by the store, or made
+ * again in other capitals. Once made, a new theme is offered and chosen, so a
+ * second press joins it rather than making another. `onChange` is told
+ * whenever the choice or the name changes. */
+export function themeChoice(themes, { known = themes, onChange = () => {} } = {}) {
+  const offered = [...themes];
+  const every = [...known];
+  const picker = el("select", { id: "add-to-theme" });
+  const naming = el("input", { type: "text", id: "add-to-theme-name", autocomplete: "off" });
+  const namingField = el("span", { class: "selection-field", hidden: true }, [
+    el("label", { for: "add-to-theme-name", text: "Name for the new theme" }),
+    naming,
+  ]);
+  const paint = (chosen) => {
+    fill(
+      picker,
+      ...offered.map((theme) => el("option", { value: theme.theme_id, text: theme.name })),
+      el("option", { value: NEW_THEME, text: "New theme…" }),
+    );
+    picker.value = chosen || (offered.length ? offered[0].theme_id : NEW_THEME);
+    namingField.hidden = picker.value !== NEW_THEME;
+  };
+  paint(null);
+  const changed = () => {
+    namingField.hidden = picker.value !== NEW_THEME;
+    onChange();
+  };
+  picker.addEventListener("change", changed);
+  naming.addEventListener("input", changed);
+
+  return {
+    fields: [el("span", { class: "selection-field" }, [el("label", { for: "add-to-theme", text: "Theme" }), picker]), namingField],
+    ready: () => picker.value !== NEW_THEME || Boolean(naming.value.trim()),
+    destination: () => (picker.value !== NEW_THEME ? picker.options[picker.selectedIndex].text : naming.value.trim() || "a new theme"),
+    async chosen() {
+      if (picker.value !== NEW_THEME) return offered.find((theme) => theme.theme_id === picker.value);
+      const wanted = naming.value.trim();
+      const taken = every.find((theme) => sameName(theme.name, wanted));
+      if (taken) {
+        if (!offered.some((theme) => theme.theme_id === taken.theme_id)) offered.push(taken);
+        paint(taken.theme_id);
+        return taken;
+      }
+      const created = await api("/api/themes", { method: "POST", body: JSON.stringify({ name: wanted }) });
+      const made = { theme_id: created.theme_id, name: created.name };
+      offered.push(made);
+      every.push(made);
+      paint(made.theme_id);
+      naming.value = "";
+      return made;
+    },
+  };
+}
 
 /* Add `artworkIds` to the theme, skipping those already in it.
  *

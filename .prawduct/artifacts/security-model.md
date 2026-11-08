@@ -619,9 +619,14 @@ like anything else.
 >   repository and pushed to a LAN registry. Patching it therefore means
 >   **rebuilding and redeploying the image**, not `uv python upgrade` on the Pi.
 >   The two-step caveat above stays true for as long as curation runs on the Pi.
+>   *(2026-11-08: the image installs exactly the version in `.python-version`,
+>   uv-managed only, and `tests/test_one_python.py` holds it. A CPython fix is a
+>   change to that pin first; rebuilding alone reinstalls the same patch.)*
 > - The image's base and its build are a new link in the supply chain. They are
 >   the same trust class as the PyPI wheels accepted above, and like them, no
->   pinning or provenance policy has been decided.
+>   provenance policy has been decided. *(Pinning, 2026-11-08: the uv image and
+>   the Debian base are pinned by digest, Python by exact version, uv by
+>   version in CI and the image.)*
 > - The Player stays on the Pi's system interpreter and `apt`, unchanged.
 
 This is a narrowing of an already-accepted surface rather than a new one. Both

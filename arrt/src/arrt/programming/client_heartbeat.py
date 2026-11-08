@@ -125,13 +125,13 @@ def client_heartbeat_path_in(art_root: Path, client_id: str) -> Path:
 def problem_with(document: object) -> str | None:
     """Why this is not a client heartbeat, in words a Player's operator can act on, or None."""
     if not isinstance(document, dict):
-        return "a client heartbeat is a JSON object."
+        return "a Player's heartbeat is a JSON object."
     instant = document.get(REPORTED_AT_KEY)
     if not isinstance(instant, str) or _INSTANT.fullmatch(instant) is None:
         return f"it carries {REPORTED_AT_KEY!r} as an RFC 3339 timestamp with an offset."
     outputs = document.get("outputs")
     if not isinstance(outputs, list):
-        return "it carries 'outputs', a list of the client's outputs (which may be empty)."
+        return "it carries 'outputs', a list of the Player's outputs (which may be empty)."
     seen: set[str] = set()
     for index, output in enumerate(outputs):
         problem = _problem_with_output(output)
@@ -148,7 +148,7 @@ def _problem_with_label_outputs(document: dict[str, Any]) -> str | None:
         return None
     label_outputs = document["label_outputs"]
     if not isinstance(label_outputs, list):
-        return "'label_outputs' is a list of the client's label outputs, when it carries one."
+        return "'label_outputs' is a list of the Player's label outputs, when it carries one."
     seen: set[str] = set()
     for index, label_output in enumerate(label_outputs):
         problem = _problem_with_label_output(label_output)
@@ -200,7 +200,7 @@ def _problem_with_output(output: object) -> str | None:  # noqa: PLR0911 -- one 
     if "screen" not in output or not _is_size(output["screen"]):
         return "'screen' is [width, height] in pixels, or null when unknown."
     if "identity" in output and not (isinstance(output["identity"], str) and output["identity"]):
-        return "'identity' is the id the client read from the device, non-empty text, or absent."
+        return "'identity' is the id the Player read from the device, non-empty text, or absent."
     return None
 
 

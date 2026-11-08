@@ -64,6 +64,7 @@ from arrt.http.models import (
     DisplayFaultOut,
     DisplayOut,
     DisplayStateOut,
+    EditTheme,
     EstimateOut,
     ExcludedWorkListOut,
     ExcludedWorkOut,
@@ -117,7 +118,6 @@ from arrt.http.models import (
     RegistryWorkFoundOut,
     RegistryWorkOut,
     RegistryWorkPageOut,
-    RenameTheme,
     RenditionOut,
     ReportedLabelOutputOut,
     ReportedOutputOut,
@@ -1024,8 +1024,8 @@ def create_theme(request: Request, body: CreateTheme) -> ThemeOut:
 
 
 @router.post("/themes/{theme_id}")
-def rename_theme(request: Request, theme_id: str, body: RenameTheme) -> ThemeOut:
-    """Change a theme's name.
+def edit_theme(request: Request, theme_id: str, body: EditTheme) -> ThemeOut:
+    """Change a theme's name, and its description when the body names one.
 
     **`POST` rather than `PATCH`**, following this surface's own convention: it
     writes with `POST` and removes with `DELETE`, and one surface with two
@@ -1036,7 +1036,8 @@ def rename_theme(request: Request, theme_id: str, body: RenameTheme) -> ThemeOut
     surrounded by whitespace comes back trimmed — and a screen painting its own
     input would show a name the catalogue does not hold.
     """
-    return _theme(_services(request).display.update_theme(theme_id, name=body.name))
+    description = body.description if "description" in body.model_fields_set else UNSET
+    return _theme(_services(request).display.update_theme(theme_id, name=body.name, description=description))
 
 
 @router.delete("/themes/{theme_id}")
@@ -1163,6 +1164,18 @@ def rename_wall(request: Request, wall_id: str, body: CreateWall) -> WallOut:
     services = _services(request)
     services.display.rename_wall(wall_id, name=body.name)
     return _wall(services, services.display.get_wall_view(wall_id))
+
+
+@router.delete("/walls/{wall_id}")
+def delete_wall(request: Request, wall_id: str) -> WallListOut:
+    """Forget a wall for good: what it hangs comes down, its screen and label panels are freed.
+
+    Its history stays. Answers with the walls that remain, for the reason
+    `delete_theme` gives: a delete changes the list it was made from.
+    """
+    services = _services(request)
+    services.display.delete_wall(wall_id)
+    return WallListOut(walls=[_wall(services, view) for view in services.display.survey_walls()])
 
 
 @router.post("/walls/{wall_id}/client")

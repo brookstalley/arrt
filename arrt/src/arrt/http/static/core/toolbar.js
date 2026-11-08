@@ -12,6 +12,10 @@
  * it is one a reader has to open to check.
  * The menu is an ARIA menu of `menuitemradio`s: arrow keys move, Enter or Space
  * chooses, Escape closes and hands focus back to the button.
+ *
+ * **A page's rarer acts go behind ⋯** (`actionMenu`), an ARIA menu of
+ * `menuitem`s with the same keyboard, so the acts a curator reaches for every
+ * day are the ones on the toolbar's face.
  */
 
 import { el } from "./render.js";
@@ -50,6 +54,43 @@ export function menuButton({ label, options, current, onChoose }) {
   const menu = el("ul", { id, class: "toolbar-menu", role: "menu", "aria-label": label }, items);
   menu.hidden = true;
 
+  const choose = (item) => {
+    if (item.dataset.value !== chosen.value) onChoose(item.dataset.value);
+  };
+  wireMenu(button, menu, items, choose, () => items.find((item) => item.getAttribute("aria-checked") === "true") || items[0]);
+
+  return el("div", { class: "toolbar-menu-wrap" }, [button, menu]);
+}
+
+/* A button that opens a menu of acts: ⋯ on a page's toolbar.
+ *
+ * `label` is the trigger's accessible name (*More acts on {title}*), since a
+ * glyph alone names nothing; `items` is `[{ label, act }]`, and `act(trigger)`
+ * runs once the menu has closed and the keyboard is back on the trigger, so a
+ * dialog an act opens returns it there, and a refusal is said beside it. */
+export function actionMenu({ label, items: acts }) {
+  const id = `menu-${label.toLowerCase().replace(/\W+/g, "-")}`;
+  const button = el("button", {
+    class: "action quiet menu-button-trigger action-menu-trigger",
+    type: "button",
+    "aria-haspopup": "menu",
+    "aria-expanded": "false",
+    "aria-controls": id,
+    "aria-label": label,
+    text: "⋯",
+  });
+  const items = acts.map((one) => el("li", { role: "menuitem", tabindex: "-1", text: one.label }));
+  const menu = el("ul", { id, class: "toolbar-menu", role: "menu", "aria-label": label }, items);
+  menu.hidden = true;
+  wireMenu(button, menu, items, (item) => acts[items.indexOf(item)].act(button), () => items[0]);
+  return el("div", { class: "toolbar-menu-wrap" }, [button, menu]);
+}
+
+/* The keyboard and pointer every toolbar menu shares: the button opens and
+ * closes it, arrows move, Enter or Space chooses, Escape closes and hands focus
+ * back to the button. `choose(item)` runs after the menu has closed and the
+ * button has the keyboard again; `first()` is the item focus opens on. */
+function wireMenu(button, menu, items, choose, first) {
   const close = (refocus) => {
     menu.hidden = true;
     button.setAttribute("aria-expanded", "false");
@@ -58,11 +99,11 @@ export function menuButton({ label, options, current, onChoose }) {
   const open = () => {
     menu.hidden = false;
     button.setAttribute("aria-expanded", "true");
-    (items.find((item) => item.getAttribute("aria-checked") === "true") || items[0]).focus();
+    first().focus();
   };
-  const choose = (item) => {
+  const pick = (item) => {
     close(true);
-    if (item.dataset.value !== chosen.value) onChoose(item.dataset.value);
+    choose(item);
   };
 
   button.addEventListener("click", () => (menu.hidden ? open() : close(false)));
@@ -72,7 +113,7 @@ export function menuButton({ label, options, current, onChoose }) {
       open();
     }
   });
-  for (const item of items) item.addEventListener("click", () => choose(item));
+  for (const item of items) item.addEventListener("click", () => pick(item));
   menu.addEventListener("keydown", (event) => {
     const at = items.indexOf(document.activeElement);
     if (event.key === "Escape") {
@@ -86,13 +127,11 @@ export function menuButton({ label, options, current, onChoose }) {
       items[at <= 0 ? items.length - 1 : at - 1].focus();
     } else if ((event.key === "Enter" || event.key === " ") && at >= 0) {
       event.preventDefault();
-      choose(items[at]);
+      pick(items[at]);
     }
   });
   // Closed by a click anywhere else, as any menu is; focus stays where it went.
   menu.addEventListener("focusout", (event) => {
     if (!menu.contains(event.relatedTarget) && event.relatedTarget !== button) close(false);
   });
-
-  return el("div", { class: "toolbar-menu-wrap" }, [button, menu]);
 }

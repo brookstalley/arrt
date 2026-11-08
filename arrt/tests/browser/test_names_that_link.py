@@ -1,11 +1,11 @@
-"""A wall, a client or a topic named on a page that is not its own is a link to it.
+"""A wall, a Player or a topic named on a page that is not its own is a link to it.
 
 `information-architecture.md` § Direction: navigation is a link. The second UX
 walk (`ux-review-2026-10.md` findings 34 and 43, #362) found walls and clients
 named on six screens and linked from none, and a work's topics named on its page
 as plain text. A wall is addressed as Walls with that wall's card brought to the
-reader (`#walls?wall=<id>`), a client as Clients with its panel brought to them
-(`#clients?client=<id>`).
+reader (`#walls?wall=<id>`), a Player as Players with its row brought to them
+(`#clients?client=<id>`, the address Clients had before ruling 7 of 2026-10-27).
 """
 
 import pytest
@@ -107,12 +107,12 @@ def test_a_walls_history_links_the_wall(ui, the_wall, hung):
     assert walls.first.get_attribute("href") == wall_address(the_wall)
 
 
-def test_clients_links_the_walls_assigned_and_captioned(ui, services, the_wall, hall):
+def test_players_links_the_walls_on_its_screens_and_captioned(ui, services, the_wall, hall):
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
     ui.open("#clients")
-    walls = links_named(ui, f"#view section[data-client='{hall.id}']", the_wall.name)
-    # Assigned to it, and captioned by its label output (the table and the list).
-    assert walls.count() >= 2
+    walls = links_named(ui, f"#view tr[data-player='{hall.id}']", the_wall.name)
+    # On its screen, and captioned by its label panel: one link in each column.
+    assert walls.count() == 2
     for at in range(walls.count()):
         assert walls.nth(at).get_attribute("href") == wall_address(the_wall)
 
@@ -124,12 +124,12 @@ def test_status_links_each_walls_reading_to_the_wall(ui, a_health_reading):
     assert walls.first.get_attribute("href") == "#walls?wall=wall-1"
 
 
-def test_walls_links_the_client_that_shows_the_wall(ui, services, the_wall, hall):
+def test_walls_links_the_player_that_shows_the_wall(ui, services, the_wall, hall):
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
     ui.open("#walls")
     open_wall_setup(ui, the_wall)
     clients = links_named(ui, "dialog.panel-dialog", hall.name)
-    # The client that shows it, and the client whose label captions it.
+    # The Player that shows it, and the Player whose label captions it.
     assert clients.count() == 2
     for at in range(clients.count()):
         assert clients.nth(at).get_attribute("href") == client_address(hall)
@@ -146,14 +146,14 @@ def test_a_wall_link_brings_that_walls_card_to_the_reader(ui, the_wall, hung):
     assert ui.page.evaluate("() => document.activeElement.textContent") == the_wall.name
 
 
-def test_a_client_link_brings_that_clients_panel_to_the_reader(ui, the_wall, hall):
+def test_a_player_link_brings_that_players_row_to_the_reader(ui, the_wall, hall):
     ui.open("#walls")
     open_wall_setup(ui, the_wall)
     links_named(ui, "dialog.panel-dialog", hall.name).first.click()
     ui.page.wait_for_function(
-        "(id) => document.activeElement && document.activeElement.closest(`section[data-client='${id}']`)", arg=hall.id
+        "(id) => document.activeElement && document.activeElement.matches(`tr[data-player='${id}']`)", arg=hall.id
     )
-    assert ui.page.evaluate("() => document.activeElement.tagName") == "H2"
+    assert ui.page.evaluate("() => document.activeElement.tagName") == "TR"
 
 
 def test_a_page_opened_without_one_asked_for_marks_none(ui, the_wall, hall):
@@ -162,17 +162,17 @@ def test_a_page_opened_without_one_asked_for_marks_none(ui, the_wall, hall):
     ui.page.wait_for_selector(f"#view section[data-wall='{the_wall.id}']")
     assert ui.page.locator("#view [data-arrive]").count() == 0
     ui.open("#clients")
-    ui.page.wait_for_selector(f"#view section[data-client='{hall.id}']")
+    ui.page.wait_for_selector(f"#view tr[data-player='{hall.id}']")
     assert ui.page.locator("#view [data-arrive]").count() == 0
 
 
-def test_a_fresh_load_of_a_clients_address_scrolls_to_it_and_leaves_the_focus(ui, services):
+def test_a_fresh_load_of_a_players_address_scrolls_to_it_and_leaves_the_focus(ui, services):
     """Loaded cold, the page scrolls to the one asked for and steals no focus."""
     clients = [services.clients.add_client(name=f"Player {number:02d}") for number in range(8)]
     last = clients[-1]
     ui.page.set_viewport_size({"width": 1280, "height": 600})
     ui.open(client_address(last))
-    heading = ui.page.locator(f"#view section[data-client='{last.id}'] h2")
+    heading = ui.page.locator(f"#view tr[data-player='{last.id}']")
     ui.page.wait_for_function("() => window.scrollY > 0")
 
     box = heading.bounding_box()
@@ -181,8 +181,8 @@ def test_a_fresh_load_of_a_clients_address_scrolls_to_it_and_leaves_the_focus(ui
     assert ui.page.evaluate("() => document.activeElement === document.body")
 
 
-def test_a_label_whose_client_cannot_be_named_is_said_in_words_not_an_empty_link(ui, services, the_wall, hall):
-    """The server sends an empty name for a label whose client is gone, and a link
+def test_a_label_whose_player_cannot_be_named_is_said_in_words_not_an_empty_link(ui, services, the_wall, hall):
+    """The server sends an empty name for a label whose Player is gone, and a link
     with no words in it names nothing. Each label is said on its own: a named one
     beside it keeps its link."""
     services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
@@ -202,7 +202,7 @@ def test_a_label_whose_client_cannot_be_named_is_said_in_words_not_an_empty_link
     line = ui.page.locator("dialog.panel-dialog .wall-labels")
     line.wait_for()
 
-    assert "a label on a client whose name could not be read" in line.inner_text()
+    assert "a label on a Player whose name could not be read" in line.inner_text()
     links = line.locator("a")
     assert all(links.nth(at).inner_text().strip() for at in range(links.count())), "a link with no words names nothing"
     assert line.locator(f"a[href='{client_address(hall)}']:text-is('{hall.name}')").count() == 1

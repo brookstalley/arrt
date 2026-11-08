@@ -20,6 +20,7 @@ from arrt.persistence.migrations import (
     DEFAULT_WALL_NAME,
     carry_rotation_to_walls,
     establish_the_wall,
+    file_had_table,
     mark_the_default_theme,
     rename_awaiting_to_wanted,
     retire_conversations,
@@ -49,7 +50,7 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
         path,
         CATALOGUE_SCHEMA + DISCOVERY_SCHEMA,
         migrations=(
-            partial(establish_the_wall, wall_name=wall_name),
+            partial(establish_the_wall, wall_name=wall_name, seed=not file_had_table(path, "walls")),
             mark_the_default_theme,
             rename_awaiting_to_wanted,
             retire_wall_tokens,

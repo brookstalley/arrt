@@ -1,6 +1,6 @@
 [project]
 name = "arrt"
-version = "0.7.0"
+version = "0.8.0"
 description = "Curation plane — discovery, acquisition, catalogue, and the MCP + HTTP surfaces."
 # Held by the 3tears packages Ask's agent depends on, each of which declares the
 # same floor. What holds it is stated once, in `project-preferences.md` §
@@ -179,6 +179,10 @@ dev = [
 # server, catalogue and image fixtures instead of rebuilding each state through
 # the HTTP API, which a Node harness would have had to do.
 browser = ["pytest-playwright>=0.5"]
+
+[tool.uv]
+# Never the machine's own Python, or its SQLite: `tests/test_one_python.py`.
+python-preference = "only-managed"
 
 [tool.uv.sources]
 # An editable path while the contract lives in this repository, so a contract

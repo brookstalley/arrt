@@ -3168,6 +3168,10 @@ artifact_manifest:
       file_path: .prawduct/artifacts/release-plan-v0.7.0.md
       version: 1
       depends_on: []
+    - name: release-plan-v0.8.0
+      file_path: .prawduct/artifacts/release-plan-v0.8.0.md
+      version: 1
+      depends_on: []
   # Research findings — inputs to the artifacts above, not artifacts themselves.
   #
   # depends_on ADDED 2026-07-20 after Critic review found these entries had no
@@ -3426,7 +3430,7 @@ api_versioning_decided: "none — no version negotiation. MCP tool names frozen,
 # backlog_prefixes: []
 # backlog_external_imports: []
 
-backlog_last_groomed_at: 2026-10-16
+backlog_last_groomed_at: 2026-10-29
 
 # -----------------------------------------------------------------------------
 # BACKLOG SERVICE CUTOVER (API §2.4)

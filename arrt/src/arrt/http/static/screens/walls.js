@@ -120,16 +120,14 @@ export async function viewWalls(generation) {
   const nows = await Promise.all(walls.walls.map((wall) => nowOn(wall)));
 
   if (!walls.walls.length) {
-    // Not one of the four, and stated rather than left as an empty page: a wall
-    // is recorded when the plane first opens the catalogue, so none at all is a
-    // fact about the deployment rather than about anybody's curation.
+    // Not one of the four, and stated rather than left as an empty page. A new
+    // catalogue gets a wall; none at all means the curator deleted them, so the
+    // way back is the toolbar's *Add wall…*, where it always is.
     render(
       generation,
       heading(),
-      emptyState(
-        "No wall is recorded, so there is nowhere to hang anything.",
-        "A wall is created when the plane first opens the catalogue.",
-      ),
+      toolbar({ actions: [addWallOpener()] }),
+      emptyState("No wall is recorded, so there is nowhere to hang anything.", "Add a wall to give art a place to hang."),
     );
     return;
   }
@@ -137,7 +135,8 @@ export async function viewWalls(generation) {
   const live = scenes ? scenes.live : null;
   const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live));
   // The live scene, if any, is one line above the cards; assembling one is the
-  // Scene… dialog's. Both are painted from the same read, by `paintScene`.
+  // Scene… dialog's, which reads the scene again when pressed. Both are painted
+  // by `paintScene`.
   const scene = { walls: walls.walls, scenes, node: el("section", { class: "scene", "aria-label": "Scene", hidden: true }), panel: null };
   paintScene(scene, scenes);
   render(
@@ -173,14 +172,25 @@ function sceneOpener(scene) {
     type: "button",
     text: "Scene…",
     "aria-haspopup": "dialog",
-    onclick: () => {
+    onclick: async (event) => {
+      // Read when pressed, not from the page's last paint: a draft assembled or a
+      // scene released elsewhere (over MCP) since then is what this dialog acts
+      // on, and a wall added or renamed since is one it offers. A scene that
+      // cannot be read opens the dialog to say so; walls that cannot be read
+      // leave the ones the page has.
+      const fresh = await readingOnce("scene", event.currentTarget, () =>
+        Promise.all([api("/api/scenes/live").catch(() => null), api("/api/walls").catch(() => null)]),
+      );
+      if (!fresh) return;
+      const [scenes, walls] = fresh;
+      if (walls) scene.walls = walls.walls;
       scene.panel = openPanel({
         title: "Scene",
         lead: "Show chosen works on your walls together, for a while. Each wall then goes back to what it hangs.",
         body: [],
         onClose: () => (scene.panel = null),
       });
-      paintScene(scene, scene.scenes);
+      paintScene(scene, scenes);
     },
   });
 }
@@ -204,19 +214,30 @@ function takeDownNote() {
  * (`design-direction.md` § Component Patterns, "How a page reads": a setting
  * appears on the page only when it is one). A wall nobody shows is an ordinary
  * state (`clients.md` § The model), and the one where everything else on this
- * card happens to no screen at all; a display two clients report is shown by
- * neither, whatever `client_id` still names. */
-function assignmentProblem(wall) {
+ * card happens to no screen at all; a display two Players report is shown by
+ * neither, whatever `client_id` still names.
+ *
+ * No Player is mended in this wall's own *Edit…*, where its Player and screen
+ * are set (ruling 4 of 2026-10-27), so the line opens it. A fault is mended at
+ * the Players, in their settings, and Settings › Players names both. */
+function assignmentProblem(wall, edit) {
   if (wall.display && wall.display.fault) {
     return el("p", { class: "note wall-problem wall-fault" }, [
       el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-      link({ view: "clients" }, { text: "See Settings › Clients" }),
+      link({ view: "clients" }, { text: "See Settings › Players" }),
     ]);
   }
   if (!wall.client_id) {
     return el("p", { class: "muted wall-problem" }, [
       el("span", { text: "No Player shows this wall. " }),
-      link({ view: "clients" }, { text: "Assign it in Settings › Clients" }),
+      el("button", {
+        class: "action quiet",
+        type: "button",
+        text: "Choose its Player…",
+        "aria-haspopup": "dialog",
+        "aria-label": `Choose the Player for ${wall.name}…`,
+        onclick: edit,
+      }),
     ]);
   }
   return null;
@@ -259,28 +280,24 @@ function assignmentLine(wall, shownBy) {
     { class: "muted wall-client" },
     client
       ? wallScreenParts(clientLink(client.client_id, client.name), client.name, output, screenState(client.heartbeat, wall.output), client.heartbeat, { offSaid })
-      : [`Assigned to ${output ? `${output} of ` : ""}a client whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
+      : [`Assigned to ${output ? `${output} of ` : ""}a Player whose name and report could not be read${shownBy.failure ? ` — ${shownBy.failure}` : ""}`],
   );
 }
 
-/* Which label outputs caption this wall, and on which client each is.
+/* Which label panels caption this wall, and on which Player each is.
  *
- * Said only when there is one: most walls have no label, and a line saying so
- * on every card would be noise. Labels are mapped in Settings › Clients, beside
- * the client's other surfaces, and this line links there. */
+ * Said only when there is one, at the head of the *Edit…* dialog's label
+ * section, whose controls under it are where a label is changed. */
 function labelsLine(wall) {
   if (!wall.labels || !wall.labels.length) return null;
-  // A client the server could not name is said as one rather than drawn as a
+  // A Player the server could not name is said as one rather than drawn as a
   // link with no words in it.
   const named = wall.labels.map((label) => [
     // The panel's port only with `?debug`, as the wall's own is.
     DEBUG ? `${label.output} on ` : "a label on ",
-    label.client_name ? clientLink(label.client_id, label.client_name) : "a client whose name could not be read",
+    label.client_name ? clientLink(label.client_id, label.client_name) : "a Player whose name could not be read",
   ]);
-  return el("p", { class: "muted wall-labels" }, [
-    el("span", {}, ["Captioned by ", ...listedParts(named), ". "]),
-    link({ view: "clients" }, { text: "Change in Settings › Clients" }),
-  ]);
+  return el("p", { class: "muted wall-labels" }, [el("span", {}, ["Captioned by ", ...listedParts(named), "."])]);
 }
 
 /* "a", "a and b", "a, b and c", of items that are each a list of parts (text
@@ -419,13 +436,13 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
         text: "Edit…",
         "aria-haspopup": "dialog",
         "aria-label": `Edit ${wall.name}…`,
-        onclick: () => editWall(wall, manifest, shownBy),
+        onclick: (event) => editWall(event.currentTarget, wall),
       }),
     ]),
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
     // when it is a problem: no Player, or a screen two Players claim.
-    assignmentProblem(wall),
+    assignmentProblem(wall, (event) => editWall(event.currentTarget, wall)),
     // The server's sentence, so Walls and the tool surface say the same thing
     // about a Player that cannot read this server's feed. Under the lead, which
     // leads the card whatever else it has to say.
@@ -1047,7 +1064,9 @@ function emptyTheme(wall, manifest) {
       // § Screen Inventory lists "a wall's theme control" as an entry point to
       // the Theme screen, and a link naming one theme that lands on a list of
       // all of them makes the curator find it again — on the one screen whose
-      // sentence directly above says which theme is the problem.
+      // sentence directly above says which theme is the problem. Its page has
+      // *Add works*, which goes on to Artworks (the owner's ruling of
+      // 2026-10-29, `ia-proposal.md`).
       link({ view: "theme", id: manifest.theme.theme_id }, { class: "action quiet", text: `Add works to ${manifest.theme.name}` }),
     ]),
   ];
@@ -1384,19 +1403,116 @@ const EXCLUSION_WORDS = {
  * the card is where they show; the rotation, shapes and mat leave it open to go
  * on working in, and the card's *Changes*, next works and what it cannot show
  * catch up on the way out. */
-function editWall(wall, manifest, shownBy) {
+async function editWall(control, painted) {
+  // Read when pressed, never from the page's last paint: a write in another
+  // dialog, or on another surface, lands before any repaint that follows it, and
+  // a dialog drawn from that paint offers what the write just changed (a label
+  // panel still captioning the wall it was taken off, a screen still taken).
+  let wall = null;
+  let shownBy = null;
+  let feed = null;
+  const read = await readingOnce(`edit-${painted.wall_id}`, control, () =>
+    attempt(control, `open ${painted.name}'s settings`, async () => {
+      const [walls, listing] = await Promise.all([api("/api/walls"), clientListing()]);
+      wall = walls.walls.find((each) => each.wall_id === painted.wall_id);
+      if (!wall) throw new Error("it is no longer recorded; reload the page");
+      shownBy = listing;
+      feed = await built(wall);
+    }),
+  );
+  if (!read) return;
+  const manifest = feed.manifest || null;
   const edit = editing();
   edit.panel = openPanel({
     title: `Edit ${wall.name}`,
     body: [
       nameSection(wall, edit.done),
-      whereSection(wall, shownBy, edit.done),
-      labelsSection(wall, shownBy, edit.done),
+      whereSection(wall, shownBy, edit),
+      labelsSection(wall, shownBy, edit),
+      // The rotation, shapes and mat are set against the wall's feed; when it
+      // cannot be read they are not offered, and the dialog says why rather
+      // than leaving the curator to notice three panels missing.
+      feed.failure
+        ? el("p", { class: "note wall-feed-unread", text: `Its rotation, shapes and mat cannot be set here: the wall's feed could not be read — ${feed.failure}.` })
+        : null,
       ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
       manifest ? matPanel(wall, edit.changed) : null,
+      el("div", { class: "panel" }, [
+        el("h3", { text: "Delete" }),
+        el("div", { class: "row" }, [
+          el("button", {
+            class: "action quiet",
+            type: "button",
+            text: "Delete…",
+            "aria-label": `Delete ${wall.name}…`,
+            // Asked with this dialog closed, so the question is the only one on
+            // the page, as a theme's is; a refusal is said beside the control
+            // that opened the dialog.
+            onclick: () => {
+              edit.panel.close();
+              deleteWall(control, wall, shownBy);
+            },
+          }),
+        ]),
+      ]),
     ],
     onClose: edit.closed,
   });
+}
+
+/* *Delete…*: forgets the wall for good (the owner's rulings of 2026-10-30,
+ * `build-plan-delete-a-wall.md`). The question names what goes with it and what
+ * stays, from what *Edit…* read when it was pressed: the theme it hangs stays,
+ * its Player stops showing it, its label panels caption nothing, and its history
+ * stays. Then the page is painted again, from the walls that remain. */
+async function deleteWall(control, wall, shownBy) {
+  const confirmed = await confirmAct({
+    title: `Delete ${wall.name}?`,
+    consequence: deletingSays(wall, shownBy),
+    confirmLabel: `Delete ${wall.name}`,
+  });
+  if (!confirmed) return;
+  await attempt(control, `delete ${wall.name}`, () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}`, { method: "DELETE" }), {
+    then: () => {
+      if (state.view === "walls") refresh();
+    },
+  });
+}
+
+function deletingSays(wall, shownBy) {
+  const player = wall.client_id && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
+  const panels = wall.labels.length;
+  return [
+    wall.theme
+      ? wall.theme.hidden
+        ? "It hangs a selection, which goes once no wall hangs it."
+        : `It hangs ${wall.theme.name}, which stays in your themes.`
+      : null,
+    player ? `${player.name} stops showing it.` : wall.client_id ? "Its Player stops showing it." : null,
+    panels ? (panels === 1 ? "Its label panel stops captioning." : `Its ${panels} label panels stop captioning.`) : null,
+    "Its history stays. The wall cannot be brought back.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/* Run a dialog's read once per dialog. A second press while the first read is
+ * out does nothing, so two dialogs never stack, keyed by the dialog rather than
+ * the button because two buttons open a wall's *Edit…* (the card's, and *Choose
+ * its Player…*). A read that comes back after its button has gone — the curator
+ * left Walls, or left and came back to a page painted since — opens nothing.
+ * Answers what the read did, or null for a press ignored or arriving too late. */
+const reading = new Set();
+
+async function readingOnce(key, control, read) {
+  if (reading.has(key)) return null;
+  reading.add(key);
+  try {
+    const answer = await read();
+    return state.view === "walls" && control.isConnected ? answer : null;
+  } finally {
+    reading.delete(key);
+  }
 }
 
 /* What a dialog that changes walls needs: `changed` when an act lands, `done`
@@ -1454,7 +1570,7 @@ function screensOf(client) {
 /* Which Player shows the wall, and on which screen: the line that says what the
  * Player last reported about it, then the two pickers and *Show it there*. None
  * takes the wall off its Player; its theme stays hung. */
-function whereSection(wall, shownBy, done) {
+function whereSection(wall, shownBy, edit) {
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const playerId = `wall-player-${wall.wall_id}`;
   const screenId = `wall-screen-${wall.wall_id}`;
@@ -1466,13 +1582,17 @@ function whereSection(wall, shownBy, done) {
   const fillScreens = () => {
     const client = shownBy.byId ? shownBy.byId.get(player.value) : null;
     const screens = screensOf(client);
+    // A screen showing another wall is offered with that wall's name: the server
+    // refuses a second wall on it, and says so beside *Show it there*, so the
+    // choice is not hidden from a curator who means to move the other next.
+    const showing = new Map((client ? client.walls : []).filter((each) => each.wall_id !== wall.wall_id).map((each) => [each.output, each.name]));
     fill(
       screen,
       ...(screens.length
         ? screens.map((output) =>
             el("option", {
               value: output.name,
-              text: `${screenName(output.name)}${output.connected ? "" : " · nothing connected"}`,
+              text: `${screenName(output.name, output.kind)}${output.connected ? "" : " · nothing connected"}${showing.has(output.name) ? ` · shows ${showing.get(output.name)}` : ""}`,
               selected: client && client.client_id === wall.client_id && output.name === wall.output,
             }),
           )
@@ -1482,6 +1602,7 @@ function whereSection(wall, shownBy, done) {
   };
   player.addEventListener("change", fillScreens);
   fillScreens();
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
   return el("div", { class: "panel" }, [
     el("h3", { text: "Where it shows" }),
     assignmentLine(wall, shownBy),
@@ -1505,18 +1626,37 @@ function whereSection(wall, shownBy, done) {
                     body: JSON.stringify({ client_id: player.value, output: screen.value }),
                   })
                 : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
-            { then: done },
+            { then: closeUnlessNoticed(edit, said) },
           ),
       }),
     ]),
+    said,
   ]);
+}
+
+/* What a write that places a wall or a label does next. The server keeps an
+ * assignment it cannot confirm (a display no Player reports now, a port the
+ * Player has not listed) and says so in `notice`, which is the part the curator
+ * has to act on: said here, in the section that made it, with the dialog left
+ * open to read it. Otherwise the dialog closes, for the card to show the change. */
+function closeUnlessNoticed(edit, said) {
+  return (answer) => {
+    if (!answer || !answer.notice) {
+      edit.done();
+      return;
+    }
+    edit.changed();
+    said.textContent = answer.notice;
+    said.hidden = false;
+  };
 }
 
 /* The label panels captioning the wall, each with *Stop captioning*, then one to
  * add from those the Players reported that caption no wall: the server refuses a
  * panel captioning another wall until it is taken off that one, so offering it
  * would offer a choice that cannot succeed. */
-function labelsSection(wall, shownBy, done) {
+function labelsSection(wall, shownBy, edit) {
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const offered = clients.flatMap((client) =>
     (client.label_outputs || []).filter((label) => label.wall_id == null).map((label) => ({ client, output: label.output })),
@@ -1544,7 +1684,7 @@ function labelsSection(wall, shownBy, done) {
               event.currentTarget,
               `stop ${panelName(label.output, ownerOf(label), label.client_name)} captioning ${wall.name}`,
               () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/labels/${encodeURIComponent(label.label_id)}`, { method: "DELETE" }),
-              { then: done },
+              { then: edit.done },
             ),
         }),
       ]),
@@ -1567,7 +1707,7 @@ function labelsSection(wall, shownBy, done) {
                     method: "POST",
                     body: JSON.stringify({ client_id: client.client_id, output }),
                   }),
-                { then: done },
+                { then: closeUnlessNoticed(edit, said) },
               );
             },
           }),
@@ -1575,6 +1715,7 @@ function labelsSection(wall, shownBy, done) {
       : wall.labels && wall.labels.length
         ? null
         : el("p", { class: "muted", text: "No Player has reported a label panel." }),
+    said,
   ]);
 }
 

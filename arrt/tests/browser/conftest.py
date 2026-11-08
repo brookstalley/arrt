@@ -291,7 +291,15 @@ class Ui:
 
     def open(self, fragment: str = "") -> None:
         """Load the shell and wait for the client's first paint to land."""
-        self.page.goto(f"{self.base_url}/{fragment}")
+        url = f"{self.base_url}/{fragment}"
+        same_document = self.page.url.partition("#")[0] == url.partition("#")[0]
+        self.page.goto(url)
+        # A goto that changes only the fragment is a hashchange, not a load: the
+        # waits below would be met by the screen still painted, and a test that
+        # opens a page again to read what the server kept would read what the
+        # client still holds. So it is reloaded, as a person returning would.
+        if same_document:
+            self.page.reload()
         # The client marks <html> once it has started (`app.js`). The view is
         # served holding a "Loading the catalogue…" placeholder, so waiting on
         # its content returned before the script had run, and a test could act
@@ -299,6 +307,13 @@ class Ui:
         # content, as before: `data-started` is set before the paint begins.
         self.page.wait_for_selector("html[data-started]", state="attached")
         self.page.wait_for_selector("#view *")
+
+    def navigate(self, fragment: str) -> None:
+        """Move to another page inside the client, as its links do, keeping what
+        the client holds in memory: for a test about a page the curator comes
+        back to. The new page may not have painted on return, so the caller waits
+        on something only that page draws."""
+        self.page.goto(f"{self.base_url}/{fragment}")
 
     def serve(self, pattern: str, payloads) -> None:
         """Answer `pattern` with each payload in turn; the last one repeats.

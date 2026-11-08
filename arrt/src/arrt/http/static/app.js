@@ -132,7 +132,9 @@ const ROUTES = {
   settings: { render: viewSettings, section: "settings", page: "Settings" },
   // Radarr's Settings › Download Clients: the external programs the server
   // works with, which here are the installed Players (`clients.md` ruling 1).
-  clients: { render: viewClients, section: "settings", page: "Clients" },
+  // Labelled *Clients* until ruling 7 of 2026-10-27; its address kept its
+  // spelling, as every renamed page's has (§ Navigation Structure).
+  clients: { render: viewClients, section: "settings", page: "Players" },
   // Radarr's Settings › Indexers: the places the server searches, which here
   // are the installed source plugins, with where each came from.
   sources: { render: viewSources, section: "settings", page: "Sources" },

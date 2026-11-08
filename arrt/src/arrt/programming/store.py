@@ -171,6 +171,10 @@ class ProgrammingStore(Protocol):
         """
         ...
 
+    def remove_wall(self, wall_id: str) -> None:
+        """Forget a wall. Raises while a theme assignment or a label output still names it."""
+        ...
+
     # -- clients --------------------------------------------------------------
 
     def add_client(self, client: Client) -> None:

@@ -74,7 +74,9 @@ NOT_SECTION_HEADINGS = ".card *, .rail *, .visually-hidden, .search-suggestions 
 #: The sidebar pages whose suite library gives them at least one section.
 #: Named, so a page that silently lost its sections fails rather than passing
 #: with nothing to check. Ask is not one: it is a single thread under its title.
-PAGES_WITH_SECTIONS = {"health", "sources", "walls", "clients"}
+#: Nor is Players: since ruling 7 of 2026-10-27 it is one table under its title,
+#: and its sections are in each row's Edit… dialog.
+PAGES_WITH_SECTIONS = {"health", "sources", "walls"}
 
 
 def test_the_pages_named_with_sections_are_sidebar_pages():

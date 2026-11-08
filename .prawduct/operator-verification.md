@@ -10,6 +10,66 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Deleting a wall, and Edit… reading what is true — added 2026-10-30
+
+**`build-plan-delete-a-wall.md` chunk 03, and #400.** On the NAS, once the release
+with this branch is deployed. Make a spare wall for this rather than deleting one
+you use: *Add wall…*, name it, put it on a Player's spare screen if there is one,
+and hang a theme on it.
+
+- **The question.** *Edit…* the spare wall, then *Delete…*. Does *Delete {wall}?*
+  say what you would want to know before saying yes: the theme it hangs (which
+  stays), the Player that stops showing it, its label panel, that its history
+  stays? Cancel once, then delete it.
+- **Afterwards.** The wall is gone from Walls; the theme is still on Themes; on
+  Settings › Players its screen shows no wall, and its Player's screen stops
+  showing the spare wall within a poll or two.
+- **Fresh dialogs.** On Walls, stop a label panel captioning one wall in its
+  *Edit…*, and open another wall's *Edit…* at once: the panel is offered.
+- **The words and the weight.** Is *Delete…* where you would look for it, last in
+  *Edit…*, and quiet rather than alarming, as a theme's is?
+
+### Settings › Players, Themes and a theme's page, rebuilt to the page rules — added 2026-10-29
+
+**`build-plan-ui-pass-themes-players.md` chunk 05.** On the NAS, once the release
+with this branch is deployed, on a phone and on a desktop.
+
+- **Settings › Players.** Each Player's row: does its status, its screens and the
+  wall on each, and its label panel match what is at the wall? *Edit…* one,
+  rename it and rename it back; do not rotate a token you are not ready to
+  re-enter on the Player.
+- **A wall's Player.** On Walls, *Edit…* a wall and check *Where it shows* and
+  *Label panel* are the only places these are set now.
+- **Themes.** The heading, its line of facts and *New theme…*; make a theme with
+  a description and land on its page.
+- **A theme's page.** Drag a work to a new place, on the phone with a finger and
+  on the desktop with the mouse; move one with the arrow keys. Select two works
+  and *Remove from {theme}*. *Edit…* its description. *Hang…* it on a second wall
+  and take it down again, reading the question each time.
+- **The words and the weight.** Judge all three against the prototype: does
+  anything you use daily now take a step it did not?
+
+### Artworks and a work's page, rebuilt to the page rules — added 2026-10-29
+
+**`build-plan-ui-pass-work-artworks.md` chunk 05.** On the NAS, once the release
+with this branch is deployed, on a phone and on a desktop.
+
+- **Artworks.** The heading and its line of facts; narrow by a theme and a facet
+  and see the line say so. *Select*, scroll a long way down, and check the
+  toolbar is still in reach; select across pages, *Add to theme…* (an existing
+  theme and *New theme…*), and *Archive…* from a filter.
+- **The other lists.** On an Artist, a Topic and Search results, select works and
+  add them to a theme; select works not held and *Get N works…* into a theme.
+- **A work's page.** *Hang…* on one wall, answer the question, and see it reach
+  the wall; *Add to theme…*; change the mat from its fact and see the preview on
+  the picture before *Use this mat*; from ⋯, *Archive…*, then *Restore*; and
+  *Match on Wikidata…* on a work whose item is wrong or missing.
+- **A work not held** (search for a painting you do not have): the same head, and
+  *Get this work* in its toolbar.
+- **The words and the weight.** Judge both pages against the prototype: does
+  anything you use daily now take a step it did not, and does the sticky toolbar
+  crowd a phone?
+
 ### Walls, rebuilt to the page rules — added 2026-10-27
 
 **`build-plan-ui-pass-walls.md` chunk 05.** On the NAS, once the release with this

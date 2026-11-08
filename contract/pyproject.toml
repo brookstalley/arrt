@@ -90,3 +90,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # The wheel test builds the package with uv, the one tool a contributor here has.
 "tests/*" = ["ANN", "S101", "PLR2004", "S603", "S607"]
+
+[tool.uv]
+# Never the machine's own Python, or its SQLite: `tests/test_one_python.py`.
+python-preference = "only-managed"

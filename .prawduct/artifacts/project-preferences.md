@@ -23,6 +23,10 @@ Developer preferences for how code is written in this project. Captured during d
     take. Noted here because this row's own history records it as the fourth site
     where a superseded version claim outlived its amendment, and a discharged
     contingency left standing is how the fifth one starts.)_
+  - **One release everywhere, 2026-11-08:** `.python-version` at the repository root
+    names it exactly (3.14.6), uv takes only a Python it installed, and one uv
+    resolves it in CI and the image. `tests/test_one_python.py` holds each copy and
+    its docstring the reason; the change-log's `one-python` entry the measurements.
   - **Curation plane: 3.14**, **settled 2026-07-20; rationale re-based 2026-07-27,
     re-based again 2026-08-02.** This read "required by nothing except `3tears`",
     then "`3tears-models`, the operator's own model adapters that the discovery

@@ -76,7 +76,7 @@ SCREEN_NAMES = {
     "topics": "Topics",
     "topic": "Topic",
     "settings": "Settings",
-    "clients": "Clients",
+    "clients": "Players",
     "sources": "Sources",
     "taste": "Taste",
     "health": "Status",

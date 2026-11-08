@@ -323,21 +323,24 @@ def test_a_hand_edited_file_with_two_active_themes_hangs_the_older_one(tmp_path)
         catalogue.close()
 
 
-def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_syntax(tmp_path, monkeypatch):
-    """`ALTER TABLE ... DROP COLUMN` arrived in SQLite 3.35, and the machine that
-    lacks it is the one nobody is sitting at.
+@pytest.mark.parametrize("old", ["3.34.1", "3.50.4"], ids=["before-drop-column", "drop-column-refuses-our-comments"])
+def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_syntax(tmp_path, monkeypatch, old):
+    """Too old to drop a column from these tables, and the machine that is too
+    old is the one nobody is sitting at.
 
-    Without the check the failure is a syntax error naming neither the version
-    nor the remedy, on the deployment least able to interpret it.
+    3.34.1 has no `DROP COLUMN` at all. 3.50.4 has it, but was measured on
+    2026-11-08 refusing this repository's DDL, whose comments quote names in
+    backticks (`migrations.py`, `_DROP_COLUMN_SINCE`). Without the check either
+    fails naming neither the version nor the remedy.
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
-    monkeypatch.setattr(sqlite3, "sqlite_version", "3.34.1")
+    monkeypatch.setattr(sqlite3, "sqlite_version", old)
 
     with pytest.raises(RuntimeError) as refused:
         open_catalogue_file(path).close()
 
-    assert "3.35.0" in str(refused.value)
-    assert "3.34.1" in str(refused.value)
+    assert "3.53.1" in str(refused.value)
+    assert old in str(refused.value)
 
 
 # -- each wall's directive, retired ------------------------------------------------
@@ -389,3 +392,50 @@ def test_dropping_the_directives_is_safe_to_run_again(tmp_path):
     finally:
         catalogue.close()
     assert "directives" not in _names(path, "table")
+
+
+def test_an_old_file_whose_first_open_was_interrupted_still_carries_its_hung_theme(tmp_path):
+    """An empty `walls` table beside `themes.is_active` is an unfinished move, not a curator's delete."""
+    path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("CREATE TABLE walls (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    try:
+        [wall] = catalogue.list_walls()
+        assert wall.name == "Living room"
+        assert catalogue.get_assignment(wall.id).theme_id == "t1"
+    finally:
+        catalogue.close()
+
+
+def test_a_catalogue_opened_by_a_relative_path_opens_again(tmp_path, monkeypatch):
+    """`ART_ROOT` may be relative; asking whether the file had walls must not refuse it."""
+    monkeypatch.chdir(tmp_path)
+    SqliteCatalogue(open_catalogue_file("catalogue.sqlite", wall_name="Living room")).close()
+
+    again = SqliteCatalogue(open_catalogue_file("catalogue.sqlite", wall_name="Living room"))
+    try:
+        assert [wall.name for wall in again.list_walls()] == ["Living room"]
+    finally:
+        again.close()
+
+
+def test_a_file_whose_walls_were_all_deleted_opens_with_none_and_says_so(tmp_path, caplog):
+    path = tmp_path / "catalogue.sqlite"
+    first = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    [wall] = first.list_walls()
+    first.remove_wall(wall.id)
+    first.close()
+
+    with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
+        again = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    try:
+        assert again.list_walls() == []
+        assert any("No wall is recorded" in record.getMessage() for record in caplog.records)
+    finally:
+        again.close()

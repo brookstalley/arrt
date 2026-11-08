@@ -11,7 +11,8 @@
  * curator hears about are the server's: an item already being got, or one Wikidata
  * does not have.
  *
- * **Every Get names where its accepted works go**, beside its button: *Add to*,
+ * **Every Get names where its accepted works go**, beside the button that
+ * starts it (in the dialog a selection's *Get N works…* opens): *Add to*,
  * the default theme first and selected, then every other theme, then *New
  * theme…* (`build-plan-topics-and-destinations.md`, the owner's rulings of
  * 2026-10-02). A caller's name that is no theme yet, such as a Topic page's
@@ -30,6 +31,7 @@
 import { api } from "./api.js";
 import { agree, counted } from "./counting.js";
 import { attempt } from "./acting.js";
+import { openPanel } from "./editing.js";
 import { el, fill } from "./render.js";
 import { tierMark } from "./spend.js";
 import { link } from "./router.js";
@@ -184,13 +186,17 @@ export function getSentence(asked, outcome, into) {
 }
 
 /* Ask for these items, into the theme `destination` resolves to, and show what
- * happened in `status`, a live region. */
-async function getAndSay(qids, status, destination) {
+ * happened in `status`, a live region. `started` runs once the Get has answered
+ * and before the keyboard moves to the sentence: a dialog the Get was asked
+ * from closes there, so its handing focus back to its opener does not take the
+ * keyboard from the sentence. */
+async function getAndSay(qids, status, destination, { started = () => {} } = {}) {
   const into = await destination.resolve();
   // Left out entirely for the default, rather than sent as null: a run's
   // destination is null exactly when its works go to the default theme.
   const body = into.themeId === null ? { qids } : { qids, theme_id: into.themeId };
   const outcome = await api("/api/gets", { method: "POST", body: JSON.stringify(body) });
+  started();
   fill(
     status,
     el("span", { text: getSentence(qids.length, outcome, into.name) }),
@@ -209,28 +215,50 @@ function aStatus() {
 
 /* A selection of registry works and the control that gets them.
  *
- * `box(qid, title)` makes the tick box for one row; `node` is the control, which
- * reads *Get 3 works* and is disabled while nothing is ticked. A Get clears the
- * ticks, since those works are now being got. `defaultName` is passed on to
- * *Add to*. `onChange` is told how many are ticked whenever that changes,
- * including when a Get clears them, so the selection bar around this control
- * (`core/selecting.js`) counts them without keeping a second copy of the ticks. */
+ * `box(qid, title)` makes the tick box for one row; `node` is the control:
+ * *Get 3 works…*, disabled while nothing is ticked, and the sentence a Get
+ * leaves. It sits in the page's toolbar with the rest of the selection's acts
+ * (`core/selecting.js`), so *Add to* and the tier are in the dialog it opens,
+ * whose button is the Get, as *Add to theme…*'s are: in a toolbar that sticks
+ * while the list scrolls, a picker and its name field took rows of the screen.
+ * A Get clears the ticks, since those works are now being got. `defaultName` is
+ * passed on to *Add to*. `onChange` is told how many are ticked whenever that
+ * changes, including when a Get clears them, so the selection around this
+ * control counts them without keeping a second copy of the ticks. */
 export function getSelection({ defaultName = null, onChange = () => {} } = {}) {
   const chosen = new Map();
   const status = aStatus();
   const destination = destinationControl({ defaultName });
-  const button = el("button", { class: "action", type: "button" });
+  // Quiet: it opens the choice and commits nothing; the dialog's Get does.
+  const opener = el("button", { class: "action quiet get-open", type: "button", "aria-haspopup": "dialog" });
+  const button = el("button", { class: "action get-confirm", type: "button" });
+  let panel = null;
   const settle = () => {
+    opener.disabled = chosen.size === 0;
+    opener.textContent = chosen.size ? `Get ${counted(chosen.size, "work")}…` : "Get…";
     button.disabled = chosen.size === 0;
     button.textContent = chosen.size ? `Get ${counted(chosen.size, "work")}` : "Get";
     onChange(chosen.size);
   };
+  // Cancel and Escape leave the keyboard on the opener: the platform's dialog
+  // hands focus back to what opened it as it closes.
+  opener.addEventListener("click", () => {
+    panel = openPanel({
+      title: `Get ${counted(chosen.size, "work")}`,
+      // Free by construction: a Get has no model phase, and the image sources
+      // it asks charge nothing (`api-contract.md` § `POST /api/gets`).
+      body: [destination.node, tierMark("free")],
+      actions: [button],
+      closeLabel: "Cancel",
+      onClose: () => (panel = null),
+    });
+  });
   button.addEventListener("click", () => {
     const qids = [...chosen.keys()];
     attempt(button, `get ${counted(qids.length, "work")}`, async () => {
       button.disabled = true;
       try {
-        await getAndSay(qids, status, destination);
+        await getAndSay(qids, status, destination, { started: () => panel && panel.close() });
         for (const box of chosen.values()) box.checked = false;
         chosen.clear();
       } finally {
@@ -240,9 +268,7 @@ export function getSelection({ defaultName = null, onChange = () => {} } = {}) {
   });
   settle();
   return {
-    // Free by construction: a Get has no model phase, and the image sources it
-    // asks charge nothing (`api-contract.md` § `POST /api/gets`).
-    node: el("div", { class: "row get-control" }, [destination.node, button, tierMark("free"), status]),
+    node: el("div", { class: "row get-control" }, [opener, status]),
     box(qid, title) {
       const box = el("input", { type: "checkbox", "aria-label": `Select ${title} to get` });
       box.addEventListener("change", () => {

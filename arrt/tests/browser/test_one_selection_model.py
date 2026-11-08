@@ -104,7 +104,7 @@ def a_topic_held(services, service):
 
 
 HELD_ACTS = ["button.selection-add", "button.selection-archive"]
-GET_ACTS = [".get-control button.action"]
+GET_ACTS = ["button.get-open"]
 
 #: Each list, the address that opens it, and the acts its bar must offer. A
 #: list holding both kinds offers both halves' acts: one that wires only one
@@ -186,6 +186,106 @@ def test_every_list_offers_the_same_select_controls(ui, a_list):
     assert ticks(ui).evaluate_all("boxes => boxes.every((box) => !box.checked)"), "leaving the mode kept the ticks"
 
 
+@pytest.mark.parametrize("a_list", ["search"], indirect=True)
+def test_both_halves_acts_fit_the_toolbar_in_two_rows(ui, a_list):
+    """Search results hold both halves of a selection: the held works' acts and
+    the Get. Their destinations are chosen in dialogs, so at a desktop's width
+    the sticky toolbar is two rows (its acts, then View's side), where the
+    pickers inline wrapped it to four. Asserted from its drawn height, against
+    the height of one of its buttons."""
+    ui.page.set_viewport_size({"width": 1280, "height": 800})
+    address, _ = a_list
+    open_list(ui, address)
+    ui.page.click("#view button.select-toggle")
+
+    bar = ui.page.locator("#view .page-toolbar").first.bounding_box()
+    row = ui.page.locator("#view button.select-toggle").bounding_box()
+    assert bar is not None
+    assert row is not None
+    assert bar["height"] < 3 * row["height"], f"the toolbar is {bar['height']}px tall with rows of {row['height']}px"
+    # *Get…* stands on the line the held half's acts do: the shared spacing for
+    # a row of acts set it a step below them once it was among them.
+    get = ui.page.locator("#view button.get-open").bounding_box()
+    select_all = ui.page.locator("#view button.select-all").bounding_box()
+    assert get is not None
+    assert select_all is not None
+    assert get["y"] == select_all["y"]
+    # Both openers are quiet: neither commits, and two filled acts side by side
+    # would break one filled act per region (`design-direction.md` § Buttons).
+    for opener in ("button.selection-add", "button.get-open"):
+        assert "quiet" in ui.page.locator(f"#view {opener}").get_attribute("class").split(), opener
+
+
+def toolbar_position(ui) -> str:
+    return ui.page.locator("#view .page-toolbar").first.evaluate("(bar) => getComputedStyle(bar).position")
+
+
+@pytest.mark.parametrize("a_list", list(LISTS), indirect=True)
+def test_the_acts_on_a_selection_take_the_toolbar_s_left_side(ui, a_list):
+    """`design-direction.md` § Component Patterns, "How a page reads": a list's
+    acts on what is selected take the toolbar's left side, beside *Select*. They
+    sat in a bar at the window's foot until the rule (ruling 1 of 2026-10-27).
+
+    The half with Select off is the one an over-eager toolbar fails: it holds
+    *Select* and nothing else, and it scrolls away with the page."""
+    address, acts = a_list
+    open_list(ui, address)
+    left = ui.page.locator("#view .page-toolbar-actions").first
+
+    assert left.locator(":scope > :visible").count() == 1
+    assert left.locator(":scope > :visible").first.inner_text() == "Select"
+    assert toolbar_position(ui) == "static"
+
+    ui.page.click("#view button.select-toggle")
+
+    for act in acts:
+        assert left.locator(f".selection {act}").is_visible(), f"{act} is not in the toolbar"
+    # After the toggle, in that order: the acts follow the control that showed them.
+    assert left.evaluate("(side) => [...side.children].map((child) => child.className)")[:2] == [
+        "action quiet select-toggle",
+        "selection",
+    ]
+    assert toolbar_position(ui) == "sticky"
+
+    ui.page.click("#view button.select-toggle")
+
+    assert toolbar_position(ui) == "static"
+
+
+def test_the_acts_stay_in_reach_at_the_end_of_a_long_list(ui, studies):
+    """Asserted from where the toolbar is drawn, not from its class: a sticky rule
+    that a containing block defeats would leave the class and lose the acts."""
+    ui.open("#collection?q=study")
+    ui.page.wait_for_selector("ul.grid li.card")
+    ui.page.click("button.select-toggle")
+
+    ui.page.locator("ul.grid li.card").last.scroll_into_view_if_needed()
+    ui.page.mouse.wheel(0, 4000)
+    ui.page.wait_for_function("() => window.scrollY > 600")
+
+    box = ui.page.locator("#view .page-toolbar").first.bounding_box()
+    assert box is not None
+    assert 0 <= box["y"] < 5, f"the toolbar scrolled away: {box}"
+    assert ui.page.locator("button.selection-add").is_visible()
+
+
+@pytest.mark.parametrize(("width", "hidden_while_selecting"), [(390, True), (1280, False)])
+def test_on_a_phone_view_and_sort_step_aside_while_selecting(ui, seeded_service, width, hidden_while_selecting):
+    """A phone's sticky toolbar held a third of the screen over the works; View,
+    Sort and the filters leave it while *Select* is on, since each repaints the
+    list and drops the selection. A wide window has the room, and keeps them."""
+    ui.page.set_viewport_size({"width": width, "height": 800})
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    controls = ui.page.locator("#view .page-toolbar-controls")
+
+    assert controls.is_visible()
+    ui.page.click("button.select-toggle")
+    assert controls.is_hidden() is hidden_while_selecting
+    ui.page.click("button.select-toggle")
+    assert controls.is_visible()
+
+
 def tab_stops(ui, presses=120) -> list[str]:
     """What the keyboard lands on, Tab by Tab from the top of the page."""
     ui.page.evaluate("() => document.activeElement && document.activeElement.blur()")
@@ -227,18 +327,50 @@ def test_a_theme_is_made_from_a_selection_without_leaving_artworks(ui, services,
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
 
+    ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", "new")
     ui.page.fill("#add-to-theme-name", "Night pieces")
-    assert ui.page.inner_text("button.selection-add") == "Add 2 works to Night pieces"
-    ui.page.click("button.selection-add")
+    assert ui.page.inner_text("dialog button.add-confirm") == "Add 2 works to Night pieces"
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 2 works to Night pieces.')")
 
     assert ui.page.url.endswith("#collection")
     theme = next(t for t in services.display.list_themes() if t.name == "Night pieces")
     assert set(services.display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
-    # Made once and then chosen, so a second press joins it rather than making another.
+    # The dialog closed on the add, and the keyboard is on the sentence saying so.
+    # Closed, not gone: `core/editing.js` removes a closed dialog in its `close`
+    # event, a task later, so counting `dialog` raced that removal.
+    assert ui.page.locator("dialog[open]").count() == 0
+    assert ui.page.evaluate("() => document.activeElement.classList.contains('selection-status')")
+    # Made once and then chosen, so a second add joins it rather than making another.
+    ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
+    ui.page.click("button.selection-add")
     assert ui.page.input_value("#add-to-theme") == theme.id
     assert ui.page.locator("#add-to-theme-name").is_hidden()
+
+
+@pytest.mark.parametrize("leave", ["Escape", "Cancel"])
+def test_leaving_the_add_dialog_adds_nothing_and_returns_to_add(ui, services, seeded_service, leave):
+    """Asserted from the server: a dialog that closed but had added would pass a
+    check of the page alone."""
+    theme = services.display.add_theme(name="Somewhere")
+    work = seeded_service.list_artworks().entries[0].artwork
+    ui.open("#collection")
+    ui.page.wait_for_selector("ul.grid li.card")
+    ui.page.click("button.select-toggle")
+    ui.page.check(f"li.card[data-artwork='{work.id}'] input.tile-select")
+    ui.page.click("button.selection-add")
+    ui.page.wait_for_selector("dialog[open]")
+
+    if leave == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        ui.page.click("dialog button:text-is('Cancel')")
+
+    ui.page.wait_for_selector("dialog", state="detached")
+    assert services.display.theme_work_ids(theme.id) == []
+    assert ui.page.evaluate("() => document.activeElement.classList.contains('selection-add')")
+    assert ui.page.inner_text(".selection-status") == "1 selected."
 
 
 def test_a_typed_name_that_is_already_a_theme_joins_it(ui, services, seeded_service):
@@ -249,9 +381,10 @@ def test_a_typed_name_that_is_already_a_theme_joins_it(ui, services, seeded_serv
     ui.page.click("button.select-toggle")
     ui.page.check(f"li.card[data-artwork='{work.id}'] input.tile-select")
 
+    ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", "new")
     ui.page.fill("#add-to-theme-name", " night pieces ")
-    ui.page.click("button.selection-add")
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Night Pieces.')")
 
     assert [t.name for t in services.display.list_themes()] == ["Night Pieces"]
@@ -283,8 +416,9 @@ def test_select_all_on_a_filter_larger_than_one_page_adds_every_match(ui, servic
     unticked = studies[0]
     ui.page.uncheck(f"[data-artwork='{unticked}'] input.tile-select")
     assert ui.page.inner_text(".selection-status") == f"{PAST_ONE_PAGE - 1} selected."
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(f".selection-status:has-text('Added {PAST_ONE_PAGE - 1} works to Studies.')")
 
     assert sent == [{"filter": {"q": "study"}, "except_ids": [unticked]}], "Select all sent ids, not the filter"
@@ -296,6 +430,9 @@ def test_select_all_then_archive_archives_every_match(ui, seeded_service, studie
     ui.page.wait_for_selector("ul.grid li.card")
     ui.page.click("button.select-toggle")
     ui.page.click(".selection button.select-all")
+    # It asks first, so its name ends in "…" (the page rules: an act that opens
+    # a dialog), and it counts what it will archive.
+    assert ui.page.inner_text("button.selection-archive") == f"Archive {PAST_ONE_PAGE} works…"
 
     ui.page.click("button.selection-archive")
     ui.page.click("dialog.confirm button:has-text('Archive')")
@@ -356,8 +493,9 @@ def test_a_held_work_is_added_to_a_theme_from_here(ui, services, held_on):
     theme = services.display.add_theme(name="Somewhere")
     tick_held(ui, address, work)
 
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Somewhere.')")
 
     assert services.display.theme_work_ids(theme.id) == [work.id]
@@ -369,9 +507,10 @@ def test_a_held_work_makes_a_new_theme_from_here(ui, services, held_on):
     address, work = held_on
     tick_held(ui, address, work)
 
+    ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", "new")
     ui.page.fill("#add-to-theme-name", "Harvests")
-    ui.page.click("button.selection-add")
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Harvests.')")
 
     theme = next(t for t in services.display.list_themes() if t.name == "Harvests")
@@ -408,8 +547,9 @@ def test_a_topic_whose_works_wikidata_cannot_list_still_selects_its_held_works(
     )
 
     tick_held(ui, f"#topic/{SIXTEENTH}", work)
-    ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("button.selection-add")
+    ui.page.select_option("#add-to-theme", theme.id)
+    ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Somewhere.')")
 
     assert services.display.theme_work_ids(theme.id) == [work.id]

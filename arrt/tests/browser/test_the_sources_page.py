@@ -125,14 +125,14 @@ def test_no_plugin_installed_is_said(ui):
     assert "No source plugin is installed" in ui.page.locator("main").inner_text()
 
 
-def test_the_page_is_under_settings_after_clients(ui):
+def test_the_page_is_under_settings_after_players(ui):
     ui.serve("**/api/sources", a_listing([]))
 
     ui.open("#sources")
     ui.page.wait_for_selector("h1:has-text('Sources')")
 
     links = ui.page.locator("nav a").all_inner_texts()
-    assert links.index("Sources") == links.index("Clients") + 1
+    assert links.index("Sources") == links.index("Players") + 1
 
 
 def test_a_plugin_that_names_its_museum_is_called_by_it_on_every_page(ui, a_source_reading, service):

@@ -55,17 +55,27 @@ def open_work(ui, work, *, debug=False):
     ui.page.wait_for_selector("#view h1")
 
 
+MORE = ".page-toolbar .action-menu-trigger"
+
+
 def ask(ui, label):
-    """Press the circulation control and wait for the platform to make it modal."""
-    ui.page.click(f"#view button:has-text('{label}')")
+    """Take the act and wait for the platform to make its question modal.
+
+    Archive… is behind ⋯ and Restore is the toolbar's filled act on an archived
+    work (ruling 8 of 2026-10-27)."""
+    if label == "Archive":
+        ui.page.click(MORE)
+        ui.page.click(".toolbar-menu [role='menuitem']:text-is('Archive…')")
+    else:
+        ui.page.click(f".page-toolbar button:text-is('{label}')")
     ui.page.wait_for_selector("dialog.confirm[open]")
 
 
 # -- the label -----------------------------------------------------------------
 
 
-def test_the_control_reads_archive_and_is_styled_as_a_secondary_act(ui, service):
-    """Quiet: not `danger`, and not the filled primary either.
+def test_the_act_reads_archive_and_is_behind_more(ui, service):
+    """Behind ⋯: not `danger`, and not the filled primary either.
 
     Archive's whole point is that Restore exists. Dressing a cheap reversible act
     as a destructive one produces exactly the hesitation the IA argues the word
@@ -73,16 +83,18 @@ def test_the_control_reads_archive_and_is_styled_as_a_secondary_act(ui, service)
     which is the wrong lesson on the day one of them is not. And it is not the
     page's primary: a wall card opens this page, and the loudest button in reach
     of a curator who wanted one picture off one wall must not take it out of the
-    whole library (`ux-review-2026-10.md` finding 3).
+    whole library (`ux-review-2026-10.md` finding 3). Ruling 8 of 2026-10-27
+    moves it from a quiet button under the facts to ⋯, with "…" because it asks.
     """
     work = service.add_artwork(title="Chop Suey")
     open_work(ui, work)
 
-    control = ui.page.locator("#view button", has_text="Archive")
-
-    assert control.count() == 1
-    assert control.inner_text() == "Archive"
-    assert control.get_attribute("class") == "action quiet"
+    assert ui.page.locator("#view button", has_text="Archive").count() == 0
+    ui.page.click(MORE)
+    item = ui.page.locator(".toolbar-menu [role='menuitem']", has_text="Archive")
+    assert item.count() == 1
+    assert item.inner_text() == "Archive…"
+    assert "danger" not in (item.get_attribute("class") or "")
 
 
 @pytest.mark.parametrize("word", ["Remove", "Delete"])
@@ -92,6 +104,8 @@ def test_no_control_on_this_screen_offers_to_get_rid_of_the_work(ui, service, wo
     open_work(ui, work)
 
     assert ui.page.locator("#view button", has_text=word).count() == 0
+    ui.page.click(MORE)
+    assert ui.page.locator(".toolbar-menu [role='menuitem']", has_text=word).count() == 0
 
 
 def test_an_archived_work_offers_the_way_back(ui, service):
@@ -109,6 +123,7 @@ def test_an_archived_work_offers_the_way_back(ui, service):
     control = ui.page.locator("#view button", has_text="Restore")
     assert control.count() == 1
     assert control.inner_text() == "Restore"
+    assert control.get_attribute("class") == "action"
 
 
 # -- the wall consequence ------------------------------------------------------
@@ -228,18 +243,24 @@ def test_a_room_with_nothing_hanging_is_not_asked_and_does_not_break_the_questio
 # -- the act -------------------------------------------------------------------
 
 
-def test_declining_the_question_leaves_the_work_where_it_was(ui, ready_work, hang, service):
+@pytest.mark.parametrize("decline", ["Cancel", "Escape"])
+def test_declining_the_question_leaves_the_work_where_it_was(ui, ready_work, hang, service, decline):
     """The caller owns the act, and a "no" is an answer rather than a delay."""
     work = ready_work(title="Nighthawks")
     hang(work)
 
     open_work(ui, work)
     ask(ui, "Archive")
-    ui.page.click(".confirm-actions button:has-text('Cancel')")
+    if decline == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        ui.page.click(".confirm-actions button:has-text('Cancel')")
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert service.get_artwork(work.id).artwork.status == "accepted"
-    assert ui.page.locator("#view button", has_text="Archive").count() == 1
+    # Archive… stays behind ⋯, and the keyboard is back on ⋯ (ruling 8).
+    assert ui.page.locator("#view button", has_text="Restore").count() == 0
+    assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == "More acts on Nighthawks"
 
 
 def test_confirming_archives_the_work_and_the_screen_becomes_its_own_undo(ui, ready_work, hang, service):
@@ -276,9 +297,29 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
     assert consequence == "It goes back into the rotation of every wall hanging a theme that holds it."
 
     ui.page.click(".confirm-actions button:has-text('Restore')")
-    ui.page.wait_for_selector("#view button:has-text('Archive')")
+    ui.page.wait_for_selector(".page-toolbar button:text-is('Restore')", state="detached")
 
     assert service.get_artwork(work.id).artwork.status == "accepted"
+    # This work has no picture to hang, so the keyboard goes to the first act
+    # that stands where Restore stood (ruling 8; `test_the_work_page.py` holds Hang…).
+    assert ui.focused() == "Add to theme…"
+
+
+@pytest.mark.parametrize("decline", ["Cancel", "Escape"])
+def test_declining_restore_leaves_the_work_archived(ui, ready_work, service, decline):
+    work = ready_work(title="Nighthawks")
+    service.archive_artwork(work.id)
+
+    open_work(ui, work)
+    ask(ui, "Restore")
+    if decline == "Escape":
+        ui.page.keyboard.press("Escape")
+    else:
+        ui.page.click(".confirm-actions button:has-text('Cancel')")
+    ui.page.wait_for_selector("dialog.confirm", state="detached")
+
+    assert service.get_artwork(work.id).artwork.status == "archived"
+    assert ui.focused() == "Restore"
 
 
 def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service):
@@ -294,7 +335,8 @@ def test_a_refused_archive_is_announced_rather_than_silently_ignored(ui, service
 
     ask(ui, "Archive")
     ui.page.click(".confirm-actions button:has-text('Archive')")
-    said = ui.said_beside(ui.page.locator("#view button:text-is('Archive')"))
+    # Beside ⋯, the control that was pressed (ruling 8).
+    said = ui.said_beside(ui.page.locator(MORE))
 
     assert said.startswith("Couldn't archive Chop Suey: ")
     assert "already archived" in said

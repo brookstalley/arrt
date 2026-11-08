@@ -38,20 +38,29 @@ export function openPanel({ title, lead = null, body = [], actions = [], closeLa
     el("div", { class: "confirm-actions" }, [close, ...actions]),
   ]);
   let settled = false;
-  dialog.addEventListener("close", () => {
+  const leave = () => shut();
+  const settle = () => {
     if (settled) return;
     settled = true;
+    window.removeEventListener("hashchange", leave);
     dialog.remove();
     if (onClose) onClose();
-  });
-  close.addEventListener("click", () => dialog.close());
+  };
+  /* Closed by us: settle now, not when the platform's queued `close` event runs.
+   * A caller that closes a panel and asks a question in the same click would
+   * otherwise have the closed panel still in the document, its title first, for
+   * as long as that task waits. Escape reaches `settle` through the event. */
+  const shut = () => {
+    dialog.close();
+    settle();
+  };
+  dialog.addEventListener("close", settle);
+  close.addEventListener("click", shut);
   // A link in the panel goes to another page, and the panel belongs to the one it
   // was opened on: left open, it would sit modal over the next page.
-  const leave = () => dialog.close();
   window.addEventListener("hashchange", leave, { once: true });
-  dialog.addEventListener("close", () => window.removeEventListener("hashchange", leave));
   document.body.append(dialog);
   dialog.showModal();
   close.focus();
-  return { dialog, body: content, close: () => dialog.close() };
+  return { dialog, body: content, close: shut };
 }

@@ -256,7 +256,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q49 | Which client drives that display? Asked by `GET /client` (the client's own walls), by admission to the per-wall routes, and by Walls. | Owner 2026-10-08 (same) |
 | Q50 | Which label outputs caption this wall? Asked by Walls and by `GET /client` (the labels a client renders). | Owner 2026-10-08 (`labels-and-surfaces.md` ruling 3) |
 | Q51 | Which client holds each label output? Asked by `GET /client` and by admission to `GET /labels/{label_id}`. | Owner 2026-10-08 (same) |
-| Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Clients, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
+| Q52 | Was a display reported by two clients? Asked by `GET /client`, by admission, and by Walls and Settings › Players, which name both. | Owner 2026-10-08 (`feeds-and-players.md` § Displays are configured) |
 | Q53 | Which work did this wall show last, and until when, whatever its screen does now? Asked by Walls for a dark screen, and by its MCP twin. | Owner 2026-10-11 (ruling 3) and 2026-10-14 (#316) |
 | Q54 | Has this work ever been shown on any wall? Asked by Artworks' *Never shown*. | Owner 2026-10-14 (#316) |
 | Q55 | Which works has no wall shown since this instant? Asked by Artworks' *Not in the last month / 3 months / a year*. | Owner 2026-10-15 (#316) |
@@ -970,6 +970,21 @@ and output, so every wall stays on its screen, then drops both columns and the
 *Removed 2026-10-02:* `token_verifier` and `token_issued_at`, the per-wall Player
 token (added 2026-09-30). Clients replaced it; `migrations.retire_wall_tokens`
 drops both columns from a catalogue that has them.
+
+**How a wall begins and ends** *(2026-10-30, `build-plan-delete-a-wall.md`,
+#391)*. The first is made by `migrations.establish_the_wall` when the file has
+never had a `walls` table: a new file, or one from before walls (recognised by
+`themes.is_active` too, so an interrupted first open still carries its hung
+theme). A file whose `walls` table is empty opens with none, and Walls offers
+*Add wall…*: almost always a curator who deleted them all, and otherwise a new
+file whose first open was interrupted, which lands in the same designed state. `DisplayService.delete_wall` forgets a wall
+for good, deciding each row that names it: its `ThemeAssignment` goes (a
+selection nothing else hangs is retired), its label outputs caption nothing, its
+display is freed with the row, its pin in a draft scene goes, and its feed and
+heartbeat files are removed after the commit. Its Showings, its History and an
+applied scene's pins stay, as their own sections say a removed wall leaves them.
+No event records the delete, as none records a theme deleted or a client
+removed.
 
 **Few fields, and the shortness is the design.** A Wall is an identity, a name,
 the display it is shown on, and the presentation choices the curator made for
@@ -2267,7 +2282,10 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 
 > **No foreign keys, deliberately.** A history outlives what it names, and walls
 > and themes are Programming's (seam rule 3). That is why `detail` copies names
-> rather than leaving them to be joined.
+> rather than leaving them to be joined. Every kind that names a wall carries
+> `wall_name` from 2026-10-30 (`work.left_theme` and `work.excluded` gained it
+> then), so a deleted wall's history still names it; an older event of those two
+> kinds reads "a wall no longer recorded".
 >
 > **Who writes which kind.** The Library writes its own: `DiscoveryService` at
 > each run start (`start_discovery_run`, `start_resolve_run`, `start_get_run`),
