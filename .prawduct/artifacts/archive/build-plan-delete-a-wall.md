@@ -38,7 +38,13 @@ governed_by:
     dispositions:
       - "text from outside reaches the page as text → conforms: wall, theme and Player names in the confirmation are set through `el()`"
 last_validated: 2026-10-30
+lifecycle: completed
+archived: 2026-11-08
+released_in: v0.8.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 # Build plan: deleting a wall (#391)
 

@@ -4,10 +4,7 @@
  * theme on one wall; a theme's page puts it up on, and takes it down from, the
  * walls ticked in its *Hang…* (ruling 9 of 2026-10-27). `screens/` modules may
  * not import each other (`architecture.md` § Components & Responsibilities), so
- * the question lives here, once: `hangTheme` is `hangOnWalls` with one wall. It
- * lived twice once, down to the wording, until a review found it, which is the
- * shape this repository has been bitten by: a sentence duplicated across two
- * files with a comment in each saying they must match and nothing checking it.
+ * the question lives here, once: `hangTheme` is `hangOnWalls` with one wall.
  *
  * **The sentence matters more than the request does.** Hanging is the act flow 6
  * singles out for a confirmation, because it is the one that changes what other

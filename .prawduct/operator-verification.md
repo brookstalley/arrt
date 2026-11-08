@@ -12,7 +12,7 @@ each entry, which is the durable form.
 
 ### Deleting a wall, and Edit… reading what is true — added 2026-10-30
 
-**`build-plan-delete-a-wall.md` chunk 03, and #400.** On the NAS, once the release
+**`archive/build-plan-delete-a-wall.md` chunk 03, and #400.** On the NAS, once the release
 with this branch is deployed. Make a spare wall for this rather than deleting one
 you use: *Add wall…*, name it, put it on a Player's spare screen if there is one,
 and hang a theme on it.
