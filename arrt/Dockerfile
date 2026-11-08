@@ -37,7 +37,10 @@ ENV UV_PYTHON_INSTALL_DIR=/opt/python \
     UV_LINK_MODE=copy \
     UV_NO_CACHE=1 \
     UV_PROJECT_ENVIRONMENT=/opt/venv
-RUN uv python install 3.14
+# The version is `.python-version`'s, the one every suite and CI run reads.
+WORKDIR /app
+COPY .python-version ./
+RUN uv python install
 
 # dezoomify-rs, the version the tile-fetch findings were measured with, checked
 # against the checksum of its release archive so a replaced download fails the
@@ -50,8 +53,6 @@ RUN curl -fsSL -o /tmp/dz.tgz \
  && tar -xzf /tmp/dz.tgz -C /usr/local/bin dezoomify-rs \
  && rm /tmp/dz.tgz \
  && dezoomify-rs --version
-
-WORKDIR /app
 
 # Dependencies first, from the lock alone, so a code change rebuilds only the
 # layer below.

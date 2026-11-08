@@ -34,10 +34,15 @@ log = logging.getLogger(__name__)
 #: have to reach up into configuration for it. `config.py` reads it back down.
 DEFAULT_WALL_NAME: Final[str] = "The wall"
 
-#: `ALTER TABLE ... DROP COLUMN` arrived in SQLite 3.35 (2021). Named rather than
-#: assumed: without it the drop below fails with a syntax error naming neither
-#: the version nor the remedy, on the one machine old enough to hit it.
-_DROP_COLUMN_SINCE: Final[tuple[int, int, int]] = (3, 35, 0)
+#: The oldest SQLite measured to drop a column from this catalogue's tables.
+#: `ALTER TABLE ... DROP COLUMN` arrived in 3.35 (2021), but up to at least 3.50.4
+#: it refuses ("incomplete input") when a `--` comment holding a backtick-quoted
+#: word sits just before the dropped column, as this repository's DDL comments
+#: do. Measured 2026-11-08 on uv's builds: 3.45.1, 3.46.0, 3.47.1, 3.49.1 and
+#: 3.50.4 refused, 3.53.1 dropped. Named rather than assumed: below it the drop
+#: fails naming neither the version nor the remedy, on the machine nobody is at;
+#: the refusal names both.
+_DROP_COLUMN_SINCE: Final[tuple[int, int, int]] = (3, 53, 1)
 
 
 def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str, seed: bool = True) -> None:
@@ -163,7 +168,8 @@ def _require_drop_column(*, predates: str = "per-wall hanging") -> None:
         raise RuntimeError(
             f"This catalogue file predates {predates} and migrating it needs SQLite "
             f"{'.'.join(str(part) for part in _DROP_COLUMN_SINCE)} or newer to drop a column; "
-            f"this interpreter is linked against {sqlite3.sqlite_version}."
+            f"this interpreter is linked against {sqlite3.sqlite_version}. Run it under the "
+            f"uv-managed Python the repository's `.python-version` names, which carries one."
         )
 
 

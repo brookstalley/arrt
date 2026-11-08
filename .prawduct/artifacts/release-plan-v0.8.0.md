@@ -10,7 +10,7 @@ they are pressed (#400). `develop` was at `132d06b0` (the merge of #401) when th
 ## Release classification
 
 Every release-pending scope ships. `check-releasability --release v0.8.0`, run before
-tagging, listed 6 entries in 6 scopes and no unclassifiable entry.
+tagging, listed 7 entries in 7 scopes and no unclassifiable entry.
 
 **No open issue blocks the release.** brookstalley/arrt has no open issue labelled blocker.
 
@@ -22,16 +22,23 @@ tagging, listed 6 entries in 6 scopes and no unclassifiable entry.
 | ui-pass-work-artworks | ships | |
 | fix-hanging-badge-race | ships | |
 | install-tripwire | ships | |
+| one-python | ships | |
 
 **Nothing is withheld**, so this is a standard whole-develop promotion, with one commit
 added: the install-tripwire commit (`6b705fe2`) was cherry-picked onto this branch from an
 unpushed local branch and is not on `develop`. It reaches `develop` through the
 `main`-to-`develop` back-merge after this release, as v0.7.0's did (#394).
 
-Three scopes have no build plan, and that is expected: `walls-stale-edit` and
+A second commit was added the same way after #403's first CI run: **one-python**. The
+runner image had changed underneath CI, and the curation suite read a system SQLite
+that cannot drop a column from these tables. It pins one Python (3.14.6, uv-managed
+only) and one uv (0.11.32) everywhere, and raises the migrations' SQLite floor to the
+version measured working (3.53.1). The change-log entry carries the measurements.
+
+Four scopes have no build plan, and that is expected: `walls-stale-edit` and
 `fix-hanging-badge-race` were small fixes on their own branches, each reviewed by the
 Critic, and `install-tripwire` is one hook in `.claude/settings.json` that ships no
-product code. Each change-log entry records what it changed.
+product code. `one-python` is a toolchain fix found by this release's CI. Each change-log entry records what it changed.
 
 ## Release prep
 

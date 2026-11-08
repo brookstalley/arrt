@@ -323,21 +323,24 @@ def test_a_hand_edited_file_with_two_active_themes_hangs_the_older_one(tmp_path)
         catalogue.close()
 
 
-def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_syntax(tmp_path, monkeypatch):
-    """`ALTER TABLE ... DROP COLUMN` arrived in SQLite 3.35, and the machine that
-    lacks it is the one nobody is sitting at.
+@pytest.mark.parametrize("old", ["3.34.1", "3.50.4"], ids=["before-drop-column", "drop-column-refuses-our-comments"])
+def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_syntax(tmp_path, monkeypatch, old):
+    """Too old to drop a column from these tables, and the machine that is too
+    old is the one nobody is sitting at.
 
-    Without the check the failure is a syntax error naming neither the version
-    nor the remedy, on the deployment least able to interpret it.
+    3.34.1 has no `DROP COLUMN` at all. 3.50.4 has it, but was measured on
+    2026-11-08 refusing this repository's DDL, whose comments quote names in
+    backticks (`migrations.py`, `_DROP_COLUMN_SINCE`). Without the check either
+    fails naming neither the version nor the remedy.
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
-    monkeypatch.setattr(sqlite3, "sqlite_version", "3.34.1")
+    monkeypatch.setattr(sqlite3, "sqlite_version", old)
 
     with pytest.raises(RuntimeError) as refused:
         open_catalogue_file(path).close()
 
-    assert "3.35.0" in str(refused.value)
-    assert "3.34.1" in str(refused.value)
+    assert "3.53.1" in str(refused.value)
+    assert old in str(refused.value)
 
 
 # -- each wall's directive, retired ------------------------------------------------

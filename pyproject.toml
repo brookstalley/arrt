@@ -70,3 +70,7 @@ ignore = [
 testpaths = ["tests"]
 # `tests/repository.py` is shared by the guards in `tests/` and `tests/preferences/`.
 pythonpath = ["tests"]
+
+[tool.uv]
+# Never the machine's own Python, or its SQLite: `tests/test_one_python.py`.
+python-preference = "only-managed"

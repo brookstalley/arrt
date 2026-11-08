@@ -149,7 +149,9 @@ things that carry the other two, and they are version-controlled.
 > two-interpreter split survives, now across two machines instead of within one.
 
 **Raspberry Pi OS Trixie ships Python 3.13. The curation plane gets its 3.14 from
-a uv-managed standalone build: `uv python install 3.14`.**
+a uv-managed standalone build: `uv python install 3.14`.** *(2026-11-08: the version
+is now exact, `.python-version` at the repository root, and uv takes no other Python;
+`tests/test_one_python.py`.)*
 
 > **Amended 2026-07-27, amended again 2026-08-02.** The sentence above read
 > "Nothing in this product needs 3.14 except `3tears`, whose packages declare
@@ -635,7 +637,7 @@ that will actually get run rather than skipped.
 | Bound the journal | On the Pi, install `arrt-player:deploy/journald.conf.d/10-bound-the-journal.conf` and restart `systemd-journald`. **`SystemMaxUse=` alone is not enough** — Raspberry Pi OS ships `Storage=volatile`, so the journal is in RAM and `RuntimeMaxUse=` is the directive that binds; the drop-in sets both. Verify with journald's own `Journal ... max` startup line, not `systemd-analyze cat-config`, which only proves the file parses — see § Risks |
 | **Decide on a TV firmware update** | Auto-update is **off** (2026-08-04) and the set is held at 1310 with 1400 offered. Nothing arrives on its own, so this recurs whenever there is a reason to update. Default answer is stay: the update is one-way and every measured fact about this set is firmware-scoped. If one is ever taken, re-run `arrt-player:tools/tv_api_check.py --image <a 4K composite>` (`uv run python tools/tv_api_check.py` in an arrt-player checkout) — it is what says which behaviours moved |
 | **Diagnosis after a reboot** | There is none from the journal: `Storage=volatile` means it does not survive one. If the wall froze and the Pi restarted, `journalctl` holds nothing about the run that failed. **Do not reach for `Storage=persistent` here** — it was declined on 2026-08-04 and switching it reverses a recorded decision and puts logging on the card, which is the top operational risk. Diagnose from the health surface's heartbeat age or the catalogue instead; see § Risks |
-| Patch curation's CPython | `uv python upgrade 3.14`, then rebuild the venv and restart. **`apt upgrade` does not do this** — it patches the display plane's 3.13 only |
+| Patch curation's CPython | `uv python upgrade 3.14`, then rebuild the venv and restart. **`apt upgrade` does not do this** — it patches the display plane's 3.13 only. *(2026-11-08: on the NAS the image installs exactly `.python-version`'s release, so a patch is a change to that pin, then a rebuild; `tests/test_one_python.py`.)* |
 | Re-pair the TV | Rotates the pairing token. Nothing to untrack first — `token_file` was untracked 2026-07-27 and the token now resolves under `ART_ROOT`, outside the checkout, so a `git pull` no longer deletes it and re-pairing needs no repo work at all. Just re-pair at the hardware. *(Updated 2026-08-01: this row still ordered an untracking step that is done, and carried a `git pull` hazard `security-model.md` withdrew on 2026-07-27.)* See `security-model.md` |
 
 > **Direction changed 2026-09-30.** After wave 3, "Deploy" and "Rollback" split

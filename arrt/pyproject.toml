@@ -180,6 +180,10 @@ dev = [
 # the HTTP API, which a Node harness would have had to do.
 browser = ["pytest-playwright>=0.5"]
 
+[tool.uv]
+# Never the machine's own Python, or its SQLite: `tests/test_one_python.py`.
+python-preference = "only-managed"
+
 [tool.uv.sources]
 # An editable path while the contract lives in this repository, so a contract
 # change and the code it changes land in one commit with every suite behind it.

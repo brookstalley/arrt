@@ -66,6 +66,53 @@
 
 <!-- Older entries live in .prawduct/change-log-archive/YYYY-MM.md, moved there verbatim by `prawduct-hook archive-change-log`. -->
 
+## 2026-11-08: One Python everywhere, and a SQLite floor that was measured
+
+<!-- prawduct: scope=one-python | release=v0.8.0 -->
+
+**Why:** #403's CI failed one curation test, `test_a_file_from_before_end_reasons_opens_and_its_failed_runs_give_none`,
+with "error in table discovery_runs after drop column: incomplete input". Nothing in
+the repository had changed. GitHub had moved `ubuntu-latest` from 24.04 to 26.04, which
+ships a system Python 3.14.4, and uv preferred it over its own build. So CI ran
+Ubuntu's SQLite 3.46.1 where it had run uv's. The Python differed by place: the Mac
+ran Homebrew's 3.14.6, CI whatever its image held, the NAS image the newest uv-managed
+3.14 on its build day, and the root and contract projects had no pin.
+
+**Measured, not inferred:** the drop fails on Ubuntu 26.04's own Python (SQLite 3.46.1)
+and on uv's builds carrying SQLite 3.45.1, 3.46.0, 3.47.1, 3.49.1 and 3.50.4. It passes
+on 3.53.1. Shrinking the table to the smallest case that still fails left one cause:
+a `--` comment holding a backtick-quoted word just before the dropped column. This
+repository's DDL comments do that. The product's own migrations drop columns, and their
+floor said 3.35 was enough.
+
+**What changed:**
+- `.python-version` at the root pins **3.14.6**, exact to the patch. `arrt/` keeps a
+  copy saying the same, because the NAS image is built from `arrt/` alone.
+- Every `pyproject.toml` sets `[tool.uv] python-preference = "only-managed"`. uv never
+  takes a system or Homebrew Python, so no machine's own SQLite is used.
+- The Dockerfile copies the pin in and runs a bare `uv python install`, in place of
+  `uv python install 3.14`.
+- Every `setup-uv` step in CI pins uv **0.11.32**, the version the Dockerfile's uv image
+  pins. A newer uv knows newer patch releases.
+- `_DROP_COLUMN_SINCE` in `persistence/migrations.py` goes from 3.35.0 to **3.53.1**, the
+  oldest SQLite measured to drop from these tables. Its refusal test now also refuses
+  3.50.4. Its assertion that the message names "3.35.0" now names "3.53.1", because
+  that floor is the contract it states.
+
+**Tests:** `tests/test_one_python.py` holds every copy in step: the exact pin, each
+project's copy, `only-managed` in every pyproject, the image installing from the pin,
+and every CI uv matching the image's. Four of its five tests failed against the old
+tree. The fifth, about copies agreeing, passed there only because both old pins said
+`3.14`, so it was broken on purpose and seen to fail. Both floor cases failed against
+the old floor. On Linux, under uv 0.11.32 with the pin, the failing test file passes
+(Python 3.14.6, SQLite 3.53.1).
+
+**For the operator:** the NAS image already ran 3.14.6 with SQLite 3.53.1, so a rebuild
+changes nothing there. Local virtualenvs built on a system or Homebrew Python are
+rebuilt by the next `uv sync`. Checked on the Mac: a virtualenv made with Homebrew's 3.14.6
+came back on uv's 3.14.6 (SQLite 3.53.1) after one `uv sync`. A CPython fix is now a change
+to `.python-version` followed by a rebuild: rebuilding alone reinstalls the same patch.
+
 ## 2026-10-30: A wall can be deleted (#391)
 
 <!-- prawduct: scope=delete-a-wall | release=v0.8.0 -->
