@@ -94,7 +94,9 @@ veto/override]`
   households installing it from the public source makes installation and
   configuration a requirement: Postgres optional, unattended work off until
   chosen, nothing in the defaults that assumes this household.
-- **`feeds-and-players.md` § public channels.** Ruling 6 adds a running public
+- **`product-brief.md` § Users & Personas.** One operator per installation still,
+  but many installations.
+- **`feeds-and-players.md` § Public channels.** Ruling 6 adds a running public
   server as a way to publish them, beside static hosting. Not soon; its own
   requirements cycle when it comes, including its own trust boundary.
 - **Not reopened: `security-model.md` § Trust Boundary.** The application still
@@ -103,6 +105,9 @@ veto/override]`
   `/mcp` from inside that LAN, as the household's MCP clients do today.
 - **`data-model.md`.** Conversations and affinities were modelled on 2026-08-10;
   verdicts becoming taste, and stated taste, add writers to `Affinity`.
+- **`api-contract.md`.** Ask's scope is read actions only, and `art_taste`'s `set`
+  refuses `observed`. Ask gains a `stated` write (ruling 1), and review becomes the
+  path that writes `observed` (item 2).
 - **`nonfunctional-requirements.md`'s spend norm.** The monthly cap stays the
   ceiling. Unattended work needs its own allowance under it (ruling 5).
 - **`re-architecture.md` § Order of work, wave 6+.** Watches are the first
@@ -118,7 +123,7 @@ Each item gets its own build plan when it starts, as the waves did.
 | **1** | **Taste in Ask and discovery** | Ask's system prompt carries the household's affinities; Ask records taste the curator states, through the same service `art_taste` calls; phase 1's prompt carries taste and the works already rejected. No dependency, no infrastructure. |
 | **2** | **Verdicts become observed taste** | Accept and reject in review write `observed` affinities, at thresholds the owner sets (open question 1). `inferred` writes stay off until then. |
 | **3** | **MCP for the household's own agents** | `art_taste` writes for stated taste and verdicts, and whatever else a household's agent needs to do through MCP what Ask does inside Arrt (open question 5). No credential: the boundary stays the LAN. |
-| **4** | **Unattended agent settings, then Watches** | Settings: whether unattended work runs at all, its own monthly allowance under the cap, its cadence and its model. Then Watches' scheduler, in Arrt, with what Watches write tagged as written unattended (input to the prompt-injection review Watches owe). |
+| **4** | **Unattended agent settings, then Watches** | Settings: whether unattended agent work runs at all, its own monthly allowance under the cap, its cadence and its model. Then Watches, in Arrt, with what they write tagged as written unattended (input to the prompt-injection review Watches owe). The scheduler itself is shared with upgrades (`upgrades.md`), which call no model, so it is not held back by this item; only agent work behind it waits for the settings. |
 | **5** | **Optional Postgres for memory** | Off unless a Postgres address is configured; Arrt works fully without it. Brings 3tears' agent memory (and the 3tears pin from 0.65 forward), an embedding provider's cost, and its permission bundle. Built only when items 1–4 leave a memory need typed taste does not meet. |
 | **6** | **Fence Ask's tool results** | 3tears' `fence`, already installed; recorded in the security model as a weak bound, not a defence. |
 

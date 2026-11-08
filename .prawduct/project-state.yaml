@@ -3108,7 +3108,7 @@ artifact_manifest:
     - name: agents-and-memory
       file_path: .prawduct/artifacts/agents-and-memory.md
       version: 1
-      depends_on: [product-brief, re-architecture, data-model, security-model]
+      depends_on: [product-brief, re-architecture, data-model, security-model, api-contract, nonfunctional-requirements, feeds-and-players]
     - name: player-contract
       file_path: .prawduct/artifacts/player-contract.md
       version: 1

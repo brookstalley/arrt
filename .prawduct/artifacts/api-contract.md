@@ -131,7 +131,9 @@ client's call reaches (`arrt/ask/agent.py`). That keeps the property argued
 for above, one definition of each tool, which the MCP layer owns, without a
 loopback HTTP hop or an MCP session per thread. Its scope is the read actions
 in `arrt.ask.prompt.ASK_SCOPE`; an action outside it is answered with a teaching
-error and never dispatched.
+error and never dispatched. *(Direction, 2026-11-08, `agents-and-memory.md` ruling
+1: Ask reads the household's taste and records taste the curator states, so its
+scope gains `art_taste`'s reads and a `stated` write.)*
 
 Built on the **official `mcp` SDK** (`mcp>=1.28.1`), not `3tears-mcp` — that package
 would drag NATS in via `3tears-epoch`, and its RBAC-gated server has nothing to
@@ -561,7 +563,8 @@ judged is a name in a sentence rather than a row it fetched. `delete` takes the 
 entity two identities.
 
 **`set` may not write `derivation='observed'`, and the refusal names the path that
-can.** The three derivations are claims about where a judgment came from: `stated`
+can.** *(Direction, 2026-11-08, `agents-and-memory.md` item 2: review's verdicts
+become that path. The refusal stands for every other caller.)* The three derivations are claims about where a judgment came from: `stated`
 is the curator saying it, `inferred` is a model reading it out of what they said,
 `observed` is the product reading it out of accept-and-reject behaviour in review.
 Only the review path can assert the third truthfully, and an `observed` row written

@@ -98,6 +98,12 @@ visual surface at all, so there is no existing style to honour or break from.
 
 The single operator. Owns the hardware, the API keys, and every decision.
 
+> **Direction, 2026-11-08 (`agents-and-memory.md` ruling 3).** Still one operator
+> per installation, but no longer one installation: other households run Arrt
+> from the public source on their own hardware. Defaults assume no particular
+> household, Postgres is theirs to add or not, and unattended spending is off
+> until they choose it.
+
 - **Technical level:** advanced — authors the `3tears` framework this product may
   build on. The UI must not be condescending or hand-holding.
 - **Needs:** express curatorial intent in natural language and get real candidates

@@ -1345,6 +1345,12 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 What the curator has reacted to, and how. Answers Q13; retained, and what
 discovery consults.
 
+> **Direction, 2026-11-08 (`agents-and-memory.md` rulings 1 and 4, items 1–3).**
+> Ask and discovery's phase 1 read affinities; Ask and a household's own agent
+> over MCP write `stated` ones; review's verdicts write `observed` ones, at
+> thresholds still to be ruled. Today only the HTTP route and `art_taste` read
+> them, and nothing writes `observed`.
+
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | UUID | PK | |
