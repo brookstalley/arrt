@@ -1356,8 +1356,9 @@ discovery consults.
 > by artist (`artist_key`), on every accept and reject and for every artist at
 > startup. At least 5 rejected and at least 90% of the artist's verdicts is
 > `declines`, not open to more; the mirror is `likes`, open to more; anything else
-> withdraws the observed row. A `stated` row under the same key is never
-> overwritten, and an `inferred` one is replaced. The rationale carries the counts.
+> withdraws the observed row. The rule touches only rows it wrote: a `stated` or
+> `inferred` row under the same key stands, and an observed row beside it is
+> withdrawn. The rationale carries the counts.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|
@@ -1427,8 +1428,9 @@ to arbitrate between.
 > writable, the strongest rank, the ranking had nothing to refuse (§ Affinity).
 > The wave that lets a weaker derivation be written again restores it, ranks and
 > all.* *Restored 2026-11-08 where it now matters: review writes `observed`, and
-> `taste.observe_artist` applies the ranking at that one writer, never writing
-> over `stated` and replacing `inferred`. `set` writes only `stated`, the top
+> `taste.observe_artist` applies it at that one writer, writing over neither
+> `stated` nor `inferred` (an inferred row is no longer re-creatable, so it is
+> kept rather than ranked away). `set` writes only `stated`, the top
 > rank, so it still has nothing to refuse.*
 >
 > **`observed` is refused at runtime by `art_taste`, while all three values are

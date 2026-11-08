@@ -157,10 +157,13 @@ def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None
 
     **An artist is their `artist_key`**, the identity that already makes "Dali"
     and "Dalí" one artist when deciding whether two proposals are one work. So a
-    judgment about the same artist under another spelling is the same judgment:
-    a `stated` one anywhere under the key leaves the artist alone (the curator's
-    words outrank their verdicts), and an `inferred` one is replaced, since a
-    model's reading of the curator's words is weaker than their decisions.
+    judgment about the same artist under another spelling is the same judgment.
+
+    **This rule touches only rows it wrote.** A `stated` judgment under the key
+    outranks the verdicts (the owner's ruling), so the observed one is withdrawn
+    beside it rather than left to contradict it. An `inferred` one is left alone
+    too: nothing can write one any more, so replacing it would lose it for good
+    once the verdicts stopped holding, while an observed row is re-derived at will.
 
     Returns the observed judgment now stored, or None when there is none.
     """
@@ -177,9 +180,11 @@ def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None
     same_artist = [
         affinity for affinity in store.list_affinities(kind=VocabularyKind.ARTIST) if artist_key(affinity.value) == key
     ]
-    if any(affinity.derivation is AffinityDerivation.STATED for affinity in same_artist):
-        return None
     observed = [affinity for affinity in same_artist if affinity.derivation is AffinityDerivation.OBSERVED]
+    if any(affinity.derivation is not AffinityDerivation.OBSERVED for affinity in same_artist):
+        # A judgment this rule did not write stands, and an observed one beside it
+        # would contradict it in every prompt.
+        sentiment = None
     if sentiment is None:
         for stale in observed:
             store_write(store.delete_affinity, stale.id)
@@ -203,12 +208,11 @@ def observe_artist(store: DiscoveryStore, artist: str | None) -> Affinity | None
         rationale=rationale,
     )
     now = datetime.now(UTC)
-    # Corrected in place where a judgment of this artist exists, under the name it
-    # already has: the unique index is on the name, and renaming it is not this
-    # rule's business.
-    standing = observed or [affinity for affinity in same_artist if affinity.derivation is AffinityDerivation.INFERRED]
-    if standing:
-        current = standing[0]
+    # Corrected in place where an observed judgment of this artist exists, under
+    # the name it already has: the unique index is on the name, and renaming it
+    # is not this rule's business.
+    if observed:
+        current = observed[0]
         if (current.sentiment, current.open_to_more, current.derivation, current.rationale) == (
             write.sentiment,
             write.open_to_more,

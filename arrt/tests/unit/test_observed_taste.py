@@ -117,58 +117,64 @@ def test_a_stated_judgment_under_another_spelling_is_never_overwritten(services,
     )
 
 
-def test_an_inferred_judgment_is_replaced_by_what_the_verdicts_show(services, decide, discovery_store):
+def an_inferred_klimt(discovery_store, value: str = "Gustav Klímt") -> Affinity:
     now = datetime.now(UTC)
-    discovery_store.add_affinity(
-        Affinity(
-            id="inferred-klimt",
-            kind=VocabularyKind.ARTIST,
-            value="Klimt, Gustav",
-            sentiment=AffinitySentiment.LIKES,
-            open_to_more=True,
-            derivation=AffinityDerivation.INFERRED,
-            created_at=now,
-            updated_at=now,
-            rationale="they asked for gold",
-        )
+    row = Affinity(
+        id="inferred-klimt",
+        kind=VocabularyKind.ARTIST,
+        value=value,
+        sentiment=AffinitySentiment.LIKES,
+        open_to_more=True,
+        derivation=AffinityDerivation.INFERRED,
+        created_at=now,
+        updated_at=now,
+        rationale="they asked for gold",
     )
-    other_spelling = discovery_store.get_affinity("inferred-klimt")
+    discovery_store.add_affinity(row)
+    return row
+
+
+def test_an_inferred_judgment_of_the_same_artist_is_left_alone(services, decide, discovery_store):
+    """Nothing can write an inferred row any more, so replacing one would lose it for good."""
+    inferred = an_inferred_klimt(discovery_store)
+
+    decide(Verdict.REJECTED, 5)
+
+    assert artist_taste(services) == [inferred]
+
+
+def test_an_inferred_judgment_of_another_artist_does_not_stop_this_one(services, decide, discovery_store):
+    """ "Klimt, Gustav" is not the same key as "Gustav Klimt", so it is another thing and both stand."""
+    other = an_inferred_klimt(discovery_store, value="Klimt, Gustav")
 
     decide(Verdict.REJECTED, 5)
 
     judgments = artist_taste(services)
-    observed = [each for each in judgments if each.derivation is AffinityDerivation.OBSERVED]
-    assert len(observed) == 1
-    assert observed[0].sentiment is AffinitySentiment.DECLINES
-    # "Klimt, Gustav" is not the same key as "Gustav Klimt", so it is another thing and stays.
-    assert other_spelling in judgments
+    assert other in judgments
+    [observed] = [each for each in judgments if each.derivation is AffinityDerivation.OBSERVED]
+    assert observed.value == KLIMT
 
 
-def test_an_inferred_judgment_of_the_same_artist_is_corrected_in_place(services, decide, discovery_store):
-    now = datetime.now(UTC)
-    discovery_store.add_affinity(
-        Affinity(
-            id="inferred-klimt",
-            kind=VocabularyKind.ARTIST,
-            value="Gustav Klímt",
-            sentiment=AffinitySentiment.LIKES,
-            open_to_more=True,
-            derivation=AffinityDerivation.INFERRED,
-            created_at=now,
-            updated_at=now,
-            rationale="they asked for gold",
-        )
-    )
-
+def test_a_stated_judgment_made_after_an_observed_one_withdraws_it(services, decide):
+    """Under another spelling the two are separate rows; the observed one goes, so they never contradict."""
     decide(Verdict.REJECTED, 5)
+    services.taste.set_affinity(kind="artist", value="gustav klimt", sentiment="loves", open_to_more=True)
+
+    decide(Verdict.REJECTED, 1)
 
     [judgment] = artist_taste(services)
-    assert (judgment.id, judgment.value, judgment.derivation, judgment.sentiment) == (
-        "inferred-klimt",
-        "Gustav Klímt",
-        AffinityDerivation.OBSERVED,
-        AffinitySentiment.DECLINES,
-    )
+    assert (judgment.value, judgment.derivation) == ("gustav klimt", AffinityDerivation.STATED)
+
+
+def test_each_verdict_brings_the_counts_up_to_date(services, decide):
+    decide(Verdict.REJECTED, 5)
+    [first] = artist_taste(services)
+
+    decide(Verdict.REJECTED, 1)
+
+    [judgment] = artist_taste(services)
+    assert judgment.id == first.id, "corrected in place"
+    assert judgment.rationale == f"Rejected 6 of the 6 works by {KLIMT} decided in review."
 
 
 def test_wanted_works_and_unattributed_works_say_nothing(services, decide):

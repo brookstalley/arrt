@@ -274,10 +274,16 @@ async function forget(control, affinity) {
     title: `Forget ${affinity.value}?`,
     // The consequence, not the row count, and the distinction is the one this
     // screen exists to make: after this the product knows *nothing* about the
-    // thing, which is a different state from being told to leave it alone.
+    // thing, which is a different state from being told to leave it alone. An
+    // observed judgment is re-derived from the verdicts (`observe_artist`), so
+    // forgetting one lasts only until they are read again, and the dialog says so.
     consequence:
-      `This product will stop knowing anything about ${affinity.value} — it will neither offer it nor avoid ` +
-      "it, and nothing brings the judgment back. To keep it and simply not be shown more, use “Not this” instead.",
+      affinity.derivation === "observed"
+        ? `This product will stop knowing anything about ${affinity.value} until you next accept or turn down ` +
+          "one of their works in review, or Arrt next starts, when it reads your decisions again. To overrule " +
+          "what it read, change the judgment instead: a judgment you give is never replaced by review."
+        : `This product will stop knowing anything about ${affinity.value} — it will neither offer it nor avoid ` +
+          "it, and nothing brings the judgment back. To keep it and simply not be shown more, use “Not this” instead.",
     confirmLabel: "Forget it",
   });
   if (!agreed) return;

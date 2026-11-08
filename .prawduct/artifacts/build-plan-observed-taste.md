@@ -33,14 +33,24 @@ judgment never overwrites a `stated` one.
 **Constraints:** no new dependency; `set_affinity` keeps refusing `observed` from
 callers, because only review can assert it.
 
+**Ruled by the owner on 2026-11-08** ("agreed on others", on the advisor's
+recommendations): counted by artist only; a `stated` judgment is never overwritten;
+an observed dislike offers no more; an observed judgment is removed when its rule
+stops holding.
+
 **Inferred (the boundary review shows these):**
 - **An artist is its `artist_key`**, the half of the dedup key that already makes
   "Dali" and "Dalí" one artist. The judgment is written under the name the latest
   verdict used. A stated judgment blocks the observed one when its value has the
   same `artist_key`, so a differently spelled stated row still wins.
-- **An observed judgment may replace an `inferred` one** for the same artist:
-  observed rests on the curator's own decisions, inferred on a model's reading of
-  their words, which is the ranking `data-model.md` recorded before.
+- **An `inferred` judgment is left alone**, like a stated one. Nothing can write
+  an inferred row any more, so replacing it would lose it for good once the
+  verdicts stopped holding. *(Revised after the cumulative review: the first build
+  replaced it.)*
+- **An observed judgment beside a stated or inferred one of the same artist is
+  withdrawn**, so the two never contradict each other in a prompt.
+- **Forgetting an observed judgment lasts until the verdicts are read again**,
+  and the Forget dialog says so. Correcting it is how the curator overrules it.
 - **Unattributed works count for nobody.**
 - **`wanted` and `pending` are not verdicts on the work's maker** and count for
   neither side.
@@ -55,7 +65,7 @@ callers, because only review can assert it.
 ### Chunk 01: The rule, applied at every verdict
 
 - **Deliverables:** a store read of the decided works by artist; the rule in
-  `library/services/taste.py` as one function over counts; `set_verdict` applying it
+  `arrt/src/arrt/library/services/taste.py` as one function over counts; `set_verdict` applying it
   to the work's artist inside its transaction; the docstrings that say nothing writes
   `observed`.
 - **Tests:** the thresholds at their edges (4/4, 5/5, 9 of 10, 5 beside 100); the

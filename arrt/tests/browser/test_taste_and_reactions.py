@@ -188,6 +188,28 @@ def test_forgetting_a_judgment_asks_first_and_says_what_is_lost(ui):
     assert "Forget Kandinsky?" in ui.page.inner_text("dialog.confirm")
     assert "stop knowing anything about Kandinsky" in ui.page.inner_text("dialog.confirm")
     assert "“Not this”" in ui.page.inner_text("dialog.confirm")
+    assert "Arrt next starts" not in ui.page.inner_text("dialog.confirm"), "a stated judgment is gone for good"
+
+
+def test_forgetting_an_observed_judgment_says_review_will_read_it_again(ui):
+    """Review re-derives an observed judgment, so forgetting one is not for good, and the dialog says so."""
+    observed = an_affinity(
+        "Klimt",
+        derivation=AffinityDerivation.OBSERVED.value,
+        sentiment=AffinitySentiment.DECLINES.value,
+        open_to_more=False,
+        rationale="Rejected 5 of the 5 works by Klimt decided in review.",
+    )
+    ui.page.route("**/api/affinities**", lambda route: _taste_route(route, [a_taste([observed])], []))
+    ui.open("#taste")
+    ui.page.wait_for_selector(".affinity")
+
+    ui.page.click("button:has-text('Forget this')")
+    ui.page.wait_for_selector("dialog.confirm")
+
+    said = ui.page.inner_text("dialog.confirm")
+    assert "until you next accept or turn down one of their works in review, or Arrt next starts" in said
+    assert "nothing brings the judgment back" not in said
 
 
 def test_declining_the_forget_destroys_nothing(ui):

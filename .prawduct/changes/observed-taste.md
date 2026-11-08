@@ -11,7 +11,8 @@ Item 2 of `agents-and-memory.md`'s order of work, by the owner's rule of
 (`taste.observe_artist`, by `artist_key`): at least 5 rejected and at least 90% of
 the artist's verdicts is an observed `declines`, not open to more; the mirror is an
 observed `likes`, open to more; anything else withdraws it. A `stated` judgment is
-never overwritten, and an `inferred` one is replaced. Startup re-derives every
+never overwritten (an observed row beside one is withdrawn), and an `inferred` one
+is left alone, since nothing can write one again. Startup re-derives every
 artist, so existing verdicts become taste on the first start. The Taste screen's
 help names review.
 
@@ -20,5 +21,6 @@ help names review.
 After the first start on this version, Taste may show judgments marked "Read from
 what you accepted and rejected", with the counts behind each. They reach Ask and
 Gets like any other taste. To overrule one, correct it on Taste: your correction
-is a stated judgment, which review never overwrites. Deleting one only lasts until
-the next decision on that artist.
+is a stated judgment, which review never overwrites. Forgetting one lasts only
+until your next decision on that artist's works, or Arrt's next start, and the
+Forget dialog says so.
