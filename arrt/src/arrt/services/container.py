@@ -432,6 +432,8 @@ class Services:
         addition reaches the wall at its next roll.
         """
         self.discovery.reconcile()
+        # After discovery's own repairs, so the verdicts it reads are settled.
+        self.taste.reobserve()
         # Before anything serves: a write the last process died in leaves a
         # temporary file, and the old preview directory's files are moved into
         # the store and their rows repointed, so a card is answered from the

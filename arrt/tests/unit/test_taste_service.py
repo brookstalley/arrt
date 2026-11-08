@@ -86,8 +86,8 @@ def test_the_derivations_that_are_claims_about_the_curator_need_a_rationale(deri
     Driven through `validated_write` rather than through `set_affinity`, and
     deliberately: `set` refuses `observed` outright, so the rationale rule for
     that derivation is unreachable from it. The rule belongs to the write path —
-    which is a function precisely so the review path that will one day assert
-    `observed` goes through the same checks — and this is the test that says so.
+    which is a function precisely so the review path that asserts `observed`
+    (`observe_artist`) goes through the same checks — and this is the test that says so.
     """
     with pytest.raises(ServiceError) as refused:
         validated_write(

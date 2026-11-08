@@ -129,7 +129,9 @@ function either(parts) {
  * control is named as it reads where it is: Ask's card reactions
  * (`CARD_REACTIONS`) are lower-case, and an artist's page says *More like this*,
  * *Not this* and *Tell me more*. The corrections on this page are listed too, since a correction
- * records a judgment of its own (`core/taste.js`). Ask's agent and an assistant
+ * records a judgment of its own (`core/taste.js`). Review's verdicts write an
+ * observed one by the owner's rule (`library/services/taste.py`,
+ * `observed_sentiment`), worded here as the curator meets it. Ask's agent and an assistant
  * over MCP both write through `art_taste`, which records what it read out of
  * something the curator said. */
 function howTasteIsRecorded() {
@@ -156,6 +158,7 @@ function howTasteIsRecorded() {
         control("Keep showing me"),
         ";",
       ]),
+      el("li", {}, ["accept, or turn down, at least five of an artist's works in review, nearly all one way;"]),
       el("li", {}, ["or tell Ask, or an assistant connected to Arrt, how you feel about something; it records what it read out of what you said."]),
     ]),
   ]);
@@ -271,10 +274,16 @@ async function forget(control, affinity) {
     title: `Forget ${affinity.value}?`,
     // The consequence, not the row count, and the distinction is the one this
     // screen exists to make: after this the product knows *nothing* about the
-    // thing, which is a different state from being told to leave it alone.
+    // thing, which is a different state from being told to leave it alone. An
+    // observed judgment is re-derived from the verdicts (`observe_artist`), so
+    // forgetting one lasts only until they are read again, and the dialog says so.
     consequence:
-      `This product will stop knowing anything about ${affinity.value} — it will neither offer it nor avoid ` +
-      "it, and nothing brings the judgment back. To keep it and simply not be shown more, use “Not this” instead.",
+      affinity.derivation === "observed"
+        ? `This product will stop knowing anything about ${affinity.value} until you next accept or turn down ` +
+          "one of their works in review, or Arrt next starts, when it reads your decisions again. To overrule " +
+          "what it read, change the judgment instead: a judgment you give is never replaced by review."
+        : `This product will stop knowing anything about ${affinity.value} — it will neither offer it nor avoid ` +
+          "it, and nothing brings the judgment back. To keep it and simply not be shown more, use “Not this” instead.",
     confirmLabel: "Forget it",
   });
   if (!agreed) return;
