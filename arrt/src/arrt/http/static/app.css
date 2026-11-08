@@ -266,6 +266,15 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* The view takes focus on every navigation, and from the skip link, so the next
+   Tab starts in the page (`core/router.js`). It is where the keyboard starts, not
+   a control, so it draws no ring: drawn, it boxes the whole page, which a browser
+   shows whenever it counts the script's focus as visible (Safari on an iPad did,
+   2026-11-08). The control the next Tab reaches draws its own. */
+#view:focus {
+  outline: none;
+}
+
 a {
   color: var(--accent);
 }
