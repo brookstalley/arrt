@@ -10,7 +10,13 @@ each entry, which is the durable form.
 
 ## Pending
 
-### Deleting a wall, and Edit… reading what is true — added 2026-10-30
+### ✅ Deleting a wall, and Edit… reading what is true — added 2026-10-30, VERIFIED 2026-11-08
+
+**Looked at by the owner on 2026-11-08** on the NAS, image
+`arrt-sources:ef0587d6-49bb520` (v0.8.0): "All looks good, thanks." They did not say
+which of the steps below they walked, or on which devices; their screenshot was an iPad.
+The one thing they raised was unrelated: a box drawn around the Ask page (a focus ring
+on the whole view, fixed on `fix/view-focus-ring`).
 
 **`archive/build-plan-delete-a-wall.md` chunk 03, and #400.** On the NAS, once the release
 with this branch is deployed. Make a spare wall for this rather than deleting one
@@ -29,9 +35,15 @@ and hang a theme on it.
 - **The words and the weight.** Is *Delete…* where you would look for it, last in
   *Edit…*, and quiet rather than alarming, as a theme's is?
 
-### Settings › Players, Themes and a theme's page, rebuilt to the page rules — added 2026-10-29
+### ✅ Settings › Players, Themes and a theme's page, rebuilt to the page rules — added 2026-10-29, VERIFIED 2026-11-08
 
-**`build-plan-ui-pass-themes-players.md` chunk 05.** On the NAS, once the release
+**Looked at by the owner on 2026-11-08** on the NAS, image
+`arrt-sources:ef0587d6-49bb520` (v0.8.0): "All looks good, thanks." They did not say
+which of the steps below they walked, or on which devices; their screenshot was an iPad.
+The one thing they raised was unrelated: a box drawn around the Ask page (a focus ring
+on the whole view, fixed on `fix/view-focus-ring`).
+
+**`archive/build-plan-ui-pass-themes-players.md` chunk 05.** On the NAS, once the release
 with this branch is deployed, on a phone and on a desktop.
 
 - **Settings › Players.** Each Player's row: does its status, its screens and the
@@ -49,9 +61,15 @@ with this branch is deployed, on a phone and on a desktop.
 - **The words and the weight.** Judge all three against the prototype: does
   anything you use daily now take a step it did not?
 
-### Artworks and a work's page, rebuilt to the page rules — added 2026-10-29
+### ✅ Artworks and a work's page, rebuilt to the page rules — added 2026-10-29, VERIFIED 2026-11-08
 
-**`build-plan-ui-pass-work-artworks.md` chunk 05.** On the NAS, once the release
+**Looked at by the owner on 2026-11-08** on the NAS, image
+`arrt-sources:ef0587d6-49bb520` (v0.8.0): "All looks good, thanks." They did not say
+which of the steps below they walked, or on which devices; their screenshot was an iPad.
+The one thing they raised was unrelated: a box drawn around the Ask page (a focus ring
+on the whole view, fixed on `fix/view-focus-ring`).
+
+**`archive/build-plan-ui-pass-work-artworks.md` chunk 05.** On the NAS, once the release
 with this branch is deployed, on a phone and on a desktop.
 
 - **Artworks.** The heading and its line of facts; narrow by a theme and a facet
