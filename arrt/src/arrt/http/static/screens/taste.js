@@ -129,8 +129,9 @@ function either(parts) {
  * control is named as it reads where it is: Ask's card reactions
  * (`CARD_REACTIONS`) are lower-case, and an artist's page says *More like this*,
  * *Not this* and *Tell me more*. The corrections on this page are listed too, since a correction
- * records a judgment of its own (`core/taste.js`). An assistant writes through
- * `art_taste`, which records what it read out of something the curator said. */
+ * records a judgment of its own (`core/taste.js`). Ask's agent and an assistant
+ * over MCP both write through `art_taste`, which records what it read out of
+ * something the curator said. */
 function howTasteIsRecorded() {
   const control = (words) => el("em", { text: words });
   return el("div", { class: "taste-help" }, [
@@ -155,7 +156,7 @@ function howTasteIsRecorded() {
         control("Keep showing me"),
         ";",
       ]),
-      el("li", {}, ["or tell an assistant connected to Arrt, which records what it read out of what you said."]),
+      el("li", {}, ["or tell Ask, or an assistant connected to Arrt, how you feel about something; it records what it read out of what you said."]),
     ]),
   ]);
 }

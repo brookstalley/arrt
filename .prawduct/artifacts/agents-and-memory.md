@@ -105,7 +105,7 @@ veto/override]`
   `/mcp` from inside that LAN, as the household's MCP clients do today.
 - **`data-model.md`.** Conversations and affinities were modelled on 2026-08-10;
   verdicts becoming taste, and stated taste, add writers to `Affinity`.
-- **`api-contract.md`.** Ask's scope is read actions only, and `art_taste`'s `set`
+- **`api-contract.md`.** Ask's scope was read actions only, and `art_taste`'s `set`
   refuses `observed`. Ask gains a `stated` write (ruling 1), and review becomes the
   path that writes `observed` (item 2).
 - **`nonfunctional-requirements.md`'s spend norm.** The monthly cap stays the

@@ -119,6 +119,54 @@ def validated_write(
     )
 
 
+#: How many judgments a prompt is told. A household's taste is tens of rows, so
+#: this binds only on a taste far past what `list_affinities` was sized for, and
+#: then the brief says how many it left out rather than dropping them silently.
+TASTE_TOLD: Final[int] = 200
+
+#: Strongest feeling first, so a brief cut at `TASTE_TOLD` keeps the judgments
+#: that most change what a model should offer.
+_SENTIMENT_ORDER: Final[tuple[AffinitySentiment, ...]] = (
+    AffinitySentiment.LOVES,
+    AffinitySentiment.DECLINES,
+    AffinitySentiment.LIKES,
+    AffinitySentiment.COOL,
+)
+
+
+def describe_taste(affinities: Sequence[Affinity], *, limit: int = TASTE_TOLD) -> str:
+    """The curator's taste as lines a model is told, or an empty string when there is none.
+
+    One rendering for every prompt that carries taste (Ask's and discovery's
+    phase 1), so the two agents are told the same thing in the same words.
+
+    `open_to_more` is spelled out on every line rather than left to be inferred
+    from the sentiment: "cool on Magritte, but keep offering" is the case the two
+    fields exist for, and a model reading only the sentiment would stop offering.
+    A judgment that is not `stated` names its derivation and its rationale,
+    because a model should weigh the curator's words above the product's reading
+    of them.
+    """
+    if not affinities:
+        return ""
+    rank = {sentiment: index for index, sentiment in enumerate(_SENTIMENT_ORDER)}
+    ordered = sorted(affinities, key=lambda each: (rank.get(each.sentiment, len(rank)), str(each.kind), each.value.casefold()))
+    lines = [_taste_line(each) for each in ordered[:limit]]
+    left_out = len(ordered) - len(lines)
+    if left_out > 0:
+        lines.append(f"- ({left_out} more judgments are not listed.)")
+    return "\n".join(lines)
+
+
+def _taste_line(affinity: Affinity) -> str:
+    more = "keep offering more" if affinity.open_to_more else "offer no more"
+    line = f"- {affinity.sentiment} {affinity.kind} “{affinity.value}”: {more}"
+    if affinity.derivation is not AffinityDerivation.STATED:
+        account = f": {affinity.rationale}" if affinity.rationale else ""
+        line += f" ({affinity.derivation}{account})"
+    return line
+
+
 class TasteService:
     """The curator's standing judgments: reading them, correcting them, forgetting one."""
 

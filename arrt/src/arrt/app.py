@@ -35,6 +35,7 @@ from arrt.ask.agent import Ask
 from arrt.config import DEFAULT_ASK_STEP_LIMIT, DEFAULT_BACKUP_INTERVAL_SECONDS
 from arrt.http import api, ask, pages, player
 from arrt.library.acquisition.queue import start_acquisition_queue
+from arrt.library.services.taste import describe_taste
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server, dispatch
 from arrt.persistence.backup import CatalogueBackup, start_backups
@@ -133,7 +134,13 @@ def create_app(
     # once, at startup, over one open catalogue file — a per-request dependency
     # would advertise a lifetime they do not have.
     app.state.services = services
-    app.state.ask = Ask(partial(dispatch, services), ask_model, step_limit=ask_step_limit, local_tools=ask_tools)
+    app.state.ask = Ask(
+        partial(dispatch, services),
+        ask_model,
+        step_limit=ask_step_limit,
+        local_tools=ask_tools,
+        taste=lambda: describe_taste(services.taste.list_affinities()),
+    )
 
     async def handle_mcp(scope: Scope, receive: Receive, send: Send) -> None:
         await session_manager.handle_request(scope, receive, send)

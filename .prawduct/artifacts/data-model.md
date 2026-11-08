@@ -1348,8 +1348,9 @@ discovery consults.
 > **Direction, 2026-11-08 (`agents-and-memory.md` rulings 1 and 4, items 1–3).**
 > Ask and discovery's phase 1 read affinities; Ask and a household's own agent
 > over MCP write `stated` ones; review's verdicts write `observed` ones, at
-> thresholds still to be ruled. Today only the HTTP route and `art_taste` read
-> them, and nothing writes `observed`.
+> thresholds still to be ruled. Ask reads them and writes `stated` ones since
+> 2026-11-08 (`build-plan-taste-in-ask.md` Chunk 01), each reply's prompt carrying
+> `describe_taste`'s rendering. Nothing writes `observed` yet.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|

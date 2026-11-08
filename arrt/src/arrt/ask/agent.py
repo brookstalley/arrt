@@ -37,7 +37,7 @@ from langchain_core.tools import BaseTool, StructuredTool
 from threetears.langgraph.streaming import CANCELLED_ERROR_CODE, DEFAULT_ERROR_CODE, StreamingResponse
 
 from arrt.ask.cards import cards_for
-from arrt.ask.prompt import ASK_SCOPE, ASK_SYSTEM
+from arrt.ask.prompt import ASK_SCOPE, ask_system
 from arrt.library.discovery.openrouter import budget_spent, names_the_key_limit
 from arrt.mcp.envelope import IMAGE_BLOCKS
 from arrt.mcp.registry import HELP_ACTION
@@ -131,8 +131,12 @@ class Ask:
         step_limit: int,
         local_tools: Sequence[BaseTool] = (),
         threads: Threads | None = None,
+        taste: Callable[[], str] = lambda: "",
     ) -> None:
         self._dispatch = dispatch
+        #: The household's taste as `describe_taste` renders it, read afresh for
+        #: every reply so a judgment recorded in one is in the next one's prompt.
+        self._taste = taste
         self._model = model
         self._step_limit = step_limit
         self._tools = [*surface_tools(dispatch), *local_tools]
@@ -186,10 +190,12 @@ class Ask:
         ended = "answered"
         try:
             await stream.start()
+            # On a worker thread, as every tool call is: the service layer is synchronous.
+            system = ask_system(await asyncio.to_thread(self._taste))
             agent = create_agent(
                 self._model,
                 self._tools,
-                system_prompt=ASK_SYSTEM,
+                system_prompt=system,
                 middleware=[ModelCallLimitMiddleware(run_limit=self._step_limit, exit_behavior="error")],
             )
             # The graph's own step bound is set far past the call limit, so the call
@@ -381,6 +387,8 @@ _SAID: Final[Mapping[tuple[str, str], str]] = {
     ("art_catalogue", "get"): "Reading a work in your library",
     ("art_catalogue", "topics"): "Looking at your library's topics",
     ("art_catalogue", "topic"): "Looking at a topic in your library",
+    ("art_taste", "list"): "Reading your taste",
+    ("art_taste", "set"): "Recording your taste: {sentiment} “{value}”",
 }
 
 
@@ -396,7 +404,11 @@ def said(tool: str, arguments: object) -> str:
     template = _SAID.get((tool, action))
     if template is None:
         return f"Trying {tool} {action}"
-    return template.format(q=arguments.get("q", ""))
+    return template.format(
+        q=arguments.get("q", ""),
+        sentiment=arguments.get("sentiment", ""),
+        value=arguments.get("value", ""),
+    )
 
 
 def _stopped_sentence(limit: int, tally: _Tally) -> str:

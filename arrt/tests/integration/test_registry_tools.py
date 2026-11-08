@@ -270,6 +270,9 @@ def _cases(rothko_id: str, kept_id: str) -> dict[tuple[str, str], tuple[dict, di
         ),
         # The held work is put in the topic below; its rows, like a listing's, carry no QID.
         ("art_catalogue", "topic"): ({"qid": RENAISSANCE}, {RENAISSANCE: ("topic", None)}),
+        # A judgment carries a name and no QID, so the taste offers nothing to get.
+        ("art_taste", "list"): ({}, {}),
+        ("art_taste", "set"): ({"kind": "artist", "value": "Klimt", "sentiment": "loves", "open_to_more": True}, {}),
     }
 
 
