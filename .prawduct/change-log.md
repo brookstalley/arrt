@@ -97,7 +97,12 @@ floor said 3.35 was enough.
 - `_DROP_COLUMN_SINCE` in `persistence/migrations.py` goes from 3.35.0 to **3.53.1**, the
   oldest SQLite measured to drop from these tables. Its refusal test now also refuses
   3.50.4. Its assertion that the message names "3.35.0" now names "3.53.1", because
-  that floor is the contract it states.
+  that floor is the contract it states. The refusal now also names the remedy: run under
+  the uv-managed Python `.python-version` names.
+- The CPython patching procedure starts at the pin: `operational-spec.md` (Routine
+  Operations, and § The Curation Interpreter), `security-model.md` (Supply Chain) and
+  `project-preferences.md` (Language & Runtime). A rebuild alone reinstalls the same
+  release.
 
 **Tests:** `tests/test_one_python.py` holds every copy in step: the exact pin, each
 project's copy, `only-managed` in every pyproject, the image installing from the pin,

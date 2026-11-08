@@ -3,14 +3,17 @@
 **Version:** v0.8.0, a **minor**. The owner agreed to it on 2026-11-08. It is a minor
 because it adds behaviour and API: deleting a wall (`DELETE /api/walls/{wall_id}` and the
 `art_display` action that does the same), and Artworks, a work's page, Settings › Players,
-Themes and a theme's page all rebuilt to the page rules. It also carries two fixes: the
-hanging badge's race, and Walls' *Edit…* and *Scene…* reading what is true at the moment
-they are pressed (#400). `develop` was at `132d06b0` (the merge of #401) when this was cut.
+Themes and a theme's page all rebuilt to the page rules. It also carries three fixes: the
+hanging badge's race; Walls' *Edit…* and *Scene…* reading what is true at the moment
+they are pressed (#400); and one Python and one uv everywhere, with a measured SQLite
+floor (`one-python`, found by this release's own CI). `develop` was at `132d06b0` (the merge of #401) when this was cut.
 
 ## Release classification
 
 Every release-pending scope ships. `check-releasability --release v0.8.0`, run before
-tagging, listed 7 entries in 7 scopes and no unclassifiable entry.
+tagging, listed 5 scopes; `install-tripwire` and `one-python` joined the branch after,
+each tagged with its entry. Run on the final tree, it finds 7 scopes tagged
+`release=v0.8.0`, none pending and none unclassifiable.
 
 **No open issue blocks the release.** brookstalley/arrt has no open issue labelled blocker.
 
@@ -63,6 +66,9 @@ product code. `one-python` is a toolchain fix found by this release's CI. Each c
   whenever the table is empty. There is no schema change to undo.
 - **The catalogue:** v0.8.0 changes `migrations.py`'s wall seeding but no schema, so
   v0.7.0's image opens a catalogue that v0.8.0 has used.
+- **The SQLite floor:** v0.8.0 refuses a column-dropping migration below SQLite 3.53.1,
+  where v0.7.0 allowed 3.35. Rolling back restores the lower floor, and both images
+  carry 3.53.1, so neither refuses on the NAS.
 
 ## Deploy
 
