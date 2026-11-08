@@ -16,7 +16,7 @@ each entry, which is the durable form.
 `arrt-sources:ef0587d6-49bb520` (v0.8.0): "All looks good, thanks." They did not say
 which of the steps below they walked, or on which devices; their screenshot was an iPad.
 The one thing they raised was unrelated: a box drawn around the Ask page (a focus ring
-on the whole view, fixed on `fix/view-focus-ring`).
+on the whole view, fixed by the change-log entry "No box round the page when it opens").
 
 **`archive/build-plan-delete-a-wall.md` chunk 03, and #400.** On the NAS, once the release
 with this branch is deployed. Make a spare wall for this rather than deleting one
@@ -41,7 +41,7 @@ and hang a theme on it.
 `arrt-sources:ef0587d6-49bb520` (v0.8.0): "All looks good, thanks." They did not say
 which of the steps below they walked, or on which devices; their screenshot was an iPad.
 The one thing they raised was unrelated: a box drawn around the Ask page (a focus ring
-on the whole view, fixed on `fix/view-focus-ring`).
+on the whole view, fixed by the change-log entry "No box round the page when it opens").
 
 **`archive/build-plan-ui-pass-themes-players.md` chunk 05.** On the NAS, once the release
 with this branch is deployed, on a phone and on a desktop.
@@ -67,7 +67,7 @@ with this branch is deployed, on a phone and on a desktop.
 `arrt-sources:ef0587d6-49bb520` (v0.8.0): "All looks good, thanks." They did not say
 which of the steps below they walked, or on which devices; their screenshot was an iPad.
 The one thing they raised was unrelated: a box drawn around the Ask page (a focus ring
-on the whole view, fixed on `fix/view-focus-ring`).
+on the whole view, fixed by the change-log entry "No box round the page when it opens").
 
 **`archive/build-plan-ui-pass-work-artworks.md` chunk 05.** On the NAS, once the release
 with this branch is deployed, on a phone and on a desktop.

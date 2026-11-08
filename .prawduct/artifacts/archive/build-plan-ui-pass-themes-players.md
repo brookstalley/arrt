@@ -40,7 +40,7 @@ last_validated: 2026-10-29
 lifecycle: completed
 archived: 2026-11-08
 released_in: v0.8.0
-unbuilt_at_archive: 1 of 5 chunks not done (Chunk 05) — the scope shipped, but this plan did not finish with it
+unbuilt_at_archive: "Chunk 05 has no review fact because it is the owner's walk, which no review can certify; walked and VERIFIED 2026-11-08 (operator-verification.md)"
 maintained: false
 ---
 
