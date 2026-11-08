@@ -12,7 +12,7 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, WorkListRequest
+from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, RejectedWork, WorkListRequest
 from arrt.library.discovery.openrouter import OpenRouterClient
 from arrt.library.discovery.phase_one import OpenRouterEngine
 from arrt.persistence.discovery_records import SpendCategory
@@ -573,3 +573,58 @@ def test_a_work_carries_the_models_word_on_its_source_and_no_word_is_none(said, 
     produced = engine_over(responding({"strategy": "s", "works": [entry]})).enumerate_works(asked())
 
     assert produced.works[0].source_confirmed is read
+
+
+# -- what the model is told -----------------------------------------------------
+
+
+def prompt_sent(request: WorkListRequest) -> str:
+    """The one user message the engine sent for `request`."""
+    sent: dict = {}
+
+    def handler(http_request: httpx.Request) -> httpx.Response:
+        sent.update(json.loads(http_request.content))
+        return responding(ANSWER)(http_request)
+
+    engine_over(handler).enumerate_works(request)
+    [message] = [message for message in sent["messages"] if message["role"] == "user"]
+    return message["content"]
+
+
+TASTE = "- declines movement “Surrealism”: offer no more"
+REJECTED = (RejectedWork(title="The Elephants", artist="Salvador Dalí"), RejectedWork(title="Untitled"))
+
+
+def test_with_no_taste_and_nothing_rejected_the_prompt_is_the_request_alone():
+    prompt = prompt_sent(asked(intent="Dalí's best works"))
+
+    assert "Dalí's best works" in prompt
+    assert "recorded taste" not in prompt
+    assert "turned these works down" not in prompt
+
+
+def test_the_taste_and_the_rejected_works_follow_the_request():
+    prompt = prompt_sent(WorkListRequest(intent_text="Dalí's best works", search_allowance=10, taste=TASTE, rejected=REJECTED))
+
+    request_at, taste_at, rejected_at = (
+        prompt.index("Dalí's best works"),
+        prompt.index(TASTE),
+        prompt.index("turned these works down"),
+    )
+    assert request_at < taste_at < rejected_at
+    assert "where the request names something\noutright, the request wins" in prompt
+    assert "- The Elephants, Salvador Dalí\n- Untitled" in prompt
+
+
+@pytest.mark.parametrize(
+    ("taste", "rejected", "present", "absent"),
+    [
+        (TASTE, (), "recorded taste", "turned these works down"),
+        ("", REJECTED, "turned these works down", "recorded taste"),
+    ],
+)
+def test_each_section_is_sent_only_when_it_has_something_in_it(taste, rejected, present, absent):
+    prompt = prompt_sent(WorkListRequest(intent_text="seascapes", search_allowance=10, taste=taste, rejected=rejected))
+
+    assert present in prompt
+    assert absent not in prompt

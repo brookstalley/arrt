@@ -57,7 +57,14 @@ nothing, so it is recorded in `security-model.md` rather than designed out.
 Fencing tool results (item 6) is the later, weak bound the owner already ranked
 last.
 
-**Decisions made mid-build:** *(one line each, as they arise)*
+**Decisions made mid-build:**
+- Chunk 01 — the Taste screen's help, which lists every way a judgment is
+  recorded, gains "tell Ask"; settled by the help's own claim to completeness.
+- Chunk 01 — the brief orders loves, declines, likes, cool, so a cut at
+  `TASTE_TOLD` keeps the judgments that most change what a model offers.
+- Chunk 02 — the request is built inside the runner's guard, because it now
+  reads the catalogue, and a read that raised outside it would hold the run.
+- Chunk 02 — `REJECTED_TOLD` is 100, one per dedup key at its latest rejection.
 
 ## Build Chunks
 

@@ -1349,8 +1349,9 @@ discovery consults.
 > Ask and discovery's phase 1 read affinities; Ask and a household's own agent
 > over MCP write `stated` ones; review's verdicts write `observed` ones, at
 > thresholds still to be ruled. Ask reads them and writes `stated` ones since
-> 2026-11-08 (`build-plan-taste-in-ask.md` Chunk 01), each reply's prompt carrying
-> `describe_taste`'s rendering. Nothing writes `observed` yet.
+> 2026-11-08 (`build-plan-taste-in-ask.md`), each reply's prompt carrying
+> `describe_taste`'s rendering, and phase 1's prompt carries the same rendering
+> with the newest `REJECTED_TOLD` rejected works. Nothing writes `observed` yet.
 
 | Field | Type | Constraints | Description |
 |---|---|---|---|

@@ -246,6 +246,50 @@ def test_a_work_the_curator_already_rejected_is_not_proposed_again(services, eng
     assert proposed == ["Galatea of the Spheres"]
 
 
+def test_phase_one_is_told_the_taste_and_the_works_already_rejected(services, engine, settings, propose):
+    """Told rather than left to propose them and pay: the request carries both, and only rejections."""
+    rejected = propose("The Elephants", dedup_key="dali::elephants", proposed_artist="Salvador Dalí")
+    services.discovery.set_verdict(rejected.id, Verdict.REJECTED)
+    unattributed = propose("Untitled", dedup_key="::untitled")
+    services.discovery.set_verdict(unattributed.id, Verdict.REJECTED)
+    propose("Galatea of the Spheres", dedup_key="dali::galatea", proposed_artist="Salvador Dalí")
+    services.taste.set_affinity(kind="movement", value="Surrealism", sentiment="declines", open_to_more=False)
+    runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
+
+    start(runner)
+
+    [request] = engine.requests
+    assert request.taste == "- declines movement “Surrealism”: offer no more"
+    assert {(work.title, work.artist) for work in request.rejected} == {
+        ("The Elephants", "Salvador Dalí"),
+        ("Untitled", None),
+    }
+
+
+def test_phase_one_with_no_taste_and_nothing_rejected_is_told_neither(runner, engine):
+    start(runner)
+
+    [request] = engine.requests
+    assert (request.taste, tuple(request.rejected)) == ("", ())
+
+
+def test_a_catalogue_that_cannot_be_read_for_phase_one_ends_the_run_rather_than_holding_it(
+    services, engine, settings, monkeypatch
+):
+    """Reading the taste is a catalogue read before the engine is called; one that raises must still end the run."""
+
+    def unreadable():
+        raise sqlite3.OperationalError("disk I/O error")
+
+    monkeypatch.setattr(services.discovery, "taste", unreadable)
+    runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
+
+    run = services.discovery.get_run(start(runner).id)
+
+    assert run.status is RunStatus.FAILED
+    assert engine.requests == []
+
+
 def test_a_work_the_engine_names_twice_is_recorded_once(services, engine, settings):
     """A run proposes each work exactly once, whatever the engine returned."""
     engine.result = WorkList(

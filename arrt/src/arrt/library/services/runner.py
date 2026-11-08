@@ -57,10 +57,12 @@ from arrt.library.discovery.browse import (
 )
 from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.discovery.engine import (
+    REJECTED_TOLD,
     BudgetExhausted,
     DiscoveryEngine,
     EngineFailure,
     EngineSpend,
+    RejectedWork,
     WorkList,
     WorkListRequest,
 )
@@ -836,8 +838,19 @@ class DiscoveryRunner:
 
     def _attempt_phase_one(self, run_id: str, intent_text: str) -> None:
         """Call the engine and turn whatever it did into a run state."""
-        request = WorkListRequest(intent_text=intent_text, search_allowance=self._settings.phase1_search_allowance)
         try:
+            # Built inside the guard because it reads the catalogue (the taste and
+            # the rejections), and a read that raised here would leave the run
+            # held with nothing working on it, as an engine fault would.
+            request = WorkListRequest(
+                intent_text=intent_text,
+                search_allowance=self._settings.phase1_search_allowance,
+                taste=self._discovery.taste(),
+                rejected=tuple(
+                    RejectedWork(title=work.proposed_title, artist=work.proposed_artist)
+                    for work in self._discovery.rejected_works(REJECTED_TOLD)
+                ),
+            )
             # Recording and settling are inside the guard, not in an `else`.
             # `_settle` expects only `ServiceError`, so any other refusal from
             # the record layer at settling time would otherwise escape and leave
