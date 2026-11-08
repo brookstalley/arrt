@@ -23,7 +23,10 @@ tagging, listed 6 entries in 6 scopes and no unclassifiable entry.
 | fix-hanging-badge-race | ships | |
 | install-tripwire | ships | |
 
-**Nothing is withheld**, so this is a standard whole-develop promotion.
+**Nothing is withheld**, so this is a standard whole-develop promotion, with one commit
+added: the install-tripwire commit (`6b705fe2`) was cherry-picked onto this branch from an
+unpushed local branch and is not on `develop`. It reaches `develop` through the
+`main`-to-`develop` back-merge after this release, as v0.7.0's did (#394).
 
 Three scopes have no build plan, and that is expected: `walls-stale-edit` and
 `fix-hanging-badge-race` were small fixes on their own branches, each reviewed by the
@@ -48,11 +51,11 @@ product code. Each change-log entry records what it changed.
 ## Rollback
 
 - **Deleted walls:** a wall deleted under v0.8.0 stays deleted under v0.7.0. The rows that
-  named it were removed or cleared in the same transaction. A catalogue that has no walls
+  named it were removed or cleared in the same transaction. A catalogue with no walls
   left gets the default wall reseeded by v0.7.0 when it opens, because v0.7.0 reseeds
-  whenever the table is empty. The migration has no schema change to undo.
-- **The catalogue:** v0.8.0 adds no migration, so v0.7.0's image opens a catalogue that
-  v0.8.0 has used.
+  whenever the table is empty. There is no schema change to undo.
+- **The catalogue:** v0.8.0 changes `migrations.py`'s wall seeding but no schema, so
+  v0.7.0's image opens a catalogue that v0.8.0 has used.
 
 ## Deploy
 
