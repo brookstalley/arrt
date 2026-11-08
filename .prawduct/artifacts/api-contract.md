@@ -129,11 +129,15 @@ process rather than as a client over HTTP.** It is offered the MCP surface's own
 tool definitions, whole, and each call goes to the same `dispatch` an MCP
 client's call reaches (`arrt/ask/agent.py`). That keeps the property argued
 for above, one definition of each tool, which the MCP layer owns, without a
-loopback HTTP hop or an MCP session per thread. Its scope is the read actions
-in `arrt.ask.prompt.ASK_SCOPE`; an action outside it is answered with a teaching
-error and never dispatched. *(Direction, 2026-11-08, `agents-and-memory.md` ruling
-1: Ask reads the household's taste and records taste the curator states, so its
-scope gains `art_taste`'s reads and a `stated` write.)*
+loopback HTTP hop or an MCP session per thread. Its scope is
+`arrt.ask.prompt.ASK_SCOPE`: the read actions, plus `art_taste`'s `list` and
+`set` since 2026-11-08 (`agents-and-memory.md` ruling 1,
+`build-plan-taste-in-ask.md`). `set` writes only `stated`, because the service
+refuses the other two derivations, and `delete` stays out of Ask, because
+forgetting is not recoverable. An action outside the scope is answered with a
+teaching error and never dispatched. Each reply's system prompt carries the
+household's taste, read afresh for every reply
+(`arrt.library.services.taste.describe_taste`).
 
 Built on the **official `mcp` SDK** (`mcp>=1.28.1`), not `3tears-mcp` — that package
 would drag NATS in via `3tears-epoch`, and its RBAC-gated server has nothing to

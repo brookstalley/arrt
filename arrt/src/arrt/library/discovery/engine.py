@@ -32,7 +32,7 @@ caller can only see that if the number comes back.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Protocol, runtime_checkable
+from typing import Final, Protocol, runtime_checkable
 
 from arrt.persistence.discovery_records import SpendCategory
 
@@ -50,6 +50,27 @@ class WorkListRequest:
 
     intent_text: str
     search_allowance: int
+    #: The household's taste as `describe_taste` renders it; empty when none is recorded.
+    taste: str = ""
+    #: Works the curator has rejected, newest first. Telling the model saves
+    #: paying for proposals the suppression check would drop; that check stays
+    #: the guard, so a work left off this list is still never proposed again.
+    rejected: Sequence[RejectedWork] = ()
+
+
+#: How many rejected works phase 1 is told, newest first. A household's
+#: rejections grow without bound and every one is resent with every run, so the
+#: list is capped. Leaving an old one out costs at most a proposal paid for and
+#: then suppressed, never a work proposed again.
+REJECTED_TOLD: Final[int] = 100
+
+
+@dataclass(frozen=True, slots=True)
+class RejectedWork:
+    """A work the curator turned down, as phase 1 is told it: its title and artist."""
+
+    title: str
+    artist: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

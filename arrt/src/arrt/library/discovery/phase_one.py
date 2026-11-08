@@ -36,6 +36,7 @@ from arrt.library.discovery.engine import (
     EngineFailure,
     EngineSpend,
     ProposedWork,
+    RejectedWork,
     WorkList,
     WorkListRequest,
 )
@@ -103,6 +104,42 @@ length: a short list of real works is worth more than a long one containing
 plausible titles, because every work here will be shown to the curator to judge.
 """
 
+#: The household's taste, below the request. What was asked for comes first: a
+#: curator who declines Surrealism and asks for Dalí is asking for Dalí.
+TASTE_SECTION: Final[str] = """
+The curator's recorded taste. Where the request leaves room, prefer what they
+like and leave out what they want no more of; where the request names something
+outright, the request wins:
+
+{taste}
+"""
+
+#: The works already turned down. Proposing one again is paid for and then
+#: dropped, so the model is told rather than left to find out.
+REJECTED_SECTION: Final[str] = """
+The curator has already turned these works down. Do not list them again:
+
+{rejected}
+"""
+
+
+def prompt_for(request: WorkListRequest) -> str:
+    """Phase 1's prompt: the request, then the taste and the rejected works when there are any.
+
+    A section with nothing in it is left out rather than sent empty, so a
+    household with no taste recorded is asked exactly what it was asked before.
+    """
+    prompt = PROMPT.format(intent=request.intent_text.strip())
+    if request.taste.strip():
+        prompt += TASTE_SECTION.format(taste=request.taste.strip())
+    if request.rejected:
+        prompt += REJECTED_SECTION.format(rejected="\n".join(_rejected_line(work) for work in request.rejected))
+    return prompt
+
+
+def _rejected_line(work: RejectedWork) -> str:
+    return f"- {work.title}, {work.artist}" if work.artist else f"- {work.title}"
+
 
 class OpenRouterEngine:
     """Phase 1, over a real provider, for real money."""
@@ -126,7 +163,7 @@ class OpenRouterEngine:
         searching = request.search_allowance > 0
         try:
             completion = self._client.complete(
-                prompt=PROMPT.format(intent=request.intent_text.strip()),
+                prompt=prompt_for(request),
                 schema=WORK_LIST_SCHEMA,
                 search_results=self._search_results if searching else 0,
             )
@@ -180,6 +217,8 @@ class OpenRouterEngine:
                 "searched": completion.searched,
                 "citations": len(completion.citations),
                 "works_returned": len(works),
+                "taste_lines_told": len(request.taste.splitlines()),
+                "rejected_told": len(request.rejected),
                 "cost_usd": str(completion.cost_usd),
                 "input_tokens": completion.input_tokens,
                 "output_tokens": completion.output_tokens,

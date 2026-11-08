@@ -105,7 +105,7 @@ veto/override]`
   `/mcp` from inside that LAN, as the household's MCP clients do today.
 - **`data-model.md`.** Conversations and affinities were modelled on 2026-08-10;
   verdicts becoming taste, and stated taste, add writers to `Affinity`.
-- **`api-contract.md`.** Ask's scope is read actions only, and `art_taste`'s `set`
+- **`api-contract.md`.** Ask's scope was read actions only, and `art_taste`'s `set`
   refuses `observed`. Ask gains a `stated` write (ruling 1), and review becomes the
   path that writes `observed` (item 2).
 - **`nonfunctional-requirements.md`'s spend norm.** The monthly cap stays the
@@ -121,7 +121,7 @@ Each item gets its own build plan when it starts, as the waves did.
 | | Scope | Notes |
 |---|---|---|
 | **1** | **Taste in Ask and discovery** | Ask's system prompt carries the household's affinities; Ask records taste the curator states, through the same service `art_taste` calls; phase 1's prompt carries taste and the works already rejected. No dependency, no infrastructure. |
-| **2** | **Verdicts become observed taste** | Accept and reject in review write `observed` affinities, at thresholds the owner sets (open question 1). `inferred` writes stay off until then. |
+| **2** | **Verdicts become observed taste** | Accept and reject in review write `observed` affinities, at the owner's thresholds (open question 1, answered 2026-11-08: at least 5, and at least 90% of the verdicts, each way, by artist). `inferred` writes stay off. |
 | **3** | **MCP for the household's own agents** | `art_taste` writes for stated taste and verdicts, and whatever else a household's agent needs to do through MCP what Ask does inside Arrt (open question 5). No credential: the boundary stays the LAN. |
 | **4** | **Unattended agent settings, then Watches** | Settings: whether unattended agent work runs at all, its own monthly allowance under the cap, its cadence and its model. Then Watches, in Arrt, with what they write tagged as written unattended (input to the prompt-injection review Watches owe). The scheduler itself is shared with upgrades (`upgrades.md`), which call no model, so it is not held back by this item; only agent work behind it waits for the settings. |
 | **5** | **Optional Postgres for memory** | Off unless a Postgres address is configured; Arrt works fully without it. Brings 3tears' agent memory (and the 3tears pin from 0.65 forward), an embedding provider's cost, and its permission bundle. Built only when items 1–4 leave a memory need typed taste does not meet. |
@@ -129,8 +129,32 @@ Each item gets its own build plan when it starts, as the waves did.
 
 ## Open questions
 
-1. At what thresholds do verdicts become observed taste (how many rejections of
-   an artist, a style, a period)?
+1. ~~At what thresholds do verdicts become observed taste (how many rejections of
+   an artist, a style, a period)?~~ **Answered 2026-11-08 (the owner): "it should
+   be at least 5, but with at least 90% rejections (100 approvals and 5 rejections
+   is fine)".** Review's verdicts write an observed dislike of a thing only when
+   both hold: at least 5 of its works were rejected, and rejections are at least
+   90% of the accept-and-reject verdicts on its works. 5 rejected beside 100
+   accepted writes nothing. **The rest, ruled the same day** on the advisor's
+   recommendations ("yes, and even artists that are asked for and approved seem
+   like taste. agreed on others"):
+   - **Approvals write an observed like by the mirror rule**: at least 5 accepted,
+     and accepts at least 90% of the verdicts. Approvals from a run whose request
+     named the artist count too (the owner overruled the advisor's exclusion). An
+     observed like is `likes`, never `loves`, which only the curator states.
+   - **Counted by artist only.** A proposed work records its artist's name and
+     sometimes its Wikidata item, never its movement or era.
+   - **An observed judgment never overwrites a `stated` one.**
+   - **An observed dislike is `declines` with `open_to_more` false**; an observed
+     like is open to more.
+   - **An observed judgment is removed when its rule stops holding**, so it
+     always reflects the verdicts as they stand.
+
+   `[DECISION: approvals count even when the request named the artist | the
+   owner: "even artists that are asked for and approved seem like taste". The
+   advisor's concern, recorded so it can be revisited: a learned like steers
+   phase 1 toward that artist, whose works are then approved, which strengthens
+   the like, narrowing discovery over time | user can veto/override]`
 2. May anything a Watch finds while nobody is watching shape taste or a later
    prompt, or only what the curator accepts?
 3. Is the monthly spend cap still meant to come from 3tears, which at 0.89 has

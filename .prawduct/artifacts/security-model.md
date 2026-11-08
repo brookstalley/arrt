@@ -578,8 +578,20 @@ disclosure worth worrying about:
 
 **What web search lets in.** A page in the results is read by the model, so it
 can try to steer the answer: the realistic worst case § Prompt Injection names,
-reached through Ask. It stops at the same place. Ask's tools only read
-(`ASK_SCOPE`), so the agent cannot get, hang, change or delete anything. A card
+reached through Ask. It stops at the same place. Ask's tools read, with one
+write (`ASK_SCOPE`): `art_taste`'s `set`, which records a `stated` judgment. The
+agent cannot get, hang or change any art, and cannot delete anything. **A steered
+page could make it write or overwrite a judgment** the curator never stated
+(since 2026-11-08, `agents-and-memory.md` ruling 1). That is accepted, knowing
+that a judgment is not only stored: it is told, verbatim, to every later Ask
+reply and every paid phase 1 run until it is corrected. The write spends
+nothing itself, shows in the thread as it is made ("Recording your taste: …"),
+is counted in the reply's log line beside its thread id (`taste_writes`), and is
+corrected on Taste. What it can cost later is bounded: each name and rationale is
+told at most `TASTE_TEXT_TOLD` characters, and at most `TASTE_TOLD` judgments are
+told (`library/services/taste.py`). The prompt tells the agent to record only what the
+curator says in the conversation, which is a request to the model, not a bound.
+Fencing tool results (`agents-and-memory.md` item 6) is the later, weak one. A card
 is offered only for an item a tool returned from the library or Wikidata, never
 for one the model names on its own, and a Get is the curator's press on it.
 

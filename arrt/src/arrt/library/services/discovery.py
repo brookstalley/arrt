@@ -719,6 +719,10 @@ class DiscoveryService:
         self.get_run(run_id)
         return self._store.list_candidate_works(run_id)
 
+    def rejected_works(self, limit: int) -> Sequence[CandidateWork]:
+        """The works the curator turned down, newest first, each once, at most `limit`."""
+        return self._store.list_rejected_works(limit)
+
     def is_work_suppressed(self, work_dedup_key: str) -> bool:
         """Whether this work has already been proposed and declined.
 

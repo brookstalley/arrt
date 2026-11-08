@@ -9,7 +9,7 @@ and the backup path restores whatever the file actually holds.
 
 import sqlite3
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -551,3 +551,30 @@ def test_phase_ones_word_on_a_source_survives_the_file_with_no_word_kept_apart(t
 )
 def test_a_work_is_confirmed_by_a_source_or_by_where_it_came_from_and_no_word_is_never_confirmed(provenance, said, confirmation):
     assert _work(provenance=provenance, source_confirmed=said).confirmation is confirmation
+
+
+def test_rejected_works_are_the_newest_decisions_first_one_per_work_and_bounded(tmp_path):
+    """What phase 1 is told not to propose: rejected only, each work once at its latest rejection."""
+    store = SqliteDiscovery(open_catalogue_file(tmp_path / "catalogue.sqlite"))
+    store.add_run(_run())
+    store.add_run(_run(id="r2"))
+
+    def decided(minutes: int) -> datetime:
+        return _STARTED + timedelta(minutes=minutes)
+
+    for id_, run, key, verdict, minutes in [
+        ("old", "r1", "a::old", Verdict.REJECTED, 1),
+        ("again-early", "r1", "a::twice", Verdict.REJECTED, 2),
+        ("again-late", "r2", "a::twice", Verdict.REJECTED, 9),
+        ("newest", "r2", "a::newest", Verdict.REJECTED, 5),
+        ("kept", "r1", "a::kept", Verdict.ACCEPTED, 20),
+        ("wanted", "r1", "a::wanted", Verdict.WANTED, 21),
+    ]:
+        store.add_candidate_work(
+            _work(id=id_, discovery_run_id=run, work_dedup_key=key, verdict=verdict, decided_at=decided(minutes))
+        )
+    store.add_candidate_work(_work(id="pending", work_dedup_key="a::pending"))
+
+    assert [work.id for work in store.list_rejected_works(10)] == ["again-late", "newest", "old"]
+    assert [work.id for work in store.list_rejected_works(2)] == ["again-late", "newest"]
+    assert store.list_rejected_works(0) == ()
