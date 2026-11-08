@@ -1347,8 +1347,8 @@ discovery consults.
 
 > **Direction, 2026-11-08 (`agents-and-memory.md` rulings 1 and 4, items 1–3).**
 > Ask and discovery's phase 1 read affinities; Ask and a household's own agent
-> over MCP write `stated` ones; review's verdicts write `observed` ones, at
-> thresholds still to be ruled. Ask reads them and writes `stated` ones since
+> over MCP write `stated` ones; review's verdicts write `observed` ones, by the
+> owner's rule of 2026-11-08 (`agents-and-memory.md` open question 1). Ask reads them and writes `stated` ones since
 > 2026-11-08 (`build-plan-taste-in-ask.md`), each reply's prompt carrying
 > `describe_taste`'s rendering, and phase 1's prompt carries the same rendering
 > with the newest `REJECTED_TOLD` rejected works. Nothing writes `observed` yet.
