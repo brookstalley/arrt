@@ -68,7 +68,7 @@
 
 ## 2026-10-30: A wall can be deleted (#391)
 
-<!-- prawduct: scope=delete-a-wall -->
+<!-- prawduct: scope=delete-a-wall | release=v0.8.0 -->
 
 **Why:** a wall that was no longer a place stayed on Walls for good: nothing in
 the server could delete one. The owner ruled on 2026-10-30
@@ -113,7 +113,7 @@ Closes #391.
 
 ## 2026-10-30: Walls' Edit… and Scene… read what is true when pressed (#400)
 
-<!-- prawduct: scope=walls-stale-edit -->
+<!-- prawduct: scope=walls-stale-edit | release=v0.8.0 -->
 
 **Why:** a wall's *Edit…* was drawn from the page's last paint, so one opened
 after a write the page had not repainted for (another dialog's, or one made over
@@ -135,9 +135,10 @@ in it. Walls does not poll, so the window lasted until the next repaint.
   wait for it to open.
 
 Closes #400.
+
 ## 2026-10-30: A session without the Prawduct plugin says so at start
 
-<!-- prawduct: scope=install-tripwire -->
+<!-- prawduct: scope=install-tripwire | release=v0.8.0 -->
 
 **Why:** a Claude Code profile with no Prawduct install for this repo ran
 ungoverned with nothing saying so (the `install-reference-tripwire-missing`
@@ -151,7 +152,7 @@ advisory).
 
 ## 2026-10-29: Settings › Players, Themes and a theme's page, rebuilt to the page rules (UI pass, part 3)
 
-<!-- prawduct: scope=ui-pass-themes-players -->
+<!-- prawduct: scope=ui-pass-themes-players | release=v0.8.0 -->
 
 **Why:** the last of the three plans that build the owner's rulings of
 2026-10-27 (`ia-proposal.md` § Rulings (2026-10-27), #390). Settings › Clients
@@ -212,7 +213,7 @@ Retires: "Assign it in Settings › Clients", "Change in Settings › Clients", 
 
 ## 2026-10-29: Artworks and a work's page, rebuilt to the page rules (UI pass, part 2)
 
-<!-- prawduct: scope=ui-pass-work-artworks -->
+<!-- prawduct: scope=ui-pass-work-artworks | release=v0.8.0 -->
 
 **Why:** the second of the three plans that build the owner's rulings of
 2026-10-27 (`ia-proposal.md` § Rulings (2026-10-27), #389). Artworks and Work
@@ -260,7 +261,7 @@ held, an archived and a not-held work.
 
 ## 2026-10-28: The browser suite's `open` loads the page again, and `navigate` moves within it
 
-<!-- prawduct: scope=fix-hanging-badge-race -->
+<!-- prawduct: scope=fix-hanging-badge-race | release=v0.8.0 -->
 
 **Why:** `test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour` failed once
 in #394's CI, and locally about once in twelve runs, with "assert 'on Study' in '▲ No
