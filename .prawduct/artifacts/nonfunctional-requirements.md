@@ -544,6 +544,10 @@ curator every judgement they have already made. So:
 
 ## Cost Constraints
 
+> **Direction, 2026-11-08 (`agents-and-memory.md` ruling 5).** Agent work that
+> runs with nobody watching gets its own settings: whether it runs at all, and
+> its own monthly allowance under this ceiling. The ceiling itself is unchanged.
+
 **Hard ceiling: USD 20/month on all LLM and search spend, failing closed.** No
 cloud hosting costs; both planes run on hardware already owned; electricity only.
 

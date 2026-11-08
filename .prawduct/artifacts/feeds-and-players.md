@@ -72,6 +72,11 @@ it".
 
 ## Rulings (2026-10-08)
 
+> **2026-11-08 (`agents-and-memory.md` ruling 6).** Public channels may also be
+> served by a running Arrt in a public deployment: the public themes and their
+> artwork for anonymous Players, with no web UI, no MCP and nothing agentic. Not
+> soon; its own requirements cycle when it comes.
+
 The owner approved the builder's proposals "on all counts". Each row says whose
 proposal it was.
 
