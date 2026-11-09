@@ -10,15 +10,27 @@ import json
 import logging
 import threading
 import time
+from decimal import Decimal
 
 import httpx
 import pytest
 from fakes import FakeRegistry
 from openrouter.errors import ForbiddenResponseError, ForbiddenResponseErrorData
-from scripted_model import COST_PER_REPLY, HeldModel, ScriptedModel, calls, says
+from scripted_model import (
+    ANSWERED_BY,
+    COST_PER_REPLY,
+    INPUT_TOKENS_PER_REPLY,
+    OUTPUT_TOKENS_PER_REPLY,
+    HeldModel,
+    ScriptedModel,
+    calls,
+    says,
+)
 
 from arrt.config import DEFAULT_ASK_STEP_LIMIT
 from arrt.library.registry import CommonsFile, ItemId, RegistryCreator, RegistryPerson, RegistryText, RegistryWorkMatch
+from arrt.mcp.server import dispatch
+from arrt.persistence.discovery_records import SpendCategory
 
 HUNTERS = "Q500985"
 HARVESTERS = "Q1050250"
@@ -187,6 +199,25 @@ def test_a_reply_is_logged_with_its_steps_and_cost(server_url, ask_model, caplog
     assert "steps=2" in line
     assert "tool_calls=1" in line
     assert f"cost_usd={2 * COST_PER_REPLY:.5f}" in line
+
+
+def test_what_a_reply_spent_is_in_the_months_spend(server_url, ask_model, services, discovery_store):
+    """The month figure `art_discovery(action='spend')` reports includes Ask, as discovery's and the mat's spend are."""
+    before = Decimal(dispatch(services, "art_discovery", {"action": "spend"})["cost_usd"])
+    ask_model.replies += [calls(SEARCH), says("Done.")]
+
+    send(server_url, open_thread(server_url), "Bruegel")
+
+    after = Decimal(dispatch(services, "art_discovery", {"action": "spend"})["cost_usd"])
+    assert after - before == 2 * Decimal(str(COST_PER_REPLY))
+    [row] = [record for record in discovery_store.list_spend_records() if record.category == SpendCategory.ASK_TOKENS]
+    assert row.discovery_run_id is None
+    assert row.artwork_id is None
+    assert (row.model_id, row.input_tokens, row.output_tokens) == (
+        ANSWERED_BY,
+        2 * INPUT_TOKENS_PER_REPLY,
+        2 * OUTPUT_TOKENS_PER_REPLY,
+    )
 
 
 def test_an_unknown_thread_is_a_404(server_url):

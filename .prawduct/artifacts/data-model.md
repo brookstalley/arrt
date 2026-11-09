@@ -2143,7 +2143,7 @@ path consults it before spending.
 | `id` | UUID | PK | |
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below. Nothing writes `conversation_tokens` since 2026-10-09**, and its rows still read and count. |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` \| `ask_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below. Nothing writes `conversation_tokens` since 2026-10-09**, and its rows still read and count. **`ask_tokens` is one row per Ask reply that was billed anything** (#337). |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -2153,9 +2153,11 @@ path consults it before spending.
 > **`conversation_tokens` ships with its producer or not at all (2026-08-10).**
 > *Its producer, the stored conversation, was retired on 2026-10-09; the rows it
 > wrote stay in every month total, and `SpendRecord.conversation_turn_id`, which
-> cited the turn, was dropped with the turns. Ask's replies write no row, because
-> the provider's own month figure already includes them and a per-reply record
-> belongs with the 3tears spending cap (`build-plan-ask-agent.md`, chunk 03).*
+> cited the turn, was dropped with the turns. Ask's replies write `ask_tokens`, one
+> row per reply that was billed anything, with no run and no artwork: the owner
+> ruled on 2026-10-09 (#337) that Ask's spend counts in the month's total, rather
+> than being left to the provider's own figure. A reply stopped at the step limit,
+> refused or abandoned still writes what its calls were billed before it stopped.*
 > The category and its FK exist because intent-forming spends real money — a model
 > call per turn, plus whatever the sample lookups cost — and Q4 asks what was spent
 > and on what. The rule is written here because this table already carries one

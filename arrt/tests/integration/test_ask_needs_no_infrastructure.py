@@ -36,7 +36,7 @@ def dispatch(name, arguments):
 async def main():
     model = ScriptedModel(replies=[calls(("art_discovery", {"action": "search", "q": "bruegel"})), says("[Q500985]")])
     search = create_web_search_tool({"base_url": "http://127.0.0.1:9"}, "Search the web.")
-    ask = Ask(dispatch, model, step_limit=8, local_tools=[search])
+    ask = Ask(dispatch, model, step_limit=8, record_cost=lambda _cost: None, local_tools=[search])
     thread = ask.threads.open()
     return [json.loads(line) async for line in ask.reply(thread, "Bruegel")]
 

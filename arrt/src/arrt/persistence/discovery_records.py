@@ -302,8 +302,8 @@ class SpendCategory(StrEnum):
 
     `CONVERSATION_TOKENS` is what the retired intent-forming conversation spent.
     Nothing writes it now, and it stays so those rows still read and still count
-    in the month: the money was spent. Ask's replies write no row; the
-    provider's own month figure already includes them.
+    in the month: the money was spent. `ASK_TOKENS` is what Ask's replies
+    spend, one row per reply that was billed anything.
     """
 
     DISCOVERY_TOKENS = "discovery_tokens"
@@ -311,6 +311,7 @@ class SpendCategory(StrEnum):
     IMAGE_RESEARCH = "image_research"
     MAT_COLOR_VISION = "mat_color_vision"
     CONVERSATION_TOKENS = "conversation_tokens"
+    ASK_TOKENS = "ask_tokens"
 
 
 @dataclass(frozen=True, slots=True)
