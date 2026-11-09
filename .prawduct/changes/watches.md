@@ -56,4 +56,7 @@ MCP can write and switch on Watches (`art_watches`), as it can change settings;
 each write says which surface made it. The scheduler starts with the server.
 An earlier release ignores the new table and column, so rolling back starts
 cleanly and runs no Watches. `GET /api/health` gains `watches`; runs gain
-`watch_id`; `WatchOut` is new.
+`watch_id`; `WatchOut` is new. A setting's `source` on `/api/settings` and in
+`art_settings` gains a fourth value, `set_aside` (a stored choice this release
+or deployment no longer allows, so the default applies), with a new
+`set_aside_reason`; a client reading `source` should expect it.
