@@ -1,5 +1,6 @@
 """A household's Watches: what is stored, what is refused, and what a Watch reads from the settings."""
 
+import dataclasses
 import logging
 import sqlite3
 from datetime import UTC, datetime, timedelta
@@ -8,7 +9,8 @@ from decimal import Decimal
 import pytest
 
 from arrt.library.services.settings import Cadence, SettingsService
-from arrt.library.services.watches import MAX_INTENT_CHARS, WatchService
+from arrt.library.services.unattended import Refusal, UnattendedAllowance
+from arrt.library.services.watches import MAX_INTENT_CHARS, RETRY_AFTER, WatchRefusal, WatchService
 from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy, RunKind, RunStatus
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
@@ -46,8 +48,20 @@ def clock() -> Clock:
 
 
 @pytest.fixture
-def watches(discovery, settings, clock) -> WatchService:
-    return WatchService(discovery, settings, now=clock)
+def working() -> set[str]:
+    """The runs a test says this process is working on, as the runner would."""
+    return set()
+
+
+@pytest.fixture
+def watches(discovery, settings, clock, working) -> WatchService:
+    return WatchService(
+        discovery,
+        settings,
+        UnattendedAllowance(settings, discovery, has_key=True, now=clock),
+        working_on=lambda run_id: run_id in working,
+        now=clock,
+    )
 
 
 def allowance(settings: SettingsService, amount: str) -> None:
@@ -254,8 +268,102 @@ def test_a_catalogue_file_from_before_watches_opens_and_gains_the_table_and_the_
     try:
         discovery = SqliteDiscovery(reopened)
         assert discovery.get_run("before").watch_id is None
-        service = WatchService(discovery, SettingsService(discovery))
+        settings = SettingsService(discovery)
+        service = WatchService(
+            discovery, settings, UnattendedAllowance(settings, discovery, has_key=True), working_on=lambda _run_id: False
+        )
         written = service.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
         assert service.list() == [written]
     finally:
         reopened.close()
+
+
+# -- when a Watch is next due, by how its last run stands --------------------------------
+
+
+def with_last_run(watches, discovery, clock, status: RunStatus, *, ago: timedelta):
+    """A Watch whose last attempt, `ago`, started a run that now stands at `status`."""
+    watch = watches.create(intent_text=WORDS, cadence="daily", surface=InitiatedBy.WEB_UI)
+    run = DiscoveryRun(
+        id=f"run-{status}",
+        kind=RunKind.DISCOVERY,
+        initiated_by=InitiatedBy.UNATTENDED,
+        status=status,
+        approval_required=False,
+        started_at=clock.at,
+        intent_text=WORDS,
+        watch_id=watch.id,
+    )
+    discovery.add_run(run)
+    watches.record_started(watch.id, run.id)
+    clock.at += ago
+    return watches.get(watch.id)
+
+
+#: The endings the plan names as "due again soon": nothing asked for was done.
+#: Written out rather than read from `_DID_NOT_FINISH`, so dropping one there fails here.
+NOT_FINISHED = (RunStatus.FAILED, RunStatus.INTERRUPTED, RunStatus.HALTED_BY_BUDGET)
+
+
+@pytest.mark.parametrize("status", NOT_FINISHED)
+def test_a_run_that_did_not_finish_leaves_its_watch_due_again_after_an_hour(watches, discovery, clock, status):
+    watch = with_last_run(watches, discovery, clock, status, ago=timedelta(minutes=61))
+
+    standing = watches.standing(watch)
+    assert standing.next_due_at == watch.last_attempt_at + RETRY_AFTER
+    assert [due.watch.id for due in watches.due()] == [watch.id]
+    assert "tried again within the hour" in standing.sentence
+
+
+@pytest.mark.parametrize("status", sorted(status for status in RunStatus if status.is_terminal and status not in NOT_FINISHED))
+def test_a_run_that_ended_any_other_way_leaves_its_watch_due_a_cadence_on(watches, discovery, clock, status):
+    watch = with_last_run(watches, discovery, clock, status, ago=timedelta(minutes=61))
+
+    assert watches.standing(watch).next_due_at == watch.last_attempt_at + timedelta(days=1)
+    assert watches.due() == []
+
+
+@pytest.mark.parametrize("status", sorted(RunStatus))
+def test_every_way_a_last_run_stands_has_its_own_sentence(watches, discovery, clock, status):
+    watch = with_last_run(watches, discovery, clock, status, ago=timedelta(minutes=1))
+
+    sentence = watches.standing(watch).sentence
+
+    assert not sentence.startswith("Its last run is "), f"{status} has no sentence of its own"
+
+
+def test_a_run_this_process_is_working_on_holds_its_watch_and_one_resting_does_not(watches, discovery, clock, working):
+    watch = with_last_run(watches, discovery, clock, RunStatus.RESOLVING_IMAGES, ago=timedelta(days=2))
+    working.add(watch.last_run_id)
+
+    held = watches.standing(watch)
+    assert (held.in_flight, held.next_due_at, held.sentence) == (True, None, "Running now.")
+
+    working.clear()
+    resting = watches.standing(watch)
+    assert resting.in_flight is False
+    assert [due.watch.id for due in watches.due()] == [watch.id]
+
+
+def test_overdue_is_an_hour_untried_past_due_whatever_the_cadence(watches, discovery, clock, settings):
+    settings.set("unattended_work", "on", surface=InitiatedBy.WEB_UI)
+    weekly = watches.create(intent_text=WORDS, cadence="weekly", surface=InitiatedBy.WEB_UI)
+
+    clock.at += timedelta(minutes=59)
+    assert watches.standing(weekly).overdue is False
+    clock.at += timedelta(minutes=2)
+    assert watches.standing(weekly).overdue is True
+
+
+@pytest.mark.parametrize("refusal", sorted(Refusal))
+def test_every_reason_the_allowance_refuses_is_a_reason_a_watch_can_store(refusal):
+    assert WatchRefusal(str(refusal))
+
+
+def test_a_refusal_this_release_does_not_know_still_reads(watches, discovery):
+    watch = watches.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
+    discovery.update_watch(dataclasses.replace(watch, last_attempt_at=watch.created_at, last_refusal="a_later_reason"))
+
+    standing = watches.standing(watches.get(watch.id))
+
+    assert standing.sentence == "Not run: a_later_reason."

@@ -3128,7 +3128,7 @@ its words alone and there is one policy.
 | `created_by`, `updated_by` | `InitiatedBy` | The surface that wrote it, for tracing a surprise (`security-model.md` § The unattended trigger fired). |
 | `last_attempt_at` | timestamp or null | The last pass that judged it due, whether it started or was refused. Written by the scheduler. |
 | `last_run_id` | run id or null | Its last started run. That run's status is its outcome, never copied here. |
-| `last_refusal` | text or null | `off` \| `no_key` \| `allowance_spent` \| `cap_spent`, from the last attempt that did not start. Null when the last attempt started. |
+| `last_refusal` | text or null | `off` \| `no_key` \| `allowance_spent` \| `cap_spent` \| `could_not_start` (`WatchRefusal`), from the last attempt that did not start. Null when the last attempt started. |
 
 **`DiscoveryRun.watch_id`**, nullable, with no foreign key: the Watch whose pass
 started the run, which outlives the Watch. What a Watch spent is read through it,

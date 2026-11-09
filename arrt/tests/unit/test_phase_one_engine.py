@@ -628,3 +628,21 @@ def test_each_section_is_sent_only_when_it_has_something_in_it(taste, rejected, 
 
     assert present in prompt
     assert absent not in prompt
+
+
+# -- which model phase 1 asks -----------------------------------------------------------
+
+
+def test_a_request_naming_a_model_is_sent_to_that_model_and_one_naming_none_to_the_engines():
+    sent: list[str] = []
+    answer = responding({"strategy": "s", "works": []})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content)["model"])
+        return answer(request)
+
+    engine = engine_over(handler)
+    engine.enumerate_works(WorkListRequest(intent_text="x", search_allowance=1, model="some-lab/a-cheaper-model"))
+    engine.enumerate_works(asked())
+
+    assert sent == ["some-lab/a-cheaper-model", "deepseek/deepseek-v4-flash"]

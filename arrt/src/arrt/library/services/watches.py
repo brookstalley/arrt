@@ -23,9 +23,10 @@ to be traceable to whoever made it.
 import logging
 import uuid
 from collections.abc import Callable, Sequence
-from dataclasses import replace
-from datetime import UTC, datetime
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from enum import StrEnum
 from typing import Final
 
 from arrt.library.services.settings import (
@@ -36,13 +37,80 @@ from arrt.library.services.settings import (
     SettingsService,
     dollars,
 )
+from arrt.library.services.unattended import Refusal, UnattendedAllowance
 from arrt.persistence.discovery import DiscoveryStore
-from arrt.persistence.discovery_records import InitiatedBy, Watch
+from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy, RunStatus, Watch
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member, require_text
 from arrt.services.store import store_write
 
 log = logging.getLogger(__name__)
+
+#: How long each cadence waits between a Watch's starts.
+INTERVAL: Final[dict[Cadence, timedelta]] = {
+    Cadence.HOURLY: timedelta(hours=1),
+    Cadence.DAILY: timedelta(days=1),
+    Cadence.WEEKLY: timedelta(weeks=1),
+}
+
+#: How soon a Watch whose last attempt was refused, or whose last run did not
+#: finish, is tried again: at the next pass after this, not at its full interval
+#: (tacularr's "due again soon", `upgrades.md`), and never sooner, so a Watch
+#: that keeps failing costs at most one attempt an hour.
+RETRY_AFTER: Final[timedelta] = timedelta(hours=1)
+
+#: How long past due a Watch may go untried before it reads as overdue. A live
+#: scheduler tries a due Watch within one pass (`scheduler.PASS_SECONDS`, five
+#: minutes), so an hour untried is a scheduler that has stopped, whatever the
+#: Watch's cadence: a weekly Watch must not take a week to say so.
+OVERDUE_AFTER: Final[timedelta] = timedelta(hours=1)
+
+#: How a run ending this way leaves its Watch: due again soon, because nothing
+#: it was asked for was done. A cancelled run was someone's choice and waits the
+#: full interval, as a completed one does.
+_DID_NOT_FINISH: Final[frozenset[RunStatus]] = frozenset({RunStatus.FAILED, RunStatus.INTERRUPTED, RunStatus.HALTED_BY_BUDGET})
+
+
+class WatchRefusal(StrEnum):
+    """Why a Watch that was due did not start: the allowance's reasons, its own cap, or a start that failed."""
+
+    OFF = str(Refusal.OFF)
+    NO_KEY = str(Refusal.NO_KEY)
+    ALLOWANCE_SPENT = str(Refusal.ALLOWANCE_SPENT)
+    CAP_SPENT = "cap_spent"
+    COULD_NOT_START = "could_not_start"
+
+
+_REFUSED: Final[dict[str, str]] = {
+    WatchRefusal.OFF: "Not run: unattended work is off in Settings › General.",
+    WatchRefusal.NO_KEY: "Not run: there is no model key to spend with.",
+    WatchRefusal.ALLOWANCE_SPENT: "Not run: this month's unattended allowance is spent.",
+    WatchRefusal.CAP_SPENT: "Not run: this Watch's monthly cap is spent.",
+    WatchRefusal.COULD_NOT_START: "Not run: discovery could not start. The server log says why.",
+}
+
+
+@dataclass(frozen=True)
+class WatchStanding:
+    """Where one Watch stands: what it last did, when it is next due, and what it has spent this month."""
+
+    watch: Watch
+    cadence: Cadence
+    #: The status of its last started run, or None when it has started none
+    #: (or that run is gone).
+    last_run_status: RunStatus | None
+    #: When it is next due, or None while it is off or a run of it is in flight.
+    next_due_at: datetime | None
+    #: On, unattended work switched on, and due for longer than `OVERDUE_AFTER`
+    #: with nothing started or refused: the sign that the scheduler has stopped.
+    overdue: bool
+    spent_usd: Decimal
+    cap_usd: Decimal
+    #: Whether this process is working on its last run now.
+    in_flight: bool
+    #: One sentence for the screen and the tool.
+    sentence: str
+
 
 #: The longest a Watch's words may be. An Ask's request is a sentence or two; a
 #: bound keeps a pasted page from becoming a standing prompt resent every pass.
@@ -56,11 +124,18 @@ class WatchService:
         self,
         store: DiscoveryStore,
         settings: SettingsService,
+        unattended: UnattendedAllowance,
         *,
+        working_on: Callable[[str], bool],
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._store = store
         self._settings = settings
+        self._unattended = unattended
+        #: Whether this process is working on a run (`DiscoveryRunner.is_working_on`).
+        #: What "in flight" means for a Watch, because a run's status can name a
+        #: phase nothing here advances: phase 2 with no image engine wired.
+        self._working_on = working_on
         self._now = now
 
     # -- reads ----------------------------------------------------------------
@@ -87,6 +162,55 @@ class WatchService:
         if watch.monthly_cap_usd is None:
             return allowance
         return min(watch.monthly_cap_usd, allowance)
+
+    def standing(self, watch: Watch) -> WatchStanding:
+        """Where `watch` stands now. The scheduler and the screen both read it, so they agree on "due"."""
+        now = self._now()
+        cadence = self.cadence_of(watch)
+        run = None if watch.last_run_id is None else self._store.get_run(watch.last_run_id)
+        last_status = None if run is None else run.status
+        in_flight = run is not None and not run.status.is_terminal and self._working_on(run.id)
+        due_at = None if not watch.enabled or in_flight else _next_due(watch, cadence, run)
+        overdue = due_at is not None and now - due_at > OVERDUE_AFTER and self._unattended.standing().switched_on
+        return WatchStanding(
+            watch=watch,
+            cadence=cadence,
+            last_run_status=last_status,
+            next_due_at=due_at,
+            overdue=overdue,
+            spent_usd=self._unattended.spent_by_watch_this_month(watch.id),
+            cap_usd=self.effective_cap(watch),
+            in_flight=in_flight,
+            sentence=_sentence(watch, last_status, in_flight=in_flight, overdue=overdue),
+        )
+
+    def due(self) -> Sequence[WatchStanding]:
+        """The Watches due to be tried now, in the order they were written."""
+        now = self._now()
+        standings = (self.standing(watch) for watch in self.list())
+        return [standing for standing in standings if standing.next_due_at is not None and standing.next_due_at <= now]
+
+    # -- the scheduler's bookkeeping ---------------------------------------------
+
+    def record_started(self, watch_id: str, run_id: str) -> None:
+        """A pass started a run of this Watch. Not a household edit, so `updated_*` stay."""
+        self._record(watch_id, last_run_id=run_id, last_refusal=None)
+
+    def record_refused(self, watch_id: str, refusal: WatchRefusal) -> None:
+        """A pass found this Watch due and did not start it, for `refusal`."""
+        self._record(watch_id, last_refusal=str(refusal))
+
+    def _record(self, watch_id: str, **fields: str | None) -> None:
+        # Read and written in one transaction, so a household's edit landing in
+        # the same moment is neither lost nor overwritten by stale fields.
+        with self._store.transaction():
+            current = self._store.get_watch(watch_id)
+            if current is None:
+                # Deleted between the pass reading it and writing this: there is
+                # nothing to record against, and a run already started keeps its
+                # `watch_id` as history.
+                return
+            store_write(self._store.update_watch, replace(current, last_attempt_at=self._now(), **fields))
 
     # -- writes ---------------------------------------------------------------
 
@@ -204,3 +328,45 @@ def _cadence(raw: str) -> str | None:
     except ValueError as exc:
         allowed = ", ".join(str(member) for member in Cadence)
         raise ServiceError(f"A Watch's cadence is one of {allowed}, or empty for the household's default; got {raw!r}.") from exc
+
+
+def _next_due(watch: Watch, cadence: Cadence, last_run: DiscoveryRun | None) -> datetime:
+    """When `watch` is next due: at once if never tried, soon after a refusal or an unfinished run, else a cadence on."""
+    if watch.last_attempt_at is None:
+        return watch.created_at
+    again_soon = watch.last_refusal is not None or (last_run is not None and last_run.status in _DID_NOT_FINISH)
+    wait = min(INTERVAL[cadence], RETRY_AFTER) if again_soon else INTERVAL[cadence]
+    return watch.last_attempt_at + wait
+
+
+def _sentence(watch: Watch, last_status: RunStatus | None, *, in_flight: bool, overdue: bool) -> str:
+    """One sentence for where a Watch stands, the first that applies, in this order."""
+    if not watch.enabled:
+        return "Off: this Watch does not run until it is switched on."
+    if overdue:
+        return "Overdue: this Watch has been due for over an hour and has not been tried. The scheduler may have stopped."
+    if in_flight:
+        return "Running now."
+    if watch.last_refusal is not None:
+        # Read by its value, never constructed from it: a refusal a later
+        # release stored must not make this Watch, or the pass, unreadable.
+        return _REFUSED.get(watch.last_refusal, f"Not run: {watch.last_refusal}.")
+    if watch.last_attempt_at is None:
+        return "Not run yet: it runs at the next pass."
+    return _LAST_RUN.get(last_status) or f"Its last run is {last_status}."
+
+
+#: What a Watch's last run says of it, by how that run stands; None is a run no
+#: longer recorded.
+_LAST_RUN: Final[dict[RunStatus | None, str]] = {
+    None: "Its last run is no longer recorded.",
+    RunStatus.COMPLETED: "Last run finished; what it found is in To review.",
+    RunStatus.FAILED: "Last run failed, and it will be tried again within the hour.",
+    RunStatus.INTERRUPTED: "Last run was interrupted by a restart, and it will be tried again within the hour.",
+    RunStatus.HALTED_BY_BUDGET: "Last run stopped at the month's budget, and it will be tried again within the hour.",
+    RunStatus.CANCELLED: "Last run was cancelled.",
+    RunStatus.DECLINED: "Last run was declined.",
+    RunStatus.AWAITING_APPROVAL: "Last run is waiting for approval in Activity.",
+    RunStatus.RESOLVING_WORKS: "Last run is still listed as asking, though nothing is working on it now.",
+    RunStatus.RESOLVING_IMAGES: "Last run proposed its works; finding their images is not set up here.",
+}

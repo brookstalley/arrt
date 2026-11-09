@@ -591,7 +591,8 @@ function sentence(event, wallNames, titles) {
  *
  * **Getting again is manual and free.** It asks museum and Commons APIs,
  * which cost nothing (`phase2_estimate_usd`), and its tier says so beside the
- * button; a scheduled one waits for Watches. Commons is asked only by Wikidata
+ * button; a scheduled one waits for the upgrades job (#178), which the
+ * scheduler that runs Watches is built to take. Commons is asked only by Wikidata
  * item, so Get again on a work with no item first offers Wikidata's matches to
  * pick from — the curator's pick, never a match by title (`data-model.md`
  * § Registry identity). Two calls the client makes, the pick then the Get,

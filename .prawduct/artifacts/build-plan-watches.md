@@ -136,6 +136,34 @@ work (ruling 5).
 - Chunk 03: a cap is refused while the allowance is below it, even at $0.00, with a
   refusal naming where to raise the allowance. Settled by the allowance's own rule
   under the budget ("refused when written, read as the bound").
+- Chunk 04: the unattended model reaches phase 1 as `WorkListRequest.model`, passed
+  per call to the client (`model=` on `complete`), not through a second engine.
+  Settled by "do it right": one engine, one client, and nothing else differs.
+- Chunk 04: a Watch's run is in flight only while the runner has it in hand
+  (`DiscoveryRunner.is_working_on`), never because its status is not terminal. On a
+  deployment with no image engine a run rests in `resolving_images` for good, and a
+  status-only rule would have held its Watch for ever. Found by the suite, whose
+  container wires no phase 2. The goals did not foresee this.
+- Chunk 04: a pass every five minutes (`PASS_SECONDS`), the first at start. Settled
+  by hourly being the finest cadence. Inferred.
+- Chunk 04: `could_not_start` is a fifth refusal, for a start the runner refused
+  (no engine). Settled by "each refusal is stored with its reason".
+- Chunk 04: overdue is an hour past due with nothing tried (`OVERDUE_AFTER`), not
+  one cadence. Settled by what overdue is for: a live scheduler tries a due Watch
+  within a pass, and a weekly Watch must not take a week to show a dead one. Found
+  by the Chunk 04 review.
+- Chunk 04: a pass prices each start on top of what it has already started that
+  pass, so several due Watches cannot all start on room for one. Found by the
+  Chunk 04 review.
+- Chunk 04: a Watch's run is estimated at the discovery model's price, not the
+  unattended model's, which Arrt has no price for. Accepted: the estimate is the
+  look-ahead, the spend recorded after each run is what the next check reads, and
+  the provider's key limit is the ceiling. Revisit if a dearer unattended model
+  is seen passing its cap by more than a run.
+- Chunk 04: nothing tests that the deployment entry point passes `schedule=True`;
+  `__main__` has no test for its `create_app` flags (the topic sweep and the queue
+  are in the same position). Recorded rather than built here, because the entry
+  point calls `uvicorn.run` and a test of it is its own piece of work.
 
 **Level:** Medium. The runner, the allowance and the settings exist and are
 tested. A Watch is mostly storage, a scheduler and a screen. What could move:
@@ -263,7 +291,7 @@ back the same from the route.
 Critic mode: final. This is the keystone, the first thing that spends with
 nobody watching.
 
-- `http/static/screens/activity.js`: the comment saying a scheduled Get-again
+- `arrt/src/arrt/http/static/screens/activity.js`: the comment saying a scheduled Get-again
   "waits for Watches" names the upgrades job instead (Chunk 01's review).
 - Step 0: read how the runner chooses its model, and whether
   `unattended_model` can be given per run. If it cannot, run the Watch on a
@@ -280,7 +308,8 @@ nobody watching.
   at most hourly.
 - `WatchService` reports, per Watch: last outcome, next due, this month's spend,
   and overdue (on, due more than one cadence ago, and not refused by a setting
-  the household chose).
+  the household chose). *(Built as an hour past due with nothing tried, not one
+  cadence: see the decisions above.)*
 - Tests, through the real container with a scripted engine: a due Watch starts
   one run attributed `unattended` with its `watch_id`, and its spend counts
   against both the allowance and its cap; each refusal (off, no key, allowance,

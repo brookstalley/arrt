@@ -56,6 +56,9 @@ class WorkListRequest:
     #: paying for proposals the suppression check would drop; that check stays
     #: the guard, so a work left off this list is still never proposed again.
     rejected: Sequence[RejectedWork] = ()
+    #: The model to ask instead of the engine's own, or None for the engine's.
+    #: A Watch's run asks the household's unattended model (`unattended_model`).
+    model: str | None = None
 
 
 #: How many rejected works phase 1 is told, newest first. A household's

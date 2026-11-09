@@ -367,6 +367,7 @@ def main(argv: Sequence[str] = ()) -> None:
                 services,
                 sweep_topics=True,
                 acquire_queue=True,
+                schedule=True,
                 backup=(
                     None
                     if settings.backup_dir is None
