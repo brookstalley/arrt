@@ -54,7 +54,7 @@ def _server_version() -> str:
 #: that survives is narrower and is the one to state: a work is accepted only on a
 #: verdict against an image a person was actually shown.
 INSTRUCTIONS: Final[str] = (
-    "Curate a Samsung Frame TV's art collection. Five tools, each a noun taking a required "
+    "Curate a Samsung Frame TV's art collection. Each tool is a noun taking a required "
     "'action' string. Every tool answers action='help' with its full action menu, parameters, "
     "a worked example, and tips — start there. art_discovery is the only tool that spends money in "
     "amounts worth authorising; art_catalogue's mat choice spends fractions of a cent. "

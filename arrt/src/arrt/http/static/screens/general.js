@@ -85,6 +85,7 @@ function section(name, members, unattended) {
     el("h2", { text: name }),
     list,
     isUnattended ? el("p", { class: "unattended-standing", text: unattended.sentence }) : null,
+    isUnattended ? el("p", { class: "muted unattended-spend", text: spendWords(unattended) }) : null,
   ]);
 }
 
@@ -122,6 +123,12 @@ function picker(setting, fieldId) {
     if (!changed) control.value = setting.value;
   });
   return control;
+}
+
+/* What unattended work has spent this month against its allowance, whatever the standing:
+ * the sentence above carries figures only when work may run or the allowance is spent. */
+function spendWords(unattended) {
+  return `$${unattended.spent_usd} spent this month of a $${unattended.allowance_usd} allowance; $${unattended.remaining_usd} left.`;
 }
 
 /* A value typed rather than chosen: dollars to the cent, or a model's name. Sent

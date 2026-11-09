@@ -6,10 +6,13 @@ setting the environment gives shows its value and the variable, with no control;
 a refused change is said beside the picker, which returns to the value it had.
 """
 
+from decimal import Decimal
+
 import pytest
 
 from arrt.http.models import SettingListOut, SettingOut
 from arrt.library.dimensions import Units
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.services.settings import LABEL_UNITS
 
 pytest.importorskip(
@@ -107,6 +110,7 @@ def test_a_refused_change_is_said_beside_the_picker_which_returns_to_what_it_was
 # -- unattended work --------------------------------------------------------------
 
 STANDING = ".unattended-standing"
+SPEND = ".unattended-spend"
 
 
 def test_unattended_work_is_its_own_section_off_and_saying_so(ui):
@@ -119,10 +123,11 @@ def test_unattended_work_is_its_own_section_off_and_saying_so(ui):
     assert section.locator("#setting-unattended_allowance_usd").input_value() == "0.00"
     assert section.locator("#setting-unattended_model").get_attribute("placeholder") == "Discovery model"
     assert ui.page.locator(STANDING).inner_text() == "Unattended work is off, so nothing runs with nobody watching."
+    assert ui.page.locator(SPEND).inner_text() == "$0.00 spent this month of a $0.00 allowance; $0.00 left."
     assert ui.page.locator("[data-section='Unattended work'] #setting-label_units").count() == 0, "label units is the page's own"
 
 
-def test_switching_it_on_with_an_allowance_says_it_may_run(ui, services):
+def test_switched_on_with_an_allowance_but_no_key_it_says_the_key_is_missing(ui, services):
     ui.open("#general")
     ui.page.wait_for_selector(STANDING)
 
@@ -136,6 +141,26 @@ def test_switching_it_on_with_an_allowance_says_it_may_run(ui, services):
     assert services.unattended.standing().allowance_usd == 2.5
     # The suite's deployment has no model key, so switched on it is refused for that, said in words.
     assert ui.page.locator(STANDING).inner_text() == "There is no model key, so unattended work has nothing to spend with."
+    assert ui.page.locator(SPEND).inner_text() == "$0.00 spent this month of a $2.50 allowance; $2.50 left."
+
+
+class TestWithAModelKey:
+    @pytest.fixture
+    def key_status(self):
+        return lambda: KeyStatus(limit_usd=Decimal(20), usage_usd=Decimal(1), remaining_usd=Decimal(19))
+
+    def test_switched_on_with_an_allowance_and_a_key_it_says_it_may_run(self, ui):
+        ui.open("#general")
+        ui.page.wait_for_selector(STANDING)
+
+        ui.page.locator("#setting-unattended_work").select_option("on")
+        ui.page.wait_for_selector("[data-setting=unattended_work] .setting-source time")
+        allowance = ui.page.locator("#setting-unattended_allowance_usd")
+        allowance.fill("2.5")
+        allowance.press("Enter")
+        ui.page.wait_for_function("document.querySelector('#setting-unattended_allowance_usd').value === '2.50'")
+
+        assert ui.page.locator(STANDING).inner_text() == "Unattended work may run: $0.00 of this month's $2.50 is spent."
 
 
 def test_an_allowance_that_is_not_an_amount_is_refused_beside_the_field_which_puts_it_back(ui, services):
