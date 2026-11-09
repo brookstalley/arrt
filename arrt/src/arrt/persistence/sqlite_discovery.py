@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS spend_records (
 );
 
 CREATE INDEX IF NOT EXISTS spend_records_by_time ON spend_records(occurred_at);
+CREATE INDEX IF NOT EXISTS spend_records_by_run ON spend_records(discovery_run_id);
 -- The household's chosen settings, one row per setting anyone has changed; a
 -- setting with no row reads as its default. The value is text in the setting's
 -- own spelling, so a new setting needs no column, and a release from before this
@@ -293,7 +294,6 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at  TEXT NOT NULL,
     updated_by  TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS spend_records_by_run ON spend_records(discovery_run_id);
 -- Which works a resolve run covers. Rows are never deleted: coverage records a
 -- fact about the run's scope, which does not change when the run's status does,
 -- and the history of earlier resolve attempts is worth keeping.

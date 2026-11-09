@@ -539,3 +539,12 @@ def test_the_scene_projections_carry_the_same_field_names():
 
     check_parity("Scene", set(projected), _fields(http_models.SceneOut))
     check_parity("SceneWall", set(projected["walls"][0]), _fields(http_models.SceneWallOut))
+
+
+def test_the_setting_projections_agree():
+    """The route's `SettingOut` and `art_settings`' fields, for a stored setting, so every field is filled."""
+    from arrt.library.services.settings import LABEL_UNITS, SettingSource, SettingState
+
+    state = SettingState(LABEL_UNITS, "metric", SettingSource.STORED, WHEN, InitiatedBy.WEB_UI)
+
+    check_parity("Setting", set(bindings._setting_fields(state)), _fields(http_models.SettingOut))

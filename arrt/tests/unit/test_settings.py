@@ -78,15 +78,6 @@ def test_the_environment_wins_over_a_stored_value_and_locks_the_setting(discover
     assert service.value(LABEL_UNITS) is Units.METRIC
 
 
-def test_a_setting_the_environment_leaves_alone_is_not_locked_by_another_it_gives(discovery):
-    """Locking is per setting: a lock keyed on 'the environment gave something' would lock them all."""
-    service = SettingsService(discovery, environment={})
-
-    service.set("label_units", "metric", surface=InitiatedBy.WEB_UI)
-
-    assert state_of(service, "label_units").locked is False
-
-
 def test_an_unknown_setting_is_refused_naming_the_ones_there_are(discovery):
     with pytest.raises(ServiceError, match=r"There is no setting 'units'\. The settings are label_units"):
         SettingsService(discovery).set("units", "metric", surface=InitiatedBy.WEB_UI)

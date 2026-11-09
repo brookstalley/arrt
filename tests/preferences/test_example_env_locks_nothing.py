@@ -28,8 +28,14 @@ def _assigned(text: str) -> set[str]:
 
 
 def test_the_settings_variables_are_found_where_they_are_declared():
-    """Without this, a change to how settings are declared would leave the check below comparing nothing."""
+    """Without this, a change to how settings are declared would leave the check below comparing nothing.
+
+    One variable per `Setting(` declared, so a setting declared some other way
+    fails here by name rather than slipping past the check below.
+    """
+    source = _SETTINGS_MODULE.read_text(encoding="utf-8")
     assert "LABEL_UNITS" in _setting_variables()
+    assert len(_DECLARED.findall(source)) == len(re.findall(r"\bSetting\(", source))
 
 
 def test_the_example_env_file_sets_no_household_setting():

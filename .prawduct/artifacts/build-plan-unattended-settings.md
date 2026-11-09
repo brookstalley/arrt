@@ -217,7 +217,8 @@ Type: cumulative-final.
   it has spent this month against the allowance.
 - `nonfunctional-requirements.md` § Cost Constraints: the 2026-11-08 Direction note
   says where the allowance is built and how it is enforced.
-- Tests: each refusal reason, the month's boundary in UTC, spend from attended runs
+- Tests: a setting the environment gives locks only itself, now that a second
+  setting exists to show it; each refusal reason, the month's boundary in UTC, spend from attended runs
   not counted against the allowance, and an allowance above the monthly budget refused.
 
 **Done when** the three suites and the browser suite are green, the cumulative

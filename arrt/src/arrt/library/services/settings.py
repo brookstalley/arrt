@@ -135,9 +135,11 @@ class SettingsService:
         self._store = store
         # Checked here as well as at startup, so a suite passing a misspelt value
         # fails where it passed it rather than at the first read.
-        self._environment = dict(environment or {})
-        for key, raw in self._environment.items():
-            self._known(key).parse(raw)
+        # Held in each setting's own spelling, as `from_environment` gives it, so
+        # a direct caller's " Metric " reads back as "metric" like any other.
+        self._environment = {
+            key: self._known(key).render(self._known(key).parse(raw)) for key, raw in (environment or {}).items()
+        }
 
     def value[T](self, setting: Setting[T]) -> T:
         """This setting's value now: the environment's, else the stored one, else the default."""
