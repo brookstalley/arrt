@@ -128,7 +128,7 @@ async def finished(server_url: str, run_id: str) -> dict:
 
 
 async def candidates(server_url: str, run_id: str) -> list[dict]:
-    page = (await request("GET", f"{server_url}/api/runs/{run_id}/candidates", timeout=10)).json()
+    page = (await request("GET", f"{server_url}/api/runs/{run_id}/candidates")).json()
     return [card["work"] for card in page["works"]]
 
 
@@ -136,7 +136,7 @@ async def candidates(server_url: str, run_id: str) -> list[dict]:
 
 
 async def test_a_get_starts_one_run_with_a_work_per_item_and_spends_nothing(server_url, commons):
-    response = await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS]}, timeout=10)
+    response = await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS]})
 
     assert response.status_code == 200, response.text
     body = response.json()
@@ -150,7 +150,7 @@ async def test_a_get_starts_one_run_with_a_work_per_item_and_spends_nothing(serv
         ("The Elephants", "chosen", ELEPHANTS),
     ]
     assert sorted(commons.asked) == sorted([ELEPHANTS, SWANS]), "each source is asked by the item"
-    spend = (await request("GET", f"{server_url}/api/runs/{body['run']['run_id']}/spend", timeout=10)).json()
+    spend = (await request("GET", f"{server_url}/api/runs/{body['run']['run_id']}/spend")).json()
     assert Decimal(spend["cost_usd"]) == 0, spend
 
 
@@ -161,7 +161,7 @@ async def test_items_that_cannot_be_got_are_skipped_and_named(server_url, servic
         works=[ChosenWork(qid=SWANS, title="Swans Reflecting Elephants")], initiated_by=InitiatedBy.MCP_CLIENT
     )
 
-    response = await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS, UNKNOWN, NOWHERE]}, timeout=10)
+    response = await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS, UNKNOWN, NOWHERE]})
 
     body = response.json()
     assert body["skipped"] == [
@@ -179,7 +179,7 @@ async def test_a_work_waiting_in_review_is_skipped_by_its_item_or_by_its_title(s
     artist, proposed by name as an Ask proposes. A work given a verdict waits no
     longer, so Nowhere, rejected, is asked for again.
     """
-    first = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)).json()
+    first = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]})).json()
     await finished(server_url, first["run"]["run_id"])
     swans = propose("Swans Reflecting Elephants", proposed_artist="Salvador Dalí")
     discovery_store.update_candidate_work(replace(swans, resolution_status=ResolutionStatus.RESOLVED))
@@ -187,7 +187,7 @@ async def test_a_work_waiting_in_review_is_skipped_by_its_item_or_by_its_title(s
     discovery_store.update_candidate_work(replace(judged, resolution_status=ResolutionStatus.RESOLVED))
     services.discovery.set_verdict(judged.id, Verdict.REJECTED)
 
-    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS, NOWHERE]}, timeout=10)).json()
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS, SWANS, NOWHERE]})).json()
 
     assert body["skipped"] == [{"qid": ELEPHANTS, "reason": "in_review"}, {"qid": SWANS, "reason": "in_review"}]
     assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
@@ -203,7 +203,7 @@ async def test_a_work_held_without_its_item_is_skipped_by_title_and_artist(serve
     dali = next(artist for artist in seeded_service.list_artists() if artist.name == "Salvador Dalí")
     seeded_service.add_artwork(title="Swans Reflecting Elephants", artist_id=dali.id, date_created="1937")
 
-    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [SWANS, NOWHERE]}, timeout=10)).json()
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [SWANS, NOWHERE]})).json()
 
     assert body["skipped"] == [{"qid": SWANS, "reason": "held"}]
     assert [work["wikidata_qid"] for work in await candidates(server_url, body["run"]["run_id"])] == [NOWHERE]
@@ -214,31 +214,29 @@ async def test_a_selection_of_only_held_items_starts_nothing(server_url, service
     services.identity.set_work_identity(held.id, ELEPHANTS)
     before = len(services.discovery.list_runs())
 
-    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)).json()
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]})).json()
 
     assert body == {"run": None, "skipped": [{"qid": ELEPHANTS, "reason": "held"}]}
     assert len(services.discovery.list_runs()) == before
 
 
 async def test_accepting_a_work_a_get_found_records_its_item_on_the_new_artwork(server_url, services):
-    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)).json()
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]})).json()
     await finished(server_url, body["run"]["run_id"])
     (work,) = await candidates(server_url, body["run"]["run_id"])
 
-    verdict = await request(
-        "POST", f"{server_url}/api/candidates/{work['work_id']}/verdict", json={"verdict": "accepted"}, timeout=10
-    )
+    verdict = await request("POST", f"{server_url}/api/candidates/{work['work_id']}/verdict", json={"verdict": "accepted"})
 
     assert verdict.status_code == 200, verdict.text
     artwork = services.catalogue.get_artwork(services.discovery.get_candidate_work(work["work_id"]).artwork_id).artwork
     assert (artwork.wikidata_qid, artwork.wikidata_qid_set_by) == (ELEPHANTS, IdentitySetBy.CURATOR)
-    again = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)).json()
+    again = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]})).json()
     assert again["skipped"] == [{"qid": ELEPHANTS, "reason": "held"}], "the library now holds it"
 
 
 async def test_a_get_that_finds_nothing_completes_rather_than_failing(server_url):
     """A Get is never supplemented, so an unresolved work in it must not reach the offer path."""
-    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [NOWHERE]}, timeout=10)).json()
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [NOWHERE]})).json()
 
     payload = await finished(server_url, body["run"]["run_id"])
 
@@ -269,7 +267,7 @@ async def test_a_finished_get_reports_its_works_as_the_ones_chosen(server_url):
     numbers = payload["works"]
     assert (numbers["chosen"], numbers["proposed"], numbers["offered"], numbers["resolved"]) == (3, 0, 0, 2)
     assert payload["notice"].startswith("This Get finished: 2 of the 3 works you chose have an image."), payload["notice"]
-    view = (await request("GET", f"{server_url}/api/runs/{started['run_id']}", timeout=10)).json()
+    view = (await request("GET", f"{server_url}/api/runs/{started['run_id']}")).json()
     assert (view["tally"]["chosen"], view["tally"]["proposed"]) == (3, 0)
 
 
@@ -349,10 +347,10 @@ def test_a_get_with_no_image_source_is_refused_and_starts_nothing(
 
 async def test_an_item_whose_get_has_ended_can_be_got_again(server_url):
     """Only a Get still under way holds its items; one that found nothing frees them."""
-    first = (await request("POST", f"{server_url}/api/gets", json={"qids": [NOWHERE]}, timeout=10)).json()
+    first = (await request("POST", f"{server_url}/api/gets", json={"qids": [NOWHERE]})).json()
     await finished(server_url, first["run"]["run_id"])
 
-    again = (await request("POST", f"{server_url}/api/gets", json={"qids": [NOWHERE]}, timeout=10)).json()
+    again = (await request("POST", f"{server_url}/api/gets", json={"qids": [NOWHERE]})).json()
 
     assert (again["skipped"], again["run"] is not None) == ([], True)
 
@@ -361,15 +359,13 @@ async def test_a_work_whose_item_the_library_came_to_hold_meanwhile_is_still_acc
     server_url, services, seeded_service, store
 ):
     """Works may share an item (shown as *Held ×2*), so acceptance refuses nothing."""
-    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)).json()
+    body = (await request("POST", f"{server_url}/api/gets", json={"qids": [ELEPHANTS]})).json()
     await finished(server_url, body["run"]["run_id"])
     (work,) = await candidates(server_url, body["run"]["run_id"])
     held = seeded_service.list_artworks().entries[0].artwork
     services.identity.set_work_identity(held.id, ELEPHANTS)
 
-    verdict = await request(
-        "POST", f"{server_url}/api/candidates/{work['work_id']}/verdict", json={"verdict": "accepted"}, timeout=10
-    )
+    verdict = await request("POST", f"{server_url}/api/candidates/{work['work_id']}/verdict", json={"verdict": "accepted"})
 
     assert verdict.status_code == 200, verdict.text
     assert sorted(store.circulating_ids_by_qid()[ELEPHANTS]) == sorted(
@@ -388,7 +384,7 @@ async def test_a_work_whose_item_the_library_came_to_hold_meanwhile_is_still_acc
 def test_a_get_that_cannot_be_asked_is_refused_and_starts_nothing(server_url, services, qids):
     before = len(services.discovery.list_runs())
 
-    response = httpx.post(f"{server_url}/api/gets", json={"qids": qids}, timeout=10)
+    response = httpx.post(f"{server_url}/api/gets", json={"qids": qids})
 
     assert 400 <= response.status_code < 500, response.text
     assert len(services.discovery.list_runs()) == before
@@ -398,7 +394,7 @@ def test_a_get_whose_registry_cannot_be_asked_is_refused_and_starts_nothing(serv
     registry.failing = True
     before = len(services.discovery.list_runs())
 
-    response = httpx.post(f"{server_url}/api/gets", json={"qids": [ELEPHANTS]}, timeout=10)
+    response = httpx.post(f"{server_url}/api/gets", json={"qids": [ELEPHANTS]})
 
     assert 400 <= response.status_code < 500, response.text
     assert "Try again" in response.text, response.text

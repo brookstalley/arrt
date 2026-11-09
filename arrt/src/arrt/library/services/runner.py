@@ -663,15 +663,22 @@ class DiscoveryRunner:
 
         A run waiting for a curator, or one that has ended, therefore answers at
         once, as does one whose worker died with the process that owned it.
+
+        **Whether the run is in flight is asked before the run is read, never
+        after.** A worker writes everything it has to say and only then leaves
+        `_in_flight`, so a run found idle is one whose last write a read made
+        afterwards sees. Asked the other way round, a worker finishing between
+        the read and the question leaves a reading from mid-run going out as
+        the final answer: no estimate, the phase it was in.
         """
         deadline = monotonic() + STATUS_HOLD_SECONDS
         with self._changed:
             seen = self._generation
         while True:
-            view = self._view(run_id)
-            remaining = deadline - monotonic()
             with self._changed:
                 working = run_id in self._in_flight
+            view = self._view(run_id)
+            remaining = deadline - monotonic()
             if not wait or not working or remaining <= 0:
                 return view
             with self._changed:

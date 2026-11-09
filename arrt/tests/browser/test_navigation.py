@@ -177,7 +177,9 @@ def test_a_new_arrival_at_artworks_loads_one_page_not_the_last_visits(ui, seed_t
     ui.show_more(until=first * 3)
 
     ui.page.click("nav.sidebar a.section-link[data-view='walls']")
-    ui.page.wait_for_selector("#view h1")
+    # Walls by its own heading: Artworks has an `h1` too, and a wait any heading
+    # met would come back to the grid this test means to have left.
+    ui.page.wait_for_selector("#view h1:text-is('Walls')")
     ui.page.click("nav.sidebar a.section-link[data-view='collection']")
     ui.page.wait_for_selector("ul.grid > li")
     ui.page.wait_for_function("() => document.activeElement && document.activeElement.id === 'view'")
