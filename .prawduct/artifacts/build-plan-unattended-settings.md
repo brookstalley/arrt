@@ -78,13 +78,18 @@ screen.
   is overspend inside the $20 ceiling, not past it. #337 (Ask's spend in the
   ledger, `fix/ask-spend`) was the most recent such gap.
 
-**Inferred, for the owner to veto** (none was ruled):
+**Ruled 2026-11-09** (the owner, "Yes agreed", to the advisor's recommendation):
 - **Precedence: the environment wins and locks the control.** A setting given in
   the environment shows its value with "Set by `LABEL_UNITS` in the environment"
-  and cannot be changed in the browser. A stored value applies only where the
-  environment says nothing. This was chosen over "stored wins" so that a
+  and cannot be changed in the browser or over MCP. A stored value applies only
+  where the environment says nothing. Chosen over "stored wins" so that a
   deployment pinned in its env file (the homelab's way) is never silently
-  overridden, and a browser change is never silently reverted at the next restart.
+  overridden, and a browser change is never silently reverted at the next
+  restart. A deployment whose env file still carries the old example's
+  `LABEL_UNITS=imperial` finds Label units locked, and removes the line to
+  choose it in the browser.
+
+**Inferred, for the owner to veto** (none was ruled):
 - **Defaults:** unattended work off; allowance $0.00; cadence once a day; model
   the same as `DISCOVERY_MODEL`'s default. The allowance may not exceed
   `MONTHLY_BUDGET_USD` where one is set.
@@ -146,9 +151,8 @@ Arrt-enforced; user can veto/override]`
   (`library/months.py`) that the month's spend and the allowance both count by.
 
 **Level:** Medium. The store and the screen follow patterns the repo already has.
-What could move: the precedence rule is inferred, and the screen is new to the IA. The
-cheapest step that raises it is the owner confirming that the environment locks
-the control.
+What could move: the defaults and what cadence means are inferred, and the screen
+is new to the IA. The precedence rule was ruled on 2026-11-09.
 
 ## Governing artifacts, reconciled
 
