@@ -753,7 +753,7 @@ server's session finishes Ask and then builds 4e and 4g.
   `watch_id`. Panel-only alerting holds (the owner: "browser only").
 - **External identity for works and artists, before Watches.** *(Raised
   2026-09-30, while planning the *arr navigation.)* *(2026-11-09: not a
-  prerequisite, inferred by `build-plan-watches.md` for the owner to veto. Dedup
+  prerequisite, ruled by the owner on 2026-11-09 ("yes to all", `build-plan-watches.md`). Dedup
   by key and the rejected-candidate records already keep a Watch from offering a
   work twice. The series-title risk below is every run's, and a Watch makes it
   more frequent, not worse per run. It stays open as a facet-population question.)* Sonarr and Radarr rest on an

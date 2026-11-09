@@ -552,7 +552,7 @@ Watch's run:
      store does too, and each change is logged with its surface, so a surprise
      in the month's spend is traceable to the surface that made it;
    - **the result is review cards**, which bound 4 stops.
-   This is **accepted**, for the reason § Trust Boundary gives for every LAN
+   This is **accepted** (the owner, 2026-11-09: Watches are writable over MCP), for the reason § Trust Boundary gives for every LAN
    client: the household that runs the agent is the boundary. It is weak as
    prevention and is labelled as such.
 3. **A Watch's words are the household's, and its finds are outside text.** The

@@ -100,7 +100,7 @@ work (ruling 5).
   no list of works it lacks to show. The IA's mention is amended to say so.
 - **"Also make a playlist from this Watch".** Smart playlists do not exist yet.
 
-**Inferred, for the owner to veto** (none was ruled):
+**Ruled 2026-11-09** (the owner, "yes to all", to the advisor's recommendation; each below was first written as an inference for the owner to veto):
 - **External identity is not a prerequisite.** `re-architecture.md` lists
   "external identity for works and artists, before Watches". Dedup by key, plus
   the rejected-candidate records, already keeps a Watch from offering a work
@@ -145,7 +145,7 @@ work (ruling 5).
   status-only rule would have held its Watch for ever. Found by the suite, whose
   container wires no phase 2. The goals did not foresee this.
 - Chunk 04: a pass every five minutes (`PASS_SECONDS`), the first at start. Settled
-  by hourly being the finest cadence. Inferred.
+  by hourly being the finest cadence. Inferred; ruled with the rest, "yes to all" (2026-11-09).
 - Chunk 04: `could_not_start` is a fifth refusal, for a start the runner refused
   (no engine). Settled by "each refusal is stored with its reason".
 - Chunk 04: overdue is an hour past due with nothing tried (`OVERDUE_AFTER`), not
