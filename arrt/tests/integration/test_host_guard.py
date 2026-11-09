@@ -84,9 +84,43 @@ def test_a_foreign_page_is_refused_even_by_a_listed_name(guarded_url, path):
     assert FOREIGN in response.text
 
 
-@pytest.mark.parametrize("origin", [f"http://{LISTED}", f"https://{LISTED}:8443", "http://127.0.0.1:8770"])
-def test_arrts_own_page_may_call_it(guarded_url, origin):
-    assert get(guarded_url, "/mcp/", host=LISTED, origin=origin).status_code == 200
+@pytest.mark.parametrize(
+    ("host", "origin"),
+    [
+        (LISTED, f"http://{LISTED}"),
+        # A listed name passes whatever the scheme and port: a reverse proxy changes both.
+        ("10.1.2.3:8770", f"https://{LISTED}:8443"),
+        # Opened by address, the interface calls itself.
+        ("10.1.2.3:8770", "http://10.1.2.3:8770"),
+        ("localhost:8770", "http://localhost:8770"),
+        ("[::1]:8770", "http://[::1]:8770"),
+        ("10.1.2.3", "http://10.1.2.3"),
+        ("10.1.2.3:443", "https://10.1.2.3"),
+    ],
+)
+def test_arrts_own_page_may_call_it(guarded_url, host, origin):
+    assert get(guarded_url, "/mcp/", host=host, origin=origin).status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("host", "origin"),
+    [
+        # A page served from another device on the LAN.
+        ("10.1.2.3:8770", "http://10.9.9.9"),
+        (LISTED, "http://10.9.9.9:8770"),
+        # A page served from another port on this machine.
+        ("localhost:8770", "http://localhost:3000"),
+        ("127.0.0.1:8770", "http://127.0.0.1"),
+        # The same address under a scheme whose default port is not the Host's.
+        ("10.1.2.3:8770", "https://10.1.2.3"),
+        ("10.1.2.3:8770", "ftp://10.1.2.3:8770"),
+    ],
+)
+def test_a_page_at_any_other_address_is_refused(guarded_url, host, origin):
+    """An address passes as a Host, never as an Origin, unless it is the request's own."""
+    response = get(guarded_url, "/api/health", host=host, origin=origin)
+
+    assert response.status_code == ORIGIN_REFUSED
 
 
 @pytest.mark.parametrize("origin", ["null", LISTED, f"http://{FOREIGN}@{LISTED}", f"http://{LISTED}/path", "://"])
@@ -129,3 +163,9 @@ def test_a_path_like_a_players_but_not_one_is_guarded(guarded_url):
 )
 def test_the_name_is_read_without_its_port(header, name):
     assert hostname(header) == name
+
+
+def test_a_name_listed_in_another_form_still_matches(services, seeded_service):
+    """The guard reduces the names it is given as it reduces a request's, so the two forms cannot drift apart."""
+    with serve(create_app(services, allowed_hosts=frozenset({"ARRT.Example."}))) as url:
+        assert get(url, "/api/health", host=f"{LISTED}:8770").status_code == 200

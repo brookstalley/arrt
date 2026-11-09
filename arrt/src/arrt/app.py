@@ -99,9 +99,10 @@ def create_app(
     tools cannot be wired to anything but these services. `ask_tools` are tools
     beside the surface's, such as web search.
 
-    **Every route and mount sits behind the Host and Origin guard**
-    (`arrt.http.hosts`), installed as middleware so it wraps the MCP mount and
-    the static files as well as the routes. `allowed_hosts` are the names it answers to besides
+    **Every route and mount but the Player's sits behind the Host and Origin
+    guard** (`arrt.http.hosts`), installed as middleware so it wraps the MCP
+    mount and the static files as well as the routes. The Player's routes take
+    the wall's token instead. `allowed_hosts` are the names it answers to besides
     `localhost` and an IP address.
     """
     mcp_server = build_server(services)

@@ -227,8 +227,9 @@ proxy's name for it included:
     CURATION_ALLOWED_HOSTS=<name>,<other name>
 
 From this release on, every surface but the Player's refuses a request for a
-name not listed (`421`), and a request from a page at one (`403`). `localhost`
-and any IP address always pass. The Player's routes are not checked, so the
+name not listed (`421`), and a request from a page at any address but a listed
+name or its own (`403`). `localhost` and any IP address always pass as the name
+asked for. The Player's routes are not checked, so the
 walls keep their feed whatever is set. A deployment that sets nothing and is
 reached by name loses its browser interface and MCP until the name is listed,
 and each refusal says so. Then check:

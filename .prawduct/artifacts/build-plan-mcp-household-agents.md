@@ -51,7 +51,8 @@ the brief and the guard.
 
 `[DECISION: Arrt refuses a request whose Host is not an IP address, localhost or a
 name the deployment lists in CURATION_ALLOWED_HOSTS, and a request whose Origin
-(when sent) does not pass the same test; the Player's token-admitted routes are not
+(when sent) is neither a listed name nor the request's own address (its Host's
+name and port); the Player's token-admitted routes are not
 checked | #53 fork 1, because fork 2 would take away the direct port the Player
 relies on. IP addresses and localhost are always allowed: a rebinding page's
 requests carry the attacker's domain name in Host, never an IP address, so allowing
@@ -91,6 +92,13 @@ deployment fact it rests on was read from the homelab's compose file and Caddyfi
 - `Origin` is parsed by hand rather than with `urllib.parse`, because
   `test_persistence_boundary` keeps `urllib` out of every module but the network
   client. A malformed `Origin` is refused, not skipped.
+- `Origin` takes a stricter test than `Host`: a listed name, or the request's own
+  name and port. The first build applied `Host`'s test, which passes every IP
+  address, so a page served from another LAN device could still make bodyless
+  cross-origin POSTs. *(Revised after the cumulative review.)*
+- The api-contract and security-model entries say **proposed**, not decided, until
+  the owner rules on #53's fork, because their "let's keep going" came before they
+  saw it.
 - `CURATION_ALLOWED_HOSTS` refuses a URL, a port or a path at startup instead of
   keeping the name part, so a misunderstanding of the setting is reported.
 - The setting is documented in `.env.example`, `deploy/README.md` (a dated
@@ -106,7 +114,7 @@ deployment fact it rests on was read from the homelab's compose file and Caddyfi
 ### Chunk 01: The taste brief over MCP
 
 - **Deliverables:** `art_taste(action='brief')`, returning `TasteService.brief()`
-  as text with the count of judgments it covers. Its binding in
+  as text (no count: see Decisions made mid-build). Its binding in
   `arrt/src/arrt/mcp/bindings.py`; its row in `api-contract.md`; open question 5
   answered in `agents-and-memory.md`, and item 3's row updated.
 - **Tests:** through the MCP surface (the caller): an empty taste returns an

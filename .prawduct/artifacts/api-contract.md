@@ -2342,8 +2342,9 @@ termination, no rate limiting in the application — proportionate for a
 single-principal household tool, and recorded as a decision in
 `project-state.yaml` → `technical_decisions.integrations`.
 
-**Host and Origin are checked on every surface but the Player's, DECIDED
-2026-11-08 (#53, fork 1; `build-plan-mcp-household-agents.md`).** Without the
+**Host and Origin are checked on every surface but the Player's: PROPOSED
+2026-11-08 by the advisor, awaiting the owner's ruling (#53, fork 1;
+`build-plan-mcp-household-agents.md`).** Without the
 check, a web page open in a browser on the LAN could rebind its own domain name
 to the server's address and drive `/mcp` and `/api` as same-origin requests.
 CORS never stops those. They could start `art_discovery` runs, which spend money,
@@ -2351,8 +2352,11 @@ change what hangs on a wall, or write taste. `arrt.http.hosts.HostGuard` wraps
 the whole application, including the MCP mount, the pages and the static files:
 - **Host.** It answers `421` to a request whose `Host` is not `localhost`, an IP
   address, or a name in `CURATION_ALLOWED_HOSTS`.
-- **Origin.** It answers `403` to one whose `Origin`, when sent, fails the same
-  test. `Origin: null` always fails.
+- **Origin.** It answers `403` to one whose `Origin`, when sent, is neither a
+  listed name nor the request's own address (the same name and port as its
+  `Host`). An IP address passes as a `Host` but not as an `Origin`, so a page
+  served from another LAN device or another local port is refused.
+  `Origin: null` always fails.
 
 Each refusal names the setting.
 - **IP addresses always pass**, because a rebinding page's requests carry its own

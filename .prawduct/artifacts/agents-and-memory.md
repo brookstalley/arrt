@@ -162,7 +162,9 @@ Each item gets its own build plan when it starts, as the waves did.
 4. How is the 3tears pin moved: on a schedule, or only when a needed piece moves?
 5. ~~What does a household's own agent need over MCP that the six tools lack
    today: taste writes certainly, and what else?~~ **Answered from the code
-   2026-11-08, and the scope accepted by the owner ("let's keep going").** Taste
+   2026-11-08.** The advisor proposed the scope below and the owner replied
+   "let's keep going"; the Host and Origin check's own decision (#53's fork) is
+   awaiting their ruling. Taste
    writes were already there: `art_taste` has `set` (stated only) and `delete`,
    and `art_review(action='set_verdict')` runs the same service as the browser,
    so a verdict over MCP writes observed taste by question 1's rule. The MCP

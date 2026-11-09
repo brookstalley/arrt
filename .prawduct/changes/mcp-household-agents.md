@@ -1,6 +1,6 @@
 ---
 schema: 1
-type: feat
+type: feature
 scope: mcp-household-agents
 date: 2026-11-08
 title: The taste brief over MCP, and Host and Origin checked on every surface but the Player's
@@ -15,8 +15,8 @@ missing:
   discovery's phase 1 are told, from `TasteService.brief()`.
 - **`arrt.http.hosts.HostGuard`** wraps the whole application. It refuses a request
   whose `Host` is not `localhost`, an IP address, or a name in the new
-  `CURATION_ALLOWED_HOSTS` (`421`), and one whose `Origin`, when sent, fails the same
-  test (`403`).
+  `CURATION_ALLOWED_HOSTS` (`421`), and one whose `Origin`, when sent, is neither a
+  listed name nor the request's own address (`403`).
 
   The Player's routes, read from the router that mounts them, are exempt, because
   they take the wall's token. This closes the DNS-rebinding vector #53 recorded
