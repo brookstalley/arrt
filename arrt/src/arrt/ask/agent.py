@@ -25,6 +25,7 @@ import weakref
 from collections import OrderedDict
 from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any, Final
 from uuid import UUID, uuid4
 
@@ -76,6 +77,27 @@ _TASTE_TOOL: Final[str] = "art_taste"
 
 #: One call to the surface: a tool name and its arguments in, a payload out.
 Dispatch = Callable[[str, Mapping[str, Any]], dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class ReplyCost:
+    """What one reply was billed, summed over its model calls, as the provider reported it.
+
+    A call that reported no cost adds nothing here; the reply's log line counts
+    those as `uncosted`, so a short figure is visible rather than silent.
+    """
+
+    cost_usd: Decimal
+    #: The model the provider says answered, which can differ from the one asked
+    #: for; None when its calls named more than one, or none.
+    model_id: str | None
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+#: Where a reply's cost is written: the spend ledger, so the month's total
+#: includes what Ask spent (the owner, 2026-10-09, #337).
+RecordCost = Callable[[ReplyCost], None]
 
 
 @dataclass
@@ -132,11 +154,13 @@ class Ask:
         model: BaseChatModel | None,
         *,
         step_limit: int,
+        record_cost: RecordCost,
         local_tools: Sequence[BaseTool] = (),
         threads: Threads | None = None,
         taste: Callable[[], str] = lambda: "",
     ) -> None:
         self._dispatch = dispatch
+        self._record_cost = record_cost
         #: The household's taste as `describe_taste` renders it, read afresh for
         #: every reply so a judgment recorded in one is in the next one's prompt.
         self._taste = taste
@@ -238,18 +262,47 @@ class Ask:
             # may refuse; so it says what happened instead.
             said = stream.accumulated_content or f"(I stopped without answering: {ended}.)"
             thread.messages = _recent(tally.messages or [*sent, AIMessage(said)], TURNS_REMEMBERED)
-            log.info(
-                "ask reply thread=%s ended=%s steps=%d tool_calls=%d taste_writes=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
-                thread.id,
-                ended,
-                tally.steps,
-                tally.tool_calls,
-                tally.taste_writes,
-                tally.cost_usd,
-                tally.uncosted,
-                time.monotonic() - started,
-            )
-            await queue.put(None)
+            try:
+                # However the reply ended, what its calls were billed was spent: a
+                # reply stopped at the step limit, refused, or abandoned by its
+                # client still cost what it cost before it stopped.
+                self._record(tally, thread)
+            finally:
+                self._log_reply(thread, ended, tally, started)
+                await queue.put(None)
+
+    def _log_reply(self, thread: Thread, ended: str, tally: _Tally, started: float) -> None:
+        log.info(
+            "ask reply thread=%s ended=%s steps=%d tool_calls=%d taste_writes=%d cost_usd=%.5f uncosted=%d seconds=%.1f",
+            thread.id,
+            ended,
+            tally.steps,
+            tally.tool_calls,
+            tally.taste_writes,
+            tally.cost_usd,
+            tally.uncosted,
+            time.monotonic() - started,
+        )
+
+    def _record(self, tally: _Tally, thread: Thread) -> None:
+        """Write the reply's cost to the spend ledger, if it was billed anything.
+
+        Called synchronously, from the reply's last step: it is one row, and a
+        reply being cancelled must not cancel the record of what it spent, which
+        awaiting a worker thread from a cancelled task could.
+
+        Any failure is logged and the reply still ends. The store refuses in more
+        than one vocabulary (a `ServiceError` for what it understands, the
+        driver's own error for a file that is read-only, locked or full), and
+        either escaping here would leave the client's stream without its last
+        line and the thread claimed.
+        """
+        if tally.cost <= 0:
+            return
+        try:
+            self._record_cost(tally.reply_cost())
+        except Exception:  # prawduct:allow prawduct/broad-except -- reply boundary: log it, end the stream
+            log.exception("ask reply in thread %s spent %s but its cost was not recorded", thread.id, tally.cost)
 
 
 def _refused_at_the_cap(exc: Exception) -> bool:
@@ -302,8 +355,14 @@ class _Tally:
     #: Taste the agent recorded. Threads are not stored, so this count, beside
     #: the thread id and the time, is what says Ask wrote a judgment at all.
     taste_writes: int = 0
-    cost_usd: float = 0.0
+    #: What the calls that reported a cost were billed, summed exactly: the
+    #: ledger holds money as Decimal, and the stream shows its float.
+    cost: Decimal = Decimal(0)
     uncosted: int = 0
+    #: Every model the provider said answered one of this reply's calls.
+    models: set[str] = field(default_factory=set)
+    input_tokens: int | None = None
+    output_tokens: int | None = None
     payloads: list[object] = field(default_factory=list)
     messages: list[BaseMessage] = field(default_factory=list)
     _started: dict[str, float] = field(default_factory=dict)
@@ -316,12 +375,7 @@ class _Tally:
             if token:
                 await stream.emit_token(token)
         elif kind == "on_chat_model_end":
-            self.steps += 1
-            cost = (getattr(data.get("output"), "response_metadata", None) or {}).get("cost")
-            if isinstance(cost, int | float):
-                self.cost_usd += float(cost)
-            else:
-                self.uncosted += 1
+            self._count_call(data.get("output"))
         elif kind == "on_tool_start":
             self.tool_calls += 1
             self._started[event["run_id"]] = time.monotonic()
@@ -340,6 +394,39 @@ class _Tally:
             output = data.get("output")
             if isinstance(output, Mapping) and isinstance(output.get("messages"), list):
                 self.messages = list(output["messages"])
+
+    def _count_call(self, output: object) -> None:
+        """One model call's step, cost, model and tokens, read off the message it answered with."""
+        self.steps += 1
+        metadata = getattr(output, "response_metadata", None) or {}
+        cost = metadata.get("cost")
+        if isinstance(cost, int | float):
+            # Through its text, so 0.0012 is recorded as 0.0012 and not as the double nearest it.
+            self.cost += Decimal(str(cost))
+        else:
+            self.uncosted += 1
+        if isinstance(name := metadata.get("model_name"), str) and name:
+            self.models.add(name)
+        usage = getattr(output, "usage_metadata", None) or {}
+        self.input_tokens = _added(self.input_tokens, usage.get("input_tokens"))
+        self.output_tokens = _added(self.output_tokens, usage.get("output_tokens"))
+
+    @property
+    def cost_usd(self) -> float:
+        return float(self.cost)
+
+    def reply_cost(self) -> ReplyCost:
+        # One model when every call named the same one. A row naming the last of
+        # several would attribute the whole reply's cost to it.
+        model_id = next(iter(self.models)) if len(self.models) == 1 else None
+        return ReplyCost(cost_usd=self.cost, model_id=model_id, input_tokens=self.input_tokens, output_tokens=self.output_tokens)
+
+
+def _added(total: int | None, count: object) -> int | None:
+    """`total` plus `count`, where either may be unreported; unreported throughout stays None, not zero."""
+    if not isinstance(count, int):
+        return total
+    return count if total is None else total + count
 
 
 def _records_taste(tool: str, arguments: object) -> bool:
