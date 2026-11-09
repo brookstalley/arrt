@@ -1,4 +1,4 @@
-"""The suite's own requests are bounded by the machine's measured worst, and only the suite's (`serving.py`)."""
+"""The suite's own requests are bounded by Playwright's 30 s default, well above the measured worst (`serving.py`)."""
 
 import ast
 from pathlib import Path

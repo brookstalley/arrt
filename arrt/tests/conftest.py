@@ -96,7 +96,7 @@ _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence o
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    """Bound the suite's own requests by the machine's measured worst, not httpx's 5 s (`serving.py`).
+    """Bound the suite's own requests by Playwright's 30 s default, not httpx's 5 s (`serving.py`).
 
     A hook rather than a fixture, so it holds in every xdist worker from the
     first test, including a module-scoped server's first request.

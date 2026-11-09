@@ -27,9 +27,13 @@ import uvicorn
 SUITE_REQUEST_SECONDS: Final = 30.0
 
 #: httpx's one-shot request functions, every one of which a test calls bare.
-#: The product builds clients with timeouts of its own and calls none of these
-#: (`test_the_product_calls_none_of_httpxs_one_shot_functions`), so this
-#: bound reaches the suite's requests only.
+#: The patch is process-wide: it reaches any caller in the test process. The
+#: product builds clients with timeouts of its own and calls none of these
+#: (`test_the_product_calls_none_of_httpxs_one_shot_functions`); a dependency
+#: that does (`langchain_openai`, `langsmith`) gets 30 s too, and no offline
+#: test reaches those calls. `httpx.stream` is left out because it is a context
+#: manager whose wrapper has no keyword default to set: a test streaming a
+#: response passes its own `timeout`.
 _ONE_SHOT: Final = ("request", "get", "options", "head", "post", "put", "patch", "delete")
 
 
