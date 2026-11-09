@@ -117,13 +117,11 @@ async def test_the_mcp_action_names_the_same_facts_and_no_address(sighted, serve
 
 async def test_a_get_records_what_it_found_through_the_runner_the_plane_wires(server_url):
     """The museum holds only a near-match, so the work is left open, and MoMA's page is counted."""
-    started = await request("POST", f"{server_url}/api/gets", json={"qids": [DROWNING_GIRL]}, timeout=10)
+    started = await request("POST", f"{server_url}/api/gets", json={"qids": [DROWNING_GIRL]})
     assert started.status_code == 200, started.text
     assert (await finished(server_url, started.json()["run"]["run_id"]))["status"] == "completed"
 
-    assert (await request("GET", f"{server_url}/api/sightings/hosts", timeout=10)).json() == {
-        "hosts": [{"host": "www.moma.org", "works": 1}]
-    }
+    assert (await request("GET", f"{server_url}/api/sightings/hosts")).json() == {"hosts": [{"host": "www.moma.org", "works": 1}]}
 
 
 async def finished(server_url: str, run_id: str) -> dict:

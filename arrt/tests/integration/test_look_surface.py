@@ -149,7 +149,7 @@ def services(
 
 
 async def look(server_url: str, qid: str) -> httpx.Response:
-    return await request("GET", f"{server_url}/api/registry/works/{qid}/look", timeout=10)
+    return await request("GET", f"{server_url}/api/registry/works/{qid}/look")
 
 
 async def settled(server_url: str, qid: str) -> dict:
@@ -235,19 +235,19 @@ async def test_a_picture_is_served_only_for_a_key_this_work_s_look_names(server_
     swans = (await settled(server_url, ELSEWHERE))["pictures"][0]["key"]
     pictures = f"{server_url}/api/registry/works/{TANTRA}/look/pictures"
 
-    served = await request("GET", f"{pictures}/{tantra}", timeout=10)
+    served = await request("GET", f"{pictures}/{tantra}")
     assert served.status_code == 200, served.text
     assert served.headers["content-type"] == "image/jpeg"
     assert served.content.startswith(b"\xff\xd8\xff")
-    large = await request("GET", f"{pictures}/{tantra}", params={"size": "large"}, timeout=10)
+    large = await request("GET", f"{pictures}/{tantra}", params={"size": "large"})
     assert large.status_code == 200
 
-    other = await request("GET", f"{pictures}/{swans}", timeout=10)
+    other = await request("GET", f"{pictures}/{swans}")
     assert other.status_code == 404, "another work's key"
     assert other.json() == {"error": LOOK_AGAIN}
 
     clock.at += ANSWER_KEPT_FOR + timedelta(seconds=1)
-    expired = await request("GET", f"{pictures}/{tantra}", timeout=10)
+    expired = await request("GET", f"{pictures}/{tantra}")
     assert expired.status_code == 404, "a key from a look no longer kept"
 
 
@@ -304,7 +304,7 @@ async def test_a_named_key_whose_picture_cannot_be_kept_is_a_400_saying_so(serve
     key = (await settled(server_url, TANTRA))["pictures"][0]["key"]
     smk.fetch_preview = lambda url: None  # the source gives nothing that is a picture
 
-    response = await request("GET", f"{server_url}/api/registry/works/{TANTRA}/look/pictures/{key}", timeout=10)
+    response = await request("GET", f"{server_url}/api/registry/works/{TANTRA}/look/pictures/{key}")
 
     assert response.status_code == 400
     assert "could be kept" in response.json()["error"]

@@ -17,8 +17,10 @@ import uvicorn
 #: How long one of the suite's own requests may take before it fails. httpx's
 #: default is 5 s, and contention alone comes close to it: with three full
 #: curation suites running at once (2026-11-09, 12,510 requests timed), p99.9
-#: was 2.1 s and the slowest 4.4 s, on ordinary routes holding no lock. A 5 s
-#: bound then fails a test for the machine's load (#372), which says nothing
+#: was 2.1 s and the slowest 4.4 s, on ordinary routes holding no lock; and with
+#: the browser suite running beside a curation suite, `/openapi.json` took longer
+#: than the 10 s its test then gave it. A 5 s bound, or any one call's own
+#: shorter one, fails a test for the machine's load (#372), which says nothing
 #: about the server. Thirty seconds is the browser suite's Playwright default,
 #: so both of the suite's transports give a server the same time before
 #: calling it hung.
