@@ -8,6 +8,7 @@ from arrt.library.dimensions import Units
 from arrt.library.services.settings import (
     LABEL_UNITS,
     SETTINGS,
+    Limits,
     SettingRefused,
     SettingSource,
     SettingsService,
@@ -248,3 +249,27 @@ def test_a_model_that_is_not_a_providers_id_is_refused(discovery, model):
 def test_an_empty_value_is_refused_by_a_setting_that_does_not_take_one(discovery):
     with pytest.raises(ServiceError, match="LABEL_UNITS must be imperial or metric, got ''"):
         SettingsService(discovery).set("label_units", "", surface=InitiatedBy.WEB_UI)
+
+
+@pytest.mark.parametrize(("typed", "said"), [("1e30", "at most"), ("1000000.01", "at most"), ("Infinity", "of at least 0")])
+def test_an_allowance_too_large_to_be_one_is_refused_rather_than_failing(discovery, typed, said):
+    with pytest.raises(ServiceError, match=f"UNATTENDED_ALLOWANCE_USD .*{said}"):
+        SettingsService(discovery).set("unattended_allowance_usd", typed, surface=InitiatedBy.WEB_UI)
+
+
+def test_a_negative_zero_allowance_is_held_as_nothing_not_as_minus_nothing(discovery):
+    service = SettingsService(discovery)
+
+    service.set("unattended_allowance_usd", "-0", surface=InitiatedBy.WEB_UI)
+
+    assert state_of(service, "unattended_allowance_usd").value == "0.00"
+
+
+@pytest.mark.parametrize("setting", SETTINGS, ids=lambda setting: setting.key)
+def test_every_refusal_names_its_settings_own_variable_once(setting):
+    """The name is added from the setting, so a parser cannot name a variable that is not its own."""
+    with pytest.raises(SettingRefused) as refused:
+        setting.checked("not a value: 1e30 /", Limits())
+    message = str(refused.value)
+    assert message.startswith(f"{setting.environment_variable} ")
+    assert message.count(setting.environment_variable) == 1

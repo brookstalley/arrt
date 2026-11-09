@@ -69,8 +69,10 @@ screen.
 - The month is UTC's, matching the provider's reset (`DiscoveryService.spend_in_month`).
 
 **Tradeoffs accepted:**
-- **The allowance check has no caller until the Watches plan.** It is tested
-  directly, and Watches are its consumer. Revisit if that plan is not written.
+- **The allowance check, the cadence and the model have no caller until the
+  Watches plan.** The check is tested directly; the cadence and the model are
+  stored and shown, and the Watches plan is the first to read them. Revisit if
+  that plan is not written.
 - **App-enforced allowances fail open on a ledger bug.** The owner chose this over
   a second key. The provider's monthly limit still stops the bill, so the hazard
   is overspend inside the $20 ceiling, not past it. #337 (Ask's spend in the
@@ -137,6 +139,11 @@ Arrt-enforced; user can veto/override]`
   "fails closed" (`nonfunctional-requirements.md`).
 - Chunk 03: `GET /api/unattended` and `art_settings(action='unattended')` give the
   standing, which the plan's section needed and did not name a route for.
+- After the cumulative review: an allowance spent to the cent refuses a piece with
+  no estimate; an allowance past $1,000,000 is refused rather than overflowing;
+  `MONTHLY_BUDGET_USD=NaN` is refused by name; a setting's variable is named in its
+  refusals by the setting alone; and the UTC month is one function
+  (`library/months.py`) that the month's spend and the allowance both count by.
 
 **Level:** Medium. The store and the screen follow patterns the repo already has.
 What could move: the precedence rule is inferred, and the screen is new to the IA. The
@@ -222,16 +229,17 @@ new on the screen, and #329's acceptance list is met.
 
 Type: cumulative-final.
 
-- Four settings in the registry: `unattended_enabled` (default off),
-  `unattended_monthly_allowance_usd` (Decimal, at least 0, at most
-  `MONTHLY_BUDGET_USD` where set), `unattended_cadence` (an interval, default a
-  day) and `unattended_model`.
+- Four settings in the registry: `unattended_work` (default off),
+  `unattended_allowance_usd` (Decimal, at least 0, at most
+  `MONTHLY_BUDGET_USD` where set), `unattended_cadence` (hourly, daily or weekly,
+  default daily) and `unattended_model` (empty is the discovery model).
 - `InitiatedBy.UNATTENDED`, with its row in `data-model.md`: spend is attributed to
   it through its run, the way agent spend is today.
 - New `arrt/src/arrt/library/services/unattended.py`: `UnattendedAllowance`, with
-  `spent_this_month()` and `may_start(estimate)`. The second returns a typed answer
-  that names its reason: off, the allowance would be passed, or no model key. Each
-  reason is a sentence for the screen and the log.
+  `spent_this_month()` and `standing(estimate)`. The second returns a typed answer
+  (`may_start`, and a `Refusal` naming its reason: off, no model key, or the
+  allowance spent or about to be passed). Each reason is a sentence for the screen
+  and the log.
 - Settings › General gains an *Unattended work* section: its four controls, and what
   it has spent this month against the allowance.
 - `nonfunctional-requirements.md` § Cost Constraints: the 2026-11-08 Direction note

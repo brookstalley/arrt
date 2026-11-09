@@ -23,11 +23,10 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 
+from arrt.library.months import utc_month_of
 from arrt.library.services.settings import UNATTENDED_ALLOWANCE, UNATTENDED_WORK, SettingsService, Switch
 from arrt.persistence.discovery import DiscoveryStore
 from arrt.persistence.discovery_records import InitiatedBy
-
-_DECEMBER = 12
 
 
 class Refusal(StrEnum):
@@ -77,9 +76,7 @@ class UnattendedAllowance:
 
     def spent_this_month(self) -> Decimal:
         """What runs started unattended were billed in this UTC calendar month."""
-        now = self._now().astimezone(UTC)
-        since = datetime(now.year, now.month, 1, tzinfo=UTC)
-        until = datetime(now.year + (now.month == _DECEMBER), now.month % _DECEMBER + 1, 1, tzinfo=UTC)
+        since, until = utc_month_of(self._now())
         started_by: dict[str, InitiatedBy | None] = {}
         total = Decimal(0)
         for record in self._store.list_spend_records(since=since, until=until):
@@ -97,8 +94,10 @@ class UnattendedAllowance:
         """Where unattended work stands, and whether a piece expected to cost `estimate_usd` may start.
 
         Refused when the setting is off, when there is no model key to spend
-        with, or when what is spent this month plus the estimate would pass the
-        allowance. An allowance of nothing refuses everything that costs anything.
+        with, when the allowance is already spent (to the cent, so a piece with
+        no estimate cannot start on an allowance with nothing left), or when what
+        is spent plus the estimate would pass it. An allowance of nothing refuses
+        everything.
         """
         switched_on = self._settings.value(UNATTENDED_WORK) is Switch.ON
         allowance = self._settings.value(UNATTENDED_ALLOWANCE)
@@ -110,7 +109,7 @@ class UnattendedAllowance:
         elif allowance == 0:
             refusal = Refusal.ALLOWANCE_SPENT
             sentence = "The monthly allowance for unattended work is $0.00, so nothing runs with nobody watching."
-        elif spent + estimate_usd > allowance:
+        elif spent >= allowance or spent + estimate_usd > allowance:
             refusal = Refusal.ALLOWANCE_SPENT
             sentence = f"This month's unattended allowance is spent: ${spent:.2f} of ${allowance:.2f}."
         else:

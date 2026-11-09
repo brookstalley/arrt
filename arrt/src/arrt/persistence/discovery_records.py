@@ -61,7 +61,8 @@ class InitiatedBy(StrEnum):
     MCP_CLIENT = "mcp_client"
     #: Started by Arrt itself with nobody watching, behind the unattended
     #: settings (`library/services/unattended.py`). What it spends is summed
-    #: against the month's unattended allowance; nothing else reads it.
+    #: against the month's unattended allowance, the one decision it feeds; the
+    #: run views and the runner's log show it as they show every value.
     UNATTENDED = "unattended"
 
 

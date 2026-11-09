@@ -35,6 +35,7 @@ from datetime import MAXYEAR, MINYEAR, UTC, datetime
 from decimal import Decimal
 
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
+from arrt.library.months import utc_month
 from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import Fit, QualityProfile
@@ -1396,8 +1397,7 @@ class DiscoveryService:
         # stdlib ValueError through a tool boundary's "failed unexpectedly".
         if not MINYEAR <= year < MAXYEAR:
             raise ServiceError(f"A year is {MINYEAR} to {MAXYEAR - 1}, got {year}.")
-        since = datetime(year, month, 1, tzinfo=UTC)
-        until = datetime(year + (month == _DECEMBER), month % _DECEMBER + 1, 1, tzinfo=UTC)
+        since, until = utc_month(year, month)
         return sum((record.cost_usd for record in self._store.list_spend_records(since=since, until=until)), Decimal(0))
 
     # -- internals ------------------------------------------------------------

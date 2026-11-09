@@ -129,3 +129,13 @@ def test_a_stored_allowance_above_a_budget_since_lowered_reads_as_nothing(discov
 
     assert standing.allowance_usd == Decimal("0.00")
     assert standing.may_start is False
+
+
+def test_an_allowance_spent_to_the_cent_refuses_even_a_piece_with_no_estimate(discovery):
+    """The setting says work stops starting once it is spent; a piece that cannot say its cost is no exception."""
+    spent(discovery, "5.00", run_id=a_run(discovery, "watched", InitiatedBy.UNATTENDED))
+
+    standing = allowance(discovery, usd="5.00").standing()
+
+    assert standing.refusal is Refusal.ALLOWANCE_SPENT
+    assert standing.may_start is False

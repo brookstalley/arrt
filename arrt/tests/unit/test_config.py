@@ -777,6 +777,16 @@ def test_a_monthly_budget_that_is_not_money_is_refused_by_name(monkeypatch, tmp_
         Settings.from_env()
 
 
+@pytest.mark.parametrize("spelling", ["NaN", "Infinity", "-Infinity", "sNaN"])
+def test_a_budget_that_is_not_a_number_of_dollars_is_refused_by_name(monkeypatch, tmp_path, spelling):
+    """`Decimal` reads these as values, and NaN then fails the sign check as an exception of its own."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", spelling)
+
+    with pytest.raises(ConfigError, match="MONTHLY_BUDGET_USD must be a decimal number of US dollars"):
+        Settings.from_env()
+
+
 def test_label_units_the_environment_does_not_give_are_left_to_the_settings(monkeypatch, tmp_path):
     """Unset, the environment locks nothing, and the stored value or the default applies
     (imperial, `test_settings.py`)."""

@@ -761,6 +761,8 @@ def _priced(name: str, default: str) -> Decimal:
         value = Decimal(raw)
     except InvalidOperation as exc:
         raise ConfigError(f"{name} must be a decimal number of US dollars, got {raw!r}. Check .env.") from exc
+    if not value.is_finite():
+        raise ConfigError(f"{name} must be a decimal number of US dollars, got {raw!r}. Check .env.")
     if value < 0:
         raise ConfigError(f"{name} is a price and cannot be negative, got {value}. Check .env.")
     return value

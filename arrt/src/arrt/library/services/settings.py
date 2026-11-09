@@ -91,22 +91,29 @@ class Setting[T]:
     check: Callable[[T, Limits], None] | None = None
 
     def checked(self, raw: str, limits: Limits) -> T:
-        """`raw` read as this setting's value and held to every rule it has, or `SettingRefused`."""
-        value = self.parse(raw)
-        if self.check is not None:
-            self.check(value, limits)
+        """`raw` read as this setting's value and held to every rule it has, or `SettingRefused`.
+
+        A refusal is named by the setting's variable here, once, so a parser
+        never spells a variable it could get wrong.
+        """
+        try:
+            value = self.parse(raw)
+            if self.check is not None:
+                self.check(value, limits)
+        except SettingRefused as exc:
+            raise SettingRefused(f"{self.environment_variable} {exc}") from exc
         return value
 
 
-def _choice[E: StrEnum](kind: type[E], name: str) -> Callable[[str], E]:
-    """Read one of `kind`'s members by its value, refusing anything else by name."""
+def _choice[E: StrEnum](kind: type[E]) -> Callable[[str], E]:
+    """Read one of `kind`'s members by its value, refusing anything else by naming them."""
     allowed = " or ".join(str(member) for member in kind)
 
     def parse(raw: str) -> E:
         try:
             return kind(raw.strip().lower())
         except ValueError as exc:
-            raise SettingRefused(f"{name} must be {allowed}, got {raw!r}.") from exc
+            raise SettingRefused(f"must be {allowed}, got {raw!r}.") from exc
 
     return parse
 
@@ -120,7 +127,7 @@ LABEL_UNITS: Final[Setting[Units]] = Setting(
     default=Units.IMPERIAL,
     description="The system every wall label states a work's size in, rounded to whole units.",
     choices=tuple(str(member) for member in Units),
-    parse=_choice(Units, "LABEL_UNITS"),
+    parse=_choice(Units),
     render=str,
 )
 
@@ -153,36 +160,40 @@ UNATTENDED_WORK: Final[Setting[Switch]] = Setting(
     default=Switch.OFF,
     description="Whether Arrt may spend on agent work, such as a standing search, with nobody watching.",
     choices=tuple(str(member) for member in Switch),
-    parse=_choice(Switch, "UNATTENDED_WORK"),
+    parse=_choice(Switch),
     render=str,
     section=UNATTENDED_SECTION,
 )
 
 
-def _money(name: str) -> Callable[[str], Decimal]:
-    """Read an amount in dollars, at least zero, to the cent."""
+#: More than any household's month: past it a value is a typo, and far past it
+#: rounding to the cent overflows the decimal context.
+_MOST_DOLLARS: Final[Decimal] = Decimal(1_000_000)
 
-    def parse(raw: str) -> Decimal:
-        text = raw.strip().removeprefix("$")
-        try:
-            amount = Decimal(text)
-        except InvalidOperation as exc:
-            raise SettingRefused(f"{name} must be an amount in dollars, such as 2.50, got {raw!r}.") from exc
-        if not amount.is_finite() or amount < 0:
-            raise SettingRefused(f"{name} must be an amount in dollars of at least 0, got {raw!r}.")
-        if amount != amount.quantize(Decimal("0.01")):
-            raise SettingRefused(f"{name} is in whole cents, got {raw!r}.")
-        return amount.quantize(Decimal("0.01"))
 
-    return parse
+def _money(raw: str) -> Decimal:
+    """Read an amount in dollars, from zero to a million, to the cent."""
+    text = raw.strip().removeprefix("$")
+    try:
+        amount = Decimal(text)
+    except InvalidOperation as exc:
+        raise SettingRefused(f"must be an amount in dollars, such as 2.50, got {raw!r}.") from exc
+    if not amount.is_finite() or amount < 0:
+        raise SettingRefused(f"must be an amount in dollars of at least 0, got {raw!r}.")
+    if amount > _MOST_DOLLARS:
+        raise SettingRefused(f"must be at most ${_MOST_DOLLARS:,}, got {raw!r}.")
+    cents = amount.quantize(Decimal("0.01"))
+    if amount != cents:
+        raise SettingRefused(f"is in whole cents, got {raw!r}.")
+    # `abs` so "-0" is held as 0.00, not shown as $-0.00.
+    return abs(cents)
 
 
 def _within_the_budget(amount: Decimal, limits: Limits) -> None:
     """An allowance is a share of the month's budget, so it may not exceed it where one is set."""
     if limits.monthly_budget_usd is not None and amount > limits.monthly_budget_usd:
         raise SettingRefused(
-            f"UNATTENDED_ALLOWANCE_USD is a share of the month's budget, ${limits.monthly_budget_usd}, "
-            f"and cannot be more than it; got ${amount}."
+            f"is a share of the month's budget, ${limits.monthly_budget_usd}, " f"and cannot be more than it; got ${amount}."
         )
 
 
@@ -198,7 +209,7 @@ UNATTENDED_ALLOWANCE: Final[Setting[Decimal]] = Setting(
         "Work stops starting once it is spent."
     ),
     choices=(),
-    parse=_money("UNATTENDED_ALLOWANCE_USD"),
+    parse=_money,
     render=lambda amount: f"{amount:.2f}",
     kind=SettingKind.MONEY,
     section=UNATTENDED_SECTION,
@@ -213,7 +224,7 @@ UNATTENDED_CADENCE: Final[Setting[Cadence]] = Setting(
     default=Cadence.DAILY,
     description="How often a piece of unattended work, such as a standing search, runs at most.",
     choices=tuple(str(member) for member in Cadence),
-    parse=_choice(Cadence, "UNATTENDED_CADENCE"),
+    parse=_choice(Cadence),
     render=str,
     section=UNATTENDED_SECTION,
 )
@@ -226,7 +237,7 @@ def _model(raw: str) -> str:
     """A model id, or empty for the discovery model."""
     model = raw.strip()
     if model and not _MODEL_ID.fullmatch(model):
-        raise SettingRefused(f"UNATTENDED_MODEL must be a model id such as 'provider/model', or empty, got {raw!r}.")
+        raise SettingRefused(f"must be a model id such as 'provider/model', or empty, got {raw!r}.")
     return model
 
 
