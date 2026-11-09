@@ -39,6 +39,9 @@ owner's answers, each to an option the advisor put:
 - **The settings are stored and edited in Settings › General**, not environment
   variables. This builds the runtime settings store #329 asks for, and gives
   `LABEL_UNITS` its control.
+- **Settings can be changed over MCP** (the owner, 2026-11-09: "settings can be
+  changed by MCP, definitely"). The advisor had proposed browser-only writes and
+  that was overruled, so parity holds (`product-brief.md` item 8).
 
 **Product:** a household chooses in the browser whether Arrt may spend on agent
 work with nobody watching, and how much a month (ruling 5: "that needs settings
@@ -80,7 +83,6 @@ screen.
   environment says nothing. This was chosen over "stored wins" so that a
   deployment pinned in its env file (the homelab's way) is never silently
   overridden, and a browser change is never silently reverted at the next restart.
-- **Settings are read over MCP, never written there.** See the decision below.
 - **Defaults:** unattended work off; allowance $0.00; cadence once a day; model
   the same as `DISCOVERY_MODEL`'s default. The allowance may not exceed
   `MONTHLY_BUDGET_USD` where one is set.
@@ -88,16 +90,13 @@ screen.
   between runs by default. A Watch's own cadence, if it gets one, is the Watches
   plan's question.
 
-`[DECISION: settings are written only from the browser; MCP reads them but has
-no write | an agent on the LAN, possibly steered by text it read
-(security-model.md § Prompt Injection), must not be able to turn on unattended
-spend or raise its own allowance. This departs from the parity requirement
-(`product-brief.md` item 8; `data-model.md` § initiated_by: "every surface has
-identical authority"), which the owner may prefer to keep. Nothing enforces
-route-to-action parity today (`test_surface_parity.py` compares fields, and five
-`api-contract.md` rows already name no tool), so the departure is recorded here
-and in the route's row. The alternative is parity, with a refusal inside the
-service for these keys | user can veto/override]`
+**What the MCP ruling costs, recorded so it can be revisited:** an agent on the
+LAN, possibly steered by text it read (`security-model.md` § Prompt Injection),
+can turn on unattended work and set its allowance. Two bounds remain. The
+allowance may not exceed `MONTHLY_BUDGET_USD`, and the provider's key limit still
+stops the bill. Every change is logged with the surface that made it, so a
+surprise is traceable. The Watches plan's prompt-injection re-derivation must
+count this.
 
 `[DECISION: the allowance is budgeting under the spend norm's scope note, not a
 second ceiling | nonfunctional-requirements.md: the ceiling stays the provider's
@@ -109,9 +108,9 @@ Arrt-enforced; user can veto/override]`
 **Decisions made mid-build:** none yet.
 
 **Level:** Medium. The store and the screen follow patterns the repo already has.
-What could move: the precedence rule and the MCP write decision are inferred, and
-the screen is new to the IA. The cheapest step that raises it is the owner reading
-the two inferences above before Chunk 01 is built.
+What could move: the precedence rule is inferred, and the screen is new to the IA. The
+cheapest step that raises it is the owner confirming that the environment locks
+the control.
 
 ## Governing artifacts, reconciled
 
@@ -119,7 +118,7 @@ the two inferences above before Chunk 01 is built.
 |---|---|---|
 | `nonfunctional-requirements.md` | Spend ceilings are the provider's | conforms: the allowance is budgeting (decision above); the key limit is untouched |
 | `data-model.md` | Identity is never a source URL | inapplicable because no artwork identity is touched |
-| `data-model.md` § `initiated_by` | Not an authorisation input | conforms: `UNATTENDED` is summed for the allowance; no operation branches on it. The settings write rule keys on the surface, not on this field, and is recorded above as a departure from parity |
+| `data-model.md` § `initiated_by` | Not an authorisation input | conforms: `UNATTENDED` is summed for the allowance; no operation branches on it, and every surface may change every setting |
 | `architecture.md` | Operation logic only in the service layer | conforms: the route and the MCP read are bindings over `SettingsService` |
 | `architecture.md` | Seam rules 1–4 | conforms: a Library store, read by the Library alone |
 | `architecture.md` | The manifest is the only channel to display | conforms: no Player reads a setting; label units reach the wall as label text, as today |
@@ -166,7 +165,8 @@ Critic mode: final. This is the keystone the other two build on.
   of taking it at construction, and a test changes it between two builds with no
   restart.
 - `GET /api/settings` and `PUT /api/settings/{key}`, as rows in `api-contract.md`.
-- `art_settings(action='list')`, read only. A test asserts that no write action exists.
+- `art_settings(action='list'|'set')`, the same service as the route. Its
+  fields are the route's (`test_surface_parity.py`).
 - Tests: precedence (environment locks, stored applies, default otherwise), each
   refusal by name, and the facade reading the value it was just given. Each guard
   is watched failing once.
