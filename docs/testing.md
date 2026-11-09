@@ -61,6 +61,15 @@ cd arrt && uv run pytest -m live_binary -n0     # free, needs dezoomify-rs
 cd arrt && uv run pytest -m live_api -n0        # SPENDS REAL MONEY
 ```
 
+**A museum marker may run beside an OpenRouter marker, each serial within**
+(the owner, 2026-11-09). `live_museum` and `live_binary` both reach museums (both
+the Art Institute of Chicago, measured from `tests/live/` on 2026-11-09), and
+`live_api` and `llm_eval` both reach OpenRouter on the one key, so running two
+from the same pair at once is the concurrency the rate limit punishes, one level
+up. One of each pair side by side shares no service. They stay on this machine:
+`live_api` and `llm_eval` need the key, and none of them is on the testament pool
+(`.testament.toml`).
+
 **Locally the marker alone is enough; in CI it is not.** These commands collect
 the whole tree and the opt-in modules `importorskip`, which is a skip you can
 ignore at a terminal. In a workflow that same skip fails the job through
