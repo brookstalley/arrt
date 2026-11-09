@@ -196,9 +196,7 @@ class WatchService:
         # Watch switched on again, or given a shorter cadence, is due at once but
         # has not yet had a pass to be tried in.
         overdue = (
-            due_at is not None
-            and now - max(due_at, watch.updated_at) > OVERDUE_AFTER
-            and self._unattended.standing().switched_on
+            due_at is not None and now - max(due_at, watch.updated_at) > OVERDUE_AFTER and self._unattended.standing().switched_on
         )
         return WatchStanding(
             watch=watch,
