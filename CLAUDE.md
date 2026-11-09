@@ -126,7 +126,9 @@ interface, and no Python suite runs it: `-m browser` does, and you run it
 whenever you touch anything under `static/`. The four live markers (`live_museum`,
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
 default; `live_api` and `llm_eval` spend real money, and every live run takes
-`-n0`. Commands, setup and the reasons behind each rule: `docs/testing.md`.
+`-n0`: a museum marker (`live_museum`, `live_binary`) may run beside an
+OpenRouter one (`live_api`, `llm_eval`), never two of the same pair at once
+(`docs/testing.md`). Commands, setup and the reasons behind each rule: `docs/testing.md`.
 
 **Every suite asks whether the client matches its documents; none asks whether
 it is good to use.** When the question is the second one — a redesign, a run of
