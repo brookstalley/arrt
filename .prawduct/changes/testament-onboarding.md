@@ -17,9 +17,10 @@ and Playwright's Chromium at the version `arrt/uv.lock` pins, which a root test
 holds. `AGENTS.md` carries testament's agent instructions; `CLAUDE.md` points
 there. The live suites stay on this machine.
 
-Measured 2026-11-09 on the pool: governance 475 passed, contract 223 passed,
-curation 5,452 passed (the 95 Node-only checks that skipped on the first run then
-passed with Node in the image), browser 1,451 passed in about 4 minutes.
+Every suite ran green on the pool on 2026-11-09. The first curation run skipped
+the Node-only checks as "opportunistic", which is why the image carries Node. A
+root test holds the curation suite's paths to the tree, and another holds the
+image's uv to the deploy image's.
 
 ## Consumer note
 

@@ -22,6 +22,7 @@ part is a copy that can drift on its own:
 
 import pathlib
 import re
+import subprocess
 import tomllib
 
 import yaml
@@ -95,3 +96,23 @@ def test_every_ci_job_runs_the_uv_the_image_runs():
     for name, step in steps:
         pinned = (step.get("with") or {}).get("version")
         assert pinned == _dockerfile_uv(), f"a setup-uv step in {name} pins uv {pinned}, not the image's {_dockerfile_uv()}"
+
+
+def test_every_image_in_the_tree_runs_the_uv_the_deploy_image_runs():
+    """The testament pool's image (`.devcontainer/Dockerfile`) as well as the deploy image.
+
+    Agents run the suites on the pool, so an image that kept an older uv after a
+    bump would resolve a different Python there than here and in CI — the
+    failure this file exists for, moved to where the tests run. Every tracked
+    Dockerfile, by `git ls-files`, so the next image is held with no edit here.
+    """
+    listed = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "*Dockerfile"], capture_output=True, text=True, check=True
+    ).stdout.split()
+    images = [ROOT / name for name in listed]
+    assert DOCKERFILE in images and len(images) >= 2, f"expected the deploy image and the pool's, found {listed}"
+    for image in images:
+        found = re.findall(r"^FROM ghcr\.io/astral-sh/uv:([^@\s]+)", image.read_text(encoding="utf-8"), re.M)
+        assert found == [
+            _dockerfile_uv()
+        ], f"{image.relative_to(ROOT)} pins uv {found}, not the deploy image's {_dockerfile_uv()}"

@@ -62,7 +62,7 @@ Three independent projects, three suites.
 run --json` runs all four on the pool, the browser suite on the runners with
 Chromium; `--suite governance|curation|browser|contract` picks one, and a path
 after `--` picks tests. `.testament.toml` says how each runs. The commands above
-are what CI runs and what testament falls back to here; the live suites
+are what CI runs; testament's own fallback runs `.testament.toml`'s commands here. The live suites
 (`live_*`, `llm_eval`) are not on the pool and stay on this machine.
 
 **All three must pass.** `contract/` is the `arrt-contract` package
