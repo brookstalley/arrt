@@ -3,6 +3,7 @@
 import json
 
 import httpx
+import pytest
 
 WORDS = "new abstract expressionist paintings in museum collections"
 
@@ -89,3 +90,33 @@ async def test_a_watch_changed_over_mcp_names_mcp_as_its_last_writer(server_url)
         "mcp_client",
         "hourly",
     )
+
+
+@pytest.mark.parametrize(
+    ("given", "said"),
+    [
+        ({"intent_text": "  "}, "intent_text cannot be empty"),
+        ({"intent_text": WORDS, "cadence": "fortnightly"}, "cadence is one of hourly, daily, weekly"),
+        ({"intent_text": WORDS, "monthly_cap_usd": "-1"}, "at least 0"),
+    ],
+)
+async def test_each_refusal_reads_alike_from_the_route_and_the_tool(server_url, given, said):
+    refused = route(server_url, "POST", "/watches", **given)
+    assert refused.status_code == 400
+    assert said in refused.json()["error"]
+
+    payload, errored = await call(server_url, "art_watches", action="create", **given)
+    assert errored
+    assert said in payload["error"]
+
+
+async def test_a_cap_above_an_allowance_since_lowered_reads_as_the_allowance_on_both(server_url):
+    allow(server_url, "5")
+    watch = route(server_url, "POST", "/watches", intent_text=WORDS, monthly_cap_usd="4").json()
+
+    allow(server_url, "2")
+
+    on_route = route(server_url, "GET", f"/watches/{watch['watch_id']}").json()
+    assert (on_route["monthly_cap_usd"], on_route["effective_cap_usd"]) == ("4.00", "2.00")
+    over_mcp, _ = await call(server_url, "art_watches", action="get", watch_id=watch["watch_id"])
+    assert over_mcp["watch"] == on_route
