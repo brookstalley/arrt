@@ -398,3 +398,53 @@ def test_a_spent_allowance_is_said_only_while_a_watch_that_is_on_waits_on_it(wat
 
     settings.set("unattended_allowance_usd", "5", surface=InitiatedBy.WEB_UI)
     assert watches.reading().allowance_spent is False
+
+
+def test_a_cadence_this_release_does_not_know_follows_the_households_and_breaks_nothing(watches, discovery, settings, clock):
+    odd = watches.create(intent_text="stored by a later release", surface=InitiatedBy.WEB_UI)
+    discovery.update_watch(dataclasses.replace(odd, cadence="fortnightly"))
+    clock.advance()
+    plain = watches.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
+    settings.set("unattended_cadence", "weekly", surface=InitiatedBy.WEB_UI)
+
+    assert watches.cadence_of(watches.get(odd.id)) is Cadence.WEEKLY
+    assert [standing.watch.id for standing in watches.due()] == [odd.id, plain.id]
+    assert watches.reading().overdue == ()
+
+
+def test_a_watch_switched_on_again_after_a_long_while_is_not_overdue_before_a_pass_could_try_it(watches, settings, clock):
+    settings.set("unattended_work", "on", surface=InitiatedBy.WEB_UI)
+    watch = watches.create(intent_text=WORDS, enabled=False, surface=InitiatedBy.WEB_UI)
+    clock.at += timedelta(days=30)
+
+    watches.update(watch.id, enabled=True, surface=InitiatedBy.WEB_UI)
+    assert watches.standing(watches.get(watch.id)).overdue is False
+
+    clock.at += timedelta(minutes=61)
+    assert watches.standing(watches.get(watch.id)).overdue is True
+
+
+def test_an_edit_racing_a_recorded_start_never_loses_the_run(watches, discovery, monkeypatch):
+    """The scheduler records a start while a household's edit is between its read and its write."""
+    import threading
+
+    watch = watches.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
+    reads = discovery.get_watch
+    racer: list[threading.Thread] = []
+
+    def get_watch_and_let_the_scheduler_in(watch_id):
+        found = reads(watch_id)
+        if not racer:
+            racer.append(threading.Thread(target=watches.record_started, args=(watch_id, "run-started-meanwhile")))
+            racer[0].start()
+            # Long enough for the scheduler's write to land, if nothing holds it off.
+            racer[0].join(timeout=0.3)
+        return found
+
+    monkeypatch.setattr(discovery, "get_watch", get_watch_and_let_the_scheduler_in)
+    watches.update(watch.id, cadence="weekly", surface=InitiatedBy.WEB_UI)
+    racer[0].join(timeout=5)
+    monkeypatch.undo()
+
+    after = watches.get(watch.id)
+    assert (after.cadence, after.last_run_id) == ("weekly", "run-started-meanwhile")

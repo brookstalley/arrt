@@ -355,7 +355,7 @@ function watchesPanel(health) {
   }
   const lines = [
     ...watches.overdue.map((words) =>
-      el("p", { class: "reading-sentence fault", text: `“${words}” is overdue: due for over an hour and not tried. The scheduler may have stopped.` }),
+      el("p", { class: "reading-sentence fault", text: `“${words}” is overdue: it was due and has not been tried. The scheduler may have stopped.` }),
     ),
     watches.allowance_spent
       ? el("p", { class: "reading-sentence", text: "This month's unattended allowance is spent, so the Watches that are on wait for next month." })

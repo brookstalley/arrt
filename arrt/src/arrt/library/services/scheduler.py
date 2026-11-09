@@ -7,7 +7,7 @@ says what it did. The Watch job is here too, because it is the only one.
 **A positive line on every pass, empty ones included** (`scheduler.pass`, one per
 job), because a scheduler that stopped is the new "down looks like up"
 (`observability-strategy.md`). The browser sees a stopped scheduler without the
-log: a Watch is *overdue* when it has been due for a whole cadence with nothing
+log: a Watch is *overdue* when it has been due for over an hour with nothing
 started or refused (`WatchStanding.overdue`), reckoned when the Watch is read.
 
 **What a pass may start is decided by `UnattendedAllowance.standing`, then the

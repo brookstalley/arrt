@@ -55,10 +55,15 @@ def settled(services, run_id: str):
 
 
 def tried_ago(services, watch_id: str, ago: timedelta) -> None:
-    """Move a Watch's last attempt into the past, as time passing would."""
+    """Move a Watch's last attempt into the past, and when it was written with it, as time passing would."""
     store = services.watches._store
     watch = store.get_watch(watch_id)
-    store.update_watch(dataclasses.replace(watch, last_attempt_at=datetime.now(UTC) - ago))
+    then = datetime.now(UTC) - ago
+    store.update_watch(
+        dataclasses.replace(
+            watch, last_attempt_at=then, created_at=min(watch.created_at, then), updated_at=min(watch.updated_at, then)
+        )
+    )
 
 
 def below_one_run(settings) -> Decimal:

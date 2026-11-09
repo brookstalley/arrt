@@ -169,9 +169,13 @@ class WatchService:
 
     def cadence_of(self, watch: Watch) -> Cadence:
         """How often this Watch runs: its own cadence, or the household's default for unattended work."""
-        if watch.cadence is None:
+        # Read by its value, never constructed from it: a cadence a later release
+        # stored must not make this Watch, the pass or the health reading
+        # unreadable. Such a Watch follows the household's default meanwhile.
+        own = Cadence._value2member_map_.get(watch.cadence) if watch.cadence is not None else None
+        if own is None:
             return self._settings.value(UNATTENDED_CADENCE)
-        return Cadence(watch.cadence)
+        return Cadence(own)
 
     def effective_cap(self, watch: Watch) -> Decimal:
         """What this Watch may spend this month: its cap, never more than the allowance, or the allowance."""
@@ -188,7 +192,14 @@ class WatchService:
         last_status = None if run is None else run.status
         in_flight = run is not None and not run.status.is_terminal and self._working_on(run.id)
         due_at = None if not watch.enabled or in_flight else _next_due(watch, cadence, run)
-        overdue = due_at is not None and now - due_at > OVERDUE_AFTER and self._unattended.standing().switched_on
+        # Reckoned from when it was due or last changed, whichever is later: a
+        # Watch switched on again, or given a shorter cadence, is due at once but
+        # has not yet had a pass to be tried in.
+        overdue = (
+            due_at is not None
+            and now - max(due_at, watch.updated_at) > OVERDUE_AFTER
+            and self._unattended.standing().switched_on
+        )
         return WatchStanding(
             watch=watch,
             cadence=cadence,
@@ -286,17 +297,26 @@ class WatchService:
     ) -> Watch:
         """Change what is given and leave the rest. An empty cadence or cap clears it, as on `create`."""
         by = require_member(surface, enum=InitiatedBy, field="surface")
-        before = self.get(watch_id)
-        after = replace(
-            before,
-            intent_text=before.intent_text if intent_text is None else _intent(intent_text),
-            cadence=before.cadence if cadence is None else _cadence(cadence),
-            monthly_cap_usd=before.monthly_cap_usd if monthly_cap_usd is None else self._cap(monthly_cap_usd),
-            enabled=before.enabled if enabled is None else bool(enabled),
-            updated_at=self._now(),
-            updated_by=by,
-        )
-        store_write(self._store.update_watch, after)
+        # Checked before the read, so the transaction below holds no store lock
+        # while a refusal is composed.
+        words = None if intent_text is None else _intent(intent_text)
+        every = None if cadence is None else _cadence(cadence)
+        cap = None if monthly_cap_usd is None else self._cap(monthly_cap_usd)
+        # Read and written in one transaction, as the scheduler's bookkeeping is,
+        # so a start recorded in between is never overwritten with the run before
+        # it, which would leave the Watch's live run unseen and start it again.
+        with self._store.transaction():
+            before = self.get(watch_id)
+            after = replace(
+                before,
+                intent_text=before.intent_text if words is None else words,
+                cadence=before.cadence if cadence is None else every,
+                monthly_cap_usd=before.monthly_cap_usd if monthly_cap_usd is None else cap,
+                enabled=before.enabled if enabled is None else bool(enabled),
+                updated_at=self._now(),
+                updated_by=by,
+            )
+            store_write(self._store.update_watch, after)
         changed = sorted(
             name
             for name in ("intent_text", "cadence", "monthly_cap_usd", "enabled")
