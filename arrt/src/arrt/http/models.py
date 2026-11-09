@@ -2417,3 +2417,37 @@ class NextOut(BaseModel):
 
     wall_id: str
     work_id: str
+
+
+class SettingOut(BaseModel):
+    """One household setting, with where its value came from.
+
+    `locked` is true when the environment gives the value: the browser and MCP
+    show it and cannot change it, and `environment_variable` is where it can be.
+    """
+
+    key: str
+    value: str
+    default: str
+    #: `environment`, `stored` or `default`.
+    source: str
+    locked: bool
+    environment_variable: str
+    description: str
+    #: The values it can take, in the order a control offers them.
+    choices: list[str]
+    #: When and from which surface it was last changed, while a stored value exists.
+    updated_at: str | None
+    updated_by: str | None
+
+
+class SettingListOut(BaseModel):
+    """Every household setting, in the order the screen shows them."""
+
+    settings: list[SettingOut]
+
+
+class SetSetting(BaseModel):
+    """A new value for one setting, in its own spelling: one of its `choices` for a choice."""
+
+    value: str = Field(min_length=1, max_length=200)

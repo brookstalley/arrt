@@ -105,7 +105,19 @@ depart". The allowance bounds unattended work's share, as that cap bounds one
 run's; it is not the thing that stops the bill | owner ruled 2026-11-09 for
 Arrt-enforced; user can veto/override]`
 
-**Decisions made mid-build:** none yet.
+**Decisions made mid-build:**
+- Chunk 01: the write route is `POST /api/settings/{key}`, not `PUT`. Settled by
+  the surface's convention ("this surface writes with `POST` everywhere", `api.py`
+  § taste).
+- Chunk 01: the table is in the discovery store (`SqliteDiscovery`), beside taste
+  and spend, the Library's own. Settled by the seam rules, and Chunk 03's allowance
+  reads spend there.
+- Chunk 01: a change is logged, not written to `history_events`, whose events are
+  a work's and a wall's. Settled by that table's subject; the goals asked for a log
+  line at least.
+- Chunk 01: `.env.example` no longer sets `LABEL_UNITS`, because copying it would
+  lock the new control on every installation. A root test holds that for every
+  setting `SETTINGS` declares. The goals did not foresee this.
 
 **Level:** Medium. The store and the screen follow patterns the repo already has.
 What could move: the precedence rule is inferred, and the screen is new to the IA. The
@@ -164,14 +176,14 @@ Critic mode: final. This is the keystone the other two build on.
 - `LABEL_UNITS` moves into the registry. `LibraryFacade` reads it per build instead
   of taking it at construction, and a test changes it between two builds with no
   restart.
-- `GET /api/settings` and `PUT /api/settings/{key}`, as rows in `api-contract.md`.
+- `GET /api/settings` and `POST /api/settings/{key}`, as rows in `api-contract.md`.
 - `art_settings(action='list'|'set')`, the same service as the route. Its
   fields are the route's (`test_surface_parity.py`).
 - Tests: precedence (environment locks, stored applies, default otherwise), each
   refusal by name, and the facade reading the value it was just given. Each guard
   is watched failing once.
 
-**Done when** the three suites are green, and a label built after `PUT
+**Done when** the three suites are green, and a label built after `POST
 /api/settings/label_units` uses the new units with no restart.
 
 ### Chunk 02 — Settings › General

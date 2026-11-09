@@ -29,6 +29,7 @@ from arrt.persistence.discovery_records import (
     Sighting,
     SourceYield,
     SpendRecord,
+    StoredSetting,
 )
 from arrt.persistence.records import VocabularyKind
 
@@ -224,6 +225,16 @@ class DiscoveryStore(Protocol):
         until: datetime | None = None,
     ) -> Sequence[SpendRecord]:
         """Return matching costs newest first. Bounds are inclusive of `since`, exclusive of `until`."""
+        ...
+
+    # -- settings -------------------------------------------------------------
+
+    def get_setting(self, key: str) -> StoredSetting | None:
+        """The stored value of one setting, or None when nobody has chosen one."""
+        ...
+
+    def put_setting(self, setting: StoredSetting) -> None:
+        """Store a setting's value, replacing whatever was stored for its key."""
         ...
 
     # -- resolve-run coverage -------------------------------------------------

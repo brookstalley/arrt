@@ -36,6 +36,7 @@ from arrt.library.services.review import (
     WantedView,
 )
 from arrt.library.services.runner import RunListing, RunView
+from arrt.library.services.settings import SettingState
 from arrt.library.services.twins import InReview
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.names import museum_name
@@ -1625,6 +1626,32 @@ def _set_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, An
     return ok(affinity=_affinity_fields(affinity))
 
 
+def _list_settings(services: Services, _: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(settings=[_setting_fields(state) for state in services.settings.describe()])
+
+
+def _set_setting(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    state = services.settings.set(arguments["key"], arguments["value"], surface=InitiatedBy.MCP_CLIENT)
+    return ok(setting=_setting_fields(state))
+
+
+def _setting_fields(state: SettingState) -> dict[str, Any]:
+    """A setting in the route's field names (`SettingOut`), so the two surfaces read alike."""
+    setting = state.setting
+    return {
+        "key": setting.key,
+        "value": state.value,
+        "default": setting.render(setting.default),
+        "source": str(state.source),
+        "locked": state.locked,
+        "environment_variable": setting.environment_variable,
+        "description": setting.description,
+        "choices": list(setting.choices),
+        "updated_at": None if state.updated_at is None else state.updated_at.isoformat(),
+        "updated_by": None if state.updated_by is None else str(state.updated_by),
+    }
+
+
 def _delete_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     forgotten = services.taste.delete_affinity(arguments["affinity_id"])
     return ok(
@@ -1792,6 +1819,8 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_taste", "brief"): _brief_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
+    ("art_settings", "list"): _list_settings,
+    ("art_settings", "set"): _set_setting,
 }
 
 

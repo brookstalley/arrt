@@ -139,6 +139,9 @@ from arrt.http.models import (
     SetIdentity,
     SetMatMode,
     SetPlayback,
+    SetSetting,
+    SettingListOut,
+    SettingOut,
     SetVerdict,
     SetWorkMat,
     SightingHostOut,
@@ -204,6 +207,7 @@ from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.settings import SettingState
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.thumbnails import ThumbnailUnavailable
@@ -2905,6 +2909,37 @@ def delete_affinity(request: Request, affinity_id: str) -> AffinityOut:
     handle it was addressed by.
     """
     return _affinity(_services(request).taste.delete_affinity(affinity_id))
+
+
+# -- settings -----------------------------------------------------------------
+
+
+@router.get("/settings")
+def list_settings(request: Request) -> SettingListOut:
+    """Every household setting, its value and where that came from."""
+    return SettingListOut(settings=[_setting(state) for state in _services(request).settings.describe()])
+
+
+@router.post("/settings/{key}")
+def set_setting(request: Request, key: str, body: SetSetting) -> SettingOut:
+    """Change one setting. Refused, by name, for an unknown key, a value it cannot take, or one the environment locks."""
+    return _setting(_services(request).settings.set(key, body.value, surface=InitiatedBy.WEB_UI))
+
+
+def _setting(state: SettingState) -> SettingOut:
+    setting = state.setting
+    return SettingOut(
+        key=setting.key,
+        value=state.value,
+        default=setting.render(setting.default),
+        source=str(state.source),
+        locked=state.locked,
+        environment_variable=setting.environment_variable,
+        description=setting.description,
+        choices=list(setting.choices),
+        updated_at=None if state.updated_at is None else state.updated_at.isoformat(),
+        updated_by=None if state.updated_by is None else str(state.updated_by),
+    )
 
 
 def _affinity(affinity: Affinity) -> AffinityOut:

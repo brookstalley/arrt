@@ -31,6 +31,7 @@ from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, MAT_PRESETS
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
 from arrt.library.services.look import ANSWER_KEPT_FOR, LOOK_HOLD_SECONDS, UNREACHABLE_KEPT_FOR
 from arrt.library.services.review import MAX_REVIEW_LIMIT
+from arrt.library.services.settings import SETTINGS
 from arrt.library.services.survey import FIT_BANDS
 from arrt.mcp.registry import Action, Param, ToolRecord
 from arrt.persistence.discovery_records import AffinityDerivation, AffinitySentiment, RunKind, RunStatus
@@ -2180,6 +2181,59 @@ ART_TASTE: Final = ToolRecord(
     ),
 )
 
+ART_SETTINGS: Final = ToolRecord(
+    name="art_settings",
+    title="Art settings",
+    summary="Read and change the household's settings, as Settings › General does.",
+    read_only=False,
+    # Not destructive: `set` replaces a value, and the old one can always be set
+    # back. Every surface may change every setting (the owner, 2026-11-09).
+    destructive=False,
+    open_world=False,
+    actions=(
+        Action(
+            name="list",
+            description=(
+                "Return every setting: its value, its default, where the value came from (the environment, "
+                "a stored choice, or the default), whether it is locked, and the values it can take."
+            ),
+            example="art_settings(action='list')",
+            tips=(
+                (
+                    "A locked setting is given by the deployment's environment. Changing it here is refused; "
+                    "say which variable sets it (`environment_variable`) rather than retrying."
+                ),
+            ),
+        ),
+        Action(
+            name="set",
+            description="Change one setting. The change applies at once, with no restart.",
+            example="art_settings(action='set', key='label_units', value='metric')",
+            params=(
+                Param(
+                    name="key",
+                    type="string",
+                    description="The setting to change, as action='list' names it.",
+                    choices=tuple(setting.key for setting in SETTINGS),
+                    required=True,
+                ),
+                Param(
+                    name="value",
+                    type="string",
+                    description="The new value, in the setting's own spelling: one of its `choices` for a choice.",
+                    required=True,
+                ),
+            ),
+            tips=(
+                (
+                    "This changes the household's Arrt for everyone using it, the walls included. Say what you "
+                    "changed and from what, so the curator is never surprised by it."
+                ),
+            ),
+        ),
+    ),
+)
+
 #: Registration order, which is the order a client sees. Money first, then the
 #: gate that money runs through, then the collection it lands in, and last what
 #: the product has come to know about the person it is all for.
@@ -2190,6 +2244,7 @@ TOOLS: Final[tuple[ToolRecord, ...]] = (
     ART_THEME,
     ART_DISPLAY,
     ART_TASTE,
+    ART_SETTINGS,
 )
 
 TOOLS_BY_NAME: Final[dict[str, ToolRecord]] = {tool.name: tool for tool in TOOLS}

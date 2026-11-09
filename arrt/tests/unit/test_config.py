@@ -24,7 +24,6 @@ from arrt.config import (
     Settings,
     retired_settings_in,
 )
-from arrt.library.dimensions import Units
 
 
 @pytest.fixture(autouse=True)
@@ -778,10 +777,12 @@ def test_a_monthly_budget_that_is_not_money_is_refused_by_name(monkeypatch, tmp_
         Settings.from_env()
 
 
-def test_labels_are_imperial_unless_told_otherwise(monkeypatch, tmp_path):
+def test_label_units_the_environment_does_not_give_are_left_to_the_settings(monkeypatch, tmp_path):
+    """Unset, the environment locks nothing, and the stored value or the default applies
+    (imperial, `test_settings.py`)."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
 
-    assert Settings.from_env().label_units is Units.IMPERIAL
+    assert "label_units" not in Settings.from_env().environment_settings
 
 
 @pytest.mark.parametrize("spelling", ["metric", "METRIC", " Metric "])
@@ -789,7 +790,7 @@ def test_labels_are_metric_however_metric_is_spelled(monkeypatch, tmp_path, spel
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("LABEL_UNITS", spelling)
 
-    assert Settings.from_env().label_units is Units.METRIC
+    assert Settings.from_env().environment_settings["label_units"] == "metric"
 
 
 def test_a_system_of_units_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_path):
