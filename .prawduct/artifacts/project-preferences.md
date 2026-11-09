@@ -144,8 +144,10 @@ Developer preferences for how code is written in this project. Captured during d
   **`-n0` for the browser and live suites** — a command-line `-m` replaces the
   marker expression and leaves the parallelism in place, which turns real poll
   intervals into flakes and concurrent museum requests into a rate limit.
-  On the testament pool every suite takes `-n 0` and the pool is the
-  parallelism (`.testament.toml`, which says why).
+  On the testament pool (the owner's onboarding of 2026-11-09) each batch runs
+  serially and the pool is the parallelism: the curation and browser suites
+  pass `-n 0` over their `-n auto`, and the governance and contract suites have
+  no xdist to turn off (`.testament.toml`).
 
 ## Architecture Patterns
 

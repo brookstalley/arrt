@@ -22,6 +22,12 @@ the Node-only checks as "opportunistic", which is why the image carries Node. A
 root test holds the curation suite's paths to the tree, and another holds the
 image's uv to the deploy image's.
 
+Two rules moved with it. `docs/testing.md` and `CLAUDE.md`: one museum live
+marker may run beside one OpenRouter marker, each serial within, never two of the
+same pair at once (the owner, 2026-11-09). `project-preferences.md`'s
+parallelization row: on the pool each batch runs serially and the pool is the
+parallelism.
+
 ## Consumer note
 
 none: this changes how the project's own tests run, on the household's pool or here; nothing a household running Arrt sees changes.
