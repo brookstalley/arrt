@@ -21,8 +21,8 @@ partition: serial — both chunks edit `api-contract.md` and the MCP surface tes
 **Response taken:** Proceed, citing it. `agents-and-memory.md` item 3 ("MCP for the
 household's own agents") and open question 5. The advisor proposed this scope on
 2026-11-08. The owner's reply was "let's keep going", which this plan reads as
-accepting it. *Inferred, not ruled:* the owner had not seen the #53 finding below
-when they replied.
+accepting it. The owner had not seen the #53 finding below when they replied, and ruled on
+it separately on 2026-11-08: fork 1, Arrt checks Host and Origin.
 
 **Product:** a household's own agent reaches its Arrt over `/mcp` from inside the
 LAN and does what Ask does inside Arrt (ruling 4). Two things stand in the way:
@@ -96,9 +96,9 @@ deployment fact it rests on was read from the homelab's compose file and Caddyfi
   name and port. The first build applied `Host`'s test, which passes every IP
   address, so a page served from another LAN device could still make bodyless
   cross-origin POSTs. *(Revised after the cumulative review.)*
-- The api-contract and security-model entries say **proposed**, not decided, until
-  the owner rules on #53's fork, because their "let's keep going" came before they
-  saw it.
+- The api-contract and security-model entries said **proposed** until the owner
+  ruled on #53's fork on 2026-11-08, because their "let's keep going" came before
+  they saw it. They now record the decision.
 - `CURATION_ALLOWED_HOSTS` refuses a URL, a port or a path at startup instead of
   keeping the name part, so a misunderstanding of the setting is reported.
 - The setting is documented in `.env.example`, `deploy/README.md` (a dated

@@ -2,6 +2,7 @@
 schema: 1
 type: feature
 scope: mcp-household-agents
+closes: [53]
 date: 2026-11-08
 title: The taste brief over MCP, and Host and Origin checked on every surface but the Player's
 ---
