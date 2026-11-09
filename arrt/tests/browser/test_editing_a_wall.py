@@ -438,6 +438,10 @@ def test_a_feed_that_cannot_be_read_is_said_in_the_dialog(ui, services, the_wall
 def test_a_wall_gone_since_the_page_painted_is_said_beside_its_edit_and_opens_nothing(ui, services, the_wall):
     study = services.display.add_wall(name="Study")
     ui.open("#walls")
+    # Painted before it is deleted, as the name says: `open` returns once the
+    # client has started, not once Walls has read its walls, and a read that
+    # lands after the delete paints no Study to press Edit on.
+    card(ui, "Study").wait_for()
     services.display.delete_wall(study.id)
 
     edit = card(ui, "Study").get_by_role("button", name="Edit Study…")
