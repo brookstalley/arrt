@@ -243,6 +243,22 @@ and each refusal says so. Then check:
 **The way back** is the previous image. Nothing in the catalogue changed, and the
 setting is ignored by a server from before this.
 
+## Ask's spend in the ledger (2026-11-09)
+
+From this release on, each Ask reply that was billed anything writes a spend
+row in the category `ask_tokens` (#337). Nothing to do before deploying. Check
+after one Ask reply that `art_discovery(action='spend')` went up by about what
+the reply showed under it.
+
+**The way back** is the previous image, after one statement on the catalogue.
+A server from before this refuses a spend row in a category it does not know,
+so its month's spend fails once Ask has written one:
+
+    sqlite3 <art root>/catalogue.sqlite "DELETE FROM spend_records WHERE category = 'ask_tokens';"
+
+That forgets only what Ask spent since the upgrade, which the earlier server
+never counted.
+
 ## `curation.service`
 
 `deploy/curation.service` runs the server under systemd rather than in a
