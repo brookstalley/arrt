@@ -354,6 +354,10 @@ class SettingsService:
         except SettingRefused as exc:
             raise ServiceError(str(exc)) from exc
         before = self._state(setting)
+        # A choice set aside is named as it was stored, so the change line says
+        # what the household's new choice replaced, not the default standing in.
+        prior = self._store.get_setting(key) if before.source is SettingSource.SET_ASIDE else None
+        was = f"{prior.value!r} (set aside)" if prior is not None else repr(before.value)
         stored = StoredSetting(
             key=key,
             value=setting.render(parsed),
@@ -361,7 +365,7 @@ class SettingsService:
             updated_by=require_member(surface, enum=InitiatedBy, field="surface"),
         )
         store_write(self._store.put_setting, stored)
-        log.info("setting %s changed from %r to %r by %s", key, before.value, stored.value, stored.updated_by)
+        log.info("setting %s changed from %s to %r by %s", key, was, stored.value, stored.updated_by)
         return self._state(setting)
 
     def _known(self, key: str) -> Setting[object]:

@@ -138,6 +138,15 @@ def test_an_allowance_above_a_budget_since_lowered_is_set_aside_naming_both(disc
     assert state.updated_by is InitiatedBy.WEB_UI, "who made the choice set aside is still said"
 
 
+def test_replacing_a_choice_set_aside_logs_the_choice_it_replaced_not_the_default(discovery, caplog):
+    stored(discovery, "label_units", "cubits")
+
+    with caplog.at_level(logging.INFO, logger="arrt.library.services.settings"):
+        SettingsService(discovery).set("label_units", "metric", surface=InitiatedBy.WEB_UI)
+
+    assert "setting label_units changed from 'cubits' (set aside) to 'metric' by web_ui" in caplog.text
+
+
 def test_a_stored_value_that_holds_has_no_reason(discovery):
     stored(discovery, "label_units", "metric")
 
