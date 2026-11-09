@@ -20,3 +20,7 @@ there. The live suites stay on this machine.
 Measured 2026-11-09 on the pool: governance 475 passed, contract 223 passed,
 curation 5,452 passed (the 95 Node-only checks that skipped on the first run then
 passed with Node in the image), browser 1,451 passed in about 4 minutes.
+
+## Consumer note
+
+none: this changes how the project's own tests run, on the household's pool or here; nothing a household running Arrt sees changes.
