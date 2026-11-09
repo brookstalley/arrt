@@ -252,6 +252,8 @@ back the same from the route.
 Critic mode: final. This is the keystone, the first thing that spends with
 nobody watching.
 
+- `http/static/screens/activity.js`: the comment saying a scheduled Get-again
+  "waits for Watches" names the upgrades job instead (Chunk 01's review).
 - Step 0: read how the runner chooses its model, and whether
   `unattended_model` can be given per run. If it cannot, run the Watch on a
   second engine built from the same factory, and record the choice.
@@ -272,8 +274,10 @@ nobody watching.
   one run attributed `unattended` with its `watch_id`, and its spend counts
   against both the allowance and its cap; each refusal (off, no key, allowance,
   cap) starts nothing and is stored; a Watch in flight is not started twice; a
-  restart does not catch up; an empty pass still logs its line; and a run of
-  each failure kind is retried at the next pass, not in a loop. Each guard is
+  restart does not catch up; an empty pass still logs its line; a run of each
+  failure kind is retried at the next pass, not in a loop; and a Watch's
+  unreviewed find is absent from the next run's phase 1 request, while the same
+  find, once rejected, is present (`agents-and-memory.md` open question 2). Each guard is
   watched failing once.
 
 **Done when** the three suites are green, and on a scratch `ART_ROOT` with a

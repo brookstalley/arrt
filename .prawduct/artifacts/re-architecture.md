@@ -527,6 +527,17 @@ Both belong to the Library.
     silently stops running is the new "down looks like up".
   - **Attribution:** `initiated_by` on runs and spend needs a value for Watches.
 
+> **Designed 2026-11-09 (`build-plan-watches.md`), and narrower than the list
+> above.** A Watch is its words, a cadence and an optional monthly cap, run by a
+> scheduler the Library owns. Each run is an ordinary discovery run,
+> `initiated_by` `unattended`, under the household's unattended allowance. **Its
+> one policy is queue for review: auto-accept and notify-only are not offered**
+> (the owner). Facet filters and sources are descoped until facet population
+> gives runs something to filter on. Both triggers above are answered:
+> `security-model.md` § The unattended trigger fired, and
+> `observability-strategy.md` § Accepted detection latency. So in the next
+> paragraph, step 1 is the curator accepting a Watch's find, never the Watch.
+
 **Where the design pays off.** "Grab new abstract expressionist pieces and show
 them in the living room" is a Watch plus a smart playlist that knows nothing of
 the Watch:
@@ -731,13 +742,21 @@ server's session finishes Ask and then builds 4e and 4g.
   (`operational-spec.md`). A wave 2 decision.
 - **The server image's provenance:** how the container image is pinned and
   where it is built (`security-model.md`). Before wave 3.
-- **Watches, before the plan that builds them:** the re-derived
+- ~~**Watches, before the plan that builds them:** the re-derived
   prompt-injection bounds (`security-model.md` § Prompt Injection), whether
   auto-accept is offered at all, the `initiated_by` value for a Watch
   (`api-contract.md`), and whether scheduled jobs revisit the no-push-alerts
-  decision (`observability-strategy.md`).
+  decision (`observability-strategy.md`).~~ **Closed 2026-11-09 by
+  `build-plan-watches.md`.** The bounds are re-derived (`security-model.md` § The
+  unattended trigger fired). Auto-accept is not offered, by the owner's ruling. A
+  Watch's run is `initiated_by` `unattended`, with the Watch on the run's
+  `watch_id`. Panel-only alerting holds (the owner: "browser only").
 - **External identity for works and artists, before Watches.** *(Raised
-  2026-09-30, while planning the *arr navigation.)* Sonarr and Radarr rest on an
+  2026-09-30, while planning the *arr navigation.)* *(2026-11-09: not a
+  prerequisite, inferred by `build-plan-watches.md` for the owner to veto. Dedup
+  by key and the rejected-candidate records already keep a Watch from offering a
+  work twice. The series-title risk below is every run's, and a Watch makes it
+  more frequent, not worse per run. It stays open as a facet-population question.)* Sonarr and Radarr rest on an
   external ID (TVDB, TMDB) that they use and do not maintain. Arrt's work
   identity is its own: `work_dedup_key` is a normalised title and artist
   (`arrt/src/arrt/library/discovery/dedup.py`). Series titles

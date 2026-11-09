@@ -3120,6 +3120,27 @@ an open question.
 | `spend_cap_usd` | decimal | Per period. Every run records `SpendRecord`s against it. |
 | `last_run_at`, `enabled` | | |
 
+> **Designed 2026-11-09 (`build-plan-watches.md`); this table replaces the one
+> above when Chunk 03 lands.** `facet_filter`, `sources` and `on_match` are
+> descoped. A run is driven by its words alone, and the one policy is queue for
+> review (the owner: auto-accept is not offered). In the discovery store:
+>
+> | Field | Type | Description |
+> |---|---|---|
+> | `id` | UUID | |
+> | `intent_text` | text | Required, not blank. Shown as text, never parsed as markup. |
+> | `cadence` | `Cadence` or null | `hourly` \| `daily` \| `weekly`. Null follows the `unattended_cadence` setting when read. |
+> | `monthly_cap_usd` | decimal or null | What this Watch's runs may spend in a UTC month. Null leaves only the allowance. Read as at most the allowance. |
+> | `enabled` | bool | |
+> | `created_at`, `updated_at` | timestamp | |
+> | `created_by`, `updated_by` | `InitiatedBy` | The surface that wrote it, for tracing a surprise (`security-model.md` § The unattended trigger fired). |
+> | `last_attempt_at` | timestamp or null | The last pass that judged it due, whether it started or was refused. |
+> | `last_run_id` | run id or null | Its last started run. That run's status is its outcome, never copied here. |
+> | `last_refusal` | enum or null | `off` \| `no_key` \| `allowance_spent` \| `cap_spent`, from the last attempt that did not start. Null when the last attempt started. |
+>
+> **`discovery_runs.watch_id`**, nullable: the Watch whose pass started the run.
+> What a Watch spent is read through it, from `SpendRecord`, and never stored twice.
+
 The memory of what a Watch has already seen is the existing dedup and
 rejected-candidate records, not a new table. Upgrade monitoring (re-searching
 works whose verdict is `wanted`) runs on the same scheduler.

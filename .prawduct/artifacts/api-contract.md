@@ -2396,6 +2396,11 @@ authority on the caller would reintroduce the parity split MCP exists to prevent
 >   the "unattended discovery" trigger that `security-model.md` § Prompt Injection
 >   names. That section must be re-derived before Watches are built.
 > - **`initiated_by`** will need a value for a Watch.
+>
+> *(Both answered 2026-11-09, `build-plan-watches.md`: Watches do not auto-accept,
+> because the owner ruled every find stops in To review. The section is re-derived
+> as `security-model.md` § The unattended trigger fired. A Watch's run is
+> `initiated_by` `unattended`, with the Watch on the run's `watch_id`.)*
 
 **The real exposure is prompt injection, and it is bounded — but less tightly than
 this artifact previously claimed.**

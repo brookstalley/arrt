@@ -384,7 +384,7 @@ listed below so it can be disputed.
 | Activity › **To review** | New 2026-10-02 | Radarr's Queue holds what finished but needs the user; here that is a page of its own, the one queue that needs the curator, counted on Activity's link as Sonarr counts its queue. Review opens from here |
 | Activity › **Queue** | Discover's run list: runs that have not ended; and, since 2026-10-02, the images being fetched | Radarr's Queue: work in flight, downloads included. A Get and a Work open from here |
 | Activity › **History** | The event log (finished runs until 2026-10-07) | Radarr's History |
-| **Wanted** | New 2026-10-02 under Activity; a section of its own since 2026-10-05 (the owner's ruling) | Lidarr's Wanted › Missing: what the library wants and does not have. Always shown, counted when something is wanted (ruling 5 of 2026-10-07). *Upgrades* (works held small, `upgrades.md`; it replaces Radarr's Cutoff Unmet, since the owner ruled out a cutoff on 2026-10-02) and a Watch's Missing (wave 6) become its tabs when they exist |
+| **Wanted** | New 2026-10-02 under Activity; a section of its own since 2026-10-05 (the owner's ruling) | Lidarr's Wanted › Missing: what the library wants and does not have. Always shown, counted when something is wanted (ruling 5 of 2026-10-07). *Upgrades* (works held small, `upgrades.md`; it replaces Radarr's Cutoff Unmet, since the owner ruled out a cutoff on 2026-10-02) becomes its tab when it exists. *(A Watch's Missing tab was withdrawn 2026-11-09: a Watch's request is open-ended, so it has no list of works it lacks, `build-plan-watches.md`)* |
 | **Settings** (its index) | New 2026-10-08 (`build-plan-lists-settings-and-scale.md` Chunk 04); Settings opened on Taste until then | Sonarr's and Radarr's v4 /settings: the section's link opens a list of its pages, each with a line on what it holds, so no page has to be "first" |
 | Settings › **Players** | New 2026-10-02 as Clients (`clients.md`); Players since 2026-10-29 | Radarr's Settings › Download Clients: the server's list of the external programs it works with, which here are the installed Players. A wall's Player is set on the wall (its *Edit…*), as the *arr apps set a series' indexer on the series |
 | Settings › **Sources** | New 2026-10-06 (`build-plan-met-source.md` Chunk 02) | Radarr's Settings › Indexers: the places the server searches, which here are the installed source plugins. Read-only, because the order is `SOURCE_ORDER` and installing a plugin is an image build |
@@ -533,9 +533,11 @@ listed below so it can be disputed.
   state. Its link is always in the sidebar, with its count when something is
   wanted, as in every *arr app (ruling 5 of 2026-10-07, #292). It is also
   where *Upgrades* (held works and what a search for a bigger scan found,
-  `upgrades.md`, parked; there is no cutoff) and *Missing* (a Watch's unmet wants, wave 6)
-  land, as tabs beside today's list. Watches themselves follow Radarr's Lists and
-  go under Settings.
+  `upgrades.md`, parked; there is no cutoff) lands, as a tab beside today's list.
+  Watches themselves follow Radarr's Lists and go under Settings. *(A Watch's
+  *Missing* tab was withdrawn 2026-11-09: a Watch's request is open-ended, so
+  there is no list of works it lacks to show. What a Watch finds goes to To
+  review, `build-plan-watches.md`.)*
 - **On phones the sidebar becomes a drawer** behind a menu button, as it does in
   the *arr apps. This replaces the bottom bar in `design-direction.md`'s layout
   table. **The top bar is one row on a phone** — menu, name, search, indicator —
@@ -1253,8 +1255,9 @@ by `re-architecture.md` (`archive/build-plan.md`).
   2026-09-30; see `re-architecture.md`)*. Each needs a home that satisfies the
   navigation norm: where its *arr precedent puts it, as a page inside an
   existing section rather than a section of its own:
-  - **Watches** follow Radarr's Lists under Settings, and what they still want
-    appears under Wanted › Missing. *(Changed 2026-09-30 with the *arr
+  - **Watches** follow Radarr's Lists under Settings, and what they find goes
+    to To review, each card naming its Watch. *(2026-11-09: Wanted › Missing
+    withdrawn, `build-plan-watches.md`, which designs Settings › Watches. Changed 2026-09-30 with the *arr
     amendment. The earlier answer was under Discover, as the standing form of a
     run.)*
   - **Programming tags** belong on Artworks and Work, beside the facets they
