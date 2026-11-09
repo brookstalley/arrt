@@ -109,6 +109,20 @@ def ask(ui, words: str) -> None:
     ui.page.click("#view button:text-is('Ask')")
 
 
+def away_and_back(ui) -> None:
+    """Leave Ask for Walls and come back, as a curator would, keeping what the client holds.
+
+    Walls is waited for by its own heading. Any `h1` would not do: Ask has one,
+    so that wait was met before Walls drew anything, the return began with Ask's
+    turn still on screen, and every wait after it could be met by the page that
+    was never left (#402). Once Walls has drawn, Ask's turn is gone, and what
+    the caller waits for next can only come from the returning page.
+    """
+    ui.navigate("#walls")
+    ui.page.wait_for_selector("#view h1:text-is('Walls')")
+    ui.navigate("#discover")
+
+
 def test_a_reply_shows_what_it_looked_at_its_answer_its_cards_and_its_cost(ui, ask_model):
     ask_model.replies += [calls(SEARCH), says(ANSWER)]
     ui.open("#discover")
@@ -370,9 +384,7 @@ class TestEnter:
         ask(ui, "Something wintry")
         ui.page.wait_for_selector(".ask-turn")
 
-        ui.navigate("#walls")
-        ui.page.wait_for_selector("#view h1")
-        ui.navigate("#discover")
+        away_and_back(ui)
         ui.page.wait_for_selector(".ask-waiting")
 
         assert ui.page.locator("#view button:text-is('Ask')").is_disabled()
@@ -406,9 +418,7 @@ def test_a_thread_with_something_said_offers_no_examples(ui, ask_model):
     ui.page.wait_for_selector(".ask-ending:has-text('cost')")
 
     assert ui.page.locator(".ask-examples").count() == 0
-    ui.navigate("#walls")
-    ui.page.wait_for_selector("#view h1")
-    ui.navigate("#discover")
+    away_and_back(ui)
     ui.page.wait_for_selector(".ask-turn")
     assert ui.page.locator(".ask-examples").count() == 0
 
@@ -421,9 +431,7 @@ def test_a_returning_page_draws_the_thread_as_it_was(ui, ask_model):
     ui.page.wait_for_selector(".ask-ending:has-text('This reply cost')")
     live = _settled_turn(ui)
 
-    ui.navigate("#walls")
-    ui.page.wait_for_selector("#view h1")
-    ui.navigate("#discover")
+    away_and_back(ui)
     ui.page.wait_for_selector(".ask-turn")
 
     assert _settled_turn(ui) == live
