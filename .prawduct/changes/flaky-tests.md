@@ -4,7 +4,7 @@ type: fix
 scope: flaky-tests
 closes: [brookstalley/arrt#57, brookstalley/arrt#397, brookstalley/arrt#376, brookstalley/arrt#402, brookstalley/arrt#372]
 date: 2026-11-09
-title: Six tests that failed now and then under the parallel suite, and one product race behind two of them
+title: Tests that failed now and then under the parallel suite, and one product race behind two of them
 ---
 
 **A product race, fixed (#57, #397).** `DiscoveryRunner.run_status` read a run
@@ -19,6 +19,7 @@ fails against the old order.
 - **#402:** browser tests that left Ask for Walls waited for any page heading, which Ask's own met. They now wait for Walls' heading. A fourth test with the same wait got the same fix.
 - **#372:** the suite's one-shot HTTP requests had httpx's 5 s default, which a loaded run reaches (measured: 4.4 s worst at three suites at once). They now take 30 s, set once in `arrt/tests/serving.py`, with a guard that the bound applies and that product code never calls the test-only default.
 - A wall-gone browser test deleted its wall before the page had drawn it. It now waits for the wall's card.
+- The back-button test in `test_the_sidebar.py` waited for any heading after opening a work, which Walls' own met, so back could run from Walls and pass. It now waits for the Work page's own `← Walls` link, and for it to go after back.
 
 **#371 stays open.** Its second case is probably #372's timeout, unconfirmed.
 Its first did not reproduce in four loaded runs, and its cause is not known.
