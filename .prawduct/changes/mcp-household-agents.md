@@ -22,6 +22,7 @@ missing:
   they take the wall's token. This closes the DNS-rebinding vector #53 recorded
   against `/mcp` and `/api`. Binding policy could not close it, because the
   reference deployment publishes the server's port directly for its Player.
+  The owner ruled for this fork on 2026-11-08.
 
 ## Consumer note
 

@@ -184,7 +184,7 @@ re-derivation protocol, not a patch.
 > the only thing that talks to a television.
 
 **Being on the LAN means being on it, not having a browser there.** Since
-2026-11-08 (proposed, awaiting the owner's ruling) every surface but the
+2026-11-08 (the owner's ruling on #53) every surface but the
 Player's refuses a request whose `Host` is not `localhost`, an IP address, or a
 name in `CURATION_ALLOWED_HOSTS`, and one whose `Origin` is neither a listed name
 nor the request's own address. That stops a web page in a LAN browser from driving the

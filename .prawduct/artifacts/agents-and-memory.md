@@ -163,8 +163,8 @@ Each item gets its own build plan when it starts, as the waves did.
 5. ~~What does a household's own agent need over MCP that the six tools lack
    today: taste writes certainly, and what else?~~ **Answered from the code
    2026-11-08.** The advisor proposed the scope below and the owner replied
-   "let's keep going"; the Host and Origin check's own decision (#53's fork) is
-   awaiting their ruling. Taste
+   "let's keep going"; the Host and Origin check's own decision (#53's fork) was
+   theirs too: Arrt checks them (fork 1), ruled 2026-11-08. Taste
    writes were already there: `art_taste` has `set` (stated only) and `delete`,
    and `art_review(action='set_verdict')` runs the same service as the browser,
    so a verdict over MCP writes observed taste by question 1's rule. The MCP
