@@ -37,7 +37,7 @@ def _display(store, tmp_path, *, catalogue=None):
     discovery = DiscoveryService(SqliteDiscovery(store._store), catalogue)
     return DisplayService(
         store,
-        LibraryFacade(catalogue, discovery, label_units=Units.IMPERIAL),
+        LibraryFacade(catalogue, discovery, label_units=lambda: Units.IMPERIAL),
         DisplaySettings(art_root=tmp_path, rotation_interval_seconds=180, shuffle=True),
     )
 

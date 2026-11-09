@@ -1,7 +1,7 @@
 """Settings opens on an index of its pages, and Taste is the last of them.
 
 As Sonarr's and Radarr's v4 /settings: the sidebar's Settings is a page of its
-own, listing Clients, Sources and Taste in the sidebar's order, each a link with
+own, listing Players, Sources, General and Taste in the sidebar's order, each a link with
 one line saying what it holds. Taste is headed "Taste", and its help names every
 control that records a judgment, by the words that control carries.
 """
@@ -17,7 +17,7 @@ from payloads import a_taste, an_affinity
 
 #: The pages, in the order the index and the sidebar list them.
 #: Players kept its address, `#clients`, when ruling 7 of 2026-10-27 renamed it.
-PAGES = [("clients", "Players"), ("sources", "Sources"), ("taste", "Taste")]
+PAGES = [("clients", "Players"), ("sources", "Sources"), ("general", "General"), ("taste", "Taste")]
 
 
 def test_the_sidebars_settings_opens_the_index(ui):

@@ -23,7 +23,7 @@ from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
-from serving import serve
+from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
 from arrt.config import (
@@ -36,7 +36,6 @@ from arrt.config import (
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_HOST,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
-    DEFAULT_LABEL_UNITS,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -93,6 +92,15 @@ from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Bound the suite's own requests by Playwright's 30 s default, not httpx's 5 s (`serving.py`).
+
+    A hook rather than a fixture, so it holds in every xdist worker from the
+    first test, including a module-scoped server's first request.
+    """
+    bound_the_suites_requests()
 
 
 @pytest.fixture(autouse=True)
@@ -263,7 +271,7 @@ def settings(tmp_path) -> Settings:
         preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
         rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
         rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
-        label_units=DEFAULT_LABEL_UNITS,
+        environment_settings={},
         backup_dir=None,
         backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
         backup_keep=DEFAULT_BACKUP_KEEP,

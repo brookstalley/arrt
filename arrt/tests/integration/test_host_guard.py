@@ -43,9 +43,8 @@ def get(url: str, path: str, **headers: str) -> httpx.Response:
             f"{url}{path}",
             json=_MCP_INITIALIZE,
             headers={"accept": "application/json, text/event-stream", **headers},
-            timeout=20,
         )
-    return httpx.get(f"{url}{path}", headers=headers, timeout=20)
+    return httpx.get(f"{url}{path}", headers=headers)
 
 
 @pytest.mark.parametrize("path", GUARDED)
@@ -71,7 +70,7 @@ def test_an_address_localhost_and_a_listed_name_in_any_case_are_answered(guarded
 
 def test_with_nothing_listed_an_address_is_still_answered(server_url):
     """A fresh install, reached by its address, works before anyone sets anything."""
-    assert httpx.get(f"{server_url}/api/health", timeout=20).status_code == 200
+    assert httpx.get(f"{server_url}/api/health").status_code == 200
     assert get(server_url, "/api/health", host=LISTED).status_code == HOST_REFUSED
 
 
@@ -139,7 +138,7 @@ def test_an_opaque_or_malformed_origin_is_refused(guarded_url, origin):
 )
 def test_the_players_routes_answer_under_any_name(guarded_url, method, path):
     """They take the wall's token instead, so an unlisted name gets the token's answer, not the guard's."""
-    response = httpx.request(method, f"{guarded_url}{path}", headers={"host": FOREIGN}, timeout=20)
+    response = httpx.request(method, f"{guarded_url}{path}", headers={"host": FOREIGN})
 
     assert response.status_code == 401
 

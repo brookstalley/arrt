@@ -230,8 +230,10 @@ Four properties of the rule, all of them load-bearing:
 *(2026-10-08, the owner's ruling.)* **A label states a work's dimensions in one
 system of units, rounded to whole units, and only the first measurement.** "76.5
 × 97.3 cm (30 1/8 × 38 1/4 in.)" is "30 × 38 in". The system is the deployment's
-(`LABEL_UNITS`, imperial or metric, imperial by default); a Settings › General
-control for it waits on the interface redesign. Where the source states several
+(`label_units`, imperial or metric, imperial by default), a household setting
+read when each label is built: `LABEL_UNITS` in the environment sets and locks
+it, and otherwise it is changed in Settings › General or over MCP
+(`build-plan-unattended-settings.md`). Where the source states several
 measurements (image and mount, unframed and framed, a repeat, side panels) the
 first is kept with its qualifier ("Image/paper: 8 × 10 in") and the rest dropped.
 The source's own figures in the chosen system are read rather than converted

@@ -17,7 +17,7 @@ import ux_walk  # tools/ is not a package; the path is inserted above
 
 def _themes(server_url: str) -> list[str]:
     """Asked of the server directly, outside any guarded browser context."""
-    return [theme["name"] for theme in httpx.get(f"{server_url}/api/themes", timeout=10).json()["themes"]]
+    return [theme["name"] for theme in httpx.get(f"{server_url}/api/themes").json()["themes"]]
 
 
 def test_a_write_from_the_page_is_refused_and_never_reaches_the_server(browser, server_url):

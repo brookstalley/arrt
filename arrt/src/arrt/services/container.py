@@ -17,7 +17,7 @@ they are settled in one place instead of per constructor.
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -35,7 +35,6 @@ from typing import Protocol
 # real cycle ever appears, the fix is to move the constants, not to hide the edge.
 from arrt.config import (
     DEFAULT_ACQUISITION_USER_AGENT,
-    DEFAULT_LABEL_UNITS,
     DEFAULT_MAT_IMAGE_MAX_EDGE,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
@@ -54,7 +53,6 @@ from arrt.library.acquisition.queue import AcquisitionQueue
 from arrt.library.acquisition.service import AcquisitionService, AcquisitionSettings
 from arrt.library.acquisition.transport import no_transport
 from arrt.library.acquisition.urls import Resolver, check_fetchable
-from arrt.library.dimensions import Units
 from arrt.library.discovery.engine import DiscoveryEngine
 from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.discovery.phase_two import PhaseTwoEngine
@@ -75,6 +73,7 @@ from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
+from arrt.library.services.settings import LABEL_UNITS, Limits, SettingsService
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.spending import BudgetService
 from arrt.library.services.survey import SurveyService
@@ -82,6 +81,7 @@ from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
+from arrt.library.services.unattended import UnattendedAllowance
 from arrt.library.services.wikidata_match import WikidataMatchService
 from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
@@ -205,6 +205,12 @@ class Services:
     #: What is left of the month's budget, read from the provider's key, for
     #: the sidebar. Display only: nothing gates on it.
     budget: BudgetService
+    #: The household's settings, read when each is used and changed from the
+    #: browser or over MCP alike.
+    settings: SettingsService
+    #: Whether agent work may start with nobody watching, and what it has spent
+    #: this month. Asked by whatever starts such work, before it starts.
+    unattended: UnattendedAllowance
 
     @classmethod
     def bind(
@@ -217,9 +223,10 @@ class Services:
         quality_profile: QualityProfile,
         engine: DiscoveryEngine,
         discovery_settings: DiscoverySettings,
-        #: The system every label states a work's dimensions in. Defaulted for the
-        #: suites, which set no deployment; `main` passes `LABEL_UNITS`.
-        label_units: Units = DEFAULT_LABEL_UNITS,
+        #: The settings the environment gives, by key, as text, which lock them
+        #: (`library/services/settings.py`). Empty for the suites, which set no
+        #: deployment; `main` passes what `Settings.from_env` read.
+        settings_environment: Mapping[str, str] | None = None,
         acquisition: AcquisitionSettings | None = None,
         open_stream: StreamOpener | None = None,
         #: How a hostname becomes addresses for the fetch policy. Defaults to the
@@ -279,7 +286,10 @@ class Services:
         )
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
-        library = LibraryFacade(catalogue_service, discovery_service, label_units=label_units)
+        settings = SettingsService(
+            discovery, environment=settings_environment, limits=Limits(monthly_budget_usd=monthly_budget_usd)
+        )
+        library = LibraryFacade(catalogue_service, discovery_service, label_units=lambda: settings.value(LABEL_UNITS))
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
         display_service = DisplayService(catalogue, library, display_settings)
@@ -409,6 +419,9 @@ class Services:
             wikidata_match=WikidataMatchService(discovery_service, registry),
             sightings=sighting_service,
             budget=BudgetService(key_status, monthly_budget_usd=monthly_budget_usd),
+            settings=settings,
+            # A key is what `key_status` exists for: None is the keyless deployment.
+            unattended=UnattendedAllowance(settings, discovery, has_key=key_status is not None),
         )
 
     def reconcile(self) -> None:

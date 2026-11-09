@@ -9,13 +9,13 @@ import httpx
 
 
 def test_the_probe_answers_ok(server_url):
-    response = httpx.get(f"{server_url}/healthz", timeout=10.0)
+    response = httpx.get(f"{server_url}/healthz")
 
     assert (response.status_code, response.text) == (200, "ok")
 
 
 def test_the_probe_is_not_in_the_published_api(server_url):
     """It is for the container, not for clients, so the schema does not offer it."""
-    schema = httpx.get(f"{server_url}/openapi.json", timeout=10.0).json()
+    schema = httpx.get(f"{server_url}/openapi.json").json()
 
     assert "/healthz" not in schema["paths"]

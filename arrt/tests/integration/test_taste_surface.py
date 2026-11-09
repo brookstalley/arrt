@@ -31,11 +31,11 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
 
 
 def set_taste(server_url: str, **body) -> httpx.Response:
-    return httpx.post(f"{server_url}/api/affinities", json=body, timeout=20)
+    return httpx.post(f"{server_url}/api/affinities", json=body)
 
 
 def taste(server_url: str, **params) -> dict:
-    return httpx.get(f"{server_url}/api/affinities", params=params, timeout=20).json()
+    return httpx.get(f"{server_url}/api/affinities", params=params).json()
 
 
 # -- the taste routes ---------------------------------------------------------
@@ -85,7 +85,7 @@ def test_setting_observed_over_http_is_refused_in_the_one_error_shape(server_url
 def test_forgetting_a_judgment_answers_with_what_was_forgotten(server_url):
     written = set_taste(server_url, kind="artist", value="Kandinsky", sentiment="declines", open_to_more=False).json()
 
-    forgotten = httpx.delete(f"{server_url}/api/affinities/{written['affinity_id']}", timeout=20)
+    forgotten = httpx.delete(f"{server_url}/api/affinities/{written['affinity_id']}")
 
     assert forgotten.status_code == 200
     assert forgotten.json()["value"] == "Kandinsky"
@@ -207,8 +207,8 @@ def test_an_inferred_judgment_already_held_loads_and_renders(server_url, service
 
 def test_the_old_conversation_routes_are_gone(server_url):
     """Nothing serves the retired conversations: Ask's threads are under `/api/ask`."""
-    assert httpx.get(f"{server_url}/api/conversations", timeout=20).status_code == 404
-    assert httpx.post(f"{server_url}/api/conversations", timeout=20).status_code in (404, 405)
+    assert httpx.get(f"{server_url}/api/conversations").status_code == 404
+    assert httpx.post(f"{server_url}/api/conversations").status_code in (404, 405)
 
 
 # -- the brief an agent is told ---------------------------------------------------

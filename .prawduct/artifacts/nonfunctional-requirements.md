@@ -547,6 +547,17 @@ curator every judgement they have already made. So:
 > **Direction, 2026-11-08 (`agents-and-memory.md` ruling 5).** Agent work that
 > runs with nobody watching gets its own settings: whether it runs at all, and
 > its own monthly allowance under this ceiling. The ceiling itself is unchanged.
+>
+> **Built 2026-11-09 (`build-plan-unattended-settings.md` Chunk 03).** The
+> settings are in Settings › General (`unattended_work`, off by default;
+> `unattended_allowance_usd`, $0.00 by default and never above
+> `MONTHLY_BUDGET_USD` where one is set; `unattended_cadence`; `unattended_model`).
+> **Arrt enforces the allowance** (the owner, 2026-11-09, over a second key whose
+> limit would be it): `UnattendedAllowance.standing` sums the month's (UTC) spend
+> of runs started `unattended` and refuses a piece of work that would pass it.
+> This is budgeting under the scope note below, as the per-run search cap is: a
+> run under way may finish past the allowance, and the key's limit stays the
+> ceiling. An allowance stored above a budget since lowered reads as $0.00.
 
 **Hard ceiling: USD 20/month on all LLM and search spend, failing closed.** No
 cloud hosting costs; both planes run on hardware already owned; electricity only.

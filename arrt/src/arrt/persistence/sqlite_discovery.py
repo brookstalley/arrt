@@ -54,6 +54,7 @@ from arrt.persistence.discovery_records import (
     SourceYield,
     SpendCategory,
     SpendRecord,
+    StoredSetting,
     UnresolvedReason,
     Verdict,
     WorkProvenance,
@@ -283,6 +284,16 @@ CREATE TABLE IF NOT EXISTS spend_records (
 
 CREATE INDEX IF NOT EXISTS spend_records_by_time ON spend_records(occurred_at);
 CREATE INDEX IF NOT EXISTS spend_records_by_run ON spend_records(discovery_run_id);
+-- The household's chosen settings, one row per setting anyone has changed; a
+-- setting with no row reads as its default. The value is text in the setting's
+-- own spelling, so a new setting needs no column, and a release from before this
+-- table ignores it.
+CREATE TABLE IF NOT EXISTS settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    updated_by  TEXT NOT NULL
+);
 -- Which works a resolve run covers. Rows are never deleted: coverage records a
 -- fact about the run's scope, which does not change when the run's status does,
 -- and the history of earlier resolve attempts is worth keeping.
@@ -520,6 +531,16 @@ class SqliteDiscovery(TableAdapter):
             filters["derivation"] = str(derivation)
         return self._list("affinities", filters or None, _BY_THING, _affinity)
 
+    # -- settings -------------------------------------------------------------
+
+    def get_setting(self, key: str) -> StoredSetting | None:
+        return self._get("settings", {"key": key}, _stored_setting)
+
+    def put_setting(self, setting: StoredSetting) -> None:
+        # One upsert, not a read then an add or an update: a value is replaced
+        # whole, so there is no record whose existence a caller must have known.
+        self._store.upsert("settings", _stored_setting_row(setting), pk=("key",), on_conflict="update")
+
     # -- spend ----------------------------------------------------------------
 
     def add_spend_record(self, record: SpendRecord) -> None:
@@ -691,6 +712,24 @@ def _affinity_row(affinity: Affinity) -> dict[str, Any]:
         "created_at": to_iso(affinity.created_at),
         "updated_at": to_iso(affinity.updated_at),
     }
+
+
+def _stored_setting_row(setting: StoredSetting) -> dict[str, Any]:
+    return {
+        "key": setting.key,
+        "value": setting.value,
+        "updated_at": to_iso(setting.updated_at),
+        "updated_by": str(setting.updated_by),
+    }
+
+
+def _stored_setting(row: Mapping[str, Any]) -> StoredSetting:
+    return StoredSetting(
+        key=row["key"],
+        value=row["value"],
+        updated_at=require_datetime(row["updated_at"], "updated_at"),
+        updated_by=InitiatedBy(row["updated_by"]),
+    )
 
 
 def _coverage_row(coverage: ResolveRunWork) -> dict[str, Any]:
