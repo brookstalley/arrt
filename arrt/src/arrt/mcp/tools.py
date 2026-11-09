@@ -2195,7 +2195,9 @@ ART_SETTINGS: Final = ToolRecord(
             name="list",
             description=(
                 "Return every setting: its value, its default, where the value came from (the environment, "
-                "a stored choice, or the default), whether it is locked, and the values it can take."
+                "a stored choice, or the default), whether it is locked, and the values it can take. A stored choice "
+                "this release or deployment no longer allows reads as source set_aside, with set_aside_reason saying "
+                "why; the default applies until a new value is set."
             ),
             example="art_settings(action='list')",
             tips=(

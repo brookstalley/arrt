@@ -2431,7 +2431,8 @@ class SettingOut(BaseModel):
     label: str
     value: str
     default: str
-    #: `environment`, `stored` or `default`.
+    #: `environment`, `stored`, `default`, or `set_aside`: a stored choice this
+    #: release or this deployment no longer allows, so the default applies.
     source: str
     locked: bool
     environment_variable: str
@@ -2445,6 +2446,9 @@ class SettingOut(BaseModel):
     #: When and from which surface it was last changed, while a stored value exists.
     updated_at: str | None
     updated_by: str | None
+    #: Why a stored choice was set aside, naming the setting and the stored value;
+    #: null unless `source` is `set_aside`.
+    set_aside_reason: str | None
 
 
 class SettingListOut(BaseModel):

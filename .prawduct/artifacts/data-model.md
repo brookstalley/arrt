@@ -2126,7 +2126,7 @@ settings exist, their defaults and their spelling as text are declared once, in
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `key` | string | PK | A key `SETTINGS` declares. |
-| `value` | string | required | In the setting's own spelling, so a new setting needs no column. A value this release cannot read applies the default and is logged. |
+| `value` | string | required | In the setting's own spelling, so a new setting needs no column. A value this release cannot read, or one the deployment now rules out (an allowance above a lowered budget), is **set aside**: the default applies, the setting reads as `source` `set_aside` with a reason, and the log says so once per value (#417). The row is kept, so who chose it stays said. |
 | `updated_at` | datetime | required | When it was last changed. |
 | `updated_by` | enum | required | `InitiatedBy`: which surface changed it. Recorded for tracing a surprise; it decides nothing. |
 

@@ -39,6 +39,7 @@ def a_locked_listing() -> dict:
         section="General",
         updated_at=None,
         updated_by=None,
+        set_aside_reason=None,
     )
     return SettingListOut(settings=[locked]).model_dump(mode="json")
 
@@ -76,6 +77,24 @@ def test_a_setting_nobody_has_changed_says_nothing_about_where_it_came_from(ui):
 
     assert ui.page.locator("[data-setting=label_units] .setting-source").count() == 0
     assert ui.page.locator(".page-facts").inner_text() == "Settings for the whole of this Arrt."
+
+
+def test_a_choice_set_aside_says_so_and_why_and_its_control_still_offers_a_new_one(ui, discovery_store):
+    """A stored choice this release no longer allows reads as the default, and the screen says it was set aside (#417)."""
+    from datetime import UTC, datetime
+
+    from arrt.persistence.discovery_records import InitiatedBy, StoredSetting
+
+    discovery_store.put_setting(StoredSetting("label_units", "cubits", datetime.now(UTC), InitiatedBy.WEB_UI))
+    ui.open("#general")
+    ui.page.wait_for_selector("[data-setting=label_units] .setting-set-aside")
+
+    assert ui.page.locator("[data-setting=label_units] .setting-set-aside").inner_text() == (
+        "Your choice was set aside, so the default applies: Label units must be imperial or metric, got 'cubits'. "
+        "Choose again to replace it."
+    )
+    assert ui.page.locator(PICKER).input_value() == "imperial"
+    assert ui.page.locator("[data-setting=unattended_work] .setting-set-aside").count() == 0, "only the set-aside one says so"
 
 
 def test_a_setting_the_environment_gives_shows_its_value_and_the_variable_and_no_control(ui):

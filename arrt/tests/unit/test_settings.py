@@ -97,17 +97,70 @@ def test_a_misspelt_environment_value_is_refused_where_it_was_given(discovery):
         SettingsService(discovery, environment={"label_units": "metirc"})
 
 
-def test_a_stored_value_this_release_cannot_take_reads_as_the_default_and_says_so(discovery, caplog):
-    """A value an earlier or later release wrote must not make every label build fail."""
+def stored(discovery: SqliteDiscovery, key: str, value: str) -> None:
     from datetime import UTC, datetime
 
     from arrt.persistence.discovery_records import StoredSetting
 
-    discovery.put_setting(StoredSetting("label_units", "cubits", datetime.now(UTC), InitiatedBy.WEB_UI))
+    discovery.put_setting(StoredSetting(key, value, datetime.now(UTC), InitiatedBy.WEB_UI))
+
+
+def test_a_stored_value_this_release_cannot_take_is_set_aside_saying_why(discovery):
+    """A value an earlier or later release wrote must not make every label build fail, nor pass for the default (#417).
+
+    Rewritten from "reads as the default and says so" (in the log only): the
+    default still applies, which the first assertion keeps, and the state now
+    says the household's choice was set aside, which the screen shows.
+    """
+    stored(discovery, "label_units", "cubits")
+
+    service = SettingsService(discovery)
+    assert service.value(LABEL_UNITS) is Units.IMPERIAL
+    state = state_of(service, "label_units")
+    assert (state.source, state.value) == (SettingSource.SET_ASIDE, "imperial")
+    assert state.set_aside_reason == "Label units must be imperial or metric, got 'cubits'."
+    assert not state.locked
+
+
+def test_an_allowance_above_a_budget_since_lowered_is_set_aside_naming_both(discovery):
+    from decimal import Decimal
+
+    SettingsService(discovery, limits=Limits(monthly_budget_usd=Decimal(30))).set(
+        "unattended_allowance_usd", "25", surface=InitiatedBy.WEB_UI
+    )
+
+    lowered = SettingsService(discovery, limits=Limits(monthly_budget_usd=Decimal(20)))
+    state = state_of(lowered, "unattended_allowance_usd")
+    assert (state.source, state.value) == (SettingSource.SET_ASIDE, "0.00")
+    assert state.set_aside_reason == (
+        "Monthly allowance is a share of the month's budget, $20, and cannot be more than it; got $25.00."
+    )
+    assert state.updated_by is InitiatedBy.WEB_UI, "who made the choice set aside is still said"
+
+
+def test_a_stored_value_that_holds_has_no_reason(discovery):
+    stored(discovery, "label_units", "metric")
+
+    state = state_of(SettingsService(discovery), "label_units")
+    assert (state.source, state.set_aside_reason) == (SettingSource.STORED, None)
+
+
+def test_a_set_aside_value_is_logged_once_however_often_it_is_read_and_again_for_a_new_one(discovery, caplog):
+    stored(discovery, "label_units", "cubits")
+    service = SettingsService(discovery)
 
     with caplog.at_level(logging.WARNING, logger="arrt.library.services.settings"):
-        assert SettingsService(discovery).value(LABEL_UNITS) is Units.IMPERIAL
-    assert any("label_units='cubits'" in record.getMessage() for record in caplog.records)
+        for _ in range(5):
+            service.value(LABEL_UNITS)
+            service.describe()
+        stored(discovery, "label_units", "furlongs")
+        service.value(LABEL_UNITS)
+        service.value(LABEL_UNITS)
+
+    set_aside = [record.getMessage() for record in caplog.records if "set aside" in record.getMessage()]
+    assert len(set_aside) == 2, set_aside
+    assert "label_units='cubits'" in set_aside[0]
+    assert "label_units='furlongs'" in set_aside[1]
 
 
 def test_a_change_is_logged_with_its_old_and_new_value_and_surface(discovery, caplog):

@@ -2962,6 +2962,7 @@ def _setting(state: SettingState) -> SettingOut:
         section=setting.section,
         updated_at=None if state.updated_at is None else state.updated_at.isoformat(),
         updated_by=None if state.updated_by is None else str(state.updated_by),
+        set_aside_reason=state.set_aside_reason,
     )
 
 
