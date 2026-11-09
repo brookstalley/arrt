@@ -567,7 +567,8 @@ def test_the_watch_projections_agree_value_for_value():
     from decimal import Decimal
 
     from arrt.library.services.settings import Cadence
-    from arrt.persistence.discovery_records import Watch
+    from arrt.library.services.watches import WatchStanding
+    from arrt.persistence.discovery_records import RunStatus, Watch
 
     class Rules:
         def cadence_of(self, _watch):
@@ -575,6 +576,19 @@ def test_the_watch_projections_agree_value_for_value():
 
         def effective_cap(self, _watch):
             return Decimal("1.50")
+
+        def standing(self, watch):
+            return WatchStanding(
+                watch=watch,
+                cadence=Cadence.WEEKLY,
+                last_run_status=RunStatus.FAILED,
+                next_due_at=WHEN,
+                overdue=True,
+                spent_usd=Decimal("0.4"),
+                cap_usd=Decimal("1.50"),
+                in_flight=False,
+                sentence="s",
+            )
 
     watch = Watch(
         id="w",
@@ -586,9 +600,13 @@ def test_the_watch_projections_agree_value_for_value():
         updated_by=InitiatedBy.WEB_UI,
         cadence="weekly",
         monthly_cap_usd=Decimal("2.5"),
+        last_attempt_at=WHEN,
+        last_run_id="r",
+        last_refusal="cap_spent",
     )
 
     over_mcp = bindings._watch_fields(Rules(), watch)
     check_parity("Watch", set(over_mcp), _fields(http_models.WatchOut))
     assert over_mcp == http_api._watch(Rules(), watch).model_dump()
     assert (over_mcp["monthly_cap_usd"], over_mcp["effective_cap_usd"]) == ("2.50", "1.50")
+    assert (over_mcp["spent_usd"], over_mcp["last_run_status"], over_mcp["overdue"]) == ("0.40", "failed", True)

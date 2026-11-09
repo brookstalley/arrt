@@ -20,7 +20,7 @@ import { el, guard, render } from "../core/render.js";
 import { museumName } from "../core/providers.js";
 import { placeNow, reviewSection, rowPicture } from "../core/reviewing.js";
 import { backLink, link, refresh, setTitle } from "../core/router.js";
-import { runTitle } from "../core/runs.js";
+import { FOUND_BY_WATCH, runTitle } from "../core/runs.js";
 import { dollars, tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 import { DEBUG } from "../core/debug.js";
@@ -504,6 +504,12 @@ export async function viewRun(runId, generation) {
   const panels = [
     el("p", {}, [backLink()]),
     el("h1", { text: runTitle(run) }),
+    run.watch_id
+      ? el("p", { class: "note found-by-watch" }, [
+          `${FOUND_BY_WATCH} `,
+          link({ view: "watches" }, { class: "action quiet", text: "Settings › Watches" }),
+        ])
+      : null,
     el("div", { class: "panel" }, [
       el("p", { class: "note", text: runSentence(view) }),
       runCounts(view),

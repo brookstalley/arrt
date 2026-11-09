@@ -31,11 +31,12 @@ binding the architecture requires.
 """
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from arrt.library.services.pictures import PictureStore
+from arrt.library.services.watches import WatchesReading
 from arrt.library.sources.loading import PluginReading, PluginState, SourceRoster
 from arrt.library.sources.names import museum_name
 from arrt.persistence import backup
@@ -134,6 +135,8 @@ class HealthReading:
     #: looks like works nobody holds, which reads as a fact about art rather than
     #: about this deployment.
     sources: Sequence[SourceHealth] = ()
+    #: Whether any Watch needs a person: overdue, or held by a spent allowance.
+    watches: WatchesReading = field(default_factory=WatchesReading)
 
     def describe(self) -> str:
         """One sentence across every wall, from the readings this panel holds.
@@ -157,9 +160,12 @@ class HealthService:
         sources: SourceRoster,
         yields: Callable[[], Mapping[str, SourceYield]],
         pictures: PictureStore,
+        watches: Callable[[], WatchesReading],
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._display = display
+        #: What the Watches need a person to know (`WatchService.reading`).
+        self._watches = watches
         self._pictures = pictures
         self._sources = sources
         self._now = now
@@ -185,6 +191,7 @@ class HealthService:
             backup=backup.read(self._backup_receipt_path),
             sources=self.observe_sources(),
             pictures=self.observe_pictures(),
+            watches=self._watches(),
         )
 
     def observe_pictures(self) -> PicturesReading:

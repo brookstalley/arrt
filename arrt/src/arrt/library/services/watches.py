@@ -112,6 +112,23 @@ class WatchStanding:
     sentence: str
 
 
+@dataclass(frozen=True, slots=True)
+class WatchesReading:
+    """What the household's Watches need a person to know, with nobody else to tell them.
+
+    Here because a Watch runs with nobody watching, so a stopped scheduler or a
+    spent allowance does not announce itself at the next session
+    (`observability-strategy.md` § Accepted detection latency, revisited
+    2026-11-09). Neither is a verdict: overdue is `WatchStanding.overdue`'s rule.
+    """
+
+    #: The words of each Watch that is overdue, in the order they were written.
+    overdue: Sequence[str] = ()
+    #: Whether a Watch that is on is waiting for next month because the
+    #: unattended allowance is spent.
+    allowance_spent: bool = False
+
+
 #: The longest a Watch's words may be. An Ask's request is a sentence or two; a
 #: bound keeps a pasted page from becoming a standing prompt resent every pass.
 MAX_INTENT_CHARS: Final[int] = 1000
@@ -182,6 +199,17 @@ class WatchService:
             cap_usd=self.effective_cap(watch),
             in_flight=in_flight,
             sentence=_sentence(watch, last_status, in_flight=in_flight, overdue=overdue),
+        )
+
+    def reading(self) -> WatchesReading:
+        """What the Watches need a person to know: which are overdue, and whether a spent allowance holds one."""
+        standings = [self.standing(watch) for watch in self.list()]
+        holding = any(standing.watch.enabled for standing in standings) and (
+            self._unattended.standing().refusal is Refusal.ALLOWANCE_SPENT
+        )
+        return WatchesReading(
+            overdue=tuple(standing.watch.intent_text for standing in standings if standing.overdue),
+            allowance_spent=holding,
         )
 
     def due(self) -> Sequence[WatchStanding]:

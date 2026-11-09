@@ -22,6 +22,7 @@ from arrt.library.discovery.browse import CollectionBrowseFailure
 from arrt.library.discovery.images import ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
 from arrt.library.discovery.pool import ImageSourcePool
 from arrt.library.services.pictures import PictureStore
+from arrt.library.services.watches import WatchesReading
 from arrt.library.sources import API_VERSION, Declined, SourceContext, SourceParts, SourcePlugin
 from arrt.library.sources.loading import (
     ENTRY_POINT_GROUP,
@@ -586,6 +587,7 @@ def _health_of(roster, *, now: datetime | None = None) -> HealthReading:
         sources=roster,
         yields=dict,
         pictures=PictureStore(pathlib.Path("/nonexistent/art/pictures"), art_root=pathlib.Path("/nonexistent/art")),
+        watches=WatchesReading,
         now=lambda: moment,
     )
     return service.observe()

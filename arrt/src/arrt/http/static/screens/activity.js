@@ -29,7 +29,7 @@ import { hold, heldFor, showHold } from "../core/holding.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
 import { go, link } from "../core/router.js";
-import { KIND_WORDS, STATE_WORDS } from "../core/runs.js";
+import { runKind, STATE_WORDS } from "../core/runs.js";
 import { tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 
@@ -47,11 +47,11 @@ function runTable(caption, runs, themes) {
     ["Asked for", "Kind", "Into", "State", "Started", "Open"],
     runs.map((run) => [
       askedFor(run),
-      KIND_WORDS[run.kind] || run.kind,
+      runKind(run),
       destinationWords(destinationOf(run, themes)),
       STATE_WORDS[run.status] || run.status,
       el("time", stamp(run.started_at)),
-      link({ view: "get", id: run.run_id }, { class: "action quiet row-link", text: "Open", "aria-label": `Open the ${KIND_WORDS[run.kind] || "Get"}: ${askedFor(run)}` }),
+      link({ view: "get", id: run.run_id }, { class: "action quiet row-link", text: "Open", "aria-label": `Open the ${runKind(run)}: ${askedFor(run)}` }),
     ]),
     { stacked: true },
   );
@@ -94,7 +94,7 @@ export async function viewToReview(generation) {
           ["Asked for", "Kind", "To review", "Started", "Open"],
           runs.runs.map((run) => [
             askedFor(run),
-            KIND_WORDS[run.kind] || run.kind,
+            runKind(run),
             String(runs.awaiting[run.run_id] || 0),
             el("time", stamp(run.started_at)),
             // A Get of chosen works is reviewed on its own page; every other Get on Review.
@@ -103,7 +103,7 @@ export async function viewToReview(generation) {
               {
                 class: "action quiet row-link",
                 text: "Review",
-                "aria-label": `Review the ${KIND_WORDS[run.kind] || "Get"}: ${askedFor(run)}`,
+                "aria-label": `Review the ${runKind(run)}: ${askedFor(run)}`,
               },
             ),
           ]),

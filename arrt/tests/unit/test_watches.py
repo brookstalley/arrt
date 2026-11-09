@@ -367,3 +367,34 @@ def test_a_refusal_this_release_does_not_know_still_reads(watches, discovery):
     standing = watches.standing(watches.get(watch.id))
 
     assert standing.sentence == "Not run: a_later_reason."
+
+
+# -- what the health reading says of the Watches ------------------------------------------
+
+
+def test_the_reading_names_each_overdue_watch_by_its_words_and_nothing_else(watches, settings, clock):
+    settings.set("unattended_work", "on", surface=InitiatedBy.WEB_UI)
+    settings.set("unattended_allowance_usd", "5", surface=InitiatedBy.WEB_UI)
+    late = watches.create(intent_text="the late one", surface=InitiatedBy.WEB_UI)
+    clock.advance()
+    watches.create(intent_text="switched off", enabled=False, surface=InitiatedBy.WEB_UI)
+
+    assert watches.reading().overdue == ()
+    clock.at += timedelta(hours=2)
+
+    reading = watches.reading()
+    assert reading.overdue == (late.intent_text,)
+    assert reading.allowance_spent is False
+
+
+def test_a_spent_allowance_is_said_only_while_a_watch_that_is_on_waits_on_it(watches, settings, discovery):
+    settings.set("unattended_work", "on", surface=InitiatedBy.WEB_UI)
+    off = watches.create(intent_text=WORDS, enabled=False, surface=InitiatedBy.WEB_UI)
+
+    assert watches.reading().allowance_spent is False, "nothing waits: the one Watch is off, and $0.00 is the allowance"
+
+    watches.update(off.id, enabled=True, surface=InitiatedBy.WEB_UI)
+    assert watches.reading().allowance_spent is True
+
+    settings.set("unattended_allowance_usd", "5", surface=InitiatedBy.WEB_UI)
+    assert watches.reading().allowance_spent is False

@@ -1354,6 +1354,7 @@ _STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
+    "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
 }
 
 
@@ -1716,7 +1717,8 @@ def _delete_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str,
 
 
 def _watch_fields(service: WatchService, watch: Watch) -> dict[str, Any]:
-    """A Watch in the route's field names (`WatchOut`), so the two surfaces read alike."""
+    """A Watch and where it stands, in the route's field names (`WatchOut`), so the two surfaces read alike."""
+    standing = service.standing(watch)
     return {
         "watch_id": watch.id,
         "intent_text": watch.intent_text,
@@ -1729,6 +1731,15 @@ def _watch_fields(service: WatchService, watch: Watch) -> dict[str, Any]:
         "created_by": str(watch.created_by),
         "updated_at": watch.updated_at.isoformat(),
         "updated_by": str(watch.updated_by),
+        "last_attempt_at": None if watch.last_attempt_at is None else watch.last_attempt_at.isoformat(),
+        "last_run_id": watch.last_run_id,
+        "last_run_status": None if standing.last_run_status is None else str(standing.last_run_status),
+        "last_refusal": watch.last_refusal,
+        "next_due_at": None if standing.next_due_at is None else standing.next_due_at.isoformat(),
+        "overdue": standing.overdue,
+        "in_flight": standing.in_flight,
+        "spent_usd": f"{standing.spent_usd:.2f}",
+        "sentence": standing.sentence,
     }
 
 
@@ -2245,6 +2256,9 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         # it: the state says which response is right, and this says what to
         # investigate. Null on every ending nobody had to explain.
         "end_reason": run.end_reason,
+        # The Watch whose scheduled pass started it, null for a run a person or
+        # an agent started: "who asked for this" when nobody did.
+        "watch_id": run.watch_id,
     }
 
 

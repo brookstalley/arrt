@@ -160,6 +160,15 @@ work (ruling 5).
   look-ahead, the spend recorded after each run is what the next check reads, and
   the provider's key limit is the ceiling. Revisit if a dearer unattended model
   is seen passing its cap by more than a run.
+- Chunk 05: Watch spend is on Settings › Watches, not the status indicator. Settled
+  by the indicator's own rule (`core/status.js`: it names troubles, and "Well"
+  means none), so it names an overdue Watch and a spent allowance holding one,
+  and not a figure. The IA's line is amended to say so.
+- Chunk 05: "found by a Watch" is said on the Watch's Get and Review, and its kind
+  in run lists, not on each review card. Settled by To review listing runs, not
+  cards: the Get is the unit a curator opens.
+- Chunk 05: Status gains a *Watches* panel, because the indicator opens Status
+  and a trouble it names must be found there. The goals did not foresee this.
 - Chunk 04: nothing tests that the deployment entry point passes `schedule=True`;
   `__main__` has no test for its `create_app` flags (the topic sweep and the queue
   are in the same position). Recorded rather than built here, because the entry

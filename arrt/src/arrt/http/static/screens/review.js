@@ -11,7 +11,7 @@ import { destinationOf, destinationSentence, readThemes } from "../core/destinat
 import { el, render } from "../core/render.js";
 import { reviewSection } from "../core/reviewing.js";
 import { link, setTitle } from "../core/router.js";
-import { runTitle } from "../core/runs.js";
+import { FOUND_BY_WATCH, runTitle } from "../core/runs.js";
 
 export async function viewReview(runId, generation) {
   const [page, themes] = await Promise.all([fetchAllCandidates(runId), readThemes()]);
@@ -23,6 +23,12 @@ export async function viewReview(runId, generation) {
     // place in the navigation.
     el("p", {}, [link({ view: "get", id: runId }, { class: "action quiet", text: "← Get" })]),
     el("h1", { text: runTitle(page.run) }),
+    page.run.watch_id
+      ? el("p", { class: "note found-by-watch" }, [
+          `${FOUND_BY_WATCH} `,
+          link({ view: "watches" }, { class: "action quiet", text: "Settings › Watches" }),
+        ])
+      : null,
     // Where an Accept sends the work, said before the first one is pressed.
     el("p", { class: "muted run-destination", text: destinationSentence(destinationOf(page.run, themes)) }),
     ...reviewSection(page),

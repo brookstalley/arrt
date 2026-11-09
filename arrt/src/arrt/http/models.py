@@ -1368,6 +1368,13 @@ class PicturesOut(BaseModel):
     description: str
 
 
+class WatchesHealthOut(BaseModel):
+    """The Watches a person needs to know about: overdue ones, by their words, and a spent allowance holding one."""
+
+    overdue: list[str]
+    allowance_spent: bool
+
+
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, the source plugins and the picture store.
 
@@ -1396,6 +1403,8 @@ class HealthOut(BaseModel):
     #: installed, which the panel says in words.
     sources: list[SourcePluginOut]
     pictures: PicturesOut
+    #: What the Watches need a person to know, since nothing else will tell them.
+    watches: WatchesHealthOut
 
 
 class SourceYieldOut(BaseModel):
@@ -1475,6 +1484,9 @@ class RunOut(BaseModel):
     #: before reasons were kept. Prose for a curator to read, never a code to
     #: branch on; `status` is what says which ending this was.
     end_reason: str | None
+    #: The Watch whose scheduled pass started this run, or null for one a person
+    #: or an agent started. May name a Watch deleted since.
+    watch_id: str | None
 
 
 class CandidateWorkOut(BaseModel):
@@ -2500,6 +2512,23 @@ class WatchOut(BaseModel):
     created_by: str
     updated_at: str
     updated_by: str
+    #: The last pass that judged it due, whether it started or was refused, or null.
+    last_attempt_at: str | None
+    #: Its last started run, and how that run stands now; null when none.
+    last_run_id: str | None
+    last_run_status: str | None
+    #: Why the last attempt did not start, or null when it did.
+    last_refusal: str | None
+    #: When it is next due, or null while it is off or its run is under way.
+    next_due_at: str | None
+    #: Due for over an hour with nothing tried while unattended work is on.
+    overdue: bool
+    #: Whether this server is working on its last run now.
+    in_flight: bool
+    #: What its runs were billed this UTC month, in dollars to the cent.
+    spent_usd: str
+    #: One sentence for where it stands.
+    sentence: str
 
 
 class WatchListOut(BaseModel):

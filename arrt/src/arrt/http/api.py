@@ -190,6 +190,7 @@ from arrt.http.models import (
     WantedListingOut,
     WantedWorkOut,
     WantWork,
+    WatchesHealthOut,
     WatchListOut,
     WatchOut,
     WorkDetailOut,
@@ -2543,6 +2544,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         completed_at=None if run.completed_at is None else run.completed_at.isoformat(),
         destination_theme_id=run.destination_theme_id,
         end_reason=run.end_reason,
+        watch_id=run.watch_id,
     )
 
 
@@ -2765,6 +2767,7 @@ def _health(reading: HealthReading) -> HealthOut:
         backup=_backup(reading.backup),
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
+        watches=WatchesHealthOut(overdue=list(reading.watches.overdue), allowance_spent=reading.watches.allowance_spent),
     )
 
 
@@ -2993,6 +2996,7 @@ def delete_watch(request: Request, watch_id: str) -> WatchOut:
 
 
 def _watch(service: WatchService, watch: Watch) -> WatchOut:
+    standing = service.standing(watch)
     return WatchOut(
         watch_id=watch.id,
         intent_text=watch.intent_text,
@@ -3005,6 +3009,15 @@ def _watch(service: WatchService, watch: Watch) -> WatchOut:
         created_by=str(watch.created_by),
         updated_at=watch.updated_at.isoformat(),
         updated_by=str(watch.updated_by),
+        last_attempt_at=None if watch.last_attempt_at is None else watch.last_attempt_at.isoformat(),
+        last_run_id=watch.last_run_id,
+        last_run_status=None if standing.last_run_status is None else str(standing.last_run_status),
+        last_refusal=watch.last_refusal,
+        next_due_at=None if standing.next_due_at is None else standing.next_due_at.isoformat(),
+        overdue=standing.overdue,
+        in_flight=standing.in_flight,
+        spent_usd=f"{standing.spent_usd:.2f}",
+        sentence=standing.sentence,
     )
 
 

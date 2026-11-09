@@ -41,6 +41,7 @@ EMPTY_WHEN_NOTHING_IS_HELD = {
     "wanted",
     "taste",
     "clients",
+    "watches",
 }
 
 
@@ -76,7 +77,7 @@ NOT_SECTION_HEADINGS = ".card *, .rail *, .visually-hidden, .search-suggestions 
 #: with nothing to check. Ask is not one: it is a single thread under its title.
 #: Nor is Players: since ruling 7 of 2026-10-27 it is one table under its title,
 #: and its sections are in each row's Edit… dialog.
-PAGES_WITH_SECTIONS = {"general", "health", "sources", "walls"}
+PAGES_WITH_SECTIONS = {"general", "health", "sources", "walls", "watches"}
 
 
 def test_the_pages_named_with_sections_are_sidebar_pages():

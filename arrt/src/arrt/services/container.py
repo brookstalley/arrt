@@ -411,6 +411,7 @@ class Services:
                 sources=sources,
                 yields=discovery.source_yields,
                 pictures=pictures,
+                watches=watches.reading,
             ),
             runner=runner_service,
             acquisition=acquisition_service,

@@ -49,7 +49,7 @@ import pathlib
 import pytest
 from PIL import Image
 
-from arrt.http.models import BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut
+from arrt.http.models import BackupOut, HealthOut, PicturesOut, SourcePluginOut, WallHeartbeatOut, WatchesHealthOut
 from arrt.library.sources.names import museum_name
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -164,8 +164,9 @@ def a_health_reading():
     observation is wrong.
     """
 
-    def _reading(*, walls=None, backup=None, description="Every wall has reported.", sources=None, pictures=None):
+    def _reading(*, walls=None, backup=None, description="Every wall has reported.", sources=None, pictures=None, watches=None):
         return HealthOut(
+            watches=WatchesHealthOut(**({"overdue": [], "allowance_spent": False} if watches is None else watches)),
             pictures=PicturesOut(**(_some_pictures() if pictures is None else pictures)),
             sources=[SourcePluginOut(**source) for source in ([_a_source()] if sources is None else sources)],
             walls=[WallHeartbeatOut(**wall) for wall in ([_a_wall()] if walls is None else walls)],

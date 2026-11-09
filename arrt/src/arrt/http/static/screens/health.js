@@ -341,6 +341,33 @@ function picturesPanel(health) {
   ]);
 }
 
+/* The Watches a person needs to know about, since they run with nobody watching:
+ * the overdue ones by their words, and a spent allowance holding one. Each is on
+ * the status indicator too; this is where it opens to, with the way to the page
+ * that changes it. A reading without the part says so. */
+function watchesPanel(health) {
+  const watches = health.watches;
+  if (!watches || !Array.isArray(watches.overdue)) {
+    return el("div", { class: "panel" }, [
+      el("h2", { text: "Watches" }),
+      el("p", { class: "note", text: "This health reading carries no Watches. That is a fault in the reading, not in the Watches." }),
+    ]);
+  }
+  const lines = [
+    ...watches.overdue.map((words) =>
+      el("p", { class: "reading-sentence fault", text: `“${words}” is overdue: due for over an hour and not tried. The scheduler may have stopped.` }),
+    ),
+    watches.allowance_spent
+      ? el("p", { class: "reading-sentence", text: "This month's unattended allowance is spent, so the Watches that are on wait for next month." })
+      : null,
+  ].filter(Boolean);
+  return el("div", { class: "panel watches-reading" }, [
+    el("h2", { text: "Watches" }),
+    ...(lines.length ? lines : [el("p", { class: "reading-sentence", text: "No Watch is overdue or waiting on the allowance." })]),
+    el("p", {}, [link({ view: "watches" }, { class: "action quiet", text: "Settings › Watches" })]),
+  ]);
+}
+
 export async function viewHealth(generation) {
   const [health, yields] = await Promise.all([api("/api/health"), sourceYields()]);
   const titles = await showingTitles(Array.isArray(health.walls) ? health.walls : []);
@@ -357,6 +384,7 @@ export async function viewHealth(generation) {
     health.description && (health.walls || []).length > 1 ? el("p", { class: "note", text: health.description }) : null,
     ...heartbeatPanels(health, titles),
     sourcesPanel(health, yields),
+    watchesPanel(health),
     picturesPanel(health),
     el("div", { class: "panel" }, [
       el("h2", { text: "Backup" }),

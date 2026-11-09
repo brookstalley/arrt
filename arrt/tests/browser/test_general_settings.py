@@ -48,7 +48,7 @@ def test_the_settings_index_offers_general_between_sources_and_taste(ui):
     ui.open("#settings")
 
     pages = ui.page.locator(".settings-index li").evaluate_all("items => items.map(item => item.dataset.page)")
-    assert pages == ["clients", "sources", "general", "taste"]
+    assert pages == ["clients", "sources", "watches", "general", "taste"]
 
     ui.page.locator(".settings-index li[data-page=general] a").click()
     ui.page.wait_for_selector(PICKER)
