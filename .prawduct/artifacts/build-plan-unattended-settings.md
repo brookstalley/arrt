@@ -174,7 +174,7 @@ cross-cutting concerns land on it as follows:
 - **Backup:** it is in the catalogue file, so `VACUUM INTO` already carries it.
 - **Migration:** additive, and an older release ignores the table.
 - **Observability:** a changed setting is logged at INFO with key, old value, new
-  value and surface. It is also a `history_events` row if that table's writer fits.
+  value and surface (a `history_events` row was ruled out mid-build, below).
 - **Errors:** an invalid value is refused in the service's words.
 - **Auth:** none, per the LAN boundary.
 

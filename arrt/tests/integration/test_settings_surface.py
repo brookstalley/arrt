@@ -1,9 +1,13 @@
 """The household's settings through the real server: the route, the MCP tool, and the label built after a change."""
 
+import dataclasses
 import json
+from decimal import Decimal
 
 import httpx
+import pytest
 
+from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.services.settings import SETTINGS
 
 
@@ -120,3 +124,47 @@ def test_the_model_is_reset_to_the_discovery_model_by_an_empty_value(server_url)
 
     assert response.status_code == 200
     assert response.json()["value"] == ""
+
+
+# -- the deployment's facts reach the allowance through the real wiring -----------
+
+
+class TestUnderAMonthlyBudget:
+    """`MONTHLY_BUDGET_USD` reaches the allowance's bound through the container, not a hand-built `Limits`."""
+
+    @pytest.fixture
+    def settings(self, settings):
+        return dataclasses.replace(settings, monthly_budget_usd=Decimal(20))
+
+    def test_an_allowance_above_the_budget_is_refused_by_the_running_server(self, server_url):
+        response = httpx.post(f"{server_url}/api/settings/unattended_allowance_usd", json={"value": "20.01"}, timeout=30)
+
+        assert response.status_code == 400
+        assert "cannot be more than it" in response.json()["error"]
+        assert (
+            httpx.post(f"{server_url}/api/settings/unattended_allowance_usd", json={"value": "20"}, timeout=30).status_code == 200
+        )
+
+
+def switched_on_with(server_url: str, allowance: str) -> dict:
+    httpx.post(f"{server_url}/api/settings/unattended_work", json={"value": "on"}, timeout=30)
+    httpx.post(f"{server_url}/api/settings/unattended_allowance_usd", json={"value": allowance}, timeout=30)
+    return httpx.get(f"{server_url}/api/unattended", timeout=30).json()
+
+
+def test_with_no_model_key_unattended_work_is_refused_for_the_key(server_url):
+    """The suite's deployment has no key (`key_status` is None), which the container reads as having none."""
+    standing = switched_on_with(server_url, "5")
+
+    assert (standing["refusal"], standing["may_start"]) == ("no_key", False)
+
+
+class TestWithAModelKey:
+    @pytest.fixture
+    def key_status(self):
+        return lambda: KeyStatus(limit_usd=Decimal(20), usage_usd=Decimal(1), remaining_usd=Decimal(19))
+
+    def test_with_a_key_and_an_allowance_unattended_work_may_start(self, server_url):
+        standing = switched_on_with(server_url, "5")
+
+        assert (standing["refusal"], standing["may_start"]) == (None, True)

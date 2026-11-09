@@ -34,7 +34,8 @@ piece of unattended work may start: off, no model key, or the month's allowance
 passed, counting only the spend of runs started `unattended` (a new
 `initiated_by`). `GET /api/unattended` and `art_settings(action='unattended')`
 say where it stands. Nothing starts unattended work yet: Watches, the next plan,
-will ask it first.
+will ask it first. `arrt/tools/ux_walk.py` walked the section: its
+accessibility scan was clean at phone and desktop width in both schemes.
 
 ## Consumer note
 
@@ -42,5 +43,14 @@ Arrt's settings can now be changed while it runs, in Settings › General or by
 an agent over MCP. **If your environment sets `LABEL_UNITS`, that setting is now
 locked to it**, and Arrt says so where you would change it. Remove it from your
 env file to choose the units in Arrt instead. The new table is ignored by an
-earlier release, so rolling back needs nothing. Unattended work is off until
+earlier release, so rolling back starts cleanly; but a household that removed
+`LABEL_UNITS` from its env file to choose the units here gets the earlier
+release's default (imperial) until it sets `LABEL_UNITS` again. Unattended work is off until
 you turn it on and give it an allowance; nothing yet runs unattended either way.
+
+Four new environment variables, `UNATTENDED_WORK`, `UNATTENDED_ALLOWANCE_USD`,
+`UNATTENDED_CADENCE` and `UNATTENDED_MODEL`, each lock their setting as
+`LABEL_UNITS` does; leave them unset to choose in Settings › General.
+`.env.example` documents them, commented out. Arrt now refuses to start, naming
+the variable, on a `MONTHLY_BUDGET_USD` that is not a number of dollars (NaN,
+Infinity) and on an `UNATTENDED_ALLOWANCE_USD` above the month's budget.

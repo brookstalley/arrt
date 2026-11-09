@@ -24,6 +24,7 @@ from arrt.config import (
     Settings,
     retired_settings_in,
 )
+from arrt.library.services.settings import SETTINGS
 
 
 @pytest.fixture(autouse=True)
@@ -56,6 +57,9 @@ def _clean_env(monkeypatch):
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
         "MONTHLY_BUDGET_USD",
+        # Every household setting's variable, from the settings' own list, so a
+        # setting added there is cleared here with no edit.
+        *(setting.environment_variable for setting in SETTINGS),
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -836,3 +840,13 @@ def test_an_allowed_host_that_is_not_a_name_is_refused_by_name(monkeypatch, tmp_
     with pytest.raises(ConfigError, match="CURATION_ALLOWED_HOSTS") as refused:
         Settings.from_env()
     assert listed.lower() in str(refused.value)
+
+
+def test_an_environment_allowance_above_the_environment_budget_refuses_to_start(monkeypatch, tmp_path):
+    """Through `from_env`, so the budget it read is the one the allowance is held to."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", "20")
+    monkeypatch.setenv("UNATTENDED_ALLOWANCE_USD", "25")
+
+    with pytest.raises(ConfigError, match="UNATTENDED_ALLOWANCE_USD is a share of the month's budget, \\$20"):
+        Settings.from_env()
