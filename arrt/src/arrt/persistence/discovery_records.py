@@ -59,6 +59,10 @@ class InitiatedBy(StrEnum):
     WEB_UI = "web_ui"
     WEB_UI_AGENT = "web_ui_agent"
     MCP_CLIENT = "mcp_client"
+    #: Started by Arrt itself with nobody watching, behind the unattended
+    #: settings (`library/services/unattended.py`). What it spends is summed
+    #: against the month's unattended allowance; nothing else reads it.
+    UNATTENDED = "unattended"
 
 
 class RunStatus(StrEnum):

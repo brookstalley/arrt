@@ -32,6 +32,8 @@ def a_locked_listing() -> dict:
         environment_variable="LABEL_UNITS",
         description=LABEL_UNITS.description,
         choices=["imperial", "metric"],
+        kind="choice",
+        section="General",
         updated_at=None,
         updated_by=None,
     )
@@ -100,3 +102,52 @@ def test_a_refused_change_is_said_beside_the_picker_which_returns_to_what_it_was
     assert said.endswith("Nothing was changed.")
     assert picker.input_value() == "imperial"
     assert services.settings.value(LABEL_UNITS) is Units.IMPERIAL
+
+
+# -- unattended work --------------------------------------------------------------
+
+STANDING = ".unattended-standing"
+
+
+def test_unattended_work_is_its_own_section_off_and_saying_so(ui):
+    ui.open("#general")
+    ui.page.wait_for_selector(STANDING)
+
+    section = ui.page.locator("[data-section='Unattended work']")
+    assert section.locator("h2").inner_text() == "Unattended work"
+    assert section.locator("#setting-unattended_work").input_value() == "off"
+    assert section.locator("#setting-unattended_allowance_usd").input_value() == "0.00"
+    assert section.locator("#setting-unattended_model").get_attribute("placeholder") == "Discovery model"
+    assert ui.page.locator(STANDING).inner_text() == "Unattended work is off, so nothing runs with nobody watching."
+    assert ui.page.locator("[data-section='Unattended work'] #setting-label_units").count() == 0, "label units is the page's own"
+
+
+def test_switching_it_on_with_an_allowance_says_it_may_run(ui, services):
+    ui.open("#general")
+    ui.page.wait_for_selector(STANDING)
+
+    ui.page.locator("#setting-unattended_work").select_option("on")
+    ui.page.wait_for_selector("[data-setting=unattended_work] .setting-source time")
+    allowance = ui.page.locator("#setting-unattended_allowance_usd")
+    allowance.fill("2.5")
+    allowance.press("Enter")
+    ui.page.wait_for_function("document.querySelector('#setting-unattended_allowance_usd').value === '2.50'")
+
+    assert services.unattended.standing().allowance_usd == 2.5
+    # The suite's deployment has no model key, so switched on it is refused for that, said in words.
+    assert ui.page.locator(STANDING).inner_text() == "There is no model key, so unattended work has nothing to spend with."
+
+
+def test_an_allowance_that_is_not_an_amount_is_refused_beside_the_field_which_puts_it_back(ui, services):
+    ui.open("#general")
+    allowance = ui.page.locator("#setting-unattended_allowance_usd")
+    allowance.wait_for()
+
+    allowance.fill("ten")
+    allowance.press("Enter")
+
+    said = ui.said_beside(allowance)
+    assert said.startswith("Couldn't set monthly allowance to $ten: UNATTENDED_ALLOWANCE_USD must be an amount in dollars")
+    assert said.endswith("Nothing was changed.")
+    assert allowance.input_value() == "0.00"
+    assert str(services.unattended.standing().allowance_usd) == "0.00"

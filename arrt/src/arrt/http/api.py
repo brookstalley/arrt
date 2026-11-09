@@ -175,6 +175,7 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    UnattendedOut,
     UnlinkedArtistOut,
     UpcomingOut,
     VerdictOut,
@@ -213,6 +214,7 @@ from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
+from arrt.library.services.unattended import Standing
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
@@ -2926,6 +2928,24 @@ def set_setting(request: Request, key: str, body: SetSetting) -> SettingOut:
     return _setting(_services(request).settings.set(key, body.value, surface=InitiatedBy.WEB_UI))
 
 
+@router.get("/unattended")
+def unattended_standing(request: Request) -> UnattendedOut:
+    """Whether unattended work may start now, and what it has spent this UTC month against its allowance."""
+    return _unattended(_services(request).unattended.standing())
+
+
+def _unattended(standing: Standing) -> UnattendedOut:
+    return UnattendedOut(
+        switched_on=standing.switched_on,
+        allowance_usd=f"{standing.allowance_usd:.2f}",
+        spent_usd=f"{standing.spent_usd:.2f}",
+        remaining_usd=f"{standing.remaining_usd:.2f}",
+        may_start=standing.may_start,
+        refusal=None if standing.refusal is None else str(standing.refusal),
+        sentence=standing.sentence,
+    )
+
+
 def _setting(state: SettingState) -> SettingOut:
     setting = state.setting
     return SettingOut(
@@ -2938,6 +2958,8 @@ def _setting(state: SettingState) -> SettingOut:
         environment_variable=setting.environment_variable,
         description=setting.description,
         choices=list(setting.choices),
+        kind=str(setting.kind),
+        section=setting.section,
         updated_at=None if state.updated_at is None else state.updated_at.isoformat(),
         updated_by=None if state.updated_by is None else str(state.updated_by),
     )

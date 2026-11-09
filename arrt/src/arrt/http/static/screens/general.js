@@ -10,9 +10,15 @@
  * to it from here or over MCP (`library/services/settings.py`), so offering a
  * control would be offering a dead end.
  *
- * The settings, their order, labels and descriptions are the server's
+ * The settings, their order, sections, labels and descriptions are the server's
  * (`GET /api/settings`), so a setting added there appears here with no edit; only
  * the words for a choice's values are written here, falling back to the value.
+ * A setting is a picker when it is a choice, and a field otherwise (an amount in
+ * dollars, a model's name), applied when the field is left or Enter is pressed.
+ *
+ * **Unattended work** is a section of its own: its settings, then one line from
+ * the server saying whether such work may start now and what it has spent this
+ * month against its allowance (`GET /api/unattended`).
  *
  * TEXT IS SET WITH textContent, NEVER innerHTML — the rule is at `core/render.js`.
  */
@@ -26,14 +32,26 @@ import { refresh } from "../core/router.js";
 /* How a choice's value reads, by setting. A value with no words here reads as itself. */
 const CHOICE_WORDS = {
   label_units: { imperial: "Imperial (inches)", metric: "Metric (centimetres)" },
+  unattended_work: { off: "Off", on: "On" },
+  unattended_cadence: { hourly: "Hourly", daily: "Daily", weekly: "Weekly" },
 };
 
+/* What an empty value means, where a setting takes one. */
+const EMPTY_WORDS = {
+  unattended_model: "Discovery model",
+};
+
+/* The section whose settings sit under the page's own name, with no heading of their own. */
+const PAGE_SECTION = "General";
+
 function choiceWords(setting, value) {
+  if (setting.kind === "money") return `$${value}`;
+  if (value === "") return EMPTY_WORDS[setting.key] || "None";
   return (CHOICE_WORDS[setting.key] || {})[value] || value;
 }
 
 export async function viewGeneral(generation) {
-  const listing = await api("/api/settings");
+  const [listing, unattended] = await Promise.all([api("/api/settings"), api("/api/unattended")]);
   const settings = Array.isArray(listing.settings) ? listing.settings : [];
   const locked = settings.filter((setting) => setting.locked).length;
   render(
@@ -43,10 +61,31 @@ export async function viewGeneral(generation) {
       class: "page-facts muted",
       text: locked ? `Settings for the whole of this Arrt. ${locked} set in its environment.` : "Settings for the whole of this Arrt.",
     }),
-    settings.length === 0
-      ? emptyState("There are no settings to change here.", "This Arrt declares none, which is unexpected: the server's own list is empty.")
-      : el("dl", { class: "facts settings-general" }, settings.flatMap(settingRow)),
+    ...(settings.length === 0
+      ? [emptyState("There are no settings to change here.", "This Arrt declares none, which is unexpected: the server's own list is empty.")]
+      : sections(settings).map(([name, members]) => section(name, members, unattended))),
   );
+}
+
+/* The settings by section, in the order each section first appears. */
+function sections(settings) {
+  const grouped = new Map();
+  for (const setting of settings) {
+    if (!grouped.has(setting.section)) grouped.set(setting.section, []);
+    grouped.get(setting.section).push(setting);
+  }
+  return [...grouped.entries()];
+}
+
+function section(name, members, unattended) {
+  const list = el("dl", { class: "facts settings-general" }, members.flatMap(settingRow));
+  if (name === PAGE_SECTION) return list;
+  const isUnattended = members.some((setting) => setting.key === "unattended_work");
+  return el("section", { class: "panel settings-section", "data-section": name }, [
+    el("h2", { text: name }),
+    list,
+    isUnattended ? el("p", { class: "unattended-standing", text: unattended.sentence }) : null,
+  ]);
 }
 
 function settingRow(setting) {
@@ -54,7 +93,7 @@ function settingRow(setting) {
   return [
     el("dt", {}, [el("label", { for: fieldId, text: setting.label })]),
     el("dd", { "data-setting": setting.key }, [
-      setting.locked ? lockedValue(setting, fieldId) : picker(setting, fieldId),
+      setting.locked ? lockedValue(setting, fieldId) : setting.kind === "choice" ? picker(setting, fieldId) : field(setting, fieldId),
       el("p", { class: "muted setting-description", text: setting.description }),
       sourceLine(setting),
     ]),
@@ -83,6 +122,35 @@ function picker(setting, fieldId) {
     if (!changed) control.value = setting.value;
   });
   return control;
+}
+
+/* A value typed rather than chosen: dollars to the cent, or a model's name. Sent
+ * when it changes and the field is left (or Enter is pressed), refused in the
+ * server's words beside it, which then puts the value back. */
+function field(setting, fieldId) {
+  const money = setting.kind === "money";
+  const control = el("input", {
+    id: fieldId,
+    type: "text",
+    class: "setting-field",
+    value: setting.value,
+    inputmode: money ? "decimal" : null,
+    placeholder: EMPTY_WORDS[setting.key] || null,
+    autocomplete: "off",
+    spellcheck: "false",
+  });
+  control.addEventListener("change", async () => {
+    const typed = control.value.trim();
+    const shown = typed === "" ? (EMPTY_WORDS[setting.key] || "nothing").toLowerCase() : money ? `$${typed.replace(/^[$]/, "")}` : typed;
+    const changed = await attempt(
+      control,
+      `set ${setting.label.toLowerCase()} to ${shown}`,
+      () => api(`/api/settings/${encodeURIComponent(setting.key)}`, { method: "POST", body: JSON.stringify({ value: typed }) }),
+      { then: () => refresh() },
+    );
+    if (!changed) control.value = setting.value;
+  });
+  return money ? el("span", { class: "money-field" }, [el("span", { "aria-hidden": "true", text: "$" }), control]) : control;
 }
 
 /* Where the value came from, when that is worth a line: the environment, or a change and when. */

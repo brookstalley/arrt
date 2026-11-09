@@ -548,3 +548,15 @@ def test_the_setting_projections_agree():
     state = SettingState(LABEL_UNITS, "metric", SettingSource.STORED, WHEN, InitiatedBy.WEB_UI)
 
     check_parity("Setting", set(bindings._setting_fields(state)), _fields(http_models.SettingOut))
+
+
+def test_the_unattended_projections_agree():
+    from decimal import Decimal
+
+    from arrt.library.services.unattended import Refusal, Standing
+
+    standing = Standing(
+        switched_on=True, allowance_usd=Decimal(5), spent_usd=Decimal(1), refusal=Refusal.ALLOWANCE_SPENT, sentence="s"
+    )
+
+    check_parity("UnattendedStanding", set(bindings._unattended_fields(standing)), _fields(http_models.UnattendedOut))

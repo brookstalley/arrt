@@ -21,9 +21,11 @@ tracing a surprise; it decides nothing.
 """
 
 import logging
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Final
 
@@ -49,6 +51,22 @@ class SettingRefused(ValueError):
     """A value a setting cannot take, in words that name what it can."""
 
 
+class SettingKind(StrEnum):
+    """What control a setting takes: a picker of its choices, an amount of money, or words."""
+
+    CHOICE = "choice"
+    MONEY = "money"
+    TEXT = "text"
+
+
+@dataclass(frozen=True)
+class Limits:
+    """The deployment's facts a setting's value is checked against, beside its own rules."""
+
+    #: The month's budget on a key with no limit of its own (`MONTHLY_BUDGET_USD`).
+    monthly_budget_usd: Decimal | None = None
+
+
 @dataclass(frozen=True)
 class Setting[T]:
     """One setting: what it is called, what it defaults to, and how it reads and writes as text."""
@@ -66,6 +84,18 @@ class Setting[T]:
     choices: tuple[str, ...]
     parse: Callable[[str], T]
     render: Callable[[T], str]
+    kind: SettingKind = SettingKind.CHOICE
+    #: The heading it is listed under, on the screen and in the tool's list.
+    section: str = "General"
+    #: A rule that needs the deployment's facts, raising `SettingRefused`.
+    check: Callable[[T, Limits], None] | None = None
+
+    def checked(self, raw: str, limits: Limits) -> T:
+        """`raw` read as this setting's value and held to every rule it has, or `SettingRefused`."""
+        value = self.parse(raw)
+        if self.check is not None:
+            self.check(value, limits)
+        return value
 
 
 def _choice[E: StrEnum](kind: type[E], name: str) -> Callable[[str], E]:
@@ -94,13 +124,141 @@ LABEL_UNITS: Final[Setting[Units]] = Setting(
     render=str,
 )
 
+
+class Switch(StrEnum):
+    """On or off, spelled as the screen and the environment say it."""
+
+    OFF = "off"
+    ON = "on"
+
+
+class Cadence(StrEnum):
+    """How often a standing piece of unattended work runs at most."""
+
+    HOURLY = "hourly"
+    DAILY = "daily"
+    WEEKLY = "weekly"
+
+
+#: The section the settings for agent work with nobody watching are listed under.
+UNATTENDED_SECTION: Final[str] = "Unattended work"
+
+#: Whether Arrt may spend on agent work with nobody watching (`agents-and-memory.md`
+#: ruling 5). Off until a household chooses it, because the source is public and
+#: nothing in the defaults may assume this household.
+UNATTENDED_WORK: Final[Setting[Switch]] = Setting(
+    key="unattended_work",
+    label="Unattended work",
+    environment_variable="UNATTENDED_WORK",
+    default=Switch.OFF,
+    description="Whether Arrt may spend on agent work, such as a standing search, with nobody watching.",
+    choices=tuple(str(member) for member in Switch),
+    parse=_choice(Switch, "UNATTENDED_WORK"),
+    render=str,
+    section=UNATTENDED_SECTION,
+)
+
+
+def _money(name: str) -> Callable[[str], Decimal]:
+    """Read an amount in dollars, at least zero, to the cent."""
+
+    def parse(raw: str) -> Decimal:
+        text = raw.strip().removeprefix("$")
+        try:
+            amount = Decimal(text)
+        except InvalidOperation as exc:
+            raise SettingRefused(f"{name} must be an amount in dollars, such as 2.50, got {raw!r}.") from exc
+        if not amount.is_finite() or amount < 0:
+            raise SettingRefused(f"{name} must be an amount in dollars of at least 0, got {raw!r}.")
+        if amount != amount.quantize(Decimal("0.01")):
+            raise SettingRefused(f"{name} is in whole cents, got {raw!r}.")
+        return amount.quantize(Decimal("0.01"))
+
+    return parse
+
+
+def _within_the_budget(amount: Decimal, limits: Limits) -> None:
+    """An allowance is a share of the month's budget, so it may not exceed it where one is set."""
+    if limits.monthly_budget_usd is not None and amount > limits.monthly_budget_usd:
+        raise SettingRefused(
+            f"UNATTENDED_ALLOWANCE_USD is a share of the month's budget, ${limits.monthly_budget_usd}, "
+            f"and cannot be more than it; got ${amount}."
+        )
+
+
+#: What unattended work may spend in a UTC calendar month, a share of the budget.
+#: Nothing until a household chooses an amount.
+UNATTENDED_ALLOWANCE: Final[Setting[Decimal]] = Setting(
+    key="unattended_allowance_usd",
+    label="Monthly allowance",
+    environment_variable="UNATTENDED_ALLOWANCE_USD",
+    default=Decimal("0.00"),
+    description=(
+        "What unattended work may spend in a calendar month, in dollars, out of the month's budget. "
+        "Work stops starting once it is spent."
+    ),
+    choices=(),
+    parse=_money("UNATTENDED_ALLOWANCE_USD"),
+    render=lambda amount: f"{amount:.2f}",
+    kind=SettingKind.MONEY,
+    section=UNATTENDED_SECTION,
+    check=_within_the_budget,
+)
+
+#: How often a standing piece of unattended work runs at most, by default.
+UNATTENDED_CADENCE: Final[Setting[Cadence]] = Setting(
+    key="unattended_cadence",
+    label="How often",
+    environment_variable="UNATTENDED_CADENCE",
+    default=Cadence.DAILY,
+    description="How often a piece of unattended work, such as a standing search, runs at most.",
+    choices=tuple(str(member) for member in Cadence),
+    parse=_choice(Cadence, "UNATTENDED_CADENCE"),
+    render=str,
+    section=UNATTENDED_SECTION,
+)
+
+#: A provider's model id: an organisation, a slash, and the model's name.
+_MODEL_ID: Final[re.Pattern[str]] = re.compile(r"[A-Za-z0-9][\w.-]*/[\w.:-]+")
+
+
+def _model(raw: str) -> str:
+    """A model id, or empty for the discovery model."""
+    model = raw.strip()
+    if model and not _MODEL_ID.fullmatch(model):
+        raise SettingRefused(f"UNATTENDED_MODEL must be a model id such as 'provider/model', or empty, got {raw!r}.")
+    return model
+
+
+#: Which model unattended work runs on. Empty means the discovery model
+#: (`DISCOVERY_MODEL`), which is what it should be unless a household has reason
+#: to pay for a different one.
+UNATTENDED_MODEL: Final[Setting[str]] = Setting(
+    key="unattended_model",
+    label="Model",
+    environment_variable="UNATTENDED_MODEL",
+    default="",
+    description="The model unattended work runs on, as the provider names it. Empty is the discovery model.",
+    choices=(),
+    parse=_model,
+    render=str,
+    kind=SettingKind.TEXT,
+    section=UNATTENDED_SECTION,
+)
+
 #: Every setting, in the order the screen and the tool list them.
-SETTINGS: Final[tuple[Setting[object], ...]] = (LABEL_UNITS,)  # type: ignore[assignment]
+SETTINGS: Final[tuple[Setting[object], ...]] = (  # type: ignore[assignment]
+    LABEL_UNITS,
+    UNATTENDED_WORK,
+    UNATTENDED_ALLOWANCE,
+    UNATTENDED_CADENCE,
+    UNATTENDED_MODEL,
+)
 
 SETTINGS_BY_KEY: Final[dict[str, Setting[object]]] = {setting.key: setting for setting in SETTINGS}
 
 
-def from_environment(environ: Mapping[str, str]) -> dict[str, str]:
+def from_environment(environ: Mapping[str, str], limits: Limits | None = None) -> dict[str, str]:
     """The settings the environment gives, by key, as text, each checked.
 
     Raises `SettingRefused` for the first value a setting cannot take, so a
@@ -111,7 +269,7 @@ def from_environment(environ: Mapping[str, str]) -> dict[str, str]:
     for setting in SETTINGS:
         raw = environ.get(setting.environment_variable)
         if raw:
-            given[setting.key] = setting.render(setting.parse(raw))
+            given[setting.key] = setting.render(setting.checked(raw, limits or Limits()))
     return given
 
 
@@ -134,14 +292,17 @@ class SettingState:
 class SettingsService:
     """Reads and changes the settings in `SETTINGS`."""
 
-    def __init__(self, store: DiscoveryStore, *, environment: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self, store: DiscoveryStore, *, environment: Mapping[str, str] | None = None, limits: Limits | None = None
+    ) -> None:
         self._store = store
+        self._limits = limits or Limits()
         # Checked here as well as at startup, so a suite passing a misspelt value
-        # fails where it passed it rather than at the first read.
-        # Held in each setting's own spelling, as `from_environment` gives it, so
-        # a direct caller's " Metric " reads back as "metric" like any other.
+        # fails where it passed it rather than at the first read. Held in each
+        # setting's own spelling, as `from_environment` gives it, so a direct
+        # caller's " Metric " reads back as "metric" like any other.
         self._environment = {
-            key: self._known(key).render(self._known(key).parse(raw)) for key, raw in (environment or {}).items()
+            key: self._known(key).render(self._known(key).checked(raw, self._limits)) for key, raw in (environment or {}).items()
         }
 
     def value[T](self, setting: Setting[T]) -> T:
@@ -161,7 +322,7 @@ class SettingsService:
                 f"{self._environment[key]!r}. Change it there and restart Arrt, or remove it there to change it here."
             )
         try:
-            parsed = setting.parse(value)
+            parsed = setting.checked(value, self._limits)
         except SettingRefused as exc:
             raise ServiceError(str(exc)) from exc
         before = self._state(setting)
@@ -190,10 +351,16 @@ class SettingsService:
         if stored is not None:
             try:
                 return SettingState(
-                    setting, setting.render(setting.parse(stored.value)), SettingSource.STORED, updated_at, updated_by
+                    setting,
+                    setting.render(setting.checked(stored.value, self._limits)),
+                    SettingSource.STORED,
+                    updated_at,
+                    updated_by,
                 )
-            except SettingRefused:
-                # A value an earlier release could take and this one cannot: the
-                # default applies, and the log says so rather than the read failing.
-                log.warning("stored setting %s=%r is not one this release takes; using the default", setting.key, stored.value)
+            except SettingRefused as exc:
+                # A value an earlier release could take and this one cannot, or
+                # one a later change to the deployment rules out (an allowance
+                # above a budget since lowered): the default applies, and the log
+                # says why rather than the read failing.
+                log.warning("stored setting %s=%r no longer holds (%s); using the default", setting.key, stored.value, exc)
         return SettingState(setting, setting.render(setting.default), SettingSource.DEFAULT, updated_at, updated_by)

@@ -2436,8 +2436,12 @@ class SettingOut(BaseModel):
     locked: bool
     environment_variable: str
     description: str
-    #: The values it can take, in the order a control offers them.
+    #: The values it can take, in the order a control offers them; empty unless `kind` is `choice`.
     choices: list[str]
+    #: The control it takes: `choice`, `money` (dollars, to the cent) or `text`.
+    kind: str
+    #: The heading it is listed under.
+    section: str
     #: When and from which surface it was last changed, while a stored value exists.
     updated_at: str | None
     updated_by: str | None
@@ -2450,6 +2454,24 @@ class SettingListOut(BaseModel):
 
 
 class SetSetting(BaseModel):
-    """A new value for one setting, in its own spelling: one of its `choices` for a choice."""
+    """A new value for one setting, in its own spelling: one of its `choices` for a choice.
 
-    value: str = Field(min_length=1, max_length=200)
+    Empty only where the setting takes it: the unattended model, where it means
+    the discovery model. Every other setting refuses it by name.
+    """
+
+    value: str = Field(max_length=200)
+
+
+class UnattendedOut(BaseModel):
+    """Where agent work with nobody watching stands this month, and whether a piece of it may start now."""
+
+    switched_on: bool
+    allowance_usd: str
+    spent_usd: str
+    remaining_usd: str
+    may_start: bool
+    #: `off`, `no_key` or `allowance_spent`, or null when it may start.
+    refusal: str | None
+    #: One sentence saying which, for the screen.
+    sentence: str

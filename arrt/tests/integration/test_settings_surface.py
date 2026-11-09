@@ -84,3 +84,39 @@ async def test_the_tool_refuses_a_value_the_setting_cannot_take(server_url):
 
     assert errored is True
     assert "got 'cubits'" in json.dumps(payload)
+
+
+def test_unattended_work_reads_as_off_until_chosen_and_the_route_says_why(server_url):
+    standing = httpx.get(f"{server_url}/api/unattended", timeout=30).json()
+
+    assert standing == {
+        "switched_on": False,
+        "allowance_usd": "0.00",
+        "spent_usd": "0.00",
+        "remaining_usd": "0.00",
+        "may_start": False,
+        "refusal": "off",
+        "sentence": "Unattended work is off, so nothing runs with nobody watching.",
+    }
+
+
+async def test_an_agent_reads_where_unattended_work_stands_in_the_routes_own_fields(server_url):
+    async with httpx.AsyncClient(base_url=server_url, timeout=30) as http:
+        await http.post("/api/settings/unattended_work", json={"value": "on"})
+        await http.post("/api/settings/unattended_allowance_usd", json={"value": "3"})
+
+        payload, errored = await call(server_url, "art_settings", action="unattended")
+
+        assert errored is False
+        route = (await http.get("/api/unattended")).json()
+    assert {key: payload[key] for key in route} == route
+    assert (route["switched_on"], route["allowance_usd"]) == (True, "3.00")
+
+
+def test_the_model_is_reset_to_the_discovery_model_by_an_empty_value(server_url):
+    httpx.post(f"{server_url}/api/settings/unattended_model", json={"value": "anthropic/claude-haiku-5.5"}, timeout=30)
+
+    response = httpx.post(f"{server_url}/api/settings/unattended_model", json={"value": ""}, timeout=30)
+
+    assert response.status_code == 200
+    assert response.json()["value"] == ""

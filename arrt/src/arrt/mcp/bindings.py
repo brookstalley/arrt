@@ -38,6 +38,7 @@ from arrt.library.services.review import (
 from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.settings import SettingState
 from arrt.library.services.twins import InReview
+from arrt.library.services.unattended import Standing
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
@@ -1635,6 +1636,23 @@ def _set_setting(services: Services, arguments: Mapping[str, Any]) -> dict[str, 
     return ok(setting=_setting_fields(state))
 
 
+def _unattended_standing(services: Services, _: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(**_unattended_fields(services.unattended.standing()))
+
+
+def _unattended_fields(standing: Standing) -> dict[str, Any]:
+    """Where unattended work stands, in the route's field names (`UnattendedOut`)."""
+    return {
+        "switched_on": standing.switched_on,
+        "allowance_usd": f"{standing.allowance_usd:.2f}",
+        "spent_usd": f"{standing.spent_usd:.2f}",
+        "remaining_usd": f"{standing.remaining_usd:.2f}",
+        "may_start": standing.may_start,
+        "refusal": None if standing.refusal is None else str(standing.refusal),
+        "sentence": standing.sentence,
+    }
+
+
 def _setting_fields(state: SettingState) -> dict[str, Any]:
     """A setting in the route's field names (`SettingOut`), so the two surfaces read alike."""
     setting = state.setting
@@ -1648,6 +1666,8 @@ def _setting_fields(state: SettingState) -> dict[str, Any]:
         "environment_variable": setting.environment_variable,
         "description": setting.description,
         "choices": list(setting.choices),
+        "kind": str(setting.kind),
+        "section": setting.section,
         "updated_at": None if state.updated_at is None else state.updated_at.isoformat(),
         "updated_by": None if state.updated_by is None else str(state.updated_by),
     }
@@ -1822,6 +1842,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_taste", "delete"): _delete_taste,
     ("art_settings", "list"): _list_settings,
     ("art_settings", "set"): _set_setting,
+    ("art_settings", "unattended"): _unattended_standing,
 }
 
 

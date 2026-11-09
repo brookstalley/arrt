@@ -73,7 +73,7 @@ from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
-from arrt.library.services.settings import LABEL_UNITS, SettingsService
+from arrt.library.services.settings import LABEL_UNITS, Limits, SettingsService
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.spending import BudgetService
 from arrt.library.services.survey import SurveyService
@@ -81,6 +81,7 @@ from arrt.library.services.taste import TasteService
 from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
+from arrt.library.services.unattended import UnattendedAllowance
 from arrt.library.services.wikidata_match import WikidataMatchService
 from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
@@ -207,6 +208,9 @@ class Services:
     #: The household's settings, read when each is used and changed from the
     #: browser or over MCP alike.
     settings: SettingsService
+    #: Whether agent work may start with nobody watching, and what it has spent
+    #: this month. Asked by whatever starts such work, before it starts.
+    unattended: UnattendedAllowance
 
     @classmethod
     def bind(
@@ -282,7 +286,9 @@ class Services:
         )
         # Discovery before the facade, because the facade answers where a Get
         # sent its accepted works, and only the run knows.
-        settings = SettingsService(discovery, environment=settings_environment)
+        settings = SettingsService(
+            discovery, environment=settings_environment, limits=Limits(monthly_budget_usd=monthly_budget_usd)
+        )
         library = LibraryFacade(catalogue_service, discovery_service, label_units=lambda: settings.value(LABEL_UNITS))
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
@@ -414,6 +420,8 @@ class Services:
             sightings=sighting_service,
             budget=BudgetService(key_status, monthly_budget_usd=monthly_budget_usd),
             settings=settings,
+            # A key is what `key_status` exists for: None is the keyless deployment.
+            unattended=UnattendedAllowance(settings, discovery, has_key=key_status is not None),
         )
 
     def reconcile(self) -> None:

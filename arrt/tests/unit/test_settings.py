@@ -150,3 +150,101 @@ def test_a_catalogue_file_from_before_settings_opens_and_gains_the_table(tmp_pat
         assert service.value(LABEL_UNITS) is Units.METRIC
     finally:
         reopened.close()
+
+
+# -- the unattended settings ---------------------------------------------------
+
+
+def test_a_setting_the_environment_gives_locks_only_itself(discovery):
+    """Locking is per setting: a lock keyed on 'the environment gave something' would lock them all."""
+    service = SettingsService(discovery, environment={"label_units": "metric"})
+
+    service.set("unattended_work", "on", surface=InitiatedBy.WEB_UI)
+
+    assert state_of(service, "label_units").locked is True
+    assert state_of(service, "unattended_work").locked is False
+    assert state_of(service, "unattended_work").value == "on"
+
+
+def test_an_environment_value_given_in_any_spelling_reads_back_in_the_settings_own(discovery):
+    service = SettingsService(discovery, environment={"label_units": " Metric ", "unattended_allowance_usd": "$2.5"})
+
+    assert state_of(service, "label_units").value == "metric"
+    assert state_of(service, "unattended_allowance_usd").value == "2.50"
+
+
+def test_unattended_work_is_off_with_no_allowance_until_chosen(discovery):
+    service = SettingsService(discovery)
+
+    assert [(state.setting.key, state.value) for state in service.describe() if state.setting.section == "Unattended work"] == [
+        ("unattended_work", "off"),
+        ("unattended_allowance_usd", "0.00"),
+        ("unattended_cadence", "daily"),
+        ("unattended_model", ""),
+    ]
+
+
+@pytest.mark.parametrize(("typed", "stored"), [("2.5", "2.50"), ("$3", "3.00"), (" 0 ", "0.00"), ("12.34", "12.34")])
+def test_an_allowance_is_dollars_to_the_cent_however_typed(discovery, typed, stored):
+    service = SettingsService(discovery)
+
+    service.set("unattended_allowance_usd", typed, surface=InitiatedBy.WEB_UI)
+
+    assert state_of(service, "unattended_allowance_usd").value == stored
+
+
+@pytest.mark.parametrize(
+    ("typed", "said"),
+    [
+        ("-1", "of at least 0"),
+        ("1.234", "in whole cents"),
+        ("ten", "an amount in dollars"),
+        ("NaN", "of at least 0"),
+        ("", "an amount in dollars"),
+    ],
+)
+def test_an_allowance_that_is_not_an_amount_is_refused_by_name(discovery, typed, said):
+    with pytest.raises(ServiceError, match=f"UNATTENDED_ALLOWANCE_USD .*{said}"):
+        SettingsService(discovery).set("unattended_allowance_usd", typed, surface=InitiatedBy.WEB_UI)
+
+
+def test_an_allowance_above_the_months_budget_is_refused_naming_the_budget(discovery):
+    from decimal import Decimal
+
+    from arrt.library.services.settings import Limits
+
+    service = SettingsService(discovery, limits=Limits(monthly_budget_usd=Decimal(20)))
+    service.set("unattended_allowance_usd", "20", surface=InitiatedBy.WEB_UI)
+
+    with pytest.raises(ServiceError, match=r"share of the month's budget, \$20, and cannot be more than it; got \$20\.01"):
+        service.set("unattended_allowance_usd", "20.01", surface=InitiatedBy.WEB_UI)
+
+
+def test_an_environment_allowance_above_the_budget_refuses_to_start():
+    from decimal import Decimal
+
+    from arrt.library.services.settings import Limits
+
+    with pytest.raises(SettingRefused, match="cannot be more than it"):
+        from_environment({"UNATTENDED_ALLOWANCE_USD": "25"}, Limits(monthly_budget_usd=Decimal(20)))
+    assert from_environment({"UNATTENDED_ALLOWANCE_USD": "25"}) == {"unattended_allowance_usd": "25.00"}, "no budget, no bound"
+
+
+@pytest.mark.parametrize("model", ["", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-5.5", "openai/gpt-x:free"])
+def test_a_model_is_a_providers_id_or_empty_for_the_discovery_model(discovery, model):
+    service = SettingsService(discovery)
+
+    service.set("unattended_model", model, surface=InitiatedBy.WEB_UI)
+
+    assert state_of(service, "unattended_model").value == model
+
+
+@pytest.mark.parametrize("model", ["gpt-5", "a b/c", "/model", "provider/"])
+def test_a_model_that_is_not_a_providers_id_is_refused(discovery, model):
+    with pytest.raises(ServiceError, match="UNATTENDED_MODEL must be a model id"):
+        SettingsService(discovery).set("unattended_model", model, surface=InitiatedBy.WEB_UI)
+
+
+def test_an_empty_value_is_refused_by_a_setting_that_does_not_take_one(discovery):
+    with pytest.raises(ServiceError, match="LABEL_UNITS must be imperial or metric, got ''"):
+        SettingsService(discovery).set("label_units", "", surface=InitiatedBy.WEB_UI)

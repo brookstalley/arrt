@@ -124,6 +124,19 @@ Arrt-enforced; user can veto/override]`
 - Chunk 02: each setting carries a `label` from the server, so the screen and an
   agent name it alike. A choice's words ("Metric (centimetres)") are the client's,
   falling back to the value. Settled by "One word per thing".
+- Chunk 03: an empty model is the discovery model, rather than a copy of
+  `DEFAULT_DISCOVERY_MODEL`, which the settings module cannot import from `config`
+  (config imports it), and which would go stale when the discovery model changes.
+  Settled by "do it right".
+- Chunk 03: cadence is a choice (hourly, daily, weekly), not an interval, until a
+  Watch needs finer. Inferred.
+- Chunk 03: on/off is a choice spelled `off`/`on`, so it takes the picker every
+  choice takes. Settled by the screen's one control per kind.
+- Chunk 03: a stored value is held to the deployment's rules when read, so an
+  allowance above a budget since lowered reads as $0.00 and is logged. Settled by
+  "fails closed" (`nonfunctional-requirements.md`).
+- Chunk 03: `GET /api/unattended` and `art_settings(action='unattended')` give the
+  standing, which the plan's section needed and did not name a route for.
 
 **Level:** Medium. The store and the screen follow patterns the repo already has.
 What could move: the precedence rule is inferred, and the screen is new to the IA. The

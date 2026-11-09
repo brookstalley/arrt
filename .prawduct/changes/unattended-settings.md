@@ -23,6 +23,18 @@ it.
 lists every setting the server declares, each its own control applied when
 chosen. A setting the environment gives shows its value and the variable that
 sets it, with no control. *Label units* is the first, which closes #329.
+`arrt/tools/ux_walk.py` reached it by link and found it clean in both schemes at
+phone and desktop width.
+
+**Chunk 03, unattended work's settings and its allowance.** Four settings under
+their own heading on Settings › General: *Unattended work* (off until chosen),
+*Monthly allowance* (dollars, never above `MONTHLY_BUDGET_USD`), *How often* and
+*Model* (empty is the discovery model). `UnattendedAllowance` answers whether a
+piece of unattended work may start: off, no model key, or the month's allowance
+passed, counting only the spend of runs started `unattended` (a new
+`initiated_by`). `GET /api/unattended` and `art_settings(action='unattended')`
+say where it stands. Nothing starts unattended work yet: Watches, the next plan,
+will ask it first.
 
 ## Consumer note
 
@@ -30,4 +42,5 @@ Arrt's settings can now be changed while it runs, in Settings › General or by
 an agent over MCP. **If your environment sets `LABEL_UNITS`, that setting is now
 locked to it**, and Arrt says so where you would change it. Remove it from your
 env file to choose the units in Arrt instead. The new table is ignored by an
-earlier release, so rolling back needs nothing.
+earlier release, so rolling back needs nothing. Unattended work is off until
+you turn it on and give it an allowance; nothing yet runs unattended either way.
