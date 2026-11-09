@@ -2427,6 +2427,8 @@ class SettingOut(BaseModel):
     """
 
     key: str
+    #: Its name as a person reads it.
+    label: str
     value: str
     default: str
     #: `environment`, `stored` or `default`.

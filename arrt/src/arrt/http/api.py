@@ -2930,6 +2930,7 @@ def _setting(state: SettingState) -> SettingOut:
     setting = state.setting
     return SettingOut(
         key=setting.key,
+        label=setting.label,
         value=state.value,
         default=setting.render(setting.default),
         source=str(state.source),

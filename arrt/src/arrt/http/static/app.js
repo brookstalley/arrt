@@ -39,6 +39,7 @@ import { RUN_POLL_MAX_FAILURES, viewRun } from "./screens/run.js";
 import { viewSearch } from "./screens/search.js";
 import { viewSettings } from "./screens/settings.js";
 import { viewSources } from "./screens/sources.js";
+import { viewGeneral } from "./screens/general.js";
 import { viewTaste } from "./screens/taste.js";
 import { viewTheme } from "./screens/theme.js";
 import { viewTopic, viewTopics } from "./screens/topics.js";
@@ -138,6 +139,9 @@ const ROUTES = {
   // Radarr's Settings › Indexers: the places the server searches, which here
   // are the installed source plugins, with where each came from.
   sources: { render: viewSources, section: "settings", page: "Sources" },
+  // Radarr's and Sonarr's Settings › General: the server's own settings, each
+  // changed where it is shown. After what the server works with, before Taste.
+  general: { render: viewGeneral, section: "settings", page: "General" },
   // Radarr's Profiles: the preferences that rank what it finds. Last, after
   // what the server works with, since it is what the server has come to believe.
   taste: { render: viewTaste, section: "settings", page: "Taste" },

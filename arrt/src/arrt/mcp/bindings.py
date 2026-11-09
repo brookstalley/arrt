@@ -1640,6 +1640,7 @@ def _setting_fields(state: SettingState) -> dict[str, Any]:
     setting = state.setting
     return {
         "key": setting.key,
+        "label": setting.label,
         "value": state.value,
         "default": setting.render(setting.default),
         "source": str(state.source),

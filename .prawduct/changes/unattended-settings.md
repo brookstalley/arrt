@@ -2,6 +2,7 @@
 schema: 1
 type: feature
 scope: unattended-settings
+closes: [brookstalley/arrt#329]
 date: 2026-11-09
 title: Household settings, stored and changed at runtime, from the browser or over MCP
 ---
@@ -18,10 +19,15 @@ read and change them in the same fields. `LABEL_UNITS` is the first setting:
 `LibraryFacade` asks for it at each label build. `.env.example` no longer sets
 it.
 
+**Chunk 02, Settings › General.** A new page under Settings, after Sources,
+lists every setting the server declares, each its own control applied when
+chosen. A setting the environment gives shows its value and the variable that
+sets it, with no control. *Label units* is the first, which closes #329.
+
 ## Consumer note
 
-Arrt's settings can now be changed while it runs, from the browser or by an
-agent over MCP. **If your environment sets `LABEL_UNITS`, that setting is now
+Arrt's settings can now be changed while it runs, in Settings › General or by
+an agent over MCP. **If your environment sets `LABEL_UNITS`, that setting is now
 locked to it**, and Arrt says so where you would change it. Remove it from your
 env file to choose the units in Arrt instead. The new table is ignored by an
 earlier release, so rolling back needs nothing.

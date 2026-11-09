@@ -54,6 +54,8 @@ class Setting[T]:
     """One setting: what it is called, what it defaults to, and how it reads and writes as text."""
 
     key: str
+    #: Its name as the screen and an agent say it, in sentence case.
+    label: str
     #: The variable that sets it from the deployment and locks it there.
     environment_variable: str
     default: T
@@ -83,6 +85,7 @@ def _choice[E: StrEnum](kind: type[E], name: str) -> Callable[[str], E]:
 #: reference wall's household reads inches.
 LABEL_UNITS: Final[Setting[Units]] = Setting(
     key="label_units",
+    label="Label units",
     environment_variable="LABEL_UNITS",
     default=Units.IMPERIAL,
     description="The system every wall label states a work's size in, rounded to whole units.",

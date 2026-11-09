@@ -118,6 +118,12 @@ Arrt-enforced; user can veto/override]`
 - Chunk 01: `.env.example` no longer sets `LABEL_UNITS`, because copying it would
   lock the new control on every installation. A root test holds that for every
   setting `SETTINGS` declares. The goals did not foresee this.
+- Chunk 02: General sits under Settings after Sources and before Taste.
+  Settled by the index's own rule ("what the server works with", then "what it
+  has come to believe"); Sonarr's General sits near its end. Inferred.
+- Chunk 02: each setting carries a `label` from the server, so the screen and an
+  agent name it alike. A choice's words ("Metric (centimetres)") are the client's,
+  falling back to the value. Settled by "One word per thing".
 
 **Level:** Medium. The store and the screen follow patterns the repo already has.
 What could move: the precedence rule is inferred, and the screen is new to the IA. The
