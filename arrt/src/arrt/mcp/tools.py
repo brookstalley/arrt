@@ -2092,6 +2092,28 @@ ART_TASTE: Final = ToolRecord(
             ),
         ),
         Action(
+            name="brief",
+            description=(
+                "Return the curator's taste as the text Arrt's own agents are told it, ordered warmest first. "
+                "Empty when nothing is recorded."
+            ),
+            example="art_taste(action='brief')",
+            tips=(
+                (
+                    "Read this before proposing or judging works: it is what Ask and discovery's planning are "
+                    "given, so an agent that starts here weighs taste as they do."
+                ),
+                (
+                    "A line naming 'observed' or 'inferred' is the product's reading, with its reason; a line "
+                    "without one is the curator's own word, and outranks it."
+                ),
+                (
+                    "The brief is bounded and says how many judgments it leaves out. action='list' returns "
+                    "every one, with the ids action='delete' takes."
+                ),
+            ),
+        ),
+        Action(
             name="set",
             description="Write one judgment over whatever was recorded about that thing, or record the first.",
             example="art_taste(action='set', kind='artist', value='Kandinsky', sentiment='likes', open_to_more=True)",

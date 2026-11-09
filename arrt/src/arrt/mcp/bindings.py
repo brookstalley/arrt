@@ -1606,6 +1606,10 @@ def _list_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, A
     return ok(affinities=[_affinity_fields(entry) for entry in affinities], count=len(affinities))
 
 
+def _brief_taste(services: Services, _: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(brief=services.taste.brief())
+
+
 def _set_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     affinity = services.taste.set_affinity(
         kind=arguments["kind"],
@@ -1785,6 +1789,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "add_label"): _add_label,
     ("art_display", "remove_label"): _remove_label,
     ("art_taste", "list"): _list_taste,
+    ("art_taste", "brief"): _brief_taste,
     ("art_taste", "set"): _set_taste,
     ("art_taste", "delete"): _delete_taste,
 }

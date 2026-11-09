@@ -378,6 +378,7 @@ def main(argv: Sequence[str] = ()) -> None:
                     )
                 ),
                 backup_interval_seconds=settings.backup_interval_seconds,
+                allowed_hosts=settings.allowed_hosts,
                 ask_model=_ask_model(settings),
                 ask_step_limit=settings.ask_step_limit,
                 ask_tools=_ask_tools(settings),

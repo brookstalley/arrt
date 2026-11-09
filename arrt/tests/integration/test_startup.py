@@ -831,3 +831,10 @@ def test_startup_names_a_retired_setting_still_set_and_says_nothing_otherwise(tm
         assert "QUALITY_MINIMUM_PX" in record.getMessage()
     else:
         assert retired == []
+
+
+def test_the_entry_point_gives_the_guard_the_deployments_names(tmp_path, monkeypatch):
+    """`CURATION_ALLOWED_HOSTS` reaches the application, or a listed name is refused by its own setting."""
+    built = _built_by_main(tmp_path, monkeypatch, allowed_hosts=frozenset({"arrt.example"}))
+
+    assert built["allowed_hosts"] == frozenset({"arrt.example"})

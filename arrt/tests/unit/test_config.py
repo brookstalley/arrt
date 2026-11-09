@@ -49,6 +49,7 @@ def _clean_env(monkeypatch):
         "ART_ROOT",
         "CURATION_HOST",
         "CURATION_PORT",
+        "CURATION_ALLOWED_HOSTS",
         "ROTATION_INTERVAL_SECONDS",
         "ROTATION_SHUFFLE",
         "LABEL_UNITS",
@@ -799,3 +800,28 @@ def test_a_system_of_units_that_is_neither_is_refused_rather_than_guessed(monkey
 
     with pytest.raises(ConfigError, match="LABEL_UNITS must be imperial or metric, got 'metirc'"):
         Settings.from_env()
+
+
+def test_allowed_hosts_are_read_lowercased_and_without_a_trailing_dot(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("CURATION_ALLOWED_HOSTS", " Arrt.LAN , arrt.example.com., ,")
+
+    assert Settings.from_env().allowed_hosts == frozenset({"arrt.lan", "arrt.example.com"})
+
+
+def test_no_allowed_hosts_is_none_listed(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.delenv("CURATION_ALLOWED_HOSTS", raising=False)
+
+    assert Settings.from_env().allowed_hosts == frozenset()
+
+
+@pytest.mark.parametrize("listed", ["http://arrt.lan", "arrt.lan:8770", "arrt.lan/mcp", "*.lan", "arrt lan"])
+def test_an_allowed_host_that_is_not_a_name_is_refused_by_name(monkeypatch, tmp_path, listed):
+    """Half of what the operator meant would be kept silently, so none of it is."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("CURATION_ALLOWED_HOSTS", f"arrt.example,{listed}")
+
+    with pytest.raises(ConfigError, match="CURATION_ALLOWED_HOSTS") as refused:
+        Settings.from_env()
+    assert listed.lower() in str(refused.value)

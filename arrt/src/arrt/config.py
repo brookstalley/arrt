@@ -12,6 +12,7 @@ at process start, which is where a missing value should stop things.
 """
 
 import os
+import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -129,6 +130,10 @@ DEFAULT_MIN_FREE_BYTES: Final[int] = 2 * 1024 * 1024 * 1024
 #: no one made.
 DEFAULT_HOST: Final[str] = "127.0.0.1"
 DEFAULT_PORT: Final[int] = 8770
+
+#: One DNS name as a `Host` header carries it without its port: labels of
+#: letters, digits and hyphens, separated by dots.
+_HOSTNAME: Final[re.Pattern[str]] = re.compile(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*")
 
 #: What a wall that has chosen no pace of its own plays at. Carried
 #: forward from the 2024 plane, which ran the wall at three minutes on shuffle —
@@ -448,6 +453,10 @@ class Settings:
     #: A SearXNG instance for Ask's web search (`SEARXNG_URL`). Unset, Ask is
     #: offered no web search and reads only the library and Wikidata.
     searxng_url: str | None = None
+    #: The names this server answers to besides `localhost` and an IP address
+    #: (`arrt.http.hosts`). Empty unless a deployment reaches the server by name,
+    #: which is when it must list the name or be refused by it.
+    allowed_hosts: frozenset[str] = frozenset()
 
     @property
     def discovery_settings(self) -> DiscoverySettings:
@@ -580,6 +589,7 @@ class Settings:
             # Loopback by default; see `DEFAULT_HOST`.
             host=os.environ.get("CURATION_HOST") or DEFAULT_HOST,
             port=_port("CURATION_PORT", DEFAULT_PORT),
+            allowed_hosts=_hostnames("CURATION_ALLOWED_HOSTS"),
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
             rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
@@ -656,6 +666,22 @@ def _names(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     raw = os.environ.get(name, "")
     names = tuple(part.strip() for part in raw.split(",") if part.strip())
     return names or default
+
+
+def _hostnames(name: str) -> frozenset[str]:
+    """Comma-separated host names, lowercased; a URL, a port or a path among them is refused.
+
+    Refused rather than reduced to its name, because `http://arrt.lan` or
+    `arrt.lan:8770` is a sign the operator meant something this setting does not
+    do, and quietly keeping half of it would hide that.
+    """
+    names = frozenset(part.rstrip(".").lower() for part in _names(name, ()))
+    for host in names:
+        if not _HOSTNAME.fullmatch(host):
+            raise ConfigError(
+                f"{name} lists names only, as in arrt.lan,arrt.example.com; got {host!r}, which is not one. Check .env."
+            )
+    return names
 
 
 def _require(name: str) -> str:

@@ -180,7 +180,7 @@ lesson from a different count, which is why this one is stated as a shape.*
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `history`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. `history` (added 2026-10-07) is `GET /api/history`: `kinds` (array) and `wall_id` narrow it. *(Wave 4g, 2026-10-10: `regenerate` makes the work's presentation master and chooses a mat if it has none, composing nothing, and `force=true` makes the master again; `set_mat_color` records the colour and makes nothing, because the colour rides each wall's feed.)* |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `hang_selection`, `not_again`, `kept_off`, `allow_again`, `unhang`, `scenes`, `draft_scene`, `pin_scene`, `unpin_scene`, `discard_scene`, `apply_scene`, `release_scene`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. `hang_selection`, `not_again`, `kept_off` and `allow_again` (added 2026-10-07) are § History, selections and *Not this one again*'s routes on this surface; `list` leaves selections out, and every theme carries `hidden`. The seven scene actions (added 2026-10-26, wave 4f) are the `/api/scenes` routes; they sit on `art_theme` rather than `art_display` because `art_display`'s description is at its 2 KB budget, and on an existing tool rather than a new one because a tool name is frozen once it ships. |
 | `art_display` | `walls`, `add_wall`, `rename_wall`, `delete_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `assign_display`, `add_label`, `remove_label`, `unassign_wall`, `set_mat_mode`, `set_playback`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone, and `delete_wall` (2026-10-30) neither. |
-| `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
+| `art_taste` | `list`, `brief`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
 
 **This table is the surface as designed, and no row states what is built.** That
 is deliberate rather than an omission: while the build is in progress some tools
@@ -542,18 +542,29 @@ and what the deferral would have bought; this one is the tool it obliges.
 here was declared at runtime — "unbuilt actions are never declared" governed it, and
 the tool answered `action='help'` with its `unavailable_note`. The paragraphs below
 fixed meaning and rules and left field-level shapes to the chunk that built the
-service method under them; that chunk has landed, all three actions are declared,
+service method under them; that chunk has landed, the three actions it designed are declared (`brief` joined them on 2026-11-08),
 and `FROZEN_TOOL_NAMES` now pins the name it could not reach before. The rules
 below are therefore descriptions of built behaviour rather than instructions to a
 future builder, with one exception marked where it occurs: the `inferred` invariant
 is enforced on the write path only, and deliberately not as a stored constraint.
 
-**Three actions and no `get`.** `list` returns the taste, narrowed by `kind`,
-`sentiment` or `derivation`; `set` writes one judgment; `delete` forgets one. The
+**Four actions and no `get`.** `list` returns the taste, narrowed by `kind`,
+`sentiment` or `derivation`; `brief` returns it as text; `set` writes one judgment;
+`delete` forgets one. The
 single-affinity read is omitted rather than overlooked — `list` returns a
 household's entire taste, which is tens of rows, so a `get` would be a second way
 to read what one call already hands back whole. § Conditional Patterns' limit-and-
 report-the-total rule bounds the listing if that ever stops being true.
+
+**`brief` is the taste as Arrt's own agents are told it**, added 2026-11-08 for a
+household's own agent (`agents-and-memory.md` item 3). It answers `{"brief": …}`,
+the text `TasteService.brief()` renders for Ask's prompt and discovery's phase 1:
+the same lines, ordered the same way, bounded the same way, and saying how many
+judgments it leaves out. It is empty when nothing is recorded. An outside agent
+working from `list`'s rows would weigh taste by rules of its own; one working from
+the brief weighs it as Ask does. It has no `count`, because the text is the
+answer, and a count would be a second read of the store that could disagree with
+it.
 
 **`set` is an upsert, and is named `set` for that reason.** `data-model.md` makes
 `Affinity` unique on (`kind`, `value`) — one live judgment per thing, corrected in
@@ -2330,6 +2341,39 @@ remotely via an overlay network (Tailscale/VPN). No authentication, no TLS
 termination, no rate limiting in the application — proportionate for a
 single-principal household tool, and recorded as a decision in
 `project-state.yaml` → `technical_decisions.integrations`.
+
+**Host and Origin are checked on every surface but the Player's: DECISION
+2026-11-08, the owner's ruling on #53 (fork 1, Arrt checks them; fork 2, a
+binding policy, cannot work because the homelab publishes the port directly for
+the Player; `build-plan-mcp-household-agents.md`).** Without the
+check, a web page open in a browser on the LAN could rebind its own domain name
+to the server's address and drive `/mcp` and `/api` as same-origin requests.
+CORS never stops those. They could start `art_discovery` runs, which spend money,
+change what hangs on a wall, or write taste. `arrt.http.hosts.HostGuard` wraps
+the whole application, including the MCP mount, the pages and the static files:
+- **Host.** It answers `421` to a request whose `Host` is not `localhost`, an IP
+  address, or a name in `CURATION_ALLOWED_HOSTS`.
+- **Origin.** It answers `403` to one whose `Origin`, when sent, is neither a
+  listed name nor the request's own address (the same name and port as its
+  `Host`). An IP address passes as a `Host` but not as an `Origin`, so a page
+  served from another LAN device or another local port is refused.
+  `Origin: null` always fails.
+
+Each refusal names the setting.
+- **IP addresses always pass**, because a rebinding page's requests carry its own
+  domain name, never an address.
+- **A request without `Origin` passes**, because that is how every non-browser
+  client calls.
+- **The Player's routes are exempt.** The routes `http/player.py` mounts, which
+  are `contract/routes.json`'s, already require the wall's token, which a
+  rebinding page cannot read. A Player configured with a name the server was not
+  given would otherwise lose its feed.
+
+Fork 2, closing the vector by binding policy instead, was not taken. The
+reference deployment publishes the server's port directly so its Player can pull
+when the reverse proxy is down, and a rebinding page can reach that port. A
+deployment reached by name must list the name, or its browser and MCP clients
+are refused.
 
 **`initiated_by` is provenance, not authorisation.** Every surface has identical
 authority. Agent-initiated runs queue candidates for the same reason UI-initiated

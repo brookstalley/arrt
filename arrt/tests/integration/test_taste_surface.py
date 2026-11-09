@@ -209,3 +209,50 @@ def test_the_old_conversation_routes_are_gone(server_url):
     """Nothing serves the retired conversations: Ask's threads are under `/api/ask`."""
     assert httpx.get(f"{server_url}/api/conversations", timeout=20).status_code == 404
     assert httpx.post(f"{server_url}/api/conversations", timeout=20).status_code in (404, 405)
+
+
+# -- the brief an agent is told ---------------------------------------------------
+
+
+async def test_the_brief_of_no_taste_is_empty(server_url):
+    """An empty brief is an answer, not an error: a new household has said nothing yet."""
+    reply, failed = await call(server_url, "art_taste", action="brief")
+
+    assert not failed
+    assert reply["brief"] == ""
+
+
+async def test_the_brief_is_the_text_ask_is_told(server_url, services):
+    """A household's own agent reads taste in the words Ask's prompt carries.
+
+    Compared against `TasteService.brief()`, the one owner of that text, so the
+    test holds the agreement and not today's wording. A stated row and an
+    observed one are both present, because the observed line is the one that
+    carries a derivation and a rationale, and a brief that dropped them would
+    tell the agent the product's reading as if the curator had said it.
+    """
+    _, failed = await call(
+        server_url, "art_taste", action="set", kind="artist", value="Kandinsky", sentiment="loves", open_to_more=True
+    )
+    assert not failed
+    now = datetime.now(UTC)
+    services.discovery._store.add_affinity(
+        Affinity(
+            id="affinity-observed",
+            kind=VocabularyKind.ARTIST,
+            value="Salvador Dalí",
+            sentiment=AffinitySentiment.DECLINES,
+            open_to_more=False,
+            derivation=AffinityDerivation.OBSERVED,
+            created_at=now,
+            updated_at=now,
+            rationale="Rejected 6 of the 6 works by Salvador Dalí decided in review.",
+        )
+    )
+
+    reply, failed = await call(server_url, "art_taste", action="brief")
+
+    assert not failed
+    assert reply["brief"] == services.taste.brief()
+    assert "Kandinsky" in reply["brief"]
+    assert "observed: Rejected 6 of the 6" in reply["brief"]
