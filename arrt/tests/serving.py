@@ -8,10 +8,41 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Final
 
+import httpx
 import pytest
 import uvicorn
+
+#: How long one of the suite's own requests may take before it fails. httpx's
+#: default is 5 s, and contention alone comes close to it: with three full
+#: curation suites running at once (2026-11-09, 12,510 requests timed), p99.9
+#: was 2.1 s and the slowest 4.4 s, on ordinary routes holding no lock. A 5 s
+#: bound then fails a test for the machine's load (#372), which says nothing
+#: about the server. Thirty seconds is the browser suite's Playwright default,
+#: so both of the suite's transports give a server the same time before
+#: calling it hung.
+SUITE_REQUEST_SECONDS: Final = 30.0
+
+#: httpx's one-shot request functions, every one of which a test calls bare.
+#: The product builds clients with timeouts of its own and calls none of these
+#: (`test_the_product_calls_none_of_httpxs_one_shot_functions`), so this
+#: bound reaches the suite's requests only.
+_ONE_SHOT: Final = ("request", "get", "options", "head", "post", "put", "patch", "delete")
+
+
+def bound_the_suites_requests() -> None:
+    """Give every one-shot httpx call the suite makes `SUITE_REQUEST_SECONDS`, not httpx's 5 s.
+
+    Set as the functions' keyword default rather than at 229 call sites,
+    which is where the next test would forget it. Refuses, rather than
+    quietly doing nothing, if httpx has stopped declaring the default here.
+    """
+    for name in _ONE_SHOT:
+        defaults = getattr(httpx, name).__kwdefaults__
+        if not defaults or "timeout" not in defaults:
+            raise RuntimeError(f"httpx.{name} no longer takes a keyword `timeout` default; the suite's bound would not apply")
+        defaults["timeout"] = httpx.Timeout(SUITE_REQUEST_SECONDS)
 
 
 @contextmanager

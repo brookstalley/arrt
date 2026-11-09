@@ -23,7 +23,7 @@ from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
-from serving import serve
+from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
 from arrt.config import (
@@ -93,6 +93,15 @@ from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Bound the suite's own requests by the machine's measured worst, not httpx's 5 s (`serving.py`).
+
+    A hook rather than a fixture, so it holds in every xdist worker from the
+    first test, including a module-scoped server's first request.
+    """
+    bound_the_suites_requests()
 
 
 @pytest.fixture(autouse=True)
