@@ -15,6 +15,7 @@ import pytest
 from fakes import FakeRegistry
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from serving import SUITE_REQUEST_SECONDS
 
 from arrt.library.registry import (
     CommonsFile,
@@ -252,7 +253,7 @@ class TestWithNoUserAgent:
 class TestTheToolSurface:
     async def test_topics_returns_what_the_http_index_returns(self, server_url, held):
         payload, errored = await call(server_url, "art_catalogue", action="topics")
-        async with httpx.AsyncClient(base_url=server_url) as client:
+        async with httpx.AsyncClient(base_url=server_url, timeout=SUITE_REQUEST_SECONDS) as client:
             index = (await client.get("/api/topics")).raise_for_status().json()
 
         assert errored is False
@@ -262,7 +263,7 @@ class TestTheToolSurface:
         _monet, sunrise = held
 
         payload, errored = await call(server_url, "art_catalogue", action="topic", qid=IMPRESSIONISM)
-        async with httpx.AsyncClient(base_url=server_url) as client:
+        async with httpx.AsyncClient(base_url=server_url, timeout=SUITE_REQUEST_SECONDS) as client:
             page = (await client.get(f"/api/topics/{IMPRESSIONISM}")).raise_for_status().json()
 
         assert errored is False

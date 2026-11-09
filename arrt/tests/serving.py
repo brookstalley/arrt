@@ -36,8 +36,10 @@ _ONE_SHOT: Final = ("request", "get", "options", "head", "post", "put", "patch",
 def bound_the_suites_requests() -> None:
     """Give every one-shot httpx call the suite makes `SUITE_REQUEST_SECONDS`, not httpx's 5 s.
 
-    Set as the functions' keyword default rather than at 229 call sites,
-    which is where the next test would forget it. Refuses, rather than
+    Set as the functions' keyword default rather than at each call site,
+    which is where the next test would forget it. A client a test builds
+    itself is outside this default and sets its own timeout; nothing here
+    checks that it does. Refuses, rather than
     quietly doing nothing, if httpx has stopped declaring the default here.
     """
     for name in _ONE_SHOT:
