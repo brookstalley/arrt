@@ -126,6 +126,10 @@ def test_the_model_is_reset_to_the_discovery_model_by_an_empty_value(server_url)
     assert response.json()["value"] == ""
 
 
+def standing(server_url: str) -> dict:
+    return httpx.get(f"{server_url}/api/unattended", timeout=30).json()
+
+
 # -- the deployment's facts reach the allowance through the real wiring -----------
 
 
@@ -144,6 +148,26 @@ class TestUnderAMonthlyBudget:
         assert (
             httpx.post(f"{server_url}/api/settings/unattended_allowance_usd", json={"value": "20"}, timeout=30).status_code == 200
         )
+
+    async def test_an_allowance_stored_above_it_is_set_aside_on_the_route_and_the_tool_alike(self, server_url, discovery_store):
+        """An allowance chosen under a higher budget, read after `MONTHLY_BUDGET_USD` was lowered to 20 (#417)."""
+        from datetime import UTC, datetime
+
+        from arrt.persistence.discovery_records import InitiatedBy, StoredSetting
+
+        discovery_store.put_setting(StoredSetting("unattended_allowance_usd", "25.00", datetime.now(UTC), InitiatedBy.WEB_UI))
+
+        allowance = listed(server_url)["unattended_allowance_usd"]
+        assert (allowance["source"], allowance["value"]) == ("set_aside", "0.00")
+        assert "$20" in allowance["set_aside_reason"]
+        assert "$25.00" in allowance["set_aside_reason"]
+        assert listed(server_url)["label_units"]["set_aside_reason"] is None
+
+        body, is_error = await call(server_url, "art_settings", action="list")
+        assert not is_error
+        [over_mcp] = [setting for setting in body["settings"] if setting["key"] == "unattended_allowance_usd"]
+        assert over_mcp == allowance
+        assert standing(server_url)["allowance_usd"] == "0.00"
 
 
 def switched_on_with(server_url: str, allowance: str) -> dict:

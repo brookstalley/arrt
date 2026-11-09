@@ -26,7 +26,28 @@ from enum import StrEnum
 from arrt.library.months import utc_month_of
 from arrt.library.services.settings import UNATTENDED_ALLOWANCE, UNATTENDED_WORK, SettingsService, Switch
 from arrt.persistence.discovery import DiscoveryStore
-from arrt.persistence.discovery_records import InitiatedBy
+from arrt.persistence.discovery_records import DiscoveryRun, InitiatedBy
+
+
+def spent_in_month(store: DiscoveryStore, moment: datetime, counts: Callable[[DiscoveryRun], bool]) -> Decimal:
+    """What the runs `counts` picks were billed in the UTC month `moment` falls in.
+
+    Read through each spend row's run, so a figure is never stored twice. A row
+    with no run, or whose run is gone, counts for nothing.
+    """
+    since, until = utc_month_of(moment)
+    picked: dict[str, bool] = {}
+    total = Decimal(0)
+    for record in store.list_spend_records(since=since, until=until):
+        run_id = record.discovery_run_id
+        if run_id is None:
+            continue
+        if run_id not in picked:
+            run = store.get_run(run_id)
+            picked[run_id] = run is not None and counts(run)
+        if picked[run_id]:
+            total += record.cost_usd
+    return total
 
 
 class Refusal(StrEnum):
@@ -76,19 +97,11 @@ class UnattendedAllowance:
 
     def spent_this_month(self) -> Decimal:
         """What runs started unattended were billed in this UTC calendar month."""
-        since, until = utc_month_of(self._now())
-        started_by: dict[str, InitiatedBy | None] = {}
-        total = Decimal(0)
-        for record in self._store.list_spend_records(since=since, until=until):
-            run_id = record.discovery_run_id
-            if run_id is None:
-                continue
-            if run_id not in started_by:
-                run = self._store.get_run(run_id)
-                started_by[run_id] = None if run is None else run.initiated_by
-            if started_by[run_id] is InitiatedBy.UNATTENDED:
-                total += record.cost_usd
-        return total
+        return spent_in_month(self._store, self._now(), lambda run: run.initiated_by is InitiatedBy.UNATTENDED)
+
+    def spent_by_watch_this_month(self, watch_id: str) -> Decimal:
+        """What the runs one Watch's passes started were billed in this UTC calendar month."""
+        return spent_in_month(self._store, self._now(), lambda run: run.watch_id == watch_id)
 
     def standing(self, estimate_usd: Decimal = Decimal(0)) -> Standing:
         """Where unattended work stands, and whether a piece expected to cost `estimate_usd` may start.

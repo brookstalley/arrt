@@ -333,6 +333,7 @@ class OpenRouterClient:
         schema: Mapping[str, Any] | None = None,
         search_results: int = 0,
         image: ImageAttachment | None = None,
+        model: str | None = None,
     ) -> Completion:
         """Ask the model once, optionally about an image, optionally searching first.
 
@@ -352,11 +353,15 @@ class OpenRouterClient:
         the live API: nothing else about the request or the response changes —
         same choices, same `usage.cost`, same `finish_reason` — and the image
         bills inside `prompt_tokens` rather than as a separate charge.
+
+        `model` asks another model than this client's for this one call (the
+        unattended model a Watch runs on); None is the client's own.
         """
         return self.complete_thread(
             messages=[Message(role="user", text=prompt, image=image)],
             schema=schema,
             search_results=search_results,
+            model=model,
         )
 
     def complete_thread(
@@ -367,6 +372,7 @@ class OpenRouterClient:
         schema_name: str = "work_list",
         search_results: int = 0,
         reasoning: Mapping[str, Any] | None = None,
+        model: str | None = None,
     ) -> Completion:
         """Ask the model with a history behind the question.
 
@@ -394,7 +400,7 @@ class OpenRouterClient:
             # sentence about a request this method should never have sent.
             raise ValueError("A thread needs at least one message; the provider refuses an empty one.")
         body: dict[str, Any] = {
-            "model": self._model,
+            "model": self._model if model is None else model,
             "messages": [message.wire() for message in messages],
             # Deliberate, never omitted: this is the reservation the provider
             # prices, and leaving it out invites a 402 at full credit.
@@ -418,7 +424,7 @@ class OpenRouterClient:
             body["reasoning"] = dict(reasoning)
 
         payload = self._post("/chat/completions", body)
-        return _read_completion(payload, fallback_model=self._model)
+        return _read_completion(payload, fallback_model=body["model"])
 
     def key_status(self) -> KeyStatus:
         """What the account says about the ceiling. For display, never for gating.

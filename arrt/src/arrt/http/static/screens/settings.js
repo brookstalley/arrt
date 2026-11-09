@@ -8,7 +8,7 @@
  * § The *arr layout).
  *
  * The pages are listed in the sidebar's order, Taste last: Players and Sources
- * are what the server works with, General is how it is set, and Taste is what it has come to believe. Each
+ * are what the server works with, Watches what it looks for on its own, General is how it is set, and Taste is what it has come to believe. Each
  * row is a link because it navigates (§ Direction: navigation is a link, an act
  * is a button). The lines are written here rather than read from the route
  * table, because what a page holds is said to a curator, and a table entry
@@ -28,6 +28,11 @@ const PAGES = [
     view: "sources",
     label: "Sources",
     holds: "The museums and archives the server searches for images, most preferred first, and whether each loaded.",
+  },
+  {
+    view: "watches",
+    label: "Watches",
+    holds: "What Arrt looks for on its own, how often, and what each may spend, with what each last did.",
   },
   {
     view: "general",

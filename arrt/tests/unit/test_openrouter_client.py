@@ -589,3 +589,32 @@ def test_an_uncapped_key_reports_no_limit_rather_than_zero():
     assert status.remaining_usd is None
     assert status.usage_usd == Decimal("1.5")
     assert status.usage_monthly_usd is None, "a reply that does not say is unknown, never zero"
+
+
+# -- which model a call asks ------------------------------------------------------
+
+
+def recording(payload: dict, sent: list[dict]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json=payload)
+
+    return handler
+
+
+def test_a_call_asks_the_clients_own_model_unless_it_names_another():
+    sent: list[dict] = []
+    client = client_over(recording(UNSEARCHED, sent))
+
+    client.complete(prompt="p")
+    client.complete(prompt="p", model="some-lab/a-cheaper-model")
+
+    assert [body["model"] for body in sent] == ["deepseek/deepseek-v4-flash", "some-lab/a-cheaper-model"]
+
+
+def test_spend_is_booked_to_the_model_asked_when_the_provider_does_not_say_which_answered():
+    unnamed = {key: value for key, value in UNSEARCHED.items() if key != "model"}
+    client = client_over(responding(unnamed))
+
+    assert client.complete(prompt="p", model="some-lab/a-cheaper-model").model_id == "some-lab/a-cheaper-model"
+    assert client.complete(prompt="p").model_id == "deepseek/deepseek-v4-flash"

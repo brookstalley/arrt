@@ -65,6 +65,7 @@ async def test_the_model_is_offered_the_servers_own_tool_definitions(server_url)
         "art_settings",
         "art_taste",
         "art_theme",
+        "art_watches",
     }
 
     # The description is the server's, carried through untouched — this is the

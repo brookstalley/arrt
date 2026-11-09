@@ -16,6 +16,10 @@
  * A setting is a picker when it is a choice, and a field otherwise (an amount in
  * dollars, a model's name), applied when the field is left or Enter is pressed.
  *
+ * **A stored choice the server sets aside** (one this release or this deployment
+ * no longer allows) says so beside its control, with the server's reason,
+ * because showing the default alone would pass the choice off as nobody's.
+ *
  * **Unattended work** is a section of its own: its settings, then one line from
  * the server saying whether such work may start now and what it has spent this
  * month against its allowance (`GET /api/unattended`).
@@ -160,12 +164,21 @@ function field(setting, fieldId) {
   return money ? el("span", { class: "money-field" }, [el("span", { "aria-hidden": "true", text: "$" }), control]) : control;
 }
 
-/* Where the value came from, when that is worth a line: the environment, or a change and when. */
+/* Where the value came from, when that is worth a line: the environment, a choice set aside, or a change and when. */
 function sourceLine(setting) {
   if (setting.locked) {
     return el("p", {
       class: "muted setting-source",
       text: `Set by ${setting.environment_variable} in this Arrt's environment. Change it there and restart Arrt, or remove it there to choose it here.`,
+    });
+  }
+  if (setting.source === "set_aside") {
+    // The household chose something this Arrt no longer allows (an allowance
+    // above a budget since lowered): say so, rather than show the default as if
+    // nobody had chosen.
+    return el("p", {
+      class: "setting-source setting-set-aside",
+      text: `Your choice was set aside, so the default applies: ${setting.set_aside_reason} Choose again to replace it.`,
     });
   }
   if (setting.source === "stored" && setting.updated_at) {

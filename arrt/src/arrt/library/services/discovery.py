@@ -229,8 +229,11 @@ class DiscoveryService:
 
     # -- writes: a discovery run's life ---------------------------------------
 
-    def start_discovery_run(self, *, intent_text: str, initiated_by: InitiatedBy) -> DiscoveryRun:
+    def start_discovery_run(self, *, intent_text: str, initiated_by: InitiatedBy, watch_id: str | None = None) -> DiscoveryRun:
         """Begin phase 1: the curator's intent becomes a run enumerating works.
+
+        `watch_id` names the Watch whose scheduled pass started it, recorded and
+        never read to decide anything, as `initiated_by` is.
 
         No `strategy` here, deliberately. It is how the intent was *interpreted*,
         which nothing knows until the model has read it — so it is written when
@@ -244,6 +247,7 @@ class DiscoveryService:
             approval_required=False,
             started_at=datetime.now(UTC),
             intent_text=require_text(intent_text, field="intent_text"),
+            watch_id=watch_id,
         )
         with self._store.transaction():
             store_write(self._store.add_run, run)

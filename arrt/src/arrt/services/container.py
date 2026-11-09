@@ -73,6 +73,7 @@ from arrt.library.services.registry_search import RegistrySearchService
 from arrt.library.services.registry_works import RegistryWorkService
 from arrt.library.services.review import ReviewService
 from arrt.library.services.runner import DiscoveryRunner, DiscoverySettings
+from arrt.library.services.scheduler import Scheduler, WatchJob
 from arrt.library.services.settings import LABEL_UNITS, Limits, SettingsService
 from arrt.library.services.sightings import SightingService
 from arrt.library.services.spending import BudgetService
@@ -82,6 +83,7 @@ from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
 from arrt.library.services.unattended import UnattendedAllowance
+from arrt.library.services.watches import WatchService
 from arrt.library.services.wikidata_match import WikidataMatchService
 from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
@@ -211,6 +213,12 @@ class Services:
     #: Whether agent work may start with nobody watching, and what it has spent
     #: this month. Asked by whatever starts such work, before it starts.
     unattended: UnattendedAllowance
+    #: The household's standing requests, which the scheduler re-runs with
+    #: nobody watching. Written from the browser or over MCP alike.
+    watches: WatchService
+    #: Runs each scheduled job's pass: today the Watches. Started by the app's
+    #: lifespan when it is asked to schedule, as the topic sweep is.
+    scheduler: Scheduler
 
     @classmethod
     def bind(
@@ -290,6 +298,16 @@ class Services:
             discovery, environment=settings_environment, limits=Limits(monthly_budget_usd=monthly_budget_usd)
         )
         library = LibraryFacade(catalogue_service, discovery_service, label_units=lambda: settings.value(LABEL_UNITS))
+        # A key is what `key_status` exists for: None is the keyless deployment.
+        unattended = UnattendedAllowance(settings, discovery, has_key=key_status is not None)
+        # Late-bound through the lambda: the runner is built below, and a Watch's
+        # run is in flight only while the runner has it in hand.
+        watches = WatchService(
+            discovery,
+            settings,
+            unattended,
+            working_on=lambda run_id: runner_service.is_working_on(run_id),  # noqa: PLW0108 -- runner_service is assigned below
+        )
         # The same open file passed as Programming's store: one object serves
         # both protocols until Programming's tables get a file of their own.
         display_service = DisplayService(catalogue, library, display_settings)
@@ -393,6 +411,7 @@ class Services:
                 sources=sources,
                 yields=discovery.source_yields,
                 pictures=pictures,
+                watches=watches.reading,
             ),
             runner=runner_service,
             acquisition=acquisition_service,
@@ -420,8 +439,19 @@ class Services:
             sightings=sighting_service,
             budget=BudgetService(key_status, monthly_budget_usd=monthly_budget_usd),
             settings=settings,
-            # A key is what `key_status` exists for: None is the keyless deployment.
-            unattended=UnattendedAllowance(settings, discovery, has_key=key_status is not None),
+            unattended=unattended,
+            watches=watches,
+            scheduler=Scheduler(
+                [
+                    WatchJob(
+                        watches,
+                        unattended,
+                        runner_service,
+                        settings,
+                        estimate=lambda: discovery_settings.phase1_estimate_usd,
+                    )
+                ]
+            ),
         )
 
     def reconcile(self) -> None:

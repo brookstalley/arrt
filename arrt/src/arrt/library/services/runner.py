@@ -549,6 +549,17 @@ class DiscoveryRunner:
 
     # -- reads ----------------------------------------------------------------
 
+    def is_working_on(self, run_id: str) -> bool:
+        """Whether this process has the run in hand: phase 1 or phase 2 under way on a worker.
+
+        A run's status alone cannot say so. One whose phase 2 this deployment
+        has no engine for stays `resolving_images` with nothing advancing it,
+        and a caller that waited on that status would wait for ever. The same
+        rule `run_status` holds by.
+        """
+        with self._changed:
+            return run_id in self._in_flight
+
     def estimate(self, run_id: str | None = None) -> Estimate:
         """Price a question, or price resolving what a run already found.
 
@@ -688,8 +699,19 @@ class DiscoveryRunner:
 
     # -- writes ---------------------------------------------------------------
 
-    def start(self, *, intent_text: str, initiated_by: InitiatedBy) -> DiscoveryRun:
+    def start(
+        self,
+        *,
+        intent_text: str,
+        initiated_by: InitiatedBy,
+        model: str | None = None,
+        watch_id: str | None = None,
+    ) -> DiscoveryRun:
         """Begin a run and return its handle at once; phase 1 proceeds behind it.
+
+        `model` asks phase 1 of another model than the engine's own (a Watch runs
+        on the household's unattended model); None is the engine's. `watch_id`
+        records which Watch's pass started the run.
 
         An engine that cannot run is refused here rather than by creating a run
         that immediately fails. The two would be indistinguishable to a caller
@@ -699,7 +721,7 @@ class DiscoveryRunner:
         unavailable = self._engine.unavailable_reason
         if unavailable is not None:
             raise ServiceError(unavailable)
-        run = self._discovery.start_discovery_run(intent_text=intent_text, initiated_by=initiated_by)
+        run = self._discovery.start_discovery_run(intent_text=intent_text, initiated_by=initiated_by, watch_id=watch_id)
         # Registered before the work is handed off, so a `status` arriving in
         # the gap between the handle being returned and the worker starting
         # still sees a run in flight and holds for it.
@@ -713,11 +735,13 @@ class DiscoveryRunner:
                     "event": "run.started",
                     "initiated_by": str(run.initiated_by),
                     "intent_text": run.intent_text,
+                    "watch_id": run.watch_id,
+                    "model": model,
                     "search_allowance": self._settings.phase1_search_allowance,
                     "estimated_cost_usd": str(self._settings.phase1_estimate_usd),
                 },
             )
-        self._spawn(lambda: self._enumerate(run.id, intent_text))
+        self._spawn(lambda: self._enumerate(run.id, intent_text, model))
         return run
 
     def approve(self, run_id: str) -> RunView:
@@ -827,7 +851,7 @@ class DiscoveryRunner:
 
     # -- phase 1 --------------------------------------------------------------
 
-    def _enumerate(self, run_id: str, intent_text: str) -> None:
+    def _enumerate(self, run_id: str, intent_text: str, model: str | None = None) -> None:
         """Ask the engine for a work list and write down whatever came back.
 
         Runs on the worker, behind the handle `start` already returned, so it
@@ -838,7 +862,7 @@ class DiscoveryRunner:
         """
         try:
             with run_context(run_id):
-                self._attempt_phase_one(run_id, intent_text)
+                self._attempt_phase_one(run_id, intent_text, model)
         finally:
             # Released however this ended, including on a path that raised past
             # every handler inside. A run left registered would hold every later
@@ -848,7 +872,7 @@ class DiscoveryRunner:
                 self._in_flight.discard(run_id)
             self._bump()
 
-    def _attempt_phase_one(self, run_id: str, intent_text: str) -> None:
+    def _attempt_phase_one(self, run_id: str, intent_text: str, model: str | None = None) -> None:
         """Call the engine and turn whatever it did into a run state."""
         try:
             # Built inside the guard because it reads the catalogue (the taste and
@@ -862,6 +886,7 @@ class DiscoveryRunner:
                     RejectedWork(title=work.proposed_title, artist=work.proposed_artist)
                     for work in self._discovery.rejected_works(REJECTED_TOLD)
                 ),
+                model=model,
             )
             # Recording and settling are inside the guard, not in an `else`.
             # `_settle` expects only `ServiceError`, so any other refusal from

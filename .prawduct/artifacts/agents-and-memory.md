@@ -155,8 +155,14 @@ Each item gets its own build plan when it starts, as the waves did.
    advisor's concern, recorded so it can be revisited: a learned like steers
    phase 1 toward that artist, whose works are then approved, which strengthens
    the like, narrowing discovery over time | user can veto/override]`
-2. May anything a Watch finds while nobody is watching shape taste or a later
-   prompt, or only what the curator accepts?
+2. ~~May anything a Watch finds while nobody is watching shape taste or a later
+   prompt, or only what the curator accepts?~~ **Answered 2026-11-09 (the owner,
+   choosing the advisor's recommendation): only verdicts.** Nothing a Watch
+   finds reaches taste or any prompt until a curator accepts or rejects it, and
+   then it counts exactly as any other verdict does under question 1's rule. As
+   built, phase 1 is told the taste brief (stated affinities and those observed
+   from verdicts) and the rejected works (verdicts), so this holds by construction. `build-plan-watches.md`
+   adds a test that a Watch's unreviewed find is absent from the next run's prompt.
 3. Is the monthly spend cap still meant to come from 3tears, which at 0.89 has
    none for OpenRouter?
 4. How is the 3tears pin moved: on a schedule, or only when a needed piece moves?

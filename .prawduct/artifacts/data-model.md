@@ -1491,6 +1491,7 @@ candidates provenance.
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
 | `destination_theme_id` | UUID | nullable; **not** a foreign key | The theme a `get` run's accepted works join instead of the default, or null for the default (**Q22-Q24**). Programming's id, held opaquely across the seam (rule 3), so it may name a theme deleted since. Written once, when the Get starts; the surface asks Programming that the theme exists first. Null on `discovery` and `resolve` runs, which keep joining the default (`build-plan-topics-and-destinations.md` § Requirements Confidence), and on every run written before the column. *Built 2026-10-02.* |
 | `end_reason` | text | nullable | Why the run's own worker ended it, in the sentence it composed. **Written only by `failed` and `halted_by_budget`**, the two endings nobody asked for, in the same write as the status; required and non-blank on both (`DiscoveryService.fail_run`, `halt_run_for_budget`). Null on `completed`, `declined`, `cancelled` and `interrupted`: the first three need no explaining beyond the curator's own act or the tallies, and reconciliation knows only what `interrupted` already says. Null too on every run that ended before the column, which widening adds in place. A fault nothing anticipated stores a fixed sentence pointing at the server log, never the exception's text. *Built 2026-10-05 (#207).* |
+| `watch_id` | id | nullable, no foreign key | The Watch whose scheduled pass started the run (§ Watch); null for every run a person or an agent started, and for every run from before the column, which widening adds in place. Written when the run starts and never changed. A run outlives its Watch. *Built 2026-11-09 (`build-plan-watches.md`).* |
 
 > **The re-search is a run, not a side effect (decided 2026-07-20).** `resolve_images`
 > is a paid, minutes-long operation, and it previously created no row at all — so the
@@ -2126,7 +2127,7 @@ settings exist, their defaults and their spelling as text are declared once, in
 | Field | Type | Constraints | Description |
 |---|---|---|---|
 | `key` | string | PK | A key `SETTINGS` declares. |
-| `value` | string | required | In the setting's own spelling, so a new setting needs no column. A value this release cannot read applies the default and is logged. |
+| `value` | string | required | In the setting's own spelling, so a new setting needs no column. A value this release cannot read, or one the deployment now rules out (an allowance above a lowered budget), is **set aside**: the default applies, the setting reads as `source` `set_aside` with a reason, and the log says so once per value (#417). The row is kept, so who chose it stays said. |
 | `updated_at` | datetime | required | When it was last changed. |
 | `updated_by` | enum | required | `InitiatedBy`: which surface changed it. Recorded for tracing a surprise; it decides nothing. |
 
@@ -3109,16 +3110,29 @@ an open question.
 
 ### Watch *(Library)*
 
+**A household's standing request in words, which Arrt re-runs on a cadence with
+nobody watching** (built 2026-11-09, `build-plan-watches.md`). In the discovery
+store's `watches` table. Its one policy is to leave what it finds in To review:
+auto-accept is not offered (the owner, 2026-11-09). The anchor's planned
+`facet_filter`, `sources` and `on_match` were descoped, because a run is driven by
+its words alone and there is one policy.
+
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | |
-| `intent` | text | In words, as a conversation would state it. |
-| `facet_filter` | json | Optional (`kind`, `value`) constraints. |
-| `sources` | list | Which providers to check. |
-| `cadence` | interval | How often it re-runs (it polls; museum APIs have no feeds). |
-| `on_match` | enum | `notify` \| `queue_for_review` (default) \| `auto_accept`. |
-| `spend_cap_usd` | decimal | Per period. Every run records `SpendRecord`s against it. |
-| `last_run_at`, `enabled` | | |
+| `intent_text` | text | Required, not blank, at most 1,000 characters. Shown as text, never parsed as markup. |
+| `enabled` | bool | |
+| `cadence` | text or null | `hourly` \| `daily` \| `weekly` (`Cadence`). Null follows the `unattended_cadence` setting when read. |
+| `monthly_cap_usd` | decimal or null | What its runs may spend in a UTC month. Refused above the unattended allowance when written, and read as at most the allowance. Null leaves only the allowance. |
+| `created_at`, `updated_at` | timestamp | |
+| `created_by`, `updated_by` | `InitiatedBy` | The surface that wrote it, for tracing a surprise (`security-model.md` § The unattended trigger fired). |
+| `last_attempt_at` | timestamp or null | The last pass that judged it due, whether it started or was refused. Written by the scheduler. |
+| `last_run_id` | run id or null | Its last started run. That run's status is its outcome, never copied here. |
+| `last_refusal` | text or null | `off` \| `no_key` \| `allowance_spent` \| `cap_spent` \| `could_not_start` (`WatchRefusal`), from the last attempt that did not start. Null when the last attempt started. |
+
+**`DiscoveryRun.watch_id`**, nullable, with no foreign key: the Watch whose pass
+started the run, which outlives the Watch. What a Watch spent is read through it,
+from `SpendRecord`, and never stored twice.
 
 The memory of what a Watch has already seen is the existing dedup and
 rejected-candidate records, not a new table. Upgrade monitoring (re-searching

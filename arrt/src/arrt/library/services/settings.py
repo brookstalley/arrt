@@ -22,6 +22,7 @@ tracing a surprise; it decides nothing.
 
 import logging
 import re
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -45,6 +46,10 @@ class SettingSource(StrEnum):
     ENVIRONMENT = "environment"
     STORED = "stored"
     DEFAULT = "default"
+    #: A stored choice this release or this deployment no longer allows: the
+    #: default applies, and the state says why, so the screen does not pass the
+    #: household's choice off as one nobody made.
+    SET_ASIDE = "set_aside"
 
 
 class SettingRefused(ValueError):
@@ -97,11 +102,15 @@ class Setting[T]:
         never spells a variable it could get wrong.
         """
         try:
-            value = self.parse(raw)
-            if self.check is not None:
-                self.check(value, limits)
+            return self.unnamed_check(raw, limits)
         except SettingRefused as exc:
             raise SettingRefused(f"{self.environment_variable} {exc}") from exc
+
+    def unnamed_check(self, raw: str, limits: Limits) -> T:
+        """As `checked`, with the refusal left for the caller to name: "must be …", "is a share …"."""
+        value = self.parse(raw)
+        if self.check is not None:
+            self.check(value, limits)
         return value
 
 
@@ -187,6 +196,14 @@ def _money(raw: str) -> Decimal:
         raise SettingRefused(f"is in whole cents, got {raw!r}.")
     # `abs` so "-0" is held as 0.00, not shown as $-0.00.
     return abs(cents)
+
+
+def dollars(raw: str) -> Decimal:
+    """An amount in dollars, from zero to a million, to the cent, or `SettingRefused` saying what it must be.
+
+    The allowance's own reading, for any amount held to the same rules (a Watch's cap).
+    """
+    return _money(raw)
 
 
 def _within_the_budget(amount: Decimal, limits: Limits) -> None:
@@ -294,6 +311,9 @@ class SettingState:
     #: When and from where it was last changed, while a stored value exists.
     updated_at: datetime | None
     updated_by: InitiatedBy | None
+    #: Why a stored choice was set aside, in a sentence naming the setting and the
+    #: stored value; None unless `source` is `set_aside`.
+    set_aside_reason: str | None = None
 
     @property
     def locked(self) -> bool:
@@ -308,6 +328,11 @@ class SettingsService:
     ) -> None:
         self._store = store
         self._limits = limits or Limits()
+        # Each set-aside stored value is logged once, not at every read: a value
+        # is read at every label build and every pass, and a warning repeated
+        # that often buries the one line that says why.
+        self._reported: set[tuple[str, str]] = set()
+        self._reported_lock = threading.Lock()
         # Checked here as well as at startup, so a suite passing a misspelt value
         # fails where it passed it rather than at the first read. Held in each
         # setting's own spelling, as `from_environment` gives it, so a direct
@@ -337,6 +362,10 @@ class SettingsService:
         except SettingRefused as exc:
             raise ServiceError(str(exc)) from exc
         before = self._state(setting)
+        # A choice set aside is named as it was stored, so the change line says
+        # what the household's new choice replaced, not the default standing in.
+        prior = self._store.get_setting(key) if before.source is SettingSource.SET_ASIDE else None
+        was = f"{prior.value!r} (set aside)" if prior is not None else repr(before.value)
         stored = StoredSetting(
             key=key,
             value=setting.render(parsed),
@@ -344,7 +373,7 @@ class SettingsService:
             updated_by=require_member(surface, enum=InitiatedBy, field="surface"),
         )
         store_write(self._store.put_setting, stored)
-        log.info("setting %s changed from %r to %r by %s", key, before.value, stored.value, stored.updated_by)
+        log.info("setting %s changed from %s to %r by %s", key, was, stored.value, stored.updated_by)
         return self._state(setting)
 
     def _known(self, key: str) -> Setting[object]:
@@ -361,17 +390,29 @@ class SettingsService:
             return SettingState(setting, self._environment[setting.key], SettingSource.ENVIRONMENT, updated_at, updated_by)
         if stored is not None:
             try:
-                return SettingState(
-                    setting,
-                    setting.render(setting.checked(stored.value, self._limits)),
-                    SettingSource.STORED,
-                    updated_at,
-                    updated_by,
-                )
+                value = setting.unnamed_check(stored.value, self._limits)
             except SettingRefused as exc:
                 # A value an earlier release could take and this one cannot, or
                 # one a later change to the deployment rules out (an allowance
-                # above a budget since lowered): the default applies, and the log
-                # says why rather than the read failing.
-                log.warning("stored setting %s=%r no longer holds (%s); using the default", setting.key, stored.value, exc)
+                # above a budget since lowered): the default applies, and the
+                # state says why rather than the read failing.
+                return self._set_aside(setting, stored.value, f"{setting.label} {exc}", updated_at, updated_by)
+            return SettingState(setting, setting.render(value), SettingSource.STORED, updated_at, updated_by)
         return SettingState(setting, setting.render(setting.default), SettingSource.DEFAULT, updated_at, updated_by)
+
+    def _set_aside(
+        self,
+        setting: Setting[object],
+        stored: str,
+        reason: str,
+        updated_at: datetime | None,
+        updated_by: InitiatedBy | None,
+    ) -> SettingState:
+        with self._reported_lock:
+            first = (setting.key, stored) not in self._reported
+            self._reported.add((setting.key, stored))
+        if first:
+            log.warning("stored setting %s=%r is set aside (%s); using the default", setting.key, stored, reason)
+        return SettingState(
+            setting, setting.render(setting.default), SettingSource.SET_ASIDE, updated_at, updated_by, set_aside_reason=reason
+        )

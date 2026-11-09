@@ -144,6 +144,7 @@ def a_run(**overrides) -> RunOut:
         "completed_at": None,
         "destination_theme_id": None,
         "end_reason": None,
+        "watch_id": None,
     }
     return RunOut(**(fields | overrides))
 

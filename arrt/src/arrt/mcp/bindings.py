@@ -39,6 +39,7 @@ from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.settings import SettingState
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
+from arrt.library.services.watches import WatchService
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
@@ -55,6 +56,7 @@ from arrt.persistence.discovery_records import (
     RunKind,
     RunStatus,
     Verdict,
+    Watch,
 )
 from arrt.persistence.records import Artist, Artwork, Client, Display, Scene, Showing, Source, Theme, VocabularyKind, Wall
 from arrt.programming import shape
@@ -1352,6 +1354,7 @@ _STATUS_CARRIES: Final[frozenset[str]] = frozenset({"walls", "pictures"})
 _STATUS_LEAVES: Final[Mapping[str, str]] = {
     "backup": "the catalogue's backup is the operator's to watch on Status, not a question a model is asked",
     "sources": "art_discovery(action='source_plugins') answers it, in GET /api/sources' names",
+    "watches": "art_watches(action='list') carries each Watch's overdue flag and sentence, which is where a model reads them",
 }
 
 
@@ -1670,6 +1673,73 @@ def _setting_fields(state: SettingState) -> dict[str, Any]:
         "section": setting.section,
         "updated_at": None if state.updated_at is None else state.updated_at.isoformat(),
         "updated_by": None if state.updated_by is None else str(state.updated_by),
+        "set_aside_reason": state.set_aside_reason,
+    }
+
+
+def _list_watches(services: Services, _: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(watches=[_watch_fields(services.watches, watch) for watch in services.watches.list()])
+
+
+def _get_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(watch=_watch_fields(services.watches, services.watches.get(arguments["watch_id"])))
+
+
+def _create_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    created = services.watches.create(
+        intent_text=arguments["intent_text"],
+        cadence=arguments.get("cadence", ""),
+        monthly_cap_usd=arguments.get("monthly_cap_usd", ""),
+        enabled=arguments.get("enabled", True),
+        surface=InitiatedBy.MCP_CLIENT,
+    )
+    return ok(watch=_watch_fields(services.watches, created))
+
+
+def _update_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    updated = services.watches.update(
+        arguments["watch_id"],
+        intent_text=arguments.get("intent_text"),
+        cadence=arguments.get("cadence"),
+        monthly_cap_usd=arguments.get("monthly_cap_usd"),
+        enabled=arguments.get("enabled"),
+        surface=InitiatedBy.MCP_CLIENT,
+    )
+    return ok(watch=_watch_fields(services.watches, updated))
+
+
+def _delete_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    gone = services.watches.delete(arguments["watch_id"], surface=InitiatedBy.MCP_CLIENT)
+    return ok(
+        watch=_watch_fields(services.watches, gone),
+        notice="That Watch is gone and nothing restores it. What it found stays in To review.",
+    )
+
+
+def _watch_fields(service: WatchService, watch: Watch) -> dict[str, Any]:
+    """A Watch and where it stands, in the route's field names (`WatchOut`), so the two surfaces read alike."""
+    standing = service.standing(watch)
+    return {
+        "watch_id": watch.id,
+        "intent_text": watch.intent_text,
+        "enabled": watch.enabled,
+        "cadence": watch.cadence,
+        "effective_cadence": str(service.cadence_of(watch)),
+        "monthly_cap_usd": None if watch.monthly_cap_usd is None else f"{watch.monthly_cap_usd:.2f}",
+        "effective_cap_usd": f"{service.effective_cap(watch):.2f}",
+        "created_at": watch.created_at.isoformat(),
+        "created_by": str(watch.created_by),
+        "updated_at": watch.updated_at.isoformat(),
+        "updated_by": str(watch.updated_by),
+        "last_attempt_at": None if watch.last_attempt_at is None else watch.last_attempt_at.isoformat(),
+        "last_run_id": watch.last_run_id,
+        "last_run_status": None if standing.last_run_status is None else str(standing.last_run_status),
+        "last_refusal": watch.last_refusal,
+        "next_due_at": None if standing.next_due_at is None else standing.next_due_at.isoformat(),
+        "overdue": standing.overdue,
+        "in_flight": standing.in_flight,
+        "spent_usd": f"{standing.spent_usd:.2f}",
+        "sentence": standing.sentence,
     }
 
 
@@ -1843,6 +1913,11 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_settings", "list"): _list_settings,
     ("art_settings", "set"): _set_setting,
     ("art_settings", "unattended"): _unattended_standing,
+    ("art_watches", "list"): _list_watches,
+    ("art_watches", "get"): _get_watch,
+    ("art_watches", "create"): _create_watch,
+    ("art_watches", "update"): _update_watch,
+    ("art_watches", "delete"): _delete_watch,
 }
 
 
@@ -2181,6 +2256,9 @@ def _run_fields(run: DiscoveryRun) -> dict[str, Any]:
         # it: the state says which response is right, and this says what to
         # investigate. Null on every ending nobody had to explain.
         "end_reason": run.end_reason,
+        # The Watch whose scheduled pass started it, null for a run a person or
+        # an agent started: "who asked for this" when nobody did.
+        "watch_id": run.watch_id,
     }
 
 
