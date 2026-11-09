@@ -139,6 +139,9 @@ from arrt.http.models import (
     SetIdentity,
     SetMatMode,
     SetPlayback,
+    SetSetting,
+    SettingListOut,
+    SettingOut,
     SetVerdict,
     SetWorkMat,
     SightingHostOut,
@@ -172,6 +175,7 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    UnattendedOut,
     UnlinkedArtistOut,
     UpcomingOut,
     VerdictOut,
@@ -204,11 +208,13 @@ from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.settings import SettingState
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
+from arrt.library.services.unattended import Standing
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
@@ -2905,6 +2911,58 @@ def delete_affinity(request: Request, affinity_id: str) -> AffinityOut:
     handle it was addressed by.
     """
     return _affinity(_services(request).taste.delete_affinity(affinity_id))
+
+
+# -- settings -----------------------------------------------------------------
+
+
+@router.get("/settings")
+def list_settings(request: Request) -> SettingListOut:
+    """Every household setting, its value and where that came from."""
+    return SettingListOut(settings=[_setting(state) for state in _services(request).settings.describe()])
+
+
+@router.post("/settings/{key}")
+def set_setting(request: Request, key: str, body: SetSetting) -> SettingOut:
+    """Change one setting. Refused, by name, for an unknown key, a value it cannot take, or one the environment locks."""
+    return _setting(_services(request).settings.set(key, body.value, surface=InitiatedBy.WEB_UI))
+
+
+@router.get("/unattended")
+def unattended_standing(request: Request) -> UnattendedOut:
+    """Whether unattended work may start now, and what it has spent this UTC month against its allowance."""
+    return _unattended(_services(request).unattended.standing())
+
+
+def _unattended(standing: Standing) -> UnattendedOut:
+    return UnattendedOut(
+        switched_on=standing.switched_on,
+        allowance_usd=f"{standing.allowance_usd:.2f}",
+        spent_usd=f"{standing.spent_usd:.2f}",
+        remaining_usd=f"{standing.remaining_usd:.2f}",
+        may_start=standing.may_start,
+        refusal=None if standing.refusal is None else str(standing.refusal),
+        sentence=standing.sentence,
+    )
+
+
+def _setting(state: SettingState) -> SettingOut:
+    setting = state.setting
+    return SettingOut(
+        key=setting.key,
+        label=setting.label,
+        value=state.value,
+        default=setting.render(setting.default),
+        source=str(state.source),
+        locked=state.locked,
+        environment_variable=setting.environment_variable,
+        description=setting.description,
+        choices=list(setting.choices),
+        kind=str(setting.kind),
+        section=setting.section,
+        updated_at=None if state.updated_at is None else state.updated_at.isoformat(),
+        updated_by=None if state.updated_by is None else str(state.updated_by),
+    )
 
 
 def _affinity(affinity: Affinity) -> AffinityOut:

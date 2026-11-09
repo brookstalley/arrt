@@ -248,6 +248,7 @@ async def test_an_unknown_tool_is_reported_with_the_names_that_do_exist(server_u
         "art_discovery",
         "art_display",
         "art_review",
+        "art_settings",
         "art_taste",
         "art_theme",
     }

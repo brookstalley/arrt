@@ -59,6 +59,11 @@ class InitiatedBy(StrEnum):
     WEB_UI = "web_ui"
     WEB_UI_AGENT = "web_ui_agent"
     MCP_CLIENT = "mcp_client"
+    #: Started by Arrt itself with nobody watching, behind the unattended
+    #: settings (`library/services/unattended.py`). What it spends is summed
+    #: against the month's unattended allowance, the one decision it feeds; the
+    #: run views and the runner's log show it as they show every value.
+    UNATTENDED = "unattended"
 
 
 class RunStatus(StrEnum):
@@ -661,3 +666,18 @@ class SourceYield:
     #: The median long edge, in pixels, of the offered images whose size is
     #: known; `None` when no offered image's size is known.
     median_long_edge: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class StoredSetting:
+    """A setting's value as the household last chose it, and who chose it.
+
+    The value is text in the setting's own spelling (`library/services/settings.py`
+    reads and writes it), so a new setting needs no column. Only a chosen value is
+    stored: a setting nobody has changed has no row and reads as its default.
+    """
+
+    key: str
+    value: str
+    updated_at: datetime
+    updated_by: InitiatedBy

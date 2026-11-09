@@ -157,7 +157,7 @@ def test_the_label_a_wall_is_given_states_the_deployments_units(store, units, st
     """Through the facade Programming reads a label from, so a `label_of` that
     stopped converting would show here and not only in the parser's tests."""
     catalogue = CatalogueService(store)
-    facade = LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(store._store), catalogue), label_units=units)
+    facade = LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(store._store), catalogue), label_units=lambda: units)
     work = catalogue.add_artwork(title="Nighthawks", dimensions="76.5 × 97.3 cm (30 1/8 × 38 1/4 in.)")
 
     assert facade.labels([work.id])[work.id]["dimensions"] == stated

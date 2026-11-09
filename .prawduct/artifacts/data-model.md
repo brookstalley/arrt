@@ -395,7 +395,7 @@ only entity the curator thinks of as "a piece of art".
 | `artist_id` | UUID | FK → Artist, nullable | Null for anonymous or unattributed works. |
 | `date_created` | string | nullable | Free text — sources give "1931", "c. 1650", "1888–89". Not a date type; normalising would destroy information. |
 | `medium` | string | nullable | e.g. "Oil and graphite on fiber board". |
-| `dimensions` | string | nullable | Physical dimensions as the source states them. Never rewritten: a label states the first measurement in the deployment's `LABEL_UNITS`, rounded to whole units, when its text is set (`arrt/src/arrt/library/dimensions.py`; accessibility-spec.md § Dimensions on the label). |
+| `dimensions` | string | nullable | Physical dimensions as the source states them. Never rewritten: a label states the first measurement in the household's `label_units` setting, rounded to whole units, when its text is set (`arrt/src/arrt/library/dimensions.py`; accessibility-spec.md § Dimensions on the label). |
 | `description` | text | nullable | May contain limited markup; see Constraints. The **holding institution's own paragraph**, at whatever length it was written. |
 | `commentary` | text | nullable | A line written **for a wall label**, to be read at standing distance. Not `description`, and neither substitutes for the other. |
 | `rights` | string | nullable | Rights statement as given. Display-only — rights gate nothing (decided 2026-07-20; constraint 13). |
@@ -1481,7 +1481,7 @@ candidates provenance.
 | `parent_run_id` | UUID | nullable, FK → DiscoveryRun | Set on `resolve` runs: the run that originally proposed these works. Null on `discovery` runs. |
 | `intent_text` | text | required for `kind='discovery'`, else nullable | The curator's natural-language intent, verbatim. A `resolve` run has no intent of its own — it inherits the parent's. |
 | `strategy` | text | nullable | The interpreted plan, for explaining results. **Written by the phase-1 engine when the work list settles (2026-08-02)** — it is the model's own account of how the intent was read, so it cannot exist before the intent has been read, and a run still in `resolving_works` honestly has none. Deliberately not composed from configuration, which would describe the deployment rather than the reading. |
-| `initiated_by` | enum | required | `web_ui` \| `web_ui_agent` \| `mcp_client`. Which surface started this run. |
+| `initiated_by` | enum | required | `web_ui` \| `web_ui_agent` \| `mcp_client` \| `unattended`. Which surface started this run. `unattended` (2026-11-09) is Arrt itself with nobody watching; its runs' spend is what the month's unattended allowance counts (`nonfunctional-requirements.md` § Cost Constraints). |
 | `status` | enum | required | `resolving_works` \| `awaiting_approval` \| `resolving_images` \| `completed` \| `failed` \| `declined` \| `cancelled` \| `halted_by_budget` \| `interrupted`. See State Machines. |
 | `estimated_cost_usd` | decimal | nullable | Phase-2 estimate, computed from the phase-1 work count. |
 | `actual_cost_usd` | decimal | nullable | Reconciled after. |
@@ -2113,6 +2113,24 @@ unattributed work in the catalogue into a single artist named nothing: the
 worst-case wrong merge, reached without any name being similar to any other. An
 unattributed candidate takes no artist at all, which is what `artist_id`'s
 nullability is for.
+
+### StoredSetting
+
+**A household setting as last chosen, and by which surface** (2026-11-09,
+`build-plan-unattended-settings.md`). One row per setting anyone has changed, in the
+catalogue file's `settings` table; a setting with no row reads as its default, and
+one the environment gives reads as that and is locked, whatever is stored. Which
+settings exist, their defaults and their spelling as text are declared once, in
+`SETTINGS` (`arrt/src/arrt/library/services/settings.py`), not here.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `key` | string | PK | A key `SETTINGS` declares. |
+| `value` | string | required | In the setting's own spelling, so a new setting needs no column. A value this release cannot read applies the default and is logged. |
+| `updated_at` | datetime | required | When it was last changed. |
+| `updated_by` | enum | required | `InitiatedBy`: which surface changed it. Recorded for tracing a surprise; it decides nothing. |
+
+Additive: a release from before it ignores the table.
 
 ### SpendRecord
 

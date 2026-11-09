@@ -45,7 +45,7 @@ PAGES = {
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
-    "Settings": ["Players", "Sources", "Taste"],
+    "Settings": ["Players", "Sources", "General", "Taste"],
     "System": ["Status"],
 }
 
@@ -65,6 +65,7 @@ SIDEBAR_PAGES = [
     ("settings", "Settings"),
     # Players kept its address when ruling 7 of 2026-10-27 renamed it.
     ("clients", "Players"),
+    ("general", "General"),
     ("taste", "Taste"),
     ("wanted", "Wanted"),
     ("health", "Status"),

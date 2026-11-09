@@ -320,7 +320,7 @@ def main(argv: Sequence[str] = ()) -> None:
                 rotation_interval_seconds=settings.rotation_interval_seconds,
                 shuffle=settings.rotation_shuffle,
             ),
-            label_units=settings.label_units,
+            settings_environment=settings.environment_settings,
             thumbnails=ThumbnailSettings(art_root=settings.art_root, directory=settings.thumbnails_path),
             quality_profile=settings.quality_profile,
             engine=_engine(settings),
