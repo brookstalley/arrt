@@ -31,7 +31,7 @@ from langchain_core.tools import BaseTool
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
-from arrt.ask.agent import Ask
+from arrt.ask.agent import Ask, ReplyCost
 from arrt.config import DEFAULT_ASK_STEP_LIMIT, DEFAULT_BACKUP_INTERVAL_SECONDS
 from arrt.http import api, ask, pages, player
 from arrt.http.hosts import HostGuard
@@ -39,6 +39,7 @@ from arrt.library.acquisition.queue import start_acquisition_queue
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server, dispatch
 from arrt.persistence.backup import CatalogueBackup, start_backups
+from arrt.persistence.discovery_records import SpendCategory
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 
@@ -145,6 +146,7 @@ def create_app(
         partial(dispatch, services),
         ask_model,
         step_limit=ask_step_limit,
+        record_cost=partial(_record_ask_cost, services),
         local_tools=ask_tools,
         taste=services.taste.brief,
     )
@@ -196,3 +198,14 @@ def create_app(
     app.add_middleware(HostGuard, allowed_hosts=allowed_hosts, exempt=player.router.routes)
 
     return app
+
+
+def _record_ask_cost(services: Services, cost: ReplyCost) -> None:
+    """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's."""
+    services.discovery.record_spend(
+        category=SpendCategory.ASK_TOKENS,
+        cost_usd=cost.cost_usd,
+        model_id=cost.model_id,
+        input_tokens=cost.input_tokens,
+        output_tokens=cost.output_tokens,
+    )

@@ -23,6 +23,13 @@ from pydantic import Field
 #: What each scripted reply costs, as OpenRouter reports it.
 COST_PER_REPLY = 0.0012
 
+#: The model each reply says answered it, as OpenRouter names it in `model_name`.
+ANSWERED_BY = "scripted/answering-model"
+
+#: Each reply's token counts, different from each other so a swap shows.
+INPUT_TOKENS_PER_REPLY = 120
+OUTPUT_TOKENS_PER_REPLY = 7
+
 
 def calls(*requests: tuple[str, dict[str, Any]]) -> AIMessage:
     """A reply that calls tools and says nothing, as a model mid-search does."""
@@ -42,8 +49,32 @@ def unpriced(reply: AIMessage) -> AIMessage:
     return reply.model_copy(update={"additional_kwargs": {**reply.additional_kwargs, "unpriced": True}})
 
 
+def unreported(reply: AIMessage) -> AIMessage:
+    """The same reply with no usage and no model name on it, as a provider that reports neither sends it."""
+    return reply.model_copy(update={"additional_kwargs": {**reply.additional_kwargs, "unreported": True}})
+
+
+def _usage(reply: AIMessage) -> dict[str, int] | None:
+    return None if reply.additional_kwargs.get("unreported") else USAGE
+
+
 def _metadata(reply: AIMessage) -> dict[str, Any]:
-    return {} if reply.additional_kwargs.get("unpriced") else {"cost": COST_PER_REPLY}
+    unreported_ = reply.additional_kwargs.get("unreported")
+    named = {} if unreported_ else {"model_name": reply.additional_kwargs.get("answered_by", ANSWERED_BY)}
+    return named if reply.additional_kwargs.get("unpriced") else {**named, "cost": COST_PER_REPLY}
+
+
+def answered_by(model: str, reply: AIMessage) -> AIMessage:
+    """The same reply, said to come from `model`, as a provider routing between models reports it."""
+    return reply.model_copy(update={"additional_kwargs": {**reply.additional_kwargs, "answered_by": model}})
+
+
+#: Each reply's usage, where OpenRouter's LangChain binding puts it.
+USAGE = {
+    "input_tokens": INPUT_TOKENS_PER_REPLY,
+    "output_tokens": OUTPUT_TOKENS_PER_REPLY,
+    "total_tokens": INPUT_TOKENS_PER_REPLY + OUTPUT_TOKENS_PER_REPLY,
+}
 
 
 class ScriptedModel(BaseChatModel):
@@ -65,7 +96,7 @@ class ScriptedModel(BaseChatModel):
 
     def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **_: Any) -> ChatResult:
         reply = self._next(messages)
-        priced = reply.model_copy(update={"response_metadata": _metadata(reply)})
+        priced = reply.model_copy(update={"response_metadata": _metadata(reply), "usage_metadata": _usage(reply)})
         return ChatResult(generations=[ChatGeneration(message=priced)])
 
     def _stream(
@@ -83,6 +114,7 @@ class ScriptedModel(BaseChatModel):
                     for index, call in enumerate(reply.tool_calls)
                 ],
                 response_metadata=_metadata(reply),
+                usage_metadata=_usage(reply),
             )
         )
 
