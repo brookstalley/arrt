@@ -82,6 +82,7 @@ from arrt.library.services.thumbnails import ThumbnailService, ThumbnailSettings
 from arrt.library.services.topic_sweep import TopicSweep
 from arrt.library.services.topics import TopicService
 from arrt.library.services.unattended import UnattendedAllowance
+from arrt.library.services.watches import WatchService
 from arrt.library.services.wikidata_match import WikidataMatchService
 from arrt.library.sources.loading import SourceRoster
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME
@@ -211,6 +212,9 @@ class Services:
     #: Whether agent work may start with nobody watching, and what it has spent
     #: this month. Asked by whatever starts such work, before it starts.
     unattended: UnattendedAllowance
+    #: The household's standing requests, which the scheduler re-runs with
+    #: nobody watching. Written from the browser or over MCP alike.
+    watches: WatchService
 
     @classmethod
     def bind(
@@ -422,6 +426,7 @@ class Services:
             settings=settings,
             # A key is what `key_status` exists for: None is the keyless deployment.
             unattended=UnattendedAllowance(settings, discovery, has_key=key_status is not None),
+            watches=WatchService(discovery, settings),
         )
 
     def reconcile(self) -> None:

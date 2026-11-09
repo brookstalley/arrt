@@ -39,6 +39,7 @@ from arrt.library.services.runner import RunListing, RunView
 from arrt.library.services.settings import SettingState
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
+from arrt.library.services.watches import WatchService
 from arrt.library.services.wikidata_match import WorkMatch
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
@@ -55,6 +56,7 @@ from arrt.persistence.discovery_records import (
     RunKind,
     RunStatus,
     Verdict,
+    Watch,
 )
 from arrt.persistence.records import Artist, Artwork, Client, Display, Scene, Showing, Source, Theme, VocabularyKind, Wall
 from arrt.programming import shape
@@ -1674,6 +1676,62 @@ def _setting_fields(state: SettingState) -> dict[str, Any]:
     }
 
 
+def _list_watches(services: Services, _: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(watches=[_watch_fields(services.watches, watch) for watch in services.watches.list()])
+
+
+def _get_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    return ok(watch=_watch_fields(services.watches, services.watches.get(arguments["watch_id"])))
+
+
+def _create_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    created = services.watches.create(
+        intent_text=arguments["intent_text"],
+        cadence=arguments.get("cadence", ""),
+        monthly_cap_usd=arguments.get("monthly_cap_usd", ""),
+        enabled=arguments.get("enabled", True),
+        surface=InitiatedBy.MCP_CLIENT,
+    )
+    return ok(watch=_watch_fields(services.watches, created))
+
+
+def _update_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    updated = services.watches.update(
+        arguments["watch_id"],
+        intent_text=arguments.get("intent_text"),
+        cadence=arguments.get("cadence"),
+        monthly_cap_usd=arguments.get("monthly_cap_usd"),
+        enabled=arguments.get("enabled"),
+        surface=InitiatedBy.MCP_CLIENT,
+    )
+    return ok(watch=_watch_fields(services.watches, updated))
+
+
+def _delete_watch(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    gone = services.watches.delete(arguments["watch_id"], surface=InitiatedBy.MCP_CLIENT)
+    return ok(
+        watch=_watch_fields(services.watches, gone),
+        notice="That Watch is gone and nothing restores it. What it found stays in To review.",
+    )
+
+
+def _watch_fields(service: WatchService, watch: Watch) -> dict[str, Any]:
+    """A Watch in the route's field names (`WatchOut`), so the two surfaces read alike."""
+    return {
+        "watch_id": watch.id,
+        "intent_text": watch.intent_text,
+        "enabled": watch.enabled,
+        "cadence": watch.cadence,
+        "effective_cadence": str(service.cadence_of(watch)),
+        "monthly_cap_usd": None if watch.monthly_cap_usd is None else f"{watch.monthly_cap_usd:.2f}",
+        "effective_cap_usd": f"{service.effective_cap(watch):.2f}",
+        "created_at": watch.created_at.isoformat(),
+        "created_by": str(watch.created_by),
+        "updated_at": watch.updated_at.isoformat(),
+        "updated_by": str(watch.updated_by),
+    }
+
+
 def _delete_taste(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
     forgotten = services.taste.delete_affinity(arguments["affinity_id"])
     return ok(
@@ -1844,6 +1902,11 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_settings", "list"): _list_settings,
     ("art_settings", "set"): _set_setting,
     ("art_settings", "unattended"): _unattended_standing,
+    ("art_watches", "list"): _list_watches,
+    ("art_watches", "get"): _get_watch,
+    ("art_watches", "create"): _create_watch,
+    ("art_watches", "update"): _update_watch,
+    ("art_watches", "delete"): _delete_watch,
 }
 
 

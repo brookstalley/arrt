@@ -356,6 +356,10 @@ class DiscoveryRun:
     #: ended it is gone, and a reason held only in that process's log is one they
     #: cannot reach. Null too on any run that ended before the field existed.
     end_reason: str | None = None
+    #: The Watch whose scheduled pass started this run, or None for a run a
+    #: person or an agent started. Held without a foreign key, so a run outlives
+    #: the Watch that started it: deleting a Watch never rewrites history.
+    watch_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -681,3 +685,35 @@ class StoredSetting:
     value: str
     updated_at: datetime
     updated_by: InitiatedBy
+
+
+@dataclass(frozen=True, slots=True)
+class Watch:
+    """A household's standing request in words, which Arrt re-runs on a cadence with nobody watching.
+
+    Its one policy is to leave what it finds in To review: auto-accept is not
+    offered (`security-model.md` § The unattended trigger fired). `cadence` and
+    `last_refusal` are held as their text; `library/services/watches.py` owns
+    their meaning, as the settings service owns a setting's spelling.
+
+    What a Watch has spent is never stored here. It is read from `SpendRecord`
+    through the runs whose `watch_id` names it, so the two cannot disagree.
+    """
+
+    id: str
+    intent_text: str
+    enabled: bool
+    created_at: datetime
+    created_by: InitiatedBy
+    updated_at: datetime
+    updated_by: InitiatedBy
+    #: `hourly`, `daily` or `weekly`; None follows the `unattended_cadence` setting.
+    cadence: str | None = None
+    #: What its runs may spend in a UTC month; None leaves only the allowance.
+    monthly_cap_usd: Decimal | None = None
+    #: The last pass that judged it due, whether it started a run or was refused.
+    last_attempt_at: datetime | None = None
+    #: Its last started run; that run's status is the outcome, never copied here.
+    last_run_id: str | None = None
+    #: Why the last attempt did not start, or None when it did.
+    last_refusal: str | None = None

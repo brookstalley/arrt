@@ -61,6 +61,7 @@ from arrt.http.models import (
     CostTiersOut,
     CreateTheme,
     CreateWall,
+    CreateWatch,
     DisplayFaultOut,
     DisplayOut,
     DisplayStateOut,
@@ -178,6 +179,7 @@ from arrt.http.models import (
     UnattendedOut,
     UnlinkedArtistOut,
     UpcomingOut,
+    UpdateWatch,
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
@@ -188,6 +190,8 @@ from arrt.http.models import (
     WantedListingOut,
     WantedWorkOut,
     WantWork,
+    WatchListOut,
+    WatchOut,
     WorkDetailOut,
     WorkFacetOut,
     WorkMatchesOut,
@@ -215,6 +219,7 @@ from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
 from arrt.library.services.unattended import Standing
+from arrt.library.services.watches import WatchService
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
@@ -223,6 +228,7 @@ from arrt.persistence.discovery_records import (
     CandidateWork,
     DiscoveryRun,
     InitiatedBy,
+    Watch,
 )
 from arrt.persistence.records import (
     Artist,
@@ -2932,6 +2938,74 @@ def set_setting(request: Request, key: str, body: SetSetting) -> SettingOut:
 def unattended_standing(request: Request) -> UnattendedOut:
     """Whether unattended work may start now, and what it has spent this UTC month against its allowance."""
     return _unattended(_services(request).unattended.standing())
+
+
+# -- watches ------------------------------------------------------------------
+
+
+@router.get("/watches")
+def list_watches(request: Request) -> WatchListOut:
+    """Every Watch, in the order the household wrote them. Unpaged: a household's Watches are a handful."""
+    services = _services(request)
+    return WatchListOut(watches=[_watch(services.watches, watch) for watch in services.watches.list()])
+
+
+@router.get("/watches/{watch_id}")
+def get_watch(request: Request, watch_id: str) -> WatchOut:
+    service = _services(request).watches
+    return _watch(service, service.get(watch_id))
+
+
+@router.post("/watches")
+def create_watch(request: Request, body: CreateWatch) -> WatchOut:
+    """Write a new Watch. Refused, by name, for empty words, an unknown cadence, or a cap above the allowance."""
+    service = _services(request).watches
+    created = service.create(
+        intent_text=body.intent_text,
+        cadence=body.cadence,
+        monthly_cap_usd=body.monthly_cap_usd,
+        enabled=body.enabled,
+        surface=InitiatedBy.WEB_UI,
+    )
+    return _watch(service, created)
+
+
+@router.post("/watches/{watch_id}")
+def update_watch(request: Request, watch_id: str, body: UpdateWatch) -> WatchOut:
+    """Change what the body gives and leave the rest. `POST`, as this surface writes everywhere."""
+    service = _services(request).watches
+    updated = service.update(
+        watch_id,
+        intent_text=body.intent_text,
+        cadence=body.cadence,
+        monthly_cap_usd=body.monthly_cap_usd,
+        enabled=body.enabled,
+        surface=InitiatedBy.WEB_UI,
+    )
+    return _watch(service, updated)
+
+
+@router.delete("/watches/{watch_id}")
+def delete_watch(request: Request, watch_id: str) -> WatchOut:
+    """Remove a Watch and answer with what was removed. What it found stays in To review."""
+    service = _services(request).watches
+    return _watch(service, service.delete(watch_id, surface=InitiatedBy.WEB_UI))
+
+
+def _watch(service: WatchService, watch: Watch) -> WatchOut:
+    return WatchOut(
+        watch_id=watch.id,
+        intent_text=watch.intent_text,
+        enabled=watch.enabled,
+        cadence=watch.cadence,
+        effective_cadence=str(service.cadence_of(watch)),
+        monthly_cap_usd=None if watch.monthly_cap_usd is None else f"{watch.monthly_cap_usd:.2f}",
+        effective_cap_usd=f"{service.effective_cap(watch):.2f}",
+        created_at=watch.created_at.isoformat(),
+        created_by=str(watch.created_by),
+        updated_at=watch.updated_at.isoformat(),
+        updated_by=str(watch.updated_by),
+    )
 
 
 def _unattended(standing: Standing) -> UnattendedOut:

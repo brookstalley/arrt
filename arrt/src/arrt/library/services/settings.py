@@ -198,6 +198,14 @@ def _money(raw: str) -> Decimal:
     return abs(cents)
 
 
+def dollars(raw: str) -> Decimal:
+    """An amount in dollars, from zero to a million, to the cent, or `SettingRefused` saying what it must be.
+
+    The allowance's own reading, for any amount held to the same rules (a Watch's cap).
+    """
+    return _money(raw)
+
+
 def _within_the_budget(amount: Decimal, limits: Limits) -> None:
     """An allowance is a share of the month's budget, so it may not exceed it where one is set."""
     if limits.monthly_budget_usd is not None and amount > limits.monthly_budget_usd:

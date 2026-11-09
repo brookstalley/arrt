@@ -2479,3 +2479,48 @@ class UnattendedOut(BaseModel):
     refusal: str | None
     #: One sentence saying which, for the screen.
     sentence: str
+
+
+class WatchOut(BaseModel):
+    """One Watch: a standing request Arrt re-runs with nobody watching, and leaves its finds in To review."""
+
+    watch_id: str
+    intent_text: str
+    enabled: bool
+    #: `hourly`, `daily` or `weekly` as the Watch was given it, or null to follow
+    #: the `unattended_cadence` setting.
+    cadence: str | None
+    #: How often it runs now: its own cadence, or the setting's.
+    effective_cadence: str
+    #: Its own monthly cap in dollars to the cent, or null for none beyond the allowance.
+    monthly_cap_usd: str | None
+    #: What it may spend this UTC month: its cap, never more than the allowance, or the allowance.
+    effective_cap_usd: str
+    created_at: str
+    created_by: str
+    updated_at: str
+    updated_by: str
+
+
+class WatchListOut(BaseModel):
+    watches: list[WatchOut]
+
+
+class CreateWatch(BaseModel):
+    """A new Watch. An empty cadence follows the household's default; an empty cap leaves only the allowance."""
+
+    #: Longer than the service allows, so an over-long request is refused in the
+    #: service's words (`MAX_INTENT_CHARS`) rather than by a validator's.
+    intent_text: str = Field(max_length=4000)
+    cadence: str = Field(default="", max_length=20)
+    monthly_cap_usd: str = Field(default="", max_length=40)
+    enabled: bool = True
+
+
+class UpdateWatch(BaseModel):
+    """What to change on a Watch; anything left out stays. An empty cadence or cap clears it."""
+
+    intent_text: str | None = Field(default=None, max_length=4000)
+    cadence: str | None = Field(default=None, max_length=20)
+    monthly_cap_usd: str | None = Field(default=None, max_length=40)
+    enabled: bool | None = None

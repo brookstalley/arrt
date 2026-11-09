@@ -560,3 +560,35 @@ def test_the_unattended_projections_agree():
     )
 
     check_parity("UnattendedStanding", set(bindings._unattended_fields(standing)), _fields(http_models.UnattendedOut))
+
+
+def test_the_watch_projections_agree_value_for_value():
+    """`WatchOut` and `art_watches`' fields, for a Watch with every field filled, compared by value, not only by name."""
+    from decimal import Decimal
+
+    from arrt.library.services.settings import Cadence
+    from arrt.persistence.discovery_records import Watch
+
+    class Rules:
+        def cadence_of(self, _watch):
+            return Cadence.WEEKLY
+
+        def effective_cap(self, _watch):
+            return Decimal("1.50")
+
+    watch = Watch(
+        id="w",
+        intent_text="words",
+        enabled=False,
+        created_at=WHEN,
+        created_by=InitiatedBy.MCP_CLIENT,
+        updated_at=WHEN,
+        updated_by=InitiatedBy.WEB_UI,
+        cadence="weekly",
+        monthly_cap_usd=Decimal("2.5"),
+    )
+
+    over_mcp = bindings._watch_fields(Rules(), watch)
+    check_parity("Watch", set(over_mcp), _fields(http_models.WatchOut))
+    assert over_mcp == http_api._watch(Rules(), watch).model_dump()
+    assert (over_mcp["monthly_cap_usd"], over_mcp["effective_cap_usd"]) == ("2.50", "1.50")

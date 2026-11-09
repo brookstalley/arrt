@@ -30,6 +30,7 @@ from arrt.persistence.discovery_records import (
     SourceYield,
     SpendRecord,
     StoredSetting,
+    Watch,
 )
 from arrt.persistence.records import VocabularyKind
 
@@ -235,6 +236,22 @@ class DiscoveryStore(Protocol):
 
     def put_setting(self, setting: StoredSetting) -> None:
         """Store a setting's value, replacing whatever was stored for its key."""
+        ...
+
+    # -- watches --------------------------------------------------------------
+
+    def add_watch(self, watch: Watch) -> None: ...
+
+    def get_watch(self, watch_id: str) -> Watch | None: ...
+
+    def update_watch(self, watch: Watch) -> None: ...
+
+    def delete_watch(self, watch_id: str) -> None:
+        """Remove a Watch. Its runs keep their `watch_id`, which then names nothing."""
+        ...
+
+    def list_watches(self) -> Sequence[Watch]:
+        """Every Watch, oldest first, the order a household wrote them in."""
         ...
 
     # -- resolve-run coverage -------------------------------------------------

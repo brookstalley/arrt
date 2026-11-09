@@ -125,6 +125,17 @@ work (ruling 5).
   routes it.
 
 **Decisions made mid-build:**
+- Chunk 03: a Watch is removed with `DELETE /api/watches/{id}`, not `POST …/delete`.
+  Settled by the surface's own convention: `DELETE` is how affinities, themes and
+  walls are removed.
+- Chunk 03: `art_watches` is not in Ask's scope. Settled by `ASK_SCOPE`'s rule
+  ("nothing that spends or reaches a wall"), which already keeps `art_settings` out.
+- Chunk 03: the record holds `cadence` and `last_refusal` as text, and the service
+  owns their meaning. Settled by the layering: persistence imports no Library
+  service, and `StoredSetting` holds its value the same way.
+- Chunk 03: a cap is refused while the allowance is below it, even at $0.00, with a
+  refusal naming where to raise the allowance. Settled by the allowance's own rule
+  under the budget ("refused when written, read as the bound").
 
 **Level:** Medium. The runner, the allowance and the settings exist and are
 tested. A Watch is mostly storage, a scheduler and a screen. What could move:
