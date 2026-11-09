@@ -81,6 +81,25 @@ which setting to set. Deploys are asked for, and the release notes say it.
 deployment fact it rests on was read from the homelab's compose file and Caddyfile.
 
 **Decisions made mid-build:**
+- `brief` answers `{"brief": …}` with no `count`. A count would be a second read of
+  the store that could disagree with the text, and an empty brief already says
+  there is no taste. *(Settled by the learnings rule on one rendering read along
+  one path.)*
+- The guard is installed with `add_middleware`, and `create_app` still returns
+  the FastAPI app, because the suite and the lifespan use it as one. Middleware
+  wraps the mounts too.
+- `Origin` is parsed by hand rather than with `urllib.parse`, because
+  `test_persistence_boundary` keeps `urllib` out of every module but the network
+  client. A malformed `Origin` is refused, not skipped.
+- `CURATION_ALLOWED_HOSTS` refuses a URL, a port or a path at startup instead of
+  keeping the name part, so a misunderstanding of the setting is reported.
+- The setting is documented in `.env.example`, `deploy/README.md` (a dated
+  section, with the check and the way back) and the compose example, not in the
+  operational spec, which does not list settings one by one. *(Not settled by
+  the goals: the plan named the operational spec.)*
+- The suite's way of starting a real server moved from conftest's `server_url`
+  into `tests/serving.py`'s `serve(app)`, so the guard's tests can start an app
+  configured with allowed names under the same port rule.
 
 ## Build Chunks
 

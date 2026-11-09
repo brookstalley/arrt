@@ -19,7 +19,7 @@ makes the mount work.
 """
 
 import logging
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Collection, Sequence
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Final
@@ -34,6 +34,7 @@ from starlette.types import Receive, Scope, Send
 from arrt.ask.agent import Ask
 from arrt.config import DEFAULT_ASK_STEP_LIMIT, DEFAULT_BACKUP_INTERVAL_SECONDS
 from arrt.http import api, ask, pages, player
+from arrt.http.hosts import HostGuard
 from arrt.library.acquisition.queue import start_acquisition_queue
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server, dispatch
@@ -73,6 +74,7 @@ def create_app(
     ask_model: BaseChatModel | None = None,
     ask_step_limit: int = DEFAULT_ASK_STEP_LIMIT,
     ask_tools: Sequence[BaseTool] = (),
+    allowed_hosts: Collection[str] = frozenset(),
 ) -> FastAPI:
     """Build the application around already-constructed services.
 
@@ -96,6 +98,11 @@ def create_app(
     agent is built here, over the same `dispatch` the MCP surface calls, so its
     tools cannot be wired to anything but these services. `ask_tools` are tools
     beside the surface's, such as web search.
+
+    **Every route and mount sits behind the Host and Origin guard**
+    (`arrt.http.hosts`), installed as middleware so it wraps the MCP mount and
+    the static files as well as the routes. `allowed_hosts` are the names it answers to besides
+    `localhost` and an IP address.
     """
     mcp_server = build_server(services)
     session_manager = StreamableHTTPSessionManager(
@@ -184,5 +191,7 @@ def create_app(
     app.include_router(player.router)
     app.include_router(pages.router)
     app.mount(STATIC_PATH, pages.ClientFiles(directory=pages.STATIC_DIR), name="static")
+
+    app.add_middleware(HostGuard, allowed_hosts=allowed_hosts, exempt=player.router.routes)
 
     return app

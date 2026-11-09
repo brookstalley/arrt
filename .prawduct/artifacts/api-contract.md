@@ -2342,6 +2342,34 @@ termination, no rate limiting in the application — proportionate for a
 single-principal household tool, and recorded as a decision in
 `project-state.yaml` → `technical_decisions.integrations`.
 
+**Host and Origin are checked on every surface but the Player's, DECIDED
+2026-11-08 (#53, fork 1; `build-plan-mcp-household-agents.md`).** Without the
+check, a web page open in a browser on the LAN could rebind its own domain name
+to the server's address and drive `/mcp` and `/api` as same-origin requests.
+CORS never stops those. They could start `art_discovery` runs, which spend money,
+change what hangs on a wall, or write taste. `arrt.http.hosts.HostGuard` wraps
+the whole application, including the MCP mount, the pages and the static files:
+- **Host.** It answers `421` to a request whose `Host` is not `localhost`, an IP
+  address, or a name in `CURATION_ALLOWED_HOSTS`.
+- **Origin.** It answers `403` to one whose `Origin`, when sent, fails the same
+  test. `Origin: null` always fails.
+
+Each refusal names the setting.
+- **IP addresses always pass**, because a rebinding page's requests carry its own
+  domain name, never an address.
+- **A request without `Origin` passes**, because that is how every non-browser
+  client calls.
+- **The Player's routes are exempt.** The routes `http/player.py` mounts, which
+  are `contract/routes.json`'s, already require the wall's token, which a
+  rebinding page cannot read. A Player configured with a name the server was not
+  given would otherwise lose its feed.
+
+Fork 2, closing the vector by binding policy instead, was not taken. The
+reference deployment publishes the server's port directly so its Player can pull
+when the reverse proxy is down, and a rebinding page can reach that port. A
+deployment reached by name must list the name, or its browser and MCP clients
+are refused.
+
 **`initiated_by` is provenance, not authorisation.** Every surface has identical
 authority. Agent-initiated runs queue candidates for the same reason UI-initiated
 runs do — the review gate is universal, not a restriction on agents. Branching

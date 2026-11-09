@@ -18,12 +18,12 @@ from decimal import Decimal
 from typing import Final
 
 import pytest
-import uvicorn
 from fakes import FakeEngine, FakeReader
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
+from serving import serve
 
 from arrt.app import create_app
 from arrt.config import (
@@ -547,29 +547,8 @@ def server_url(services: Services, seeded_service: CatalogueService, ask_model: 
     they draw from the same ephemeral range. Reading the port back is a little
     more to know about uvicorn and has no window at all.
     """
-    app = create_app(services, ask_model=ask_model)
-    config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    deadline = time.monotonic() + 20
-    while not server.started:
-        if time.monotonic() > deadline:
-            server.should_exit = True
-            pytest.fail("the curation server did not start within 20 seconds")
-        time.sleep(0.02)
-
-    # Only valid once `started` is set — that is what puts the bound sockets on
-    # the server — which is why this reads after the wait rather than beside the
-    # config above.
-    port = server.servers[0].sockets[0].getsockname()[1]
-
-    try:
-        yield f"http://{config.host}:{port}"
-    finally:
-        server.should_exit = True
-        thread.join(timeout=20)
+    with serve(create_app(services, ask_model=ask_model)) as url:
+        yield url
 
 
 def jpeg_bytes(width: int = 6000, height: int = 4000) -> bytes:

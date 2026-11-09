@@ -218,6 +218,30 @@ revision. Nothing in the catalogue changed, so no copy is needed; a server from
 before this refuses the new Player's screenless heartbeats, so the Player goes
 back first.
 
+## The names the server answers to (2026-11-08)
+
+`build-plan-mcp-household-agents.md`. **Before deploying, add to the env file
+every name a browser or an MCP client uses to reach the server**, the reverse
+proxy's name for it included:
+
+    CURATION_ALLOWED_HOSTS=<name>,<other name>
+
+From this release on, every surface but the Player's refuses a request for a
+name not listed (`421`), and a request from a page at one (`403`). `localhost`
+and any IP address always pass. The Player's routes are not checked, so the
+walls keep their feed whatever is set. A deployment that sets nothing and is
+reached by name loses its browser interface and MCP until the name is listed,
+and each refusal says so. Then check:
+
+1. **The browser interface opens** at the name the household uses.
+2. **The server logs no `refused a request for host`** for a name the household
+   uses.
+3. **A name not listed is refused**: `curl -s -o /dev/null -w '%{http_code}' -H
+   'Host: not-listed.example' http://<address>:8770/api/health` prints `421`.
+
+**The way back** is the previous image. Nothing in the catalogue changed, and the
+setting is ignored by a server from before this.
+
 ## `curation.service`
 
 `deploy/curation.service` runs the server under systemd rather than in a
