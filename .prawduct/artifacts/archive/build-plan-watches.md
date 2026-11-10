@@ -23,7 +23,13 @@ governed_by:
   - artifact: design-direction
   - artifact: accessibility-spec
 partition: serial — 02 to 05 each build on the one before (store, then the scheduler that reads it, then the screen that reads both), and 01 is the record the rest is built against
+lifecycle: completed
+archived: 2026-11-10
+released_in: v0.10.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 ## Goals
 
