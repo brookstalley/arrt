@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: ui-pass-walls
-branch: feature/ui-pass-walls
+# branch: feature/ui-pass-walls — merged and deleted; scope shipped in v0.7.0. Chunk 05, the only one left, is the owner's walk at the wall and claims no branch; it is recorded done in whichever PR follows the walk.
 base: develop
 working-branches: []
 partition: serial, one worktree. 03 and 04 both rewrite `arrt/src/arrt/http/static/screens/walls.js`, and 04's Edit dialog calls the route 02 adds, so nothing can be handed to a second builder without the two colliding. 02 alone is independent, and it is small enough that a brief would cost more than building it.
@@ -277,13 +277,7 @@ the one that makes the branch PR-ready. One PR to `develop`.
   built on it.
 - After 04 (cumulative): the full bundle.
 
-## Status
-
-- [x] Chunk 01: The rulings, the page rules and this plan
-- [ ] Chunk 02: Renaming a wall
-- [ ] Chunk 03: The wall card
-- [x] Chunk 04: Edit and add a wall
-- [ ] Chunk 05: On the wall
+## Branch context
 
 Context: branched from `develop` at `1a1af8a3`, 2026-10-27, the commit the NAS
 runs. Waves 4f and 5 have plans with open operator walks; neither claims this

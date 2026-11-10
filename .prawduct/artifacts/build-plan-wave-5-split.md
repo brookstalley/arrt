@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: wave-5-split
-branch: feature/wave-5-extraction
+# branch: feature/wave-5-extraction — merged in #388 and deleted; scope shipped in v0.7.0. Chunk 06, the wall running from an arrt-player clone, is the operator's walk and claims no branch.
 base: develop
 working-branches: []
 partition: serial, one worktree. 01, 02 and 03 all edit the root suite and the three pyproject files, and 03 re-homes guards that 01 and 02 reshape; 04 and 05 run in order across two repos, because 05 deletes what 04 must first prove it carried. 06 is the operator's.

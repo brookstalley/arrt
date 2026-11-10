@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: walls-work-and-trust
-# branch: feature/walls-work-and-trust — merged in #297 and deleted. Chunk 13, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
+# branch: feature/walls-work-and-trust — merged in #297 and deleted. Chunk 13, the only one left, is the operator's at the wall and claims no branch; it is recorded done in whichever PR follows the walk.
 partition: parallel in waves, delegates in worktrees, coordinator integrates (the owner asked for subagents to cut wall clock). Wave 1 — A static/ foundation (01, 02); B Programming and the event log, server only (03, 04); C search, review and spend, server only (07, 08, 10 server halves). Wave 2, after wave 1 merges — D Walls and History UI (05, 03 UI); E Work page (06); F Search, Artist, Review and spend UI (07, 08, 10 UI). Wave 3 — G vocabulary (09); H tiles, then keyboard and phone (11, 12). Chunk 13 and every review stay with the coordinator. Shared files (api.py, models.py, app.css) take appends, not rewrites.
 depends_on:
   - artifact: ia-proposal
@@ -88,21 +88,7 @@ provider limit the budget reads the provider's `usage_monthly` against
 "Get from Ask", "Get again", "Get of chosen works", "under $0.01") stands. The
 three-heartbeat staleness threshold remains the plan's assumption.
 
-## Status
-
-- [x] Chunk 01: Navigation is a link
-- [x] Chunk 02: Failures beside the control
-- [x] Chunk 03: History is an event log
-- [x] Chunk 04: Selections and exclusions in Programming
-- [x] Chunk 05: Walls leads with what is on the wall
-- [x] Chunk 06: The Work page
-- [x] Chunk 07: Search and Artist states
-- [x] Chunk 08: Review trust
-- [x] Chunk 09: One vocabulary
-- [x] Chunk 10: Spend as a budget and tiers
-- [x] Chunk 11: Tiles show the art
-- [x] Chunk 12: Keyboard and phone
-- [ ] Chunk 13: Walk and re-photograph
+## Chunks
 
 ### Chunk 01: Navigation is a link (#273)
 

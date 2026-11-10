@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 2
 scope: wave-4f-scenes
-branch: feature/wave-4f-scenes
+# branch: feature/wave-4f-scenes — merged and deleted; scope shipped in v0.7.0. Chunk 03, the only one left, is the operator's walk at the wall and claims no branch.
 base: develop
 working-branches: []
 partition: serial, one worktree. Three chunks; 02 builds on 01's service and both edit `arrt/src/arrt/programming/display.py`, and 02's client reads the API shape 02 itself writes, so there is nothing to hand a second builder. 03 is the operator's, at the wall.
@@ -358,8 +358,8 @@ HDMI double, and watch a scene staged, applied and released reach both walls
 ### Chunk 03: On the wall
 
 The operator's, with both walls up and the Frame in art mode, from the
-operator-verification entry 02 writes. It claims no branch and is ticked in
-whichever PR follows the walk.
+operator-verification entry 02 writes. It claims no branch and is recorded
+done in whichever PR follows the walk.
 
 - Pick a work for the HDMI wall and one for the Frame; watch the journal log
   the Frame's upload before Apply. Apply as a five-minute preview, and time
@@ -396,11 +396,7 @@ builds its screen on the writer, and 02's review is the one
 - After 02 (cumulative): the full bundle, and the end-to-end record in the
   change log.
 
-## Status
-
-- [x] Chunk 01: The scene in the feed
-- [x] Chunk 02: Scenes on Walls, over HTTP and MCP
-- [ ] Chunk 03: On the wall
+## Branch context
 
 Context: branched from `develop` at v0.6.0 (`a0e2a5f4`), 2026-10-26. No other
 plan is live.
