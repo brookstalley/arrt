@@ -21,7 +21,13 @@ governed_by:
   - artifact: design-direction
   - artifact: accessibility-spec
 partition: serial — every chunk edits the settings service, its route and the Settings › General screen, and Chunk 03 builds on both before it
+lifecycle: completed
+archived: 2026-11-10
+released_in: v0.10.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 ## Goals
 

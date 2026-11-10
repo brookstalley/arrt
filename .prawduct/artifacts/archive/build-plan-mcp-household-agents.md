@@ -14,7 +14,13 @@ governed_by:
   - artifact: security-model
   - artifact: api-contract
 partition: serial — both chunks edit `api-contract.md` and the MCP surface tests, and Chunk 02 is small enough that a delegate's brief would cost more than the work
+lifecycle: completed
+archived: 2026-11-10
+released_in: v0.10.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 ## Goals
 
