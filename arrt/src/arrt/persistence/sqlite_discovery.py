@@ -54,8 +54,10 @@ from arrt.persistence.discovery_records import (
     SourceYield,
     SpendCategory,
     SpendRecord,
+    StoredSetting,
     UnresolvedReason,
     Verdict,
+    Watch,
     WorkProvenance,
 )
 from arrt.persistence.durable import OrderBy
@@ -157,7 +159,11 @@ CREATE TABLE IF NOT EXISTS discovery_runs (
     -- Why the run's worker ended it, written only by `failed` and
     -- `halted_by_budget`. Nullable so widening reaches older files, whose runs
     -- ended before a reason was kept and read back as giving none.
-    end_reason             TEXT
+    end_reason             TEXT,
+    -- The Watch whose pass started the run. No REFERENCES clause: a run outlives
+    -- its Watch. Nullable so widening reaches older files, whose runs were all
+    -- started by a person or an agent.
+    watch_id               TEXT
 );
 
 -- Startup reconciliation reads runs by status, on every process start.
@@ -283,6 +289,36 @@ CREATE TABLE IF NOT EXISTS spend_records (
 
 CREATE INDEX IF NOT EXISTS spend_records_by_time ON spend_records(occurred_at);
 CREATE INDEX IF NOT EXISTS spend_records_by_run ON spend_records(discovery_run_id);
+-- The household's chosen settings, one row per setting anyone has changed; a
+-- setting with no row reads as its default. The value is text in the setting's
+-- own spelling, so a new setting needs no column, and a release from before this
+-- table ignores it.
+CREATE TABLE IF NOT EXISTS settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    updated_by  TEXT NOT NULL
+);
+-- The household's Watches: standing requests Arrt re-runs with nobody watching
+-- (`build-plan-watches.md`). A new table, so a release from before it ignores it.
+-- Money is text, as every amount in this file is.
+CREATE TABLE IF NOT EXISTS watches (
+    id               TEXT PRIMARY KEY,
+    intent_text      TEXT NOT NULL,
+    enabled          INTEGER NOT NULL,
+    cadence          TEXT,
+    monthly_cap_usd  TEXT,
+    created_at       TEXT NOT NULL,
+    created_by       TEXT NOT NULL,
+    updated_at       TEXT NOT NULL,
+    updated_by       TEXT NOT NULL,
+    last_attempt_at  TEXT,
+    last_run_id      TEXT,
+    last_refusal     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS discovery_runs_by_watch ON discovery_runs(watch_id);
+
 -- Which works a resolve run covers. Rows are never deleted: coverage records a
 -- fact about the run's scope, which does not change when the run's status does,
 -- and the history of earlier resolve attempts is worth keeping.
@@ -342,6 +378,9 @@ _BY_SELECTION: Final[tuple[OrderBy, ...]] = (
     OrderBy("confidence", descending=True),
     OrderBy("id"),
 )
+
+#: Oldest first: a household's Watches read in the order it wrote them.
+_BY_CREATION: Final[tuple[OrderBy, ...]] = (OrderBy("created_at"), OrderBy("id"))
 
 #: Newest first, because spend is read as a history and as a running total.
 _BY_OCCURRENCE: Final[tuple[OrderBy, ...]] = (OrderBy("occurred_at", descending=True), OrderBy("id"))
@@ -520,6 +559,33 @@ class SqliteDiscovery(TableAdapter):
             filters["derivation"] = str(derivation)
         return self._list("affinities", filters or None, _BY_THING, _affinity)
 
+    # -- settings -------------------------------------------------------------
+
+    def get_setting(self, key: str) -> StoredSetting | None:
+        return self._get("settings", {"key": key}, _stored_setting)
+
+    def put_setting(self, setting: StoredSetting) -> None:
+        # One upsert, not a read then an add or an update: a value is replaced
+        # whole, so there is no record whose existence a caller must have known.
+        self._store.upsert("settings", _stored_setting_row(setting), pk=("key",), on_conflict="update")
+
+    # -- watches --------------------------------------------------------------
+
+    def add_watch(self, watch: Watch) -> None:
+        self._add("watches", _watch_row(watch), subject=f"watch {watch.id!r}")
+
+    def get_watch(self, watch_id: str) -> Watch | None:
+        return self._get("watches", {"id": watch_id}, _watch)
+
+    def update_watch(self, watch: Watch) -> None:
+        self._update("watches", BY_ID, _watch_row(watch), subject=f"watch {watch.id!r}")
+
+    def delete_watch(self, watch_id: str) -> None:
+        self._delete("watches", {"id": watch_id})
+
+    def list_watches(self) -> Sequence[Watch]:
+        return self._list("watches", None, _BY_CREATION, _watch)
+
     # -- spend ----------------------------------------------------------------
 
     def add_spend_record(self, record: SpendRecord) -> None:
@@ -616,6 +682,7 @@ def _run_row(run: DiscoveryRun) -> dict[str, Any]:
         "completed_at": to_iso(run.completed_at),
         "destination_theme_id": run.destination_theme_id,
         "end_reason": run.end_reason,
+        "watch_id": run.watch_id,
     }
 
 
@@ -693,6 +760,58 @@ def _affinity_row(affinity: Affinity) -> dict[str, Any]:
     }
 
 
+def _stored_setting_row(setting: StoredSetting) -> dict[str, Any]:
+    return {
+        "key": setting.key,
+        "value": setting.value,
+        "updated_at": to_iso(setting.updated_at),
+        "updated_by": str(setting.updated_by),
+    }
+
+
+def _stored_setting(row: Mapping[str, Any]) -> StoredSetting:
+    return StoredSetting(
+        key=row["key"],
+        value=row["value"],
+        updated_at=require_datetime(row["updated_at"], "updated_at"),
+        updated_by=InitiatedBy(row["updated_by"]),
+    )
+
+
+def _watch_row(watch: Watch) -> dict[str, Any]:
+    return {
+        "id": watch.id,
+        "intent_text": watch.intent_text,
+        "enabled": int(watch.enabled),
+        "cadence": watch.cadence,
+        "monthly_cap_usd": to_money(watch.monthly_cap_usd),
+        "created_at": to_iso(watch.created_at),
+        "created_by": str(watch.created_by),
+        "updated_at": to_iso(watch.updated_at),
+        "updated_by": str(watch.updated_by),
+        "last_attempt_at": to_iso(watch.last_attempt_at),
+        "last_run_id": watch.last_run_id,
+        "last_refusal": watch.last_refusal,
+    }
+
+
+def _watch(row: Mapping[str, Any]) -> Watch:
+    return Watch(
+        id=row["id"],
+        intent_text=row["intent_text"],
+        enabled=bool(row["enabled"]),
+        cadence=row["cadence"],
+        monthly_cap_usd=from_money(row["monthly_cap_usd"]),
+        created_at=require_datetime(row["created_at"], "created_at"),
+        created_by=InitiatedBy(row["created_by"]),
+        updated_at=require_datetime(row["updated_at"], "updated_at"),
+        updated_by=InitiatedBy(row["updated_by"]),
+        last_attempt_at=from_iso(row["last_attempt_at"]),
+        last_run_id=row["last_run_id"],
+        last_refusal=row["last_refusal"],
+    )
+
+
 def _coverage_row(coverage: ResolveRunWork) -> dict[str, Any]:
     return {"resolve_run_id": coverage.resolve_run_id, "candidate_work_id": coverage.candidate_work_id}
 
@@ -717,6 +836,7 @@ def _run(row: Mapping[str, Any]) -> DiscoveryRun:
         completed_at=from_iso(row["completed_at"]),
         destination_theme_id=row["destination_theme_id"],
         end_reason=row["end_reason"],
+        watch_id=row["watch_id"],
     )
 
 

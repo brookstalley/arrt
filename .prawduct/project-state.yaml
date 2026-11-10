@@ -2601,7 +2601,9 @@ open_questions:
   # notes carried were added. Three more closed the same day by the operator:
   # the names (then Curatarr and Arrt; since 2026-10-01 Arrt and Postarr; since 2026-10-08 Arrt and Arrt Player),
   # Player auth (a token per wall), and the v1 open chunks (abandoned; their requirements are rebuilt in later waves).
-  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events; since wave 4g, the latency of a republished feed, the directive being gone); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; the Watch questions (prompt-injection re-derivation, whether auto-accept is offered, initiated_by, push alerts); filing the program as backlog issues."
+  # The Watch questions (prompt-injection re-derivation, auto-accept, initiated_by, push alerts) closed
+  # 2026-11-09 by the owner's answers, recorded in build-plan-watches.md.
+  - question: "Re-architecture open questions (artifacts/re-architecture.md § Open questions is the full text): the Player cache's location (wave 2); the server image's provenance (before wave 3); the schedule horizon and a scene's default preview lifetime (before wave 4; the fields exist in the major 2 draft); the quality profile's numbers (wave 4); the presentation master's size cap and encoding; directive latency (ETag poll or server-sent events; since wave 4g, the latency of a republished feed, the directive being gone); the smart-playlist rule language; mat colour per aspect ratio; facet editing in the UI; filing the program as backlog issues."
     blocking: "Waves 1–4 of re-architecture.md."
     waiting_on: operator
     priority: high
@@ -3182,6 +3184,10 @@ artifact_manifest:
       depends_on: []
     - name: release-plan-v0.9.1
       file_path: .prawduct/artifacts/release-plan-v0.9.1.md
+      version: 1
+      depends_on: []
+    - name: release-plan-v0.10.0
+      file_path: .prawduct/artifacts/release-plan-v0.10.0.md
       version: 1
       depends_on: []
   # Research findings — inputs to the artifacts above, not artifacts themselves.

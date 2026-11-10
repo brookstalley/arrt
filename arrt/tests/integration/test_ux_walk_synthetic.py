@@ -20,8 +20,8 @@ import ux_walk  # tools/ is not a package; the path is inserted above
 def test_it_boots_on_the_seeded_corpus_serves_it_and_cleans_up():
     server, base_url, root = ux_walk.boot_synthetic(24)
     try:
-        works = httpx.get(f"{base_url}/api/works", params={"limit": 1}, timeout=10).json()
-        shell = httpx.get(f"{base_url}/", timeout=10)
+        works = httpx.get(f"{base_url}/api/works", params={"limit": 1}).json()
+        shell = httpx.get(f"{base_url}/")
     finally:
         ux_walk.stop_synthetic(server, root)
 

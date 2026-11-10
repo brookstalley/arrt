@@ -98,6 +98,17 @@ export function statusReading(health) {
     }
   }
 
+  // A Watch runs with nobody watching, so this is where a stopped scheduler or a
+  // spent allowance holding one is said (`observability-strategy.md`). A reading
+  // with no watches part is said too, never read as none overdue.
+  const watches = health.watches;
+  if (!watches || !Array.isArray(watches.overdue)) {
+    troubles.push("The health reading carries no Watches");
+  } else {
+    for (const words of watches.overdue) troubles.push(`Watch “${words}” is overdue`);
+    if (watches.allowance_spent) troubles.push("Watches wait: the unattended allowance is spent");
+  }
+
   if (!troubles.length) return { well: true, count: 0, words: "Well" };
   return { well: false, count: troubles.length, words: troubles.join(" · ") };
 }

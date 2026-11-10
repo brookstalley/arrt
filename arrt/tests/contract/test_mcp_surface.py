@@ -30,8 +30,10 @@ FROZEN_TOOL_NAMES = {
     "art_discovery",
     "art_display",
     "art_review",
+    "art_settings",
     "art_taste",
     "art_theme",
+    "art_watches",
 }
 
 
@@ -111,10 +113,10 @@ async def test_exactly_the_tools_that_leave_the_machine_declare_an_open_world(to
     # Reaches outside: discovery searches the web and queries museums; the
     # catalogue re-fetches images and asks a vision model for mat colours.
     assert open_world == {"art_discovery", "art_catalogue"}
-    # Purely local: reviewing candidates, arranging themes, writing the manifest
-    # and recording what the curator likes all touch this machine's catalogue and
-    # its own filesystem.
-    assert {"art_review", "art_theme", "art_display", "art_taste"} & open_world == set()
+    # Purely local: reviewing candidates, arranging themes, writing the manifest,
+    # recording what the curator likes and changing the household's settings all
+    # touch this machine's catalogue and its own filesystem.
+    assert {"art_review", "art_theme", "art_display", "art_taste", "art_settings", "art_watches"} & open_world == set()
 
 
 async def test_every_tool_requires_an_action_and_nothing_else(tools):

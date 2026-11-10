@@ -18,12 +18,12 @@ from decimal import Decimal
 from typing import Final
 
 import pytest
-import uvicorn
 from fakes import FakeEngine, FakeReader
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
 from PIL import Image
+from serving import bound_the_suites_requests, serve
 
 from arrt.app import create_app
 from arrt.config import (
@@ -36,7 +36,6 @@ from arrt.config import (
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_HOST,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
-    DEFAULT_LABEL_UNITS,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -93,6 +92,15 @@ from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
 _SEEDED_TITLES = ("I Saw the Figure 5 in Gold", "Nighthawks", "The Persistence of Memory")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Bound the suite's own requests by Playwright's 30 s default, not httpx's 5 s (`serving.py`).
+
+    A hook rather than a fixture, so it holds in every xdist worker from the
+    first test, including a module-scoped server's first request.
+    """
+    bound_the_suites_requests()
 
 
 @pytest.fixture(autouse=True)
@@ -263,7 +271,7 @@ def settings(tmp_path) -> Settings:
         preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
         rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
         rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
-        label_units=DEFAULT_LABEL_UNITS,
+        environment_settings={},
         backup_dir=None,
         backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
         backup_keep=DEFAULT_BACKUP_KEEP,
@@ -547,29 +555,8 @@ def server_url(services: Services, seeded_service: CatalogueService, ask_model: 
     they draw from the same ephemeral range. Reading the port back is a little
     more to know about uvicorn and has no window at all.
     """
-    app = create_app(services, ask_model=ask_model)
-    config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
-    server = uvicorn.Server(config)
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-
-    deadline = time.monotonic() + 20
-    while not server.started:
-        if time.monotonic() > deadline:
-            server.should_exit = True
-            pytest.fail("the curation server did not start within 20 seconds")
-        time.sleep(0.02)
-
-    # Only valid once `started` is set — that is what puts the bound sockets on
-    # the server — which is why this reads after the wait rather than beside the
-    # config above.
-    port = server.servers[0].sockets[0].getsockname()[1]
-
-    try:
-        yield f"http://{config.host}:{port}"
-    finally:
-        server.should_exit = True
-        thread.join(timeout=20)
+    with serve(create_app(services, ask_model=ask_model)) as url:
+        yield url
 
 
 def jpeg_bytes(width: int = 6000, height: int = 4000) -> bytes:

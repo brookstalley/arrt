@@ -122,8 +122,8 @@ Each item gets its own build plan when it starts, as the waves did.
 |---|---|---|
 | **1** | **Taste in Ask and discovery** | Ask's system prompt carries the household's affinities; Ask records taste the curator states, through the same service `art_taste` calls; phase 1's prompt carries taste and the works already rejected. No dependency, no infrastructure. |
 | **2** | **Verdicts become observed taste** | Accept and reject in review write `observed` affinities, at the owner's thresholds (open question 1, answered 2026-11-08: at least 5, and at least 90% of the verdicts, each way, by artist). `inferred` writes stay off. |
-| **3** | **MCP for the household's own agents** | `art_taste` writes for stated taste and verdicts, and whatever else a household's agent needs to do through MCP what Ask does inside Arrt (open question 5). No credential: the boundary stays the LAN. |
-| **4** | **Unattended agent settings, then Watches** | Settings: whether unattended agent work runs at all, its own monthly allowance under the cap, its cadence and its model. Then Watches, in Arrt, with what they write tagged as written unattended (input to the prompt-injection review Watches owe). The scheduler itself is shared with upgrades (`upgrades.md`), which call no model, so it is not held back by this item; only agent work behind it waits for the settings. |
+| **3** | **MCP for the household's own agents** | The taste brief Ask is told, over MCP, and a Host and Origin check on every surface but the Player's (open question 5, answered 2026-11-08: taste writes and verdicts were already on MCP). No credential: the boundary stays the LAN. |
+| **4** | **Unattended agent settings, then Watches** | Settings: whether unattended agent work runs at all, its own monthly allowance under the cap, its cadence and its model. Then Watches, in Arrt, with what they write tagged as written unattended (input to the prompt-injection review Watches owe). The scheduler itself is shared with upgrades (`upgrades.md`), which call no model, so it is not held back by this item; only agent work behind it waits for the settings. *(2026-11-09, the owner: two plans. `build-plan-unattended-settings.md` builds the settings, stored and edited in Settings › General, and the allowance, which Arrt enforces from the ledger; the scheduler moves to the Watches plan, so it is built with its first job.)* |
 | **5** | **Optional Postgres for memory** | Off unless a Postgres address is configured; Arrt works fully without it. Brings 3tears' agent memory (and the 3tears pin from 0.65 forward), an embedding provider's cost, and its permission bundle. Built only when items 1–4 leave a memory need typed taste does not meet. |
 | **6** | **Fence Ask's tool results** | 3tears' `fence`, already installed; recorded in the security model as a weak bound, not a defence. |
 
@@ -155,13 +155,30 @@ Each item gets its own build plan when it starts, as the waves did.
    advisor's concern, recorded so it can be revisited: a learned like steers
    phase 1 toward that artist, whose works are then approved, which strengthens
    the like, narrowing discovery over time | user can veto/override]`
-2. May anything a Watch finds while nobody is watching shape taste or a later
-   prompt, or only what the curator accepts?
+2. ~~May anything a Watch finds while nobody is watching shape taste or a later
+   prompt, or only what the curator accepts?~~ **Answered 2026-11-09 (the owner,
+   choosing the advisor's recommendation): only verdicts.** Nothing a Watch
+   finds reaches taste or any prompt until a curator accepts or rejects it, and
+   then it counts exactly as any other verdict does under question 1's rule. As
+   built, phase 1 is told the taste brief (stated affinities and those observed
+   from verdicts) and the rejected works (verdicts), so this holds by construction. `build-plan-watches.md`
+   adds a test that a Watch's unreviewed find is absent from the next run's prompt.
 3. Is the monthly spend cap still meant to come from 3tears, which at 0.89 has
    none for OpenRouter?
 4. How is the 3tears pin moved: on a schedule, or only when a needed piece moves?
-5. What does a household's own agent need over MCP that the six tools lack
-   today: taste writes certainly, and what else?
+5. ~~What does a household's own agent need over MCP that the six tools lack
+   today: taste writes certainly, and what else?~~ **Answered from the code
+   2026-11-08.** The advisor proposed the scope below and the owner replied
+   "let's keep going"; the Host and Origin check's own decision (#53's fork) was
+   theirs too: Arrt checks them (fork 1), ruled 2026-11-08. Taste
+   writes were already there: `art_taste` has `set` (stated only) and `delete`,
+   and `art_review(action='set_verdict')` runs the same service as the browser,
+   so a verdict over MCP writes observed taste by question 1's rule. The MCP
+   surface is a superset of Ask's scope. Two things were missing, and item 3
+   builds them (`build-plan-mcp-household-agents.md`): the taste in the words Ask
+   is told it (`art_taste(action='brief')`), and a Host and Origin check on every
+   surface but the Player's, so the surface an agent is invited onto cannot be
+   driven by a web page through DNS rebinding (#53).
 6. A public server (ruling 6): is it the same codebase in a public mode, or a
    separate feed server built from the contract package? Not needed until it is
    planned; its answer decides how "absent" is implemented.

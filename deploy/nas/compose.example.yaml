@@ -29,7 +29,9 @@ services:
       # The backup job writes generations here, daily and at every start.
       BACKUP_DIR: /backups
     # The keys and the house's settings (OPENROUTER_API_KEY,
-    # WIKIDATA_USER_AGENT, ARTIC_USER_AGENT, …) — see `.env.example`.
+    # WIKIDATA_USER_AGENT, ARTIC_USER_AGENT, CURATION_ALLOWED_HOSTS, …) — see
+    # `.env.example`. CURATION_ALLOWED_HOSTS must name the reverse proxy's name
+    # for the server, or the browser interface and MCP refuse it.
     env_file:
       - <path to arrt.env>
     volumes:

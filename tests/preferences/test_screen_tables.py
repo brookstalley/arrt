@@ -78,6 +78,8 @@ SCREEN_NAMES = {
     "settings": "Settings",
     "clients": "Players",
     "sources": "Sources",
+    "watches": "Watches",
+    "general": "General",
     "taste": "Taste",
     "health": "Status",
 }
@@ -229,6 +231,8 @@ def test_the_route_table_parses():
         "settings",
         "clients",
         "sources",
+        "watches",
+        "general",
         "taste",
         "health",
     ], (

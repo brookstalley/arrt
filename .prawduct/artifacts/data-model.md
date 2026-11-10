@@ -395,7 +395,7 @@ only entity the curator thinks of as "a piece of art".
 | `artist_id` | UUID | FK → Artist, nullable | Null for anonymous or unattributed works. |
 | `date_created` | string | nullable | Free text — sources give "1931", "c. 1650", "1888–89". Not a date type; normalising would destroy information. |
 | `medium` | string | nullable | e.g. "Oil and graphite on fiber board". |
-| `dimensions` | string | nullable | Physical dimensions as the source states them. Never rewritten: a label states the first measurement in the deployment's `LABEL_UNITS`, rounded to whole units, when its text is set (`arrt/src/arrt/library/dimensions.py`; accessibility-spec.md § Dimensions on the label). |
+| `dimensions` | string | nullable | Physical dimensions as the source states them. Never rewritten: a label states the first measurement in the household's `label_units` setting, rounded to whole units, when its text is set (`arrt/src/arrt/library/dimensions.py`; accessibility-spec.md § Dimensions on the label). |
 | `description` | text | nullable | May contain limited markup; see Constraints. The **holding institution's own paragraph**, at whatever length it was written. |
 | `commentary` | text | nullable | A line written **for a wall label**, to be read at standing distance. Not `description`, and neither substitutes for the other. |
 | `rights` | string | nullable | Rights statement as given. Display-only — rights gate nothing (decided 2026-07-20; constraint 13). |
@@ -1481,7 +1481,7 @@ candidates provenance.
 | `parent_run_id` | UUID | nullable, FK → DiscoveryRun | Set on `resolve` runs: the run that originally proposed these works. Null on `discovery` runs. |
 | `intent_text` | text | required for `kind='discovery'`, else nullable | The curator's natural-language intent, verbatim. A `resolve` run has no intent of its own — it inherits the parent's. |
 | `strategy` | text | nullable | The interpreted plan, for explaining results. **Written by the phase-1 engine when the work list settles (2026-08-02)** — it is the model's own account of how the intent was read, so it cannot exist before the intent has been read, and a run still in `resolving_works` honestly has none. Deliberately not composed from configuration, which would describe the deployment rather than the reading. |
-| `initiated_by` | enum | required | `web_ui` \| `web_ui_agent` \| `mcp_client`. Which surface started this run. |
+| `initiated_by` | enum | required | `web_ui` \| `web_ui_agent` \| `mcp_client` \| `unattended`. Which surface started this run. `unattended` (2026-11-09) is Arrt itself with nobody watching; its runs' spend is what the month's unattended allowance counts (`nonfunctional-requirements.md` § Cost Constraints). |
 | `status` | enum | required | `resolving_works` \| `awaiting_approval` \| `resolving_images` \| `completed` \| `failed` \| `declined` \| `cancelled` \| `halted_by_budget` \| `interrupted`. See State Machines. |
 | `estimated_cost_usd` | decimal | nullable | Phase-2 estimate, computed from the phase-1 work count. |
 | `actual_cost_usd` | decimal | nullable | Reconciled after. |
@@ -1491,6 +1491,7 @@ candidates provenance.
 | `completed_at` | datetime | nullable | Written by whichever transition ends the run. On `interrupted` it records when the death was *observed* at startup, not when it happened: the process that died could not write one, and a terminal run with no end time silently drops out of any window a report asks for. |
 | `destination_theme_id` | UUID | nullable; **not** a foreign key | The theme a `get` run's accepted works join instead of the default, or null for the default (**Q22-Q24**). Programming's id, held opaquely across the seam (rule 3), so it may name a theme deleted since. Written once, when the Get starts; the surface asks Programming that the theme exists first. Null on `discovery` and `resolve` runs, which keep joining the default (`build-plan-topics-and-destinations.md` § Requirements Confidence), and on every run written before the column. *Built 2026-10-02.* |
 | `end_reason` | text | nullable | Why the run's own worker ended it, in the sentence it composed. **Written only by `failed` and `halted_by_budget`**, the two endings nobody asked for, in the same write as the status; required and non-blank on both (`DiscoveryService.fail_run`, `halt_run_for_budget`). Null on `completed`, `declined`, `cancelled` and `interrupted`: the first three need no explaining beyond the curator's own act or the tallies, and reconciliation knows only what `interrupted` already says. Null too on every run that ended before the column, which widening adds in place. A fault nothing anticipated stores a fixed sentence pointing at the server log, never the exception's text. *Built 2026-10-05 (#207).* |
+| `watch_id` | id | nullable, no foreign key | The Watch whose scheduled pass started the run (§ Watch); null for every run a person or an agent started, and for every run from before the column, which widening adds in place. Written when the run starts and never changed. A run outlives its Watch. *Built 2026-11-09 (`build-plan-watches.md`).* |
 
 > **The re-search is a run, not a side effect (decided 2026-07-20).** `resolve_images`
 > is a paid, minutes-long operation, and it previously created no row at all — so the
@@ -2114,6 +2115,24 @@ worst-case wrong merge, reached without any name being similar to any other. An
 unattributed candidate takes no artist at all, which is what `artist_id`'s
 nullability is for.
 
+### StoredSetting
+
+**A household setting as last chosen, and by which surface** (2026-11-09,
+`build-plan-unattended-settings.md`). One row per setting anyone has changed, in the
+catalogue file's `settings` table; a setting with no row reads as its default, and
+one the environment gives reads as that and is locked, whatever is stored. Which
+settings exist, their defaults and their spelling as text are declared once, in
+`SETTINGS` (`arrt/src/arrt/library/services/settings.py`), not here.
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `key` | string | PK | A key `SETTINGS` declares. |
+| `value` | string | required | In the setting's own spelling, so a new setting needs no column. A value this release cannot read, or one the deployment now rules out (an allowance above a lowered budget), is **set aside**: the default applies, the setting reads as `source` `set_aside` with a reason, and the log says so once per value (#417). The row is kept, so who chose it stays said. |
+| `updated_at` | datetime | required | When it was last changed. |
+| `updated_by` | enum | required | `InitiatedBy`: which surface changed it. Recorded for tracing a surprise; it decides nothing. |
+
+Additive: a release from before it ignores the table.
+
 ### SpendRecord
 
 **Attribution and history — not enforcement.** This is the record of what was
@@ -2125,7 +2144,7 @@ path consults it before spending.
 | `id` | UUID | PK | |
 | `discovery_run_id` | UUID | FK → DiscoveryRun, nullable | Null for non-discovery spend, e.g. mat colour. |
 | `artwork_id` | UUID | FK → Artwork, nullable | Set for per-artwork spend. |
-| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below. Nothing writes `conversation_tokens` since 2026-10-09**, and its rows still read and count. |
+| `category` | enum | required | `discovery_tokens` \| `web_search` \| `image_research` \| `mat_color_vision` \| `conversation_tokens` \| `ask_tokens` — **`mat_color_vision` is written since 2026-10-02; see the note below. Nothing writes `conversation_tokens` since 2026-10-09**, and its rows still read and count. **`ask_tokens` is one row per Ask reply that was billed anything** (#337). |
 | `model_id` | string | nullable | |
 | `input_tokens`, `output_tokens` | integer | nullable | Null where the unit is not tokens. |
 | `units` | integer | nullable | e.g. number of web searches. |
@@ -2135,9 +2154,11 @@ path consults it before spending.
 > **`conversation_tokens` ships with its producer or not at all (2026-08-10).**
 > *Its producer, the stored conversation, was retired on 2026-10-09; the rows it
 > wrote stay in every month total, and `SpendRecord.conversation_turn_id`, which
-> cited the turn, was dropped with the turns. Ask's replies write no row, because
-> the provider's own month figure already includes them and a per-reply record
-> belongs with the 3tears spending cap (`build-plan-ask-agent.md`, chunk 03).*
+> cited the turn, was dropped with the turns. Ask's replies write `ask_tokens`, one
+> row per reply that was billed anything, with no run and no artwork: the owner
+> ruled on 2026-10-09 (#337) that Ask's spend counts in the month's total, rather
+> than being left to the provider's own figure. A reply stopped at the step limit,
+> refused or abandoned still writes what its calls were billed before it stopped.*
 > The category and its FK exist because intent-forming spends real money — a model
 > call per turn, plus whatever the sample lookups cost — and Q4 asks what was spent
 > and on what. The rule is written here because this table already carries one
@@ -3089,16 +3110,29 @@ an open question.
 
 ### Watch *(Library)*
 
+**A household's standing request in words, which Arrt re-runs on a cadence with
+nobody watching** (built 2026-11-09, `build-plan-watches.md`). In the discovery
+store's `watches` table. Its one policy is to leave what it finds in To review:
+auto-accept is not offered (the owner, 2026-11-09). The anchor's planned
+`facet_filter`, `sources` and `on_match` were descoped, because a run is driven by
+its words alone and there is one policy.
+
 | Field | Type | Description |
 |---|---|---|
 | `id` | UUID | |
-| `intent` | text | In words, as a conversation would state it. |
-| `facet_filter` | json | Optional (`kind`, `value`) constraints. |
-| `sources` | list | Which providers to check. |
-| `cadence` | interval | How often it re-runs (it polls; museum APIs have no feeds). |
-| `on_match` | enum | `notify` \| `queue_for_review` (default) \| `auto_accept`. |
-| `spend_cap_usd` | decimal | Per period. Every run records `SpendRecord`s against it. |
-| `last_run_at`, `enabled` | | |
+| `intent_text` | text | Required, not blank, at most 1,000 characters. Shown as text, never parsed as markup. |
+| `enabled` | bool | |
+| `cadence` | text or null | `hourly` \| `daily` \| `weekly` (`Cadence`). Null follows the `unattended_cadence` setting when read. |
+| `monthly_cap_usd` | decimal or null | What its runs may spend in a UTC month. Refused above the unattended allowance when written, and read as at most the allowance. Null leaves only the allowance. |
+| `created_at`, `updated_at` | timestamp | |
+| `created_by`, `updated_by` | `InitiatedBy` | The surface that wrote it, for tracing a surprise (`security-model.md` § The unattended trigger fired). |
+| `last_attempt_at` | timestamp or null | The last pass that judged it due, whether it started or was refused. Written by the scheduler. |
+| `last_run_id` | run id or null | Its last started run. That run's status is its outcome, never copied here. |
+| `last_refusal` | text or null | `off` \| `no_key` \| `allowance_spent` \| `cap_spent` \| `could_not_start` (`WatchRefusal`), from the last attempt that did not start. Null when the last attempt started. |
+
+**`DiscoveryRun.watch_id`**, nullable, with no foreign key: the Watch whose pass
+started the run, which outlives the Watch. What a Watch spent is read through it,
+from `SpendRecord`, and never stored twice.
 
 The memory of what a Watch has already seen is the existing dedup and
 rejected-candidate records, not a new table. Upgrade monitoring (re-searching

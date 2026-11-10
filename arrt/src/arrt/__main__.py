@@ -320,7 +320,7 @@ def main(argv: Sequence[str] = ()) -> None:
                 rotation_interval_seconds=settings.rotation_interval_seconds,
                 shuffle=settings.rotation_shuffle,
             ),
-            label_units=settings.label_units,
+            settings_environment=settings.environment_settings,
             thumbnails=ThumbnailSettings(art_root=settings.art_root, directory=settings.thumbnails_path),
             quality_profile=settings.quality_profile,
             engine=_engine(settings),
@@ -367,6 +367,7 @@ def main(argv: Sequence[str] = ()) -> None:
                 services,
                 sweep_topics=True,
                 acquire_queue=True,
+                schedule=True,
                 backup=(
                     None
                     if settings.backup_dir is None
@@ -378,6 +379,7 @@ def main(argv: Sequence[str] = ()) -> None:
                     )
                 ),
                 backup_interval_seconds=settings.backup_interval_seconds,
+                allowed_hosts=settings.allowed_hosts,
                 ask_model=_ask_model(settings),
                 ask_step_limit=settings.ask_step_limit,
                 ask_tools=_ask_tools(settings),

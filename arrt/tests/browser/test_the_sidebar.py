@@ -45,7 +45,7 @@ PAGES = {
     "Walls": [],
     "Activity": ["To review", "Queue", "History"],
     "Wanted": [],
-    "Settings": ["Players", "Sources", "Taste"],
+    "Settings": ["Players", "Sources", "Watches", "General", "Taste"],
     "System": ["Status"],
 }
 
@@ -65,6 +65,8 @@ SIDEBAR_PAGES = [
     ("settings", "Settings"),
     # Players kept its address when ruling 7 of 2026-10-27 renamed it.
     ("clients", "Players"),
+    ("watches", "Watches"),
+    ("general", "General"),
     ("taste", "Taste"),
     ("wanted", "Wanted"),
     ("health", "Status"),
@@ -706,9 +708,13 @@ def test_browser_back_leaves_a_work_for_the_page_it_was_opened_from(ui, one_work
     ui.open("#walls")
     ui.page.wait_for_selector("#view h1:has-text('Walls')")
     ui.page.evaluate(f"() => go('work', {one_work.id!r})")
-    ui.page.wait_for_selector("#view h1")
+    # The Work page's own way back, which Walls never draws: a bare `#view h1` is
+    # met by Walls' heading still on the page, and back would then run from Walls.
+    work_back = ui.page.locator("#view a", has_text="← Walls")
+    work_back.first.wait_for()
 
     ui.page.go_back()
+    work_back.first.wait_for(state="detached")
     ui.page.wait_for_selector("#view h1:has-text('Walls')")
 
 

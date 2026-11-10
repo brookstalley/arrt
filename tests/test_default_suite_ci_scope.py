@@ -24,6 +24,7 @@ check whether an entry is still earning its place.
 
 import pathlib
 import re
+import tomllib
 
 import pytest
 from repository import INVOCATION
@@ -200,3 +201,33 @@ def test_the_contract_leg_runs_and_needs_no_ignores():
         "treatment and another job that runs what it ignores"
     )
     assert _ignored_by("contract") == set()
+
+
+#: Directories under `arrt/tests` the pool's curation suite leaves to another:
+#: the browser suite has its own, and the live suites run only on this machine.
+_NOT_IN_THE_POOLS_CURATION_SUITE = {"browser", "live"}
+
+
+def _holds_tests(entry: pathlib.Path) -> bool:
+    if entry.is_file():
+        return entry.name.startswith("test_") and entry.suffix == ".py"
+    return entry.is_dir() and any(entry.rglob("test_*.py"))
+
+
+def test_the_pools_curation_suite_selects_every_test_directory_but_the_ones_left_to_others():
+    """`.testament.toml` names the curation suite's paths by hand, so a new test directory
+    under `arrt/tests` would be left out of a bare `testament run`, which still reports green.
+    The list is derived here from the tree, as the CI leg's ignores are above."""
+    manifest = tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8"))
+    selected = set(manifest["suites"]["curation"]["default_selection"])
+    wanted = {
+        f"arrt/tests/{entry.name}"
+        for entry in CURATION_TESTS.iterdir()
+        if entry.name not in _NOT_IN_THE_POOLS_CURATION_SUITE and _holds_tests(entry)
+    }
+
+    assert selected == wanted, (
+        f"the pool's curation suite selects {sorted(selected)}, and the tree's test paths are {sorted(wanted)}: "
+        f"missing {sorted(wanted - selected)}, extra {sorted(selected - wanted)}"
+    )
+    assert manifest["suites"]["browser"]["default_selection"] == ["arrt/tests/browser"]

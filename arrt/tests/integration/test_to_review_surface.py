@@ -95,14 +95,14 @@ async def call(server_url: str, tool: str, **arguments) -> tuple[dict, bool]:
 
 
 def test_the_listing_counts_what_waits_by_the_run_that_owns_it(server_url, runs):
-    listing = httpx.get(f"{server_url}/api/runs", timeout=10).json()
+    listing = httpx.get(f"{server_url}/api/runs").json()
 
     assert listing["awaiting_works"] == 2
     assert listing["awaiting"] == {"mixed": 2}, "the re-search owns no work, and the settled run has none waiting"
 
 
 def test_narrowed_to_what_waits_the_listing_holds_only_those_runs(server_url, runs):
-    listing = httpx.get(f"{server_url}/api/runs?awaiting=true", timeout=10).json()
+    listing = httpx.get(f"{server_url}/api/runs?awaiting=true").json()
 
     assert [run["run_id"] for run in listing["runs"]] == ["mixed"]
     assert (listing["total"], listing["awaiting_works"]) == (1, 2)
@@ -111,7 +111,7 @@ def test_narrowed_to_what_waits_the_listing_holds_only_those_runs(server_url, ru
 def test_a_verdict_takes_a_work_off_the_count(server_url, services, runs):
     services.discovery.set_verdict("m1", Verdict.REJECTED)
 
-    listing = httpx.get(f"{server_url}/api/runs", timeout=10).json()
+    listing = httpx.get(f"{server_url}/api/runs").json()
 
     assert (listing["awaiting_works"], listing["awaiting"]) == (1, {"mixed": 1})
 
@@ -123,7 +123,7 @@ def test_an_old_run_with_works_waiting_is_not_lost_behind_newer_ones(server_url,
     for index in range(MAX_RUNS_LISTED + 1):
         a_run(discovery_store, f"newer-{index}", minutes=10 + index)
 
-    listing = httpx.get(f"{server_url}/api/runs?awaiting=true", timeout=10).json()
+    listing = httpx.get(f"{server_url}/api/runs?awaiting=true").json()
 
     assert [run["run_id"] for run in listing["runs"]] == ["oldest"]
 

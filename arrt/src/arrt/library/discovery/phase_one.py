@@ -166,6 +166,7 @@ class OpenRouterEngine:
                 prompt=prompt_for(request),
                 schema=WORK_LIST_SCHEMA,
                 search_results=self._search_results if searching else 0,
+                model=request.model,
             )
         except KeyExhausted as exc:
             # No spend travels with this: the provider refuses before generating,

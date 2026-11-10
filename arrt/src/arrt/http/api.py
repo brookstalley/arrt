@@ -61,6 +61,7 @@ from arrt.http.models import (
     CostTiersOut,
     CreateTheme,
     CreateWall,
+    CreateWatch,
     DisplayFaultOut,
     DisplayOut,
     DisplayStateOut,
@@ -139,6 +140,9 @@ from arrt.http.models import (
     SetIdentity,
     SetMatMode,
     SetPlayback,
+    SetSetting,
+    SettingListOut,
+    SettingOut,
     SetVerdict,
     SetWorkMat,
     SightingHostOut,
@@ -172,8 +176,10 @@ from arrt.http.models import (
     TopicsOut,
     TopicWorkOut,
     TopicWorksOut,
+    UnattendedOut,
     UnlinkedArtistOut,
     UpcomingOut,
+    UpdateWatch,
     VerdictOut,
     WallAssignmentOut,
     WallHeartbeatOut,
@@ -184,6 +190,9 @@ from arrt.http.models import (
     WantedListingOut,
     WantedWorkOut,
     WantWork,
+    WatchesHealthOut,
+    WatchListOut,
+    WatchOut,
     WorkDetailOut,
     WorkFacetOut,
     WorkMatchesOut,
@@ -204,11 +213,14 @@ from arrt.library.services.look import LookPicture, LookView, SourceLook
 from arrt.library.services.quality import Fit
 from arrt.library.services.review import CandidatePage, CandidateView, InstanceListing, InstanceView, WantedView
 from arrt.library.services.runner import Estimate, RunView, SpendReport
+from arrt.library.services.settings import SettingState
 from arrt.library.services.spending import CENTS_BELOW, DIMES_BELOW
 from arrt.library.services.survey import WorkDossier, WorkSurvey
 from arrt.library.services.thumbnails import ThumbnailUnavailable
 from arrt.library.services.topics import TopicIndex, TopicPage, TopicWorksView
 from arrt.library.services.twins import InReview
+from arrt.library.services.unattended import Standing
+from arrt.library.services.watches import WatchService
 from arrt.library.sources.names import museum_name
 from arrt.library.sources.plugin import API_VERSION
 from arrt.persistence.discovery_records import (
@@ -217,6 +229,7 @@ from arrt.persistence.discovery_records import (
     CandidateWork,
     DiscoveryRun,
     InitiatedBy,
+    Watch,
 )
 from arrt.persistence.records import (
     Artist,
@@ -2531,6 +2544,7 @@ def _run(run: DiscoveryRun) -> RunOut:
         completed_at=None if run.completed_at is None else run.completed_at.isoformat(),
         destination_theme_id=run.destination_theme_id,
         end_reason=run.end_reason,
+        watch_id=run.watch_id,
     )
 
 
@@ -2753,6 +2767,7 @@ def _health(reading: HealthReading) -> HealthOut:
         backup=_backup(reading.backup),
         sources=[_source_plugin(each) for each in reading.sources],
         pictures=_pictures(reading.pictures),
+        watches=WatchesHealthOut(overdue=list(reading.watches.overdue), allowance_spent=reading.watches.allowance_spent),
     )
 
 
@@ -2905,6 +2920,137 @@ def delete_affinity(request: Request, affinity_id: str) -> AffinityOut:
     handle it was addressed by.
     """
     return _affinity(_services(request).taste.delete_affinity(affinity_id))
+
+
+# -- settings -----------------------------------------------------------------
+
+
+@router.get("/settings")
+def list_settings(request: Request) -> SettingListOut:
+    """Every household setting, its value and where that came from."""
+    return SettingListOut(settings=[_setting(state) for state in _services(request).settings.describe()])
+
+
+@router.post("/settings/{key}")
+def set_setting(request: Request, key: str, body: SetSetting) -> SettingOut:
+    """Change one setting. Refused, by name, for an unknown key, a value it cannot take, or one the environment locks."""
+    return _setting(_services(request).settings.set(key, body.value, surface=InitiatedBy.WEB_UI))
+
+
+@router.get("/unattended")
+def unattended_standing(request: Request) -> UnattendedOut:
+    """Whether unattended work may start now, and what it has spent this UTC month against its allowance."""
+    return _unattended(_services(request).unattended.standing())
+
+
+# -- watches ------------------------------------------------------------------
+
+
+@router.get("/watches")
+def list_watches(request: Request) -> WatchListOut:
+    """Every Watch, in the order the household wrote them. Unpaged: a household's Watches are a handful."""
+    services = _services(request)
+    return WatchListOut(watches=[_watch(services.watches, watch) for watch in services.watches.list()])
+
+
+@router.get("/watches/{watch_id}")
+def get_watch(request: Request, watch_id: str) -> WatchOut:
+    service = _services(request).watches
+    return _watch(service, service.get(watch_id))
+
+
+@router.post("/watches")
+def create_watch(request: Request, body: CreateWatch) -> WatchOut:
+    """Write a new Watch. Refused, by name, for empty words, an unknown cadence, or a cap above the allowance."""
+    service = _services(request).watches
+    created = service.create(
+        intent_text=body.intent_text,
+        cadence=body.cadence,
+        monthly_cap_usd=body.monthly_cap_usd,
+        enabled=body.enabled,
+        surface=InitiatedBy.WEB_UI,
+    )
+    return _watch(service, created)
+
+
+@router.post("/watches/{watch_id}")
+def update_watch(request: Request, watch_id: str, body: UpdateWatch) -> WatchOut:
+    """Change what the body gives and leave the rest. `POST`, as this surface writes everywhere."""
+    service = _services(request).watches
+    updated = service.update(
+        watch_id,
+        intent_text=body.intent_text,
+        cadence=body.cadence,
+        monthly_cap_usd=body.monthly_cap_usd,
+        enabled=body.enabled,
+        surface=InitiatedBy.WEB_UI,
+    )
+    return _watch(service, updated)
+
+
+@router.delete("/watches/{watch_id}")
+def delete_watch(request: Request, watch_id: str) -> WatchOut:
+    """Remove a Watch and answer with what was removed. What it found stays in To review."""
+    service = _services(request).watches
+    return _watch(service, service.delete(watch_id, surface=InitiatedBy.WEB_UI))
+
+
+def _watch(service: WatchService, watch: Watch) -> WatchOut:
+    standing = service.standing(watch)
+    return WatchOut(
+        watch_id=watch.id,
+        intent_text=watch.intent_text,
+        enabled=watch.enabled,
+        cadence=watch.cadence,
+        effective_cadence=str(service.cadence_of(watch)),
+        monthly_cap_usd=None if watch.monthly_cap_usd is None else f"{watch.monthly_cap_usd:.2f}",
+        effective_cap_usd=f"{service.effective_cap(watch):.2f}",
+        created_at=watch.created_at.isoformat(),
+        created_by=str(watch.created_by),
+        updated_at=watch.updated_at.isoformat(),
+        updated_by=str(watch.updated_by),
+        last_attempt_at=None if watch.last_attempt_at is None else watch.last_attempt_at.isoformat(),
+        last_run_id=watch.last_run_id,
+        last_run_status=None if standing.last_run_status is None else str(standing.last_run_status),
+        last_refusal=watch.last_refusal,
+        next_due_at=None if standing.next_due_at is None else standing.next_due_at.isoformat(),
+        overdue=standing.overdue,
+        in_flight=standing.in_flight,
+        spent_usd=f"{standing.spent_usd:.2f}",
+        sentence=standing.sentence,
+    )
+
+
+def _unattended(standing: Standing) -> UnattendedOut:
+    return UnattendedOut(
+        switched_on=standing.switched_on,
+        allowance_usd=f"{standing.allowance_usd:.2f}",
+        spent_usd=f"{standing.spent_usd:.2f}",
+        remaining_usd=f"{standing.remaining_usd:.2f}",
+        may_start=standing.may_start,
+        refusal=None if standing.refusal is None else str(standing.refusal),
+        sentence=standing.sentence,
+    )
+
+
+def _setting(state: SettingState) -> SettingOut:
+    setting = state.setting
+    return SettingOut(
+        key=setting.key,
+        label=setting.label,
+        value=state.value,
+        default=setting.render(setting.default),
+        source=str(state.source),
+        locked=state.locked,
+        environment_variable=setting.environment_variable,
+        description=setting.description,
+        choices=list(setting.choices),
+        kind=str(setting.kind),
+        section=setting.section,
+        updated_at=None if state.updated_at is None else state.updated_at.isoformat(),
+        updated_by=None if state.updated_by is None else str(state.updated_by),
+        set_aside_reason=state.set_aside_reason,
+    )
 
 
 def _affinity(affinity: Affinity) -> AffinityOut:

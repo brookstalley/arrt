@@ -180,7 +180,9 @@ lesson from a different count, which is why this one is stated as a shape.*
 | `art_catalogue` | `list`, `get`, `sources`, `archive`, `restore`, `retry_acquisition`, `set_mat_color`, `set_work_qid`, `set_artist_qid`, `regenerate`, `topics`, `topic`, `history`, `help` | `sources` is the provenance read; see below. `set_work_qid` and `set_artist_qid` (added 2026-10-01) are the curator's word on a Wikidata identity; matching itself is the hand-run `python -m arrt.identify`, not a tool. `topics` and `topic` (added 2026-10-02) are `GET /api/topics` and `GET /api/topics/{qid}`, the library's half only. `retry_acquisition` **queues** the work and returns at once (changed 2026-10-02, `build-plan-after-review.md` Chunk 02; breaking, see § Versioning): it fetched in the call until then, for up to half an hour, beside the acquisition queue's own fetch. `get` carries the work's `acquisition` state. `history` (added 2026-10-07) is `GET /api/history`: `kinds` (array) and `wall_id` narrow it. *(Wave 4g, 2026-10-10: `regenerate` makes the work's presentation master and chooses a mat if it has none, composing nothing, and `force=true` makes the master again; `set_mat_color` records the colour and makes nothing, because the colour rides each wall's feed.)* |
 | `art_theme` | `list`, `get`, `create`, `update`, `delete`, `make_default`, `add`, `remove`, `reorder`, `activate`, `hang_selection`, `not_again`, `kept_off`, `allow_again`, `unhang`, `scenes`, `draft_scene`, `pin_scene`, `unpin_scene`, `discard_scene`, `apply_scene`, `release_scene`, `help` | `activate` changes the wall immediately; `unhang` leaves the wall showing what it was showing. `make_default` (added 2026-10-01) moves the mark new works join, and changes no wall. `hang_selection`, `not_again`, `kept_off` and `allow_again` (added 2026-10-07) are § History, selections and *Not this one again*'s routes on this surface; `list` leaves selections out, and every theme carries `hidden`. The seven scene actions (added 2026-10-26, wave 4f) are the `/api/scenes` routes; they sit on `art_theme` rather than `art_display` because `art_display`'s description is at its 2 KB budget, and on an existing tool rather than a new one because a tool name is frozen once it ships. |
 | `art_display` | `walls`, `add_wall`, `rename_wall`, `delete_wall`, `status`, `sync`, `show_now`, `next`, `clients`, `add_client`, `rename_client`, `remove_client`, `issue_client_token`, `assign_wall`, `assign_display`, `add_label`, `remove_label`, `unassign_wall`, `set_mat_mode`, `set_playback`, `help` | Every wall action goes through the theme manifest — see below. `walls` is where every other action's `wall_id` comes from, and `clients` every `client_id` and output name. The client actions (added 2026-10-02, `build-plan-clients.md` Chunk 02) are § Clients' routes on this surface; `issue_client_token` answers the token once. Destructive since then, because `remove_client` and `issue_client_token` cannot be undone, and `delete_wall` (2026-10-30) neither. |
-| `art_taste` | `list`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
+| `art_settings` | `list`, `set`, `unattended`, `help` | The household's settings, read and changed as Settings › General does; a setting the environment gives is locked and `set` refuses it naming the variable. `unattended` is `GET /api/unattended`, in its field names. Local, not destructive (a value can be set back). Added 2026-11-09 (`build-plan-unattended-settings.md`). |
+| `art_taste` | `list`, `brief`, `set`, `delete`, `help` | The curator's standing judgments about artists, movements and subjects. Never spends. Added 2026-08-11 by operator decision — see below, and § The routes the interface design requires. |
+| `art_watches` | `list`, `get`, `create`, `update`, `delete`, `help` | The household's Watches, read and written as Settings › Watches does (`build-plan-watches.md`, 2026-11-09): a request in words, a cadence, an optional monthly cap under the unattended allowance, and on/off. Each write records its surface (`created_by`, `updated_by`). Spends only through the scheduler, with nobody watching, out of the unattended allowance; nothing a Watch runs writes a verdict. Not in Ask's scope. |
 
 **This table is the surface as designed, and no row states what is built.** That
 is deliberate rather than an omission: while the build is in progress some tools
@@ -542,18 +544,29 @@ and what the deferral would have bought; this one is the tool it obliges.
 here was declared at runtime — "unbuilt actions are never declared" governed it, and
 the tool answered `action='help'` with its `unavailable_note`. The paragraphs below
 fixed meaning and rules and left field-level shapes to the chunk that built the
-service method under them; that chunk has landed, all three actions are declared,
+service method under them; that chunk has landed, the three actions it designed are declared (`brief` joined them on 2026-11-08),
 and `FROZEN_TOOL_NAMES` now pins the name it could not reach before. The rules
 below are therefore descriptions of built behaviour rather than instructions to a
 future builder, with one exception marked where it occurs: the `inferred` invariant
 is enforced on the write path only, and deliberately not as a stored constraint.
 
-**Three actions and no `get`.** `list` returns the taste, narrowed by `kind`,
-`sentiment` or `derivation`; `set` writes one judgment; `delete` forgets one. The
+**Four actions and no `get`.** `list` returns the taste, narrowed by `kind`,
+`sentiment` or `derivation`; `brief` returns it as text; `set` writes one judgment;
+`delete` forgets one. The
 single-affinity read is omitted rather than overlooked — `list` returns a
 household's entire taste, which is tens of rows, so a `get` would be a second way
 to read what one call already hands back whole. § Conditional Patterns' limit-and-
 report-the-total rule bounds the listing if that ever stops being true.
+
+**`brief` is the taste as Arrt's own agents are told it**, added 2026-11-08 for a
+household's own agent (`agents-and-memory.md` item 3). It answers `{"brief": …}`,
+the text `TasteService.brief()` renders for Ask's prompt and discovery's phase 1:
+the same lines, ordered the same way, bounded the same way, and saying how many
+judgments it leaves out. It is empty when nothing is recorded. An outside agent
+working from `list`'s rows would weigh taste by rules of its own; one working from
+the brief weighs it as Ask does. It has no `count`, because the text is the
+answer, and a count would be a second read of the store that could disagree with
+it.
 
 **`set` is an upsert, and is named `set` for that reason.** `data-model.md` makes
 `Affinity` unique on (`kind`, `value`) — one live judgment per thing, corrected in
@@ -1060,6 +1073,12 @@ reviewed later must still report the estimate it was actually authorised against
 > who disagrees with the reading can decline at the gate rather than working
 > through works that were never going to match.
 
+> **A run names the Watch that started it (added 2026-11-09, `build-plan-watches.md`).**
+> Every payload carrying a run carries `watch_id`: the Watch whose scheduled pass
+> started it, or `null` for a run a person or an agent started. It may name a
+> Watch deleted since. The client says such a run is a Watch's on its Get and
+> Review, and names its kind *Get from a Watch* where runs are listed.
+
 > **A run says why its worker ended it (added 2026-10-05, #207).** Every payload
 > carrying a run carries `end_reason`: on `failed` and `halted_by_budget`, the
 > sentence the worker composed when it ended the run, stored with the ending in
@@ -1401,7 +1420,7 @@ the client with them.
 | `POST /api/themes/{id}/activate` | Change the wall. Returns the manifest that was published, exclusions included. |
 | `GET /api/manifest` | What a theme *would* put on the wall, evaluated without writing. |
 | `GET /api/sources` | Every installed source plugin, most preferred first, as `GET /api/health`'s `sources` reads it, with `interface_version` (`major.minor`, the plugin interface this Arrt provides). Settings › Sources reads it; `art_discovery(action='source_plugins')` answers the same. Added 2026-10-06. |
-| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06). There is deliberately no budget balance, settled 2026-08-04. **No `artwork_box`** since 2026-10-08 (#266): the geometry was one television's, and Status was its only reader (`art_display(action='status')` had left it off by name); a wall's own geometry returns per wall in wave 4. Shape below. |
+| `GET /api/health` | Every observation the panel states: **one heartbeat per wall** with the document that wall's display reported, the backup's age, **every installed source plugin** (`sources`, added 2026-10-03), and the picture store's files and bytes (`pictures`, added 2026-10-06), and the Watches a person needs to know about (`watches`: `overdue`, the words of each overdue Watch, and `allowance_spent`, whether a spent unattended allowance holds a Watch that is on; added 2026-11-09, `build-plan-watches.md`; `art_display(action='status')` leaves it off by name, because `art_watches` carries each Watch's overdue flag). There is deliberately no budget balance, settled 2026-08-04. **No `artwork_box`** since 2026-10-08 (#266): the geometry was one television's, and Status was its only reader (`art_display(action='status')` had left it off by name); a wall's own geometry returns per wall in wave 4. Shape below. |
 | `GET /api/sources/yields` | What each installed source plugin has given the library, one row per plugin in `GET /api/health`'s `sources` order: `name`, `offered` (distinct image addresses it has offered to a search or as a held work's source; a turned-down image still counts), `chosen` (works whose primary source is it), `only_here` (of those, works no other provider offered any image for, across the work's catalogue sources and every proposal of the same work), `median_long_edge` (pixels, over its offered images whose size is known; null when none is). A plugin with nothing recorded reads as zeros; a provider no longer installed has no row. Counted from the records on each read in one SQL statement, so it survives a restart; its own route rather than a field of the health reading because the top bar reads that on every page. Status's sources table reads it; no tool carries it. Added 2026-10-08 (#265). |
 
 Added 2026-08-05 with the run half of the browser surface, and exercised by
@@ -1534,10 +1553,13 @@ spellings for "change this" costs more than the orthodoxy is worth here.
 | `/api/conversations`, every route | **Retired 2026-10-09** with the stored conversations (`build-plan-ask-agent.md` Chunk 04); each answers 404. Ask's thread is `/api/ask` below. | none | none |
 | `GET /api/ask` | Whether Ask can answer here: `{"available": bool}`, false with no key. Read by the page before a thread is open, so opening Ask writes nothing. **Built 2026-10-08** (`build-plan-ask-agent.md` Chunk 03). | none | none (Ask is the agent; it is not offered as a tool) |
 | `POST /api/ask/threads`, `GET /api/ask/threads/{id}` | Open an empty thread (201; spends nothing), and read one back: `thread_id`, `available`, `replying`, and `turns`, each `{asked, events}` with the events exactly as its reply sent them. 404 for a thread the server does not hold: threads live in memory, at most 20, each keeping its last 10 turns (`TURNS_REMEMBERED`; the oldest go first, whole turns, and the model is sent no more), and a restart forgets them (the owner, 2026-10-08). The page answers a 404 on a send by opening a new thread and sending the words there. **Built 2026-10-08.** | in memory, not stored | none |
-| `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `BUDGET_SPENT` for OpenRouter's 403 naming the key's limit, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. | none written; spend is the provider's | none |
+| `POST /api/ask/threads/{id}/replies` | The curator's words (`{"words"}`, 1–4,000 characters). **Spends without asking** (the owner, 2026-10-08). Answers `application/x-ndjson`, one 3tears stream event a line: `stream_start`, `stream_token`, `tool_call_start` (`arguments_summary` is the step in the curator's words), `tool_call_end`, then exactly one of `stream_end` (`metadata`: `cost_usd`, `uncosted`, `steps`, `cards`) or `stream_error` (`code` `STEP_LIMIT`, `BUDGET_SPENT` for OpenRouter's 403 naming the key's limit, `AGENT_FAILED` or `AGENT_CANCELLED`, and a sentence to show). A card is a work, artist or topic the answer names that a tool returned: `kind`, `qid`, `label`, `detail`, `held`, `kinds`, `image`. Refused before the stream opens: 404 unknown thread, 503 no key, 409 a reply already running. **Built 2026-10-08.** Internal to the browser client, unversioned. **Each reply billed anything writes one `SpendRecord` (`ask_tokens`)**, however it ended, so `art_discovery(action='spend')` includes it (#337, 2026-11-09). | `SpendRecord` (`ask_tokens`) | none |
 | `GET`/`POST /api/affinities`, `DELETE /api/affinities/{id}` | The Taste screen, and every reaction on a card Ask offers or an Artist page. **Built 2026-08-12**; `POST` upserts on (`kind`, `value`) and writes only `stated` (§ `art_taste`). | `Affinity`, built | `art_taste(action='list'\|'set'\|'delete')`, built — see below and § `art_taste` |
 | `GET`/`POST /api/works/{id}/mat` | The Work page's mat control. Both answer `WorkMatOut`: `current` (a `MatColorOut` or null), `presets` (`{key, label, hex_rgb}`, darkest first) and `derived_hex_rgb`, what re-deriving would record, worked out and not recorded, null with no readable original image (logged as `mat.derivation_unavailable`). `POST` takes `SetWorkMat`, exactly one of `{"preset": key}` (recorded `manual`) or `{"derive": true}` (recorded `derived`); free either way, and the previous colour is kept. Refused 400 in the service's words for both or neither, an unknown preset, no original on disk, a colour under the floor, or an unknown work. **Built 2026-10-16** (#91; shaped by that item, as below said it would be). Internal to the browser client, unversioned. | `MatColor`, `MatMethod.DERIVED` added | `art_catalogue(action='set_mat_color', preset=…)`, `preset` added, `derived` among its choices |
 | `POST /api/walls/{wall_id}/next` | The Walls screen's Skip. Answers `{wall_id, work_id}`: the work the wall's republished feed now starts with, which is what was published, not what the screen shows. Refused by name (400) on a wall with no feed or an empty one. **Built in wave 4g, 2026-10-10**, replacing `POST /api/directives` (shape settled and built 2026-08-12, see below), which is gone with the directive. | the wall's feed | `art_display(action='next')`, built |
+| `GET /api/settings`, `POST /api/settings/{key}` | The household's settings (`build-plan-unattended-settings.md` Chunk 01, 2026-11-09). `GET` answers `SettingListOut`: every setting in `SETTINGS`' order, each `SettingOut` (`key`, `label`, `value`, `default`, `source` `environment` \| `stored` \| `default` \| `set_aside` (a stored choice this release or deployment no longer allows, so the default applies: #417, 2026-11-09), `locked`, `environment_variable`, `description`, `choices`, `kind` `choice` \| `money` \| `text`, `section`, `updated_at`, `updated_by`, `set_aside_reason`, a sentence naming the setting and the stored value, null unless set aside). `POST` takes `{"value"}` in the setting's own spelling and answers the setting. Refused 400 in the service's words for an unknown key (naming the keys), a value it cannot take (naming what it can), or one the environment locks (naming the variable). A change applies at once: labels read `label_units` when each is built. Internal to the browser client, unversioned. | `StoredSetting` | `art_settings(action='list'\|'set')`, a new tool, in the route's field names: every surface may change every setting (the owner, 2026-11-09) |
+| `GET /api/unattended` | Whether agent work may start with nobody watching, and what it has spent this UTC month: `UnattendedOut` (`switched_on`, `allowance_usd`, `spent_usd`, `remaining_usd`, `may_start`, `refusal` `off` \| `no_key` \| `allowance_spent` or null, `sentence`). Read by Settings › General's *Unattended work* section (`build-plan-unattended-settings.md` Chunk 03). Internal to the browser client, unversioned. | `SpendRecord` through its run's `initiated_by` | `art_settings(action='unattended')` |
+| `GET /api/watches`, `GET /api/watches/{id}`, `POST /api/watches`, `POST /api/watches/{id}`, `DELETE /api/watches/{id}` | The household's Watches (`build-plan-watches.md` Chunk 03, 2026-11-09). Each answers `WatchOut` (`watch_id`, `intent_text`, `enabled`, `cadence` or null to follow `unattended_cadence`, `effective_cadence`, `monthly_cap_usd` or null, `effective_cap_usd`, never more than the allowance, `created_at`, `created_by`, `updated_at`, `updated_by`, and where it stands (Chunk 05): `last_attempt_at`, `last_run_id`, `last_run_status`, `last_refusal`, `next_due_at`, `overdue`, `in_flight`, `spent_usd` and `sentence`), the list `WatchListOut`, unpaged. `POST /api/watches` takes `CreateWatch` (`intent_text`, and `cadence`, `monthly_cap_usd`, `enabled`, each optional); `POST /api/watches/{id}` takes `UpdateWatch`, whose absent fields stay and whose empty `cadence` or `monthly_cap_usd` clears it. `DELETE` answers what was removed. Refused 400 in the service's words: an unknown id, empty or over-long words, an unknown cadence, a cap that is not dollars to the cent or is above the unattended allowance. Internal to the browser client, unversioned. | `Watch` | `art_watches`, a new tool, in the route's field names |
 | `GET /api/spend` | The Health screen's spend history, across runs. | `SpendRecord`, built | `art_discovery(action='spend')` already answers the cross-run question by calendar month — see below |
 
 **Facet counts ride on the works response rather than getting a route.** They are
@@ -2331,6 +2353,39 @@ termination, no rate limiting in the application — proportionate for a
 single-principal household tool, and recorded as a decision in
 `project-state.yaml` → `technical_decisions.integrations`.
 
+**Host and Origin are checked on every surface but the Player's: DECISION
+2026-11-08, the owner's ruling on #53 (fork 1, Arrt checks them; fork 2, a
+binding policy, cannot work because the homelab publishes the port directly for
+the Player; `build-plan-mcp-household-agents.md`).** Without the
+check, a web page open in a browser on the LAN could rebind its own domain name
+to the server's address and drive `/mcp` and `/api` as same-origin requests.
+CORS never stops those. They could start `art_discovery` runs, which spend money,
+change what hangs on a wall, or write taste. `arrt.http.hosts.HostGuard` wraps
+the whole application, including the MCP mount, the pages and the static files:
+- **Host.** It answers `421` to a request whose `Host` is not `localhost`, an IP
+  address, or a name in `CURATION_ALLOWED_HOSTS`.
+- **Origin.** It answers `403` to one whose `Origin`, when sent, is neither a
+  listed name nor the request's own address (the same name and port as its
+  `Host`). An IP address passes as a `Host` but not as an `Origin`, so a page
+  served from another LAN device or another local port is refused.
+  `Origin: null` always fails.
+
+Each refusal names the setting.
+- **IP addresses always pass**, because a rebinding page's requests carry its own
+  domain name, never an address.
+- **A request without `Origin` passes**, because that is how every non-browser
+  client calls.
+- **The Player's routes are exempt.** The routes `http/player.py` mounts, which
+  are `contract/routes.json`'s, already require the wall's token, which a
+  rebinding page cannot read. A Player configured with a name the server was not
+  given would otherwise lose its feed.
+
+Fork 2, closing the vector by binding policy instead, was not taken. The
+reference deployment publishes the server's port directly so its Player can pull
+when the reverse proxy is down, and a rebinding page can reach that port. A
+deployment reached by name must list the name, or its browser and MCP clients
+are refused.
+
 **`initiated_by` is provenance, not authorisation.** Every surface has identical
 authority. Agent-initiated runs queue candidates for the same reason UI-initiated
 runs do — the review gate is universal, not a restriction on agents. Branching
@@ -2349,6 +2404,11 @@ authority on the caller would reintroduce the parity split MCP exists to prevent
 >   the "unattended discovery" trigger that `security-model.md` § Prompt Injection
 >   names. That section must be re-derived before Watches are built.
 > - **`initiated_by`** will need a value for a Watch.
+>
+> *(Both answered 2026-11-09, `build-plan-watches.md`: Watches do not auto-accept,
+> because the owner ruled every find stops in To review. The section is re-derived
+> as `security-model.md` § The unattended trigger fired. A Watch's run is
+> `initiated_by` `unattended`, with the Watch on the run's `watch_id`.)*
 
 **The real exposure is prompt injection, and it is bounded — but less tightly than
 this artifact previously claimed.**

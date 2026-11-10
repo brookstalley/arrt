@@ -29,7 +29,7 @@ import { hold, heldFor, showHold } from "../core/holding.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { wantedPicture, wantedWhy } from "../core/reviewing.js";
 import { go, link } from "../core/router.js";
-import { KIND_WORDS, STATE_WORDS } from "../core/runs.js";
+import { runKind, STATE_WORDS } from "../core/runs.js";
 import { tierMark } from "../core/spend.js";
 import { state } from "../core/state.js";
 
@@ -47,11 +47,11 @@ function runTable(caption, runs, themes) {
     ["Asked for", "Kind", "Into", "State", "Started", "Open"],
     runs.map((run) => [
       askedFor(run),
-      KIND_WORDS[run.kind] || run.kind,
+      runKind(run),
       destinationWords(destinationOf(run, themes)),
       STATE_WORDS[run.status] || run.status,
       el("time", stamp(run.started_at)),
-      link({ view: "get", id: run.run_id }, { class: "action quiet row-link", text: "Open", "aria-label": `Open the ${KIND_WORDS[run.kind] || "Get"}: ${askedFor(run)}` }),
+      link({ view: "get", id: run.run_id }, { class: "action quiet row-link", text: "Open", "aria-label": `Open the ${runKind(run)}: ${askedFor(run)}` }),
     ]),
     { stacked: true },
   );
@@ -94,7 +94,7 @@ export async function viewToReview(generation) {
           ["Asked for", "Kind", "To review", "Started", "Open"],
           runs.runs.map((run) => [
             askedFor(run),
-            KIND_WORDS[run.kind] || run.kind,
+            runKind(run),
             String(runs.awaiting[run.run_id] || 0),
             el("time", stamp(run.started_at)),
             // A Get of chosen works is reviewed on its own page; every other Get on Review.
@@ -103,7 +103,7 @@ export async function viewToReview(generation) {
               {
                 class: "action quiet row-link",
                 text: "Review",
-                "aria-label": `Review the ${KIND_WORDS[run.kind] || "Get"}: ${askedFor(run)}`,
+                "aria-label": `Review the ${runKind(run)}: ${askedFor(run)}`,
               },
             ),
           ]),
@@ -591,7 +591,8 @@ function sentence(event, wallNames, titles) {
  *
  * **Getting again is manual and free.** It asks museum and Commons APIs,
  * which cost nothing (`phase2_estimate_usd`), and its tier says so beside the
- * button; a scheduled one waits for Watches. Commons is asked only by Wikidata
+ * button; a scheduled one waits for the upgrades job (#178), which the
+ * scheduler that runs Watches is built to take. Commons is asked only by Wikidata
  * item, so Get again on a work with no item first offers Wikidata's matches to
  * pick from — the curator's pick, never a match by title (`data-model.md`
  * § Registry identity). Two calls the client makes, the pick then the Get,

@@ -59,6 +59,11 @@ class InitiatedBy(StrEnum):
     WEB_UI = "web_ui"
     WEB_UI_AGENT = "web_ui_agent"
     MCP_CLIENT = "mcp_client"
+    #: Started by Arrt itself with nobody watching, behind the unattended
+    #: settings (`library/services/unattended.py`). What it spends is summed
+    #: against the month's unattended allowance, the one decision it feeds; the
+    #: run views and the runner's log show it as they show every value.
+    UNATTENDED = "unattended"
 
 
 class RunStatus(StrEnum):
@@ -297,8 +302,8 @@ class SpendCategory(StrEnum):
 
     `CONVERSATION_TOKENS` is what the retired intent-forming conversation spent.
     Nothing writes it now, and it stays so those rows still read and still count
-    in the month: the money was spent. Ask's replies write no row; the
-    provider's own month figure already includes them.
+    in the month: the money was spent. `ASK_TOKENS` is what Ask's replies
+    spend, one row per reply that was billed anything.
     """
 
     DISCOVERY_TOKENS = "discovery_tokens"
@@ -306,6 +311,7 @@ class SpendCategory(StrEnum):
     IMAGE_RESEARCH = "image_research"
     MAT_COLOR_VISION = "mat_color_vision"
     CONVERSATION_TOKENS = "conversation_tokens"
+    ASK_TOKENS = "ask_tokens"
 
 
 @dataclass(frozen=True, slots=True)
@@ -350,6 +356,10 @@ class DiscoveryRun:
     #: ended it is gone, and a reason held only in that process's log is one they
     #: cannot reach. Null too on any run that ended before the field existed.
     end_reason: str | None = None
+    #: The Watch whose scheduled pass started this run, or None for a run a
+    #: person or an agent started. Held without a foreign key, so a run outlives
+    #: the Watch that started it: deleting a Watch never rewrites history.
+    watch_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -660,3 +670,50 @@ class SourceYield:
     #: The median long edge, in pixels, of the offered images whose size is
     #: known; `None` when no offered image's size is known.
     median_long_edge: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class StoredSetting:
+    """A setting's value as the household last chose it, and who chose it.
+
+    The value is text in the setting's own spelling (`library/services/settings.py`
+    reads and writes it), so a new setting needs no column. Only a chosen value is
+    stored: a setting nobody has changed has no row and reads as its default.
+    """
+
+    key: str
+    value: str
+    updated_at: datetime
+    updated_by: InitiatedBy
+
+
+@dataclass(frozen=True, slots=True)
+class Watch:
+    """A household's standing request in words, which Arrt re-runs on a cadence with nobody watching.
+
+    Its one policy is to leave what it finds in To review: auto-accept is not
+    offered (`security-model.md` § The unattended trigger fired). `cadence` and
+    `last_refusal` are held as their text; `library/services/watches.py` owns
+    their meaning, as the settings service owns a setting's spelling.
+
+    What a Watch has spent is never stored here. It is read from `SpendRecord`
+    through the runs whose `watch_id` names it, so the two cannot disagree.
+    """
+
+    id: str
+    intent_text: str
+    enabled: bool
+    created_at: datetime
+    created_by: InitiatedBy
+    updated_at: datetime
+    updated_by: InitiatedBy
+    #: `hourly`, `daily` or `weekly`; None follows the `unattended_cadence` setting.
+    cadence: str | None = None
+    #: What its runs may spend in a UTC month; None leaves only the allowance.
+    monthly_cap_usd: Decimal | None = None
+    #: The last pass that judged it due, whether it started a run or was refused.
+    last_attempt_at: datetime | None = None
+    #: Its last started run; that run's status is the outcome, never copied here.
+    last_run_id: str | None = None
+    #: Why the last attempt did not start, or None when it did.
+    last_refusal: str | None = None

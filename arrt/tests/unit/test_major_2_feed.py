@@ -22,6 +22,7 @@ from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, ThemeAssignment, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
+from arrt.programming import display as display_module
 from arrt.programming.display import Unjudged
 from arrt.programming.manifest.builder import KeptOff
 from arrt.programming.manifest.v2 import read_published
@@ -495,22 +496,60 @@ def test_a_tallest_bound_alone_leaves_off_only_the_taller_work(display, three_sh
     assert set(feed(wall_id).works) == {wide.id, square.id}
 
 
-def test_new_shapes_republish_at_once_and_any_puts_the_work_back(display, three_shapes, theme_of, wall_id, feed):
+@pytest.fixture
+def clock(monkeypatch):
+    """The clock the display service publishes by, which a test can move on a whole second.
+
+    A feed's slots start on whole seconds, so two publishes inside one second
+    cannot tell a kept slot from one started afresh at *now*. A test about which
+    of those a publish did moves the clock between them rather than relying on
+    the machine being slow enough, or fast enough, to land where it needs.
+    """
+
+    class Clock:
+        offset = timedelta(0)
+
+        def advance(self, seconds=1):
+            self.offset += timedelta(seconds=seconds)
+
+    held = Clock()
+
+    class Moved(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.now(tz) + held.offset
+
+    monkeypatch.setattr(display_module, "datetime", Moved)
+    return held
+
+
+def test_new_shapes_republish_at_once_and_any_puts_the_work_back(display, three_shapes, theme_of, wall_id, feed, clock):
     wide, tall, square = three_shapes
     display.activate_theme(theme_of(wide, tall, square).id, wall_id=wall_id)
     before = feed(wall_id)
 
+    clock.advance()
     display.set_playback(wall_id, widest="1:1")
     narrowed = feed(wall_id)
+    clock.advance()
     display.set_playback(wall_id, widest="any")
 
+    widened = feed(wall_id)
     assert set(narrowed.works) == {tall.id, square.id}
-    assert wide.id not in {slot.work_id for slot in narrowed.slots[1:]}
-    assert set(feed(wall_id).works) == {wide.id, tall.id, square.id}
+    assert set(widened.works) == {wide.id, tall.id, square.id}
     assert display.get_wall(wall_id).max_aspect_ratio is None
     # The pace and order were not named, so they stayed.
     assert (display.get_wall(wall_id).rotation_interval_seconds, display.get_wall(wall_id).shuffle) == (HOUR, False)
-    assert before.slots[0].start == feed(wall_id).slots[0].start
+    # The narrowing took off the work on the wall now, and a work the rebuild no
+    # longer carries is not kept (`schedule._kept`): the wall starts afresh, at
+    # once, on a work the range allows, and the wide work is in none of its slots.
+    assert before.slots[0].work_id == wide.id
+    assert narrowed.slots[0].start > before.slots[0].start
+    assert wide.id not in {slot.work_id for slot in narrowed.slots}
+    # Widening took nothing off, so the slot on the wall now is kept: its work
+    # and its start. Comparing against `before` instead held only while all
+    # three publishes fell in one wall-clock second.
+    assert widened.slots[0] == narrowed.slots[0]
 
 
 def test_shapes_that_leave_nothing_make_the_wall_dark_and_say_so(display, three_shapes, theme_of, wall_id, feed):

@@ -51,6 +51,7 @@ _EXPECTED_SCHEMA = {
         "completed_at",
         "destination_theme_id",
         "end_reason",
+        "watch_id",
     },
     "candidate_works": {
         "id",
@@ -105,6 +106,20 @@ _EXPECTED_SCHEMA = {
     "resolve_run_works": {"resolve_run_id", "candidate_work_id"},
     "sightings": {"wikidata_qid", "url"},
     "run_citations": {"discovery_run_id", "url", "position"},
+    "watches": {
+        "id",
+        "intent_text",
+        "enabled",
+        "cadence",
+        "monthly_cap_usd",
+        "created_at",
+        "created_by",
+        "updated_at",
+        "updated_by",
+        "last_attempt_at",
+        "last_run_id",
+        "last_refusal",
+    },
 }
 
 _STARTED = datetime(2026, 7, 27, 9, 30, tzinfo=UTC)

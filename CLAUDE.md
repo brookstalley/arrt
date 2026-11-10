@@ -58,6 +58,13 @@ Three independent projects, three suites.
 | Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd contract && uv run ruff check .` |
 | Format | `uv run black .` | `cd arrt && uv run black .` | `cd contract && uv run black .` |
 
+**Run the suites through testament** (`AGENTS.md` § Running tests): `testament
+run --json` runs all four on the pool, the browser suite on the runners with
+Chromium; `--suite governance|curation|browser|contract` picks one, and a path
+after `--` picks tests. `.testament.toml` says how each runs. The commands above
+are what CI runs; testament's own fallback runs `.testament.toml`'s commands here. The live suites
+(`live_*`, `llm_eval`) are not on the pool and stay on this machine.
+
 **All three must pass.** `contract/` is the `arrt-contract` package
 (`player-contract.md` § The package): every suite reads the schemas, fixtures,
 vectors and routes through it, never by a path of its own. A change to it is
@@ -119,7 +126,9 @@ interface, and no Python suite runs it: `-m browser` does, and you run it
 whenever you touch anything under `static/`. The four live markers (`live_museum`,
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
 default; `live_api` and `llm_eval` spend real money, and every live run takes
-`-n0`. Commands, setup and the reasons behind each rule: `docs/testing.md`.
+`-n0`: a museum marker (`live_museum`, `live_binary`) may run beside an
+OpenRouter one (`live_api`, `llm_eval`), never two of the same pair at once
+(`docs/testing.md`). Commands, setup and the reasons behind each rule: `docs/testing.md`.
 
 **Every suite asks whether the client matches its documents; none asks whether
 it is good to use.** When the question is the second one — a redesign, a run of

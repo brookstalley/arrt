@@ -35,6 +35,7 @@ from datetime import MAXYEAR, MINYEAR, UTC, datetime
 from decimal import Decimal
 
 from arrt.library.discovery.dedup import clean_name, work_dedup_key
+from arrt.library.months import utc_month
 from arrt.library.services import attribution, selection
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.quality import Fit, QualityProfile
@@ -228,8 +229,11 @@ class DiscoveryService:
 
     # -- writes: a discovery run's life ---------------------------------------
 
-    def start_discovery_run(self, *, intent_text: str, initiated_by: InitiatedBy) -> DiscoveryRun:
+    def start_discovery_run(self, *, intent_text: str, initiated_by: InitiatedBy, watch_id: str | None = None) -> DiscoveryRun:
         """Begin phase 1: the curator's intent becomes a run enumerating works.
+
+        `watch_id` names the Watch whose scheduled pass started it, recorded and
+        never read to decide anything, as `initiated_by` is.
 
         No `strategy` here, deliberately. It is how the intent was *interpreted*,
         which nothing knows until the model has read it — so it is written when
@@ -243,6 +247,7 @@ class DiscoveryService:
             approval_required=False,
             started_at=datetime.now(UTC),
             intent_text=require_text(intent_text, field="intent_text"),
+            watch_id=watch_id,
         )
         with self._store.transaction():
             store_write(self._store.add_run, run)
@@ -1396,8 +1401,7 @@ class DiscoveryService:
         # stdlib ValueError through a tool boundary's "failed unexpectedly".
         if not MINYEAR <= year < MAXYEAR:
             raise ServiceError(f"A year is {MINYEAR} to {MAXYEAR - 1}, got {year}.")
-        since = datetime(year, month, 1, tzinfo=UTC)
-        until = datetime(year + (month == _DECEMBER), month % _DECEMBER + 1, 1, tzinfo=UTC)
+        since, until = utc_month(year, month)
         return sum((record.cost_usd for record in self._store.list_spend_records(since=since, until=until)), Decimal(0))
 
     # -- internals ------------------------------------------------------------

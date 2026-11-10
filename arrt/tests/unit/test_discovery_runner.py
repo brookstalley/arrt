@@ -11,6 +11,7 @@ server over real HTTP.
 """
 
 import sqlite3
+import threading
 import time
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -21,7 +22,7 @@ from fakes import a_work, a_work_list, spent, stored_awaiting_approval, works
 
 from arrt.library.discovery.dedup import work_dedup_key
 from arrt.library.discovery.engine import BudgetExhausted, EngineFailure, ProposedWork, WorkList, unavailable_engine
-from arrt.library.services.runner import DiscoveryRunner
+from arrt.library.services.runner import RUN_THREAD_NAME, DiscoveryRunner
 from arrt.persistence.discovery_records import InitiatedBy, RunStatus, SpendCategory, Verdict
 from arrt.services.errors import ServiceError
 
@@ -614,3 +615,39 @@ def test_an_engine_that_offered_no_strategy_leaves_the_run_without_one(services,
     runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings, spawn=lambda work: work())
 
     assert services.discovery.get_run(start(runner).id).strategy is None
+
+
+# -- status ---------------------------------------------------------------------
+
+
+def test_a_status_that_outlives_the_run_it_read_answers_with_how_the_run_ended(services, engine, settings, monkeypatch):
+    """A held `status` never answers with a reading taken while the run was still working.
+
+    `status` reads the run and asks whether it is still in flight. Asked in
+    that order, a worker finishing between the two leaves the caller holding a
+    reading from mid-run, now presented as final: no estimate, and the phase it
+    was in. Under a loaded parallel suite that window is wide enough to hit, and
+    the MCP scenarios that read the phase-2 figure off `status` failed on it
+    with `'0' == None`. The worker is made to finish inside the window here, so
+    the order is what is tested rather than the machine's speed.
+    """
+    engine.gate = threading.Event()
+    runner = DiscoveryRunner(services.discovery, engine, settings.discovery_settings)
+    run_id = start(runner).id
+    read = services.discovery.run_results
+
+    def read_then_let_the_run_finish(asked: str):
+        reading = read(asked)
+        if threading.current_thread().name != RUN_THREAD_NAME and not engine.gate.is_set():
+            engine.gate.set()
+            for worker in [thread for thread in threading.enumerate() if thread.name == RUN_THREAD_NAME]:
+                worker.join(timeout=10)
+        return reading
+
+    monkeypatch.setattr(services.discovery, "run_results", read_then_let_the_run_finish)
+
+    view = runner.run_status(run_id)
+
+    assert engine.gate.is_set(), "the window was never reached, so this proved nothing"
+    assert view.run.status is RunStatus.RESOLVING_IMAGES
+    assert view.run.estimated_cost_usd == runner.estimate(run_id).cost_usd

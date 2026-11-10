@@ -572,8 +572,10 @@ class TestHealth:
         # the word check above. `pictures` is the picture store's files and bytes,
         # added 2026-10-06 by the owner's ruling that the store has no ceiling and
         # is watched here instead. There is no `artwork_box`: the geometry was one
-        # television's, and the owner removed it on 2026-10-08 (#266).
-        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "sources", "pictures"}
+        # television's, and the owner removed it on 2026-10-08 (#266). `watches` is
+        # the overdue Watches and whether a spent allowance holds one, added
+        # 2026-11-09 because a Watch runs with nobody watching (`build-plan-watches.md`).
+        assert set(http.get("/api/health").json()) == {"walls", "description", "backup", "sources", "pictures", "watches"}
 
     def test_each_installed_sources_yield_is_counted_from_the_library(self, http, hold):
         """`GET /api/sources/yields`, one row per plugin the health reading lists, in its order.

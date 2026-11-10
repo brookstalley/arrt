@@ -16,6 +16,7 @@ from datetime import datetime
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from serving import SUITE_REQUEST_SECONDS
 
 from arrt.persistence.records import (
     AcquisitionMethod,
@@ -544,7 +545,7 @@ async def test_status_and_the_health_panel_state_the_same_picture_store_count(se
         services.pictures.put("artic", f"https://museum.example/{name}", a_decodable_jpeg())
 
     payload, errored = await call(server_url, "art_display", action="status")
-    async with httpx.AsyncClient(base_url=server_url) as client:
+    async with httpx.AsyncClient(base_url=server_url, timeout=SUITE_REQUEST_SECONDS) as client:
         panel = (await client.get("/api/health")).json()["pictures"]
 
     assert errored is False

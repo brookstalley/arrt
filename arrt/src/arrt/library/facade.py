@@ -14,7 +14,7 @@ reaches nothing in Programming.
 """
 
 import logging
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Final
 
@@ -92,10 +92,11 @@ __all__ = [
 class LibraryFacade:
     """What Programming may ask the Library."""
 
-    def __init__(self, catalogue: CatalogueService, discovery: DiscoveryService, *, label_units: Units) -> None:
+    def __init__(self, catalogue: CatalogueService, discovery: DiscoveryService, *, label_units: Callable[[], Units]) -> None:
         self._catalogue = catalogue
         self._discovery = discovery
-        #: The system every label this facade sets states dimensions in.
+        #: The system every label this facade sets states dimensions in, asked
+        #: for at each build, so a changed setting reaches the next label.
         self._label_units = label_units
 
     def playable(self, work_ids: Iterable[str]) -> dict[str, Playability]:
@@ -107,7 +108,9 @@ class LibraryFacade:
         call that raised on the first one would make a theme holding one
         dangling reference unbuildable. An id asked twice is answered once.
         """
-        return {work_id: self._answer(work_id) for work_id in dict.fromkeys(work_ids)}
+        # Read once per call, so every work in one answer states the same units.
+        units = self._label_units()
+        return {work_id: self._answer(work_id, units) for work_id in dict.fromkeys(work_ids)}
 
     def labels(self, work_ids: Iterable[str]) -> dict[str, Mapping[str, str | None] | None]:
         """Each work's label text, keyed by id, or None for an id the catalogue does not hold.
@@ -119,9 +122,10 @@ class LibraryFacade:
         nothing in the journal.
         """
         answers: dict[str, Mapping[str, str | None] | None] = {}
+        units = self._label_units()
         for work_id in dict.fromkeys(work_ids):
             detail = self._catalogue.find_artwork(work_id)
-            answers[work_id] = None if detail is None else label_of(detail.artwork, detail.artist, units=self._label_units)
+            answers[work_id] = None if detail is None else label_of(detail.artwork, detail.artist, units=units)
         return answers
 
     def accepted_work_ids(self) -> Sequence[str]:
@@ -174,7 +178,7 @@ class LibraryFacade:
         """
         self._catalogue.subscribe(handler)
 
-    def _answer(self, work_id: str) -> Playability:
+    def _answer(self, work_id: str, units: Units) -> Playability:
         inputs = self._gather(work_id)
         if inputs is None:
             return not_in_catalogue(work_id)
@@ -186,7 +190,7 @@ class LibraryFacade:
         refused = assess(inputs)
         if refused is not None:
             return refused
-        return playable_from(inputs, units=self._label_units)
+        return playable_from(inputs, units=units)
 
     def _gather(self, work_id: str) -> WorkInputs | None:
         """Collect everything the readiness rule judges one work on, or None if it is not held.

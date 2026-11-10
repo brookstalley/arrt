@@ -12,6 +12,8 @@ at process start, which is where a missing value should stop things.
 """
 
 import os
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -19,10 +21,10 @@ from typing import Final
 
 from dotenv import load_dotenv
 
-from arrt.library.dimensions import Units
 from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
 from arrt.library.services.quality import QualityProfile
 from arrt.library.services.runner import DiscoverySettings
+from arrt.library.services.settings import Limits, SettingRefused, from_environment
 from arrt.library.sources.loading import DEFAULT_SOURCE_ORDER
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.programming.manifest.heartbeat import heartbeat_path_in
@@ -130,17 +132,16 @@ DEFAULT_MIN_FREE_BYTES: Final[int] = 2 * 1024 * 1024 * 1024
 DEFAULT_HOST: Final[str] = "127.0.0.1"
 DEFAULT_PORT: Final[int] = 8770
 
+#: One DNS name as a `Host` header carries it without its port: labels of
+#: letters, digits and hyphens, separated by dots.
+_HOSTNAME: Final[re.Pattern[str]] = re.compile(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*")
+
 #: What a wall that has chosen no pace of its own plays at. Carried
 #: forward from the 2024 plane, which ran the wall at three minutes on shuffle —
 #: this is the behaviour on the wall today, and changing it silently at cutover
 #: would be a regression nobody asked for.
 DEFAULT_ROTATION_INTERVAL_SECONDS: Final[int] = 180
 DEFAULT_ROTATION_SHUFFLE: Final[bool] = True
-#: The system a label states a work's dimensions in. Imperial because the
-#: reference wall's household reads inches; a metric household sets
-#: `LABEL_UNITS=metric`.
-DEFAULT_LABEL_UNITS: Final[Units] = Units.IMPERIAL
-
 #: How often the catalogue is backed up when `BACKUP_DIR` is set: daily, as
 #: `operational-spec.md` § Backup and Restore plans, plus once at every start.
 DEFAULT_BACKUP_INTERVAL_SECONDS: Final[int] = 24 * 60 * 60
@@ -366,9 +367,10 @@ class Settings:
     wall_name: str
     rotation_interval_seconds: int
     rotation_shuffle: bool
-    #: Which system every label states a work's dimensions in, rounded to whole
-    #: units (`library/dimensions.py`).
-    label_units: Units
+    #: The household settings the environment gives, by key, as text, each
+    #: checked (`library/services/settings.py`). A setting given here is locked:
+    #: the browser and MCP show it and cannot change it. `LABEL_UNITS` is one.
+    environment_settings: Mapping[str, str]
     #: Where the catalogue's backups go, or None when this deployment takes none
     #: (the health panel then says no backup has been recorded). A directory on
     #: storage other than the art root's, so losing one does not lose the other.
@@ -448,6 +450,10 @@ class Settings:
     #: A SearXNG instance for Ask's web search (`SEARXNG_URL`). Unset, Ask is
     #: offered no web search and reads only the library and Wikidata.
     searxng_url: str | None = None
+    #: The names this server answers to besides `localhost` and an IP address
+    #: (`arrt.http.hosts`). Empty unless a deployment reaches the server by name,
+    #: which is when it must list the name or be refused by it.
+    allowed_hosts: frozenset[str] = frozenset()
 
     @property
     def discovery_settings(self) -> DiscoverySettings:
@@ -574,16 +580,19 @@ class Settings:
         """
         load_dotenv()
         art_root = Path(_require("ART_ROOT"))
+        # Read before the household settings, which an allowance is held to.
+        monthly_budget_usd = _priced("MONTHLY_BUDGET_USD", "0") if os.environ.get("MONTHLY_BUDGET_USD") else None
         return cls(
             art_root=art_root,
             catalogue_path=art_root / CATALOGUE_FILENAME,
             # Loopback by default; see `DEFAULT_HOST`.
             host=os.environ.get("CURATION_HOST") or DEFAULT_HOST,
             port=_port("CURATION_PORT", DEFAULT_PORT),
+            allowed_hosts=_hostnames("CURATION_ALLOWED_HOSTS"),
             wall_name=os.environ.get("WALL_NAME") or DEFAULT_WALL_NAME,
             rotation_interval_seconds=_positive_int("ROTATION_INTERVAL_SECONDS", DEFAULT_ROTATION_INTERVAL_SECONDS),
             rotation_shuffle=_flag("ROTATION_SHUFFLE", default=DEFAULT_ROTATION_SHUFFLE),
-            label_units=_units("LABEL_UNITS", DEFAULT_LABEL_UNITS),
+            environment_settings=_environment_settings(Limits(monthly_budget_usd=monthly_budget_usd)),
             backup_dir=Path(os.environ["BACKUP_DIR"]) if os.environ.get("BACKUP_DIR") else None,
             backup_interval_seconds=_positive_int("BACKUP_INTERVAL_SECONDS", DEFAULT_BACKUP_INTERVAL_SECONDS),
             backup_keep=_positive_int("BACKUP_KEEP", DEFAULT_BACKUP_KEEP),
@@ -628,7 +637,7 @@ class Settings:
             mat_max_output_tokens=_positive_int("MAT_MAX_OUTPUT_TOKENS", DEFAULT_MAT_MAX_OUTPUT_TOKENS),
             mat_image_max_edge=_positive_int("MAT_IMAGE_MAX_EDGE", DEFAULT_MAT_IMAGE_MAX_EDGE),
             openrouter_api_key=os.environ.get("OPENROUTER_API_KEY") or None,
-            monthly_budget_usd=_priced("MONTHLY_BUDGET_USD", "0") if os.environ.get("MONTHLY_BUDGET_USD") else None,
+            monthly_budget_usd=monthly_budget_usd,
             source_order=_names("SOURCE_ORDER", DEFAULT_SOURCE_ORDER),
             wikidata_user_agent=os.environ.get("WIKIDATA_USER_AGENT") or None,
             ask_model=os.environ.get("ASK_MODEL") or DEFAULT_ASK_MODEL,
@@ -656,6 +665,22 @@ def _names(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     raw = os.environ.get(name, "")
     names = tuple(part.strip() for part in raw.split(",") if part.strip())
     return names or default
+
+
+def _hostnames(name: str) -> frozenset[str]:
+    """Comma-separated host names, lowercased; a URL, a port or a path among them is refused.
+
+    Refused rather than reduced to its name, because `http://arrt.lan` or
+    `arrt.lan:8770` is a sign the operator meant something this setting does not
+    do, and quietly keeping half of it would hide that.
+    """
+    names = frozenset(part.rstrip(".").lower() for part in _names(name, ()))
+    for host in names:
+        if not _HOSTNAME.fullmatch(host):
+            raise ConfigError(
+                f"{name} lists names only, as in arrt.lan,arrt.example.com; got {host!r}, which is not one. Check .env."
+            )
+    return names
 
 
 def _require(name: str) -> str:
@@ -736,20 +761,19 @@ def _priced(name: str, default: str) -> Decimal:
         value = Decimal(raw)
     except InvalidOperation as exc:
         raise ConfigError(f"{name} must be a decimal number of US dollars, got {raw!r}. Check .env.") from exc
+    if not value.is_finite():
+        raise ConfigError(f"{name} must be a decimal number of US dollars, got {raw!r}. Check .env.")
     if value < 0:
         raise ConfigError(f"{name} is a price and cannot be negative, got {value}. Check .env.")
     return value
 
 
-def _units(name: str, default: Units) -> Units:
-    """Read a system of units, refusing anything that is not one by name."""
-    raw = os.environ.get(name)
-    if not raw:
-        return default
+def _environment_settings(limits: Limits) -> dict[str, str]:
+    """The household settings the environment gives, refusing a value one cannot take, by name."""
     try:
-        return Units(raw.strip().lower())
-    except ValueError as exc:
-        raise ConfigError(f"{name} must be imperial or metric, got {raw!r}. Check .env.") from exc
+        return from_environment(os.environ, limits)
+    except SettingRefused as exc:
+        raise ConfigError(f"{exc} Check .env.") from exc
 
 
 def _flag(name: str, *, default: bool) -> bool:

@@ -1,0 +1,56 @@
+# How testament runs Arrt's suites on the pool (`testament guide project`).
+#
+# Three projects, three uv environments, one image (`.devcontainer/Dockerfile`).
+# A pytest suite cannot set a working directory, so each project's suite runs
+# from the repo root against that project's environment and pytest config, with
+# `--rootdir=.` so its test ids are paths from the root, as testament routes them.
+#
+# The live suites (`live_*`, `llm_eval`) are not here: they reach museums or
+# spend money, the curation plane's addopts deselect them, and they are run by
+# hand on this machine (CLAUDE.md, `docs/testing.md`).
+
+manifest_version = 3
+name = "arrt"
+executor = "container"
+env_inputs = ["uv.lock", "arrt/uv.lock", "contract/uv.lock", ".python-version", "arrt/.python-version"]
+env = { UV_CACHE_DIR = "/tr/cache/uv" }
+
+[image]
+dockerfile = ".devcontainer/Dockerfile"
+inputs = [".devcontainer/Dockerfile", ".python-version"]
+
+[setup]
+steps = [
+  ["uv", "sync", "--frozen"],
+  # `--group browser`, or a plain sync uninstalls Playwright and the browser
+  # suite skips itself (CLAUDE.md).
+  ["uv", "sync", "--frozen", "--project", "arrt", "--group", "browser"],
+  ["uv", "sync", "--frozen", "--project", "contract"],
+]
+
+# The governance suite: the root's contracts between the artifacts and the code.
+[suites.governance]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "pytest", "-q"]
+default_selection = ["tests"]
+
+# The curation plane. `-n 0` because testament is the parallelism: its addopts
+# ask for `-n auto`, which inside one batch would fight the runner's own slots.
+[suites.curation]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/pyproject.toml", "--rootdir=.", "-n", "0", "-q"]
+default_selection = ["arrt/tests/unit", "arrt/tests/integration", "arrt/tests/contract", "arrt/tests/eval", "arrt/tests/test_scaffold.py"]
+default_for_paths = true
+
+# The browser suite: the shipped client in Chromium, on the runners that carry it.
+[suites.browser]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "--project", "arrt", "pytest", "-c", "arrt/pyproject.toml", "--rootdir=.", "-n", "0", "-q", "-m", "browser"]
+default_selection = ["arrt/tests/browser"]
+requires = ["chrome"]
+
+# The contract package Arrt Player pins.
+[suites.contract]
+adapter = "pytest"
+command = ["uv", "run", "--frozen", "--project", "contract", "pytest", "-c", "contract/pyproject.toml", "--rootdir=.", "-q"]
+default_selection = ["contract/tests"]

@@ -27,7 +27,6 @@ from arrt.config import (
     DEFAULT_DISCOVERY_MODEL,
     DEFAULT_DISCOVERY_SEARCH_RESULTS,
     DEFAULT_INPUT_COST_USD_PER_MTOK,
-    DEFAULT_LABEL_UNITS,
     DEFAULT_MAX_IMAGE_BYTES,
     DEFAULT_MIN_FREE_BYTES,
     DEFAULT_OFFERED_WORKS_PER_RUN,
@@ -91,7 +90,7 @@ def _defaults(art_root, **overrides) -> Settings:
             preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES,
             rotation_interval_seconds=DEFAULT_ROTATION_INTERVAL_SECONDS,
             rotation_shuffle=DEFAULT_ROTATION_SHUFFLE,
-            label_units=DEFAULT_LABEL_UNITS,
+            environment_settings={},
             backup_dir=None,
             backup_interval_seconds=DEFAULT_BACKUP_INTERVAL_SECONDS,
             backup_keep=DEFAULT_BACKUP_KEEP,
@@ -177,7 +176,9 @@ def test_the_plane_moves_the_catalogue_onto_walls_before_it_serves(tmp_path, mon
             catalogue = CatalogueService(observer)
             display = DisplayService(
                 observer,
-                LibraryFacade(catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue), label_units=Units.IMPERIAL),
+                LibraryFacade(
+                    catalogue, DiscoveryService(SqliteDiscovery(opened), catalogue), label_units=lambda: Units.IMPERIAL
+                ),
                 DisplaySettings(art_root=art_root, rotation_interval_seconds=180, shuffle=True),
             )
             wall = observer.list_walls()[0]
@@ -755,11 +756,12 @@ def test_startup_builds_the_services_over_the_plugins_it_loaded(tmp_path, monkey
 def test_labels_state_dimensions_in_the_deployments_units(tmp_path, monkeypatch):
     """Through `main`, at metric, which is not the default, so a dropped argument shows."""
     art_root = tmp_path / "art"
-    _stub_settings(monkeypatch, art_root, label_units=Units.METRIC)
+    _stub_settings(monkeypatch, art_root, environment_settings={"label_units": "metric"})
     seen = {}
 
     def capture(services, **kwargs):
-        seen["units"] = services.clients._library._label_units
+        seen["units"] = services.clients._library._label_units()
+        seen["locked"] = [state.locked for state in services.settings.describe() if state.setting.key == "label_units"]
         return object()
 
     monkeypatch.setattr(entry_point, "create_app", capture)
@@ -768,6 +770,7 @@ def test_labels_state_dimensions_in_the_deployments_units(tmp_path, monkeypatch)
     entry_point.main()
 
     assert seen["units"] is Units.METRIC, "LABEL_UNITS did not reach the labels"
+    assert seen["locked"] == [True], "a setting the environment gives must be locked"
 
 
 def _built_by_main(tmp_path, monkeypatch, **overrides) -> dict:
@@ -831,3 +834,10 @@ def test_startup_names_a_retired_setting_still_set_and_says_nothing_otherwise(tm
         assert "QUALITY_MINIMUM_PX" in record.getMessage()
     else:
         assert retired == []
+
+
+def test_the_entry_point_gives_the_guard_the_deployments_names(tmp_path, monkeypatch):
+    """`CURATION_ALLOWED_HOSTS` reaches the application, or a listed name is refused by its own setting."""
+    built = _built_by_main(tmp_path, monkeypatch, allowed_hosts=frozenset({"arrt.example"}))
+
+    assert built["allowed_hosts"] == frozenset({"arrt.example"})

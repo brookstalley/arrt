@@ -218,6 +218,47 @@ revision. Nothing in the catalogue changed, so no copy is needed; a server from
 before this refuses the new Player's screenless heartbeats, so the Player goes
 back first.
 
+## The names the server answers to (2026-11-08)
+
+`build-plan-mcp-household-agents.md`. **Before deploying, add to the env file
+every name a browser or an MCP client uses to reach the server**, the reverse
+proxy's name for it included:
+
+    CURATION_ALLOWED_HOSTS=<name>,<other name>
+
+From this release on, every surface but the Player's refuses a request for a
+name not listed (`421`), and a request from a page at any address but a listed
+name or its own (`403`). `localhost` and any IP address always pass as the name
+asked for. The Player's routes are not checked, so the
+walls keep their feed whatever is set. A deployment that sets nothing and is
+reached by name loses its browser interface and MCP until the name is listed,
+and each refusal says so. Then check:
+
+1. **The browser interface opens** at the name the household uses.
+2. **The server logs no `refused a request for host`** for a name the household
+   uses.
+3. **A name not listed is refused**: `curl -s -o /dev/null -w '%{http_code}' -H
+   'Host: not-listed.example' http://<address>:8770/api/health` prints `421`.
+
+**The way back** is the previous image. Nothing in the catalogue changed, and the
+setting is ignored by a server from before this.
+
+## Ask's spend in the ledger (2026-11-09)
+
+From this release on, each Ask reply that was billed anything writes a spend
+row in the category `ask_tokens` (#337). Nothing to do before deploying. Check
+after one Ask reply that `art_discovery(action='spend')` went up by about what
+the reply showed under it.
+
+**The way back** is the previous image, after one statement on the catalogue.
+A server from before this refuses a spend row in a category it does not know,
+so its month's spend fails once Ask has written one:
+
+    sqlite3 <art root>/catalogue.sqlite "DELETE FROM spend_records WHERE category = 'ask_tokens';"
+
+That forgets only what Ask spent since the upgrade, which the earlier server
+never counted.
+
 ## `curation.service`
 
 `deploy/curation.service` runs the server under systemd rather than in a

@@ -183,6 +183,15 @@ re-derivation protocol, not a patch.
 > The Player's reverse path (the TV websocket, SPI) is unchanged, and it stays
 > the only thing that talks to a television.
 
+**Being on the LAN means being on it, not having a browser there.** Since
+2026-11-08 (the owner's ruling on #53) every surface but the
+Player's refuses a request whose `Host` is not `localhost`, an IP address, or a
+name in `CURATION_ALLOWED_HOSTS`, and one whose `Origin` is neither a listed name
+nor the request's own address. That stops a web page in a LAN browser from driving the
+server by DNS rebinding (`api-contract.md` § Security has the decision). It
+is not authentication: anything on the LAN that calls the server by an allowed
+name or an address is still the curator.
+
 **`initiated_by` is provenance, not authorisation.** Every surface has identical
 authority. An agent-initiated run and a UI-initiated run are subject to the same
 gates, because branching authority on the caller would reintroduce exactly the
@@ -368,6 +377,9 @@ must be re-derived rather than extended:
 > plan owes an answer to whether auto-accept is offered at all, and if so what
 > replaces the human in `set_verdict`'s visible-ids bound. It is not re-derived
 > here, because Watches have no design beyond the anchor doc yet.
+>
+> **Fired and re-derived 2026-11-09:** § The unattended trigger fired, below.
+> Auto-accept is not offered (the owner, 2026-11-09).
 
 ### The fetch trigger fired — re-derived 2026-08-03
 
@@ -492,7 +504,72 @@ address, blind), and, if it is shaped like a page
 the plugin reads, steer which image is offered for review. That is the realistic
 worst case § Prompt Injection already names, now reachable one step earlier, and
 it still stops at the curator. Each Ask is started by a person, so bound 6 is
-unchanged; Watches would remove it, and their plan must re-derive this.
+unchanged for an Ask. A Watch removes it, and § The unattended trigger fired,
+next, re-derives this residual without it.
+
+### The unattended trigger fired — re-derived 2026-11-09
+
+`build-plan-watches.md` builds **Watches**: a household's request in words, which
+Arrt re-runs as an ordinary discovery run on a cadence, with nobody in the session
+(`initiated_by` `unattended`, and the run's `watch_id`). This is the second
+trigger above, and it is re-derived here, not extended.
+
+**What the owner ruled, 2026-11-09, on the advisor's recommendation:**
+- **Review only.** Everything a Watch finds stops in To review. **Auto-accept is
+  not offered**, and nothing a Watch runs can write a verdict.
+- **Only verdicts shape taste.** Nothing a Watch finds reaches taste or any
+  prompt until a curator gives it a verdict (`agents-and-memory.md` open
+  question 2).
+
+**The bounds, with nobody in the session.** The table above, re-read for a
+Watch's run:
+
+| # | Bound | For a Watch run |
+|---|---|---|
+| 1 | The spend cap fails closed, at the provider | **Unchanged, and the strongest.** Two Arrt-enforced budgets sit under it: the household's unattended allowance and the Watch's own monthly cap. Both are checked before a run starts and fail open on a ledger bug (`build-plan-unattended-settings.md` § Tradeoffs), so they bound unattended work's share and never replace the ceiling |
+| 2 | Tool authority is narrow | **Unchanged, and stronger than for an Ask.** A Watch's run is phase 1 (one completion with the provider's web search and **no function tools**, `library/discovery/openrouter.py`) then phase 2 (finders over the cited pages, § Plugins read pages a search cited). The model's answer is a work list, read as data. It holds no catalogue tool, so no verdict tool is in reach of anything a Watch's search reads |
+| 3 | The per-run search cap | **Unchanged.** A Watch's run is capped like any other |
+| 4 | Acceptance is visible and reversible | **Becomes the bound that carries the weight, and holds by construction.** Nothing reaches a wall without a curator's verdict, because no unattended path writes one. It is still weak as prevention of a *bad review card*, which is what an attacker can now produce unattended |
+| 5 | `set_verdict` requires explicit ids | **Inapplicable to the run**, which holds no verdict tool. It still bounds an agent on MCP, as before |
+| 6 | The curator is present | **Removed.** This is what makes the work unattended |
+
+**What is new, and what bounds it:**
+
+1. **A planted page is read again on every pass.** An Ask reads a page when
+   someone asks. A Watch whose words lead its search to an attacker's page reads
+   it every hour, day or week. The worst case is unchanged: it steers what is
+   proposed, and the proposals stop at review. Its frequency rises, and it is
+   bounded in cost by bound 1's three budgets and in reach by bound 4.
+2. **An agent can write a Watch and switch unattended work on.** The household's
+   own agent reaches `/mcp` from the LAN (§ Trust Boundary), and both the Watch
+   and the unattended settings are writable over MCP (the parity rule, and the
+   owner's ruling of 2026-11-09 on settings). An agent steered by text it read
+   (an Ask's search, a page, a review card's title) can therefore start standing
+   unattended spend that nobody asked for. What bounds it:
+   - **the allowance may not exceed `MONTHLY_BUDGET_USD`** where one is set, and
+     the provider's key limit stops the bill regardless;
+   - **every write is attributed**: a Watch stores `updated_by`, the settings
+     store does too, and each change is logged with its surface, so a surprise
+     in the month's spend is traceable to the surface that made it;
+   - **the result is review cards**, which bound 4 stops.
+   This is **accepted** (the owner, 2026-11-09: Watches are writable over MCP), for the reason § Trust Boundary gives for every LAN
+   client: the household that runs the agent is the boundary. It is weak as
+   prevention and is labelled as such.
+3. **A Watch's words are the household's, and its finds are outside text.** The
+   words are shown as text (§ Direction). A find's title and artist are outside
+   text, as an Ask's are (§ Source plugins). Neither is told to a later prompt
+   until a verdict, so a find cannot steer the next run of its own Watch.
+
+**The honest summary, re-stated without bound 6.** The realistic worst case is
+an attacker's page steering what an unattended run proposes, on a schedule,
+spending inside the unattended allowance, and leaving unwanted cards in To review
+until someone looks. **Annoying, bounded in cost, and visible. Not a breach, and
+nothing reaches a wall.**
+
+**What would change this, besides the triggers above:** any unattended path that
+can write a verdict, which includes auto-accept and also an agent run unattended
+with catalogue tools; any prompt that is told unreviewed finds; or an allowance
+that is no longer bounded by the monthly budget.
 
 ## Content Appropriateness
 
@@ -810,8 +887,8 @@ one-world search first.
   - **Player authentication on the LAN.** Closed 2026-09-30: a per-wall token
     (§ Trust Boundary, the note on the re-architecture); a per-client token
     since 2026-10-02.
-  - **The re-derivation of § Prompt Injection for Watches.** Owed by the plan
-    that builds them, before any Watch runs unattended.
+  - **The re-derivation of § Prompt Injection for Watches.** Closed 2026-11-09:
+    § The unattended trigger fired, written before any Watch can run
+    (`build-plan-watches.md` Chunk 01).
 
-  Both are tracked by `re-architecture.md` § Open questions until backlog items
-  are filed.
+  Both are closed; `re-architecture.md` § Open questions records each.

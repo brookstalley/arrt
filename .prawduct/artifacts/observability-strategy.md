@@ -31,7 +31,7 @@ reader should not conclude these were forgotten.
 > - **The server gains scheduled work** (Watches and upgrade re-searches, wave
 >   6). Its failures happen with no curator in the session, which fires the
 >   push-notification revisit trigger recorded under § Accepted detection
->   latency.
+>   latency. *(Revisited 2026-11-09: panel-only holds, see there.)*
 >
 > The dated notes below mark each place. As-built content is unchanged, because
 > it describes the running Pi.
@@ -43,7 +43,7 @@ reader should not conclude these were forgotten.
 | Structured logs | **Yes** — the primary signal | Both planes, to the systemd journal |
 | Health/heartbeat state | **Yes** | Display writes it; the curation UI reads and displays it |
 | Spend | **Per run, yes; the month's remaining budget, yes, in the sidebar** *(since 2026-10-07; it was "never" until the owner reversed it, see the note below the table)* | Recorded spend is on the run and reported by the discovery surface. What is left this month is `GET /api/budget`, read from `limit_remaining` (`library/services/spending.py`), display only and never on the health panel |
-| Ask's replies | **Yes, per reply, since 2026-10-08** | One INFO line on `arrt.ask` per reply: thread, how it ended (`answered`, `step_limit`, `budget_spent`, `failed`, `cancelled`), model calls, tool calls, cost (OpenRouter's own `response_metadata["cost"]`, summed) with the number of calls that carried none, and seconds. A failed reply also logs its traceback. The cost is shown to the curator under the reply. **No `SpendRecord` is written for it**: the month's figure in the sidebar is the provider's own, so it already includes Ask. A per-reply record is the 3tears spending cap's question (pacepace/3tears#583) |
+| Ask's replies | **Yes, per reply, since 2026-10-08** | One INFO line on `arrt.ask` per reply: thread, how it ended (`answered`, `step_limit`, `budget_spent`, `failed`, `cancelled`), model calls, tool calls, cost (OpenRouter's own `response_metadata["cost"]`, summed) with the number of calls that carried none, and seconds. A failed reply also logs its traceback. The cost is shown to the curator under the reply. **One `SpendRecord` (`ask_tokens`) is written per reply that was billed anything**, however it ended, so `art_discovery(action='spend')` and the month's total include Ask (the owner, 2026-10-09, #337). A write the store refuses is logged at ERROR and the reply still ends |
 | Metrics (time series) | No | No store, no query surface, nobody to read them. Revisit only if a real question needs a trend |
 | Distributed tracing | No | Two processes with no request/response between them. There is no distributed call to trace. *(2026-09-30: after wave 2 there is one: the Player's manifest poll and media pull, and its heartbeat POST. Each is a single hop with no fan-out, so `work_id` and the wall id remain enough correlation, and this row still holds. See `re-architecture.md`.)* |
 | Uptime monitoring (external) | No | Follows from the operator's alerting decision below |
@@ -686,6 +686,27 @@ the session, which is what makes self-announcing failures self-announcing.
 > declined notifications for now. The decision is the operator's, made with this
 > trigger in view.
 
+**Revisited 2026-11-09, and panel-only holds: the owner chose "browser only"**
+(`build-plan-watches.md`, on the advisor's recommendation). With the trigger in
+view, each of the three conditions has a home that does not need a push:
+
+- **A Watch that stopped firing** is *overdue* on Settings › Watches (an hour
+  past due with nothing tried), flagged on the status indicator, and missing its
+  `scheduler.pass` lines in the log (§ the failure table). Overdue is reckoned
+  when a Watch is read, so a dead scheduler shows too.
+- **A Watch refused for its cap, or for the allowance,** shows the refusal's
+  sentence on the Watch, and the indicator flags an allowance that is spent.
+  Neither is a fault. Both are the household's own budget holding, and the cost
+  of not knowing is a Watch that waits for the month to turn.
+- **A Watch that auto-accepted something** cannot happen, because auto-accept is
+  not offered (`security-model.md` § The unattended trigger fired).
+
+**What is accepted:** a Watch that fails or is refused is noticed at the next
+visit to the browser, which may be days, as every other failure here is. What
+it costs is finds arriving later, never a wrong picture on a wall. **The revisit
+trigger becomes:** a household finding that it learned too late that a Watch
+had stopped, or any unattended path that can change a wall.
+
 ### The one surface the panel does not cover: CI
 
 **Scope correction, 2026-08-06.** The decision above says "the curation UI health
@@ -836,7 +857,10 @@ signal exists:
 | **The TV takes selections and displays none of them** | `rotation.wall_unchanged` at WARNING **once**, carrying the id that was accepted and the set's own `art_mode` — then `rotation.wall_recovered` at INFO when the wall starts changing again. **The pairing is the design**, because the condition lasts as long as somebody leaves the panel off: a line per rotation would be a hundred a night saying the one thing that has not changed, and journald rate-limits by dropping the ERRORs this plane's only failure channel carries. The art-mode flag is read on this path for the operator's sake — it is the answer to *why is the wall not changing*, and it costs one call on a rotation that has already failed. It is read **separately, before every selection**, for a different purpose: the plane may not touch a television somebody is watching, and that gate asks whether it may act at all rather than why it did not. **The absence of `rotation.selected` is not itself the signal**: nothing distinguishes a wall that stopped changing from a daemon that stopped running, which is what this line exists to say |
 | Manifest major version unrecognised | ERROR, previous manifest retained. *(2026-09-30: the same over HTTP, from wave 2. Wave 4's major-2 bump, when compositing moves to the Player, is the planned occasion for it, so the ERROR is how an un-upgraded Player announces itself. See `re-architecture.md`.)* |
 | *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |
-| *Planned, 2026-09-30:* a scheduled Library job (Watch, upgrade re-search) stopped running | A positive line on every pass, including empty ones, as with the topic sweep. Absence over an interval is the fault. Whether it also reaches a push channel is the revisit above. Built with Watches in wave 6 |
+| *Built 2026-11-09 (`build-plan-watches.md`):* a scheduled Library job (Watch; later the upgrade re-search) stopped running | `scheduler.pass` at INFO once per job per pass (every five minutes, `PASS_SECONDS`), including empty ones, as with the topic sweep, carrying `due`, `started` and `refused`. Absence over an interval is the fault in the log; `scheduler.started` says the thread began, and `scheduler.wedged` that it would not stop. **In the browser, a Watch is *overdue* when it is on, unattended work is on, and it has been due for over an hour (`OVERDUE_AFTER`) with nothing tried**, whatever its cadence, because a live scheduler tries a due Watch within one pass. Reckoned when the Watch is read, not by the scheduler, so a scheduler that died is still seen: Settings › Watches says so and the status indicator flags it. No push channel (the owner, 2026-11-09, § Accepted detection latency) |
+| *Built 2026-11-09:* a scheduled job's pass raised | `scheduler.pass_failed` at ERROR with the job's name and the trace; the other jobs' passes still run, and the next pass tries again |
+| *Built 2026-11-09:* a due Watch did not start | `watch.refused` at INFO with its `refusal` (`off`, `no_key`, `allowance_spent`, `cap_spent`, `could_not_start`), and the refusal stored on the Watch, which Settings › Watches shows in a sentence. Not a fault: the household's budget holding. `watch.could_not_start` at ERROR with the trace is the one refusal that is a fault |
+| *Built 2026-11-09:* a Watch's run started but its record did not | `watch.unrecorded_start` at ERROR, naming the run. The next pass, not seeing it, starts the Watch again, so a run of these lines is a paid run each |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
 | Acquisition queue stopped running | `acquisition.queue_pass` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault, and Activity › Queue keeps showing *queued* works that never move. A run of `acquisition.queue_paused` is the deployment refusing (disk, binary, provider), not the worker dying |
 | Topic sweep stopped running | `topics.swept` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault. A run of `topics.sweep_unavailable` is Wikidata refusing, not the sweep dying. With no `WIKIDATA_USER_AGENT` the one `topics.off` line at start says why there is nothing |

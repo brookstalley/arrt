@@ -26,7 +26,7 @@ import { paintBudget } from "./spend.js";
  * the section's own label *is* that link and is not listed again — Artworks
  * under Artworks, Walls under Walls, the Settings index under Settings. Every
  * other page is listed, which is why Status sits under System and Players,
- * Sources and Taste under Settings, as they do in Sonarr. */
+ * Sources, Watches, General and Taste under Settings, as they do in Sonarr. */
 function layout(table, sections) {
   const pages = Object.entries(table).filter(([, entry]) => entry.page);
   return sections.map((section) => {

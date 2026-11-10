@@ -1368,6 +1368,13 @@ class PicturesOut(BaseModel):
     description: str
 
 
+class WatchesHealthOut(BaseModel):
+    """The Watches a person needs to know about: overdue ones, by their words, and a spent allowance holding one."""
+
+    overdue: list[str]
+    allowance_spent: bool
+
+
 class HealthOut(BaseModel):
     """Observations about the walls, the backup, the source plugins and the picture store.
 
@@ -1396,6 +1403,8 @@ class HealthOut(BaseModel):
     #: installed, which the panel says in words.
     sources: list[SourcePluginOut]
     pictures: PicturesOut
+    #: What the Watches need a person to know, since nothing else will tell them.
+    watches: WatchesHealthOut
 
 
 class SourceYieldOut(BaseModel):
@@ -1475,6 +1484,9 @@ class RunOut(BaseModel):
     #: before reasons were kept. Prose for a curator to read, never a code to
     #: branch on; `status` is what says which ending this was.
     end_reason: str | None
+    #: The Watch whose scheduled pass started this run, or null for one a person
+    #: or an agent started. May name a Watch deleted since.
+    watch_id: str | None
 
 
 class CandidateWorkOut(BaseModel):
@@ -2417,3 +2429,127 @@ class NextOut(BaseModel):
 
     wall_id: str
     work_id: str
+
+
+class SettingOut(BaseModel):
+    """One household setting, with where its value came from.
+
+    `locked` is true when the environment gives the value: the browser and MCP
+    show it and cannot change it, and `environment_variable` is where it can be.
+    """
+
+    key: str
+    #: Its name as a person reads it.
+    label: str
+    value: str
+    default: str
+    #: `environment`, `stored`, `default`, or `set_aside`: a stored choice this
+    #: release or this deployment no longer allows, so the default applies.
+    source: str
+    locked: bool
+    environment_variable: str
+    description: str
+    #: The values it can take, in the order a control offers them; empty unless `kind` is `choice`.
+    choices: list[str]
+    #: The control it takes: `choice`, `money` (dollars, to the cent) or `text`.
+    kind: str
+    #: The heading it is listed under.
+    section: str
+    #: When and from which surface it was last changed, while a stored value exists.
+    updated_at: str | None
+    updated_by: str | None
+    #: Why a stored choice was set aside, naming the setting and the stored value;
+    #: null unless `source` is `set_aside`.
+    set_aside_reason: str | None
+
+
+class SettingListOut(BaseModel):
+    """Every household setting, in the order the screen shows them."""
+
+    settings: list[SettingOut]
+
+
+class SetSetting(BaseModel):
+    """A new value for one setting, in its own spelling: one of its `choices` for a choice.
+
+    Empty only where the setting takes it: the unattended model, where it means
+    the discovery model. Every other setting refuses it by name.
+    """
+
+    value: str = Field(max_length=200)
+
+
+class UnattendedOut(BaseModel):
+    """Where agent work with nobody watching stands this month, and whether a piece of it may start now."""
+
+    switched_on: bool
+    allowance_usd: str
+    spent_usd: str
+    remaining_usd: str
+    may_start: bool
+    #: `off`, `no_key` or `allowance_spent`, or null when it may start.
+    refusal: str | None
+    #: One sentence saying which, for the screen.
+    sentence: str
+
+
+class WatchOut(BaseModel):
+    """One Watch: a standing request Arrt re-runs with nobody watching, and leaves its finds in To review."""
+
+    watch_id: str
+    intent_text: str
+    enabled: bool
+    #: `hourly`, `daily` or `weekly` as the Watch was given it, or null to follow
+    #: the `unattended_cadence` setting.
+    cadence: str | None
+    #: How often it runs now: its own cadence, or the setting's.
+    effective_cadence: str
+    #: Its own monthly cap in dollars to the cent, or null for none beyond the allowance.
+    monthly_cap_usd: str | None
+    #: What it may spend this UTC month: its cap, never more than the allowance, or the allowance.
+    effective_cap_usd: str
+    created_at: str
+    created_by: str
+    updated_at: str
+    updated_by: str
+    #: The last pass that judged it due, whether it started or was refused, or null.
+    last_attempt_at: str | None
+    #: Its last started run, and how that run stands now; null when none.
+    last_run_id: str | None
+    last_run_status: str | None
+    #: Why the last attempt did not start, or null when it did.
+    last_refusal: str | None
+    #: When it is next due, or null while it is off or its run is under way.
+    next_due_at: str | None
+    #: Due for over an hour with nothing tried while unattended work is on.
+    overdue: bool
+    #: Whether this server is working on its last run now.
+    in_flight: bool
+    #: What its runs were billed this UTC month, in dollars to the cent.
+    spent_usd: str
+    #: One sentence for where it stands.
+    sentence: str
+
+
+class WatchListOut(BaseModel):
+    watches: list[WatchOut]
+
+
+class CreateWatch(BaseModel):
+    """A new Watch. An empty cadence follows the household's default; an empty cap leaves only the allowance."""
+
+    #: Longer than the service allows, so an over-long request is refused in the
+    #: service's words (`MAX_INTENT_CHARS`) rather than by a validator's.
+    intent_text: str = Field(max_length=4000)
+    cadence: str = Field(default="", max_length=20)
+    monthly_cap_usd: str = Field(default="", max_length=40)
+    enabled: bool = True
+
+
+class UpdateWatch(BaseModel):
+    """What to change on a Watch; anything left out stays. An empty cadence or cap clears it."""
+
+    intent_text: str | None = Field(default=None, max_length=4000)
+    cadence: str | None = Field(default=None, max_length=20)
+    monthly_cap_usd: str | None = Field(default=None, max_length=40)
+    enabled: bool | None = None

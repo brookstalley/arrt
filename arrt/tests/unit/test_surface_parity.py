@@ -539,3 +539,74 @@ def test_the_scene_projections_carry_the_same_field_names():
 
     check_parity("Scene", set(projected), _fields(http_models.SceneOut))
     check_parity("SceneWall", set(projected["walls"][0]), _fields(http_models.SceneWallOut))
+
+
+def test_the_setting_projections_agree():
+    """The route's `SettingOut` and `art_settings`' fields, for a stored setting, so every field is filled."""
+    from arrt.library.services.settings import LABEL_UNITS, SettingSource, SettingState
+
+    state = SettingState(LABEL_UNITS, "metric", SettingSource.STORED, WHEN, InitiatedBy.WEB_UI)
+
+    check_parity("Setting", set(bindings._setting_fields(state)), _fields(http_models.SettingOut))
+
+
+def test_the_unattended_projections_agree():
+    from decimal import Decimal
+
+    from arrt.library.services.unattended import Refusal, Standing
+
+    standing = Standing(
+        switched_on=True, allowance_usd=Decimal(5), spent_usd=Decimal(1), refusal=Refusal.ALLOWANCE_SPENT, sentence="s"
+    )
+
+    check_parity("UnattendedStanding", set(bindings._unattended_fields(standing)), _fields(http_models.UnattendedOut))
+
+
+def test_the_watch_projections_agree_value_for_value():
+    """`WatchOut` and `art_watches`' fields, for a Watch with every field filled, compared by value, not only by name."""
+    from decimal import Decimal
+
+    from arrt.library.services.settings import Cadence
+    from arrt.library.services.watches import WatchStanding
+    from arrt.persistence.discovery_records import RunStatus, Watch
+
+    class Rules:
+        def cadence_of(self, _watch):
+            return Cadence.WEEKLY
+
+        def effective_cap(self, _watch):
+            return Decimal("1.50")
+
+        def standing(self, watch):
+            return WatchStanding(
+                watch=watch,
+                cadence=Cadence.WEEKLY,
+                last_run_status=RunStatus.FAILED,
+                next_due_at=WHEN,
+                overdue=True,
+                spent_usd=Decimal("0.4"),
+                cap_usd=Decimal("1.50"),
+                in_flight=False,
+                sentence="s",
+            )
+
+    watch = Watch(
+        id="w",
+        intent_text="words",
+        enabled=False,
+        created_at=WHEN,
+        created_by=InitiatedBy.MCP_CLIENT,
+        updated_at=WHEN,
+        updated_by=InitiatedBy.WEB_UI,
+        cadence="weekly",
+        monthly_cap_usd=Decimal("2.5"),
+        last_attempt_at=WHEN,
+        last_run_id="r",
+        last_refusal="cap_spent",
+    )
+
+    over_mcp = bindings._watch_fields(Rules(), watch)
+    check_parity("Watch", set(over_mcp), _fields(http_models.WatchOut))
+    assert over_mcp == http_api._watch(Rules(), watch).model_dump()
+    assert (over_mcp["monthly_cap_usd"], over_mcp["effective_cap_usd"]) == ("2.50", "1.50")
+    assert (over_mcp["spent_usd"], over_mcp["last_run_status"], over_mcp["overdue"]) == ("0.40", "failed", True)

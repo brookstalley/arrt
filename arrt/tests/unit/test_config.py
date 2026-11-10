@@ -24,7 +24,7 @@ from arrt.config import (
     Settings,
     retired_settings_in,
 )
-from arrt.library.dimensions import Units
+from arrt.library.services.settings import SETTINGS
 
 
 @pytest.fixture(autouse=True)
@@ -49,6 +49,7 @@ def _clean_env(monkeypatch):
         "ART_ROOT",
         "CURATION_HOST",
         "CURATION_PORT",
+        "CURATION_ALLOWED_HOSTS",
         "ROTATION_INTERVAL_SECONDS",
         "ROTATION_SHUFFLE",
         "LABEL_UNITS",
@@ -56,6 +57,9 @@ def _clean_env(monkeypatch):
         "BACKUP_INTERVAL_SECONDS",
         "BACKUP_KEEP",
         "MONTHLY_BUDGET_USD",
+        # Every household setting's variable, from the settings' own list, so a
+        # setting added there is cleared here with no edit.
+        *(setting.environment_variable for setting in SETTINGS),
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -777,10 +781,22 @@ def test_a_monthly_budget_that_is_not_money_is_refused_by_name(monkeypatch, tmp_
         Settings.from_env()
 
 
-def test_labels_are_imperial_unless_told_otherwise(monkeypatch, tmp_path):
+@pytest.mark.parametrize("spelling", ["NaN", "Infinity", "-Infinity", "sNaN"])
+def test_a_budget_that_is_not_a_number_of_dollars_is_refused_by_name(monkeypatch, tmp_path, spelling):
+    """`Decimal` reads these as values, and NaN then fails the sign check as an exception of its own."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", spelling)
+
+    with pytest.raises(ConfigError, match="MONTHLY_BUDGET_USD must be a decimal number of US dollars"):
+        Settings.from_env()
+
+
+def test_label_units_the_environment_does_not_give_are_left_to_the_settings(monkeypatch, tmp_path):
+    """Unset, the environment locks nothing, and the stored value or the default applies
+    (imperial, `test_settings.py`)."""
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
 
-    assert Settings.from_env().label_units is Units.IMPERIAL
+    assert "label_units" not in Settings.from_env().environment_settings
 
 
 @pytest.mark.parametrize("spelling", ["metric", "METRIC", " Metric "])
@@ -788,7 +804,7 @@ def test_labels_are_metric_however_metric_is_spelled(monkeypatch, tmp_path, spel
     monkeypatch.setenv("ART_ROOT", str(tmp_path))
     monkeypatch.setenv("LABEL_UNITS", spelling)
 
-    assert Settings.from_env().label_units is Units.METRIC
+    assert Settings.from_env().environment_settings["label_units"] == "metric"
 
 
 def test_a_system_of_units_that_is_neither_is_refused_rather_than_guessed(monkeypatch, tmp_path):
@@ -798,4 +814,39 @@ def test_a_system_of_units_that_is_neither_is_refused_rather_than_guessed(monkey
     monkeypatch.setenv("LABEL_UNITS", "metirc")
 
     with pytest.raises(ConfigError, match="LABEL_UNITS must be imperial or metric, got 'metirc'"):
+        Settings.from_env()
+
+
+def test_allowed_hosts_are_read_lowercased_and_without_a_trailing_dot(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("CURATION_ALLOWED_HOSTS", " Arrt.LAN , arrt.example.com., ,")
+
+    assert Settings.from_env().allowed_hosts == frozenset({"arrt.lan", "arrt.example.com"})
+
+
+def test_no_allowed_hosts_is_none_listed(monkeypatch, tmp_path):
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.delenv("CURATION_ALLOWED_HOSTS", raising=False)
+
+    assert Settings.from_env().allowed_hosts == frozenset()
+
+
+@pytest.mark.parametrize("listed", ["http://arrt.lan", "arrt.lan:8770", "arrt.lan/mcp", "*.lan", "arrt lan"])
+def test_an_allowed_host_that_is_not_a_name_is_refused_by_name(monkeypatch, tmp_path, listed):
+    """Half of what the operator meant would be kept silently, so none of it is."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("CURATION_ALLOWED_HOSTS", f"arrt.example,{listed}")
+
+    with pytest.raises(ConfigError, match="CURATION_ALLOWED_HOSTS") as refused:
+        Settings.from_env()
+    assert listed.lower() in str(refused.value)
+
+
+def test_an_environment_allowance_above_the_environment_budget_refuses_to_start(monkeypatch, tmp_path):
+    """Through `from_env`, so the budget it read is the one the allowance is held to."""
+    monkeypatch.setenv("ART_ROOT", str(tmp_path))
+    monkeypatch.setenv("MONTHLY_BUDGET_USD", "20")
+    monkeypatch.setenv("UNATTENDED_ALLOWANCE_USD", "25")
+
+    with pytest.raises(ConfigError, match="UNATTENDED_ALLOWANCE_USD is a share of the month's budget, \\$20"):
         Settings.from_env()

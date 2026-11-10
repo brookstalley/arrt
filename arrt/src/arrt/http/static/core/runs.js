@@ -9,6 +9,17 @@
 
 export const KIND_WORDS = { discovery: "Get from Ask", resolve: "Get again", get: "Get of chosen works" };
 
+/* A Get's kind in words, naming a Watch's: a run a Watch started with nobody
+ * watching says so wherever it is listed, so its works are never mistaken for
+ * ones somebody asked for just now. */
+export function runKind(run) {
+  if (run.watch_id) return "Get from a Watch";
+  return KIND_WORDS[run.kind] || run.kind;
+}
+
+/* What a Watch's Get says under its heading, beside a link to Settings › Watches. */
+export const FOUND_BY_WATCH = "Found by one of your Watches, with nobody watching. Nothing it finds reaches a wall until you accept it.";
+
 /* A Get's heading: its intent, or what kind of Get it is when it has none. */
 export function runTitle(run) {
   return run.intent || (run.kind === "get" ? "Get" : "Get again");

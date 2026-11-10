@@ -19,7 +19,7 @@ makes the mount work.
 """
 
 import logging
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Collection, Sequence
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Final
@@ -31,13 +31,16 @@ from langchain_core.tools import BaseTool
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.types import Receive, Scope, Send
 
-from arrt.ask.agent import Ask
+from arrt.ask.agent import Ask, ReplyCost
 from arrt.config import DEFAULT_ASK_STEP_LIMIT, DEFAULT_BACKUP_INTERVAL_SECONDS
 from arrt.http import api, ask, pages, player
+from arrt.http.hosts import HostGuard
 from arrt.library.acquisition.queue import start_acquisition_queue
+from arrt.library.services.scheduler import start_scheduler
 from arrt.library.services.topic_sweep import start_topic_sweep
 from arrt.mcp.server import build_server, dispatch
 from arrt.persistence.backup import CatalogueBackup, start_backups
+from arrt.persistence.discovery_records import SpendCategory
 from arrt.services.container import Services
 from arrt.services.errors import ServiceError
 
@@ -68,11 +71,13 @@ def create_app(
     *,
     sweep_topics: bool = False,
     acquire_queue: bool = False,
+    schedule: bool = False,
     backup: CatalogueBackup | None = None,
     backup_interval_seconds: int = DEFAULT_BACKUP_INTERVAL_SECONDS,
     ask_model: BaseChatModel | None = None,
     ask_step_limit: int = DEFAULT_ASK_STEP_LIMIT,
     ask_tools: Sequence[BaseTool] = (),
+    allowed_hosts: Collection[str] = frozenset(),
 ) -> FastAPI:
     """Build the application around already-constructed services.
 
@@ -92,10 +97,20 @@ def create_app(
     stronger one**: it writes originals, renditions and spend rows behind a test
     that accepted a work, and with a live transport it would fetch from a museum.
 
+    **The scheduler is off unless asked for (`schedule`), the strongest case of
+    all**: its passes start discovery runs that spend with nobody watching. A
+    suite drives a pass itself (`services.scheduler.run_pass()`).
+
     **Ask answers nothing without `ask_model`**, the keyless deployment. Its
     agent is built here, over the same `dispatch` the MCP surface calls, so its
     tools cannot be wired to anything but these services. `ask_tools` are tools
     beside the surface's, such as web search.
+
+    **Every route and mount but the Player's sits behind the Host and Origin
+    guard** (`arrt.http.hosts`), installed as middleware so it wraps the MCP
+    mount and the static files as well as the routes. The Player's routes take
+    the wall's token instead. `allowed_hosts` are the names it answers to besides
+    `localhost` and an IP address.
     """
     mcp_server = build_server(services)
     session_manager = StreamableHTTPSessionManager(
@@ -105,9 +120,17 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        halt_topics = start_topic_sweep(services.topic_sweep) if sweep_topics else None
-        halt_queue = start_acquisition_queue(services.acquisition_queue) if acquire_queue else None
-        halt_backups = None if backup is None else start_backups(backup, interval_seconds=backup_interval_seconds)
+        # Stopped in the reverse of the order started, each one only if asked for.
+        halts = [
+            start()
+            for asked, start in (
+                (sweep_topics, lambda: start_topic_sweep(services.topic_sweep)),
+                (acquire_queue, lambda: start_acquisition_queue(services.acquisition_queue)),
+                (schedule, lambda: start_scheduler(services.scheduler)),
+                (backup is not None, lambda: start_backups(backup, interval_seconds=backup_interval_seconds)),
+            )
+            if asked
+        ]
         if backup is None:
             log.info("the catalogue will not be backed up; BACKUP_DIR is not set")
         else:
@@ -117,12 +140,8 @@ def create_app(
                 log.info("curation plane ready; MCP server mounted at %s", MCP_PATH)
                 yield
         finally:
-            if halt_topics is not None:
-                halt_topics()
-            if halt_queue is not None:
-                halt_queue()
-            if halt_backups is not None:
-                halt_backups()
+            for halt in reversed(halts):
+                halt()
 
     app = FastAPI(
         title="Curation",
@@ -137,6 +156,7 @@ def create_app(
         partial(dispatch, services),
         ask_model,
         step_limit=ask_step_limit,
+        record_cost=partial(_record_ask_cost, services),
         local_tools=ask_tools,
         taste=services.taste.brief,
     )
@@ -185,4 +205,17 @@ def create_app(
     app.include_router(pages.router)
     app.mount(STATIC_PATH, pages.ClientFiles(directory=pages.STATIC_DIR), name="static")
 
+    app.add_middleware(HostGuard, allowed_hosts=allowed_hosts, exempt=player.router.routes)
+
     return app
+
+
+def _record_ask_cost(services: Services, cost: ReplyCost) -> None:
+    """Write one Ask reply's cost to the spend ledger, beside discovery's and the mat's."""
+    services.discovery.record_spend(
+        category=SpendCategory.ASK_TOKENS,
+        cost_usd=cost.cost_usd,
+        model_id=cost.model_id,
+        input_tokens=cost.input_tokens,
+        output_tokens=cost.output_tokens,
+    )
