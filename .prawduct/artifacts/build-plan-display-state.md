@@ -56,13 +56,7 @@ panel applies it to `unreachable` here.
 - `[ASSUMPTION: an HDMI connector reported "no screen detected" (#274's reading) is
   dark; an output absent from the client is no_screen.]`
 
-## Status
-
-- [x] Chunk 01: The contract
-- [x] Chunk 02: The Frame controller
-- [x] Chunk 03: The HDMI controller
-- [x] Chunk 04: The server and Walls
-- [ ] Chunk 05: On the wall
+## Chunks
 
 ### Chunk 01: The contract
 

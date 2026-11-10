@@ -109,15 +109,7 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 - `api-contract.md` § The Server↔Player surface and § Versioning: **conforms**: one new route, a new document with its own schema and major, and additive keys elsewhere.
 - `observability-strategy.md`, a new execution context (the label renderer): **conforms by design**: it reports as the panel does today, once per episode for an unavailable panel or an unreadable document, never once per poll.
 
-## Status
-
-- [x] Chunk 01: The contract
-- [x] Chunk 02: The server's records
-- [x] Chunk 03: The server's routes
-- [x] Chunk 04: The interface
-- [x] Chunk 05: The Player reports
-- [x] Chunk 06: The label renderer
-- [ ] Chunk 07: On the wall
+## Chunks
 
 ### Chunk 01: The contract
 

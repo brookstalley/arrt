@@ -396,11 +396,7 @@ builds its screen on the writer, and 02's review is the one
 - After 02 (cumulative): the full bundle, and the end-to-end record in the
   change log.
 
-## Status
-
-- [x] Chunk 01: The scene in the feed
-- [x] Chunk 02: Scenes on Walls, over HTTP and MCP
-- [ ] Chunk 03: On the wall
+## Branch context
 
 Context: branched from `develop` at v0.6.0 (`a0e2a5f4`), 2026-10-26. No other
 plan is live.

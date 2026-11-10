@@ -277,13 +277,7 @@ the one that makes the branch PR-ready. One PR to `develop`.
   built on it.
 - After 04 (cumulative): the full bundle.
 
-## Status
-
-- [x] Chunk 01: The rulings, the page rules and this plan
-- [ ] Chunk 02: Renaming a wall
-- [ ] Chunk 03: The wall card
-- [x] Chunk 04: Edit and add a wall
-- [ ] Chunk 05: On the wall
+## Branch context
 
 Context: branched from `develop` at `1a1af8a3`, 2026-10-27, the commit the NAS
 runs. Waves 4f and 5 have plans with open operator walks; neither claims this

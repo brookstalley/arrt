@@ -88,21 +88,7 @@ provider limit the budget reads the provider's `usage_monthly` against
 "Get from Ask", "Get again", "Get of chosen works", "under $0.01") stands. The
 three-heartbeat staleness threshold remains the plan's assumption.
 
-## Status
-
-- [x] Chunk 01: Navigation is a link
-- [x] Chunk 02: Failures beside the control
-- [x] Chunk 03: History is an event log
-- [x] Chunk 04: Selections and exclusions in Programming
-- [x] Chunk 05: Walls leads with what is on the wall
-- [x] Chunk 06: The Work page
-- [x] Chunk 07: Search and Artist states
-- [x] Chunk 08: Review trust
-- [x] Chunk 09: One vocabulary
-- [x] Chunk 10: Spend as a budget and tiers
-- [x] Chunk 11: Tiles show the art
-- [x] Chunk 12: Keyboard and phone
-- [ ] Chunk 13: Walk and re-photograph
+## Chunks
 
 ### Chunk 01: Navigation is a link (#273)
 
