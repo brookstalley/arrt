@@ -1,6 +1,8 @@
 # Change Log — Samsung Frame Art Loader
 
-<!-- Append new entries at the top. Each entry is a ## section.
+<!-- Since 2026-11-10 a change is recorded as its own file under `.prawduct/changes/`
+     (one per scope), not appended here; this log keeps its history.
+     Each entry is a ## section.
      This file is separate from project-state.yaml to reduce merge conflicts
      when multiple branches add entries simultaneously.
 
@@ -22,7 +24,7 @@
      which is why any value at all in `release=`, a placeholder included, drops
      that entry's whole scope out of the pending set. The PR flow refuses a
      branch whose entry carries no `scope=`. Only `status=` is inert now, and
-     the Status checkboxes are ticked by hand and believed by every reader.
+     chunk status is derived from review facts (`prawduct-hook plan status`).
 
      Format:
 

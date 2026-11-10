@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: ui-pass-walls
-branch: feature/ui-pass-walls
+# branch: feature/ui-pass-walls — merged and deleted; scope shipped in v0.7.0. Chunk 05, the only one left, is the owner's walk at the wall and claims no branch; it is recorded done in whichever PR follows the walk.
 base: develop
 working-branches: []
 partition: serial, one worktree. 03 and 04 both rewrite `arrt/src/arrt/http/static/screens/walls.js`, and 04's Edit dialog calls the route 02 adds, so nothing can be handed to a second builder without the two colliding. 02 alone is independent, and it is small enough that a brief would cost more than building it.

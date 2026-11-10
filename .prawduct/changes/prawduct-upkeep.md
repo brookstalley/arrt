@@ -24,6 +24,12 @@ Three repairs from a `/prawduct:doctor` health check, each its own commit so it 
   shows `ui-pass-walls` Chunks 02 and 03 done by review (`55b9ec3e`, `8049846d`), which the
   unticked boxes had hidden; each plan's open chunk is now only its operator walk.
 
+Three live plans (`ui-pass-walls`, `wave-4f-scenes`, `wave-5-split`) named branches that were
+merged and deleted; their `branch:` claims are commented out the way the other three already
+were, each naming its open operator walk. Prose that still described hand-ticked boxes or
+appending to `change-log.md` (`project-state.yaml`, the log's header, the plans) and `AGENTS.md`'s
+opening lines were reworded to match.
+
 `wave-5-split` was considered for archiving and kept live: its Chunk 06, the wall running from an
 arrt-player clone, is an operator walk nothing records as walked.
 

@@ -1,7 +1,8 @@
 # AGENTS.md
 
-Instructions for any coding agent working here. `CLAUDE.md` holds the rest:
-governance, the three projects and their commands.
+Instructions for any coding agent working here. Prawduct's governance pointer is at the
+end of this file; `CLAUDE.md` holds the rest: the change of direction, the three
+projects and their commands.
 
 ## Running tests
 
