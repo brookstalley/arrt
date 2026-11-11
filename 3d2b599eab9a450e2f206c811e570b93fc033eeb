@@ -5,3 +5,5 @@
 {"schema": 1, "kind": "chunk-imported", "id": "chunk-imported-20261111T182530Z-19f188db", "ts": "2026-11-11T18:25:30Z", "actor": {"worktree": "arrt", "plugin": "3.8.2-dev", "branch": "chore/plan-records", "build": "a278eb560a51"}, "body": {"scope": "wave-5-split", "chunk": "03", "source": "status-box", "imported_at": "2026-11-11T18:25:30Z"}}
 
 {"schema": 1, "kind": "chunk-imported", "id": "chunk-imported-20261111T182530Z-40bff617", "ts": "2026-11-11T18:25:30Z", "actor": {"worktree": "arrt", "plugin": "3.8.2-dev", "branch": "chore/plan-records", "build": "a278eb560a51"}, "body": {"scope": "wave-5-split", "chunk": "04", "source": "status-box", "imported_at": "2026-11-11T18:25:30Z"}}
+
+{"schema": 1, "kind": "chunk-imported", "id": "chunk-imported-20261111T182530Z-c3507251", "ts": "2026-11-11T18:25:30Z", "actor": {"worktree": "arrt", "plugin": "3.8.2-dev", "branch": "chore/plan-records", "build": "a278eb560a51"}, "body": {"scope": "wave-5-split", "chunk": "05", "source": "status-box", "imported_at": "2026-11-11T18:25:30Z"}}
