@@ -208,6 +208,18 @@
       "breaks": "schema"
     },
     {
+      "path": "fixtures/heartbeat.v1/invalid/media-kind-unknown.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/media-kinds-empty.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
       "path": "fixtures/heartbeat.v1/invalid/no-label-modes.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
@@ -215,6 +227,12 @@
     },
     {
       "path": "fixtures/heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/video-max-frame-without-video.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": false,
       "breaks": "schema"
@@ -246,6 +264,16 @@
     },
     {
       "path": "fixtures/heartbeat.v1/valid/minor-4-no-screen.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-5-plays-video-up-to-720p.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-5-still-images-only.json",
       "schema": "schemas/heartbeat.v1.schema.json",
       "valid": true
     },

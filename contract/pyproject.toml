@@ -4,7 +4,7 @@ name = "arrt-contract"
 # fixture is a minor here; a manifest major is a major here. A Player pins this
 # number, so the version is how anyone can read which contract a Player was
 # built against. `player-contract.md` § Versioning says what moves it.
-version = "1.0.0"
+version = "1.1.0"
 description = "The contract between Arrt and every Arrt Player: schemas, fixtures, conformance vectors, routes, and the rules a schema cannot state."
 # The Player's floor, which is the lower of the two consumers'.
 requires-python = ">=3.12"
