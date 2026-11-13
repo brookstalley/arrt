@@ -18,3 +18,9 @@ Settled before `contract-v1.1.0` is tagged, because a released tag is never move
   and in the heartbeat schema's description, which ships in `arrt-contract` 1.1.0.
 - **`.gitignore`** gains `.prawduct/.native-reviews/` and `.prawduct/.pr-body.md`, the
   two session entries prawduct's advisory named.
+
+## Consumer note
+
+Arrt Player: report `video_max_frame` as the frame you measured playing smoothly, in
+whichever orientation you measured it. A reader compares long side to long side, so
+the Player need not turn it to match the way its screen is hung.
