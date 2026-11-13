@@ -34,7 +34,8 @@ unblocks the other repository.
 `video`), and optionally the largest video frame it plays smoothly. Then the
 package's minor (1.0.0 → 1.1.0) and the tag `contract-v1.1.0`.
 
-**Decisions made by the advisor, for the owner to overrule (inferred):**
+**Decisions made by the advisor, for the owner to overrule (inferred).** *The
+owner confirmed all four on 2026-11-13 (`.prawduct/owner-rulings.md`).*
 
 - **The frame limit is in.** The Player measured it on a Pi 4 at 4K: a 720p clip
   plays with no dropped frames, and a 1080p one drops about a third. A yes/no
