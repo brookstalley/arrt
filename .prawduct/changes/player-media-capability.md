@@ -18,6 +18,9 @@ media, and it sends the capability once a contract tag carries the field.
 - **The prose** is `player-contract.md` § The heartbeat, minor 5: capabilities
   without `media` read as `kinds: ["image"]`, and a reader ignores a kind it does
   not know.
+  A clip fits `video_max_frame` long side to long side and short side to short
+  side; whether a portrait or landscape clip belongs on a wall is the wall's shape
+  range (the owner, 2026-11-13).
 - **The server is unchanged.** It keeps the heartbeat as it came, and its suite
   posts every valid heartbeat fixture to the real route, so it accepts minor 5.
 - **`arrt-contract` 1.1.0**, a package minor.
