@@ -493,6 +493,15 @@ owner wants Arrt walls able to use it.)*
   screen played a 720p H.264 clip with no dropped frames and dropped about a
   third of a 1080p one's (measured by Arrt Player, 2026-11-10). Absent beside
   `video`, the Player has not measured one.
+- **A clip fits the limit when its longer side is within the limit's longer
+  side and its shorter side within the limit's shorter side**, whether either is
+  portrait or landscape. The limit says what the Player can play smoothly, not which
+  way its screen is hung: a 720×1280 clip costs a decoder what a 1280×720 one
+  does (reasoned from the pixel count, not measured). A wall is hung portrait or
+  landscape and never turns, and whether a portrait or landscape work belongs on
+  it is the wall's shape range (`data-model.md` § The wall's shapes), which
+  applies to a clip as to any work. *(The owner, 2026-11-13,
+  `.prawduct/owner-rulings.md`.)*
 - **Capabilities without `media` are a Player that shows still images**, read as
   `kinds: ["image"]`, as capabilities' absence is read as `manifest_majors: [1]`
   (§ The cutover).

@@ -154,7 +154,7 @@
           "minItems": 1
         },
         "media": {
-          "description": "Minor 5. The kinds of media this display shows now, observed rather than configured: image, a still picture; animated, a moving image format with no sound track (an animated GIF, WebP or PNG); video, a clip in a video container. A reader ignores a kind it does not know, so a later minor may add one. video_max_frame is the largest video frame, in pixels, the Player plays with no dropped frames on this screen; absent, the Player has not measured one. It is allowed only beside video.",
+          "description": "Minor 5. The kinds of media this display shows now, observed rather than configured: image, a still picture; animated, a moving image format with no sound track (an animated GIF, WebP or PNG); video, a clip in a video container. A reader ignores a kind it does not know, so a later minor may add one. video_max_frame is the largest video frame, in pixels, the Player plays with no dropped frames on this screen; absent, the Player has not measured one. A clip fits it when the clip's longer side is within its longer side and the clip's shorter side within its shorter side, whichever is width: it measures what the Player plays smoothly, not which way the screen is hung, and the wall's shape range decides whether a portrait or landscape clip belongs on that wall. It is allowed only beside video.",
           "type": "object",
           "required": [
             "kinds"
