@@ -6,8 +6,8 @@ file points to it.
 
 ## 2026-11-13: heartbeat minor 5, `capabilities.media` (#424, contract-v1.1.0)
 
-The owner confirmed all four decisions `build-plan-player-media-capability.md`
-§ Goals marked as inferred ("yes confirmed on all"):
+The owner confirmed all four decisions
+`archive/build-plan-player-media-capability.md` § Goals marked as inferred ("yes confirmed on all"):
 
 1. The frame limit, `video_max_frame`, is in.
 2. The manifest half is deferred: no `duration_s` in this minor.

@@ -10,9 +10,10 @@ governance anchor to `AGENTS.md` and chunk status to review facts (#423). `devel
 
 **The server's code is unchanged since v0.10.0.** `git diff v0.10.0..45b07238 -- arrt/src`
 is empty, and so is the same diff of `deploy/README.md`. The server accepted a minor 5
-heartbeat before this release too, because it checks nothing in `capabilities`; the
-curation suite's `test_player_surface.py` posts every valid heartbeat fixture, the two
-minor 5 ones included, to the real route.
+heartbeat before this release too: of `capabilities` it checks only that it is an
+object and that `screen` is readable (`programming/manifest/heartbeat.py`), and nothing in
+`media`; the curation suite's `test_player_surface.py` posts every valid heartbeat
+fixture, the two minor 5 ones included, to the real route.
 
 ## Release classification
 
@@ -38,7 +39,10 @@ record says what it changed.
   `release=v0.11.0`.
 - The root and `arrt` `pyproject.toml` files and their lockfiles go from 0.10.0 to 0.11.0.
   The contract package is already 1.1.0, released as `contract-v1.1.0`.
-- `plan-backfill` archives the plans whose scope this release tags.
+- `plan-backfill` archived `build-plan-player-media-capability.md`. It refused six older
+  plans, as at v0.10.0, each with one chunk still open, the operator's walk:
+  `display-state` 05, `displays-and-label-outputs` 07, `ui-pass-walls` 05,
+  `walls-work-and-trust` 13, `wave-4f-scenes` 03 and `wave-5-split` 06. They stay live.
 
 ## Before deploying
 
