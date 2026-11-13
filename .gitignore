@@ -236,3 +236,7 @@ all.json.backup2
 
 # UX walkthrough output (docs/ux-walkthrough.md): screenshots are working material, and this repo is public
 /.ux-walk/
+
+# Prawduct session files
+.prawduct/.native-reviews/
+.prawduct/.pr-body.md

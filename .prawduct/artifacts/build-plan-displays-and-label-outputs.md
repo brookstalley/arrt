@@ -2,7 +2,7 @@
 artifact: build-plan
 version: 1
 scope: displays-and-label-outputs
-# branch: feature/displays-and-label-outputs — merged to develop on 2026-10-08. Chunk 07, the only one left, is the operator's at the wall and claims no branch; it is ticked in whichever PR follows the walk.
+# branch: feature/displays-and-label-outputs — merged to develop on 2026-10-08. Chunk 07, the only one left, is the operator's at the wall and claims no branch; it is recorded done in whichever PR follows the walk.
 partition: Chunk 01 serial (the contract both sides build to); then two delegates in isolated worktrees — A the server (02, 03; arrt/ and contract tests only), B the Player (05, 06; arrt-player/ only); the coordinator integrates, reviews and verifies. Chunk 04 (the interface) is serial and waits for feature/lists-settings-and-scale to merge, because that branch is rewriting the Walls and Settings screens. Chunk 07 is the operator's.
 depends_on:
   - artifact: feeds-and-players
@@ -109,15 +109,7 @@ Seeded with `prawduct-hook jurisdiction`; dispositions:
 - `api-contract.md` § The Server↔Player surface and § Versioning: **conforms**: one new route, a new document with its own schema and major, and additive keys elsewhere.
 - `observability-strategy.md`, a new execution context (the label renderer): **conforms by design**: it reports as the panel does today, once per episode for an unavailable panel or an unreadable document, never once per poll.
 
-## Status
-
-- [x] Chunk 01: The contract
-- [x] Chunk 02: The server's records
-- [x] Chunk 03: The server's routes
-- [x] Chunk 04: The interface
-- [x] Chunk 05: The Player reports
-- [x] Chunk 06: The label renderer
-- [ ] Chunk 07: On the wall
+## Chunks
 
 ### Chunk 01: The contract
 

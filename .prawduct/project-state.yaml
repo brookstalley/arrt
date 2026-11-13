@@ -3190,6 +3190,10 @@ artifact_manifest:
       file_path: .prawduct/artifacts/release-plan-v0.10.0.md
       version: 1
       depends_on: []
+    - name: release-plan-v0.11.0
+      file_path: .prawduct/artifacts/release-plan-v0.11.0.md
+      version: 1
+      depends_on: []
   # Research findings — inputs to the artifacts above, not artifacts themselves.
   #
   # depends_on ADDED 2026-07-20 after Critic review found these entries had no
@@ -3327,9 +3331,9 @@ build_state:
 # `scope=` and the ABSENCE of `release=` are how release-readiness enumerates
 # unshipped work; only `status=` is inert. See change-log.md's header.
 #
-# The `## Status` checkboxes are hand-authored state now — the single reading
-# of chunk progress, ticked after a chunk's review and believed by the session
-# briefing, the handoff and the Stop gates.
+# Chunk progress is derived from review facts (`prawduct-hook plan status`).
+# The hand-ticked `## Status` checkboxes were imported as facts and removed on
+# 2026-11-10 (the `prawduct-upkeep` change).
 
 # =============================================================================
 # COVERAGE EVIDENCE (opt-in, v1.4+)
@@ -3600,8 +3604,9 @@ norm_health:
 # =============================================================================
 # CHANGE LOG
 # =============================================================================
-# Change log is in .prawduct/change-log.md (separate file to reduce merge conflicts).
-# See that file for format and instructions.
+# Since 2026-11-10 each change is its own file under .prawduct/changes/ (one per
+# scope; format: the prawduct plugin's templates/change-fragment.md). Released
+# history stays in .prawduct/change-log.md and .prawduct/change-log-archive/.
 
 # Distribution mode — set by /prawduct:migrate (v2.0.0 plugin cutover).
 # `plugin` tells the legacy file-sync hook to stand down (Chunk 8).

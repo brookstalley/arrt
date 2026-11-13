@@ -475,6 +475,44 @@ that was reading the feed.)* A minor 3 server refuses capabilities with no
 `screen`, so this minor is deployed server first, the one exception to
 Players upgrading before the server.
 
+### The heartbeat, minor 5
+
+Minor 5 adds **`capabilities.media`**: `{kinds, video_max_frame}`, what media this
+display can show, observed by the Player rather than configured. *(Added
+2026-11-11, #424: the Player gained a renderer that plays moving media, and the
+owner wants Arrt walls able to use it.)*
+
+- **`kinds`** lists one or more of `image` (a still picture), `animated` (a moving
+  image format with no sound track: an animated GIF, WebP or PNG) and `video` (a
+  clip in a video container). **A reader ignores a kind it does not know**, so a
+  later minor may add one.
+- **`video_max_frame`** (`width_px`, `height_px`) is the largest video frame the
+  Player plays with no dropped frames on this screen. It is optional, and the
+  schema allows it only beside `video`. It exists because what a Player plays
+  smoothly depends on its screen as well as its decoder: a Pi 4 driving a 4K
+  screen played a 720p H.264 clip with no dropped frames and dropped about a
+  third of a 1080p one's (measured by Arrt Player, 2026-11-10). Absent beside
+  `video`, the Player has not measured one.
+- **A clip fits the limit when its longer side is within the limit's longer
+  side and its shorter side within the limit's shorter side**, whether either is
+  portrait or landscape. The limit says what the Player can play smoothly, not which
+  way its screen is hung: a 720×1280 clip costs a decoder what a 1280×720 one
+  does (reasoned from the pixel count, not measured). A wall is hung portrait or
+  landscape and never turns, and whether a portrait or landscape work belongs on
+  it is the wall's shape range (`data-model.md` § The wall's shapes), which
+  applies to a clip as to any work. *(The owner, 2026-11-13,
+  `.prawduct/owner-rulings.md`.)*
+- **Capabilities without `media` are a Player that shows still images**, read as
+  `kinds: ["image"]`, as capabilities' absence is read as `manifest_majors: [1]`
+  (§ The cutover).
+
+The server keeps the heartbeat as it came and checks nothing in `media`, so a
+Player may send minor 5 before its server knows the minor. No manifest carries
+moving media yet: major 2's `media.content_type` admits only `image/jpeg` and
+`image/png`. Adding moving media to a feed (its content types, a clip's
+duration, the dwell rule for a clip, and what a Player that cannot play a work
+does) is a separate change, #424's second half.
+
 ### The cutover
 
 **Each major is served at its own URL while a reader of it may exist, and a
