@@ -16,7 +16,13 @@ governed_by:
       - "§ Direction, a display device renders its own label and decides what its geometry allows → conforms: what a Player plays smoothly is observed and reported by the Player, never configured or computed by the server"
       - "§ Direction, the Library/Programming seam → inapplicable because nothing in either package changes"
 partition: serial, one chunk; a contract minor, its fixtures and its prose are one atomic change
+lifecycle: completed
+archived: 2026-11-13
+released_in: v0.11.0
+maintained: false
 ---
+
+> **Archived — no longer maintained.** This plan records what was built, not what will be. Do not edit it to reflect later changes; write those where they are true.
 
 ## Goals
 
