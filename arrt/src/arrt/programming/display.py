@@ -20,8 +20,8 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 import logging
 import uuid
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
@@ -61,7 +61,16 @@ from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, SceneEntry, manifest_v2_path_in, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
-from arrt.programming.schedule import Keep, Schedule, Slot, Start, StartFresh, movable_walls
+from arrt.programming.schedule import (
+    Keep,
+    PassView,
+    Schedule,
+    Slot,
+    Start,
+    StartFresh,
+    movable_walls,
+    run_household_pass,
+)
 from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -333,15 +342,27 @@ class NotAgain:
 
 
 @dataclass(frozen=True, slots=True)
-class _Beside:
-    """A wall rebuilt in a household pass, after the wall republished (`schedule` module docstring).
+class _Held:
+    """A neighbour's feed as a household pass rebuilt it, held until the wall republished is written."""
 
-    `movable` is the walls still to be rebuilt after this one; `align_to` is the
-    slot starts of the wall republished.
+    wall_id: str
+    playlist: tuple[str, str]
+    schedule: Schedule
+    works: Mapping[str, Mapping[str, Any]]
+
+
+@dataclass(frozen=True, slots=True)
+class _Beside:
+    """A wall rebuilt in a household pass beside the wall republished (`schedule.run_household_pass`).
+
+    `view` is what it is built against. Its feed is not written there: what
+    would be written goes into `held`, and the pass writes it once the wall
+    republished has been, so no wall is left scheduled round a first slot that
+    was never published.
     """
 
-    movable: frozenset[str]
-    align_to: tuple[datetime, ...]
+    view: PassView
+    held: list[_Held] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2359,72 +2380,129 @@ class DisplayService:
         `order` is the cycle; any other work in `works` may only finish the slot
         it is in now, or be the one a `StartFresh` names.
 
-        **Then every wall whose feed shares a work with this one is rebuilt beside
-        it** (the owner, 2026-10-13): this wall is built against only the slot on
-        each of them now, and each is then rebuilt keeping that slot, lined up
-        with this wall's slots. Rebuilt one at a time against the others' whole
-        schedules, two walls sharing two works lock, each showing one of them for
-        a whole horizon (`schedule` module docstring). A wall rebuilt `beside`
-        another is one step of that pass, and rebuilds no neighbours of its own,
-        so a pass touches each wall once.
+        **Every wall whose feed shares a work with this one is rebuilt beside
+        it** (the owner, 2026-10-13), as one pass in the order
+        `schedule.household_pass` gives: rebuilt one at a time against the
+        others' whole schedules, two walls sharing two works lock, each showing
+        one of them for a whole horizon (`schedule` module docstring). The pass's
+        builds are `schedule.run_household_pass`'s; this says how one wall is
+        built. **This wall is written first**, then each neighbour the pass
+        rebuilt, each once: a neighbour built before this wall is held until
+        this wall's feed is written, so if this wall's build or write fails no
+        neighbour has been rewritten round it. A wall rebuilt `beside` another
+        is one step of that pass: it is built against the pass's view, handed
+        back unwritten, and rebuilds no neighbours of its own.
         """
         now = datetime.now(UTC)
-        feeds = {
-            wall.id: feed
-            for wall in self._store.list_walls()
-            if (feed := read_published_v2(self._settings.manifest_v2_path(wall.id))) is not None
-        }
-        published = {other: feed.slots for other, feed in feeds.items()}
-        if beside is None:
-            neighbours = sorted(
-                other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
-            )
-            movable = movable_walls(wall_id, neighbours, {other: feed.works.keys() for other, feed in feeds.items()})
-            align_to = ()
-        else:
-            neighbours, movable, align_to = [], beside.movable, beside.align_to
         cycle = [work_id for work_id in order if work_id in works]
-        schedule = build_schedule(
-            wall_id=wall_id,
-            work_ids=cycle,
-            slot_seconds=slot_seconds,
-            shuffle=shuffle,
-            now=now,
-            start=start,
-            published=published,
-            seed=f"{wall_id}:{now.isoformat()}",
-            also_showable=set(works) - set(cycle),
-            movable=movable,
-            align_to=align_to,
-        )
-        self._publish_feed(wall_id, playlist=playlist, schedule=schedule, works=works)
-        if schedule.clashes:
-            # Named, because a clash is the household rule giving way, and a rule
-            # that gives way silently is one nobody can tell is still in force.
-            shared = sorted({(clash.work_id, clash.other_wall_id) for clash in schedule.clashes})
-            log.info(
-                "Wall %r shows works another wall shows at the same time, having nothing else to show then: %s.",
-                self.get_wall(wall_id).name,
-                ", ".join(f"{work_id} (with {other})" for work_id, other in shared),
+
+        def scheduled(view: PassView, start: Start, also: Collection[str]) -> Schedule:
+            return build_schedule(
+                wall_id=wall_id,
+                work_ids=cycle,
+                slot_seconds=slot_seconds,
+                shuffle=shuffle,
+                now=now,
+                start=start,
+                published=view.published,
+                seed=f"{wall_id}:{now.isoformat()}",
+                also_showable={*works, *also} - set(cycle),
+                movable=view.movable,
+                align_to=view.align_to,
             )
-        starts = tuple(slot.start for slot in schedule.slots)
-        for at, neighbour in enumerate(neighbours):
-            beside = _Beside(movable=movable & set(neighbours[at + 1 :]), align_to=starts)
+
+        if beside is not None:
+            schedule = scheduled(beside.view, start, ())
+            beside.held.append(_Held(wall_id, playlist, schedule, works))
+            return schedule
+        walls = {wall.id: wall for wall in self._store.list_walls()}
+        feeds = {
+            other: feed for other in walls if (feed := read_published_v2(self._settings.manifest_v2_path(other))) is not None
+        }
+        neighbours = sorted(
+            other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
+        )
+        held: dict[str, Collection[str]] = {other: feed.works.keys() for other, feed in feeds.items()}
+        held[wall_id] = cycle
+        rebuilt: dict[str, _Held] = {}
+
+        def build_neighbour(neighbour: str, view: PassView) -> Schedule | None:
+            beside = _Beside(view)
             try:
-                self._rebuild_beside(neighbour, wall_id, beside)
+                self._rebuild_beside(neighbour, beside)
             except ServiceError as error:
-                # This wall's own act succeeded; the neighbour goes on with the
-                # schedule it had, as before a pass existed, and says why.
-                log.warning(
-                    "Wall %r: its slots to come could not be rebuilt beside wall %r: %s",
-                    self.get_wall(neighbour).name,
-                    self.get_wall(wall_id).name,
-                    error,
-                )
+                self._say_not_rebuilt(walls[neighbour], walls[wall_id], error)
+                return None
+            if not beside.held:
+                return None
+            rebuilt[neighbour] = beside.held[-1]
+            return rebuilt[neighbour].schedule
+
+        built = run_household_pass(
+            wall_id,
+            neighbours,
+            start=start,
+            movable=movable_walls(wall_id, neighbours, held),
+            slot_seconds={wall_id: slot_seconds, **{other: self.pace(walls[other])[0] for other in neighbours}},
+            works=held,
+            published={other: feed.slots for other, feed in feeds.items()},
+            build_republished=scheduled,
+            build_neighbour=build_neighbour,
+        )
+        schedule = built[wall_id]
+        self._publish_feed(wall_id, playlist=playlist, schedule=schedule, works=works)
+        self._say_clashes(walls[wall_id], schedule)
+        for neighbour in built:
+            if neighbour == wall_id:
+                continue
+            feed = rebuilt[neighbour]
+            try:
+                self._publish_feed(neighbour, playlist=feed.playlist, schedule=feed.schedule, works=feed.works)
+            except ServiceError as error:
+                self._say_not_rebuilt(walls[neighbour], walls[wall_id], error)
+                continue
+            self._say_clashes(walls[neighbour], feed.schedule)
+            # Said, because a wall's feed changing when nobody touched that wall
+            # is otherwise a mystery in the journal.
+            log.info(
+                "Wall %r: its slots to come were rebuilt beside wall %r, which shares works with it.",
+                walls[neighbour].name,
+                walls[wall_id].name,
+            )
         return schedule
 
-    def _rebuild_beside(self, wall_id: str, republished: str, beside: _Beside) -> None:
-        """Rebuild a wall's slots to come in a household pass, keeping the work on it now.
+    def _say_clashes(self, wall: Wall, schedule: Schedule) -> None:
+        """Name the clashes a schedule kept, if any.
+
+        Named, because a clash is the household rule giving way, and a rule
+        that gives way silently is one nobody can tell is still in force.
+        """
+        if not schedule.clashes:
+            return
+        shared = sorted({(clash.work_id, clash.other_wall_id) for clash in schedule.clashes})
+        log.info(
+            "Wall %r shows works another wall shows at the same time, having nothing else to show then: %s.",
+            wall.name,
+            ", ".join(f"{work_id} (with {other})" for work_id, other in shared),
+        )
+
+    @staticmethod
+    def _say_not_rebuilt(wall: Wall, republished: Wall, error: ServiceError) -> None:
+        """Say that a neighbour keeps the schedule it had.
+
+        The act asked for on the wall republished goes ahead; the neighbour goes
+        on with its published feed, as before a pass existed, and the walls
+        built after it in the pass are built against that.
+        """
+        log.warning(
+            "Wall %r: its slots to come could not be rebuilt beside wall %r: %s",
+            wall.name,
+            republished.name,
+            error,
+        )
+
+    def _rebuild_beside(self, wall_id: str, beside: _Beside) -> None:
+        """Rebuild a wall's slots to come in a household pass, keeping the work on it now, into `beside.held`.
 
         As its roll would: from its hung theme when its feed carries that theme,
         so a theme with more works than one horizon names is not narrowed to the
@@ -2436,13 +2514,6 @@ class DisplayService:
         if feed is None:
             return
         self._republish(wall_id, feed, beside=beside)
-        # Said, because a wall's feed changing when nobody touched that wall is
-        # otherwise a mystery in the journal.
-        log.info(
-            "Wall %r: its slots to come were rebuilt beside wall %r, which shares works with it.",
-            self.get_wall(wall_id).name,
-            self.get_wall(republished).name,
-        )
 
     def _republish(self, wall_id: str, feed: Published | None, *, beside: _Beside | None = None) -> ManifestBuild | None:
         """Republish a wall keeping the work on it now: from its hung theme, else from what its feed carries.

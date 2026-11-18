@@ -791,6 +791,194 @@ def test_a_neighbour_whose_other_work_a_third_wall_holds_is_not_stepped_onto(dis
     assert _overlaps(feed(study), feed(kitchen))[1:] == []
 
 
+def test_a_wall_at_a_quicker_pace_than_its_neighbour_takes_turns_inside_the_neighbours_slots(
+    display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """#374, case A: the hall changes every half hour, the study every hour, and they share only `a` and `b`.
+
+    Built first, the hall alternated the two every half hour, and every hour-long
+    slot on the study then spanned one of each. Built after the study, the hall
+    shows each work for two of its slots running while the study shows the
+    other. The study's picture now stays, and lingers under one more hour.
+    """
+    a, b = mastered("A"), mastered("B")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    theme = theme_of(a, b, interval=HOUR // 2)
+    display.activate_theme(theme.id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=97))
+    on_the_study = feed(study).on_the_wall(_now())
+
+    display.activate_theme(theme.id, wall_id=wall_id)
+
+    hall, other = feed(wall_id), feed(study)
+    assert _overlaps(hall, other) == []
+    assert _overlaps(other, hall) == []
+    for one in (hall, other):
+        assert {slot.work_id for slot in one.slots} == {a.id, b.id}
+    kept = other.on_the_wall(_now())
+    assert (kept.work_id, kept.start) == (on_the_study.work_id, on_the_study.start)
+    assert kept.until - kept.start < 2 * timedelta(seconds=HOUR)
+
+
+def test_two_slower_neighbours_line_up_with_each_other_and_the_quicker_hall_with_both(
+    display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """The hall changes every quarter hour, the kitchen hourly, the study every two hours; all three share `a` and `b`.
+
+    Both slower walls are built before the hall, the study first. The kitchen
+    lines up with the study, so each of its hours falls inside one of the
+    study's two: lined up with the hall's quarter hours alone, it could start a
+    quarter hour off the study and span both its works.
+    """
+    a, b, c = mastered("A"), mastered("B"), mastered("C")
+    kitchen, study = display.add_wall(name="Kitchen").id, display.add_wall(name="Study").id
+    display.set_playback(kitchen, rotation_interval_seconds=HOUR, shuffle=False)
+    display.set_playback(study, rotation_interval_seconds=2 * HOUR, shuffle=False)
+    shared = theme_of(a, b, name="Shared", interval=HOUR // 4)
+    display.activate_theme(shared.id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=1597))
+    display.activate_theme(shared.id, wall_id=kitchen)
+    # Aged so that the kitchen's hour, lined up with the hall's quarter hours
+    # alone, would end half an hour off the study's two.
+    _age(wall_settings, kitchen, by=timedelta(seconds=2411))
+
+    display.activate_theme(theme_of(a, b, c, name="Hall's", interval=HOUR // 4).id, wall_id=wall_id)
+
+    now = _now()
+    feeds = {wall: feed(wall) for wall in (wall_id, kitchen, study)}
+    for here, there in ((one, other) for one in feeds for other in feeds if one != other):
+        # Only two pictures both up now may meet: each is kept, whatever the other shows.
+        assert [
+            slot
+            for slot in feeds[here].slots
+            if any(
+                s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) and not (slot.covers(now) and s.covers(now))
+                for s in feeds[there].slots
+            )
+        ] == [], (here, there)
+    # Every boundary of the study's after the kitchen's picture now, which is
+    # kept and may span one, and within the kitchen's horizon, is one of the kitchen's.
+    kitchen_starts = {slot.start for slot in feeds[kitchen].slots}
+    study_starts = {
+        slot.start for slot in feeds[study].slots if feeds[kitchen].slots[0].until <= slot.start < feeds[kitchen].horizon_until
+    }
+    assert study_starts
+    assert study_starts <= kitchen_starts
+
+
+@pytest.mark.parametrize("failing", ["its write", "its second build"])
+def test_a_neighbour_built_before_the_hall_is_not_written_when_the_hall_s_feed_is_not(
+    display, mastered, theme_of, wall_id, wall_settings, feed, monkeypatch, failing
+):
+    """The study, slower, is built before the hall, round the hall's first slot; that slot is only the hall's once written.
+
+    So the study's rebuild is held until the hall's feed is written. When the
+    hall's second build or its write fails, the act fails, and the study keeps
+    the feed it had rather than one fitted round a slot that never went up.
+    Aged, so its rebuild would differ from its feed: its slot now runs on into
+    step with the hall.
+    """
+    a, b = mastered("A"), mastered("B")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    theme = theme_of(a, b, interval=HOUR // 2)
+    display.activate_theme(theme.id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=97))
+    before = feed(study)
+    hall_builds, writes = [], []
+    build, publish = display_module.build_schedule, display._publish_feed
+
+    def failing_build(**arguments):
+        if arguments["wall_id"] == wall_id:
+            hall_builds.append(arguments)
+            if failing == "its second build" and len(hall_builds) == 2:
+                raise OSError("the hall's second build failed")
+        return build(**arguments)
+
+    def failing_publish(wall, **arguments):
+        writes.append(wall)
+        if wall == wall_id and failing == "its write":
+            raise OSError("the hall's feed could not be written")
+        return publish(wall, **arguments)
+
+    monkeypatch.setattr(display_module, "build_schedule", failing_build)
+    monkeypatch.setattr(display, "_publish_feed", failing_publish)
+
+    with pytest.raises(OSError, match="hall's"):
+        display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert len(hall_builds) == 2
+    assert study not in writes
+    assert feed(study) == before
+    assert feed(wall_id) is None
+
+
+def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_each_wall_is_written_once(
+    display, mastered, theme_of, wall_id, feed, monkeypatch
+):
+    """The pass's order, read from the builds it makes: the hall, the study against the hall's first slot, the hall again.
+
+    The study is built before the hall is written, so the hall's feed on disk
+    is still its last one; what the study is built against is the hall's new
+    first slot, which is all of the hall that is fixed yet.
+    """
+    a, b = mastered("A"), mastered("B")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    theme = theme_of(a, b, interval=HOUR // 2)
+    display.activate_theme(theme.id, wall_id=study)
+    display.activate_theme(theme.id, wall_id=wall_id)
+    builds, writes = [], []
+    build, publish = display_module.build_schedule, display._publish_feed
+
+    def recording_build(**arguments):
+        builds.append((arguments["wall_id"], dict(arguments["published"])))
+        return build(**arguments)
+
+    def recording_publish(wall, **arguments):
+        writes.append(wall)
+        return publish(wall, **arguments)
+
+    monkeypatch.setattr(display_module, "build_schedule", recording_build)
+    monkeypatch.setattr(display, "_publish_feed", recording_publish)
+
+    display.show_work_now(wall_id, a.id)
+
+    assert [wall for wall, _ in builds] == [wall_id, study, wall_id]
+    assert builds[1][1][wall_id] == (feed(wall_id).slots[0],)
+    assert sorted(writes) == sorted([wall_id, study])
+
+
+@pytest.mark.parametrize("first_by_id", ["the wall with three works", "the wall with two"])
+def test_a_neighbour_with_a_work_to_spare_leaves_the_shared_one_to_the_neighbour_without(
+    display, mastered, theme_of, wall_id, feed, first_by_id
+):
+    """#374, case B: the hall holds `x` and `y`; one neighbour `x`, `w` and `v`; the other `y` and `w`.
+
+    The neighbours are rebuilt one after the other, in id order. When the one
+    with three works came first, it took `w` while the hall showed `y`, which
+    left the other nothing it could show then. Whichever comes first by id, the
+    neighbour with fewer works is built first, and the one with three keeps to
+    `v` when the other needs `w`.
+    """
+    x, y, w, v = mastered("X"), mastered("Y"), mastered("W"), mastered("V")
+    one, two = sorted(display.add_wall(name=name).id for name in ("Kitchen", "Study"))
+    three_works, two_works = (one, two) if first_by_id == "the wall with three works" else (two, one)
+    for wall in (one, two):
+        display.set_playback(wall, rotation_interval_seconds=HOUR, shuffle=False)
+    display.activate_theme(theme_of(x, w, v, name="Three").id, wall_id=three_works)
+    display.activate_theme(theme_of(y, w, name="Two").id, wall_id=two_works)
+
+    display.activate_theme(theme_of(x, y, name="Hall's").id, wall_id=wall_id)
+
+    now = _now()
+    feeds = {wall: feed(wall) for wall in (wall_id, three_works, two_works)}
+    for here, there in ((a, b) for a in feeds for b in feeds if a != b):
+        # Each neighbour's picture now is kept whatever the others show.
+        assert [slot for slot in _overlaps(feeds[here], feeds[there]) if not slot.covers(now)] == [], (here, there)
+
+
 def test_a_roll_puts_right_a_feed_not_of_the_hung_theme(store, display, mastered, theme_of, wall_id, wall_settings, feed):
     """The wall's own roll publishes what the store says hangs there, unlike a pass beside another wall."""
     display.activate_theme(theme_of(mastered("A"), name="Published").id, wall_id=wall_id)
@@ -813,12 +1001,17 @@ def test_reconciliation_does_not_write_a_wall_back_over_its_rebuild_beside_anoth
     schedule that no longer exists: `slots != before` is what catches that. The
     overlap check skips the first slot, the study's picture now, which is kept
     whatever the hall shows.
+
+    The study holds a work of its own, `z`, so that it has as many works to go
+    to as the hall: with fewer, the hall's first pass would build it first and
+    fit the hall round it, and its rebuild here would come out as it was,
+    leaving `slots != before` nothing to tell apart.
     """
-    leaving, x, y = mastered("Leaving"), mastered("X"), mastered("Y")
+    leaving, x, y, z = mastered("Leaving"), mastered("X"), mastered("Y"), mastered("Z")
     # Named to come after the hall: walls are reconciled in name order.
     study = display.add_wall(name="Upstairs").id
     display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
-    display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
+    display.activate_theme(theme_of(x, y, z, name="Study's").id, wall_id=study)
     display.activate_theme(theme_of(leaving, x, y, name="Hall's").id, wall_id=wall_id)
     path = wall_settings.manifest_v2_path(study)
     document = json.loads(path.read_text(encoding="utf-8"))
@@ -856,6 +1049,33 @@ def test_a_neighbour_that_cannot_be_rebuilt_leaves_the_act_done_and_says_why(
     assert feed(wall_id).playlist_id == hall.id
     assert feed(study).slots == before
     assert any("Study" in r.getMessage() and "could not be rebuilt" in r.getMessage() for r in caplog.records)
+
+
+def test_a_slower_neighbour_that_cannot_be_rebuilt_keeps_its_schedule_and_the_hall_steps_aside_from_it(
+    display, mastered, theme_of, wall_id, feed, monkeypatch, caplog
+):
+    """Rebuilt before the hall, as a slower wall is; refused, it goes on as it was, and the hall is built against that."""
+    x, y = mastered("X"), mastered("Y")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=2 * HOUR, shuffle=False)
+    display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
+    before = feed(study).slots
+    hall = theme_of(x, y, name="Hall's", interval=HOUR)
+    built = display.build_manifest
+
+    def refusing(wall, theme_id=None):
+        if wall == study:
+            raise ServiceError("the study's theme cannot be read")
+        return built(wall, theme_id)
+
+    monkeypatch.setattr(display, "build_manifest", refusing)
+    with caplog.at_level(logging.WARNING, logger="arrt.programming.display"):
+        display.activate_theme(hall.id, wall_id=wall_id)
+
+    assert feed(wall_id).playlist_id == hall.id
+    assert feed(study).slots == before
+    assert any("Study" in r.getMessage() and "could not be rebuilt" in r.getMessage() for r in caplog.records)
+    assert [slot for slot in _overlaps(feed(wall_id), feed(study)) if not slot.covers(_now())] == []
 
 
 def test_a_clash_the_rule_cannot_avoid_is_said(display, mastered, theme_of, wall_id, caplog):
