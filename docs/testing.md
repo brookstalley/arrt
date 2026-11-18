@@ -1,7 +1,40 @@
-# Testing: the browser suite and the live suites
+# Testing: the default suites, the browser suite and the live suites
 
-`CLAUDE.md`'s dev-command table covers the three default suites. This file covers
-the two opt-in tiers, and its commands are the authority for them.
+`CLAUDE.md` holds the dev-command table and the testing rules, one instruction a
+line. This file holds why each rule holds, and the commands and setup for the two
+opt-in tiers, the browser suite and the live suites.
+
+## The default suites
+
+**A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
+the default groups as extraneous and removes it, so after a bare `uv sync` in
+`arrt/` the browser suite skips itself. The suite stays green and quietly
+shrinks. Sync with the groups the run needs: `uv sync --group browser`.
+
+The curation suite boots a real uvicorn server per test class of surface work.
+Do not replace that with an in-process ASGI transport: Starlette does not run a
+mounted sub-app's lifespan, and the lifespan is what makes the MCP mount work,
+so an in-process test would pass against an app that fails every real request.
+
+**That suite runs across cores** — `-n auto` is in the curation plane's
+`addopts`, so `uv run pytest` is already parallel (118s → 21s, measured
+2026-08-05). **To debug a failure, run it here with `uv run pytest … -n0`**:
+workers interleave output and a `pdb` breakpoint has no terminal to stop in.
+Not through testament, which drops `-n` and sends the selection to the pool. The root suite runs in a fraction of
+a second and is left serial.
+
+**The root suite holds no product code, and it is not optional.** It carries
+`tests/preferences/`, where this repo's artifact-versus-code contracts
+live — the Library/Programming seam, the norm index, deployment values, and the
+screen tables — and the repository-wide scans, which cover every project its
+tracked `pyproject.toml` files name. Agreements with Arrt Player (the
+heartbeat, the timing, the label corpus) are held by each side's own suite
+against the contract package, never by a test that reads both. The screen tables
+span two homes by design: `test_screen_tables.py` reads
+the *curation* plane's `http/static/app.js` against
+`.prawduct/artifacts/information-architecture.md`, and the server's own suite
+does not read the artifacts. So a change made entirely inside `arrt/` — routing a screen,
+editing those IA tables — is guarded by a leg in the repo root.
 
 ## The browser suite
 
@@ -18,9 +51,11 @@ cd arrt && uv run pytest -m browser -n0
 ```
 
 **Deselected by default for the browser download, not for anything about the
-tests** — they are deterministic, free, and reach no foreign API. Run them when
-you touch anything under `static/` — `app.js`, a `core/` module or a `screens/`
-one; `.github/workflows/browser.yml` runs them on pull requests
+tests** — they are deterministic, free, and reach no foreign API. When you touch
+anything under `static/` (`app.js`, a `core/` module or a `screens/` one), run
+the files for the screens you changed. The whole suite, the command above, runs
+once on the integrated branch (`project-preferences.md`, `Delegate
+verification`). `.github/workflows/browser.yml` runs it on pull requests
 and on pushes to `main`. Without the group the modules skip with the command
 that fixes it, so a default `uv sync` is unaffected.
 

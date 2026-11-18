@@ -5,7 +5,8 @@
 Each rule is one line of at most 250 characters. This file is capped, so a new rule is paid for by merging or retiring one.
 
 - When a norm is ratified, re-read every artifact it governs; when a plan reads a new kind of data, grep the norm index for its nouns — because norms bind by subject, and a spec or plan lists only what it touches.
-- When a test, lint or check is new or rewritten, watch it fail once against the unfixed code or a re-break — because 'not run', 'unreachable state' and 'passed' print the same green, and two agreeing runs can share one fault.
+- When you write a check, prove it can fail: see it red on unfixed code or a re-break, seed the member that falsifies it, assert the absent case — because 'not run', 'unreachable' and 'passed' all print green, and so does a present-only assert.
+- When a behaviour matters because something calls or reads it, test through that caller with a non-default value and mutate the lines you changed — because callee tests and default values stay green unwired.
 - When you delete a constant or add a required parameter, grep `tools/` and `scripts/` for consumers — because linter, type checker and suite are all silent about a file nothing imports.
 - When a review returns 0 blocking with cheap observations, accept them or carry them into the next commit already happening — because each fix commit buys another review round.
 - When a mutation's verdict flips between identical runs, apply it by hand and search for the rare input, then pin it with an example test — because a property finding the case by luck defends nothing.
@@ -20,7 +21,6 @@ Each rule is one line of at most 250 characters. This file is capped, so a new r
 - When you retire, amend, descope or close anything, first grep the whole repo (no --include) for its nouns and OLD wording, justifying prose and 'there is no X' included — because survivors paraphrase.
 - When a file documents its format with a filled example, write only the keys your entry needs, never paste the example — because its placeholders are illustrative and read in place of the rules.
 - When you record something as verified, name what was measured (fields, cases, N) and keep the check in the suite if a change could void it — because the claim otherwise outlives its evidence.
-- When a behaviour matters because something calls or reads it, test through that caller with a non-default value and mutate the lines you changed — because callee tests and default values stay green unwired.
 - After a scripted mass edit, verify with a method keyed on something the edit did not key on, such as a roster or resolution check — because a check sharing the edit's pattern shares its blind spots.
 - When an artifact works a rule on two cases, derive the rule from one and check the other.
 - When testing idempotence, vary the inputs between runs, not just the repetition — because a test that holds the inputs still tests the wrong half.
@@ -34,8 +34,6 @@ Each rule is one line of at most 250 characters. This file is capped, so a new r
 - When an index under-claims its enforcement, fix it — because an under-claiming index is defective, not conservatively safe.
 - When a mutation sweep reports, confirm each mutation changed behaviour, matched once, and the run collected tests (exit 0 or 1) — because a no-op, ambiguous or empty run reads as a finding or a catch.
 - When a finding or reviewer lists sites or items, treat the list as a checklist to tick off in the file and a sample to grep beyond — because partial consumption is how fixes ship incomplete.
-- When a clause or notice is conditional, assert its absence in the case where it must not appear — because present-only assertions pass under every over-firing bug.
-- When writing a fixture, add the member that would make the claim false, not just enough to reach the line — because a fixture that cannot falsify its assertion proves nothing.
 - When a verify pass is silent on a finding you expected it to settle, check whether the fix sits in the reviewed interval's base and name the finding explicitly — because passes verify intervals.
 - When a commit message states what it changed, count the hunks before repeating it — because a message is evidence about intent, never about content.
 - When a change makes a previously impossible operation possible, treat every artifact claim about it as unverified and write the test its sentence describes — because a rule never violable was never implemented.

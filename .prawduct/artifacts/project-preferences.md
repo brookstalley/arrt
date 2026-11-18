@@ -265,6 +265,45 @@ Developer preferences for how code is written in this project. Captured during d
   **This does not license scope creep.** A fix taken under this preference is
   still reported — silently widening a diff is the failure mode it trades
   against, so say what you fixed and why it did not meet the filing bar.
+- **Delegation**: on, by the default in `/prawduct:methodology delegation`, with
+  two additions the owner ratified on 2026-11-18 (`owner-rulings.md`), both from
+  the #435/#374 cycle, where each delegated branch took two review rounds:
+  1. **Before dispatch**, the plan is committed with every deliverable named by
+     its full repo-relative path (a symbol goes outside the backticks), and
+     `prawduct-hook verify-chunk-refs` passes on it. #435's first round went on
+     shorthand paths the record check could not resolve.
+  2. **The brief asks for proof that each new or rewritten check can fail.** For
+     every test, guard or assertion the delegate adds or rewrites, it returns the
+     failing output against the unfixed code or a deliberate re-break, naming the
+     input that trips it. A test compares against the service it tests, never a
+     copy of the service's logic in the test. #374's first branch passed review
+     with a strict xfail that could never trip and tests that ran their own copy
+     of the build order. They agreed with the code by construction, and only
+     asking for fail-then-pass evidence exposed it. A coordinator reads that
+     evidence when the report lands, and a check returned without it is not done.
+- **Delegate verification**: the owner, 2026-11-18: "subagents must never run
+  heavy integration tests -- they run feature tests, and the [coordinating] agent
+  or a dedicated integration subagent [maintain] an integration branch and are
+  smart about testing proportionally".
+  - **A delegate runs feature tests only**: the narrowest selection that covers
+    its own change, `testament run --json --suite <suite> -- <paths>`, plus its
+    own project's ruff and black. When it touched
+    `arrt/src/arrt/http/static/`, the browser files for the screens it changed
+    are in that selection.
+  - **Heavy here means**:
+    - `testament run` with no selection, or any project's whole suite;
+    - the whole browser suite;
+    - the live markers (`live_museum`, `live_binary`, `live_api`, `llm_eval`),
+      which reach museums or spend money;
+    - a mutation sweep over a whole project.
+    A delegate runs none of these.
+  - **The integration branch belongs to the coordinator, or to one integration
+    subagent it names.** That agent merges delegate branches as they land and
+    runs, on the merged head, what the merged change can break. A change inside
+    one project runs that project's suite. `static/` adds the browser suite.
+    `contract/` runs all four. The full `testament run` runs once at the
+    boundary, before the PR. The live markers run only when the change touches
+    the code they cover, and only by hand (`CLAUDE.md`).
 
 ---
 
@@ -296,6 +335,7 @@ This per-preference table is the product's **norm index** (`/prawduct:methodolog
 | Preference / norm | Mechanism | Enforcement artifact | Audit home | Why |
 |---|---|---|---|---|
 | **A found problem is fixed, not filed, unless it is (orthogonal AND needs design) or medium+** | Critic | — | janitor | Judgment-required by construction: "would this need design" and "is this medium+" are exactly the calls no check can make, and a mechanical rule would either block every issue or none. What a reviewer *can* check is the one thing that makes it auditable — a filed item should carry which of the two tests it met, and an issue asserting neither is the finding. Retroactive to open items, so the audit runs against the backlog rather than only against new work. *(Re-affirmed by the owner 2026-10-05 at the Norm Health sweep, which found 12 of the 14 non-user items filed since 2026-09-05 stating neither test. A non-user item now carries a line "Filed, not fixed, because: …" naming the test it met, so the audit reads a line rather than reconstructing intent; the recent items were backfilled, and two small ones that met neither test were fixed instead.)* |
+| **Delegation policy: delegates run feature tests only, prove each new check can fail, and work from a plan whose paths resolve** — the policy is `## Workflow`'s `Delegation` and `Delegate verification` rows | Critic | — | janitor | The owner's words, 2026-11-18: "subagents must never run heavy integration tests -- they run feature tests, and the [coordinating] agent or a dedicated integration subagent [maintain] an integration branch and are smart about testing proportionally". A policy in prose is judgment-required: whether a run was proportional, or whether returned evidence shows a check failing, is a reading no test makes. What a reviewer can check is concrete: a brief that names no ceiling or no fail-first evidence, a delegate report with a whole-suite run in it, and a check merged with no failing output on record. |
 | black formatting, line-length 130 | Linter (the formatting) + Test (the plane boundary) | `[tool.black]`, every plane's `pyproject.toml`; `tests/preferences/test_tool_config.py` | janitor | Already configured; removes formatting from review entirely. *(Corrected 2026-08-01: the artifact read `pyproject.toml` singular, written when the repo had one. Every plane carries a `[tool.black]` at line-length 130 and its own `target-version`, and a reader checking the norm against "the" pyproject would have audited part of it.)* *(Corrected 2026-08-05: this row said "both `pyproject.toml`s" and named the two targets, written when there were two planes; `arrt-player/` made it three the day the ruff row directly above was corrected for the same reason and this one was not. Stated as "every plane" rather than as a new count, because the count is what went stale twice — and `tests/preferences/test_tool_config.py` guards the root's plane exclusions, not the per-plane targets, so nothing mechanical catches the next one either.)* *(Extended 2026-08-02 by the norm sweep: the root config drew the plane boundary for ruff and not for black, so `black .` at the root walked both planes — 103 files, not 18 — and formatted curation under `py312`. Fixed, and given a Test half, because the boundary is now drawn twice in two syntaxes (ruff takes a list of paths, black a regex) with nothing making them agree. The output was byte-identical either way, which is the whole argument for a mechanical guard: the split had stopped holding for formatting while still holding for lint, and no green suite anywhere would have said so.)* |
 | The shipped browser client is executed by a test, not only read | Test | `arrt/tests/browser/`, marker `browser`; `.github/workflows/browser.yml` runs it on pull requests (since 2026-10-06 in four serial shards, and not on a pull request that changes only Markdown, `.prawduct/` or `docs/`) and on every push to `main`, and `.github/scripts/assert_tests_ran.py` fails the job if it skipped | advisory | Added 2026-08-05 with the harness (issue #30). `app.js` is the product's only human interface and neither Python suite ran a line of it, which is how three defects reached a running product — `replaceChildren` printing the string "null", every image tile taking the shape of its own picture, and a poll loop stealing focus every two seconds from the one screen with a decision on it. **The mechanism is a Test rather than the Critic because reading is what missed all three.** The bar for a behaviour being covered here is the mutation sweep, not the existence of a test: `tools/mutation_sweep.py` drives `app.js` and every behaviour this suite claims was demonstrated by deleting it and watching a test go red. It found a test whose fixture could not fail, which is exactly the failure mode a green suite cannot report. |
 | snake_case functions, PascalCase classes | Linter | ruff `N`, `N818` ignored, every plane's `pyproject.toml` | janitor | Ruff landed 2026-07-27 and `N` was **deliberately not selected**: the 2024 modules would fail it in bulk on names that are load-bearing at call sites, and a rule that has to be waived everywhere teaches people to waive rules. *(Ruled by the owner 2026-10-05 at the Norm Health sweep: select `N`, ignoring `N818`, on every plane. The Why above was measured false — the eight legacy modules give 0 `N` findings, today and at `ba007cd` where the decision was taken — so the cost it names never existed.)* |

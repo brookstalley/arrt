@@ -4,6 +4,30 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-18: agentic patterns, four recommendations and a stopgap for #217
+
+The advisor proposed four changes to how agents build here and a stopgap for the
+stalled accessibility transition. The owner replied "yes to all recommendations":
+
+1. Record the delegation policy in `project-preferences.md` § Workflow
+   (`Delegation`, `Delegate verification`). It includes the two lessons of the
+   #435/#374 cycle: plan deliverables are full repo-relative paths checked before
+   dispatch, and a delegate returns proof that each new check fails on the unfixed
+   code.
+2. Turn the "a check that cannot fail" lesson into that required evidence, then
+   compact `.claude/rules/learnings/core.md`, where it appears as several rules.
+3. File the unfiled flaky browser tests and fix #432.
+4. Move test-suite detail out of `CLAUDE.md` into `docs/testing.md`.
+5. Record a stopgap, bounded at 60 days, on `accessibility-spec.md`'s
+   in-transition norm, whose tracking item #217 has not moved since 2026-10-05.
+
+Added by the owner the same day, mid-build: "for delegation please also capture
+that subagents must never run heavy integration tests -- they run feature tests, and
+the cooridnating agent or a dedicated integration subagent mainatin an integration
+branch and are smart about testing proportionally". It is in `Delegate verification`.
+
+Where each landed: `build-plan-agentic-patterns.md`.
+
 ## 2026-11-13: heartbeat minor 5, `capabilities.media` (#424, contract-v1.1.0)
 
 The owner confirmed all four decisions

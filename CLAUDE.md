@@ -52,11 +52,6 @@ names.
 `live_*` markers below reach museums and are run by hand. Everything that drives
 hardware is Arrt Player's, in its own repository.
 
-**A plain `uv sync` uninstalls the optional groups.** uv treats anything outside
-the default groups as extraneous and removes it, so after a bare `uv sync` in
-`arrt/` the browser suite skips itself. The suite stays green and quietly
-shrinks. Sync with the groups the run needs: `uv sync --group browser`.
-
 **`uv run` in every column, including the root.** pytest, ruff and black live in a
 `[dependency-groups] dev` group that only uv installs — `pip install -e .` does
 not. Dropping the prefix gets either command-not-found or, worse, a system-Python
@@ -69,48 +64,21 @@ Run the curation plane: `cd arrt && uv run python -m arrt`. It needs
 `CURATION_PORT`, its JSON API under `/api`, and MCP clients connect to `/mcp` on
 the same port.
 
-**The mutation sweep runs per project.** How to read a sweep, budget one, and
-sweep the browser suite: `docs/testing.md`.
+## Testing rules that bite
 
-The curation suite boots a real uvicorn server per test class of surface work.
-Do not replace that with an in-process ASGI transport: Starlette does not run a
-mounted sub-app's lifespan, and the lifespan is what makes the MCP mount work,
-so an in-process test would pass against an app that fails every real request.
+Each is an instruction. Why it holds is in `docs/testing.md`.
 
-**That suite runs across cores** — `-n auto` is in the curation plane's
-`addopts`, so `uv run pytest` is already parallel (118s → 21s, measured
-2026-08-05). **To debug a failure, run it here with `uv run pytest … -n0`**:
-workers interleave output and a `pdb` breakpoint has no terminal to stop in.
-Not through testament, which drops `-n` and sends the selection to the pool. The root suite runs in a fraction of
-a second and is left serial.
-
-**The root suite holds no product code, and it is not optional.** It carries
-`tests/preferences/`, where this repo's artifact-versus-code contracts
-live — the Library/Programming seam, the norm index, deployment values, and the
-screen tables — and the repository-wide scans, which cover every project its
-tracked `pyproject.toml` files name. Agreements with Arrt Player (the
-heartbeat, the timing, the label corpus) are held by each side's own suite
-against the contract package, never by a test that reads both. The screen tables
-span two homes by design: `test_screen_tables.py` reads
-the *curation* plane's `http/static/app.js` against
-`.prawduct/artifacts/information-architecture.md`, and the server's own suite
-does not read the artifacts. So a change made entirely inside `arrt/` — routing a screen,
-editing those IA tables — is guarded by a leg in the repo root.
-
-## The browser suite and the live suites
-
-The client under `arrt/src/arrt/http/static/` is the product's only human
-interface, and no Python suite runs it: `-m browser` does, and you run it
-whenever you touch anything under `static/`. The four live markers (`live_museum`,
-`live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
-default; `live_api` and `llm_eval` spend real money, and every live run is a
-`uv run pytest … -n0` on this machine, never a `testament run` (testament drops
-`-n` and would split the run across the pool's runners): a museum marker (`live_museum`, `live_binary`) may run beside an
-OpenRouter one (`live_api`, `llm_eval`), never two of the same pair at once
-(`docs/testing.md`). Commands, setup and the reasons behind each rule: `docs/testing.md`.
-
-**Every suite asks whether the client matches its documents; none asks whether
-it is good to use.** When the question is the second one — a redesign, a run of
-screen work, "the UI feels off" — follow `docs/ux-walkthrough.md` rather than
-inventing a method: four passes, in order, and `arrt/tools/ux_walk.py` does the
-first.
+- Debug a curation failure with `cd arrt && uv run pytest … -n0`, here, never
+  through testament.
+- Never swap the curation suite's real uvicorn server for an in-process ASGI
+  transport.
+- In `arrt/`, sync with the groups the run needs (`uv sync --group browser`),
+  never a bare `uv sync`.
+- After touching `arrt/src/arrt/http/static/`, run the browser tests for the
+  screens you changed. The whole browser suite runs on the integrated branch, by
+  the coordinator (`project-preferences.md` § Workflow, `Delegate verification`).
+- The root suite is not optional, even for a change made entirely inside `arrt/`.
+- The live markers (`live_museum`, `live_binary`, `live_api`, `llm_eval`) run by
+  hand, as `uv run pytest … -n0` on this machine, never through testament.
+- The mutation sweep runs per project.
+- Whether the UI is good to use: follow `docs/ux-walkthrough.md`.

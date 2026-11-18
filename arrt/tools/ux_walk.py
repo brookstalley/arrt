@@ -775,7 +775,7 @@ def boot_synthetic(size: int) -> tuple[subprocess.Popen, str, Path]:
 
 
 def stop_synthetic(server: subprocess.Popen, root: Path) -> None:
-    """SIGTERM, never SIGKILL (CLAUDE.md, for the same server), then remove the scratch library."""
+    """SIGTERM, so uvicorn runs the app's shutdown rather than dying mid-write, then remove the scratch library."""
     try:
         server.send_signal(signal.SIGTERM)
         server.wait(timeout=30)
