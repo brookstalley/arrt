@@ -1,8 +1,7 @@
 # The image Arrt's suites run in on testament's runners (`.testament.toml`).
 #
-# Not the deploy image. `arrt/Dockerfile` builds with `arrt/` as its context and
-# its test stage runs as root, and testament builds every image from the repo
-# root and refuses one that ends as root (#386). The deploy image stays as it is;
+# Not the deploy image. `arrt/Dockerfile` builds with `arrt/` as its context, and
+# testament builds every image from the repo root. The deploy image stays as it is;
 # this one holds what the three suites and the browser suite need, and nothing
 # that ships.
 #

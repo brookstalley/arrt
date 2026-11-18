@@ -25,7 +25,8 @@ Player's steps are in its repository.
   `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
   curation suite inside it with `--target test --build-context repo=.`, as the
   app's own user. CI builds that target on every pull request, natively on amd64
-  (`suites.yml`); on an arm Mac it builds under emulation and takes far longer.
+  (`suites.yml`). On an arm Mac it builds under emulation, takes far longer, and
+  a test that times a server's answer can fail there for that reason alone.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 
 **What is not here, by the rule that this repository names no address:** the

@@ -44,7 +44,7 @@ Inferences:
 
 - **Type:** cumulative-final
 - **What:** a `suites.yml` job builds `--target test`. Watch it fail on the unfixed
-  tree. Then: copy `tools/` into the test stage; run the test stage as an unprivileged
+  tree. Then: copy `arrt/tools/` into the test stage; run the test stage as an unprivileged
   user, so a file chmod-ed unreadable cannot be read; give `test_wall_state_words.py` a
   path that holds in the image as well as in the repository; and see whether the healthz
   timeout survives a native amd64 build before budgeting it.

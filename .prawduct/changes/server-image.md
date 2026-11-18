@@ -19,8 +19,12 @@ the NAS runs, was red, and no CI job built it. On the unfixed tree the new job f
 The fourth cause, the healthz probe timing out, did not recur on a native amd64 build; it
 was emulation on an arm Mac. `suites.yml` gains the job "The server image's test target",
 which builds the stage for `linux/amd64` on an amd64 runner with the layer cache in GitHub
-Actions. The image is amd64-only (dezoomify-rs ships an x86_64 binary). `deploy/README.md`
-says so.
+Actions, and reads the stage's JUnit report (a `test-report` stage exports it) with
+`assert_tests_ran.py`, as the other suite jobs do, so a skip fails it. For that the test stage
+installs node, so the four test modules that run the client's own JavaScript run instead of
+skipping, and it leaves `tests/browser` uncollected, as the curation job does. The image is
+amd64-only (dezoomify-rs ships an x86_64 binary). `deploy/README.md` says so, and that under
+emulation on an arm Mac a timed test can fail for that reason alone.
 
 ## Consumer note
 none: the app stage the NAS runs is unchanged.

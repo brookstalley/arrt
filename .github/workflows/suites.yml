@@ -122,7 +122,10 @@ jobs:
     # libraries, its user and its file layout. The curation job above runs the
     # suite on the runner instead, so an image that installs, lays out or
     # permissions something differently passes there and is only found at
-    # deploy. This job builds the test stage, so a red suite fails the build.
+    # deploy. This job builds the test stage, so a red suite fails the build,
+    # and reads its report as the other suite jobs read theirs, so a skip fails
+    # it too. A test layer served from the cache is one whose code, tests and
+    # lockfile are byte-identical to a build that already passed.
     #
     # amd64, on an amd64 runner: dezoomify-rs ships only an x86_64 binary, so
     # the image is amd64-only, and here it builds without emulation.
@@ -138,11 +141,17 @@ jobs:
           # The test stage reads `contract/`, the player-contract artifact and
           # the 2024 index from the repository root (the Dockerfile says why).
           build-contexts: repo=.
-          target: test
+          target: test-report
           platforms: linux/amd64
-          push: false
+          outputs: type=local,dest=image-report
+          # `min`, the final stage's layers: the test stage is built on the
+          # base, so they are the ones a later build reuses, and every
+          # intermediate layer would crowd the other jobs' caches out.
           cache-from: type=gha,scope=server-image
-          cache-to: type=gha,mode=max,scope=server-image
+          cache-to: type=gha,mode=min,scope=server-image
+      - name: Fail if nothing actually ran
+        if: always()
+        run: python3 .github/scripts/assert_tests_ran.py image-report/results.xml
 
   lint:
     name: "Lint and format, the governance suite, the server and the contract"

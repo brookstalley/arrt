@@ -64,8 +64,13 @@ RUN uv sync --frozen --no-dev
 
 # The suite, in the image it tests: `--target test`. The browser group is not
 # installed (it needs a downloaded Chromium), so the browser suite stays where
-# it runs today.
+# it runs today and `tests/browser` is not collected.
 FROM base AS test
+# Node, for the tests that run the client's own modules (they skip without it).
+# The test stage only: the app never runs JavaScript.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends nodejs \
+ && rm -rf /var/lib/apt/lists/*
 # The contract package is a dev dependency at `../contract`, which from `/app`
 # is `/contract`, so it is in place before the sync that installs it. Its
 # `player-contract.md` is a symlink to the artifact, which the build of the
@@ -82,10 +87,19 @@ COPY --from=repo all.json /all.json
 # As the app stage's user, not root: root reads a file whatever its mode, so the
 # tests that make a file unreadable to prove it is reported would fail here, and
 # a suite run as root would vouch for permissions the app never has. It owns
-# nothing in the image; HOME points at the one place it may write.
+# nothing in the image, as the app owns nothing outside the art root, so a test
+# that writes beside itself fails here as it would in the app; HOME points at
+# the one place it may write. `--no-sync` because the environment was synced
+# above, and a sync as this user could not write to it.
 USER 568:568
 ENV HOME=/tmp
-RUN uv run --frozen --no-sync pytest -q -p no:cacheprovider
+RUN uv run --no-sync pytest -q -p no:cacheprovider --ignore=tests/browser --junitxml=/tmp/results.xml
+
+# The test stage's JUnit report, alone, for CI to read with
+# `.github/scripts/assert_tests_ran.py`: `--target test-report` with a local
+# output. A red suite fails the stage above, so there is no report to export.
+FROM scratch AS test-report
+COPY --from=test /tmp/results.xml /results.xml
 
 FROM base AS app
 
