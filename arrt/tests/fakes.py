@@ -49,10 +49,33 @@ from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClas
 OPENED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 
+def _counter() -> Callable[[], int]:
+    """1, 2, 3, … one number per call, safe to call from several threads at once.
+
+    A lock rather than a bare `itertools.count` or a generator: the services draw
+    from these on their worker threads, and a generator entered by two threads at
+    once raises "generator already executing".
+    """
+    numbers = itertools.count(1)
+    lock = threading.Lock()
+
+    def next_number() -> int:
+        with lock:
+            return next(numbers)
+
+    return next_number
+
+
 def counted_ids() -> Callable[[], str]:
-    """Ids shaped as UUIDs, counted from one rather than drawn."""
-    counter = itertools.count(1)
-    return lambda: str(uuid.UUID(int=next(counter)))
+    """Ids shaped as UUIDs, counted from one rather than drawn, never repeating within one counter."""
+    count = _counter()
+    return lambda: str(uuid.UUID(int=count()))
+
+
+def counted_tokens() -> Callable[[], str]:
+    """Names for a picture store's temporary files, counted rather than drawn, never repeating within one counter."""
+    count = _counter()
+    return lambda: f"{count():08x}"
 
 
 def open_catalogue(path: Path | str, **given: Any) -> SqliteDurableStore:

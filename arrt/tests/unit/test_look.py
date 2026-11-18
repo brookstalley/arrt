@@ -5,7 +5,6 @@ cache's ages are stated rather than waited for. Its asks run on its own threads,
 as they do in the plane; a held look (`hold=`) is how a test waits for them.
 """
 
-import itertools
 import logging
 import threading
 import time
@@ -13,7 +12,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fakes import FakeRegistry, a_decodable_jpeg, a_roster, an_image
+from fakes import FakeRegistry, a_decodable_jpeg, a_roster, an_image, counted_tokens
 
 from arrt.config import PICTURES_DIRNAME
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
@@ -141,8 +140,6 @@ def clock() -> Clock:
 @pytest.fixture
 def build(services, settings, registry, clock):
     """A look over these finders, the plane's own registry pages, discovery and picture store."""
-    # The picture store's temporary files are named from a count, so no look reads randomness.
-    staged = (f"{n:08x}" for n in itertools.count())
 
     def build(*finders, pool: ImageSourcePool | None = None) -> LookService:
         """A look over `finders`, or over `pool` when the test needs to share it with a run."""
@@ -159,7 +156,7 @@ def build(services, settings, registry, clock):
                 art_root=services.pictures.art_root,
                 sources=pool,
                 now=clock,
-                staging_token=lambda: next(staged),
+                staging_token=counted_tokens(),
             ),
             now=clock,
         )

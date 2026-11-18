@@ -13,7 +13,7 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
-from fakes import open_catalogue
+from fakes import counted_ids, open_catalogue
 
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.migrations import walls_name_displays
@@ -182,11 +182,14 @@ def test_the_old_columns_and_index_are_gone(upgraded, tmp_path):
 
 def test_opening_again_changes_nothing(tmp_path, caplog):
     path = _clients_era_catalogue(tmp_path / "another.sqlite")
-    open_catalogue(path).close()
+    # One counter across every open, so a row a reopen recreated would come back
+    # under a new id and show as a change.
+    ids = counted_ids()
+    open_catalogue(path, new_id=ids).close()
     before = sorted(_raw(path, "SELECT id, identity, client_id, output FROM displays"))
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
-        catalogue = SqliteCatalogue(open_catalogue(path))
+        catalogue = SqliteCatalogue(open_catalogue(path, new_id=ids))
     try:
         assert sorted(_raw(path, "SELECT id, identity, client_id, output FROM displays")) == before
         assert _screen_of(catalogue, "w-study") == ("c-mac", "hdmi-a-1")

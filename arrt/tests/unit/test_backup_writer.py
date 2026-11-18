@@ -7,28 +7,34 @@ its age means what the panel says. A real SQLite file stands in for the
 catalogue; nothing here is mocked except the one fault each failure test needs.
 """
 
-import itertools
 import json
 import sqlite3
 import threading
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fakes import counted_tokens
 
 from arrt.persistence import backup
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, BackupFailed, CatalogueBackup, start_backups
 
 NOON = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
-#: When the job's clock says a pass completed: after it started, and passed in,
-#: so a test reads no clock of its own.
-DONE = NOON + timedelta(seconds=5)
 
 
-def ticking(start: datetime) -> Callable[[], datetime]:
-    """A clock a minute later at each reading, so a schedule's passes are named apart."""
-    minutes = itertools.count()
-    return lambda: start + timedelta(minutes=next(minutes))
+class Clock:
+    """The job's clock, passed in so a test reads none of its own.
+
+    A second later at each reading, so a pass completes after it starts and a
+    schedule's passes are named apart; a test moves it to another day by setting `at`.
+    """
+
+    def __init__(self, at: datetime) -> None:
+        self.at = at
+
+    def __call__(self) -> datetime:
+        moment = self.at
+        self.at += timedelta(seconds=1)
+        return moment
 
 
 @pytest.fixture
@@ -44,20 +50,19 @@ def catalogue(tmp_path):
 
 
 @pytest.fixture
-def job(tmp_path, catalogue):
+def clock():
+    return Clock(NOON)
+
+
+@pytest.fixture
+def job(tmp_path, catalogue, clock):
     return CatalogueBackup(
         catalogue_path=catalogue,
         directory=tmp_path / "backups",
         receipt_path=catalogue.parent / BACKUP_RECEIPT_FILENAME,
         keep=2,
-        clock=lambda: DONE,
+        clock=clock,
     )
-
-
-def ticking_names() -> Callable[[], str]:
-    """Staging names for a picture store's writes, from a counter rather than randomness."""
-    counter = itertools.count()
-    return lambda: str(next(counter))
 
 
 def titles(path):
@@ -68,7 +73,11 @@ def titles(path):
         db.close()
 
 
-def test_a_generation_holds_the_catalogue_and_the_receipt_says_when(job, catalogue):
+def test_a_generation_holds_the_catalogue_and_the_receipt_says_when(job, catalogue, clock):
+    """A pass told when it started is named by that moment, and completes by the job's clock, later."""
+    done = NOON + timedelta(seconds=5)
+    clock.at = done
+
     result = job.run(now=NOON)
 
     assert result.path.name == "catalogue-20261002T120000Z.sqlite"
@@ -78,15 +87,15 @@ def test_a_generation_holds_the_catalogue_and_the_receipt_says_when(job, catalog
     assert receipt["bytes"] == result.path.stat().st_size
     # The panel reads the receipt it writes: both ends of this file are ours.
     assert receipt["started_at"] == NOON.isoformat()
-    reading = backup.read(catalogue.parent / BACKUP_RECEIPT_FILENAME, now=DONE + timedelta(hours=1))
+    reading = backup.read(catalogue.parent / BACKUP_RECEIPT_FILENAME, now=done + timedelta(hours=1))
     assert reading.problem is None
-    assert reading.completed_at == DONE
+    assert reading.completed_at == done
     assert reading.describe().startswith("The catalogue was last backed up")
 
 
-def test_a_failed_pass_leaves_the_last_receipt_and_no_half_copy(job, catalogue, monkeypatch):
+def test_a_failed_pass_leaves_the_last_receipt_and_no_half_copy(job, catalogue, clock, monkeypatch):
     """The failure the receipt exists to expose: a backup that stopped working must not look fresh."""
-    job.run(now=NOON)
+    job.run()
     receipt = catalogue.parent / BACKUP_RECEIPT_FILENAME
     before = receipt.read_text()
 
@@ -95,8 +104,9 @@ def test_a_failed_pass_leaves_the_last_receipt_and_no_half_copy(job, catalogue, 
 
     monkeypatch.setattr(backup, "_require_intact", refuse)
 
+    clock.at = NOON + timedelta(days=1)
     with pytest.raises(BackupFailed):
-        job.run(now=NOON + timedelta(days=1))
+        job.run()
 
     assert receipt.read_text() == before
     names = sorted(path.name for path in (catalogue.parent.parent / "backups").iterdir())
@@ -119,13 +129,14 @@ def test_a_catalogue_that_cannot_be_read_fails_the_pass_without_a_receipt(tmp_pa
     assert list((tmp_path / "backups").iterdir()) == []
 
 
-def test_retention_keeps_the_newest_and_touches_nothing_it_did_not_write(job, tmp_path):
+def test_retention_keeps_the_newest_and_touches_nothing_it_did_not_write(job, tmp_path, clock):
     (tmp_path / "backups").mkdir()
     stranger = tmp_path / "backups" / "notes.txt"
     stranger.write_text("the operator's own file", encoding="utf-8")
 
     for day in range(3):
-        result = job.run(now=NOON + timedelta(days=day))
+        clock.at = NOON + timedelta(days=day)
+        result = job.run()
 
     kept = sorted(path.name for path in (tmp_path / "backups").glob("catalogue-*"))
     assert kept == ["catalogue-20261003T120000Z.sqlite", "catalogue-20261004T120000Z.sqlite"]
@@ -140,7 +151,7 @@ def test_a_backup_reads_a_live_catalogue_without_taking_its_write_lock(job, cata
     writer.execute("BEGIN IMMEDIATE")
     writer.execute("INSERT INTO artworks VALUES ('w3', 'Uncommitted')")
     try:
-        result = job.run(now=NOON)
+        result = job.run()
     finally:
         writer.rollback()
         writer.close()
@@ -155,7 +166,7 @@ def test_the_schedule_backs_up_at_once_and_keeps_going_after_a_failure(tmp_path,
         directory=tmp_path / "backups",
         receipt_path=catalogue.parent / BACKUP_RECEIPT_FILENAME,
         keep=5,
-        clock=ticking(NOON),
+        clock=Clock(NOON),
     )
     calls = {"n": 0}
     real = job.run
@@ -193,11 +204,11 @@ def test_a_generation_carries_the_catalogue_and_never_the_picture_store(job, cat
     from arrt.library.services.pictures import PictureStore
 
     art_root = catalogue.parent
-    store = PictureStore(art_root / "pictures", art_root=art_root, now=lambda: NOON, staging_token=ticking_names())
+    store = PictureStore(art_root / "pictures", art_root=art_root, now=lambda: NOON, staging_token=counted_tokens())
     store.put("artic", "https://museum.example/kept", _a_jpeg())
     assert store.size().pictures_files > 0, "a store with nothing in it would make this pass vacuously"
 
-    result = job.run(now=NOON)
+    result = job.run()
 
     backed_up = {path for path in (tmp_path / "backups").rglob("*") if path.is_file()}
     assert backed_up == {result.path}
@@ -220,7 +231,7 @@ def test_a_pass_not_told_when_starts_and_completes_by_the_job_s_clock(tmp_path, 
     """What the schedule's passes do: `run()` with no moment, so the job's clock names the generation and stamps the receipt."""
     receipt = catalogue.parent / BACKUP_RECEIPT_FILENAME
     job = CatalogueBackup(
-        catalogue_path=catalogue, directory=tmp_path / "backups", receipt_path=receipt, keep=2, clock=ticking(NOON)
+        catalogue_path=catalogue, directory=tmp_path / "backups", receipt_path=receipt, keep=2, clock=Clock(NOON)
     )
 
     result = job.run()
@@ -229,5 +240,5 @@ def test_a_pass_not_told_when_starts_and_completes_by_the_job_s_clock(tmp_path, 
     stamped = json.loads(receipt.read_text())
     assert (stamped["started_at"], stamped[backup.COMPLETED_AT_KEY]) == (
         NOON.isoformat(),
-        (NOON + timedelta(minutes=1)).isoformat(),
+        (NOON + timedelta(seconds=1)).isoformat(),
     )
