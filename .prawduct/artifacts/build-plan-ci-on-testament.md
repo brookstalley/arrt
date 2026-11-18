@@ -9,6 +9,13 @@ last_validated: 2026-11-18
 depends_on:
   - artifact: project-preferences
   - artifact: observability-strategy
+governed_by:
+  - artifact: project-preferences
+    dispositions:
+      - "the shipped browser client is executed by a test → conforms: tests.yml runs the browser suite on the pool on every pull request, and assert_tests_ran.py requires it to run something"
+      - "a found problem is fixed, not filed → conforms: the review's findings were fixed in this branch"
+      - "delegation policy → inapplicable because this plan delegates nothing"
+
 partition: serial, because it is one change to CI, its guard tests and the records that name the workflows, and each part reads the others.
 ---
 
@@ -31,10 +38,13 @@ partition: serial, because it is one change to CI, its guard tests and the recor
   endpoint reported 0 even for the private testament repo, so it settles nothing.
 - **Decisions made mid-build:**
   - `[DECISION: the image build is filtered by path, and a test derives the
-    Dockerfile's COPY sources so the filter cannot fall out of step | the owner ruled
-    out heavy builds on every pull request, and the earlier objection to a filter
-    (build-plan-server-image.md) was drift between filter and Dockerfile, which the
-    derived check now refuses by name | user can veto/override]`
+    Dockerfile's COPY sources so the filter cannot drift from the environment inputs |
+    the owner ruled out heavy builds on every pull request. The earlier objection to a
+    filter (build-plan-server-image.md) is answered for the environment inputs only:
+    the filter deliberately skips source, tests and tools, and two of the three causes
+    of the image's first red (#386) were in that class. So coverage is reduced, not
+    preserved: the image's suite runs on an environment change, or by hand before a
+    release | user can veto/override]`
   - `[DECISION: a pull request from a fork fails the pool job with a message naming
     the missing secret, rather than falling back to GitHub's runner | a fallback would
     spend the minutes this change removes, and outside pull requests are not expected

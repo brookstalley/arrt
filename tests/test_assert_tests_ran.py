@@ -180,6 +180,75 @@ def test_a_skip_that_only_mentions_xfail_still_fails_the_job(tmp_path, shape, ca
     assert "1 test(s) skipped" in printed
 
 
+#: testament writes an xfail with no reason as `[call] xfail`, no colon, and keeps
+#: only the last line of a multi-line reason in `message`; the element's text keeps
+#: the first. Both read from testament 0.55.0's JUnit writer.
+TESTAMENT_XFAIL_NO_REASON_CASE = (
+    '<testcase classname="arrt.tests.unit.test_a" name="test_b"><skipped message="[call] xfail">[call] xfail</skipped></testcase>'
+)
+TESTAMENT_XFAIL_MULTILINE_CASE = (
+    '<testcase classname="arrt.tests.unit.test_a" name="test_c">'
+    '<skipped message="and its second line">[call] xfail: a reason on two lines\nand its second line</skipped>'
+    "</testcase>"
+)
+
+
+@SHAPES
+@pytest.mark.parametrize(
+    "case", [TESTAMENT_XFAIL_NO_REASON_CASE, TESTAMENT_XFAIL_MULTILINE_CASE], ids=["no-reason", "multi-line"]
+)
+def test_testaments_other_xfail_shapes_are_expected_failures(tmp_path, shape, case, capsys):
+    guard = _load()
+    report = _report(tmp_path, shape.format(tests=2, skipped=1, cases=PASSING_CASE + case))
+
+    assert guard.main(report) == 0
+    assert "xfailed 1" in capsys.readouterr().out
+
+
+def _suites(*named: tuple[str, int, int]) -> str:
+    """A testament-shaped report: one `<testsuite>` per suite, as (name, tests, skipped)."""
+    body = "".join(
+        f'<testsuite name="{name}" tests="{tests}" skipped="{skipped}" failures="0" errors="0">'
+        + PASSING_CASE * (tests - skipped)
+        + SKIPPED_CASE * skipped
+        + "</testsuite>"
+        for name, tests, skipped in named
+    )
+    return f"<testsuites>{body}</testsuites>"
+
+
+def test_every_named_suite_that_ran_passes(tmp_path):
+    guard = _load()
+    report = _report(tmp_path, _suites(("governance", 2, 0), ("browser", 1, 0)))
+
+    assert guard.main(report, required_suites=["governance", "browser"]) == 0
+
+
+def test_a_named_suite_that_collected_nothing_fails_the_job(tmp_path, capsys):
+    """One empty suite in a merged report must not hide behind the others' counts."""
+    guard = _load()
+    report = _report(tmp_path, _suites(("governance", 2, 0), ("browser", 0, 0)))
+
+    assert guard.main(report, required_suites=["governance", "browser"]) == 1
+    assert "browser" in capsys.readouterr().out
+
+
+def test_a_named_suite_missing_from_the_report_fails_the_job(tmp_path, capsys):
+    guard = _load()
+    report = _report(tmp_path, _suites(("governance", 2, 0)))
+
+    assert guard.main(report, required_suites=["governance", "contract"]) == 1
+    assert "contract" in capsys.readouterr().out
+
+
+def test_the_suites_are_read_from_the_manifest(tmp_path):
+    guard = _load()
+    manifest = tmp_path / "m.toml"
+    manifest.write_text('[suites.governance]\nadapter = "pytest"\n[suites.browser]\nadapter = "pytest"\n', encoding="utf-8")
+
+    assert guard.suites_in(manifest) == ["governance", "browser"]
+
+
 def test_suite_level_skips_with_no_case_detail_still_fail_the_job(tmp_path, capsys):
     """A report the classifier cannot read must not thereby win a pass.
 

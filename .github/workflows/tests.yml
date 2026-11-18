@@ -1,14 +1,16 @@
 # Lints, then sends every suite `.testament.toml` declares to testament's pool, on every
 # pull request. GitHub's runner only lints and waits: the owner, 2026-11-18, "we should be
 # using testament where possible and not doing heavy builds. we keep running out of github
-# actions minutes" (`.prawduct/owner-rulings.md`). Before this, a pull request ran four
-# browser shards, the curation suite and a Docker build on GitHub's runners, about 51
-# runner-minutes a push.
+# actions minutes" (`.prawduct/owner-rulings.md`).
 #
 # - All four suites, governance, curation, browser and contract, run on the pool:
 #   `testament run` with no `--suite`, so a suite added to the manifest is in CI the day it
 #   is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
-#   reads the report this run writes.
+#   reads the report this run writes, with every declared suite required to run something.
+# - Neither `--fresh` nor `--no-cache`, which testament suggests for a required merge
+#   check: testament reuses a pass only when everything the test reads is byte-identical,
+#   and a cold run is minutes more of this job's wait. Nothing here is required by branch
+#   protection.
 # - `--no-fallback`: a pool the job cannot reach fails the job, rather than running every
 #   suite on GitHub's runner, which is the cost this file exists to remove. A run the pool
 #   could not decide (verdict `unavailable`, `error.retryable`) runs once more. A `failed`
@@ -60,11 +62,21 @@ jobs:
           version: "0.11.32"
           enable-cache: true
       - name: Lint and format, the governance suite, the server and the contract
-        # Before the pool run, so a lint failure costs seconds, not a pool run.
+        # Before the pool run, so a lint failure costs seconds, not a pool run. One command
+        # a line: under `bash -e` a failure that is not the last command of an `a && b`
+        # list does not end the step. `--only-group dev` installs ruff and black, not each
+        # project's runtime dependencies.
         run: |
-          uv run ruff check . && uv run black --check .
-          (cd arrt && uv run ruff check . && uv run black --check .)
-          (cd contract && uv run ruff check . && uv run black --check .)
+          set -euo pipefail
+          lint="uv run --frozen --only-group dev"
+          $lint ruff check .
+          $lint black --check .
+          cd arrt
+          $lint ruff check .
+          $lint black --check .
+          cd ../contract
+          $lint ruff check .
+          $lint black --check .
       - name: Install testament from the pool
         env:
           TESTAMENT_KEY: ${{ secrets.TESTAMENT_KEY }}
@@ -84,7 +96,10 @@ jobs:
           # uv reads a wheel only under its real name, which Content-Disposition carries.
           name=$(tr -d '\r' < headers.txt | sed -En 's/^[Cc]ontent-[Dd]isposition:.*filename="?([^";/]+\.whl)"?.*/\1/p' | tail -n 1)
           want=$(tr -d '\r' < headers.txt | sed -En 's/^[Xx]-[Tt]estament-[Ww]heel-[Ss][Hh][Aa]256: *([0-9A-Fa-f]+).*/\1/p')
-          [ -n "$name" ] && [ -n "$want" ]
+          if [ -z "$name" ] || [ -z "$want" ]; then
+            echo "::error::the console's answer named no wheel or no digest: $(head -n 1 headers.txt | tr -d '\r'). Check TESTAMENT_CONSOLE is the console's https address."
+            exit 1
+          fi
           mv wheel.bin "$name"
           echo "$want  $name" | sha256sum -c -
           uv tool install --python 3.14 "./$name"
@@ -125,7 +140,7 @@ jobs:
         if: always()
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
-          python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml"
+          python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml" --suites-from .testament.toml
       - name: Summarize
         if: always()
         run: |
@@ -166,6 +181,6 @@ jobs:
         with:
           name: testament-envelope
           path: |
-            ${{ runner.temp }}/testament/envelope.json
-            ${{ runner.temp }}/testament/all.xml
+            ${{ runner.temp }}/${{ env.OUT_DIR }}/envelope.json
+            ${{ runner.temp }}/${{ env.OUT_DIR }}/all.xml
           if-no-files-found: ignore

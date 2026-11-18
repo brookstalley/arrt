@@ -9,9 +9,10 @@
 # interpreter pin, the server's and the contract's dependency declarations and lockfiles,
 # and this file. A change to source or tests alone is run by `tests.yml` on the pool.
 #
-# What that leaves untested here, stated: a source change that works on the pool's image
-# and fails only in this one, for a reason no input above changed. Run it by hand
-# (`workflow_dispatch`) before a release that worries you.
+# What that leaves untested, stated: the image also copies the server's source, tests and
+# tools, and a change to those alone does not build it. That class is real: two of the
+# three causes of the image's first red (#386) were tests that held only in the
+# repository's layout. Run it by hand (`workflow_dispatch`) before a release.
 name: Server image
 
 on:

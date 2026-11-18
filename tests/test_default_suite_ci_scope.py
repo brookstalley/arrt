@@ -16,6 +16,7 @@ import pathlib
 import shlex
 import tomllib
 
+import pytest
 import yaml
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -44,21 +45,42 @@ def _testament_runs(lines: list[str]) -> list[list[str]]:
     return runs
 
 
+#: The only flags the pool run may carry. An allowlist, because testament accepts
+#: `--name=value` for every valued flag and adds flags over time: `--suite=curation`,
+#: `--area=x`, `--changed-since=REF` and a path each run less than every suite, and a
+#: denylist names only the spellings someone thought of.
+_ALLOWED_FLAGS = {"--json", "--json=summary", "--no-fallback"}
+_VALUED_FLAGS = {"--junit-xml"}
+
+
 def check_the_pool_run(lines: list[str]) -> None:
     """Raise unless the lines run every suite on the pool and guard the report they write."""
     runs = _testament_runs(lines)
     assert len(runs) == 1, f"expected one `testament run`, found {len(runs)}: {runs}"
     args = runs[0][2:]
     assert "--no-fallback" in args, "without --no-fallback an unreachable pool runs every suite on GitHub's runner"
-    assert "--suite" not in args, "a --suite narrows CI to that suite, and the rest stop running with nothing to say so"
-    report = args[args.index("--junit-xml") + 1] if "--junit-xml" in args else None
+    report = None
+    refused = []
+    i = 0
+    while i < len(args):
+        if args[i] in _VALUED_FLAGS and i + 1 < len(args):
+            report = args[i + 1]
+            i += 2
+            continue
+        if args[i] not in _ALLOWED_FLAGS:
+            refused.append(args[i])
+        i += 1
+    assert not refused, f"the run carries {refused}, which can narrow it to less than every suite"
     assert report, "the run writes no JUnit report, so the skip guard has nothing to read"
-    selection = [a for i, a in enumerate(args) if not a.startswith("-") and (i == 0 or args[i - 1] != "--junit-xml")]
-    assert not selection, f"the run selects {selection}, so CI runs less than every suite"
-    guards = [line for line in lines if "assert_tests_ran.py" in line]
+    guards = [shlex.split(line) for line in lines if "assert_tests_ran.py" in line]
     assert guards, "nothing checks that the pool's tests actually ran"
-    reads = {shlex.split(line)[-1] for line in guards}
-    assert reads == {report}, f"the skip guard reads {sorted(reads)}, not the report the run writes ({report})"
+    for guard in guards:
+        after = guard[guard.index(next(w for w in guard if w.endswith("assert_tests_ran.py"))) + 1 :]
+        assert after[:1] == [report], f"the skip guard reads {after[:1]}, not the report the run writes ({report})"
+        assert after[1:] == [
+            "--suites-from",
+            ".testament.toml",
+        ], f"the skip guard is given {after[1:]}, so a suite that collected nothing would hide behind the others' counts"
 
 
 def test_ci_runs_every_suite_on_the_pool_and_guards_its_report():
@@ -67,7 +89,7 @@ def test_ci_runs_every_suite_on_the_pool_and_guards_its_report():
 
 _GOOD = [
     'testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback > "$OUT/envelope.json" || code=$?',
-    'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml"',
+    'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml" --suites-from .testament.toml',
 ]
 
 
@@ -85,18 +107,23 @@ def test_a_run_that_can_fall_back_is_refused():
         raise AssertionError("a run without --no-fallback passed")
 
 
-def test_a_run_narrowed_to_one_suite_is_refused():
-    lines = [_GOOD[0].replace("--no-fallback", "--no-fallback --suite curation"), _GOOD[1]]
-    try:
+@pytest.mark.parametrize(
+    "narrowing", ["--suite curation", "--suite=curation", "--area=programming", "--changed-since=HEAD~1", "arrt/tests/unit"]
+)
+def test_a_run_narrowed_in_any_spelling_is_refused(narrowing):
+    lines = [_GOOD[0].replace("--no-fallback", f"--no-fallback {narrowing}"), _GOOD[1]]
+    with pytest.raises(AssertionError, match="can narrow it"):
         check_the_pool_run(lines)
-    except AssertionError as e:
-        assert "--suite" in str(e)
-    else:
-        raise AssertionError("a run narrowed to one suite passed")
+
+
+def test_a_guard_without_the_per_suite_check_is_refused():
+    lines = [_GOOD[0], 'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml"']
+    with pytest.raises(AssertionError, match="hide behind the others"):
+        check_the_pool_run(lines)
 
 
 def test_a_guard_reading_another_report_is_refused():
-    lines = [_GOOD[0], 'python3 .github/scripts/assert_tests_ran.py "$OUT/other.xml"']
+    lines = [_GOOD[0], 'python3 .github/scripts/assert_tests_ran.py "$OUT/other.xml" --suites-from .testament.toml']
     try:
         check_the_pool_run(lines)
     except AssertionError as e:
@@ -119,7 +146,7 @@ def _holds_tests(entry: pathlib.Path) -> bool:
 def test_the_pools_curation_suite_selects_every_test_directory_but_the_ones_left_to_others():
     """`.testament.toml` names the curation suite's paths by hand, so a new test directory
     under `arrt/tests` would be left out of a bare `testament run`, which still reports green.
-    The list is derived here from the tree, as the CI leg's ignores are above."""
+    The list is derived here from the tree."""
     manifest = tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8"))
     selected = set(manifest["suites"]["curation"]["default_selection"])
     wanted = {
@@ -185,6 +212,14 @@ def _copied_sources(dockerfile: str) -> set[str]:
     stages = {line.split()[-1] for line in dockerfile.splitlines() if line.startswith("FROM ") and " AS " in line}
     found = set()
     for line in dockerfile.splitlines():
+        stripped = line.strip()
+        # Shapes this reader does not parse are refused by name rather than skipped, so a
+        # Dockerfile that grows one cannot slip a source past the filter.
+        assert not stripped.startswith("ADD "), f"arrt/Dockerfile uses ADD, which this check does not read: {stripped}"
+        assert not (stripped.startswith("COPY ") and stripped.endswith("\\")), f"a COPY continues onto the next line: {stripped}"
+        assert "type=bind" not in stripped, f"a RUN binds a source this check does not read: {stripped}"
+        assert not (stripped.startswith("COPY ") and line != stripped), f"an indented COPY this check does not read: {stripped}"
+        assert not stripped.startswith("COPY ["), f"an exec-form COPY this check does not read: {stripped}"
         if not line.startswith("COPY "):
             continue
         words = line.split()[1:]
@@ -238,3 +273,18 @@ def test_copy_sources_are_read_from_the_right_context():
         ]
     )
     assert _copied_sources(dockerfile) == {"arrt/pyproject.toml", "arrt/uv.lock", "contract"}
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "ADD src ./src",
+        "COPY pyproject.toml \\",
+        "RUN --mount=type=bind,source=x,target=/x true",
+        "  COPY a ./",
+        'COPY ["a", "./"]',
+    ],
+)
+def test_a_dockerfile_shape_the_reader_cannot_parse_is_refused(line):
+    with pytest.raises(AssertionError, match="does not read|continues"):
+        _copied_sources(f"FROM debian AS base\n{line}\n")

@@ -35,7 +35,9 @@ Inferences:
   call]` *(Superseded 2026-11-18 by the owner's ruling on Actions minutes
   (`owner-rulings.md`): the job is `image.yml`, filtered by path, and
   `tests/test_default_suite_ci_scope.py` derives the Dockerfile's `COPY` sources so
-  the filter cannot fall out of step with them. `build-plan-ci-on-testament.md`.)*
+  the filter cannot drift from the environment inputs. Source, tests and tools are
+  not watched, which is the class two of #386's three causes came from, so this is
+  reduced coverage, ruled for the minutes. `build-plan-ci-on-testament.md`.)*
 - `[DECISION: CI builds linux/amd64 on an amd64 runner | the image is amd64-only:
   dezoomify-rs ships an x86_64 binary, so a native arm64 build fails at its install
   step (measured 2026-11-18). An amd64 runner needs no emulation, which is what made the
