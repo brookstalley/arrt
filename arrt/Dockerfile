@@ -74,10 +74,18 @@ COPY --from=repo contract /contract
 COPY --from=repo .prawduct/artifacts/player-contract.md /.prawduct/artifacts/player-contract.md
 RUN uv sync --frozen
 COPY tests ./tests
+# The UX walk's tests import `tools/ux_walk.py` by path, from beside `tests/`.
+COPY tools ./tools
 # Where the tests look for it: three levels above a test file, which in the
 # image is the filesystem root.
 COPY --from=repo all.json /all.json
-RUN uv run --frozen pytest -q -p no:cacheprovider
+# As the app stage's user, not root: root reads a file whatever its mode, so the
+# tests that make a file unreadable to prove it is reported would fail here, and
+# a suite run as root would vouch for permissions the app never has. It owns
+# nothing in the image; HOME points at the one place it may write.
+USER 568:568
+ENV HOME=/tmp
+RUN uv run --frozen --no-sync pytest -q -p no:cacheprovider
 
 FROM base AS app
 

@@ -9,12 +9,14 @@ are the server's, in both directions.
 """
 
 import re
-from pathlib import Path
 
 from arrt_contract import schema as contract_schema
 
-ROOT = Path(__file__).resolve().parents[3]
-WALLS = ROOT / "arrt" / "src" / "arrt" / "http" / "static" / "screens" / "walls.js"
+from arrt.http.pages import STATIC_DIR
+
+#: The file the server serves, wherever the package is laid out: in the repository
+#: and in the image, where the project sits at `/app`.
+WALLS = STATIC_DIR / "screens" / "walls.js"
 
 #: Worded where the card is built rather than in the table.
 WORDED_IN_THE_CARD = {"showing_art", "silent"}
