@@ -3384,18 +3384,18 @@ coverage_required: false
 #   `tests`). One verifier run unions discovery across all of them.
 
 # Three independent projects (the root's governance suite, the server and the
-# contract package), three suites — all three must pass, and the hook must run
-# the real invocations rather than its `sys.executable -m pytest` default, which
-# resolves none of them. Each project is uv-managed on its own pinned
-# interpreter, so the two under a subdirectory are reached with `--directory`
-# (shell operators are unsupported here, and `cd` is a shell operator). Arrt
-# Player's suite is declared in its own repository.
+# contract package), with four testament suites between them: the server's
+# browser suite runs apart from its other tests. All must pass. Testament runs
+# every suite `.testament.toml` declares, on the pool or, where no runner
+# answers, on this machine, and writes one merged JUnit report. Run the suite
+# AS the recorder (`prawduct-hook test-evidence record`) and that one run is
+# both the verification and the evidence; a separate `testament run` first is
+# a second run, and ingesting its report (`--from-junit`) avoids it. Which
+# projects the evidence covers is the manifest's: `tests/test_default_suite_ci_scope.py`
+# holds every `tests_dirs` root to a suite. Arrt Player's suite is declared in
+# its own repository.
 test_commands:
-  - uv run pytest tests --junit-xml={junit_xml} -q
-  - uv run --directory arrt pytest --junit-xml={junit_xml} -q
-  # The contract package, which Arrt Player pins by version from its own
-  # repository, so its own suite gates a change to it as the server's does.
-  - uv run --directory contract pytest --junit-xml={junit_xml} -q
+  - testament run --junit-xml {junit_xml}
 
 tests_dirs: tests arrt/tests contract/tests
 

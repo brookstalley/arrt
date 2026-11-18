@@ -112,12 +112,14 @@ Developer preferences for how code is written in this project. Captured during d
 
 ## Testing
 
-- **Framework**: pytest, one suite per project — `tests/` at the root (the
+- **Framework**: pytest, in three projects — `tests/` at the root (the
   governance suite), `arrt/tests/` and `contract/tests/`, each on its own
-  interpreter. All three are declared as `test_commands` in `project-state.yaml`
-  so the evidence hook runs the real invocations rather than a default that
-  resolves none of them. Arrt Player's suite left with it at wave 5 (2026-10-27)
-  and is declared in its own repository.
+  interpreter — and four testament suites, the server's browser suite running
+  apart from its other tests. The evidence hook's one `test_commands` entry in
+  `project-state.yaml` is a `testament run` of all four, so a run made through
+  the recorder is both the verification and the evidence (2026-11-18; until then
+  it was three local pytest invocations, which never ran the browser suite). Arrt Player's suite left
+  with it at wave 5 (2026-10-27) and is declared in its own repository.
 - **Style**: descriptive test names stating the behaviour under test.
 - **Coverage expectations**: happy path and likely error paths for every service and every
   parser that reads outside data, in each plane. Hardware and network paths are covered
