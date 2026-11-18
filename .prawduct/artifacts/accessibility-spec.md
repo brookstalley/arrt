@@ -71,6 +71,13 @@ decision to record rather than something to sync the prose to.
    `re-architecture.md` § Player outputs (wave 6+). Since 2026-10-02 an HDMI wall
    shows no label at all, which conforms but brings the caption surface nearer. **Retroactivity:**
    none needed: the only built surface already conforms.
+
+   **Stopgap:** recorded 2026-11-18, expires 2027-01-17. `[DECISION: the transition
+   stands still while #217 waits on design, and no caption surface is built in the
+   meantime | the norm's why, a reader at standing distance, is not at risk while
+   no surface but the conforming panel exists; the risk is a caption built without
+   the floor, and this bound brings #217 back before anyone is likely to build one |
+   the owner ruled on 2026-11-18 (owner-rulings.md); user can veto/override]`
 2. **WCAG 2.1 AA on the curation browser, and colour is never the sole carrier of
    state.** Ratified; the decision it implements is
    `design_decisions.accessibility_approach`.

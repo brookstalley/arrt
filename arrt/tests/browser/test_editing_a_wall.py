@@ -376,11 +376,21 @@ def holding(ui, pattern):
         else:
             route.continue_()
 
-    def stop():
+    def stop(after: int = 1):
+        # A click returns once it is dispatched, before its fetch reaches the route
+        # handler, so stopping at once can let the very request a test meant to hold
+        # straight through. Wait until `after` requests are held, pumping Playwright's
+        # events, and say so by name rather than failing later on a count.
+        for _ in range(500):  # 500 waits of 10 ms: five seconds
+            if len(held) >= after:
+                break
+            ui.page.wait_for_timeout(10)
+        else:
+            raise AssertionError(f"held {len(held)} of {after} {pattern} request(s) before stopping")
         holding_now[0] = False
 
     def release():
-        stop()
+        holding_now[0] = False
         for route in held:
             route.continue_()
 
