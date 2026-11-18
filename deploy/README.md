@@ -23,7 +23,9 @@ Player's steps are in its repository.
   `BACKUP_DIR` is set, under `/backups` (both mounts must be writable by it), and answers
   `/healthz` for the container's healthcheck. Build it for the NAS with
   `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
-  curation suite inside it with `--target test --build-context repo=.`.
+  curation suite inside it with `--target test --build-context repo=.`, as the
+  app's own user. CI builds that target on every pull request, natively on amd64
+  (`suites.yml`); on an arm Mac it builds under emulation and takes far longer.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 
 **What is not here, by the rule that this repository names no address:** the
