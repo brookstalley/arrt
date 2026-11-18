@@ -115,6 +115,45 @@ jobs:
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py contract/results.xml
 
+  image:
+    name: "The server image's test target"
+    # The NAS runs `arrt/Dockerfile`'s app stage, and its `test` stage runs the
+    # server's suite inside that same image: its interpreter, its system
+    # libraries, its user and its file layout. The curation job above runs the
+    # suite on the runner instead, so an image that installs, lays out or
+    # permissions something differently passes there and is only found at
+    # deploy. This job builds the test stage, so a red suite fails the build,
+    # and reads its report as the other suite jobs read theirs, so a skip fails
+    # it too. A test layer served from the cache is one whose code, tests and
+    # lockfile are byte-identical to a build that already passed.
+    #
+    # amd64, on an amd64 runner: dezoomify-rs ships only an x86_64 binary, so
+    # the image is amd64-only, and here it builds without emulation.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the test stage
+        uses: docker/build-push-action@v6
+        with:
+          context: arrt
+          # The test stage reads `contract/`, the player-contract artifact and
+          # the 2024 index from the repository root (the Dockerfile says why).
+          build-contexts: repo=.
+          target: test-report
+          platforms: linux/amd64
+          outputs: type=local,dest=image-report
+          # `max`, every stage's layers: the target is the report stage, built
+          # from scratch, so `min` would keep only the report and every run
+          # would rebuild Python and both environments. The dependency layers
+          # change only with the lockfile, so most runs reuse them.
+          cache-from: type=gha,scope=server-image
+          cache-to: type=gha,mode=max,scope=server-image
+      - name: Fail if nothing actually ran
+        if: always()
+        run: python3 .github/scripts/assert_tests_ran.py image-report/results.xml
+
   lint:
     name: "Lint and format, the governance suite, the server and the contract"
     runs-on: ubuntu-latest
