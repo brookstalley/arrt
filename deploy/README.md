@@ -24,8 +24,8 @@ Player's steps are in its repository.
   `/healthz` for the container's healthcheck. Build it for the NAS with
   `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
   curation suite inside it with `--target test --build-context repo=.`, as the
-  app's own user. CI builds that target on every pull request, natively on amd64
-  (`suites.yml`). On an arm Mac it builds under emulation, takes far longer, and
+  app's own user. CI builds that target natively on amd64 on a pull request that
+  changes what the image is built from (`.github/workflows/image.yml`). On an arm Mac it builds under emulation, takes far longer, and
   a test that times a server's answer can fail there for that reason alone.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 

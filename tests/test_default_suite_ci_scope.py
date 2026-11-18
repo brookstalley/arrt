@@ -1,207 +1,108 @@
-"""What the default-suite CI leg may skip collecting, and what it may not.
+"""What CI runs, and that nothing falls out of it unseen.
 
-The curation plane's CI invocation is not the documented local one. Locally
-`uv run pytest` is right: the opt-in markers are deselected by `addopts` and
-whichever optional groups happen to be installed import cleanly. In CI a default
-`uv sync` installs none of them, so the modules that `importorskip` their group
-land skips in the report — and `assert_tests_ran.py` reads any skip as a
-provisioning failure and fails the job. A green suite, a red leg, and nothing
-actually wrong: the alarm that cries wolf until nobody reads it.
+Every suite runs on testament's pool: `.github/workflows/tests.yml` runs one
+`testament run` with no `--suite`, which runs every suite `.testament.toml`
+declares. So the manifest decides what CI covers, and two things can quietly
+shrink it while the run still reports green:
 
-So the leg names those directories with `--ignore`. **That list is the kind of
-thing that goes stale silently in both directions, which is why it is derived
-here rather than trusted.**
-
-- *Too few* and CI goes red on a passing suite, and the failure points at a
-  provisioning problem that does not exist.
-- *Too many* and coverage shrinks with nothing to show for it. A directory
-  ignored after its `importorskip` was removed stops running in CI entirely,
-  reports nothing, and looks exactly like a directory that is passing.
-
-The second is the one worth a mechanism. Nobody re-derives an ignore list to
-check whether an entry is still earning its place.
+- a test directory that no suite selects, which the tests at the end of this
+  file derive from the tree;
+- a workflow edit that narrows the run (a `--suite`, a path) or lets it fall
+  back to GitHub's runner, or a skip guard that reads some other file than the
+  report the run wrote. The tests just below read the workflow for each.
 """
 
 import pathlib
-import re
+import shlex
 import tomllib
 
-import pytest
 import yaml
-from repository import INVOCATION
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
-WORKFLOW = REPO / ".github" / "workflows" / "suites.yml"
+WORKFLOW = REPO / ".github" / "workflows" / "tests.yml"
 CURATION_TESTS = REPO / "arrt" / "tests"
 
 
-def _directories_that_import_or_skip(tests_root: pathlib.Path) -> set[str]:
-    """Top-level directories under `tests_root` holding a module that may not import.
-
-    `pytest.importorskip` at module scope is the exact construct that turns an
-    absent optional group into a collection-time skip. Matched textually — the
-    alternative is importing every test module to find out, which needs the very
-    dependencies whose absence is the subject.
-
-    **The call, not the word.** Matching the bare name found four files on the
-    first run, two of them these tests and one the guard they are about, all of
-    which only *discuss* the construct in prose. A guard that counts its own
-    docstring is worse than none: it fails on a healthy tree and teaches whoever
-    is on call to widen it until it stops meaning anything.
-    """
-    found = set()
-    for path in tests_root.rglob("*.py"):
-        if re.search(r"\bimportorskip\s*\(", path.read_text(encoding="utf-8")):
-            found.add(path.relative_to(tests_root).parts[0])
-    return found
+def _run_lines(workflow: dict) -> list[str]:
+    """Every shell line of every step, comments and blank lines dropped."""
+    lines = []
+    for job in workflow["jobs"].values():
+        for step in job.get("steps", []):
+            for line in str(step.get("run", "")).splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    lines.append(stripped)
+    return lines
 
 
-#: A line opening a job: two spaces, a name, a colon, nothing else. The workflow's
-#: only other two-space keys are inside a job's body, which are all deeper.
-_JOB = re.compile(r"^  ([A-Za-z][\w-]*):\s*$")
+def _testament_runs(lines: list[str]) -> list[list[str]]:
+    """The argument lists of every `testament run` line."""
+    runs = []
+    for line in lines:
+        if line.startswith("testament run"):
+            runs.append(shlex.split(line.split(" > ", 1)[0].split(" || ", 1)[0]))
+    return runs
 
 
-def _pytest_invocations_by_job() -> dict[str, list[str]]:
-    """Every `uv run … pytest …` command in the workflow, under the job that runs it.
-
-    **Keyed by job rather than matched by shape**, which is the correction that
-    let a second ignore-carrying leg exist. This helper used to assert there was
-    exactly one such invocation in the whole file and identify the curation leg by
-    that uniqueness — fine while it was true, and a test that fails on the next
-    plane to grow an optional group rather than on anything being wrong. Naming
-    the job says which claim is about which suite.
-
-    Text rather than a YAML parse because the root project depends on no YAML
-    library, and a guard that added one to read four lines would cost more than it
-    protects.
-    """
-    invocations: dict[str, list[str]] = {}
-    job = None
-    for line in WORKFLOW.read_text(encoding="utf-8").splitlines():
-        opening = _JOB.match(line)
-        if opening:
-            job = opening.group(1)
-        elif job and not line.strip().startswith("#") and INVOCATION.search(line):
-            invocations.setdefault(job, []).append(line.strip())
-    return invocations
+def check_the_pool_run(lines: list[str]) -> None:
+    """Raise unless the lines run every suite on the pool and guard the report they write."""
+    runs = _testament_runs(lines)
+    assert len(runs) == 1, f"expected one `testament run`, found {len(runs)}: {runs}"
+    args = runs[0][2:]
+    assert "--no-fallback" in args, "without --no-fallback an unreachable pool runs every suite on GitHub's runner"
+    assert "--suite" not in args, "a --suite narrows CI to that suite, and the rest stop running with nothing to say so"
+    report = args[args.index("--junit-xml") + 1] if "--junit-xml" in args else None
+    assert report, "the run writes no JUnit report, so the skip guard has nothing to read"
+    selection = [a for i, a in enumerate(args) if not a.startswith("-") and (i == 0 or args[i - 1] != "--junit-xml")]
+    assert not selection, f"the run selects {selection}, so CI runs less than every suite"
+    guards = [line for line in lines if "assert_tests_ran.py" in line]
+    assert guards, "nothing checks that the pool's tests actually ran"
+    reads = {shlex.split(line)[-1] for line in guards}
+    assert reads == {report}, f"the skip guard reads {sorted(reads)}, not the report the run writes ({report})"
 
 
-def _ignored_by(job: str) -> set[str]:
-    """The directory names that job's pytest invocation excludes."""
-    invocations = _pytest_invocations_by_job()
-    assert job in invocations, (
-        f"no `uv run … pytest` step under a job named {job!r} in suites.yml — either the job was "
-        "renamed, or the suite it ran is no longer run in CI at all"
-    )
-    assert len(invocations[job]) == 1, (
-        f"the {job!r} job runs pytest {len(invocations[job])} times: {invocations[job]}. This test "
-        "reads one invocation per job; a job that grew a second needs its own claim rather than a "
-        "union of both, or the two would cover for each other's gaps."
-    )
-    return {match.removeprefix("tests/") for match in re.findall(r"--ignore=(\S+)", invocations[job][0])}
+def test_ci_runs_every_suite_on_the_pool_and_guards_its_report():
+    check_the_pool_run(_run_lines(yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))))
 
 
-def check_ignores(ignored: set[str], needed: set[str]) -> None:
-    """Raise unless the two sets agree, naming which direction they disagree in.
-
-    A function rather than a bare assertion in the test below, because the two
-    directions are separate claims and only one of them has a real tree to prove
-    it against: this repo's `--ignore` list happens to be correct, so the
-    over-exclusion half could only be exercised by fabricating the inputs.
-
-    That half was undefended when written. A mutation sweep changed the
-    comparison from `==` to `needed <= ignored` — tolerating any number of
-    unnecessary entries — and every test still passed, while the docstring above
-    it claimed over-exclusion was "the one worth a mechanism".
-    """
-    missing = needed - ignored
-    extra = ignored - needed
-    assert not missing, (
-        f"the curation CI leg does not ignore {sorted(missing)}, whose modules cannot import "
-        "without their optional group. In CI they land collection skips, and assert_tests_ran.py "
-        "fails the job reporting a provisioning fault against a suite that is fine."
-    )
-    assert not extra, (
-        f"the curation CI leg ignores {sorted(extra)}, which import cleanly and need no exclusion. "
-        "Those directories do not run in CI at all, and report nothing while not running — which "
-        "is indistinguishable from passing."
-    )
+_GOOD = [
+    'testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback > "$OUT/envelope.json" || code=$?',
+    'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml"',
+]
 
 
-def test_the_curation_leg_ignores_exactly_the_directories_that_cannot_import():
-    """Derived on both sides, so neither over- nor under-exclusion can sit unnoticed.
-
-    A new `tests/perf/` that `importorskip`s its group would otherwise turn CI
-    red for a reason that reads as a provisioning fault. An old entry left behind
-    after its `importorskip` went away would otherwise stop a whole directory
-    running in CI, silently and indefinitely.
-    """
-    needed = _directories_that_import_or_skip(CURATION_TESTS)
-    assert needed, "no module under arrt/tests uses importorskip — the CI leg should carry no --ignore at all"
-
-    check_ignores(_ignored_by("arrt"), needed)
+def test_the_good_shape_passes():
+    check_the_pool_run(_GOOD)
 
 
-def test_a_missing_ignore_is_rejected():
-    """Under-exclusion: the job goes red on a healthy suite, blaming a phantom install."""
-    with pytest.raises(AssertionError, match="cannot import"):
-        check_ignores(ignored={"browser"}, needed={"browser", "eval"})
+def test_a_run_that_can_fall_back_is_refused():
+    lines = [_GOOD[0].replace(" --no-fallback", ""), _GOOD[1]]
+    try:
+        check_the_pool_run(lines)
+    except AssertionError as e:
+        assert "--no-fallback" in str(e)
+    else:
+        raise AssertionError("a run without --no-fallback passed")
 
 
-def test_an_unnecessary_ignore_is_rejected():
-    """Over-exclusion: a whole directory stops running in CI and nothing says so.
-
-    The half a real tree cannot demonstrate, because this repo's list is correct
-    — so it is fabricated here rather than left to a `==` nobody can see fail.
-    """
-    with pytest.raises(AssertionError, match="import cleanly and need no exclusion"):
-        check_ignores(ignored={"browser", "eval", "integration"}, needed={"browser", "eval"})
-
-
-def test_tests_live_is_collected_rather_than_ignored():
-    """The one opt-in directory that stays in, and the reason it can.
-
-    `tests/live` is deselected by the marker expression in `addopts`, not by an
-    import guard: its modules import cleanly with nothing optional installed, so
-    they contribute no skip. Ignoring it would look consistent with its siblings
-    and would cost the collection of six modules for nothing.
-
-    Asserted so that "it is not ignored" is a checked property rather than an
-    accident of whoever last edited the line.
-    """
-    assert "live" not in _directories_that_import_or_skip(CURATION_TESTS), (
-        "a module under arrt/tests/live now uses importorskip, so it can no longer be collected "
-        "in CI — add --ignore=tests/live to the curation leg in suites.yml"
-    )
-    assert "live" not in _ignored_by("arrt")
+def test_a_run_narrowed_to_one_suite_is_refused():
+    lines = [_GOOD[0].replace("--no-fallback", "--no-fallback --suite curation"), _GOOD[1]]
+    try:
+        check_the_pool_run(lines)
+    except AssertionError as e:
+        assert "--suite" in str(e)
+    else:
+        raise AssertionError("a run narrowed to one suite passed")
 
 
-def test_the_root_leg_needs_no_ignores():
-    """Why the two test jobs are not written the same way.
-
-    The root suite is the governance suite and has no opt-in group to miss, so its
-    invocation is the plain one. If that ever stops being true, this fails here
-    rather than in CI — where it would present as a provisioning failure against
-    a suite that is fine.
-    """
-    assert _directories_that_import_or_skip(REPO / "tests") == set(), (
-        "a module under the root tests/ now uses importorskip, so the root CI leg needs the same "
-        "--ignore treatment the curation leg has"
-    )
-
-
-def test_the_contract_leg_runs_and_needs_no_ignores():
-    """The contract package's suite has a leg of its own, and nothing in it is optional.
-
-    Arrt Player, in its own repository, pins a released version of the package,
-    so a change that breaks it must go red here, before the tag. `_ignored_by`
-    fails by name if no job runs it.
-    """
-    assert _directories_that_import_or_skip(REPO / "contract" / "tests") == set(), (
-        "a module under contract/tests now uses importorskip, so its CI leg needs the --ignore "
-        "treatment and another job that runs what it ignores"
-    )
-    assert _ignored_by("contract") == set()
+def test_a_guard_reading_another_report_is_refused():
+    lines = [_GOOD[0], 'python3 .github/scripts/assert_tests_ran.py "$OUT/other.xml"']
+    try:
+        check_the_pool_run(lines)
+    except AssertionError as e:
+        assert "not the report the run writes" in str(e)
+    else:
+        raise AssertionError("a guard on another file passed")
 
 
 #: Directories under `arrt/tests` the pool's curation suite leaves to another:
@@ -262,3 +163,78 @@ def test_a_test_root_no_suite_selects_is_named():
     assert _uncovered_test_roots({"suites": {"y": {"default_selection": ["contract/testsuite"]}}}, ["contract/tests"]) == [
         "contract/tests"
     ]
+
+
+IMAGE_WORKFLOW = REPO / ".github" / "workflows" / "image.yml"
+DOCKERFILE = REPO / "arrt" / "Dockerfile"
+
+#: What the image copies in that `image.yml` deliberately does not watch, because the
+#: pool's suites run it on every pull request: the server's code, tests and tools, the
+#: contract package's source and the documents its tests read. The contract's own
+#: dependency declarations are watched, since they change what the image installs.
+_RUN_BY_THE_POOL = {"arrt/src", "arrt/tests", "arrt/tools", "contract", ".prawduct/artifacts/player-contract.md", "all.json"}
+
+
+def _copied_sources(dockerfile: str) -> set[str]:
+    """Every repository path a `COPY` brings into the image, as a path from the repo root.
+
+    The build context is `arrt/`; `--from=repo` is the repository root (`image.yml`'s
+    `build-contexts`); any other `--from` names an earlier stage, which copies nothing
+    from the repository.
+    """
+    stages = {line.split()[-1] for line in dockerfile.splitlines() if line.startswith("FROM ") and " AS " in line}
+    found = set()
+    for line in dockerfile.splitlines():
+        if not line.startswith("COPY "):
+            continue
+        words = line.split()[1:]
+        source = next((w.split("=", 1)[1] for w in words if w.startswith("--from=")), None)
+        paths = [w for w in words if not w.startswith("--")][:-1]
+        if source in stages:
+            continue
+        root = "" if source == "repo" else "arrt/"
+        found |= {f"{root}{p}".rstrip("/") for p in paths}
+    return found
+
+
+def check_the_image_filter(copied: set[str], watched: list[str]) -> None:
+    """Raise unless every copied path is watched by the filter or run by the pool."""
+    unwatched = sorted(
+        path for path in copied if path not in _RUN_BY_THE_POOL and path not in watched and f"{path}/**" not in watched
+    )
+    assert not unwatched, (
+        f"arrt/Dockerfile copies {unwatched}, which image.yml's paths filter does not watch and the pool "
+        "does not run: add each to the filter, or to _RUN_BY_THE_POOL with the reason the pool covers it"
+    )
+
+
+def test_the_image_build_watches_everything_the_image_is_built_from():
+    workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    watched = workflow[True]["pull_request"]["paths"]
+    copied = _copied_sources(DOCKERFILE.read_text(encoding="utf-8"))
+    assert copied, "no COPY read from arrt/Dockerfile, so this checks nothing"
+
+    check_the_image_filter(copied, watched)
+
+
+def test_a_copied_file_the_filter_misses_is_named():
+    try:
+        check_the_image_filter({"arrt/uv.lock", "arrt/requirements.txt"}, ["arrt/uv.lock"])
+    except AssertionError as e:
+        assert "arrt/requirements.txt" in str(e)
+        assert "arrt/uv.lock'" not in str(e)
+    else:
+        raise AssertionError("a copied file outside the filter passed")
+
+
+def test_copy_sources_are_read_from_the_right_context():
+    dockerfile = "\n".join(
+        [
+            "FROM uv:1 AS uv",
+            "FROM debian AS base",
+            "COPY --from=uv /uv /uvx /usr/local/bin/",
+            "COPY pyproject.toml uv.lock ./",
+            "COPY --from=repo contract /contract",
+        ]
+    )
+    assert _copied_sources(dockerfile) == {"arrt/pyproject.toml", "arrt/uv.lock", "contract"}

@@ -1,0 +1,71 @@
+# Builds the server image's test target, only when what the image is built from changes.
+#
+# The NAS runs `arrt/Dockerfile`'s app stage, and its `test` stage runs the server's suite
+# inside that same image, so an image that installs, lays out or permissions something
+# differently from the pool's environment is caught before deploy. It is a Docker build of
+# about seven runner-minutes. The owner, 2026-11-18: "not doing heavy builds. we keep
+# running out of github actions minutes" (`.prawduct/owner-rulings.md`). So it runs on a
+# pull request that changes the image's own inputs: the Dockerfile and `.dockerignore`, the
+# interpreter pin, the server's and the contract's dependency declarations and lockfiles,
+# and this file. A change to source or tests alone is run by `tests.yml` on the pool.
+#
+# What that leaves untested here, stated: a source change that works on the pool's image
+# and fails only in this one, for a reason no input above changed. Run it by hand
+# (`workflow_dispatch`) before a release that worries you.
+name: Server image
+
+on:
+  pull_request:
+    paths:
+      - "arrt/Dockerfile"
+      - "arrt/.dockerignore"
+      - ".python-version"
+      - "arrt/.python-version"
+      - "arrt/pyproject.toml"
+      - "arrt/uv.lock"
+      - "contract/pyproject.toml"
+      - "contract/uv.lock"
+      - ".github/workflows/image.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: "The server image's test target"
+    # Builds the test stage, so a red suite fails the build, and reads its report as
+    # the other suites' reports are read, so a skip fails it too. A test layer served
+    # from the cache is one whose code, tests and lockfile are byte-identical to a
+    # build that already passed.
+    #
+    # amd64, on an amd64 runner: dezoomify-rs ships only an x86_64 binary, so
+    # the image is amd64-only, and here it builds without emulation.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the test stage
+        uses: docker/build-push-action@v6
+        with:
+          context: arrt
+          # The test stage reads `contract/`, the player-contract artifact and
+          # the 2024 index from the repository root (the Dockerfile says why).
+          build-contexts: repo=.
+          target: test-report
+          platforms: linux/amd64
+          outputs: type=local,dest=image-report
+          # `max`, every stage's layers: the target is the report stage, built
+          # from scratch, so `min` would keep only the report and every run
+          # would rebuild Python and both environments. The dependency layers
+          # change only with the lockfile, so most runs reuse them.
+          cache-from: type=gha,scope=server-image
+          cache-to: type=gha,mode=max,scope=server-image
+      - name: Fail if nothing actually ran
+        if: always()
+        run: python3 .github/scripts/assert_tests_ran.py image-report/results.xml

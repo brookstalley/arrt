@@ -1,8 +1,8 @@
 """Fail when an opt-in suite reported success without actually testing anything.
 
 **Two kinds of suite depend on this, not one.** The live probes are the obvious
-half; `browser.yml` is the other, and it needs exactly the same protection for a
-different missing dependency — the browser suite skips itself when the `browser`
+half; the pool run in `tests.yml`, which includes the browser suite, is the other,
+and it needs exactly the same protection for a different missing dependency — the browser suite skips itself when the `browser`
 group or the downloaded Chromium is absent, which in CI is a provisioning failure
 that would otherwise report a green client-coverage job having executed no line of
 the client. Written out because an earlier version of this docstring described
@@ -38,9 +38,13 @@ was reading the wrong number.
 Usage: assert_tests_ran.py <junit-xml-path>
 """
 
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+#: How testament's merged JUnit opens the message of an expected failure.
+_TESTAMENT_XFAIL = re.compile(r"\[\w+\] xfail: ")
 
 
 def main(path: Path) -> int:
@@ -66,10 +70,12 @@ def main(path: Path) -> int:
     ran = tests - skipped
 
     # The suite attribute counts expected failures alongside real skips, so the
-    # cases are walked to tell them apart. An `xfail` carries type
-    # "pytest.xfail"; a genuine skip carries "pytest.skip" or, in reports from
-    # other tools, no type at all — which is read as a real skip, because the
-    # safe direction for an unknown is to fail the job rather than pass it.
+    # cases are walked to tell them apart. pytest's own report gives an `xfail`
+    # type "pytest.xfail". testament's merged report, which CI reads, gives no
+    # type and starts the message `[<phase>] xfail:`; only that exact opening
+    # counts, so a skip whose reason merely mentions xfail stays a skip. Anything
+    # else is read as a real skip, because the safe direction for an unknown is
+    # to fail the job rather than pass it.
     blocking = []
     expected_failures = 0
     for suite in suites:
@@ -77,7 +83,7 @@ def main(path: Path) -> int:
             skip = case.find("skipped")
             if skip is None:
                 continue
-            if skip.get("type") == "pytest.xfail":
+            if skip.get("type") == "pytest.xfail" or _TESTAMENT_XFAIL.match(skip.get("message", "")):
                 expected_failures += 1
                 continue
             name = f"{case.get('classname', '')}::{case.get('name', '')}".lstrip(":")

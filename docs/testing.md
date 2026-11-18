@@ -55,8 +55,8 @@ tests** — they are deterministic, free, and reach no foreign API. When you tou
 anything under `static/` (`app.js`, a `core/` module or a `screens/` one), run
 the files for the screens you changed. The whole suite, the command above, runs
 once on the integrated branch (`project-preferences.md`, `Delegate
-verification`). `.github/workflows/browser.yml` runs it on pull requests
-and on pushes to `main`. Without the group the modules skip with the command
+verification`). `.github/workflows/tests.yml` runs it on testament's pool on
+every pull request. Without the group the modules skip with the command
 that fixes it, so a default `uv sync` is unaffected.
 
 **`-n0` matters here.** These tests time real two-second poll intervals, and

@@ -1,0 +1,171 @@
+# Lints, then sends every suite `.testament.toml` declares to testament's pool, on every
+# pull request. GitHub's runner only lints and waits: the owner, 2026-11-18, "we should be
+# using testament where possible and not doing heavy builds. we keep running out of github
+# actions minutes" (`.prawduct/owner-rulings.md`). Before this, a pull request ran four
+# browser shards, the curation suite and a Docker build on GitHub's runners, about 51
+# runner-minutes a push.
+#
+# - All four suites, governance, curation, browser and contract, run on the pool:
+#   `testament run` with no `--suite`, so a suite added to the manifest is in CI the day it
+#   is added. `tests/test_default_suite_ci_scope.py` holds that, and that the skip guard
+#   reads the report this run writes.
+# - `--no-fallback`: a pool the job cannot reach fails the job, rather than running every
+#   suite on GitHub's runner, which is the cost this file exists to remove. A run the pool
+#   could not decide (verdict `unavailable`, `error.retryable`) runs once more. A `failed`
+#   verdict never does, because a second run that passed would hide the failure.
+# - The key is the `TESTAMENT_KEY` secret (the CI client key `arrt-ci-github`). The
+#   coordinator and the console are the `TESTAMENT_COORDINATOR` and `TESTAMENT_CONSOLE`
+#   repository variables, which keeps both addresses out of this public repository. A pull
+#   request from a fork gets no secrets, so its job fails at the first step that needs the
+#   key and says why.
+# - The client is installed from the pool's own console (`testament guide client`, "In
+#   CI"), so it is the version the pool runs and the CI key is the only credential.
+# - Not on a push to `main` or `develop`: the pull request already ran this on the tree it
+#   merges. The drift-freshness check, which only makes sense on `main`, has its own file.
+# - The server image's test target is `image.yml`, and runs only when what the image is
+#   built from changes.
+name: tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+# A newer push to a pull request makes its older run moot.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pool:
+    name: "Lint, then every suite on testament's pool"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    # Outputs go under the runner's temp directory, never the checkout: the client sends the
+    # worktree's untracked files with the run, so a wheel or a report written there would
+    # travel to the pool.
+    env:
+      OUT_DIR: testament
+    steps:
+      # Full history: the client sends the worktree as a commit, whose objects it walks.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.11.32"
+          enable-cache: true
+      - name: Lint and format, the governance suite, the server and the contract
+        # Before the pool run, so a lint failure costs seconds, not a pool run.
+        run: |
+          uv run ruff check . && uv run black --check .
+          (cd arrt && uv run ruff check . && uv run black --check .)
+          (cd contract && uv run ruff check . && uv run black --check .)
+      - name: Install testament from the pool
+        env:
+          TESTAMENT_KEY: ${{ secrets.TESTAMENT_KEY }}
+          TESTAMENT_CONSOLE: ${{ vars.TESTAMENT_CONSOLE }}
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/$OUT_DIR"
+          if [ -z "$TESTAMENT_KEY" ] || [ -z "$TESTAMENT_CONSOLE" ]; then
+            echo "::error::set the TESTAMENT_KEY secret and the TESTAMENT_CONSOLE variable (a pull request from a fork gets neither); the suites never run on GitHub's runner"
+            exit 1
+          fi
+          mkdir -p "$OUT/wheel"
+          cd "$OUT/wheel"
+          # The key goes to curl on stdin, never in argv.
+          printf 'header = "Authorization: Bearer %s"\nurl = "%s/api/v1/cli/wheel"\n' "$TESTAMENT_KEY" "${TESTAMENT_CONSOLE%/}" |
+            curl -fsS -K - -D headers.txt -o wheel.bin
+          # uv reads a wheel only under its real name, which Content-Disposition carries.
+          name=$(tr -d '\r' < headers.txt | sed -En 's/^[Cc]ontent-[Dd]isposition:.*filename="?([^";/]+\.whl)"?.*/\1/p' | tail -n 1)
+          want=$(tr -d '\r' < headers.txt | sed -En 's/^[Xx]-[Tt]estament-[Ww]heel-[Ss][Hh][Aa]256: *([0-9A-Fa-f]+).*/\1/p')
+          [ -n "$name" ] && [ -n "$want" ]
+          mv wheel.bin "$name"
+          echo "$want  $name" | sha256sum -c -
+          uv tool install --python 3.14 "./$name"
+      - name: Run every suite on the pool
+        env:
+          TESTAMENT_KEY: ${{ secrets.TESTAMENT_KEY }}
+          TESTAMENT_COORDINATOR: ${{ vars.TESTAMENT_COORDINATOR }}
+          TESTAMENT_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/$OUT_DIR"
+          for attempt in 1 2; do
+            # The runner's `bash -e` would end the step on a failing run, before its code
+            # is read and the retry check runs.
+            code=0
+            testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback > "$OUT/envelope.json" || code=$?
+            retry=$(python3 - "$OUT/envelope.json" <<'PY'
+          import json, sys
+          try:
+              d = json.load(open(sys.argv[1]))
+          except (OSError, ValueError):
+              print("no")
+          else:
+              unavailable = d.get("verdict") == "unavailable"
+              print("yes" if unavailable and (d.get("error") or {}).get("retryable") else "no")
+          PY
+            )
+            if [ "$retry" = yes ] && [ "$attempt" = 1 ]; then
+              echo "::warning::the pool could not decide and said to retry; running once more"
+              continue
+            fi
+            break
+          done
+          exit "$code"
+      - name: Fail if nothing actually ran
+        # A suite that skipped itself reports green. This reads testament's merged report
+        # and fails on any skip that is not an expected failure.
+        if: always()
+        run: |
+          OUT="$RUNNER_TEMP/$OUT_DIR"
+          python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml"
+      - name: Summarize
+        if: always()
+        run: |
+          OUT="$RUNNER_TEMP/$OUT_DIR"
+          python3 - "$OUT/envelope.json" <<'PY'
+          import json, os, sys
+
+          lines = ["### Every suite, on the pool", ""]
+          try:
+              d = json.load(open(sys.argv[1]))
+          except (OSError, ValueError) as e:
+              d = None
+              lines.append(f"No result envelope: {e}")
+          if d is not None:
+              r = d.get("report") or {}
+              lines.append(f"verdict {d.get('verdict')} ({d.get('verdict_reason')}), exit {d.get('exit_code')}; counts {r.get('counts')}")
+              if d.get("fallback"):
+                  lines.append(f"**Ran on GitHub's runner, not the pool:** {d['fallback'].get('reason')}")
+              if d.get("error"):
+                  lines.append(f"**Error** `{d['error'].get('code')}`: {d['error'].get('message')}")
+              if r.get("missing"):
+                  lines.append(f"**Never reported ({len(r['missing'])}):** " + ", ".join(r["missing"][:20]))
+              for i in [i for i in r.get("items", []) if i.get("outcome") in ("failed", "error")][:50]:
+                  text = (i.get("message") or "").strip().splitlines() or [""]
+                  said = [t[1:].strip() for t in text if t.startswith("E ")]
+                  last = (said[0] if said else text[-1])[:300]
+                  lines.append(f"- `{i['id']}` {i['outcome']} on {i.get('runner')}: {last}")
+                  title = i["id"].replace("%", "%25").replace(":", "%3A").replace(",", "%2C")
+                  print(f"::error title={title}::{last.replace('%', '%25')}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\n".join(lines) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        # For people; the verdict never depends on it, so an artifact service that is down
+        # must not fail the job.
+        continue-on-error: true
+        with:
+          name: testament-envelope
+          path: |
+            ${{ runner.temp }}/testament/envelope.json
+            ${{ runner.temp }}/testament/all.xml
+          if-no-files-found: ignore

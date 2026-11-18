@@ -12,7 +12,7 @@
 # already tracked. One open issue per contract; repeat failures comment on it.
 #
 # The *absence* of a run is a different fault and has a different mechanism —
-# `suites.yml`'s `drift-freshness` job, which measures how long since each tier
+# `drift-freshness.yml`, which measures how long since each tier
 # last succeeded. A schedule that stops firing leaves nothing here to fail.
 #
 # WHAT THIS IS FOR. The `live_*` suites are the durable form of the
@@ -83,7 +83,7 @@ jobs:
   # while every probe passed, which is the alarm that cries wolf until nobody
   # reads it. Verified: unscoped, a run reported "1 skipped, 1873 deselected" and
   # the guard exited 1; scoped to `tests/live`, the same marker collects only the
-  # live tests and no skips. `browser.yml` hit and fixed the identical defect.
+  # live tests and no skips.
 
   museum:
     name: "Museum APIs (free)"

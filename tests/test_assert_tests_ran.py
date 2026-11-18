@@ -137,6 +137,49 @@ def test_a_real_skip_beside_an_expected_failure_still_fails_the_job(tmp_path, sh
     assert "1 test(s) skipped" in printed, "the count must exclude the xfail, or it misstates what is wrong"
 
 
+#: testament's merged JUnit, which CI reads now that the suites run on the pool,
+#: carries no `type` on a `<skipped>`: an expected failure is told apart only by its
+#: message, `[<phase>] xfail: <reason>`. The case below is that shape exactly, copied
+#: from a pool run of `arrt/tests/unit/test_schedule.py` (2026-11-18).
+TESTAMENT_XFAIL_CASE = (
+    '<testcase classname="arrt.tests.unit.test_schedule" name="test_three_walls">'
+    '<skipped message="[call] xfail: #374\'s limit, #436: the pass builds one wall at a time">'
+    "[call] xfail: #374's limit</skipped>"
+    "</testcase>"
+)
+#: A genuine skip whose reason happens to mention xfail, the input a loose match
+#: (`"xfail" in message`) would wave through.
+SKIP_MENTIONING_XFAIL_CASE = (
+    '<testcase classname="tests.live.test_a" name="test_it_still_holds">'
+    '<skipped message="[setup] skipped: no key, so the xfail check never ran"/>'
+    "</testcase>"
+)
+
+
+@SHAPES
+def test_testaments_expected_failure_is_not_read_as_a_missing_dependency(tmp_path, shape, capsys):
+    guard = _load()
+    report = _report(tmp_path, shape.format(tests=2, skipped=1, cases=PASSING_CASE + TESTAMENT_XFAIL_CASE))
+
+    assert guard.main(report) == 0
+    printed = capsys.readouterr().out
+    assert "xfailed 1" in printed
+    assert "::error::" not in printed
+
+
+@SHAPES
+def test_a_skip_that_only_mentions_xfail_still_fails_the_job(tmp_path, shape, capsys):
+    guard = _load()
+    report = _report(
+        tmp_path, shape.format(tests=3, skipped=2, cases=PASSING_CASE + TESTAMENT_XFAIL_CASE + SKIP_MENTIONING_XFAIL_CASE)
+    )
+
+    assert guard.main(report) == 1
+    printed = capsys.readouterr().out
+    assert "no key, so the xfail check never ran" in printed
+    assert "1 test(s) skipped" in printed
+
+
 def test_suite_level_skips_with_no_case_detail_still_fail_the_job(tmp_path, capsys):
     """A report the classifier cannot read must not thereby win a pass.
 
