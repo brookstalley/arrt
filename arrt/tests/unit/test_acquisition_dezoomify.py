@@ -67,6 +67,14 @@ PARTIAL = (
 WRITES_NOTHING = 'echo "[WARN ] Reached end of input. Exiting..." >&2\nexit 0\n'
 
 
+#: The tests that run the wrapper's child process, which is what they test.
+_RUNS_THE_CHILD = pytest.mark.uncacheable(
+    "runs the wrapper's real child process against a stand-in binary: "
+    "what the child is handed and how its exit is read are what is tested"
+)
+
+
+@_RUNS_THE_CHILD
 class TestSecurityOfTheInvocation:
     """The plan's bar: assert on the argv passed, not on the absence of a crash."""
 
@@ -144,6 +152,7 @@ class TestSecurityOfTheInvocation:
         assert "--image-index" in _passed_argv(tmp_path)
 
 
+@_RUNS_THE_CHILD
 class TestClassification:
     def test_a_saved_image_is_complete(self, tmp_path):
         script = _fake_binary(tmp_path, SAVES_IMAGE)
@@ -251,6 +260,7 @@ class TestClassification:
 
 
 class TestTheTileCache:
+    @_RUNS_THE_CHILD
     def test_the_cache_directory_is_created_before_invoking(self, tmp_path):
         # Observed: given a missing directory the binary warns per tile and
         # caches nothing, losing the retry this directory exists for.
@@ -259,6 +269,7 @@ class TestTheTileCache:
         _run(tmp_path, script, tile_cache=cache)
         assert cache.is_dir()
 
+    @_RUNS_THE_CHILD
     def test_the_cache_path_is_passed_to_the_binary(self, tmp_path):
         cache = tmp_path / "tiles"
         script = _fake_binary(tmp_path, SAVES_IMAGE)
@@ -277,6 +288,7 @@ class TestTheTileCache:
         reclaim_tile_cache(tmp_path / "never-existed")
 
 
+@_RUNS_THE_CHILD
 class TestDestination:
     def test_the_staged_name_keeps_the_real_suffix_last(self, tmp_path):
         # The binary picks its output encoder from the extension, so a staged path

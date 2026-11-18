@@ -15,23 +15,38 @@ import pathlib
 import subprocess
 
 import pytest
-from repository import ROOT, projects
+from repository import ROOT, projects, projects_present
 
-#: Every tree whose absence from a fresh clone would matter: each project's
-#: `src` and `tests`, its `tools` where it has one, and the root's own `tests`.
-#: A project's tests carry almost all of its coverage, and a tree the guard does
-#: not walk is exactly the tree this guard was built for: the suite stays green
-#: locally while the clone quietly loses it. The `tools/` trees are here because
-#: an operator runs them by hand.
-SOURCE_TREES = (
-    "tests",
-    *(
-        f"{project}/{tree}"
-        for project in projects()
-        for tree in ("src", "tests", "tools")
-        if tree != "tools" or (ROOT / project / "tools").is_dir()
-    ),
-)
+
+def _source_trees(names: list[str]) -> tuple[str, ...]:
+    """Every tree whose absence from a fresh clone would matter.
+
+    Each project's `src` and `tests`, its `tools` where it has one, and the
+    root's own `tests`. A project's tests carry almost all of its coverage, and
+    a tree the guard does not walk is exactly the tree this guard was built for:
+    the suite stays green locally while the clone quietly loses it. The `tools/`
+    trees are here because an operator runs them by hand.
+    """
+    return (
+        "tests",
+        *(
+            f"{project}/{tree}"
+            for project in names
+            for tree in ("src", "tests", "tools")
+            if tree != "tools" or (ROOT / project / "tools").is_dir()
+        ),
+    )
+
+
+#: The trees as collection sees them, from the projects in the tree rather than
+#: git's index: a git call at import would count against every test in the process.
+#: The scans below ask git which projects are tracked, inside the test.
+SOURCE_TREES_PRESENT = _source_trees(projects_present())
+
+
+def source_trees() -> tuple[str, ...]:
+    """The trees of every tracked project, which the scans walk."""
+    return _source_trees(projects())
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +76,7 @@ def _ignored(paths: list[pathlib.Path]) -> list[str]:
     return [line for line in result.stdout.splitlines() if line]
 
 
-@pytest.mark.parametrize("tree", SOURCE_TREES)
+@pytest.mark.parametrize("tree", SOURCE_TREES_PRESENT)
 def test_every_tree_the_scan_names_exists(tree):
     """Each tree on its own, because the scans below skip a missing one.
 
@@ -71,9 +86,15 @@ def test_every_tree_the_scan_names_exists(tree):
     assert pathlib.Path(tree).is_dir(), f"{tree} is not a directory, so the scans below pass over nothing there"
 
 
+def test_the_trees_checked_one_by_one_are_every_tree_the_scans_walk():
+    """The cases above come from the tree, the scans from git's index; a tracked project they miss is checked by neither."""
+    unchecked = sorted(set(source_trees()) - set(SOURCE_TREES_PRESENT))
+    assert not unchecked, f"trees the scans walk that no case above checks exists: {unchecked}"
+
+
 def test_no_python_source_is_gitignored():
     candidates: list[pathlib.Path] = []
-    for tree in SOURCE_TREES:
+    for tree in source_trees():
         root = pathlib.Path(tree)
         if root.exists():
             candidates.extend(p for p in root.rglob("*.py") if "__pycache__" not in p.parts)
@@ -86,7 +107,7 @@ def test_no_python_source_is_gitignored():
 def test_no_package_directory_is_gitignored():
     """Directories matter separately: an ignored dir hides files that look fine alone."""
     candidates: list[pathlib.Path] = []
-    for tree in SOURCE_TREES:
+    for tree in source_trees():
         root = pathlib.Path(tree)
         if root.exists():
             candidates.extend(p for p in root.rglob("*") if p.is_dir() and p.name != "__pycache__")

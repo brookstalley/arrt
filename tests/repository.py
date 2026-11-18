@@ -22,6 +22,19 @@ def projects() -> list[str]:
     return found
 
 
+def projects_present() -> list[str]:
+    """Each directory one level down that holds a `pyproject.toml`, read from the tree alone.
+
+    For parametrising at collection. A git call there runs at import, outside any
+    test, so the test runner counts it against every test in the process and
+    reuses none of their results. The tree is what a runner is shipped, so this
+    names every project it carries; a test that parametrises over it also checks,
+    inside the test, that it covers `projects()`, since a project nested deeper or
+    present here but untracked is where the two part.
+    """
+    return sorted(path.parent.name for path in ROOT.glob("*/pyproject.toml"))
+
+
 #: `uv run`, anything uv itself takes, then `pytest`. **Whatever sits between is
 #: the point.** Matching the literal `uv run pytest` skips every `uv run --group
 #: <name> pytest …` in silence, and a suite that needs a group is the kind that

@@ -31,10 +31,13 @@ from arrt.http.pages import STATIC_DIR
 
 ROUTE_MODULE = STATIC_DIR / "core" / "route.js"
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None,
-    reason="node is not installed; this check is opportunistic",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        shutil.which("node") is None,
+        reason="node is not installed; this check is opportunistic",
+    ),
+    pytest.mark.uncacheable("runs the shipped client's JavaScript under node: the child process is what is tested"),
+]
 
 #: A route table with the shape the client's own has: pages that address
 #: nothing, screens that address one thing, and one that is both.

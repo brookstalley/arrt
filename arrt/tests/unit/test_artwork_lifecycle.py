@@ -13,12 +13,12 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from fakes import open_catalogue
 
 from arrt.library.dimensions import Units
 from arrt.library.facade import LibraryFacade
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.discovery import DiscoveryService
-from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import (
     ArtworkStatus,
     MatMethod,
@@ -165,7 +165,7 @@ def test_adding_an_unknown_work_to_a_theme_is_refused_in_the_catalogues_words(di
 
 def _catalogue_with_unhung_themes(path):
     """Two themes, neither hanging anywhere. The ordinary state of a fresh catalogue."""
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     moment = datetime(2026, 7, 20, 9, 30, tzinfo=UTC)
     catalogue.add_theme(Theme(id="t-late", name="Late night", created_at=moment + timedelta(days=1)))
     catalogue.add_theme(Theme(id="t-early", name="Daylight", created_at=moment))
@@ -194,7 +194,7 @@ def test_a_catalogue_of_unhung_themes_stays_that_way_across_a_restart(tmp_path, 
     caplog.clear()
 
     with caplog.at_level(logging.WARNING, logger="arrt"):
-        catalogue = SqliteCatalogue(open_catalogue_file(path))
+        catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         display = _display(catalogue, tmp_path)
         assert display.hanging_on(catalogue.list_walls()[0].id) is None
@@ -235,7 +235,7 @@ def test_what_a_curator_hung_reaches_the_file_and_survives_a_reopen(tmp_path):
     _display(catalogue, tmp_path).activate_theme("t-early", wall_id=wall_id)
     catalogue.close()
 
-    reopened = SqliteCatalogue(open_catalogue_file(path))
+    reopened = SqliteCatalogue(open_catalogue(path))
     try:
         assert _display(reopened, tmp_path).hanging_on(wall_id).id == "t-early"
     finally:

@@ -17,10 +17,15 @@ _REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _ROOT_MODULES: frozenset[str] = frozenset()
 
 
-#: Each project's test tree and the root's, derived from the projects present.
-#: `testpaths = ["tests"]` in every `pyproject.toml` means a `test_*.py` anywhere
-#: else is never collected, so it would look like a test and guard nothing.
-_TEST_TREES = ("tests/", *(f"{project}/tests/" for project in projects()))
+def _test_trees() -> tuple[str, ...]:
+    """Each project's test tree and the root's, derived from the projects present.
+
+    `testpaths = ["tests"]` in every `pyproject.toml` means a `test_*.py` anywhere
+    else is never collected, so it would look like a test and guard nothing.
+    Asked inside the test, because `projects()` calls git, and a call at import
+    counts against every test in the process.
+    """
+    return ("tests/", *(f"{project}/tests/" for project in projects()))
 
 
 def _tracked() -> list[str]:
@@ -42,10 +47,11 @@ def test_nothing_new_is_added_at_the_root():
 
 
 def test_every_test_module_lives_in_its_planes_test_tree():
+    test_trees = _test_trees()
     misplaced = [
         name
         for name in _tracked()
-        if pathlib.PurePosixPath(name).name.startswith("test_") and name.endswith(".py") and not name.startswith(_TEST_TREES)
+        if pathlib.PurePosixPath(name).name.startswith("test_") and name.endswith(".py") and not name.startswith(test_trees)
     ]
 
     assert not misplaced, f"test modules outside a plane's tests/, which pytest never collects: {misplaced}"

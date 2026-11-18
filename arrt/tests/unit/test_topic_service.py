@@ -115,8 +115,13 @@ class Wanting:
         return self.qids
 
 
+def _kept_at() -> float:
+    """The moment answers are kept and read at: a test lasts seconds and an answer days, so a fixed one serves."""
+    return 1_000_000.0
+
+
 def _service(registry, store=None, wanted=None):
-    return TopicService(store or Store(), registry, kept=KeptAnswers.in_memory(), wanted=wanted or NothingWanted())
+    return TopicService(store or Store(), registry, kept=KeptAnswers.in_memory(clock=_kept_at), wanted=wanted or NothingWanted())
 
 
 def test_a_topic_is_asked_once_and_remembered():
@@ -135,7 +140,7 @@ def test_a_topic_is_asked_once_and_remembered():
 def test_a_topics_sections_answer_after_a_restart_with_the_registry_down(tmp_path):
     """A century's works took up to twenty-six seconds to ask for; a deploy must not make the curator wait again."""
     path = tmp_path / "kept-answers.sqlite"
-    first = KeptAnswers(path)
+    first = KeptAnswers(path, clock=_kept_at)
     up = TopicRegistry(topics=[WINTER], works={"Q1311": [HUNTERS]}, artists={"Q1311": [MONET]})
     service = TopicService(Store(), up, kept=first, wanted=NothingWanted())
     service.topic("Q1311")
@@ -143,7 +148,7 @@ def test_a_topics_sections_answer_after_a_restart_with_the_registry_down(tmp_pat
     service.artists("Q1311")
     first.close()
 
-    second = KeptAnswers(path)
+    second = KeptAnswers(path, clock=_kept_at)
     down = TopicRegistry(failing=True)
     restarted = TopicService(Store(held={HUNTERS.qid: ["work-1"]}), down, kept=second, wanted=NothingWanted())
     try:
@@ -166,7 +171,7 @@ def test_artists_kept_under_the_rule_before_are_asked_again_not_served(tmp_path)
     old order as the new one for a week.
     """
     path = tmp_path / "kept-answers.sqlite"
-    before = KeptAnswers(path)
+    before = KeptAnswers(path, clock=_kept_at)
     counted = before.namespace(
         "registry.topic_artists",
         codec=JsonCodec(tuple[RegistrySimilar, ...]),
@@ -176,7 +181,7 @@ def test_artists_kept_under_the_rule_before_are_asked_again_not_served(tmp_path)
     counted.put("Q1311", (MATISSE,))
     before.close()
 
-    after = KeptAnswers(path)
+    after = KeptAnswers(path, clock=_kept_at)
     registry = TopicRegistry(topics=[WINTER], artists={"Q1311": [MONET]})
     try:
         artists = TopicService(Store(), registry, kept=after, wanted=NothingWanted()).artists("Q1311")
@@ -249,7 +254,7 @@ def test_an_artist_the_library_holds_is_marked_with_its_id():
 
 @pytest.mark.parametrize("section", ["topic", "works", "artists", "named"])
 def test_with_no_user_agent_every_section_says_topics_need_one(section):
-    view = getattr(TopicService(Store(), None, kept=KeptAnswers.in_memory(), wanted=NothingWanted()), section)(
+    view = getattr(TopicService(Store(), None, kept=KeptAnswers.in_memory(clock=_kept_at), wanted=NothingWanted()), section)(
         "Q1311" if section != "named" else "winter"
     )
 

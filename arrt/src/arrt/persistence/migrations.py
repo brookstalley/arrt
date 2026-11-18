@@ -18,6 +18,7 @@ finishes correctly: rows are carried before anything that held them is dropped.
 import logging
 import sqlite3
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -45,7 +46,24 @@ DEFAULT_WALL_NAME: Final[str] = "The wall"
 _DROP_COLUMN_SINCE: Final[tuple[int, int, int]] = (3, 53, 1)
 
 
-def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str, seed: bool = True) -> None:
+def system_now() -> datetime:
+    """The moment a migration stamps the rows it writes, unless its caller passes one."""
+    return datetime.now(UTC)
+
+
+def random_id() -> str:
+    """A new row's id, unless the migration's caller passes a way to name it."""
+    return str(uuid.uuid4())
+
+
+def establish_the_wall(
+    connection: sqlite3.Connection,
+    *,
+    wall_name: str,
+    seed: bool = True,
+    now: Callable[[], datetime] = system_now,
+    new_id: Callable[[], str] = random_id,
+) -> None:
     """Move a single-wall catalogue onto `Wall` and `ThemeAssignment`.
 
     Before 2026-08-12 a theme was hung by a boolean on the theme itself — one
@@ -72,6 +90,9 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str, seed: 
     carries its hung theme. One edge is accepted: a *new* file interrupted after
     its schema committed and before this ran opens next time with no wall, and
     Walls offers *Add wall…*.
+
+    `now` and `new_id` stamp and name the seeded wall; a caller passes its own
+    so that opening a file need read neither the clock nor randomness.
     """
     # A file from before walls still carries `themes.is_active` until this has
     # run to the end, so it is carried even when an interrupted open left an
@@ -84,14 +105,14 @@ def establish_the_wall(connection: sqlite3.Connection, *, wall_name: str, seed: 
         return
 
     hung_theme_id = _theme_that_was_active(connection)
-    now = datetime.now(UTC).isoformat()
-    wall_id = str(uuid.uuid4())
+    stamped = now().isoformat()
+    wall_id = new_id()
 
-    connection.execute("INSERT INTO walls (id, name, created_at) VALUES (?, ?, ?)", (wall_id, wall_name, now))
+    connection.execute("INSERT INTO walls (id, name, created_at) VALUES (?, ?, ?)", (wall_id, wall_name, stamped))
     if hung_theme_id is not None:
         connection.execute(
             "INSERT INTO theme_assignments (wall_id, theme_id, assigned_at) VALUES (?, ?, ?)",
-            (wall_id, hung_theme_id, now),
+            (wall_id, hung_theme_id, stamped),
         )
     # Committed before the drops below, so that an interrupted open leaves a file
     # holding the carried rows and the columns they came from — which the next
@@ -178,7 +199,7 @@ def _require_drop_column(*, predates: str = "per-wall hanging") -> None:
 DEFAULT_THEME_NAME: Final[str] = "All works"
 
 
-def mark_the_default_theme(connection: sqlite3.Connection) -> None:
+def mark_the_default_theme(connection: sqlite3.Connection, *, now: Callable[[], datetime] = system_now) -> None:
     """Bring a file written before the default theme onto it, once.
 
     Two things, guarded together by what the file holds: **works present and no
@@ -214,7 +235,7 @@ def mark_the_default_theme(connection: sqlite3.Connection) -> None:
             log.info("Made the theme %r the default: works accepted from now on join it.", DEFAULT_THEME_NAME)
     connection.execute(
         "INSERT INTO default_theme_offers (artwork_id, offered_at) SELECT id, ? FROM artworks",
-        (datetime.now(UTC).isoformat(),),
+        (now().isoformat(),),
     )
 
 
@@ -270,7 +291,12 @@ def retire_wall_tokens(connection: sqlite3.Connection) -> None:
 _WALL_PLACEMENT_COLUMNS: Final[tuple[str, ...]] = ("client_id", "output")
 
 
-def walls_name_displays(connection: sqlite3.Connection) -> None:
+def walls_name_displays(
+    connection: sqlite3.Connection,
+    *,
+    now: Callable[[], datetime] = system_now,
+    new_id: Callable[[], str] = random_id,
+) -> None:
     """Move each wall from a client and an output name onto a display record, keeping it where it hangs.
 
     Before 2026-10-08 a wall named the client that showed it and the name of that
@@ -298,18 +324,20 @@ def walls_name_displays(connection: sqlite3.Connection) -> None:
         if len(present) == len(_WALL_PLACEMENT_COLUMNS)
         else []
     )
-    now = datetime.now(UTC).isoformat()
+    # Read once there is something to stamp, so an open with nothing to carry
+    # reads no clock.
+    stamped = now().isoformat() if carried else ""
     for wall in carried:
         identity = f"{wall['client_id']}/{wall['output']}"
         found = connection.execute("SELECT id FROM displays WHERE identity = ?", (identity,)).fetchone()
         if found is None:
-            display_id = str(uuid.uuid4())
+            display_id = new_id()
             # Kind is left unknown: the file never held it, and the client's next
             # report states it. Guessed from the output's name, it would be a fact
             # this server made up.
             connection.execute(
                 "INSERT INTO displays (id, identity, client_id, output, kind, first_seen) VALUES (?, ?, ?, ?, NULL, ?)",
-                (display_id, identity, wall["client_id"], wall["output"], now),
+                (display_id, identity, wall["client_id"], wall["output"], stamped),
             )
         else:
             display_id = found["id"]

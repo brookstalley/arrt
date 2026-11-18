@@ -1,17 +1,22 @@
 """The suite's fault guard can fail: a contained fault in an unmarked test is a complaint."""
 
+from datetime import UTC, datetime
+
 import pytest
 from fault_guard import FaultRecords
 from plugin_fakes import StubReader, claims_example
 
 from arrt.library.sources.loading import SourceRoster
 
+#: When the roster records the fault. Passed in, so the tests read no clock.
+MOMENT = datetime(2026, 10, 3, 12, 0, tzinfo=UTC)
+
 
 def _a_contained_fault() -> None:
     def broken(_url: str) -> bool:
         raise ValueError("bad pattern")
 
-    SourceRoster.of(readers={"broken": (broken, StubReader())}).route("https://example.org/x")
+    SourceRoster.of(readers={"broken": (broken, StubReader())}, now=lambda: MOMENT).route("https://example.org/x")
 
 
 @pytest.mark.plugin_fault_expected  # the suite-wide guard sees this fault too

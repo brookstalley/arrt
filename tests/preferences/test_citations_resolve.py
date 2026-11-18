@@ -111,7 +111,28 @@ def dangling(text: str, tracked: list[str]) -> list[str]:
     return found
 
 
-_TRACKED = _tracked()
+#: Where `_LIVE` can match: the root's own files and the directories it names.
+_LIVE_HOMES = (".prawduct", "docs", "deploy")
+
+
+def _live_records_present() -> list[str]:
+    """The live records in the tree, read from the files alone.
+
+    For parametrising at collection, where a git call would run outside any test
+    and count against every test in the process. A file here that git does not
+    track is skipped by its case, and `test_the_scan_has_records_to_read` checks
+    that every tracked record has a case.
+    """
+    present = [path for path in ROOT.iterdir() if path.is_file()]
+    for home in _LIVE_HOMES:
+        present.extend(path for path in (ROOT / home).rglob("*") if path.is_file())
+    names = (path.relative_to(ROOT).as_posix() for path in present)
+    return sorted(name for name in names if _LIVE.match(name) and not _RECORDS.match(name))
+
+
+@pytest.fixture(scope="module")
+def tracked() -> list[str]:
+    return _tracked()
 
 
 def _gitignored(fault: str, root: pathlib.Path = ROOT) -> bool:
@@ -133,14 +154,19 @@ def _gitignored(fault: str, root: pathlib.Path = ROOT) -> bool:
     )
 
 
-def test_the_scan_has_records_to_read():
-    """A parametrised guard over no files passes by checking nothing."""
-    assert len(_live_records(_TRACKED)) > 20, _live_records(_TRACKED)
+def test_the_scan_has_records_to_read(tracked: list[str]):
+    """A parametrised guard over no files passes by checking nothing, and one over the wrong files misses the rest."""
+    records = _live_records(tracked)
+    assert len(records) > 20, records
+    uncovered = sorted(set(records) - set(_live_records_present()))
+    assert not uncovered, f"tracked live records with no case below: {uncovered}"
 
 
-@pytest.mark.parametrize("record", _live_records(_TRACKED))
-def test_every_file_a_live_record_cites_is_in_this_tree(record: str):
-    faults = [fault for fault in dangling((ROOT / record).read_text(encoding="utf-8"), _TRACKED) if not _gitignored(fault)]
+@pytest.mark.parametrize("record", _live_records_present())
+def test_every_file_a_live_record_cites_is_in_this_tree(record: str, tracked: list[str]):
+    if record not in tracked:
+        pytest.skip(f"{record} is not tracked, so no clone carries it")
+    faults = [fault for fault in dangling((ROOT / record).read_text(encoding="utf-8"), tracked) if not _gitignored(fault)]
     assert not faults, (
         f"{record} cites files that are not in this tree: {faults}. If the file moved to another "
         "repository, cite it as `<repository>:<path>` or by URL; if it was deleted, say what replaced it."

@@ -10,18 +10,26 @@ away, so it is the shape a deployment has on disk rather than one a fixture
 imagines.
 """
 
+import itertools
 import sqlite3
 import uuid
 from datetime import UTC, datetime
 
-from arrt.persistence.file import open_catalogue_file
+from fakes import open_catalogue
 
 _MOMENT = datetime(2026, 9, 30, 9, 0, tzinfo=UTC).isoformat()
+
+#: The works' and themes' ids, counted rather than drawn, so no test reads randomness.
+_IDS = itertools.count(1)
+
+
+def _an_id() -> str:
+    return str(uuid.UUID(int=next(_IDS)))
 
 
 def _catalogue_before_the_default(path, *, themes, works, archived=()):
     """A file as the code before this change left it. `themes` is name -> member work ids."""
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     connection = sqlite3.connect(path)
     try:
         connection.execute("DROP INDEX themes_one_default")
@@ -34,7 +42,7 @@ def _catalogue_before_the_default(path, *, themes, works, archived=()):
                 (work_id, f"Work {work_id[:4]}", status, _MOMENT),
             )
         for name, member_ids in themes.items():
-            theme_id = str(uuid.uuid4())
+            theme_id = _an_id()
             connection.execute("INSERT INTO themes (id, name, created_at) VALUES (?, ?, ?)", (theme_id, name, _MOMENT))
             for position, work_id in enumerate(member_ids):
                 connection.execute(
@@ -73,7 +81,7 @@ def _rename(path, old: str, new: str) -> None:
 
 def test_the_owners_all_works_becomes_the_default_and_every_work_is_offered(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    works = [str(uuid.uuid4()) for _ in range(5)]
+    works = [_an_id() for _ in range(5)]
     _catalogue_before_the_default(
         path,
         themes={"End-to-end validation 2026-08-04": works[:1], "All works": works},
@@ -81,7 +89,7 @@ def test_the_owners_all_works_becomes_the_default_and_every_work_is_offered(tmp_
         archived=works[4:],
     )
 
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert _defaults(path) == ["All works"]
     # The archived one too: a restore announces an acceptance, and an
@@ -91,10 +99,10 @@ def test_the_owners_all_works_becomes_the_default_and_every_work_is_offered(tmp_
 
 def test_the_name_is_matched_ignoring_case(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    work = str(uuid.uuid4())
+    work = _an_id()
     _catalogue_before_the_default(path, themes={"all works": [work]}, works=[work])
 
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert _defaults(path) == ["all works"]
 
@@ -106,14 +114,14 @@ def test_it_happens_once_whatever_themes_exist_at_the_next_open(tmp_path):
     no default, and a theme they name *All works* later is not a request for one.
     """
     path = tmp_path / "catalogue.sqlite"
-    works = [str(uuid.uuid4()) for _ in range(3)]
+    works = [_an_id() for _ in range(3)]
     _catalogue_before_the_default(path, themes={"Winter": works[:2]}, works=works)
 
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     assert (_defaults(path), _offered(path)) == ([], set(works))
 
     _rename(path, "Winter", "All works")
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert _defaults(path) == []
     assert _offered(path) == set(works)
@@ -121,13 +129,13 @@ def test_it_happens_once_whatever_themes_exist_at_the_next_open(tmp_path):
 
 def test_reopening_the_owners_file_changes_nothing(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    works = [str(uuid.uuid4()) for _ in range(3)]
+    works = [_an_id() for _ in range(3)]
     _catalogue_before_the_default(path, themes={"All works": works, "Winter": []}, works=works)
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     first = (_defaults(path), _offered(path))
 
     _rename(path, "Winter", "ALL WORKS ")
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert (_defaults(path), _offered(path)) == first
 
@@ -137,6 +145,22 @@ def test_an_empty_catalogue_is_left_alone(tmp_path):
     path = tmp_path / "catalogue.sqlite"
     _catalogue_before_the_default(path, themes={"All works": []}, works=[])
 
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert (_defaults(path), _offered(path)) == ([], set())
+
+
+def test_each_work_is_offered_at_the_moment_the_opener_passes(tmp_path):
+    path = tmp_path / "catalogue.sqlite"
+    works = [_an_id() for _ in range(2)]
+    _catalogue_before_the_default(path, themes={"All works": works}, works=works)
+    stamped = datetime(2026, 3, 4, 5, 6, tzinfo=UTC)
+
+    open_catalogue(path, now=lambda: stamped).close()
+
+    connection = sqlite3.connect(path)
+    try:
+        offered = set(connection.execute("SELECT artwork_id, offered_at FROM default_theme_offers"))
+    finally:
+        connection.close()
+    assert offered == {(work, stamped.isoformat()) for work in works}

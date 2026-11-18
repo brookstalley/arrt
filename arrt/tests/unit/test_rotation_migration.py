@@ -9,7 +9,8 @@ with raw SQL, because the store no longer writes it — which is the point.
 import sqlite3
 from datetime import UTC, datetime
 
-from arrt.persistence.file import open_catalogue_file
+from fakes import open_catalogue
+
 from arrt.persistence.migrations import carry_rotation_to_walls
 from arrt.persistence.sqlite import SqliteCatalogue
 
@@ -50,7 +51,7 @@ _EXPECTED = {
 
 
 def _pre_move_catalogue(path):
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     connection = sqlite3.connect(path)
     try:
         connection.executescript(
@@ -90,7 +91,7 @@ def _rotations(catalogue):
 def test_every_wall_plays_as_its_theme_did(tmp_path):
     path = _pre_move_catalogue(tmp_path / "catalogue.sqlite")
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert _rotations(catalogue) == _EXPECTED
     finally:
@@ -99,7 +100,7 @@ def test_every_wall_plays_as_its_theme_did(tmp_path):
 
 def test_the_theme_columns_are_gone(tmp_path):
     path = _pre_move_catalogue(tmp_path / "catalogue.sqlite")
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert not {"rotation_interval_seconds", "shuffle"} & _columns(path, "themes")
     assert {"rotation_interval_seconds", "shuffle"} <= _columns(path, "walls")
@@ -109,7 +110,7 @@ def test_a_theme_hanging_nowhere_loses_its_setting_by_name(tmp_path, caplog):
     path = _pre_move_catalogue(tmp_path / "catalogue.sqlite")
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
-        open_catalogue_file(path).close()
+        open_catalogue(path).close()
 
     # The summary counts only the themes that gave a wall something.
     assert "Carried the rotation settings of 4 hung theme(s) onto 5 wall(s)." in caplog.messages
@@ -122,11 +123,11 @@ def test_a_theme_hanging_nowhere_loses_its_setting_by_name(tmp_path, caplog):
 
 def test_opening_again_changes_nothing(tmp_path, caplog):
     path = _pre_move_catalogue(tmp_path / "catalogue.sqlite")
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     caplog.clear()
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
-        catalogue = SqliteCatalogue(open_catalogue_file(path))
+        catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert _rotations(catalogue) == _EXPECTED
         assert not [record for record in caplog.records if "rotation" in record.getMessage()]
@@ -148,7 +149,7 @@ def test_a_wall_chosen_after_an_interrupted_carry_keeps_its_choice(tmp_path):
     finally:
         connection.close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert _rotations(catalogue) == {**_EXPECTED, "w-d": (5, True)}
     finally:
@@ -157,7 +158,7 @@ def test_a_wall_chosen_after_an_interrupted_carry_keeps_its_choice(tmp_path):
 
 def test_an_open_interrupted_between_the_two_drops_takes_away_the_last(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
     try:
