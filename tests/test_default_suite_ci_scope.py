@@ -27,6 +27,7 @@ import re
 import tomllib
 
 import pytest
+import yaml
 from repository import INVOCATION
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
@@ -231,3 +232,33 @@ def test_the_pools_curation_suite_selects_every_test_directory_but_the_ones_left
         f"missing {sorted(wanted - selected)}, extra {sorted(selected - wanted)}"
     )
     assert manifest["suites"]["browser"]["default_selection"] == ["arrt/tests/browser"]
+
+
+def _uncovered_test_roots(manifest: dict, test_roots: list[str]) -> list[str]:
+    """The test roots no suite in `manifest` selects anything under."""
+    selections = [path.rstrip("/") for suite in manifest["suites"].values() for path in suite.get("default_selection", [])]
+    return [root for root in test_roots if not any(path == root or path.startswith(f"{root}/") for path in selections)]
+
+
+def test_the_evidence_run_is_every_suite_and_every_test_root_is_in_one():
+    """Test evidence is recorded by one `testament run` with no `--suite`, which runs every
+    suite `.testament.toml` declares. So the manifest is what decides which projects' tests
+    the evidence covers, and a suite dropped from it drops out of the evidence while the run
+    still reports green. `tests_dirs` names every project's test root, and each must be
+    selected by some suite."""
+    state = yaml.safe_load((REPO / ".prawduct" / "project-state.yaml").read_text(encoding="utf-8"))
+    manifest = tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8"))
+
+    assert state["test_commands"] == ["testament run --junit-xml {junit_xml}"]
+    test_roots = state["tests_dirs"].split()
+    assert test_roots, "tests_dirs names no test root"
+    assert _uncovered_test_roots(manifest, test_roots) == []
+
+
+def test_a_test_root_no_suite_selects_is_named():
+    manifest = {"suites": {"governance": {"default_selection": ["tests"]}, "x": {"default_selection": ["arrt/tests/unit"]}}}
+
+    assert _uncovered_test_roots(manifest, ["tests", "arrt/tests", "contract/tests"]) == ["contract/tests"]
+    assert _uncovered_test_roots({"suites": {"y": {"default_selection": ["contract/testsuite"]}}}, ["contract/tests"]) == [
+        "contract/tests"
+    ]
