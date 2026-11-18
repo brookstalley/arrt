@@ -458,10 +458,10 @@ class TestAfterARestart:
     """
 
     @pytest.fixture
-    def restarted(self, store, settings):
+    def restarted(self, store, settings, kept_clock):
         """The services a restart builds for the registry pages, over a registry that is down."""
         down = FakeRegistry(failing=True)
-        kept = KeptAnswers(settings.kept_answers_path)
+        kept = KeptAnswers(settings.kept_answers_path, clock=kept_clock)
         yield SimpleNamespace(
             registry=down,
             artists=ArtistService(store, down, kept=kept, wanted=NothingWanted(), awaiting=NothingWaiting()),

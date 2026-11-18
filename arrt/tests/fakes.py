@@ -15,10 +15,15 @@ that refuses.
 
 from __future__ import annotations
 
+import itertools
 import threading
-from collections.abc import Sequence
+import uuid
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
+from typing import Any
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowseFailure, OfferedGroup
 from arrt.library.discovery.engine import (
@@ -34,7 +39,53 @@ from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import SourceRoster
 from arrt.library.sources.reading import FetchLocator
 from arrt.persistence.discovery_records import RunStatus, SpendCategory
+from arrt.persistence.durable import SqliteDurableStore
+from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import AcquisitionMethod, RightsStatus, SourceClass
+
+#: When a catalogue file a test opens is opened: what its migrations stamp the
+#: rows they write with, the seeded wall among them. In the past, so a wall a
+#: test adds later is still the newer one.
+OPENED_AT = datetime(2026, 1, 1, tzinfo=UTC)
+
+
+def _counter() -> Callable[[], int]:
+    """1, 2, 3, … one number per call, safe to call from several threads at once.
+
+    A lock rather than a bare `itertools.count` or a generator: the services draw
+    from these on their worker threads, and a generator entered by two threads at
+    once raises "generator already executing".
+    """
+    numbers = itertools.count(1)
+    lock = threading.Lock()
+
+    def next_number() -> int:
+        with lock:
+            return next(numbers)
+
+    return next_number
+
+
+def counted_ids() -> Callable[[], str]:
+    """Ids shaped as UUIDs, counted from one rather than drawn, never repeating within one counter."""
+    count = _counter()
+    return lambda: str(uuid.UUID(int=count()))
+
+
+def counted_tokens() -> Callable[[], str]:
+    """Names for a picture store's temporary files, counted rather than drawn, never repeating within one counter."""
+    count = _counter()
+    return lambda: f"{count():08x}"
+
+
+def open_catalogue(path: Path | str, **given: Any) -> SqliteDurableStore:
+    """`open_catalogue_file`, at `OPENED_AT` and with counted ids unless the test passes its own.
+
+    Opening a file then reads neither the clock nor randomness, so a test that
+    reads neither itself can be reused from the test runner's cache.
+    """
+    return open_catalogue_file(path, **{"now": lambda: OPENED_AT, "new_id": counted_ids(), **given})
+
 
 #: Titles that are actually distinct works by one artist, so a run built from
 #: them exercises the dedup key doing nothing rather than the key collapsing a

@@ -92,7 +92,7 @@ class Clock:
 
 
 def _service(registry, kept=None):
-    return TopicService(Store(), registry, kept=kept or KeptAnswers.in_memory(), wanted=NothingWanted())
+    return TopicService(Store(), registry, kept=kept or KeptAnswers.in_memory(clock=Clock()), wanted=NothingWanted())
 
 
 # -- the list itself ---------------------------------------------------------------

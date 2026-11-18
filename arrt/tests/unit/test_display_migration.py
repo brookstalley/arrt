@@ -13,9 +13,9 @@ from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
+from fakes import counted_ids, open_catalogue
 
 from arrt.persistence.durable import SqliteDurableStore
-from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.migrations import walls_name_displays
 from arrt.persistence.sqlite import SqliteCatalogue
 
@@ -94,7 +94,7 @@ def _columns(path, table):
 @pytest.fixture
 def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
     """The clients-era catalogue, opened (and so upgraded) the way the plane opens it; every service reads it."""
-    opened = open_catalogue_file(_clients_era_catalogue(tmp_path / "catalogue.sqlite"))
+    opened = open_catalogue(_clients_era_catalogue(tmp_path / "catalogue.sqlite"))
     yield opened
     opened.close()
 
@@ -182,11 +182,14 @@ def test_the_old_columns_and_index_are_gone(upgraded, tmp_path):
 
 def test_opening_again_changes_nothing(tmp_path, caplog):
     path = _clients_era_catalogue(tmp_path / "another.sqlite")
-    open_catalogue_file(path).close()
+    # One counter across every open, so a row a reopen recreated would come back
+    # under a new id and show as a change.
+    ids = counted_ids()
+    open_catalogue(path, new_id=ids).close()
     before = sorted(_raw(path, "SELECT id, identity, client_id, output FROM displays"))
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
-        catalogue = SqliteCatalogue(open_catalogue_file(path))
+        catalogue = SqliteCatalogue(open_catalogue(path, new_id=ids))
     try:
         assert sorted(_raw(path, "SELECT id, identity, client_id, output FROM displays")) == before
         assert _screen_of(catalogue, "w-study") == ("c-mac", "hdmi-a-1")
@@ -212,7 +215,7 @@ def test_an_open_interrupted_after_the_carry_is_finished_by_the_next(tmp_path):
     finally:
         connection.close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert catalogue.get_wall("w-office").display_id == "d-office"
         assert len([display for display in catalogue.list_displays() if display.identity == "c-pi/hdmi-a-1"]) == 1
@@ -224,7 +227,7 @@ def test_an_open_interrupted_after_the_carry_is_finished_by_the_next(tmp_path):
 
 def test_an_open_interrupted_between_the_two_drops_takes_away_the_last(tmp_path):
     path = _clients_era_catalogue(tmp_path / "another.sqlite")
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
     try:
@@ -245,3 +248,14 @@ def test_an_open_interrupted_between_the_two_drops_takes_away_the_last(tmp_path)
         "min_aspect_ratio",
         "max_aspect_ratio",
     }
+
+
+def test_each_carried_display_takes_the_moment_and_ids_the_opener_passes(tmp_path):
+    path = _clients_era_catalogue(tmp_path / "catalogue.sqlite")
+    stamped = datetime(2026, 3, 4, 5, 6, tzinfo=UTC)
+    ids = iter(["d-1", "d-2", "d-3"])
+
+    open_catalogue(path, now=lambda: stamped, new_id=lambda: next(ids)).close()
+
+    displays = _raw(path, "SELECT id, first_seen FROM displays ORDER BY id")
+    assert displays == [(f"d-{n}", stamped.isoformat()) for n in (1, 2, 3)]

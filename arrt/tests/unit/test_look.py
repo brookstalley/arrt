@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fakes import FakeRegistry, a_decodable_jpeg, a_roster, an_image
+from fakes import FakeRegistry, a_decodable_jpeg, a_roster, an_image, counted_tokens
 
 from arrt.config import PICTURES_DIRNAME
 from arrt.library.discovery.images import FoundImage, ImageQuery, ImageQueryUnanswerable, ImageSearchFailure
@@ -152,7 +152,11 @@ def build(services, settings, registry, clock):
             # The plane's store directory, fetching from these finders, as the
             # plane's store fetches from the pool its looks ask.
             pictures=PictureStore(
-                services.pictures.art_root / PICTURES_DIRNAME, art_root=services.pictures.art_root, sources=pool
+                services.pictures.art_root / PICTURES_DIRNAME,
+                art_root=services.pictures.art_root,
+                sources=pool,
+                now=clock,
+                staging_token=counted_tokens(),
             ),
             now=clock,
         )
@@ -738,7 +742,11 @@ def test_no_registry_asks_nothing_and_says_why(services, store, settings, clock)
     pool = ImageSourcePool([smk])
     look = LookService(
         works=RegistryWorkService(
-            store, None, kept=KeptAnswers.in_memory(), wanted=services.discovery, profile=settings.quality_profile
+            store,
+            None,
+            kept=KeptAnswers.in_memory(clock=lambda: clock().timestamp()),
+            wanted=services.discovery,
+            profile=settings.quality_profile,
         ),
         discovery=services.discovery,
         pool=pool,

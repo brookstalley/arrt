@@ -58,7 +58,6 @@ def observe(path: Path, *, key: str, now: datetime | None = None) -> Observation
     raises: a surface that showed a stack trace where a heartbeat's age belongs
     would have replaced an observation with an outage of its own.
     """
-    moment = now or datetime.now(UTC)
     if not path.exists():
         return Observation(path=path, at=None, age_seconds=None, contents=None, problem=None)
 
@@ -96,6 +95,10 @@ def observe(path: Path, *, key: str, now: datetime | None = None) -> Observation
             contents=contents,
             problem=f"it carries no readable {key!r} timestamp, so its age is unknown.",
         )
+    # The clock is read only here, where there is an instant to age: a reading
+    # with nothing to age then depends on the file alone, and a test of one can be
+    # reused from the test runner's cache.
+    moment = now or datetime.now(UTC)
     return Observation(
         path=path,
         at=at,

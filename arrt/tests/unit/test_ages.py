@@ -27,10 +27,13 @@ from arrt.observations import ago
 AGES_MODULE = STATIC_DIR / "core" / "dates.js"
 OUTPUTS_MODULE = STATIC_DIR / "core" / "outputs.js"
 
-pytestmark = pytest.mark.skipif(
-    shutil.which("node") is None,
-    reason="node is not installed; this check is opportunistic",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        shutil.which("node") is None,
+        reason="node is not installed; this check is opportunistic",
+    ),
+    pytest.mark.uncacheable("runs the shipped client's JavaScript under node: the child process is what is tested"),
+]
 
 #: Each unit's edges, the halves where the two roundings differ (2.5 minutes is
 #: 150 seconds: Python says 2, `Math.round` 3), and the future.

@@ -38,6 +38,11 @@ from arrt.services.health import HealthReading, HealthService
 SOURCES = pathlib.Path(__file__).resolve().parents[2] / "src" / "arrt" / "library" / "sources"
 
 
+#: When a roster below records a fault and the health service reads it, unless a
+#: test says otherwise. Passed in, so no test here reads the clock.
+MOMENT = datetime(2026, 10, 3, 12, 0, tzinfo=UTC)
+
+
 def entry(name: str, target: str) -> importlib.metadata.EntryPoint:
     return importlib.metadata.EntryPoint(name=name, value=f"plugin_fakes:{target}", group=ENTRY_POINT_GROUP)
 
@@ -293,7 +298,7 @@ def test_every_call_a_plugin_answers_is_contained():
         ),
         claims=claims_example,
     )
-    roster = load_sources(context(), entry_points=[_Fixed(entry("wobbly", "GOOD"), plugin)], order=())
+    roster = load_sources(context(), entry_points=[_Fixed(entry("wobbly", "GOOD"), plugin)], order=(), now=lambda: MOMENT)
     finder, collection = roster.finders[0], roster.collection
     reader = roster.route("https://example.org/works/1").reader
 
@@ -316,7 +321,7 @@ def test_every_call_a_plugin_answers_is_contained():
 )
 def test_a_finder_answer_of_the_wrong_shape_is_a_contained_fault(answer, said):
     plugin = SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=Answers("shapeless", answer)))
-    roster = load_sources(context(), entry_points=[_Fixed(entry("shapeless", "GOOD"), plugin)], order=())
+    roster = load_sources(context(), entry_points=[_Fixed(entry("shapeless", "GOOD"), plugin)], order=(), now=lambda: MOMENT)
 
     with pytest.raises(ImageSearchFailure, match="shapeless plugin faulted"):
         roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
@@ -329,7 +334,7 @@ def test_an_image_recorded_under_another_plugins_name_is_a_contained_fault():
     """It would be stored, and fetched, as the other plugin's."""
     other = StubFinder("artic").find_images(ImageQuery(title="Nighthawks"))
     plugin = SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=Answers("impostor", other)))
-    roster = load_sources(context(), entry_points=[_Fixed(entry("impostor", "GOOD"), plugin)], order=())
+    roster = load_sources(context(), entry_points=[_Fixed(entry("impostor", "GOOD"), plugin)], order=(), now=lambda: MOMENT)
 
     answer = ImageSourcePool((*roster.finders, StubFinder("good"))).find_images(ImageQuery(title="Nighthawks"))
 
@@ -342,7 +347,9 @@ def test_a_claims_check_that_raises_claims_nothing_and_is_counted():
     def broken(_url: str) -> bool:
         raise ValueError("bad pattern")
 
-    roster = SourceRoster.of(readers={"broken": (broken, StubReader()), "good": (claims_example, StubReader())})
+    roster = SourceRoster.of(
+        readers={"broken": (broken, StubReader()), "good": (claims_example, StubReader())}, now=lambda: MOMENT
+    )
 
     route = roster.route("https://example.org/works/1")
 
@@ -578,17 +585,22 @@ class _NoWalls:
         return []
 
 
-def _health_of(roster, *, now: datetime | None = None) -> HealthReading:
+#: A tree no file is ever written to, inside this one: what the health service
+#: reads there is the absence of a backup and a store, and a read outside the
+#: repository would keep the test from being reused from the runner's cache.
+_ABSENT = pathlib.Path(__file__).parent / "absent"
+
+
+def _health_of(roster, *, now: datetime = MOMENT) -> HealthReading:
     """The reading the real health service takes, so the fault's age is its arithmetic, not this file's."""
-    moment = now or datetime.now(UTC)
     service = HealthService(
         _NoWalls(),
-        backup_receipt_path=pathlib.Path("/nonexistent/backup-receipt.json"),
+        backup_receipt_path=_ABSENT / "backup-receipt.json",
         sources=roster,
         yields=dict,
-        pictures=PictureStore(pathlib.Path("/nonexistent/art/pictures"), art_root=pathlib.Path("/nonexistent/art")),
+        pictures=PictureStore(_ABSENT / "art" / "pictures", art_root=_ABSENT / "art", now=lambda: now),
         watches=WatchesReading,
-        now=lambda: moment,
+        now=lambda: now,
     )
     return service.observe()
 
@@ -646,7 +658,7 @@ class TestAPluginsWordsLoseTheirQueryStringsOnEveryWayOut:
     @pytest.mark.plugin_fault_expected
     def test_through_a_contained_fault_its_log_line_and_the_panel(self, caplog):
         finder = StubFinder("leaky", raises=KeyError(f"no field in {LEAKING_URL}"))
-        roster = SourceRoster.of(finders=[finder])
+        roster = SourceRoster.of(finders=[finder], now=lambda: MOMENT)
 
         with caplog.at_level(logging.ERROR, logger=FAULT_LOGGER), pytest.raises(ImageSearchFailure):
             roster.finders[0].find_images(ImageQuery(title="Nighthawks"))

@@ -12,6 +12,8 @@ validates identifiers against the schema the file actually declares, so an
 adapter reaching for a table nobody created is refused by name on its first call.
 """
 
+from collections.abc import Callable
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 
@@ -22,18 +24,26 @@ from arrt.persistence.migrations import (
     establish_the_wall,
     file_had_table,
     mark_the_default_theme,
+    random_id,
     rename_awaiting_to_wanted,
     retire_conversations,
     retire_directives,
     retire_television_canvases,
     retire_wall_tokens,
+    system_now,
     walls_name_displays,
 )
 from arrt.persistence.sqlite import CATALOGUE_SCHEMA
 from arrt.persistence.sqlite_discovery import DISCOVERY_SCHEMA
 
 
-def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME) -> SqliteDurableStore:
+def open_catalogue_file(
+    path: Path | str,
+    *,
+    wall_name: str = DEFAULT_WALL_NAME,
+    now: Callable[[], datetime] = system_now,
+    new_id: Callable[[], str] = random_id,
+) -> SqliteDurableStore:
     """Open the catalogue file, creating whatever tables it does not yet have.
 
     The caller owns closing it. Both adapters are views over the returned store
@@ -45,18 +55,21 @@ def open_catalogue_file(path: Path | str, *, wall_name: str = DEFAULT_WALL_NAME)
     shape. A wall that exists keeps the name it has, because by then the name is
     the curator's rather than the deployment's; nothing here renames one. The
     default is what a deployment that has said nothing gets.
+
+    `now` and `new_id` are what the migrations stamp and name the rows they
+    write with: the system clock and a random UUID unless a caller passes its own.
     """
     return SqliteDurableStore(
         path,
         CATALOGUE_SCHEMA + DISCOVERY_SCHEMA,
         migrations=(
-            partial(establish_the_wall, wall_name=wall_name, seed=not file_had_table(path, "walls")),
-            mark_the_default_theme,
+            partial(establish_the_wall, wall_name=wall_name, seed=not file_had_table(path, "walls"), now=now, new_id=new_id),
+            partial(mark_the_default_theme, now=now),
             rename_awaiting_to_wanted,
             retire_wall_tokens,
             # After the wall tokens go: both take columns off `walls`, and this
             # one carries rows onto `displays` before it does.
-            walls_name_displays,
+            partial(walls_name_displays, now=now, new_id=new_id),
             retire_conversations,
             retire_directives,
             retire_television_canvases,
