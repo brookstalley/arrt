@@ -4,6 +4,17 @@ Dated rulings by the owner, recorded before work proceeds on them. Where an
 artifact already carries a ruling inline, that artifact is the home and this
 file points to it.
 
+## 2026-11-18: CI runs on testament's pool, and no heavy builds on GitHub's runners
+
+The owner, asked whether CI does too much: "please also check that we're not doing
+too much in ci -- we should be using testament where possible and not doing heavy
+builds. we keep running out of github actions minutes. I can get you a testament ci
+token if we don't have one alread". They then created the CI key `arrt-ci-github`;
+it is the `TESTAMENT_KEY` secret, and its coordinator the `TESTAMENT_COORDINATOR`
+variable. This supersedes the 2026-10-06 ruling that sharded the browser suite
+across four Actions jobs, and `build-plan-server-image.md`'s decision to build the
+image on every pull request. Where it landed: `build-plan-ci-on-testament.md`.
+
 ## 2026-11-18: agentic patterns, four recommendations and a stopgap for #217
 
 The advisor proposed four changes to how agents build here and a stopgap for the

@@ -1,0 +1,56 @@
+# Whether the API-drift schedule is still firing: the absence of a run, which
+# `api-drift.yml` cannot report about itself.
+name: Drift freshness
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift-freshness:
+    name: "Are the drift probes still running?"
+    # ONLY ON A PUSH TO `main`, and the restriction is the design rather than a
+    # saving. The fault this looks for — the workflow not being on the default
+    # branch, or GitHub disabling the schedule after repository inactivity —
+    # cannot be fixed from a pull request, so failing one would be a red check
+    # nobody on that branch can clear. A push to `main` is both the moment the
+    # first fault becomes fixable and a reliable sign somebody is around to act.
+    #
+    # ITS LIMIT, STATED: this detects absence at the next push to `main`, not
+    # continuously. A repo that goes quiet for a year gets told on the first push
+    # after it wakes up. That is the right trade here — GitHub only disables a
+    # schedule for inactivity, so the undetected window is exactly the window in
+    # which nobody was working anyway.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect the drift workflow's recent runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A 404 here is a real answer, not an error: it is what "the workflow is
+        # not on the default branch" looks like from the API, which is one of the
+        # two faults being checked for. It becomes an empty list, and the script
+        # reports it as never having run.
+        run: |
+          set -uo pipefail
+          if ! runs=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/workflows/api-drift.yml/runs?per_page=20" \
+                --jq '[.workflow_runs[] | {createdAt: .created_at, id: .id}]' 2>/dev/null); then
+            runs='[]'
+          fi
+          echo "$runs" | jq -c '.[]' | while read -r run; do
+            id=$(echo "$run" | jq -r '.id')
+            jobs=$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${id}/jobs" \
+              --jq '[.jobs[] | {name: .name, conclusion: .conclusion}]' 2>/dev/null || echo '[]')
+            echo "$run" | jq -c --argjson jobs "$jobs" '. + {jobs: $jobs}'
+          done | jq -s '.' > drift-runs.json
+          cat drift-runs.json
+      - name: Fail if a tier has gone quiet
+        run: python3 .github/scripts/check_drift_freshness.py < drift-runs.json

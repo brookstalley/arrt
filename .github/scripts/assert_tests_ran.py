@@ -1,8 +1,8 @@
 """Fail when an opt-in suite reported success without actually testing anything.
 
 **Two kinds of suite depend on this, not one.** The live probes are the obvious
-half; `browser.yml` is the other, and it needs exactly the same protection for a
-different missing dependency — the browser suite skips itself when the `browser`
+half; the pool run in `tests.yml`, which includes the browser suite, is the other,
+and it needs exactly the same protection for a different missing dependency — the browser suite skips itself when the `browser`
 group or the downloaded Chromium is absent, which in CI is a provisioning failure
 that would otherwise report a green client-coverage job having executed no line of
 the client. Written out because an earlier version of this docstring described
@@ -35,15 +35,33 @@ one `xfail`, and the job went red naming a "dependency not provisioned" that was
 a documented order-sensitivity in artist identity. Nothing was broken; the guard
 was reading the wrong number.
 
-Usage: assert_tests_ran.py <junit-xml-path>
+Usage: assert_tests_ran.py <junit-xml-path> [--suites-from <testament manifest>]
 """
 
+import re
 import sys
+import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+#: How testament's merged JUnit opens an expected failure: `[<phase>] xfail`, then a
+#: colon and the reason, or nothing when there is no reason. Matched against the
+#: element's text, whose first line is that opening, and against `message`, which
+#: keeps only the last line of a multi-line reason.
+_TESTAMENT_XFAIL = re.compile(r"\[\w+\]\s*xfail(:|$)")
 
-def main(path: Path) -> int:
+
+def _is_testament_xfail(skip: ET.Element) -> bool:
+    first_line = (skip.text or "").strip().split("\n", 1)[0]
+    return bool(_TESTAMENT_XFAIL.match(first_line) or _TESTAMENT_XFAIL.match(skip.get("message", "")))
+
+
+def suites_in(manifest: Path) -> list[str]:
+    """The suite names a testament manifest declares, in its order."""
+    return list(tomllib.loads(manifest.read_text(encoding="utf-8")).get("suites", {}))
+
+
+def main(path: Path, required_suites: list[str] | None = None) -> int:
     if not path.is_file():
         # pytest writes the file even when every test fails, so its absence means
         # pytest never got far enough to run — a collection error, a bad marker
@@ -66,10 +84,12 @@ def main(path: Path) -> int:
     ran = tests - skipped
 
     # The suite attribute counts expected failures alongside real skips, so the
-    # cases are walked to tell them apart. An `xfail` carries type
-    # "pytest.xfail"; a genuine skip carries "pytest.skip" or, in reports from
-    # other tools, no type at all — which is read as a real skip, because the
-    # safe direction for an unknown is to fail the job rather than pass it.
+    # cases are walked to tell them apart. pytest's own report gives an `xfail`
+    # type "pytest.xfail". testament's merged report, which CI reads, gives no
+    # type and starts the message `[<phase>] xfail:`; only that exact opening
+    # counts, so a skip whose reason merely mentions xfail stays a skip. Anything
+    # else is read as a real skip, because the safe direction for an unknown is
+    # to fail the job rather than pass it.
     blocking = []
     expected_failures = 0
     for suite in suites:
@@ -77,7 +97,7 @@ def main(path: Path) -> int:
             skip = case.find("skipped")
             if skip is None:
                 continue
-            if skip.get("type") == "pytest.xfail":
+            if skip.get("type") == "pytest.xfail" or _is_testament_xfail(skip):
                 expected_failures += 1
                 continue
             name = f"{case.get('classname', '')}::{case.get('name', '')}".lstrip(":")
@@ -114,11 +134,26 @@ def main(path: Path) -> int:
         print("::error::Nothing ran.")
         return 1
 
+    # A report merged across suites can carry hundreds of tests from one while another
+    # collected nothing, so each suite the run was meant to cover is checked by name.
+    empty = []
+    for name in required_suites or []:
+        found = [s for s in suites if s.get("name") == name]
+        ran_here = sum(int(s.get("tests", 0)) - int(s.get("skipped", 0)) for s in found)
+        if ran_here <= 0:
+            empty.append(name if found else f"{name} (not in the report)")
+    if empty:
+        print(f"::error::these suites ran no test: {', '.join(empty)}. Each suite .testament.toml declares must run something.")
+        return 1
+
     return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(__doc__)
-        raise SystemExit(2)
-    raise SystemExit(main(Path(sys.argv[1])))
+    # `assert_tests_ran.py <report> [--suites-from <testament manifest>]`
+    if len(sys.argv) == 2:
+        raise SystemExit(main(Path(sys.argv[1])))
+    if len(sys.argv) == 4 and sys.argv[2] == "--suites-from":
+        raise SystemExit(main(Path(sys.argv[1]), suites_in(Path(sys.argv[3]))))
+    print(__doc__)
+    raise SystemExit(2)

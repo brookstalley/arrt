@@ -659,10 +659,9 @@ be missing from a default install.
 none of the first three.** It spends nothing, reaches no foreign API, and is
 entirely deterministic. What it needs is a ~200MB browser on the machine, which
 is too much to put on the default `uv sync` — so its deselection is a packaging
-decision, not a statement about the tests, and `.github/workflows/browser.yml`
-runs it on pull requests (in four serial shards; a pull request changing only
-records skips it) and on every push to `main`, so that being off the default
-run does not become never running. Its dependency is its own group for the same
+decision, not a statement about the tests, and `.github/workflows/tests.yml`
+runs it on testament's pool on every pull request, with the other three suites,
+so that being off the default run does not become never running. Its dependency is its own group for the same
 reason the evaluation level's is, and its modules `importorskip` for the same
 reason too.
 

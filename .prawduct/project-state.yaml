@@ -3563,7 +3563,7 @@ norm_health:
       async-io-boundary: "4 root modules departed, unchanged (21 async defs). arrt 0; postarr async only in TV/HTTP adapters and their loops (judgement)."
       hardware-behind-interface: "Measurable for the first time: postarr 4 surfaces, 4 interfaces (TvClient, Epd, Device, ClientLink), drivers imported only in __main__ and lazily in epaper.py. Root legacy imports drivers directly, with no departure row."
       no-secret-in-log: "Declared secrets: root 2, arrt 1 + client tokens, postarr client_token. Plane guards exist (arrt test_startup.py:338, postarr test_config.py:275) but the row names only root tests; arrt's is hardcoded to openrouter_api_key rather than iterating _SECRET_FIELDS."
-      browser-client-executed: "580 tests in 31 files; browser.yml on PRs and main with assert_tests_ran.py; last 6 runs green."
+      browser-client-executed: "the browser suite runs on testament's pool on every PR (tests.yml, 2026-11-18), with assert_tests_ran.py on the merged report."
       service-layer-only: "31 of 141 bindings depart from the literal 'call one service method' (api.py 20/76, player.py 5/5, mcp/bindings.py 6/60). 5 (player.py token gates) break the 2026-09-30 ruling's own wording. 4 compositions written once per surface. Up from 6 of 12 + 1."
       surface-imports-persistence: "Issue #24: 8 import statements, 36 names, 4 modules (incl. the store module persistence.catalogue), up from 5/15/2 at 0570394."
       manifest-only-channel: "0 violations; HTTP client only in pull.py; file channel retired 2026-10-02. Statement still says 'exactly three kinds of request' while contract/routes.json names 5."
