@@ -12,8 +12,8 @@ import sqlite3
 from datetime import UTC, datetime
 
 import pytest
+from fakes import counted_ids, open_catalogue
 
-from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.sqlite import SqliteCatalogue
 
@@ -96,7 +96,7 @@ def test_the_active_theme_ends_up_hanging_on_the_one_wall(tmp_path):
         themes=[("t1", "Late night", 1), ("t2", "Daylight", 0)],
     )
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    catalogue = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
     try:
         walls = catalogue.list_walls()
         assert [wall.name for wall in walls] == ["Living room"]
@@ -111,7 +111,7 @@ def test_the_active_theme_ends_up_hanging_on_the_one_wall(tmp_path):
 def test_exactly_one_wall_is_created(tmp_path):
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert len(catalogue.list_walls()) == 1
     finally:
@@ -121,7 +121,7 @@ def test_exactly_one_wall_is_created(tmp_path):
 def test_the_wall_is_named_from_configuration(tmp_path):
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[])
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="The study"))
+    catalogue = SqliteCatalogue(open_catalogue(path, wall_name="The study"))
     try:
         assert [wall.name for wall in catalogue.list_walls()] == ["The study"]
     finally:
@@ -133,7 +133,7 @@ def test_a_deployment_that_configured_no_name_still_gets_a_named_wall(tmp_path):
     so there is no such thing as an unnamed one."""
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[])
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert [wall.name for wall in catalogue.list_walls()] == [DEFAULT_WALL_NAME]
     finally:
@@ -147,9 +147,9 @@ def test_the_wall_keeps_the_name_it_has_when_configuration_changes(tmp_path):
     silently, which is worse than not offering a rename at all.
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[])
-    open_catalogue_file(path, wall_name="Living room").close()
+    open_catalogue(path, wall_name="Living room").close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Somewhere else"))
+    catalogue = SqliteCatalogue(open_catalogue(path, wall_name="Somewhere else"))
     try:
         assert [wall.name for wall in catalogue.list_walls()] == ["Living room"]
     finally:
@@ -171,7 +171,7 @@ def test_the_singleton_directive_is_dropped_and_nothing_is_carried(tmp_path):
         pinned_work_id="w1",
     )
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         wall = catalogue.list_walls()[0]
         assert catalogue.get_assignment(wall.id).theme_id == "t1"
@@ -194,7 +194,7 @@ def test_a_catalogue_with_no_active_theme_hangs_nothing_rather_than_promoting_on
         themes=[("t1", "Late night", 0), ("t2", "Daylight", 0)],
     )
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert catalogue.list_assignments() == []
         assert len(catalogue.list_themes()) == 2
@@ -210,7 +210,7 @@ def test_the_single_wall_shape_is_taken_away_rather_than_left_beside_the_new_one
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
 
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     assert "is_active" not in _columns(path, "themes")
     assert "themes_one_active" not in _names(path, "index")
@@ -224,13 +224,16 @@ def test_reopening_a_migrated_file_changes_nothing(tmp_path):
     a hardware inventory growing on its own.
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)], sequence=3)
-    open_catalogue_file(path, wall_name="Living room").close()
+    # One counter across every open, so a row a reopen recreated would come back
+    # under a new id and show as a change.
+    ids = counted_ids()
+    open_catalogue(path, wall_name="Living room", new_id=ids).close()
 
-    first = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    first = SqliteCatalogue(open_catalogue(path, wall_name="Living room", new_id=ids))
     wall_id = first.list_walls()[0].id
     first.close()
 
-    reopened = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    reopened = SqliteCatalogue(open_catalogue(path, wall_name="Living room", new_id=ids))
     try:
         assert [wall.id for wall in reopened.list_walls()] == [wall_id]
         assert reopened.get_assignment(wall_id).theme_id == "t1"
@@ -246,7 +249,7 @@ def test_an_interrupted_migration_is_finished_by_the_next_open(tmp_path):
     it should establish a second wall in.
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)], sequence=9)
-    open_catalogue_file(path).close()
+    open_catalogue(path).close()
 
     # Put the old shape back beside the new, which is exactly the state an open
     # interrupted between the carry and the drops leaves behind.
@@ -263,7 +266,7 @@ def test_an_interrupted_migration_is_finished_by_the_next_open(tmp_path):
     finally:
         connection.close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         wall_ids = [wall.id for wall in catalogue.list_walls()]
         assert len(wall_ids) == 1, "a half-migrated file must not acquire a second wall"
@@ -278,7 +281,7 @@ def test_a_fresh_file_needs_no_carrying_and_still_gets_its_wall(tmp_path):
     """The seed and the migration are one step, because a catalogue with no wall
     is unusable either way — nothing can be hung on it and no request can name one.
     """
-    catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite"))
+    catalogue = SqliteCatalogue(open_catalogue(tmp_path / "catalogue.sqlite"))
     try:
         wall = catalogue.list_walls()[0]
         assert catalogue.get_assignment(wall.id) is None
@@ -314,7 +317,7 @@ def test_a_hand_edited_file_with_two_active_themes_hangs_the_older_one(tmp_path)
     finally:
         connection.close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         wall = catalogue.list_walls()[0]
         # The older theme, not the one the rows happen to be ordered by.
@@ -337,7 +340,7 @@ def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_
     monkeypatch.setattr(sqlite3, "sqlite_version", old)
 
     with pytest.raises(RuntimeError) as refused:
-        open_catalogue_file(path).close()
+        open_catalogue(path).close()
 
     assert "3.53.1" in str(refused.value)
     assert old in str(refused.value)
@@ -346,9 +349,9 @@ def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_
 # -- each wall's directive, retired ------------------------------------------------
 
 
-def _with_per_wall_directives(path):
+def _with_per_wall_directives(path, **given):
     """A current file put back to the shape it had while walls carried directives, with a pin."""
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path, **given))
     wall_id = catalogue.list_walls()[0].id
     catalogue.close()
     connection = sqlite3.connect(path)
@@ -371,7 +374,7 @@ def test_each_walls_directive_is_dropped_with_its_index(tmp_path):
     wall_id = _with_per_wall_directives(path)
     assert "directives" in _names(path, "table"), "the fixture did not put the table back, so this checks nothing"
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         assert [wall.id for wall in catalogue.list_walls()] == [wall_id]
     finally:
@@ -383,10 +386,13 @@ def test_each_walls_directive_is_dropped_with_its_index(tmp_path):
 def test_dropping_the_directives_is_safe_to_run_again(tmp_path):
     """It runs on every open, so a file it already tidied opens unchanged."""
     path = tmp_path / "catalogue.sqlite"
-    wall_id = _with_per_wall_directives(path)
-    open_catalogue_file(path).close()
+    # One counter across every open, so a row a reopen recreated would come back
+    # under a new id and show as a change.
+    ids = counted_ids()
+    wall_id = _with_per_wall_directives(path, new_id=ids)
+    open_catalogue(path, new_id=ids).close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path, new_id=ids))
     try:
         assert [wall.id for wall in catalogue.list_walls()] == [wall_id]
     finally:
@@ -404,7 +410,7 @@ def test_an_old_file_whose_first_open_was_interrupted_still_carries_its_hung_the
     finally:
         connection.close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    catalogue = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
     try:
         [wall] = catalogue.list_walls()
         assert wall.name == "Living room"
@@ -416,9 +422,9 @@ def test_an_old_file_whose_first_open_was_interrupted_still_carries_its_hung_the
 def test_a_catalogue_opened_by_a_relative_path_opens_again(tmp_path, monkeypatch):
     """`ART_ROOT` may be relative; asking whether the file had walls must not refuse it."""
     monkeypatch.chdir(tmp_path)
-    SqliteCatalogue(open_catalogue_file("catalogue.sqlite", wall_name="Living room")).close()
+    SqliteCatalogue(open_catalogue("catalogue.sqlite", wall_name="Living room")).close()
 
-    again = SqliteCatalogue(open_catalogue_file("catalogue.sqlite", wall_name="Living room"))
+    again = SqliteCatalogue(open_catalogue("catalogue.sqlite", wall_name="Living room"))
     try:
         assert [wall.name for wall in again.list_walls()] == ["Living room"]
     finally:
@@ -427,15 +433,32 @@ def test_a_catalogue_opened_by_a_relative_path_opens_again(tmp_path, monkeypatch
 
 def test_a_file_whose_walls_were_all_deleted_opens_with_none_and_says_so(tmp_path, caplog):
     path = tmp_path / "catalogue.sqlite"
-    first = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    first = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
     [wall] = first.list_walls()
     first.remove_wall(wall.id)
     first.close()
 
     with caplog.at_level("INFO", logger="arrt.persistence.migrations"):
-        again = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+        again = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
     try:
         assert again.list_walls() == []
         assert any("No wall is recorded" in record.getMessage() for record in caplog.records)
     finally:
         again.close()
+
+
+def test_the_seeded_wall_and_its_hung_theme_take_the_moment_and_id_the_opener_passes(tmp_path):
+    """The file is opened with the caller's clock and ids, so opening it reads neither the clock nor randomness."""
+    path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)])
+    stamped = datetime(2026, 3, 4, 5, 6, tzinfo=UTC)
+
+    open_catalogue(path, now=lambda: stamped, new_id=lambda: "wall-given").close()
+
+    connection = sqlite3.connect(path)
+    try:
+        walls = connection.execute("SELECT id, created_at FROM walls").fetchall()
+        assignments = connection.execute("SELECT wall_id, assigned_at FROM theme_assignments").fetchall()
+    finally:
+        connection.close()
+    assert walls == [("wall-given", stamped.isoformat())]
+    assert assignments == [("wall-given", stamped.isoformat())]

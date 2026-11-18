@@ -231,6 +231,7 @@ class PictureStore:
         art_root: Path,
         sources: PreviewSource | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        staging_token: Callable[[], str] = lambda: uuid.uuid4().hex,
     ) -> None:
         """Refuse a store outside the tree, at wiring time rather than mid-run.
 
@@ -238,7 +239,9 @@ class PictureStore:
         anywhere else has no path a row could record.
 
         `sources` is `None` in a deployment with no image source: it still
-        answers from what is kept, and fetches nothing.
+        answers from what is kept, and fetches nothing. `staging_token` names
+        each write's temporary file and must not repeat; a caller that passes
+        its own keeps writing free of randomness.
         """
         if not directory.is_relative_to(art_root):
             raise ServiceError(f"The picture store at {directory} must sit inside ART_ROOT at {art_root}.")
@@ -251,6 +254,7 @@ class PictureStore:
         #: Removed when the last one leaves, so the map holds only keys in flight.
         self._locks: dict[str, tuple[threading.Lock, int]] = {}
         self._now = now
+        self._staging_token = staging_token
         #: The last walk, reused for `SIZE_REUSED_FOR`.
         self._size: StoreSize | None = None
         self._size_lock = threading.Lock()
@@ -413,7 +417,7 @@ class PictureStore:
         # A name per attempt, so two writers can never interleave bytes in one
         # temporary file; rename is atomic, so a reader sees the old file or the
         # new one and never a half.
-        staging = destination.with_name(f"{destination.name}.{uuid.uuid4().hex}{_TEMPORARY_SUFFIX}")
+        staging = destination.with_name(f"{destination.name}.{self._staging_token()}{_TEMPORARY_SUFFIX}")
         try:
             staging.write_bytes(data)
             staging.replace(destination)

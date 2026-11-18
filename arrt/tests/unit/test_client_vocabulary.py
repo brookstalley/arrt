@@ -68,6 +68,7 @@ def test_the_client_is_more_than_one_module():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed; this check is opportunistic")
+@pytest.mark.uncacheable("runs the shipped client's JavaScript under node: the child process is what is tested")
 @pytest.mark.parametrize("path", CLIENT_PATHS, ids=lambda path: path.name)
 def test_the_client_parses(path):
     """A syntax error here kills the entire browser surface and no other test notices.

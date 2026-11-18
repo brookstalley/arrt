@@ -14,11 +14,12 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator, Sequence
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Final
 
 import pytest
-from fakes import FakeEngine, FakeReader
+from fakes import FakeEngine, FakeReader, open_catalogue
 from fault_guard import FaultRecords
 from feed_guard import checked as feed_checked
 from langchain_core.language_models import BaseChatModel
@@ -99,8 +100,13 @@ def pytest_configure(config: pytest.Config) -> None:
 
     A hook rather than a fixture, so it holds in every xdist worker from the
     first test, including a module-scoped server's first request.
+
+    Also names `uncacheable`, testament's marker for a test whose result is
+    never reused from its cache: a runner registers it itself, and a run here
+    does not.
     """
     bound_the_suites_requests()
+    config.addinivalue_line("markers", "uncacheable(why): never reuse this test's result from testament's cache")
 
 
 @pytest.fixture(autouse=True)
@@ -157,7 +163,7 @@ def seeded_titles() -> tuple[str, ...]:
 @pytest.fixture
 def catalogue_file(tmp_path) -> Iterator[SqliteDurableStore]:
     """An empty catalogue file, with every table both adapters read."""
-    opened = open_catalogue_file(tmp_path / "catalogue.sqlite")
+    opened = open_catalogue(tmp_path / "catalogue.sqlite")
     yield opened
     opened.close()
 
@@ -326,10 +332,23 @@ def engine() -> FakeEngine:
     return FakeEngine()
 
 
+#: The moment every kept answer is written and read at, in a test that moves no
+#: clock of its own. An answer is kept for minutes or hours and a test lasts
+#: seconds, so a fixed moment answers as the real clock would, and a test that
+#: reads no clock can be reused from the test runner's cache.
+KEPT_AT: Final[float] = datetime(2026, 1, 1, tzinfo=UTC).timestamp()
+
+
 @pytest.fixture
-def kept(settings: Settings) -> Iterator[KeptAnswers]:
+def kept_clock() -> Callable[[], float]:
+    """The clock the kept answers file ages by, for a test that opens the file again as a restart would."""
+    return lambda: KEPT_AT
+
+
+@pytest.fixture
+def kept(settings: Settings, kept_clock: Callable[[], float]) -> Iterator[KeptAnswers]:
     """The kept answers file, where the entry point opens it: under this test's own art root."""
-    answers = KeptAnswers(settings.kept_answers_path)
+    answers = KeptAnswers(settings.kept_answers_path, clock=kept_clock)
     yield answers
     answers.close()
 

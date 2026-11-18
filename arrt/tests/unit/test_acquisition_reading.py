@@ -11,6 +11,7 @@ then fetches.
 import importlib.metadata
 import logging
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from io import BytesIO
 
 import pytest
@@ -249,7 +250,10 @@ class TestAClaimedUrlIsReadBeforeItIsFetched:
     @pytest.mark.plugin_fault_expected
     def test_a_reader_that_faults_is_recorded_and_never_falls_through_to_the_recorded_url(self, service, acq_settings):
         fetched: list[str] = []
-        roster = SourceRoster.of(readers={"gallery": (claims_example, StubReader(raises=KeyError("img")))})
+        roster = SourceRoster.of(
+            readers={"gallery": (claims_example, StubReader(raises=KeyError("img")))},
+            now=lambda: datetime(2026, 10, 3, 12, 0, tzinfo=UTC),
+        )
         work, _ = _work(service, url="https://example.org/works/7", provider="gallery", method=AcquisitionMethod.DIRECT_HTTP)
 
         result = _acquisition(service, acq_settings, roster, fetched=fetched).acquire(work.id)

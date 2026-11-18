@@ -11,8 +11,8 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from fakes import open_catalogue
 
-from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import EventKind, RenditionKind, Showing
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.services.errors import ServiceError
@@ -272,13 +272,13 @@ def test_its_history_stays_and_names_it(services, display, mastered, two_walls):
 
 def test_the_last_wall_can_be_deleted_and_stays_deleted_when_the_file_is_opened_again(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    first = open_catalogue_file(path, wall_name="Living room")
+    first = open_catalogue(path, wall_name="Living room")
     catalogue = SqliteCatalogue(first)
     (wall,) = catalogue.list_walls()
     catalogue.remove_wall(wall.id)
     first.close()
 
-    again = open_catalogue_file(path, wall_name="Living room")
+    again = open_catalogue(path, wall_name="Living room")
     try:
         assert SqliteCatalogue(again).list_walls() == []
     finally:
@@ -286,7 +286,7 @@ def test_the_last_wall_can_be_deleted_and_stays_deleted_when_the_file_is_opened_
 
 
 def test_a_new_file_still_gets_its_wall(tmp_path):
-    opened = open_catalogue_file(tmp_path / "new.sqlite", wall_name="Living room")
+    opened = open_catalogue(tmp_path / "new.sqlite", wall_name="Living room")
     try:
         assert [wall.name for wall in SqliteCatalogue(opened).list_walls()] == ["Living room"]
     finally:
