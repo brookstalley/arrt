@@ -27,7 +27,7 @@ Read the JSON on stdout:
   75 the pool could not give a verdict and no test failed (a later run may); 2 anything else:
   a refusal or usage error, or a test that failed before the pool cut the run short. Read
   `verdict` first: when it is `unavailable` and `error.retryable` is true, run again; a
-  `failed` verdict is a result even when retryable, so fix it rather than rerun it away.
+  `failed` verdict is a result and never retryable, so fix it rather than rerun it away.
   130 is an interrupt (no verdict). These codes are frozen: none changes meaning, a new one
   is announced a release ahead, and any other code is a failure (never fall back on it).
 - `verdict`: `passed`, `failed` or `unavailable`, with `verdict_reason` (`passed`, `tests_failed`,
@@ -35,16 +35,23 @@ Read the JSON on stdout:
   run; `unavailable` (exit 75) is only the pool's own trouble, never a refusal.
   Key a script on `verdict` (and `error.retryable`) rather than `exit_code`: `verdict` carries
   the reason, and 0.46 moved "the pool could not decide" from 2 to 75 before the codes froze.
-- `report.items[]`: one per test, with `outcome` (`passed`, `failed`, `error`, `skipped`),
-  `message` (pytest's failure text for a failed or errored test, or why a skipped test
-  skipped) and `runner`.
+- `report.items[]`: one per test, with `outcome` (`passed`, `failed`, `error`, `skipped`,
+  or `not_run`), `message` (pytest's failure text for a failed or errored test, or why a
+  skipped test skipped) and `runner`.
 - `report.missing`: tests that were requested but never reported. A non-empty list is never a
   pass: `population_mismatch`, exit 2, verdict `failed` (a test of the project's own that hung past its timeout ends this way too, so it never falls back). When every missing test is also in `report.given_up`
   (the pool gave it up after the batches holding it were lost or crashed three times: runners
-  dropped, or pytest died), the code is `batches_lost` instead, and it is retryable.
+  dropped, or pytest died), the code is `batches_lost` instead, and it is retryable unless a
+  test failed.
 - `report.counts`: how many tests ended each way, over the whole run.
+- `report.stopped`: present when `-x` or `--maxfail N` stopped the run on the pool after N
+  failures (`limit`, `failures`, `not_run`; counted per suite). The tests it never started
+  are `not_run`, never `missing`, and the run is a red: exit 1, verdict `failed`.
+- `report.last_failed`: present when `--lf` or `--ff` ran on the pool, from the failures
+  this machine recorded for this worktree's last runs (`recorded`, `matched` of `collected`,
+  and what `ran`: `failed`, `failed_first`, `all` or `none`), as pytest would choose.
 - `fallback`: present when the tests ran on this machine instead of the runners. Flags
-  that need one local pytest process (`-x`, `--maxfail`, `--lf`) always run here;
+  that need one local pytest process (`--sw`, `--nf`) always run here;
   `fallback.reason` names the flag. `-n` doesn't: the pool is sent the selection without
   it, since it splits the tests itself, and `notes` says so. Flags that need a terminal
   (`--pdb`, `-s`, `--co`) are refused under `--json`.
@@ -60,17 +67,21 @@ Read the JSON on stdout:
   which replaces only the testament tool, and the next run uses it. Kind `areas`:
   more than 5,000 of a suite's tests ran in no area (`tests`, `declared`); declare areas
   (`testament guide project`, "Areas within a suite") when that is your task, or tell
-  the person. Every entry has an `id`
+  the person. Kind `agent_block`: this repo's copy of these instructions is older than the
+  client's (`files`, `block_version`, `current_version`); replace it with what
+  `testament guide agent-block` prints, keeping the repo's own additions, when that is
+  your task, or tell the person. Every entry has an `id`
   (its kind and eight hex digits, stable while what it names is unchanged), a `severity` and
   a one-line `headline`; entries are ordered `upgrade`, then the other important ones by
-  delay, then `info` (cache, slow tests, slow batch). `important` is every `upgrade` and every `areas`, a
+  delay, then `info` (cache, slow tests, slow batch). `important` is every `upgrade`, every `areas` and every `agent_block`, a
   `slow_test` that delayed the run over 30 s, a `slow_batch` that did, from a group, and the `cache`
   advice when at least a quarter of a full run's tests are uncacheable and not declined; a batch slow from a slow test is `info` (its test's entry carries it), and one slow from the
   pool is no advice at all, only a figure (the pool's operator hears of it). Important entries are the last lines of the run's output (stderr
   under `--json`), at most three, as `testament ADVICE [<id>]: <headline>`, then `testament
   ADVICE: <n> more in report.advice`; they print on every run while they hold, because a
   wrapper's log tail is often all that gets read. When you see one, run the upgrade, or fix
-  the test, group or cache cause it names when that is your task, or tell the person. The rest (`info`,
+  the test, group or cache cause or refresh the block it names when that is your task, or
+  tell the person. The rest (`info`,
   smaller cache causes included) appears about once a day per project, and again at once when it
   names something new; `report.advice_state` is `throttled` on the runs in between. When it's
   non-empty, tell the person, and act on it only when that is your task, except `upgrade`,
@@ -108,6 +119,9 @@ it flipped on one tree. `testament report --json` ranks the project's slowest an
 tests and those failing only on some runners.
 
 `testament status` shows the runners and what's queued.
+
+This is testament agent block v3. When a newer testament changes it, `testament run`
+says so on every run, and `testament guide agent-block` prints the current one.
 
 <!-- PRAWDUCT:ANCHOR — governance pointer managed by the prawduct plugin; keep it small and version-free. -->
 
