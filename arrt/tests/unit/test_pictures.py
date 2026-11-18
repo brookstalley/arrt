@@ -8,15 +8,14 @@ answered with one picture, a small source refused a large ask, a bomb written to
 disk, a half-written file served, and anything deleted.
 """
 
-import itertools
 import logging
 import pathlib
 import threading
-from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import pytest
+from fakes import counted_tokens
 from PIL import Image
 
 from arrt.library.services.pictures import (
@@ -60,15 +59,9 @@ def art_root(tmp_path):
     return tmp_path / "art"
 
 
-#: When the stores below are asked the time. Passed in, with a counter naming
-#: each write's temporary file, so a test reads neither the clock nor randomness.
+#: When the stores below are asked the time. Passed in, with `counted_tokens`
+#: naming each write's temporary file, so a test reads neither the clock nor randomness.
 MOMENT = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
-
-
-def counted_tokens() -> Callable[[], str]:
-    """Staging names that never repeat within a store, drawn from a counter rather than randomness."""
-    counter = itertools.count()
-    return lambda: f"{next(counter):08x}"
 
 
 def a_store(art_root, source=None) -> PictureStore:

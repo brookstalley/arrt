@@ -12,7 +12,7 @@ import sqlite3
 from datetime import UTC, datetime
 
 import pytest
-from fakes import open_catalogue
+from fakes import counted_ids, open_catalogue
 
 from arrt.persistence.migrations import DEFAULT_WALL_NAME
 from arrt.persistence.sqlite import SqliteCatalogue
@@ -224,13 +224,16 @@ def test_reopening_a_migrated_file_changes_nothing(tmp_path):
     a hardware inventory growing on its own.
     """
     path = _single_wall_catalogue(tmp_path / "catalogue.sqlite", themes=[("t1", "Late night", 1)], sequence=3)
-    open_catalogue(path, wall_name="Living room").close()
+    # One counter across every open, so a row a reopen recreated would come back
+    # under a new id and show as a change.
+    ids = counted_ids()
+    open_catalogue(path, wall_name="Living room", new_id=ids).close()
 
-    first = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
+    first = SqliteCatalogue(open_catalogue(path, wall_name="Living room", new_id=ids))
     wall_id = first.list_walls()[0].id
     first.close()
 
-    reopened = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
+    reopened = SqliteCatalogue(open_catalogue(path, wall_name="Living room", new_id=ids))
     try:
         assert [wall.id for wall in reopened.list_walls()] == [wall_id]
         assert reopened.get_assignment(wall_id).theme_id == "t1"
@@ -346,9 +349,9 @@ def test_an_interpreter_too_old_to_drop_a_column_says_so_rather_than_failing_on_
 # -- each wall's directive, retired ------------------------------------------------
 
 
-def _with_per_wall_directives(path):
+def _with_per_wall_directives(path, **given):
     """A current file put back to the shape it had while walls carried directives, with a pin."""
-    catalogue = SqliteCatalogue(open_catalogue(path))
+    catalogue = SqliteCatalogue(open_catalogue(path, **given))
     wall_id = catalogue.list_walls()[0].id
     catalogue.close()
     connection = sqlite3.connect(path)
@@ -383,10 +386,13 @@ def test_each_walls_directive_is_dropped_with_its_index(tmp_path):
 def test_dropping_the_directives_is_safe_to_run_again(tmp_path):
     """It runs on every open, so a file it already tidied opens unchanged."""
     path = tmp_path / "catalogue.sqlite"
-    wall_id = _with_per_wall_directives(path)
-    open_catalogue(path).close()
+    # One counter across every open, so a row a reopen recreated would come back
+    # under a new id and show as a change.
+    ids = counted_ids()
+    wall_id = _with_per_wall_directives(path, new_id=ids)
+    open_catalogue(path, new_id=ids).close()
 
-    catalogue = SqliteCatalogue(open_catalogue(path))
+    catalogue = SqliteCatalogue(open_catalogue(path, new_id=ids))
     try:
         assert [wall.id for wall in catalogue.list_walls()] == [wall_id]
     finally:
