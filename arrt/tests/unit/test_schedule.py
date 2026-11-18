@@ -13,7 +13,16 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from arrt.programming.schedule import HORIZON, Keep, Slot, StartFresh, build, household_pass, movable_walls
+from arrt.programming.schedule import (
+    HORIZON,
+    Keep,
+    Slot,
+    StartFresh,
+    build,
+    household_pass,
+    movable_walls,
+    run_household_pass,
+)
 
 NOW = datetime(2026, 10, 9, 18, 30, 15, 123456, tzinfo=UTC)
 AT = NOW.replace(microsecond=0)
@@ -356,26 +365,15 @@ HOUR = 3600
 
 
 def _household_pass(walls, *, target, now, published, start=None):
-    """Rebuild `target` and every other wall in `walls` as one pass, as `DisplayService._write_v2` does.
+    """Rebuild `target` and every other wall in `walls` as one pass, through the pass the service runs.
 
-    `target` is built first against only the slot now on each movable neighbour;
-    the walls `household_pass` puts before it are then built against that first
-    slot alone, and `target` is built again keeping it, against them whole.
-    Returns every wall's schedule.
+    `run_household_pass` makes the builds; this says only how one wall is built,
+    in the theme's order from its id as seed. Returns every wall's schedule.
     """
     neighbours = sorted(wall for wall in walls if wall != target)
     works = {wall_id: work_ids for wall_id, (work_ids, _) in walls.items()}
-    movable = movable_walls(target, neighbours, works)
-    steps = household_pass(
-        target,
-        neighbours,
-        movable=movable,
-        slot_seconds={wall_id: seconds for wall_id, (_, seconds) in walls.items()},
-        works=works,
-    )
-    current = dict(published)
 
-    def _build(wall_id, *, start, movable, align_to=(), also=()):
+    def _build(wall_id, view, *, start, also=()):
         work_ids, slot_seconds = walls[wall_id]
         return build(
             wall_id=wall_id,
@@ -384,37 +382,24 @@ def _household_pass(walls, *, target, now, published, start=None):
             shuffle=False,
             now=now,
             start=start,
-            published=current,
+            published=view.published,
             seed=wall_id,
             also_showable=also,
-            movable=movable,
-            align_to=align_to,
+            movable=view.movable,
+            align_to=view.align_to,
         )
 
-    built = {target: _build(target, start=start or Keep(), movable=movable)}
-    mine = next(at for at, step in enumerate(steps) if step.wall_id == target)
-    if mine:
-        first = built[target].slots[0]
-        current[target] = (first,)
-        for step in steps[:mine]:
-            built[step.wall_id] = _build(
-                step.wall_id,
-                start=Keep(),
-                movable=step.movable,
-                align_to=[slot.start for slot in built[step.align_with].slots],
-            )
-            current[step.wall_id] = built[step.wall_id].slots
-        built[target] = _build(target, start=Keep(), movable=steps[mine].movable, also={first.work_id})
-    current[target] = built[target].slots
-    for step in steps[mine + 1 :]:
-        built[step.wall_id] = _build(
-            step.wall_id,
-            start=Keep(),
-            movable=step.movable,
-            align_to=[slot.start for slot in built[step.align_with].slots],
-        )
-        current[step.wall_id] = built[step.wall_id].slots
-    return built
+    return run_household_pass(
+        target,
+        neighbours,
+        start=start or Keep(),
+        movable=movable_walls(target, neighbours, works),
+        slot_seconds={wall_id: seconds for wall_id, (_, seconds) in walls.items()},
+        works=works,
+        published=published,
+        build_republished=lambda view, start, also: _build(target, view, start=start, also=also),
+        build_neighbour=lambda wall_id, view: _build(wall_id, view, start=Keep()),
+    )
 
 
 def _single_work(wall_id, work_id, *, offset, slot_seconds=HOUR):
@@ -533,14 +518,21 @@ def _fresh(walls, offsets):
 
 
 def _apart_after_now(built, now):
-    """Every overlap between two walls' slots, leaving out the slots on the walls at `now`, which a pass keeps."""
+    """Every overlap between two walls' slots, leaving out only a pair both on their walls at `now`.
+
+    Two pictures up now are kept whatever either shows, so their clash is no
+    pass's to avoid; a slot to come on either wall meeting one of them is.
+    """
     return [
         (wall_id, slot)
         for wall_id, schedule in built.items()
         for other_id, other in built.items()
         if other_id != wall_id
         for slot in schedule.slots
-        if not slot.covers(now) and _shown_elsewhere(slot, [s for s in other.slots if not s.covers(now)])
+        if any(
+            s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) and not (slot.covers(now) and s.covers(now))
+            for s in other.slots
+        )
     ]
 
 
@@ -645,28 +637,61 @@ def test_a_wall_republished_with_a_work_to_spare_is_built_after_the_neighbour_wi
     assert _apart_after_now(built, AT) == []
 
 
+#: Case B with `a` republished, in a household the pass cannot keep apart though some schedule would.
+#: `a` keeps `x` until :41. `n2` shows `w` now; so does `n1`, until :42. At :41
+#: `a` goes on to `y`, built against only the slot now on each neighbour, and
+#: `n2`, built next, can show neither `y` nor `w` from :41 to :42. Had `a`
+#: shown `x` again, `n2` could have shown `y`, and `n1` `v`.
+_CASE_B_UNKEPT = {"a": 1100, "n1": 4662, "n2": 6942}
+
+
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "#374's limit: the pass builds one wall at a time and looks no further ahead than the slot now on the "
-        "walls to come, so three walls coupled through it can clash where some schedule would not"
+        "#374's limit, #436: the pass builds one wall at a time and looks no further ahead than the slot now on "
+        "the walls to come, so three walls coupled through it can clash where some schedule would not"
     ),
 )
 def test_three_walls_a_pass_cannot_keep_apart_though_some_schedule_would():
-    """Case B with `a` republished, where the pass still clashes, and the clash is named.
-
-    `a` keeps `x` until :41. `n2` shows `w` now; so does `n1`, until :42. At :41
-    `a` goes on to `y`, built against only the slot now on each neighbour, and
-    `n2`, built next, can show neither `y` nor `w` from :41 to :42. Had `a`
-    shown `x` again, `n2` could have shown `y`, and `n1` `v`. Strict, so a pass
-    that keeps these apart says so by failing here.
-    """
+    """The household `_CASE_B_UNKEPT` names. Strict, so a pass that keeps it apart says so by failing here."""
     walls = _case_b("n1")
 
-    built = _household_pass(walls, target="a", now=NOW, published=_fresh(walls, {"a": 1100, "n1": 4662, "n2": 6942}))
+    built = _household_pass(walls, target="a", now=NOW, published=_fresh(walls, _CASE_B_UNKEPT))
 
-    assert built["n2"].clashes != ()
     assert _apart_after_now(built, AT) == []
+
+
+def test_where_a_pass_cannot_keep_three_walls_apart_the_wall_built_later_names_the_clash():
+    """The same household: each overlap past the pictures now is a clash the later-built of its two walls names.
+
+    Not the clash between two pictures up now, which every pass names and none
+    can avoid, but each one a pass made: so a pass that stops saying where the
+    rule gives way fails here, and one that keeps these walls apart passes.
+    """
+    walls = _case_b("n1")
+    works = {wall_id: work_ids for wall_id, (work_ids, _) in walls.items()}
+    neighbours = ["n1", "n2"]
+    order = [
+        step.wall_id
+        for step in household_pass(
+            "a",
+            neighbours,
+            movable=movable_walls("a", neighbours, works),
+            slot_seconds=dict.fromkeys(walls, HOUR),
+            works=works,
+        )
+    ]
+
+    built = _household_pass(walls, target="a", now=NOW, published=_fresh(walls, _CASE_B_UNKEPT))
+
+    for wall_id, slot in _apart_after_now(built, AT):
+        named = {(c.work_id, c.start, c.other_wall_id) for c in built[wall_id].clashes}
+        for earlier in order[: order.index(wall_id)]:
+            if any(
+                s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) and not (slot.covers(AT) and s.covers(AT))
+                for s in built[earlier].slots
+            ):
+                assert (slot.work_id, slot.start, earlier) in named
 
 
 @settings(max_examples=100, deadline=None)
@@ -685,7 +710,7 @@ def test_two_slower_neighbours_sharing_works_line_up_with_each_other(offsets):
 
     built = _household_pass(walls, target="hall", now=NOW, published=first)
 
-    assert [(wall, slot) for wall, slot in _apart_after_now(built, AT) if wall != "hall"] == []
+    assert _apart_after_now(built, AT) == []
 
 
 @settings(max_examples=100, deadline=None)
@@ -695,13 +720,23 @@ def test_a_quicker_wall_with_one_work_is_built_first_and_the_slower_one_steps_as
 
     Built before the hall against its slot now alone, the study would take
     turns with `a`, and the hall, with nothing else, would clash at every turn.
+    The study's picture now is the one exception: kept, it may show `a` past
+    the end of the hall's slot now, and the hall has nothing else to show then,
+    so that clash is no pass's to avoid, and the hall names it.
     """
     walls = {"hall": (["a"], 1800), "study": (["a", "b"], HOUR)}
     first = _fresh(walls, {"hall": hall_offset, "study": study_offset})
 
     built = _household_pass(walls, target="hall", now=NOW, published=first)
 
-    assert _apart_after_now(built, AT) == []
+    kept = built["study"].slots[0]
+    named = {(clash.start, clash.other_wall_id) for clash in built["hall"].clashes}
+    for wall_id, slot in _apart_after_now(built, AT):
+        if wall_id == "study":
+            assert slot == kept
+        else:
+            assert slot.overlaps(kept.start, kept.until)
+            assert (slot.start, "study") in named
 
 
 @pytest.mark.parametrize(
@@ -740,6 +775,23 @@ def test_a_pass_builds_the_slowest_walls_first_when_the_wall_republished_can_ste
     assert [step.align_with for step in steps] == align_with
     for at, step in enumerate(steps):
         assert step.movable == frozenset(order[at + 1 :]) & movable
+
+
+def test_a_neighbour_with_no_room_counts_its_own_works_as_movable_walls_does():
+    """`n1` can go only to `x`, `n2` to nothing, since `c`, outside the pass, always holds `w`.
+
+    Neither is movable, and neither has the republished wall room either, so
+    it is built first; then the neighbour with fewer works to go to. Counting a
+    wall's own works as fixed against it would score both nothing and fall
+    back to id order.
+    """
+    works = {"here": {"x", "y"}, "n1": {"x"}, "n2": {"w"}, "c": {"w"}}
+    movable = movable_walls("here", ["n1", "n2"], works)
+
+    steps = household_pass("here", ["n1", "n2"], movable=movable, slot_seconds=dict.fromkeys(works, 60), works=works)
+
+    assert movable == frozenset()
+    assert [step.wall_id for step in steps] == ["here", "n2", "n1"]
 
 
 def test_a_movable_walls_slots_to_come_do_not_count_against_this_one():

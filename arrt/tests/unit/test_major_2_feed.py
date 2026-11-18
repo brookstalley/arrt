@@ -821,6 +821,99 @@ def test_a_wall_at_a_quicker_pace_than_its_neighbour_takes_turns_inside_the_neig
     assert kept.until - kept.start < 2 * timedelta(seconds=HOUR)
 
 
+def test_two_slower_neighbours_line_up_with_each_other_and_the_quicker_hall_with_both(
+    display, mastered, theme_of, wall_id, wall_settings, feed
+):
+    """The hall changes every quarter hour, the kitchen hourly, the study every two hours; all three share `a` and `b`.
+
+    Both slower walls are built before the hall, the study first. The kitchen
+    lines up with the study, so each of its hours falls inside one of the
+    study's two: lined up with the hall's quarter hours alone, it could start a
+    quarter hour off the study and span both its works.
+    """
+    a, b, c = mastered("A"), mastered("B"), mastered("C")
+    kitchen, study = display.add_wall(name="Kitchen").id, display.add_wall(name="Study").id
+    display.set_playback(kitchen, rotation_interval_seconds=HOUR, shuffle=False)
+    display.set_playback(study, rotation_interval_seconds=2 * HOUR, shuffle=False)
+    shared = theme_of(a, b, name="Shared", interval=HOUR // 4)
+    display.activate_theme(shared.id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=1597))
+    display.activate_theme(shared.id, wall_id=kitchen)
+    # Aged so that the kitchen's hour, lined up with the hall's quarter hours
+    # alone, would end half an hour off the study's two.
+    _age(wall_settings, kitchen, by=timedelta(seconds=2411))
+
+    display.activate_theme(theme_of(a, b, c, name="Hall's", interval=HOUR // 4).id, wall_id=wall_id)
+
+    now = _now()
+    feeds = {wall: feed(wall) for wall in (wall_id, kitchen, study)}
+    for here, there in ((one, other) for one in feeds for other in feeds if one != other):
+        # Only two pictures both up now may meet: each is kept, whatever the other shows.
+        assert [
+            slot
+            for slot in feeds[here].slots
+            if any(
+                s.work_id == slot.work_id and s.overlaps(slot.start, slot.until) and not (slot.covers(now) and s.covers(now))
+                for s in feeds[there].slots
+            )
+        ] == [], (here, there)
+    # Every boundary of the study's after the kitchen's picture now, which is
+    # kept and may span one, and within the kitchen's horizon, is one of the kitchen's.
+    kitchen_starts = {slot.start for slot in feeds[kitchen].slots}
+    study_starts = {
+        slot.start for slot in feeds[study].slots if feeds[kitchen].slots[0].until <= slot.start < feeds[kitchen].horizon_until
+    }
+    assert study_starts
+    assert study_starts <= kitchen_starts
+
+
+@pytest.mark.parametrize("failing", ["its write", "its second build"])
+def test_a_neighbour_built_before_the_hall_is_not_written_when_the_hall_s_feed_is_not(
+    display, mastered, theme_of, wall_id, wall_settings, feed, monkeypatch, failing
+):
+    """The study, slower, is built before the hall, round the hall's first slot; that slot is only the hall's once written.
+
+    So the study's rebuild is held until the hall's feed is written. When the
+    hall's second build or its write fails, the act fails, and the study keeps
+    the feed it had rather than one fitted round a slot that never went up.
+    Aged, so its rebuild would differ from its feed: its slot now runs on into
+    step with the hall.
+    """
+    a, b = mastered("A"), mastered("B")
+    study = display.add_wall(name="Study").id
+    display.set_playback(study, rotation_interval_seconds=HOUR, shuffle=False)
+    theme = theme_of(a, b, interval=HOUR // 2)
+    display.activate_theme(theme.id, wall_id=study)
+    _age(wall_settings, study, by=timedelta(seconds=97))
+    before = feed(study)
+    hall_builds, writes = [], []
+    build, publish = display_module.build_schedule, display._publish_feed
+
+    def failing_build(**arguments):
+        if arguments["wall_id"] == wall_id:
+            hall_builds.append(arguments)
+            if failing == "its second build" and len(hall_builds) == 2:
+                raise OSError("the hall's second build failed")
+        return build(**arguments)
+
+    def failing_publish(wall, **arguments):
+        writes.append(wall)
+        if wall == wall_id and failing == "its write":
+            raise OSError("the hall's feed could not be written")
+        return publish(wall, **arguments)
+
+    monkeypatch.setattr(display_module, "build_schedule", failing_build)
+    monkeypatch.setattr(display, "_publish_feed", failing_publish)
+
+    with pytest.raises(OSError, match="hall's"):
+        display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert len(hall_builds) == 2
+    assert study not in writes
+    assert feed(study) == before
+    assert feed(wall_id) is None
+
+
 def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_each_wall_is_written_once(
     display, mastered, theme_of, wall_id, feed, monkeypatch
 ):
