@@ -35,7 +35,8 @@ image. So the caller rebuilds them as a pass, one wall at a time in the order
 `household_pass` gives: the slowest walls first, since a quicker wall can step
 aside within a slower one's slot and not the other way round; then, at one
 pace, the walls with fewest works to go to, since one with a work to spare can
-leave a shared work to one without. Each is built against the walls already
+leave a shared work to one without. `run_household_pass` makes those builds,
+for the service and the suite alike. Each is built against the walls already
 rebuilt whole, and against only the slot covering now on each wall still to
 come that has room to step aside (`movable`, chosen by `movable_walls`); the
 wall republished, when it is still to come, counts by its first slot. Each
@@ -47,13 +48,14 @@ any screen changes: the slot covering now keeps its work and its start, and may
 stay up under one interval longer (the owner, 2026-10-14).
 
 **What a pass cannot do.** It lines walls up only where one interval is a
-multiple of the other. It keeps two walls apart whenever each has two works to
-go to and one's interval divides the other's, whichever is republished. With
+multiple of the other. Two walls each with two works to go to, one's interval
+dividing the other's, it keeps apart from either side: the suite states that as
+a property over their works, paces and offsets, which is evidence, not proof. With
 three walls or more coupled through shared works it can still clash where some
 schedule would not: each wall is built looking no further ahead than the slot
 now on the walls still to come, so it can take a work a wall built after it
 needed, and that wall's clash is named. Ruling that out needs the walls'
-schedules searched together, not built one at a time.
+schedules searched together, not built one at a time (#436).
 """
 
 import random
@@ -267,16 +269,25 @@ def household_pass(
 
     **Then fewest works to go to.** Among walls at one pace, one with a work to
     spare can leave a shared work to one without, but only if it is built after
-    it. Works to go to are those no fixed wall holds (`movable_walls`'s
-    measure; `works` holds the wall republished's own works to come). A tie
-    goes to the wall republished, so walls at one pace and as free as each
-    other are built as they were before a pass had an order.
+    it. A wall's works to go to are `movable_walls`'s measure: those of its
+    works no fixed wall other than itself holds. A tie goes to the wall
+    republished, so walls at one pace and as free as each other are built as
+    they were before a pass had an order.
+
+    `works` is what each wall's feed names, as `movable_walls` counts it, with
+    the wall republished's own works to come. A neighbour is rebuilt from its
+    hung theme, which may hold more works than one horizon names; such a wall
+    is counted short, and so built earlier than its works would put it. That
+    is the safe side: built earlier, it is built against fewer walls whole, so
+    it can only find more room than it was counted as having, and the order is
+    a preference among walls the rule already lets step aside, never a rule
+    itself. A clash it leads to is named like any other.
 
     A wall put before the wall republished is built against its first slot
     alone, and the wall republished is built after it, keeping that slot,
-    against it whole. That needs room to step aside, two works to go to;
-    without it the wall republished is built first, as one wall with nowhere
-    else to go must be, and the others step aside from it.
+    against it whole (`run_household_pass`). That needs room to step aside, two
+    works to go to; without it the wall republished is built first, as one wall
+    with nowhere else to go must be, and the others step aside from it.
 
     Each wall built before the wall republished lines up with the wall built
     just before it (the first, with the wall republished's first build), so a
@@ -284,14 +295,20 @@ def household_pass(
     it lines up with it. `movable` is `movable_walls`'s answer; each step's
     own is those of them still to come.
     """
-    fixed = {work_id for other, held in works.items() if other != wall_id and other not in movable for work_id in held}
-    free = {wall: len(set(works.get(wall, ())) - fixed) for wall in (wall_id, *neighbours)}
+
+    def free(wall: str) -> int:
+        fixed = {
+            work_id for other, held in works.items() if other not in (wall_id, wall) and other not in movable for work_id in held
+        }
+        return len(set(works.get(wall, ())) - fixed)
+
+    room = {wall: free(wall) for wall in (wall_id, *neighbours)}
 
     def rank(wall: str) -> tuple[int, int, bool, str]:
-        return (-slot_seconds[wall], free[wall], wall != wall_id, wall)
+        return (-slot_seconds[wall], room[wall], wall != wall_id, wall)
 
     order = sorted((wall_id, *neighbours), key=rank)
-    if free[wall_id] <= 1:
+    if room[wall_id] <= 1:
         order = [wall_id, *(wall for wall in order if wall != wall_id)]
     mine = order.index(wall_id)
     steps = []
@@ -304,6 +321,80 @@ def household_pass(
             align_with = wall_id
         steps.append(PassStep(wall, frozenset(order[at + 1 :]) & frozenset(movable), align_with))
     return tuple(steps)
+
+
+@dataclass(frozen=True, slots=True)
+class PassView:
+    """What one wall's build in a household pass is built against."""
+
+    #: Every wall's slots as the pass has them so far, by wall id: the new ones
+    #: of each wall already rebuilt, the first slot alone of the wall republished
+    #: while it is still to come, and every other wall's published ones.
+    published: Mapping[str, Sequence[Slot]]
+    #: The walls still to come whose slot now alone counts (`build`'s `movable`).
+    movable: frozenset[str]
+    #: The slot starts this wall's kept slot steps into line with (`build`'s `align_to`).
+    align_to: tuple[datetime, ...]
+
+
+def run_household_pass(
+    wall_id: str,
+    neighbours: Collection[str],
+    *,
+    start: Start,
+    movable: Collection[str],
+    slot_seconds: Mapping[str, int],
+    works: Mapping[str, Collection[str]],
+    published: Mapping[str, Sequence[Slot]],
+    build_republished: Callable[[PassView, Start, frozenset[str]], Schedule],
+    build_neighbour: Callable[[str, PassView], Schedule | None],
+) -> dict[str, Schedule]:
+    """Build a household pass in `household_pass`'s order, and return each wall's schedule in the order to write them.
+
+    The one sequence of builds a pass makes, so the service and the suite run
+    the same steps: the caller says only how one wall is built.
+    `build_republished(view, start, also_showable)` builds the wall republished;
+    `build_neighbour(wall, view)` builds a neighbour keeping its slot now, or
+    returns None when it cannot be rebuilt, and that wall then counts by its
+    published slots.
+
+    The wall republished is built first against only the slot now on each
+    movable neighbour, which fixes its first slot. When `household_pass` puts
+    walls before it, each is built against that first slot alone, and the wall
+    republished is built again with `Keep`, the first slot standing as its
+    published one, so it keeps it. Nothing is written here: the wall republished
+    comes first in what is returned, so a caller that writes in this order
+    writes no neighbour around a first slot that was never published.
+    """
+    steps = household_pass(wall_id, neighbours, movable=movable, slot_seconds=slot_seconds, works=works)
+    current = dict(published)
+    first_build = build_republished(PassView(dict(current), frozenset(movable), ()), start, frozenset())
+    shown: dict[str, Sequence[Slot]] = {wall_id: first_build.slots}
+    built: dict[str, Schedule] = {}
+
+    def neighbour(step: PassStep) -> None:
+        # Every neighbour's step names a wall built before it, the wall
+        # republished or a neighbour, so its slots are known by now.
+        assert step.align_with is not None  # noqa: S101 -- only the wall republished's step names none
+        view = PassView(dict(current), step.movable, tuple(slot.start for slot in shown[step.align_with]))
+        schedule = build_neighbour(step.wall_id, view)
+        if schedule is not None:
+            built[step.wall_id] = schedule
+            current[step.wall_id] = schedule.slots
+        shown[step.wall_id] = current.get(step.wall_id, ())
+
+    mine = next(at for at, step in enumerate(steps) if step.wall_id == wall_id)
+    republished = first_build
+    if mine:
+        first = first_build.slots[0]
+        current[wall_id] = (first,)
+        for step in steps[:mine]:
+            neighbour(step)
+        republished = build_republished(PassView(dict(current), steps[mine].movable, ()), Keep(), frozenset({first.work_id}))
+    current[wall_id] = shown[wall_id] = republished.slots
+    for step in steps[mine + 1 :]:
+        neighbour(step)
+    return {wall_id: republished, **{step.wall_id: built[step.wall_id] for step in steps if step.wall_id in built}}
 
 
 def _kept(previous: Sequence[Slot], now: datetime, held: Collection[str]) -> Slot | None:
