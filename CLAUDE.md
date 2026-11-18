@@ -79,8 +79,9 @@ so an in-process test would pass against an app that fails every real request.
 
 **That suite runs across cores** — `-n auto` is in the curation plane's
 `addopts`, so `uv run pytest` is already parallel (118s → 21s, measured
-2026-08-05). **Add `-n0` to debug a failure**: workers interleave output and a
-`pdb` breakpoint has no terminal to stop in. The root suite runs in a fraction of
+2026-08-05). **To debug a failure, run it here with `uv run pytest … -n0`**:
+workers interleave output and a `pdb` breakpoint has no terminal to stop in.
+Not through testament, which drops `-n` and sends the selection to the pool. The root suite runs in a fraction of
 a second and is left serial.
 
 **The root suite holds no product code, and it is not optional.** It carries
@@ -102,8 +103,9 @@ The client under `arrt/src/arrt/http/static/` is the product's only human
 interface, and no Python suite runs it: `-m browser` does, and you run it
 whenever you touch anything under `static/`. The four live markers (`live_museum`,
 `live_binary`, `live_api`, `llm_eval`) check foreign APIs and are deselected by
-default; `live_api` and `llm_eval` spend real money, and every live run takes
-`-n0`: a museum marker (`live_museum`, `live_binary`) may run beside an
+default; `live_api` and `llm_eval` spend real money, and every live run is a
+`uv run pytest … -n0` on this machine, never a `testament run` (testament drops
+`-n` and would split the run across the pool's runners): a museum marker (`live_museum`, `live_binary`) may run beside an
 OpenRouter one (`live_api`, `llm_eval`), never two of the same pair at once
 (`docs/testing.md`). Commands, setup and the reasons behind each rule: `docs/testing.md`.
 
