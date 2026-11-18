@@ -1,7 +1,7 @@
 # Arrt, the curation server, as a container.
 #
 # Built for the NAS (`build-plan-nas.md`), from a commit, with everything it
-# fetches pinned: the uv image and the Debian base by digest, Python by version
+# fetches pinned: the uv, node and Debian images by digest, Python by version
 # through uv, the Python packages by `uv.lock`, and dezoomify-rs by release and
 # checksum. A house's own half — addresses, ports, the env file, the volumes —
 # is not here: this repository is public, and that half lives in the owner's
@@ -19,6 +19,11 @@
 # file live there, so the image holds code only and a rollback is a different tag.
 
 FROM ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe78fdc2594d5cd8de1a217f504c AS uv
+
+# Node for the test stage alone, its binary only, pinned as the testament image
+# pins it (`.devcontainer/Dockerfile`): Debian's own nodejs (18) is older than
+# the syntax the client is written in.
+FROM node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS node
 
 FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS base
 
@@ -68,9 +73,8 @@ RUN uv sync --frozen --no-dev
 FROM base AS test
 # Node, for the tests that run the client's own modules (they skip without it).
 # The test stage only: the app never runs JavaScript.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends nodejs \
- && rm -rf /var/lib/apt/lists/*
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+RUN node --version
 # The contract package is a dev dependency at `../contract`, which from `/app`
 # is `/contract`, so it is in place before the sync that installs it. Its
 # `player-contract.md` is a symlink to the artifact, which the build of the
