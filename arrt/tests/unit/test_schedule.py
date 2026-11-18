@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from arrt.programming.schedule import HORIZON, Keep, Slot, StartFresh, build, movable_walls
+from arrt.programming.schedule import HORIZON, Keep, Slot, StartFresh, build, household_pass, movable_walls
 
 NOW = datetime(2026, 10, 9, 18, 30, 15, 123456, tzinfo=UTC)
 AT = NOW.replace(microsecond=0)
@@ -356,25 +356,64 @@ HOUR = 3600
 
 
 def _household_pass(walls, *, target, now, published, start=None):
-    """Rebuild `target`, then every other wall in `walls` in id order, as one pass. Returns every wall's schedule."""
+    """Rebuild `target` and every other wall in `walls` as one pass, as `DisplayService._write_v2` does.
+
+    `target` is built first against only the slot now on each movable neighbour;
+    the walls `household_pass` puts before it are then built against that first
+    slot alone, and `target` is built again keeping it, against them whole.
+    Returns every wall's schedule.
+    """
     neighbours = sorted(wall for wall in walls if wall != target)
-    built = {}
+    works = {wall_id: work_ids for wall_id, (work_ids, _) in walls.items()}
+    movable = movable_walls(target, neighbours, works)
+    steps = household_pass(
+        target,
+        neighbours,
+        movable=movable,
+        slot_seconds={wall_id: seconds for wall_id, (_, seconds) in walls.items()},
+        works=works,
+    )
     current = dict(published)
-    for at, wall_id in enumerate([target, *neighbours]):
+
+    def _build(wall_id, *, start, movable, align_to=(), also=()):
         work_ids, slot_seconds = walls[wall_id]
-        built[wall_id] = build(
+        return build(
             wall_id=wall_id,
             work_ids=work_ids,
             slot_seconds=slot_seconds,
             shuffle=False,
             now=now,
-            start=(start or Keep()) if wall_id == target else Keep(),
+            start=start,
             published=current,
             seed=wall_id,
-            movable=set(neighbours[at:]) - {wall_id} if at else set(neighbours),
-            align_to=() if wall_id == target else [slot.start for slot in built[target].slots],
+            also_showable=also,
+            movable=movable,
+            align_to=align_to,
         )
-        current[wall_id] = built[wall_id].slots
+
+    built = {target: _build(target, start=start or Keep(), movable=movable)}
+    mine = next(at for at, step in enumerate(steps) if step.wall_id == target)
+    if mine:
+        first = built[target].slots[0]
+        current[target] = (first,)
+        for step in steps[:mine]:
+            built[step.wall_id] = _build(
+                step.wall_id,
+                start=Keep(),
+                movable=step.movable,
+                align_to=[slot.start for slot in built[step.align_with].slots],
+            )
+            current[step.wall_id] = built[step.wall_id].slots
+        built[target] = _build(target, start=Keep(), movable=steps[mine].movable, also={first.work_id})
+    current[target] = built[target].slots
+    for step in steps[mine + 1 :]:
+        built[step.wall_id] = _build(
+            step.wall_id,
+            start=Keep(),
+            movable=step.movable,
+            align_to=[slot.start for slot in built[step.align_with].slots],
+        )
+        current[step.wall_id] = built[step.wall_id].slots
     return built
 
 
@@ -474,6 +513,233 @@ def test_after_a_pass_every_overlap_between_walls_is_a_named_clash(walls, data):
 
 def _overlapping(slots, start, slot):
     return any(s.start == start and s.overlaps(slot.start, slot.until) for s in slots)
+
+
+def _fresh(walls, offsets):
+    """Each wall's schedule as if published on its own `offsets[wall]` seconds before NOW, against nothing."""
+    return {
+        wall_id: build(
+            wall_id=wall_id,
+            work_ids=work_ids,
+            slot_seconds=slot_seconds,
+            shuffle=False,
+            now=NOW - timedelta(seconds=offsets[wall_id]),
+            start=StartFresh(),
+            published={},
+            seed=wall_id,
+        ).slots
+        for wall_id, (work_ids, slot_seconds) in walls.items()
+    }
+
+
+def _apart_after_now(built, now):
+    """Every overlap between two walls' slots, leaving out the slots on the walls at `now`, which a pass keeps."""
+    return [
+        (wall_id, slot)
+        for wall_id, schedule in built.items()
+        for other_id, other in built.items()
+        if other_id != wall_id
+        for slot in schedule.slots
+        if not slot.covers(now) and _shown_elsewhere(slot, [s for s in other.slots if not s.covers(now)])
+    ]
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    hall_offset=st.integers(min_value=0, max_value=2 * HOUR),
+    study_offset=st.integers(min_value=0, max_value=2 * HOUR),
+    hall_seconds=st.sampled_from([900, 1800, HOUR]),
+    times=st.sampled_from([2, 3, 4]),
+)
+def test_a_wall_quicker_than_its_neighbour_takes_turns_inside_the_neighbours_slots(
+    hall_offset, study_offset, hall_seconds, times
+):
+    """#374, case A: republished at a quicker pace than the study, the two sharing only `a` and `b`.
+
+    Built first, the hall alternated the two at its own pace, and each of the
+    study's longer slots then spanned one of each. A clash-free schedule exists:
+    the hall shows one work for as many of its slots as fit in one of the
+    study's, while the study shows the other.
+    """
+    walls = {"hall": (["a", "b"], hall_seconds), "study": (["a", "b"], hall_seconds * times)}
+    first = _fresh(walls, {"hall": hall_offset, "study": study_offset})
+
+    built = _household_pass(walls, target="hall", now=NOW, published=first)
+
+    assert _apart_after_now(built, AT) == []
+    for schedule in built.values():
+        _contract_rules_hold(schedule)
+        assert {slot.work_id for slot in schedule.slots} == {"a", "b"}
+    on_the_study = next(slot for slot in first["study"] if slot.covers(AT))
+    kept = built["study"].slots[0]
+    assert (kept.work_id, kept.start) == (on_the_study.work_id, on_the_study.start)
+    assert kept.until - kept.start < 2 * timedelta(seconds=hall_seconds * times)
+
+
+@settings(max_examples=200, deadline=None)
+@given(
+    hall=st.lists(st.sampled_from(["p", "q", "r", "s"]), min_size=2, max_size=4, unique=True),
+    study=st.lists(st.sampled_from(["p", "q", "r", "s"]), min_size=2, max_size=4, unique=True),
+    base=st.sampled_from([900, 1800, HOUR]),
+    times=st.sampled_from([1, 2, 3, 4]),
+    quicker=st.sampled_from(["hall", "study"]),
+    target=st.sampled_from(["hall", "study"]),
+    offsets=st.fixed_dictionaries({wall: st.integers(min_value=0, max_value=2 * HOUR) for wall in ("hall", "study")}),
+)
+def test_two_walls_each_with_two_works_never_clash_after_a_pass_when_one_pace_divides_the_other(
+    hall, study, base, times, quicker, target, offsets
+):
+    """Some schedule always keeps two such walls apart, so a pass from either wall finds one."""
+    seconds = {"hall": base, "study": base * times} if quicker == "hall" else {"hall": base * times, "study": base}
+    walls = {"hall": (hall, seconds["hall"]), "study": (study, seconds["study"])}
+
+    built = _household_pass(walls, target=target, now=NOW, published=_fresh(walls, offsets))
+
+    assert _apart_after_now(built, AT) == []
+
+
+def _case_b(three):
+    """#374, case B: `a` holds x and y; the neighbour `three` holds x, w and v; the other y and w."""
+    two = "n2" if three == "n1" else "n1"
+    return {"a": (["x", "y"], HOUR), three: (["x", "w", "v"], HOUR), two: (["y", "w"], HOUR)}
+
+
+@pytest.mark.parametrize("three", ["n1", "n2"])
+@pytest.mark.parametrize(
+    "offsets",
+    [
+        # Published together, and four households found clashing when built in id order.
+        {"a": 0, "n1": 0, "n2": 0},
+        {"a": 1857, "n1": 3034, "n2": 3075},
+        {"a": 1351, "n1": 3424, "n2": 5650},
+        {"a": 634, "n1": 1749, "n2": 1184},
+        {"a": 1719, "n1": 2127, "n2": 3157},
+    ],
+)
+def test_a_neighbour_with_a_work_to_spare_leaves_the_shared_one_to_the_neighbour_without(offsets, three):
+    """Rebuilt in id order, the neighbour with three works could take `w` while `a` showed `y`, leaving the other nothing.
+
+    Whichever comes first by id, the neighbour with fewer works to go to is
+    built first. Not a property over every offset: see the case below.
+    """
+    walls = _case_b(three)
+
+    built = _household_pass(walls, target="a", now=NOW, published=_fresh(walls, offsets))
+
+    assert _apart_after_now(built, AT) == []
+    for schedule in built.values():
+        _contract_rules_hold(schedule)
+
+
+@settings(max_examples=150, deadline=None)
+@given(
+    offsets=st.fixed_dictionaries({wall: st.integers(min_value=0, max_value=2 * HOUR) for wall in ("a", "n1", "n2")}),
+    three=st.sampled_from(["n1", "n2"]),
+)
+def test_a_wall_republished_with_a_work_to_spare_is_built_after_the_neighbour_without(offsets, three):
+    """Case B republished from the wall with three works: the neighbour with two to go to is built before it."""
+    walls = _case_b(three)
+
+    built = _household_pass(walls, target=three, now=NOW, published=_fresh(walls, offsets))
+
+    assert _apart_after_now(built, AT) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#374's limit: the pass builds one wall at a time and looks no further ahead than the slot now on the "
+        "walls to come, so three walls coupled through it can clash where some schedule would not"
+    ),
+)
+def test_three_walls_a_pass_cannot_keep_apart_though_some_schedule_would():
+    """Case B with `a` republished, where the pass still clashes, and the clash is named.
+
+    `a` keeps `x` until :41. `n2` shows `w` now; so does `n1`, until :42. At :41
+    `a` goes on to `y`, built against only the slot now on each neighbour, and
+    `n2`, built next, can show neither `y` nor `w` from :41 to :42. Had `a`
+    shown `x` again, `n2` could have shown `y`, and `n1` `v`. Strict, so a pass
+    that keeps these apart says so by failing here.
+    """
+    walls = _case_b("n1")
+
+    built = _household_pass(walls, target="a", now=NOW, published=_fresh(walls, {"a": 1100, "n1": 4662, "n2": 6942}))
+
+    assert built["n2"].clashes != ()
+    assert _apart_after_now(built, AT) == []
+
+
+@settings(max_examples=100, deadline=None)
+@given(
+    offsets=st.fixed_dictionaries({wall: st.integers(min_value=0, max_value=2 * HOUR) for wall in ("hall", "kitchen", "study")})
+)
+def test_two_slower_neighbours_sharing_works_line_up_with_each_other(offsets):
+    """The hall changes every quarter hour; the kitchen hourly and the study every two hours, sharing `a` and `b`.
+
+    Each slower wall is built before the hall, and the kitchen's slots must
+    fall inside the study's: lined up with the hall's quarter hours alone, they
+    could start a quarter hour off the study's and span both its works.
+    """
+    walls = {"hall": (["a", "b", "c"], 900), "kitchen": (["a", "b"], HOUR), "study": (["a", "b"], 2 * HOUR)}
+    first = _fresh(walls, offsets)
+
+    built = _household_pass(walls, target="hall", now=NOW, published=first)
+
+    assert [(wall, slot) for wall, slot in _apart_after_now(built, AT) if wall != "hall"] == []
+
+
+@settings(max_examples=100, deadline=None)
+@given(hall_offset=st.integers(min_value=0, max_value=2 * HOUR), study_offset=st.integers(min_value=0, max_value=2 * HOUR))
+def test_a_quicker_wall_with_one_work_is_built_first_and_the_slower_one_steps_aside(hall_offset, study_offset):
+    """The hall can show only `a`, so it has nowhere to step aside to; the study, slower, shows `b` instead.
+
+    Built before the hall against its slot now alone, the study would take
+    turns with `a`, and the hall, with nothing else, would clash at every turn.
+    """
+    walls = {"hall": (["a"], 1800), "study": (["a", "b"], HOUR)}
+    first = _fresh(walls, {"hall": hall_offset, "study": study_offset})
+
+    built = _household_pass(walls, target="hall", now=NOW, published=first)
+
+    assert _apart_after_now(built, AT) == []
+
+
+@pytest.mark.parametrize(
+    ("seconds", "works", "order", "align_with"),
+    [
+        # One pace: the wall republished, then the neighbour with fewer works to go to.
+        (
+            {"here": 60, "n1": 60, "n2": 60},
+            {"here": {"x", "y"}, "n1": {"x", "w", "v"}, "n2": {"y", "w"}},
+            ["here", "n2", "n1"],
+            [None, "here", "here"],
+        ),
+        # Slower walls first, slowest first, each lined up with the one before it.
+        (
+            {"here": 15, "n1": 60, "n2": 120, "n3": 15},
+            {"here": {"a", "b"}, "n1": {"a", "b"}, "n2": {"a", "b"}, "n3": {"a", "b"}},
+            ["n2", "n1", "here", "n3"],
+            ["here", "n2", None, "here"],
+        ),
+        # A wall with one work to go to has no room to step aside, so it is built first.
+        (
+            {"here": 15, "n1": 60},
+            {"here": {"a"}, "n1": {"a", "b"}},
+            ["here", "n1"],
+            [None, "here"],
+        ),
+    ],
+)
+def test_a_pass_builds_the_slowest_walls_first_when_the_wall_republished_can_step_aside(seconds, works, order, align_with):
+    neighbours = [wall for wall in works if wall != "here"]
+    movable = movable_walls("here", neighbours, works)
+
+    steps = household_pass("here", neighbours, movable=movable, slot_seconds=seconds, works=works)
+
+    assert [step.wall_id for step in steps] == order
+    assert [step.align_with for step in steps] == align_with
+    for at, step in enumerate(steps):
+        assert step.movable == frozenset(order[at + 1 :]) & movable
 
 
 def test_a_movable_walls_slots_to_come_do_not_count_against_this_one():

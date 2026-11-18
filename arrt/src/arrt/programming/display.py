@@ -20,8 +20,8 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 import logging
 import uuid
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
@@ -61,7 +61,16 @@ from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.programming.manifest.v2 import Feed, Published, SceneEntry, manifest_v2_path_in, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
-from arrt.programming.schedule import Keep, Schedule, Slot, Start, StartFresh, movable_walls
+from arrt.programming.schedule import (
+    Keep,
+    PassStep,
+    Schedule,
+    Slot,
+    Start,
+    StartFresh,
+    household_pass,
+    movable_walls,
+)
 from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
@@ -334,14 +343,17 @@ class NotAgain:
 
 @dataclass(frozen=True, slots=True)
 class _Beside:
-    """A wall rebuilt in a household pass, after the wall republished (`schedule` module docstring).
+    """A wall rebuilt in a household pass beside the wall republished (`schedule.household_pass`).
 
     `movable` is the walls still to be rebuilt after this one; `align_to` is the
-    slot starts of the wall republished.
+    slot starts of the wall its kept slot steps into line with. `pending` stands
+    in for a wall's published slots while that wall is still to be written: the
+    wall republished, when this one is built before it, is its first slot alone.
     """
 
     movable: frozenset[str]
     align_to: tuple[datetime, ...]
+    pending: Mapping[str, tuple[Slot, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2359,14 +2371,18 @@ class DisplayService:
         `order` is the cycle; any other work in `works` may only finish the slot
         it is in now, or be the one a `StartFresh` names.
 
-        **Then every wall whose feed shares a work with this one is rebuilt beside
+        **Every wall whose feed shares a work with this one is rebuilt beside
         it** (the owner, 2026-10-13): this wall is built against only the slot on
-        each of them now, and each is then rebuilt keeping that slot, lined up
-        with this wall's slots. Rebuilt one at a time against the others' whole
+        each of them now, and each is rebuilt keeping that slot, lined up with
+        the walls built before it. Rebuilt one at a time against the others' whole
         schedules, two walls sharing two works lock, each showing one of them for
-        a whole horizon (`schedule` module docstring). A wall rebuilt `beside`
-        another is one step of that pass, and rebuilds no neighbours of its own,
-        so a pass touches each wall once.
+        a whole horizon (`schedule` module docstring). A neighbour the pass puts
+        first (a slower one, or at one pace one with fewer works to go to;
+        `schedule.household_pass`) is rebuilt against this wall's first slot
+        alone, and this wall is then built again keeping that slot, against it
+        whole, before it is written. A wall rebuilt `beside` another
+        is one step of that pass, and rebuilds no neighbours of its own, so a
+        pass writes each wall once.
         """
         now = datetime.now(UTC)
         feeds = {
@@ -2375,28 +2391,60 @@ class DisplayService:
             if (feed := read_published_v2(self._settings.manifest_v2_path(wall.id))) is not None
         }
         published = {other: feed.slots for other, feed in feeds.items()}
+        cycle = [work_id for work_id in order if work_id in works]
+        steps: tuple[PassStep, ...] = ()
         if beside is None:
             neighbours = sorted(
                 other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
             )
-            movable = movable_walls(wall_id, neighbours, {other: feed.works.keys() for other, feed in feeds.items()})
-            align_to = ()
+            held: dict[str, Collection[str]] = {other: feed.works.keys() for other, feed in feeds.items()}
+            held[wall_id] = cycle
+            movable = movable_walls(wall_id, neighbours, held)
+            steps = household_pass(
+                wall_id,
+                neighbours,
+                movable=movable,
+                slot_seconds={
+                    wall_id: slot_seconds,
+                    **{neighbour: self.pace(self.get_wall(neighbour))[0] for neighbour in neighbours},
+                },
+                works=held,
+            )
+            align_to: tuple[datetime, ...] = ()
         else:
-            neighbours, movable, align_to = [], beside.movable, beside.align_to
-        cycle = [work_id for work_id in order if work_id in works]
-        schedule = build_schedule(
-            wall_id=wall_id,
-            work_ids=cycle,
-            slot_seconds=slot_seconds,
-            shuffle=shuffle,
-            now=now,
-            start=start,
-            published=published,
-            seed=f"{wall_id}:{now.isoformat()}",
-            also_showable=set(works) - set(cycle),
-            movable=movable,
-            align_to=align_to,
-        )
+            published.update(beside.pending)
+            movable, align_to = beside.movable, beside.align_to
+
+        def scheduled(*, start: Start, movable: Collection[str], also: Collection[str] = ()) -> Schedule:
+            return build_schedule(
+                wall_id=wall_id,
+                work_ids=cycle,
+                slot_seconds=slot_seconds,
+                shuffle=shuffle,
+                now=now,
+                start=start,
+                published=published,
+                seed=f"{wall_id}:{now.isoformat()}",
+                also_showable={*works, *also} - set(cycle),
+                movable=movable,
+                align_to=align_to,
+            )
+
+        schedule = scheduled(start=start, movable=movable)
+        mine = next((at for at, step in enumerate(steps) if step.wall_id == wall_id), 0)
+        if mine:
+            # Slower neighbours first, each against this wall's first slot alone;
+            # then this wall again, keeping that slot, against them whole. Only a
+            # wall with two works to go to is put after another, so it has one.
+            first = schedule.slots[0]
+            self._rebuild_neighbours(wall_id, steps[:mine], {wall_id: schedule}, pending={wall_id: (first,)})
+            published = {
+                wall.id: feed.slots
+                for wall in self._store.list_walls()
+                if (feed := read_published_v2(self._settings.manifest_v2_path(wall.id))) is not None
+            }
+            published[wall_id] = (first,)
+            schedule = scheduled(start=Keep(), movable=steps[mine].movable, also={first.work_id})
         self._publish_feed(wall_id, playlist=playlist, schedule=schedule, works=works)
         if schedule.clashes:
             # Named, because a clash is the household rule giving way, and a rule
@@ -2407,21 +2455,47 @@ class DisplayService:
                 self.get_wall(wall_id).name,
                 ", ".join(f"{work_id} (with {other})" for work_id, other in shared),
             )
-        starts = tuple(slot.start for slot in schedule.slots)
-        for at, neighbour in enumerate(neighbours):
-            beside = _Beside(movable=movable & set(neighbours[at + 1 :]), align_to=starts)
+        self._rebuild_neighbours(wall_id, steps[mine + 1 :], {wall_id: schedule})
+        return schedule
+
+    def _rebuild_neighbours(
+        self,
+        wall_id: str,
+        steps: Sequence[PassStep],
+        built: Mapping[str, Schedule],
+        *,
+        pending: Mapping[str, tuple[Slot, ...]] | None = None,
+    ) -> None:
+        """Rebuild these steps of `wall_id`'s household pass in turn, each lined up with the wall its step names.
+
+        `built` holds the schedules this pass has made so far that are not yet
+        read back from a feed (the wall republished's); any other wall's is read
+        from its feed, which is what it shows whether or not its rebuild went
+        through.
+        """
+        for step in steps:
+            with_wall = step.align_with or wall_id
+            if with_wall in built:
+                slots = built[with_wall].slots
+            else:
+                aligned = read_published_v2(self._settings.manifest_v2_path(with_wall))
+                slots = aligned.slots if aligned is not None else ()
+            beside = _Beside(
+                movable=step.movable,
+                align_to=tuple(slot.start for slot in slots),
+                pending=pending or {},
+            )
             try:
-                self._rebuild_beside(neighbour, wall_id, beside)
+                self._rebuild_beside(step.wall_id, wall_id, beside)
             except ServiceError as error:
                 # This wall's own act succeeded; the neighbour goes on with the
                 # schedule it had, as before a pass existed, and says why.
                 log.warning(
                     "Wall %r: its slots to come could not be rebuilt beside wall %r: %s",
-                    self.get_wall(neighbour).name,
+                    self.get_wall(step.wall_id).name,
                     self.get_wall(wall_id).name,
                     error,
                 )
-        return schedule
 
     def _rebuild_beside(self, wall_id: str, republished: str, beside: _Beside) -> None:
         """Rebuild a wall's slots to come in a household pass, keeping the work on it now.
