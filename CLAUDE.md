@@ -66,26 +66,19 @@ the same port.
 
 ## Testing rules that bite
 
-What each rule guards, and the commands behind it, is `docs/testing.md`.
+Each is an instruction. Why it holds is in `docs/testing.md`.
 
-- **Debug a curation failure here, serially:** `cd arrt && uv run pytest … -n0`.
-  The suite runs across cores by default, and testament drops `-n`.
-- **Never swap the curation suite's real uvicorn server for an in-process ASGI
-  transport.** The MCP mount needs a lifespan that Starlette does not run for a
-  mounted sub-app.
-- **In `arrt/`, sync with the groups you need** (`uv sync --group browser`).
-  A bare `uv sync` removes them, and the browser suite then skips itself while
-  staying green.
-- **Touch anything under `arrt/src/arrt/http/static/`, run the browser suite.**
-  It is the only suite that executes the client.
-- **The root suite is not optional.** Some of its legs guard changes made
-  entirely inside `arrt/`, such as the screen tables.
-- **The live markers** (`live_museum`, `live_binary`, `live_api`, `llm_eval`)
-  are run by hand, `uv run pytest … -n0` on this machine, never through
-  testament. Two of them spend money. Which may run together is in
-  `docs/testing.md`.
-- **The mutation sweep runs per project.** How to read and budget one:
-  `docs/testing.md`.
-- **Whether the UI is good to use** is a question no suite asks. Follow
-  `docs/ux-walkthrough.md`: four passes, in order, and `arrt/tools/ux_walk.py`
-  does the first.
+- Debug a curation failure with `cd arrt && uv run pytest … -n0`, here, never
+  through testament.
+- Never swap the curation suite's real uvicorn server for an in-process ASGI
+  transport.
+- In `arrt/`, sync with the groups the run needs (`uv sync --group browser`),
+  never a bare `uv sync`.
+- After touching `arrt/src/arrt/http/static/`, run the browser tests for the
+  screens you changed. The whole browser suite runs on the integrated branch, by
+  the coordinator (`project-preferences.md` § Workflow, `Delegate verification`).
+- The root suite is not optional, even for a change made entirely inside `arrt/`.
+- The live markers (`live_museum`, `live_binary`, `live_api`, `llm_eval`) run by
+  hand, as `uv run pytest … -n0` on this machine, never through testament.
+- The mutation sweep runs per project.
+- Whether the UI is good to use: follow `docs/ux-walkthrough.md`.

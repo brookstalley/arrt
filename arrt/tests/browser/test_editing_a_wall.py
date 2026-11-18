@@ -363,9 +363,11 @@ def test_adding_a_wall_with_a_taken_name_is_refused_in_the_dialog(ui, services, 
 
 
 def holding(ui, pattern):
-    """Hold requests matching `pattern` until `release()`; `stop()` lets later ones through.
+    """Hold requests matching `pattern`. Answers (held, stop, release).
 
-    Answers (held, stop, release).
+    `stop()` lets later requests through; `release()` also sends on the held ones.
+    Each first waits until a request has been held, for at least five seconds, and
+    raises by name if none was.
     """
     held = []
     holding_now = [True]
@@ -376,20 +378,23 @@ def holding(ui, pattern):
         else:
             route.continue_()
 
-    def stop(after: int = 1):
+    def until_held():
         # A click returns once it is dispatched, before its fetch reaches the route
-        # handler, so stopping at once can let the very request a test meant to hold
-        # straight through. Wait until `after` requests are held, pumping Playwright's
-        # events, and say so by name rather than failing later on a count.
-        for _ in range(500):  # 500 waits of 10 ms: five seconds
-            if len(held) >= after:
-                break
+        # handler, so turning holding off at once can let the very request a test
+        # meant to hold straight through. The sync API runs `hold` only while this
+        # side is inside a Playwright call, so the wait is a short one, repeated.
+        for _ in range(500):  # 500 waits of 10 ms, plus each round trip: at least five seconds
+            if held:
+                return
             ui.page.wait_for_timeout(10)
-        else:
-            raise AssertionError(f"held {len(held)} of {after} {pattern} request(s) before stopping")
+        raise AssertionError(f"no {pattern} request was held")
+
+    def stop():
+        until_held()
         holding_now[0] = False
 
     def release():
+        until_held()
         holding_now[0] = False
         for route in held:
             route.continue_()

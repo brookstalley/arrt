@@ -5,7 +5,8 @@
 Each rule is one line of at most 250 characters. This file is capped, so a new rule is paid for by merging or retiring one.
 
 - When a norm is ratified, re-read every artifact it governs; when a plan reads a new kind of data, grep the norm index for its nouns — because norms bind by subject, and a spec or plan lists only what it touches.
-- When you write a check, prove it can fail: see it red on unfixed code or a re-break, seed the member that falsifies it, drive a non-default value through the real caller, assert the absent case — because green proves only what could turn it red.
+- When you write a check, prove it can fail: see it red on unfixed code or a re-break, seed the member that falsifies it, assert the absent case — because 'not run', 'unreachable' and 'passed' all print green, and so does a present-only assert.
+- When a behaviour matters because something calls or reads it, test through that caller with a non-default value and mutate the lines you changed — because callee tests and default values stay green unwired.
 - When you delete a constant or add a required parameter, grep `tools/` and `scripts/` for consumers — because linter, type checker and suite are all silent about a file nothing imports.
 - When a review returns 0 blocking with cheap observations, accept them or carry them into the next commit already happening — because each fix commit buys another review round.
 - When a mutation's verdict flips between identical runs, apply it by hand and search for the rare input, then pin it with an example test — because a property finding the case by luck defends nothing.

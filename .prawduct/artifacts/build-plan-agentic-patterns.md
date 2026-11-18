@@ -38,9 +38,11 @@ second round, for reasons a brief could have prevented.
 - **Decisions made mid-build:**
   - The owner added, mid-build, that delegates never run heavy integration tests.
     It is in `Delegate verification`, in their words.
-  - `holding`'s `stop()` waits by counting iterations, not by reading a clock.
-    The browser suite is outside testament's cache anyway, but a clock in a test
-    helper is the shape #437 removed.
+  - `holding` waits for a held request by polling `wait_for_timeout`, which pumps
+    Playwright's events, rather than reading a clock. The browser suite is outside
+    testament's cache anyway, but a clock read in a test helper is the shape #437
+    removed. Both `stop()` and `release()` wait, because two tests release
+    straight after a click.
 
 ## Chunks
 
@@ -53,9 +55,9 @@ second round, for reasons a brief could have prevented.
     the norm index;
   - a `Stopgap:` field on norm 1 of `.prawduct/artifacts/accessibility-spec.md`
     § Direction;
-  - `holding` in `arrt/tests/browser/test_editing_a_wall.py`: `stop()` waits
-    until the request it means to hold has been held. It fixes #432 and the
-    same race in the test beside it.
+  - `holding` in `arrt/tests/browser/test_editing_a_wall.py`: `stop()` and
+    `release()` wait until a request has been held. It fixes #432 and the same
+    race in the three tests that share the helper.
 - **Tests:** the governance suite, which reads the norm index; the browser file
   `arrt/tests/browser/test_editing_a_wall.py`. #432's race is shown red against
   the old `stop()` with every fetch delayed by 300 ms, and green with the new
@@ -65,11 +67,12 @@ second round, for reasons a brief could have prevented.
 
 - **Type:** cumulative-final
 - **Deliverables:**
-  - `.claude/rules/learnings/core.md`: the rules that each restate "a check
+  - `.claude/rules/learnings/core.md`: three rules that each restate "a check
     that cannot fail" become one, now that the delegation policy asks for the
-    evidence;
-  - `CLAUDE.md`: the browser and live-suite detail moves to `docs/testing.md`,
-    leaving a pointer;
+    evidence. The rule on testing through the caller stays its own, because its
+    mutation step is a different technique;
+  - `CLAUDE.md`: the curation-suite, `uv sync` and root-suite paragraphs move to
+    `docs/testing.md`, and CLAUDE.md keeps each rule as a one-line instruction;
   - the two flaky browser tests seen 2026-11-18 filed through the backlog.
 - **Tests:** the governance suite, which holds the citation and learnings
   checks.

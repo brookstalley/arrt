@@ -17,16 +17,21 @@ a second round for reasons a brief could have prevented.
     merged. This is in the owner's words.
   - A plan's file refs resolve (`verify-chunk-refs`) before dispatch.
   - A delegate returns proof that each new check fails on the unfixed code.
-- **Learnings:** four `core.md` rules that each said "a check must be able to fail"
-  are one, now that the policy asks for the evidence.
-- **#432:** `holding`'s `stop()` in `arrt/tests/browser/test_editing_a_wall.py` waits
-  until the request it means to hold is held. With every fetch delayed by 300 ms, the
-  old `stop()` fails #432's way and the new one passes. The test beside it had the same
-  race.
+- **Learnings:** three `core.md` rules that each said "a check must be able to fail"
+  are one, now that the policy asks for the evidence. The rule on testing through the
+  caller, with its mutation step, stays separate.
+- **#432:** `holding`'s `stop()` and `release()` in
+  `arrt/tests/browser/test_editing_a_wall.py` wait until a request is held. With every
+  fetch delayed by 300 ms, the old `stop()` fails #432's way and the new one passes. All
+  four tests that use the helper had the race.
+- **`arrt/tools/ux_walk.py`:** `stop_synthetic` cited CLAUDE.md for "SIGTERM, never
+  SIGKILL", a rule about the Player's television that left at wave 5. Its docstring now
+  gives the server's own reason.
 - **#217's transition:** a stopgap on `accessibility-spec.md`'s norm 1, expiring
   2027-01-17.
 - **CLAUDE.md:** the curation, `uv sync` and root-suite paragraphs moved to
-  `docs/testing.md`. CLAUDE.md keeps each rule as one line with a pointer.
+  `docs/testing.md`. CLAUDE.md keeps each rule as a one-line instruction, and the
+  browser rule now matches `Delegate verification`.
 
 Not done here:
 - `Inner-loop verification`, which the owner has not been asked about;

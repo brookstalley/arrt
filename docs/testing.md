@@ -1,8 +1,8 @@
 # Testing: the default suites, the browser suite and the live suites
 
-`CLAUDE.md`'s dev-command table covers the three default suites, and its
-"Testing rules that bite" list states the rules below in a line each. This file
-holds the reasons, and its commands are the authority for the two opt-in tiers.
+`CLAUDE.md` holds the dev-command table and the testing rules, one instruction a
+line. This file holds why each rule holds, and the commands and setup for the two
+opt-in tiers, the browser suite and the live suites.
 
 ## The default suites
 
