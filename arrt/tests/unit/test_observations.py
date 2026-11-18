@@ -155,6 +155,26 @@ class TestWhatObserveFinds:
 
         assert observations.observe(path, key="reported_at").at is None
 
+    @pytest.mark.parametrize(
+        "document",
+        [None, b"{not json at all", b"[1, 2, 3]", b'{"reported_at": 1754400000}'],
+        ids=["absent", "unreadable", "not-an-object", "no-timestamp"],
+    )
+    def test_a_reading_with_nothing_to_age_never_reads_the_clock(self, tmp_path, monkeypatch, document):
+        """Its answer depends on the file alone, which is what lets a test of one be reused from the runner's cache."""
+
+        class NoClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                raise AssertionError("the clock was read for a reading with nothing to age")
+
+        monkeypatch.setattr(observations, "datetime", NoClock)
+        path = tmp_path / "doc.json"
+        if document is not None:
+            path.write_bytes(document)
+
+        assert observations.observe(path, key="reported_at").age_seconds is None
+
     def test_a_naive_timestamp_is_read_as_utc(self, tmp_path):
         """The alternative makes the reported age wrong by the machine's offset.
 
@@ -171,6 +191,11 @@ class TestWhatObserveFinds:
         assert seen.age_seconds == 0
 
 
+#: The moment the readings below are taken at, passed in rather than read from
+#: the clock, so each test depends on its files alone.
+NOW = datetime(2026, 8, 5, 12, 0, tzinfo=UTC)
+
+
 class TestTheTwoReadings:
     """Both callers share the parse and differ only in filename, key and sentence."""
 
@@ -181,11 +206,11 @@ class TestTheTwoReadings:
         this cannot drift across planes — but it can drift across chunks, and the
         reader shipped a chunk before the writer.
         """
-        stamped = json.dumps({"reported_at": datetime.now(UTC).isoformat()})
+        stamped = json.dumps({"reported_at": NOW.isoformat()})
         path = tmp_path / backup.BACKUP_RECEIPT_FILENAME
         path.write_text(stamped, encoding="utf-8")
 
-        reading = backup.read(path)
+        reading = backup.read(path, now=NOW)
 
         assert reading.completed_at is None
         assert backup.COMPLETED_AT_KEY in reading.problem
@@ -193,20 +218,20 @@ class TestTheTwoReadings:
     def test_a_stale_backup_is_stated_in_days(self, tmp_path):
         path = tmp_path / backup.BACKUP_RECEIPT_FILENAME
         path.write_text(
-            json.dumps({"completed_at": (datetime.now(UTC) - timedelta(days=6)).isoformat()}),
+            json.dumps({"completed_at": (NOW - timedelta(days=6)).isoformat()}),
             encoding="utf-8",
         )
 
-        assert "6 days ago" in backup.read(path).describe()
+        assert "6 days ago" in backup.read(path, now=NOW).describe()
 
     def test_a_stale_heartbeat_is_stated_in_days_too(self, tmp_path):
         path = heartbeat.heartbeat_path_in(tmp_path, "a-wall")
         path.write_text(
-            json.dumps({"reported_at": (datetime.now(UTC) - timedelta(days=4)).isoformat()}),
+            json.dumps({"reported_at": (NOW - timedelta(days=4)).isoformat()}),
             encoding="utf-8",
         )
 
-        assert "4 days ago" in heartbeat.read(path).describe()
+        assert "4 days ago" in heartbeat.read(path, now=NOW).describe()
 
     @pytest.mark.parametrize("reading", [heartbeat, backup])
     def test_neither_reading_ever_states_a_verdict(self, reading, tmp_path):
@@ -217,12 +242,12 @@ class TestTheTwoReadings:
         may simply be young is how a health surface starts lying.
         """
         path = tmp_path / "doc.json"
-        sentences = [reading.read(path).describe()]
+        sentences = [reading.read(path, now=NOW).describe()]
         path.write_text("{broken", encoding="utf-8")
-        sentences.append(reading.read(path).describe())
+        sentences.append(reading.read(path, now=NOW).describe())
         key = heartbeat.REPORTED_AT_KEY if reading is heartbeat else backup.COMPLETED_AT_KEY
-        path.write_text(json.dumps({key: datetime.now(UTC).isoformat()}), encoding="utf-8")
-        sentences.append(reading.read(path).describe())
+        path.write_text(json.dumps({key: NOW.isoformat()}), encoding="utf-8")
+        sentences.append(reading.read(path, now=NOW).describe())
 
         for sentence in sentences:
             lowered = sentence.lower()

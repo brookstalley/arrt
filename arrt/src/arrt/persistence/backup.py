@@ -109,17 +109,27 @@ class CatalogueBackup:
     deleted and the pass fails, leaving the previous receipt in place.
     """
 
-    def __init__(self, *, catalogue_path: Path, directory: Path, receipt_path: Path, keep: int) -> None:
+    def __init__(
+        self,
+        *,
+        catalogue_path: Path,
+        directory: Path,
+        receipt_path: Path,
+        keep: int,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
+        """`clock` says when a pass starts, unless `run` is told, and when it completes."""
         if keep < 1:
             raise ValueError(f"keep must be at least 1, got {keep}")
         self._catalogue_path = catalogue_path
         self._directory = directory
         self._receipt_path = receipt_path
         self._keep = keep
+        self._clock = clock
 
     def run(self, *, now: datetime | None = None) -> BackupResult:
         """Take one generation. Raises on failure, after logging it, with the previous receipt untouched."""
-        started = now or datetime.now(UTC)
+        started = now or self._clock()
         log.debug("backing up the catalogue", extra={"event": "backup.started", "directory": str(self._directory)})
         try:
             result = self._take(started)
@@ -180,7 +190,7 @@ class CatalogueBackup:
     def _write_receipt(self, *, started: datetime, path: Path, byte_size: int, kept: int) -> None:
         """Written last, and atomically: a reader sees the old receipt or the new one, never half of one."""
         document = {
-            COMPLETED_AT_KEY: datetime.now(UTC).isoformat(),
+            COMPLETED_AT_KEY: self._clock().isoformat(),
             "started_at": started.isoformat(),
             "path": str(path),
             "bytes": byte_size,

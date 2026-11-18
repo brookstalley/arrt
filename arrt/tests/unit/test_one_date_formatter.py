@@ -47,6 +47,10 @@ def test_the_check_reads_the_formatter_it_exempts():
     assert FORMATTING.search(_code(DATES))
 
 
+#: The tests that run the formatter under node, which is what they test.
+_RUNS_NODE = pytest.mark.uncacheable("runs the shipped client's JavaScript under node: the child process is what is tested")
+
+
 def run(expression: str) -> object:
     if shutil.which("node") is None:
         pytest.skip("node is not installed; this check is opportunistic")
@@ -70,6 +74,7 @@ INSTANT = "2026-10-05T14:46:52.225416+00:00"
 THREE_DAYS_LATER = "Date.parse('2026-10-08T14:46:52Z')"
 
 
+@_RUNS_NODE
 def test_a_moment_reads_as_a_date_and_how_long_ago():
     said = run(f"dates.dated({json.dumps(INSTANT)}, {THREE_DAYS_LATER})")
 
@@ -78,6 +83,7 @@ def test_a_moment_reads_as_a_date_and_how_long_ago():
     assert said.endswith("(3 days ago)")
 
 
+@_RUNS_NODE
 def test_a_time_element_carries_the_instant_only_where_a_machine_reads_it():
     stamp = run(f"dates.stamp({json.dumps(INSTANT)}, {THREE_DAYS_LATER})")
 
@@ -86,6 +92,7 @@ def test_a_time_element_carries_the_instant_only_where_a_machine_reads_it():
     assert stamp["text"].endswith("(3 days ago)")
 
 
+@_RUNS_NODE
 @pytest.mark.parametrize("instant", [None, "not a date"])
 def test_an_instant_that_will_not_parse_is_said_to_be_unknown_not_shown(instant):
     assert run(f"dates.dated({json.dumps(instant)})") == "an unknown time"

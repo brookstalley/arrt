@@ -16,10 +16,10 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
+from fakes import open_catalogue
 
 from arrt.persistence.catalogue import StorageError, StoreMisuseError, WorkQuery
 from arrt.persistence.durable import SqliteDurableStore
-from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import (
     AcquisitionMethod,
     Artist,
@@ -213,11 +213,11 @@ def _seed(catalogue):
 
 def test_a_catalogue_survives_the_process_that_wrote_it(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    first = SqliteCatalogue(open_catalogue_file(path))
+    first = SqliteCatalogue(open_catalogue(path))
     moment = _seed(first)
     first.close()
 
-    reopened = SqliteCatalogue(open_catalogue_file(path))
+    reopened = SqliteCatalogue(open_catalogue(path))
     try:
         artwork = reopened.get_artwork("w1")
         assert artwork is not None
@@ -247,12 +247,12 @@ def test_an_instant_round_trips_through_the_file_as_utc(tmp_path):
     string would read back as a different moment on a machine in another zone.
     """
     path = tmp_path / "catalogue.sqlite"
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     stored = datetime(2026, 3, 14, 15, 9, 26, tzinfo=UTC)
     catalogue.add_artwork(Artwork(id="w1", title="Pi", created_at=stored))
     catalogue.close()
 
-    reopened = SqliteCatalogue(open_catalogue_file(path))
+    reopened = SqliteCatalogue(open_catalogue(path))
     try:
         assert reopened.get_artwork("w1").created_at == stored
     finally:
@@ -362,7 +362,7 @@ def test_a_catalogue_written_by_an_earlier_revision_still_reads(tmp_path):
     path = tmp_path / "catalogue.sqlite"
     moment = _write_legacy_catalogue(path)
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         hopper = catalogue.get_artist("a1")
         assert (hopper.id, hopper.name, hopper.nationality) == ("a1", "Edward Hopper", "American")
@@ -414,7 +414,7 @@ def test_a_catalogue_written_by_an_earlier_revision_still_reads(tmp_path):
 
 def test_the_file_carries_the_schema_the_backup_path_expects(tmp_path):
     path = tmp_path / "catalogue.sqlite"
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     catalogue.close()
 
     connection = sqlite3.connect(path)
@@ -436,7 +436,7 @@ def test_no_table_stores_the_resolution_verdict(tmp_path):
     television changed — which is precisely how it went wrong the first time.
     """
     path = tmp_path / "catalogue.sqlite"
-    SqliteCatalogue(open_catalogue_file(path)).close()
+    SqliteCatalogue(open_catalogue(path)).close()
 
     connection = sqlite3.connect(path)
     try:
@@ -454,7 +454,7 @@ def test_a_fresh_catalogue_carries_one_wall(tmp_path):
     with nowhere to hang anything and no operation able to name a wall.
     """
     path = tmp_path / "catalogue.sqlite"
-    catalogue = SqliteCatalogue(open_catalogue_file(path, wall_name="Living room"))
+    catalogue = SqliteCatalogue(open_catalogue(path, wall_name="Living room"))
     try:
         walls = catalogue.list_walls()
         assert [wall.name for wall in walls] == ["Living room"]
@@ -482,12 +482,12 @@ def test_a_walls_rotation_survives_a_reopen(tmp_path, interval, shuffle):
     and a dropped column would turn either into null; each case catches one.
     """
     path = tmp_path / "catalogue.sqlite"
-    first = SqliteCatalogue(open_catalogue_file(path))
+    first = SqliteCatalogue(open_catalogue(path))
     wall = first.list_walls()[0]
     first.update_wall(replace(wall, rotation_interval_seconds=interval, shuffle=shuffle))
     first.close()
 
-    reopened = SqliteCatalogue(open_catalogue_file(path))
+    reopened = SqliteCatalogue(open_catalogue(path))
     try:
         again = reopened.get_wall(wall.id)
         assert (again.rotation_interval_seconds, again.shuffle) == (interval, shuffle)
@@ -503,7 +503,7 @@ def test_a_second_theme_on_a_wall_is_a_row_that_cannot_be_inserted(tmp_path):
     difference from the partial index this replaced.
     """
     path = tmp_path / "catalogue.sqlite"
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         moment = datetime(2026, 8, 12, 9, 30, tzinfo=UTC)
         wall = catalogue.list_walls()[0]
@@ -530,7 +530,7 @@ def test_hanging_a_second_theme_replaces_the_first_rather_than_refusing(tmp_path
     A curator hanging something else is not making a mistake to report; there is
     no take-down-then-hang pair a reader could be caught between.
     """
-    catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite"))
+    catalogue = SqliteCatalogue(open_catalogue(tmp_path / "catalogue.sqlite"))
     try:
         moment = datetime(2026, 8, 12, 9, 30, tzinfo=UTC)
         wall = catalogue.list_walls()[0]
@@ -552,7 +552,7 @@ def test_two_walls_may_hang_the_same_theme_with_nothing_duplicated(tmp_path):
     A column on the theme can say "on the wall" exactly once; a row per wall says
     it once per wall, over the same theme row.
     """
-    catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite"))
+    catalogue = SqliteCatalogue(open_catalogue(tmp_path / "catalogue.sqlite"))
     try:
         moment = datetime(2026, 8, 12, 9, 30, tzinfo=UTC)
         first = catalogue.list_walls()[0]
@@ -579,7 +579,7 @@ def test_an_earlier_catalogue_gains_the_tables_it_did_not_have(tmp_path):
     path = tmp_path / "catalogue.sqlite"
     _write_legacy_catalogue(path)
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         # The rows the older revision wrote are untouched.
         assert catalogue.get_artwork("w1").title == "Nighthawks"
@@ -607,7 +607,7 @@ def test_an_earlier_catalogue_gains_columns_added_to_a_table_it_already_had(tmp_
     path = tmp_path / "catalogue.sqlite"
     _write_legacy_catalogue(path)
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         # The theme the older revision wrote reads back, and is not hidden —
         # the column's default, which is the correct answer for a theme written
@@ -672,7 +672,7 @@ def test_an_original_written_before_fetch_status_reads_back_as_unrecorded(tmp_pa
     finally:
         connection.close()
 
-    catalogue = SqliteCatalogue(open_catalogue_file(path))
+    catalogue = SqliteCatalogue(open_catalogue(path))
     try:
         held = catalogue.get_original("w1")
         assert held.fetch_status is None, "a pre-column row must not acquire a value nobody recorded"
@@ -690,11 +690,11 @@ def test_widening_survives_the_process_that_did_it(tmp_path):
     path = tmp_path / "catalogue.sqlite"
     _write_legacy_catalogue(path)
 
-    first = SqliteCatalogue(open_catalogue_file(path))
+    first = SqliteCatalogue(open_catalogue(path))
     first.update_theme(replace(first.get_theme("t1"), hidden=True))
     first.close()
 
-    reopened = SqliteCatalogue(open_catalogue_file(path))
+    reopened = SqliteCatalogue(open_catalogue(path))
     try:
         assert reopened.get_theme("t1").hidden is True
     finally:
@@ -800,7 +800,7 @@ def test_the_file_itself_refuses_a_second_wall_of_the_same_name(tmp_path):
     The one rule about walls that is a uniqueness constraint rather than a key:
     the id is the identity, and the name is what a curator reads.
     """
-    catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite", wall_name="Living room"))
+    catalogue = SqliteCatalogue(open_catalogue(tmp_path / "catalogue.sqlite", wall_name="Living room"))
     try:
         moment = datetime(2026, 8, 12, 9, 30, tzinfo=UTC)
 
@@ -812,7 +812,7 @@ def test_the_file_itself_refuses_a_second_wall_of_the_same_name(tmp_path):
 
 def test_the_file_itself_refuses_a_zero_byte_original(tmp_path):
     """A zero-length file is the 2024 pipeline's known download failure."""
-    catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite"))
+    catalogue = SqliteCatalogue(open_catalogue(tmp_path / "catalogue.sqlite"))
     try:
         moment = datetime(2026, 7, 27, 9, 30, tzinfo=UTC)
         catalogue.add_artwork(Artwork(id="w1", title="Nighthawks", created_at=moment))
@@ -846,7 +846,7 @@ def test_the_file_itself_refuses_a_zero_byte_original(tmp_path):
 
 
 def test_the_file_itself_refuses_a_second_current_mat_colour(tmp_path):
-    catalogue = SqliteCatalogue(open_catalogue_file(tmp_path / "catalogue.sqlite"))
+    catalogue = SqliteCatalogue(open_catalogue(tmp_path / "catalogue.sqlite"))
     try:
         moment = datetime(2026, 7, 27, 9, 30, tzinfo=UTC)
         catalogue.add_artwork(Artwork(id="w1", title="Nighthawks", created_at=moment))

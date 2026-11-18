@@ -7,9 +7,11 @@ its age means what the panel says. A real SQLite file stands in for the
 catalogue; nothing here is mocked except the one fault each failure test needs.
 """
 
+import itertools
 import json
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -18,6 +20,15 @@ from arrt.persistence import backup
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, BackupFailed, CatalogueBackup, start_backups
 
 NOON = datetime(2026, 10, 2, 12, 0, tzinfo=UTC)
+#: When the job's clock says a pass completed: after it started, and passed in,
+#: so a test reads no clock of its own.
+DONE = NOON + timedelta(seconds=5)
+
+
+def ticking(start: datetime) -> Callable[[], datetime]:
+    """A clock a minute later at each reading, so a schedule's passes are named apart."""
+    minutes = itertools.count()
+    return lambda: start + timedelta(minutes=next(minutes))
 
 
 @pytest.fixture
@@ -39,7 +50,14 @@ def job(tmp_path, catalogue):
         directory=tmp_path / "backups",
         receipt_path=catalogue.parent / BACKUP_RECEIPT_FILENAME,
         keep=2,
+        clock=lambda: DONE,
     )
+
+
+def ticking_names() -> Callable[[], str]:
+    """Staging names for a picture store's writes, from a counter rather than randomness."""
+    counter = itertools.count()
+    return lambda: str(next(counter))
 
 
 def titles(path):
@@ -59,9 +77,10 @@ def test_a_generation_holds_the_catalogue_and_the_receipt_says_when(job, catalog
     assert receipt["path"] == str(result.path)
     assert receipt["bytes"] == result.path.stat().st_size
     # The panel reads the receipt it writes: both ends of this file are ours.
-    reading = backup.read(catalogue.parent / BACKUP_RECEIPT_FILENAME)
+    assert receipt["started_at"] == NOON.isoformat()
+    reading = backup.read(catalogue.parent / BACKUP_RECEIPT_FILENAME, now=DONE + timedelta(hours=1))
     assert reading.problem is None
-    assert reading.completed_at is not None
+    assert reading.completed_at == DONE
     assert reading.describe().startswith("The catalogue was last backed up")
 
 
@@ -136,6 +155,7 @@ def test_the_schedule_backs_up_at_once_and_keeps_going_after_a_failure(tmp_path,
         directory=tmp_path / "backups",
         receipt_path=catalogue.parent / BACKUP_RECEIPT_FILENAME,
         keep=5,
+        clock=ticking(NOON),
     )
     calls = {"n": 0}
     real = job.run
@@ -173,7 +193,7 @@ def test_a_generation_carries_the_catalogue_and_never_the_picture_store(job, cat
     from arrt.library.services.pictures import PictureStore
 
     art_root = catalogue.parent
-    store = PictureStore(art_root / "pictures", art_root=art_root)
+    store = PictureStore(art_root / "pictures", art_root=art_root, now=lambda: NOON, staging_token=ticking_names())
     store.put("artic", "https://museum.example/kept", _a_jpeg())
     assert store.size().pictures_files > 0, "a store with nothing in it would make this pass vacuously"
 
@@ -194,3 +214,20 @@ def _a_jpeg() -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (900, 600), (90, 70, 140)).save(buffer, format="JPEG")
     return buffer.getvalue()
+
+
+def test_a_pass_not_told_when_starts_and_completes_by_the_job_s_clock(tmp_path, catalogue):
+    """What the schedule's passes do: `run()` with no moment, so the job's clock names the generation and stamps the receipt."""
+    receipt = catalogue.parent / BACKUP_RECEIPT_FILENAME
+    job = CatalogueBackup(
+        catalogue_path=catalogue, directory=tmp_path / "backups", receipt_path=receipt, keep=2, clock=ticking(NOON)
+    )
+
+    result = job.run()
+
+    assert result.path.name == "catalogue-20261002T120000Z.sqlite"
+    stamped = json.loads(receipt.read_text())
+    assert (stamped["started_at"], stamped[backup.COMPLETED_AT_KEY]) == (
+        NOON.isoformat(),
+        (NOON + timedelta(minutes=1)).isoformat(),
+    )

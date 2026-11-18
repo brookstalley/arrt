@@ -8,9 +8,12 @@ answered with one picture, a small source refused a large ask, a bomb written to
 disk, a half-written file served, and anything deleted.
 """
 
+import itertools
 import logging
 import pathlib
 import threading
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import pytest
@@ -57,8 +60,21 @@ def art_root(tmp_path):
     return tmp_path / "art"
 
 
+#: When the stores below are asked the time. Passed in, with a counter naming
+#: each write's temporary file, so a test reads neither the clock nor randomness.
+MOMENT = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
+
+
+def counted_tokens() -> Callable[[], str]:
+    """Staging names that never repeat within a store, drawn from a counter rather than randomness."""
+    counter = itertools.count()
+    return lambda: f"{next(counter):08x}"
+
+
 def a_store(art_root, source=None) -> PictureStore:
-    return PictureStore(art_root / "pictures", art_root=art_root, sources=source)
+    return PictureStore(
+        art_root / "pictures", art_root=art_root, sources=source, now=lambda: MOMENT, staging_token=counted_tokens()
+    )
 
 
 def long_edge(path) -> int:
@@ -290,6 +306,24 @@ def test_nothing_temporary_is_left_after_a_write(art_root):
     assert len(every_file(art_root)) == len(TIERS)
 
 
+def test_each_write_goes_through_a_temporary_file_named_by_the_store_s_token(art_root, monkeypatch):
+    staged = []
+    rename = pathlib.Path.replace
+
+    def record(self, target):
+        staged.append(self.name)
+        return rename(self, target)
+
+    monkeypatch.setattr("pathlib.Path.replace", record)
+    store = PictureStore(art_root / "pictures", art_root=art_root, staging_token=iter(["a", "b", "c", "d"]).__next__)
+
+    store.put("artic", URL, a_picture())
+
+    assert len(staged) == len(TIERS)
+    assert [name.split(".")[-2] for name in staged] == ["a", "b", "c", "d"][: len(TIERS)]
+    assert all(name.endswith(".tmp") for name in staged)
+
+
 def test_a_rename_that_fails_leaves_no_temporary_file_and_no_picture(art_root, monkeypatch):
     def explode(self, _target):
         raise OSError("no space left on device")
@@ -487,7 +521,7 @@ def legacy(settings):
 
 @pytest.fixture
 def picture_store(settings) -> PictureStore:
-    return PictureStore(settings.pictures_path, art_root=settings.art_root)
+    return PictureStore(settings.pictures_path, art_root=settings.art_root, now=lambda: MOMENT, staging_token=counted_tokens())
 
 
 def test_the_import_moves_named_files_in_leaves_unnamed_ones_and_reports_counts(
@@ -598,10 +632,8 @@ def test_an_empty_or_absent_store_counts_nothing(art_root):
 
 def test_one_walk_answers_for_ten_minutes_and_then_the_store_is_walked_again(art_root):
     """The store has no ceiling, so the walk is reused; the reading's time is the walk's, not the ask's."""
-    from datetime import UTC, datetime, timedelta
-
     clock = [datetime(2026, 10, 6, 12, 0, tzinfo=UTC)]
-    store = PictureStore(art_root / "pictures", art_root=art_root, now=lambda: clock[0])
+    store = PictureStore(art_root / "pictures", art_root=art_root, now=lambda: clock[0], staging_token=counted_tokens())
     store.put("artic", URL, a_picture())
     first = store.size()
 
