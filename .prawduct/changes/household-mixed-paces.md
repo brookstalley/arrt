@@ -17,22 +17,33 @@ nothing (case B).
 - among walls at one pace, the one with fewest works to go to first;
 - a tie goes to the republished wall.
 
-A wall built ahead of the republished one is built against that wall's first slot.
-`DisplayService._write_v2` builds the republished wall once to fix that slot, then again after the
-walls ahead of it, keeping the slot, and writes it once.
+`schedule.run_household_pass` makes every build in a pass, so the service and the tests run the
+same steps. A wall built ahead of the republished one is built against that wall's first slot
+and held in memory. It is written only after the republished wall's own write succeeds, so a
+failed republish leaves every neighbour as it was.
 
 These still hold:
 - the slot on each wall now never changes, and the picture now lingers under one more interval
   at most (the owner, 2026-10-13 and 2026-10-14);
 - each wall is written at most once per write;
-- a clash nothing could avoid is named in the journal;
-- a neighbour that cannot be rebuilt keeps its schedule.
+- a clash nothing could avoid is named in the journal by the wall built later;
+- a neighbour that cannot be rebuilt, or whose write fails, keeps its feed.
 
-Both cases are tests that were red on the old order and pass now. On random households in the
-pure pass, clashes fell from 258–273 of 300 to 54–76 of 300 for three walls at mixed paces, and
-from 36 of 200 to 3 of 200 for case B. The module docstring's "What a pass cannot do" names what
-remains: intervals that are not multiples, and three coupled walls where only a joint search
-would find the schedule. One such case is pinned as a strict xfail.
+Both cases are tests that were red on the old order and pass now. Measured on random households
+in the pure pass, with a check that counts every overlap after now except two pictures both up now:
+
+| Household | Old order | New order |
+|---|---|---|
+| Case A, the quicker wall republished | 300/300 | 0/300 |
+| Two walls with two or more works, one pace dividing the other | 188/1953 | 0/1953 |
+| Case B, `a` republished | 50/200 | 24/200 |
+| Case B, `n1` republished | 37/200 | 0/200 |
+| Three walls at 1800/3600/7200 | 275/300 | 77/300 |
+
+The module docstring's "What a pass cannot do" names what remains: intervals that are not
+multiples, and three coupled walls where only a joint search would find the schedule. Keeping
+those apart is proposed as #436 (stage requirements, for the owner). One such household is
+pinned as a strict xfail that fails if a later change keeps it apart.
 
 ## Consumer note
 none: the feed's shape is unchanged; which work a wall's slots to come hold after a republish can differ.
