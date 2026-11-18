@@ -144,11 +144,12 @@ jobs:
           target: test-report
           platforms: linux/amd64
           outputs: type=local,dest=image-report
-          # `min`, the final stage's layers: the test stage is built on the
-          # base, so they are the ones a later build reuses, and every
-          # intermediate layer would crowd the other jobs' caches out.
+          # `max`, every stage's layers: the target is the report stage, built
+          # from scratch, so `min` would keep only the report and every run
+          # would rebuild Python and both environments. The dependency layers
+          # change only with the lockfile, so most runs reuse them.
           cache-from: type=gha,scope=server-image
-          cache-to: type=gha,mode=min,scope=server-image
+          cache-to: type=gha,mode=max,scope=server-image
       - name: Fail if nothing actually ran
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py image-report/results.xml
