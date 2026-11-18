@@ -49,8 +49,8 @@ tests were cacheable. `testament cacheability --offline` lists the causes, and
 ### Chunk 01: The governance suite
 
 - **Type:** code
-- **What:** `tests/repository.py:projects` and `tests/preferences/test_citations_resolve.py:_tracked`
-  start a subprocess at import or in a hook. That taints every test in the process. Move
+- **What:** `projects` in `tests/repository.py` and `_tracked` in
+  `tests/preferences/test_citations_resolve.py` start a subprocess at import or in a hook. That taints every test in the process. Move
   each into the test or fixture that needs it. Then work down the per-test subprocess causes
   where a cheaper read exists.
 - **Done when:** the governance suite passes, and its cacheable count has risen.
@@ -59,11 +59,11 @@ tests were cacheable. `testament cacheability --offline` lists the causes, and
 
 - **Type:** cumulative-final
 - **What:** the clock and entropy causes, largest first:
-  - `persistence/kept.py` (`KeptAnswers.__init__`, `_write`, `Kept.get`);
-  - `observations.py:observe`;
-  - `library/services/pictures.py` (`PictureStore._write`, `PictureStore.<lambda>`);
-  - `library/sources/loading.py` (`SourceRoster`);
-  - `persistence/backup.py`.
+  - `arrt/src/arrt/persistence/kept.py` (`KeptAnswers.__init__`, `_write`, `Kept.get`);
+  - `observe` in `arrt/src/arrt/observations.py`;
+  - `arrt/src/arrt/library/services/pictures.py` (`PictureStore._write`, `PictureStore.<lambda>`);
+  - `arrt/src/arrt/library/sources/loading.py` (`SourceRoster`);
+  - `arrt/src/arrt/persistence/backup.py`.
   
   The node and dezoomify subprocess tests are declined with their reasons, or cleared if
   testament offers a way to.
