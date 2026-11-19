@@ -105,15 +105,28 @@ def test_a_wall_cards_rows_are_a_step_apart(ui):
 
 def test_an_artist_page_spaces_its_wikidata_line_and_reactions_alike(ui, service):
     """The page the owner walked: the Wikidata line, More like this / Not this,
-    each a step below what precedes it rather than flush."""
+    each a step below what precedes it rather than flush.
+
+    The reactions are acts on the artist, so since 2026-11-19 they stand on the
+    left of the page's one toolbar (chunk 07 of `build-plan-audit-wave-1.md`,
+    audit 6 finding 12) rather than in a row of their own under the Wikidata
+    line, which is where this measured them until then. The identity line is
+    still a row; the toolbar holding the reactions is measured as itself."""
     artist = service.add_artist(name="Charles Demuth", born=1883, died=1935)
     service.add_artwork(title="Eggplant and Plums", artist_id=artist.id, date_created="1927")
     ui.open(f"#artist/{artist.id}")
     ui.page.wait_for_selector("#view button:text-is('More like this')")
     ui.page.wait_for_load_state("networkidle")
     gaps, flush = _flush_rows(ui)
-    assert len(gaps) >= 2, f"expected the identity line and the reactions, measured {gaps}"
+    assert any(text.startswith("Wikidata") for text, _ in gaps), f"expected the identity line, measured {gaps}"
     assert not flush, flush
+    step = ui.page.evaluate(MEASURE, "var(--space-4)")
+    reactions = ui.page.locator("#view .page-toolbar:has(button:text-is('More like this'))")
+    assert reactions.locator("button:text-is('Not this')").count() == 1
+    gap = reactions.evaluate(
+        "(bar) => bar.getBoundingClientRect().top - bar.previousElementSibling.getBoundingClientRect().bottom"
+    )
+    assert gap >= step - 0.5, f"the reactions' toolbar is {gap}px below what precedes it, under one step ({step}px)"
 
 
 @pytest.mark.parametrize("key", PAGES)
