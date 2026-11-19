@@ -20,5 +20,5 @@
       ]
     }
   ],
-  "settings_url": "http://player.local:8771/?next=/settings"
+  "settings_url": "http://player.example:8771/?next=/settings"
 }

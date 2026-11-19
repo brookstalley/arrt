@@ -20,5 +20,5 @@
       ]
     }
   ],
-  "settings_url": "http://player.local:8771/"
+  "settings_url": "http://192.0.2.10:8771/"
 }
