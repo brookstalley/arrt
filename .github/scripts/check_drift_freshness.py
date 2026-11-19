@@ -48,7 +48,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import known_blocked  # noqa: E402  (a sibling script, not a package)
+import known_blocked  # noqa: E402 -- a sibling script, importable only once its directory is on sys.path above
 
 #: How long a tier may go unrefreshed before absence is the finding, and why each
 #: number is the number it is.
