@@ -14,6 +14,7 @@ step, on the surface built to prevent it.
 """
 
 import json
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -25,6 +26,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 
 @pytest.fixture
@@ -64,8 +67,12 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
     # it. That half is the one that catches a wall panel which should not exist:
     # a subset check passes against a screen naming a room that is not in the
     # catalogue. The selector, not the assertion, was what needed to change.
-    headings = ui.page.locator(".wall-reading h2")
-    assert set(headings.all_inner_texts()) == {living_room.name, study.name}
+    #
+    # Retried as: exactly two wall headings, and each of the two names is one of
+    # them, whole, which is that set and no other.
+    expect(ui.page.locator(".wall-reading h2")).to_have_count(2)
+    for name in (living_room.name, study.name):
+        expect(ui.page.locator(".wall-reading h2").filter(has_text=re.compile(rf"^\s*{re.escape(name)}\s*$"))).to_have_count(1)
 
 
 def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, two_walls):
@@ -80,7 +87,7 @@ def test_the_summary_names_the_wall_that_has_gone_quiet(ui, settings, two_walls)
     ui.open("#health")
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
-    assert f"{study.name!r} has not reported" in ui.text()
+    expect(ui.view).to_contain_text(f"{study.name!r} has not reported", use_inner_text=True)
 
 
 def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, two_walls):
@@ -98,16 +105,16 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     # waiting on the other would let the assertions run before its panel painted.
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
-    page = ui.text()
     # In the household's words (audit 2026-11-19, F5): a Player reports for a
     # wall; "heartbeat" and "display" for the Player are retired.
-    assert "No Player has ever reported for this wall." in page
+    expect(ui.view).to_contain_text("No Player has ever reported for this wall.", use_inner_text=True)
     # The age in the unit a person reads it in, on the wall that *did* report.
-    assert "4 days ago" in page
+    expect(ui.view).to_contain_text("4 days ago", use_inner_text=True)
     # Never a green dot. The panel states what was found and how long ago; whether
     # four days is alarming depends on whether that television was switched off on
     # purpose, which this plane does not know.
-    assert not {"healthy", "degraded", "OK"} & set(page.split())
+    # As words: a whitespace-separated word that is one of them, which is what splitting the page found.
+    expect(ui.view).not_to_contain_text(re.compile(r"(?<!\S)(?:healthy|degraded|OK)(?!\S)"), use_inner_text=True)
 
 
 def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_reading, a_source_reading):
@@ -131,15 +138,22 @@ def test_the_panel_states_every_installed_source_plugin_in_words(ui, a_health_re
     ui.open("#health")
     ui.page.wait_for_selector(".source-table tbody tr")
 
-    rows = [
-        [cell.inner_text().strip() for cell in row.locator("td.col-source, td.col-state, td.col-faults").all()]
-        for row in ui.page.locator(".source-table tbody tr").all()
-    ]
-    assert rows == [
+    def cell(text):
+        """A cell's words whole, trimmed as before; a line break in them is the claim, so a pattern holds it."""
+        if "\n" not in text:
+            return text
+        return re.compile(r"^\s*" + r"\n".join(re.escape(line) for line in text.split("\n")) + r"\s*$")
+
+    expected = [
         ["Wikimedia Commons\nWIKIDATA_USER_AGENT is unset", "Not configured here", "—"],
         ["Art Institute of Chicago", "Loaded", "3"],
         ["gallery\nit could not be imported", "Could not be loaded", "—"],
     ]
+    rows = ui.page.locator(".source-table tbody tr")
+    expect(rows).to_have_count(len(expected))
+    for index, words in enumerate(expected):
+        cells = rows.nth(index).locator("td.col-source, td.col-state, td.col-faults")
+        expect(cells).to_have_text([cell(text) for text in words], use_inner_text=True)
 
 
 def test_the_panel_says_when_no_source_plugin_is_installed(ui, a_health_reading):
@@ -147,7 +161,7 @@ def test_the_panel_says_when_no_source_plugin_is_installed(ui, a_health_reading)
     ui.open("#health")
     ui.page.wait_for_selector("h2:has-text('Image sources')")
 
-    assert "No source plugin is installed" in ui.text()
+    expect(ui.view).to_contain_text("No source plugin is installed", use_inner_text=True)
 
 
 def test_the_panel_states_how_much_the_picture_store_keeps(ui, services):
@@ -168,12 +182,12 @@ def test_the_panel_states_how_much_the_picture_store_keeps(ui, services):
 
     ui.open("#health")
     ui.page.wait_for_selector(".pictures-reading")
-    panel = ui.page.locator(".pictures-reading").inner_text()
+    panel = ui.page.locator(".pictures-reading")
 
     assert expected.pictures_files == 4
-    assert "Kept pictures" in panel
-    assert "4 files" in panel
-    assert f"{expected.pictures_bytes:,}" in panel
+    expect(panel).to_contain_text("Kept pictures", use_inner_text=True)
+    expect(panel).to_contain_text("4 files", use_inner_text=True)
+    expect(panel).to_contain_text(f"{expected.pictures_bytes:,}", use_inner_text=True)
 
 
 def test_a_reading_without_the_store_count_says_so(ui, a_health_reading):
@@ -185,7 +199,7 @@ def test_a_reading_without_the_store_count_says_so(ui, a_health_reading):
     ui.open("#health")
     ui.page.wait_for_selector("h1:has-text('Status')")
 
-    assert "carries no count of kept pictures" in ui.text()
+    expect(ui.view).to_contain_text("carries no count of kept pictures", use_inner_text=True)
 
 
 def test_a_store_the_disk_refused_shows_what_could_not_be_read(ui, a_health_reading):
@@ -196,11 +210,11 @@ def test_a_store_the_disk_refused_shows_what_could_not_be_read(ui, a_health_read
 
     ui.open("#health")
     ui.page.wait_for_selector(".pictures-reading")
-    panel = ui.page.locator(".pictures-reading").inner_text()
+    panel = ui.page.locator(".pictures-reading")
 
-    assert "could not be read in full" in panel
-    assert "Could not be read" in panel
-    assert "3 entries" in panel
+    expect(panel).to_contain_text("could not be read in full", use_inner_text=True)
+    expect(panel).to_contain_text("Could not be read", use_inner_text=True)
+    expect(panel).to_contain_text("3 entries", use_inner_text=True)
 
 
 def test_a_healthy_store_shows_no_could_not_be_read_fact(ui, a_health_reading):
@@ -209,4 +223,7 @@ def test_a_healthy_store_shows_no_could_not_be_read_fact(ui, a_health_reading):
     ui.open("#health")
     ui.page.wait_for_selector(".pictures-reading")
 
-    assert "Could not be read" not in ui.page.locator(".pictures-reading").inner_text()
+    panel = ui.page.locator(".pictures-reading")
+    # The panel has its own words before its absence means anything.
+    expect(panel).to_contain_text("Kept pictures", use_inner_text=True)
+    expect(panel).not_to_contain_text("Could not be read", use_inner_text=True)

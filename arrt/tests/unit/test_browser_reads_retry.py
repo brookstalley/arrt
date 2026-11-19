@@ -75,7 +75,6 @@ SLEEP_MARK = re.compile(r"#.*\bsleep:\s*\S")
 #: deletes its own rows as it converts them.
 UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_acquisition_states.py": (40, 0),
-    "test_activity.py": (14, 0),
     "test_archiving_a_work.py": (35, 0),
     "test_asking.py": (50, 2),
     "test_clean_up_facets.py": (19, 0),
@@ -110,7 +109,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_the_confirmation.py": (9, 0),
     "test_the_debug_view.py": (14, 0),
     "test_the_grid.py": (24, 2),
-    "test_the_health_panel.py": (9, 0),
     "test_the_history.py": (21, 0),
     "test_the_look.py": (26, 1),
     "test_the_review_grid.py": (84, 0),

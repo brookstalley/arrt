@@ -40,12 +40,13 @@ def test_queue_shows_the_searches_that_have_not_ended(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('In flight')")
 
-    text = ui.text()
-    assert "Working on it" in text
-    assert "Waiting at the gate" in text, "a run at the approval gate is waiting on the curator, so it is in flight"
-    assert "All done" not in text
-    assert "Ran out of money" not in text
-    assert "In flight (2)" in text
+    expect(ui.view).to_contain_text("Working on it", use_inner_text=True)
+    expect(ui.view, "a run at the approval gate is waiting on the curator, so it is in flight").to_contain_text(
+        "Waiting at the gate", use_inner_text=True
+    )
+    expect(ui.view).not_to_contain_text("All done", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Ran out of money", use_inner_text=True)
+    expect(ui.view).to_contain_text("In flight (2)", use_inner_text=True)
 
 
 def test_the_split_follows_the_server_flag_not_the_status_name(ui):
@@ -59,8 +60,8 @@ def test_the_split_follows_the_server_flag_not_the_status_name(ui):
 
     ui.open("#queue")
     ui.page.wait_for_selector("h2:has-text('In flight')")
-    assert "Working on it" in ui.text()
-    assert "A state from the future" not in ui.text()
+    expect(ui.view).to_contain_text("Working on it", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("A state from the future", use_inner_text=True)
 
 
 def test_an_empty_queue_says_so_and_offers_add_new(ui):
@@ -68,7 +69,7 @@ def test_an_empty_queue_says_so_and_offers_add_new(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "No Get is in flight" in ui.text()
+    expect(ui.view).to_contain_text("No Get is in flight", use_inner_text=True)
     ui.page.click("#view a:has-text('Go to Ask')")
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
@@ -79,8 +80,10 @@ def test_add_new_no_longer_lists_the_searches(ui):
     ui.open("#discover")
     ui.page.wait_for_selector("#view h1:text-is('Ask')")
 
-    assert "Working on it" not in ui.text()
-    assert "All done" not in ui.text()
+    # The runs are asked for once the page is up: settled is where their absence means something.
+    ui.page.wait_for_load_state("networkidle")
+    expect(ui.view).not_to_contain_text("Working on it", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("All done", use_inner_text=True)
 
 
 def test_a_search_opened_from_the_queue_carries_no_opener(ui):
@@ -108,7 +111,7 @@ def test_an_empty_queue_over_a_truncated_listing_does_not_claim_nothing_is_in_fl
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "No Get is in flight among the 1 most recent Gets." in ui.text()
+    expect(ui.view).to_contain_text("No Get is in flight among the 1 most recent Gets.", use_inner_text=True)
 
 
 def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
@@ -116,8 +119,8 @@ def test_a_complete_empty_queue_says_nothing_is_in_flight_plainly(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view .empty")
 
-    assert ui.page.inner_text("#view .empty-lead") == "No Get is in flight."
-    assert "most recent" not in ui.text()
+    expect(ui.page.locator("#view .empty-lead")).to_have_text("No Get is in flight.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("most recent", use_inner_text=True)
 
 
 @pytest.mark.parametrize("where", ["queue", "history"])
@@ -128,12 +131,12 @@ def test_a_listing_that_fails_is_announced_not_shown_as_empty(ui, where):
     ui.open(f"#{where}")
     ui.page.wait_for_selector("#error:not([hidden])")
 
-    assert "unavailable" in ui.page.inner_text("#error")
-    assert "No Get is in flight" not in ui.page.inner_text("body")
-    assert "Nothing has happened yet" not in ui.page.inner_text("body")
+    expect(ui.page.locator("#error")).to_contain_text("unavailable", use_inner_text=True)
+    expect(ui.page.locator("body")).not_to_contain_text("No Get is in flight", use_inner_text=True)
+    expect(ui.page.locator("body")).not_to_contain_text("Nothing has happened yet", use_inner_text=True)
     # Keyed on the empty state's element as well as its words, so a rewording
     # cannot leave this asserting the absence of a sentence nothing can produce.
-    assert ui.page.locator("#view .empty").count() == 0
+    expect(ui.page.locator("#view .empty")).to_have_count(0)
 
 
 # -- Queue at scale (audit-6 finding 11) ---------------------------------------
@@ -198,7 +201,7 @@ def test_a_retry_over_a_handful_or_fewer_is_sent_without_asking(ui, works):
 
     expect(ui.page.locator(".retry-all-said")).to_be_visible()
     assert len(ui.requests_matching("/causes/retry")) == 1
-    assert ui.page.locator("dialog.confirm").count() == 0
+    expect(ui.page.locator("dialog.confirm")).to_have_count(0)
 
 
 def test_the_page_holds_one_filled_act_and_it_is_the_one_cause_s_retry(ui):
