@@ -10,6 +10,7 @@ budget is spent, in the server's words.
 """
 
 import pytest
+from conftest import Ui
 from payloads import a_candidate, a_run, a_run_view, an_estimate
 
 from arrt.http.models import BudgetOut, CostTiersOut
@@ -132,6 +133,44 @@ def test_following_the_budget_line_on_a_phone_closes_the_drawer_it_was_in(ui):
 
     ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
     expect(ui.page.locator("#sidebar")).not_to_have_attribute("data-open", "")
+
+
+def test_in_a_phone_s_drawer_the_budget_line_is_a_finger_s_target_and_not_a_button(browser, server_url):
+    """A finger needs 44px (`accessibility-spec.md` § Touch targets), and the
+    line gets them by its height alone: still the underlined words on the
+    sidebar's ground, with no box, fill or border, so the sidebar gains a target
+    and not a button. Measured in the drawer, where a phone sees it, with a
+    note beneath, since the note is what the taller line could crowd."""
+    context = browser.new_context(has_touch=True, is_mobile=True, viewport={"width": 390, "height": 844})
+    try:
+        page = context.new_page()
+        page.route(lambda url: not url.startswith(f"{server_url}/"), lambda route: route.abort())
+        ui = Ui(page, server_url)
+        ui.serve("**/api/budget", a_budget("configured", remaining="12.4", budget="20", spent="7.6", note="Nothing enforces it."))
+        ui.open("#collection")
+        ui.page.click("button.menu-button")
+        line = ui.page.locator("#sidebar .budget a.budget-line")
+        expect(line).to_be_visible()
+        expect(line).to_have_text("$12.40 left this month")
+
+        drawn = line.evaluate("""(node) => {
+              const style = getComputedStyle(node);
+              const note = node.parentElement.querySelector('.budget-note').getBoundingClientRect();
+              return {
+                height: node.getBoundingClientRect().height,
+                underlined: style.textDecorationLine,
+                fill: style.backgroundColor,
+                border: ['Top', 'Right', 'Bottom', 'Left'].map((side) => style[`border${side}Width`]),
+                overlap: node.getBoundingClientRect().bottom - note.top,
+              };
+            }""")
+        assert drawn["height"] >= 44 - 0.5, f"the budget line is {drawn['height']}px tall on a touch screen"
+        assert drawn["underlined"] == "underline"
+        assert drawn["fill"] == "rgba(0, 0, 0, 0)", f"the budget line has a fill: {drawn['fill']}"
+        assert drawn["border"] == ["0px"] * 4, f"the budget line has a border: {drawn['border']}"
+        assert drawn["overlap"] <= 0.5, "the taller line runs into its note"
+    finally:
+        context.close()
 
 
 def test_a_budget_that_cannot_be_read_says_so_and_is_asked_again(ui):
