@@ -354,21 +354,8 @@ disallow_untyped_decorators = true
 warn_return_any = true
 extra_checks = true
 
-# **The ratchet.** Modules that do not yet check clean, by name and sorted. The
-# list only shrinks: `tests/preferences/test_type_gate.py` fails when a module
-# listed here checks clean (take it off), and `uv run mypy` fails when one not
-# listed has an error. Never add a module to it; fix the error.
-[[tool.mypy.overrides]]
-module = [
-    "arrt.ask.agent",
-    "arrt.ask.cards",
-    "arrt.http.api",
-    "arrt.mcp.bindings",
-    "arrt.programming.clients",
-    "arrt.programming.feeds",
-    "arrt.programming.manifest.heartbeat",
-    "arrt.programming.reports",
-    "arrt.programming.scenes",
-    "arrt.programming.schedule",
-]
-ignore_errors = true
+# **The ratchet is empty: every module is checked.** It was one more override
+# here, `ignore_errors = true` over the modules that did not yet check clean.
+# `tests/preferences/test_type_gate.py` still holds the shape: a module with an
+# error that no override excuses fails `uv run mypy`, and fixing it is the only
+# way through. Never add the list back.
