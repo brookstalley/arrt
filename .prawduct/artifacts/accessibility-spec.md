@@ -1359,7 +1359,7 @@ descriptions of it.
 | Requirement | Why it is not automatic |
 |---|---|
 | Every new live region announces without moving focus, and is not rewritten unchanged | The client has exactly one `role="status"` region today and no `aria-live` anywhere. The IA adds at least three |
-| Contact-sheet metadata is available on **focus**, not only on hover | The IA's default density above a few hundred works puts metadata on hover. Hover-only metadata does not exist for a keyboard |
+| Contact-sheet metadata is available on **focus**, not only on hover | The IA's default density above a few hundred works puts metadata on hover. Hover-only metadata does not exist for a keyboard. *(2026-11-19: Posters now print each tile's title and artist beneath it, so no metadata is hover-only there, or on a phone, which has no hover; the requirement stays for any metadata that is revealed.)* |
 | A zero-count facet option is **disabled and still perceivable**, with its count in the accessible name | Disabled controls are skipped by the tab sequence, so a count that lives only in adjacent text is a count a screen-reader user never hears. The IA's rule is disabled-not-hidden precisely so the vocabulary does not appear to shrink |
 | The masthead compresses without overflowing, and no element loses its word | Five non-wrapping tabs already overflow a 375px viewport, and the prototype reproduced the same failure at tablet width the moment the status label grew |
 | Skeletons occupy the final geometry | A grid that reflows as images arrive is a vestibular and cognitive cost as well as an aesthetic one, and the built client has already shipped that bug |
