@@ -19,14 +19,17 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 #: A desktop screen: the size the sidebar's own desktop checks use.
 DESKTOP = {"width": 1280, "height": 800}
 
 TITLES = ("Autumn Rhythm", "Blue Poles", "Convergence", "Number 1")
 
 
-def _titles(ui):
-    return ui.page.locator("tbody tr td[data-label='Title']").all_inner_texts()
+def _expect_titles(ui, titles):
+    """The member table's Title column reads `titles`, in the order it is painted."""
+    expect(ui.page.locator("tbody tr td[data-label='Title']")).to_have_text(list(titles), use_inner_text=True)
 
 
 def _first_row_becomes(ui, title):
@@ -115,14 +118,14 @@ def test_a_card_says_what_the_theme_is_and_links_to_it(ui, services, ten_themes)
     card = ui.page.locator(f"li.theme-card[data-theme='{first.id}']")
     card.wait_for()
 
-    assert card.locator("h2 a").inner_text() == first.name
-    assert card.locator("h2 a").get_attribute("href") == f"#theme/{first.id}"
-    assert card.locator(".card-meta").inner_text() == "4 works"
-    assert card.locator(".theme-card-pictures img").count() == 4
-    assert card.locator(".badge", has_text="on Room 1").count() == 1
-    assert card.locator(".badge-default").count() == 1
+    expect(card.locator("h2 a")).to_have_text(first.name, use_inner_text=True)
+    expect(card.locator("h2 a")).to_have_attribute("href", f"#theme/{first.id}")
+    expect(card.locator(".card-meta")).to_have_text("4 works", use_inner_text=True)
+    expect(card.locator(".theme-card-pictures img")).to_have_count(4)
+    expect(card.locator(".badge", has_text="on Room 1")).to_have_count(1)
+    expect(card.locator(".badge-default")).to_have_count(1)
     # The default mark is on the default's card and no other.
-    assert ui.page.locator("li.theme-card .badge-default").count() == 1
+    expect(ui.page.locator("li.theme-card .badge-default")).to_have_count(1)
 
 
 def test_the_pictures_are_one_tab_stop_with_the_name_not_a_second(ui, ten_themes):
@@ -131,9 +134,14 @@ def test_the_pictures_are_one_tab_stop_with_the_name_not_a_second(ui, ten_themes
     strip = ui.page.locator("li.theme-card .theme-card-pictures").first
     strip.wait_for()
 
-    assert strip.get_attribute("tabindex") == "-1"
-    assert strip.get_attribute("aria-hidden") == "true"
-    assert strip.get_attribute("href") == ui.page.locator("li.theme-card h2 a").first.get_attribute("href")
+    expect(strip).to_have_attribute("tabindex", "-1")
+    expect(strip).to_have_attribute("aria-hidden", "true")
+    name = ui.page.locator("li.theme-card h2 a").first
+    expect(name).to_have_attribute("href", re.compile(r"^#theme/"))
+    # The strip's address is asserted against the name's: the one is compared to the other, so the other is read.
+    expect(strip).to_have_attribute(
+        "href", name.get_attribute("href")
+    )  # one-shot: the name link's address, the value the strip's must equal
 
 
 def test_following_a_card_opens_that_theme(ui, winter, services):
@@ -144,12 +152,7 @@ def test_following_a_card_opens_that_theme(ui, winter, services):
     ui.page.wait_for_selector("#view h1:has-text('Winter')")
 
     assert ui.page.evaluate("() => window.location.hash") == f"#theme/{winter.id}"
-    assert _titles_after_paint(ui) == list(TITLES)
-
-
-def _titles_after_paint(ui):
-    ui.page.wait_for_selector("tbody tr")
-    return _titles(ui)
+    _expect_titles(ui, TITLES)
 
 
 def test_the_index_offers_no_act_on_a_theme(ui, winter):
@@ -158,10 +161,10 @@ def test_the_index_offers_no_act_on_a_theme(ui, winter):
     ui.open("#theme")
     ui.page.wait_for_selector("li.theme-card")
 
-    assert ui.page.locator("#view button").all_inner_texts() == ["New theme…"]
-    assert ui.page.locator("#view input").count() == 0
-    assert ui.page.locator("#view select").count() == 0
-    assert ui.page.locator("#view table").count() == 0
+    expect(ui.page.locator("#view button")).to_have_text(["New theme…"], use_inner_text=True)
+    expect(ui.page.locator("#view input")).to_have_count(0)
+    expect(ui.page.locator("#view select")).to_have_count(0)
+    expect(ui.page.locator("#view table")).to_have_count(0)
 
 
 def test_a_theme_with_works_and_no_pictures_says_so(ui, winter):
@@ -170,8 +173,8 @@ def test_a_theme_with_works_and_no_pictures_says_so(ui, winter):
     card = ui.page.locator(f"li.theme-card[data-theme='{winter.id}']")
     card.wait_for()
 
-    assert card.locator(".card-meta").inner_text() == "4 works · no pictures yet"
-    assert card.locator("img").count() == 0
+    expect(card.locator(".card-meta")).to_have_text("4 works · no pictures yet", use_inner_text=True)
+    expect(card.locator("img")).to_have_count(0)
 
 
 def test_an_empty_theme_does_not_claim_its_pictures_are_missing(ui, services):
@@ -181,7 +184,7 @@ def test_an_empty_theme_does_not_claim_its_pictures_are_missing(ui, services):
     card = ui.page.locator(f"li.theme-card[data-theme='{quiet.id}']")
     card.wait_for()
 
-    assert card.locator(".card-meta").inner_text() == "0 works"
+    expect(card.locator(".card-meta")).to_have_text("0 works", use_inner_text=True)
 
 
 # -- ordering on the theme page ------------------------------------------------
@@ -203,16 +206,16 @@ def test_home_and_end_take_a_work_to_either_end(ui, winter):
 
     _handle(ui, "Convergence").press("Home")
     _first_row_becomes(ui, "Convergence")
-    assert _titles(ui) == ["Convergence", "Autumn Rhythm", "Blue Poles", "Number 1"]
+    _expect_titles(ui, ["Convergence", "Autumn Rhythm", "Blue Poles", "Number 1"])
 
     _handle(ui, "Autumn Rhythm").press("End")
     _last_row_becomes(ui, "Autumn Rhythm")
-    assert _titles(ui) == ["Convergence", "Blue Poles", "Number 1", "Autumn Rhythm"]
+    _expect_titles(ui, ["Convergence", "Blue Poles", "Number 1", "Autumn Rhythm"])
 
     # And the catalogue holds it, not just the table.
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
-    assert _titles(ui) == ["Convergence", "Blue Poles", "Number 1", "Autumn Rhythm"]
+    _expect_titles(ui, ["Convergence", "Blue Poles", "Number 1", "Autumn Rhythm"])
 
 
 def test_the_keyboard_stays_on_the_work_it_moves_and_hears_where_it_landed(ui, winter):
@@ -226,7 +229,7 @@ def test_the_keyboard_stays_on_the_work_it_moves_and_hears_where_it_landed(ui, w
     ui.page.keyboard.press("Home")
     _first_row_becomes(ui, "Number 1")
     ui.page.wait_for_function("() => document.activeElement.getAttribute('aria-label') === 'Move Number 1'")
-    assert ui.page.locator("#view [aria-live='polite']", has_text="Number 1 moved to 1 of 4.").count() == 1
+    expect(ui.page.locator("#view [aria-live='polite']", has_text="Number 1 moved to 1 of 4.")).to_have_count(1)
 
     ui.page.keyboard.press("ArrowDown")
     ui.page.wait_for_function(
@@ -234,7 +237,7 @@ def test_the_keyboard_stays_on_the_work_it_moves_and_hears_where_it_landed(ui, w
     )
     ui.page.wait_for_function("() => document.activeElement.getAttribute('aria-label') === 'Move Number 1'")
     assert len(ui.requests_matching("/position")) == 2
-    assert _titles(ui) == ["Autumn Rhythm", "Number 1", "Blue Poles", "Convergence"]
+    _expect_titles(ui, ["Autumn Rhythm", "Number 1", "Blue Poles", "Convergence"])
 
 
 def test_dragging_a_handle_drops_the_work_where_the_pointer_leaves_it(ui, winter):
@@ -242,20 +245,21 @@ def test_dragging_a_handle_drops_the_work_where_the_pointer_leaves_it(ui, winter
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
 
-    start = _handle(ui, "Convergence").bounding_box()
-    target = ui.page.locator("tbody tr").first.bounding_box()
+    expect(_handle(ui, "Convergence")).to_be_visible()
+    start = _handle(ui, "Convergence").bounding_box()  # one-shot: geometry, measured once the handle is visible
+    target = ui.page.locator("tbody tr").first.bounding_box()  # one-shot: geometry, measured with the table painted
     ui.page.mouse.move(start["x"] + start["width"] / 2, start["y"] + start["height"] / 2)
     ui.page.mouse.down()
     ui.page.mouse.move(start["x"] + start["width"] / 2, target["y"] + 4, steps=8)
     # Marked where it will land before it is let go, on the side it lands.
-    assert ui.page.locator("tbody tr.drop-target").count() == 1
-    assert ui.page.locator("tbody tr.drop-target.drop-below").count() == 0
+    expect(ui.page.locator("tbody tr.drop-target")).to_have_count(1)
+    expect(ui.page.locator("tbody tr.drop-target.drop-below")).to_have_count(0)
     ui.page.mouse.up()
     _first_row_becomes(ui, "Convergence")
 
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
-    assert _titles(ui) == ["Convergence", "Autumn Rhythm", "Blue Poles", "Number 1"]
+    _expect_titles(ui, ["Convergence", "Autumn Rhythm", "Blue Poles", "Number 1"])
     # A finger drags the handle rather than scrolling the page.
     assert _handle(ui, "Convergence").evaluate("(node) => getComputedStyle(node).touchAction") == "none"
 
@@ -264,15 +268,16 @@ def test_a_drag_let_go_where_it_started_sends_nothing(ui, winter):
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
 
-    start = _handle(ui, "Blue Poles").bounding_box()
+    expect(_handle(ui, "Blue Poles")).to_be_visible()
+    start = _handle(ui, "Blue Poles").bounding_box()  # one-shot: geometry, measured once the handle is visible
     ui.page.mouse.move(start["x"] + 5, start["y"] + 5)
     ui.page.mouse.down()
     ui.page.mouse.move(start["x"] + 6, start["y"] + 6, steps=3)
     ui.page.mouse.up()
-    ui.page.wait_for_timeout(300)
+    ui.page.wait_for_timeout(300)  # sleep: nothing is sent, so only waiting shows it
 
     assert ui.requests_matching("/position") == []
-    assert ui.page.locator("tbody tr.drop-target").count() == 0
+    expect(ui.page.locator("tbody tr.drop-target")).to_have_count(0)
 
 
 def test_the_ends_offer_no_move_to_where_a_work_already_is(ui, winter):
@@ -282,7 +287,7 @@ def test_the_ends_offer_no_move_to_where_a_work_already_is(ui, winter):
 
     _handle(ui, "Autumn Rhythm").press("Home")
     _handle(ui, "Number 1").press("End")
-    ui.page.wait_for_timeout(300)
+    ui.page.wait_for_timeout(300)  # sleep: nothing is sent, so only waiting shows it
     assert ui.requests_matching("/position") == []
 
 
@@ -298,10 +303,9 @@ def test_the_order_copy_says_only_that_the_theme_is_in_order(ui, services, winte
     services.display.activate_theme(winter.id, wall_id=wall.id)
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
-    caption = ui.page.inner_text("table caption")
 
-    assert caption == "In curated order."
-    assert "shuffle" not in ui.page.inner_text("main").lower()
+    expect(ui.page.locator("table caption").first).to_have_text("In curated order.", use_inner_text=True)
+    expect(ui.page.locator("main").first).not_to_contain_text("shuffle", use_inner_text=True, ignore_case=True)
 
 
 # -- the title follows a rename (#302) -----------------------------------------
@@ -311,7 +315,7 @@ def test_renaming_a_theme_renames_the_tab(ui, winter):
     """The tab, the history and a bookmark name the theme as its heading does."""
     ui.open(f"#theme/{winter.id}")
     ui.page.wait_for_selector("tbody tr")
-    assert re.match(r"^Winter\b", ui.page.title())
+    expect(ui.page).to_have_title(re.compile(r"^Winter\b"))
 
     # In the theme's *Edit…* since ruling 9 of 2026-10-27.
     ui.page.click("#view .page-toolbar button[aria-label='Edit Winter…']")
@@ -320,8 +324,8 @@ def test_renaming_a_theme_renames_the_tab(ui, winter):
     dialog.get_by_role("button", name="Save Winter").click()
     ui.page.wait_for_selector("#view h1:has-text('Late night')")
 
-    assert re.match(r"^Late night\b", ui.page.title())
-    assert "Winter" not in ui.page.title()
+    expect(ui.page).to_have_title(re.compile(r"^Late night\b"))
+    expect(ui.page).not_to_have_title(re.compile("Winter"))
 
 
 def test_a_refused_move_is_said_beside_its_handle_and_moves_nothing(ui, winter):
@@ -336,7 +340,7 @@ def test_a_refused_move_is_said_beside_its_handle_and_moves_nothing(ui, winter):
 
     assert ui.said_beside(handle).startswith("Couldn't move Number 1 to position 1: That move was refused.")
     assert len(ui.requests_matching("/position")) == 1
-    assert _titles(ui) == list(TITLES)
+    _expect_titles(ui, TITLES)
 
 
 # -- the page's head and New theme… (ruling 9 of 2026-10-27) -------------------------
@@ -357,7 +361,7 @@ def test_the_index_opens_with_its_name_its_facts_and_its_toolbar(ui, services, w
     assert "page-facts" in order[1]
     assert "page-toolbar" in order[2]
     assert "theme-cards" in order[3]
-    assert ui.page.locator("#view .page-facts").inner_text() == "2 themes · All works is the default"
+    expect(ui.page.locator("#view .page-facts")).to_have_text("2 themes · All works is the default", use_inner_text=True)
 
 
 @pytest.mark.parametrize("described", [True, False])
@@ -407,5 +411,5 @@ def test_a_refused_name_is_said_in_the_dialog_and_nothing_is_made(ui, services, 
     create.click()
 
     assert "Couldn't create the theme" in ui.said_beside(create)
-    assert dialog.is_visible()
+    expect(dialog).to_be_visible()
     assert {theme.id for theme in services.display.list_themes()} == before
