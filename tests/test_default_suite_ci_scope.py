@@ -7,9 +7,11 @@ shrink it while the run still reports green:
 
 - a test directory that no suite selects, which the tests at the end of this
   file derive from the tree;
-- a workflow edit that narrows the run (a `--suite`, a path) or lets it fall
-  back to GitHub's runner, or a skip guard that reads some other file than the
-  report the run wrote. The tests just below read the workflow for each.
+- a workflow edit that narrows the run (a `--suite`, a path) or lets testament
+  fall back to GitHub's runner by itself, or a skip guard that reads some other
+  file than the report the run wrote, or not the record of where it ran. The
+  tests just below read the workflow for each. The fallback the workflow does
+  run, when the pool cannot answer, is `tests/test_ci_fallback.py`'s.
 """
 
 import pathlib
@@ -38,11 +40,16 @@ def _run_lines(workflow: dict) -> list[str]:
 
 
 def _testament_runs(lines: list[str]) -> list[list[str]]:
-    """The argument lists of every `testament run` line."""
+    """The argument lists of every `testament run`, wherever on its line it starts.
+
+    The workflow hands the run to `pool_or_fallback.py` after a `--`, so the command
+    is read from where `testament run` begins, not only from a line that opens with it.
+    """
     runs = []
     for line in lines:
-        if line.startswith("testament run"):
-            runs.append(shlex.split(line.split(" > ", 1)[0].split(" || ", 1)[0]))
+        at = re.search(r"(?<![\w./-])testament run(?![\w./-])", line)
+        if at:
+            runs.append(shlex.split(line[at.start() :].split(" > ", 1)[0].split(" || ", 1)[0]))
     return runs
 
 
@@ -78,10 +85,14 @@ def check_the_pool_run(lines: list[str]) -> None:
     for guard in guards:
         after = guard[guard.index(next(w for w in guard if w.endswith("assert_tests_ran.py"))) + 1 :]
         assert after[:1] == [report], f"the skip guard reads {after[:1]}, not the report the run writes ({report})"
-        assert after[1:] == [
+        assert after[1:3] == [
             "--suites-from",
             ".testament.toml",
         ], f"the skip guard is given {after[1:]}, so a suite that collected nothing would hide behind the others' counts"
+        assert after[3:4] == ["--decision"] and len(after) == 5 and after[4].endswith("/decision.json"), (
+            f"the skip guard is given {after[1:]}, not the record of where the suites ran, "
+            "so it cannot tell a pool run from a fallback"
+        )
 
 
 def test_ci_runs_every_suite_on_the_pool_and_guards_its_report():
@@ -89,8 +100,9 @@ def test_ci_runs_every_suite_on_the_pool_and_guards_its_report():
 
 
 _GOOD = [
-    'testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback > "$OUT/envelope.json" || code=$?',
-    'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml" --suites-from .testament.toml',
+    'python3 .github/scripts/pool_or_fallback.py pool --out "$OUT" -- '
+    'testament run --json=summary --junit-xml "$OUT/all.xml" --no-fallback',
+    'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml" --suites-from .testament.toml --decision "$OUT/decision.json"',
 ]
 
 
@@ -120,6 +132,19 @@ def test_a_run_narrowed_in_any_spelling_is_refused(narrowing):
 def test_a_guard_without_the_per_suite_check_is_refused():
     lines = [_GOOD[0], 'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml"']
     with pytest.raises(AssertionError, match="hide behind the others"):
+        check_the_pool_run(lines)
+
+
+def test_a_guard_without_the_record_of_where_the_suites_ran_is_refused():
+    lines = [_GOOD[0], 'python3 .github/scripts/assert_tests_ran.py "$OUT/all.xml" --suites-from .testament.toml']
+    with pytest.raises(AssertionError, match="not the record of where the suites ran"):
+        check_the_pool_run(lines)
+
+
+def test_a_run_that_opens_its_line_is_still_read():
+    """The older shape, a line that opens with `testament run`, is read the same way."""
+    lines = ['testament run --json=summary --junit-xml "$OUT/all.xml" --suite curation --no-fallback', _GOOD[1]]
+    with pytest.raises(AssertionError, match="can narrow it"):
         check_the_pool_run(lines)
 
 
