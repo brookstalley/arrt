@@ -27,7 +27,7 @@ import { el, emptyState, fill, render } from "../core/render.js";
 import { offeredThemes } from "../core/membership.js";
 import { selectionMode } from "../core/selecting.js";
 import { gettable, isQid, lifeDates, listHeadings, named, stateMark, wikidataLink, workCell, workState, yearCell } from "../core/registry.js";
-import { backLink, backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
+import { backRow, goWithParams, link, redirect, refresh, setTitle } from "../core/router.js";
 import { state } from "../core/state.js";
 import { recordReaction } from "../core/taste.js";
 import { menuButton, toolbar } from "../core/toolbar.js";
@@ -48,16 +48,17 @@ export async function viewArtists(artistId, generation) {
     generation,
     backRow(),
     el("h1", { text: "Artists" }),
+    // The count where every list page says it: the line of facts under the
+    // name, above the toolbar (it was under the toolbar until 2026-11-19).
+    listing.artists.length ? el("p", { class: "muted page-facts", text: count }) : null,
     listing.artists.length
       ? toolbar({
-          controls: [
-            menuButton({
-              label: "View",
-              options: ARTIST_VIEWS,
-              current: shown,
-              onChoose: (value) => goWithParams({ view: value === POSTERS ? "" : value }),
-            }),
-          ],
+          view: menuButton({
+            label: "View",
+            options: ARTIST_VIEWS,
+            current: shown,
+            onChoose: (value) => goWithParams({ view: value === POSTERS ? "" : value }),
+          }),
         })
       : null,
     listing.artists.length
@@ -93,7 +94,6 @@ function artistView() {
  * works has its master yet) says so in its place, leaving the card's words. */
 function artistPosters(artists, count) {
   return el("section", { "aria-label": count }, [
-    el("p", { class: "muted", text: count }),
     el("ul", { class: "grid artist-posters" }, artists.map(({ artist, held, pictured_artwork_id: pictured }) => {
       const target = { view: "artist", id: artist.artist_id };
       // No pictured work means none of theirs holds a master: the placeholder,
@@ -124,7 +124,8 @@ function artistTable(artists, count) {
     ]),
   );
   return el("table", {}, [
-    el("caption", { text: count }),
+    // The table's name for a screen reader; the count is seen once, above.
+    el("caption", { class: "visually-hidden", text: count }),
     el("thead", {}, [el("tr", {}, ["Artist", "Life", "Works held"].map((h) => el("th", { scope: "col", text: h })))]),
     el("tbody", {}, rows),
   ]);
@@ -176,9 +177,10 @@ async function oneArtist(artistId, generation) {
   });
 
   setTitle(generation, artist.name);
+  const taste = tasteControls(artist);
   render(
     generation,
-    el("p", {}, [backLink()]),
+    backRow(),
     el("div", { class: "panel" }, [
       el("h1", { text: artist.name }),
       facts([
@@ -187,9 +189,14 @@ async function oneArtist(artistId, generation) {
       ]),
       identityControl("artist", artist, () => refresh(), { quietWhenUnmatched: true }),
       about,
-      tasteControls(artist),
     ]),
-    toolbar({ actions: [selection.toggle, selection.bar] }),
+    // The list's count, where every list page says it, then the one toolbar
+    // shape (`core/toolbar.js`): the reactions are acts on the artist, so they
+    // stand on the left, and *Select* on the right. They sat stacked above it,
+    // in the head, until 2026-11-19 (audit 6, finding 12).
+    el("p", { class: "muted page-facts", text: `${works.total} ${works.total === 1 ? "work" : "works"} in your library` }),
+    toolbar({ actions: taste.acts, selection }),
+    taste.said,
     heldSection(works, held, selection),
     registrySection,
     similarSection,
@@ -245,7 +252,7 @@ async function registryArtist(qid, generation) {
   setTitle(generation, name);
   render(
     generation,
-    el("p", {}, [backLink()]),
+    backRow(),
     el("div", { class: "panel" }, [
       el("h1", { text: name }),
       facts([["Life", lifeDates(view)]]),
@@ -254,7 +261,7 @@ async function registryArtist(qid, generation) {
       heldNote,
       ...(view.unlinked || []).map((artist) => namesakeOffer(artist, qid)),
     ]),
-    toolbar({ actions: [selection.toggle, selection.bar] }),
+    toolbar({ selection }),
     registrySection,
     similarSection,
   );
@@ -326,7 +333,9 @@ async function paintSimilar(section, qid) {
 /* The three reactions, in sentence case: *More like this*, *Not this* and
  * *Tell me more*, the same judgments as Ask's cards and Taste's rows record
  * (`core/taste.js`). The one place *Tell me more* is offered for an artist with
- * no judgment yet, since Ask's cards carry two (the owner, 2026-10-09). */
+ * no judgment yet, since Ask's cards carry two (the owner, 2026-10-09).
+ * The acts go on the page's toolbar; `said` is the live line that answers
+ * them, under it. */
 function tasteControls(artist) {
   const said = el("p", { class: "muted", "aria-live": "polite" });
   const react = (reaction) => (event) =>
@@ -335,12 +344,14 @@ function tasteControls(artist) {
         said.textContent = `Recorded: ${reaction} for ${artist.name}.`;
       },
     });
-  return el("div", { class: "row" }, [
-    el("button", { class: "action quiet", type: "button", text: "More like this", onclick: react("more like this") }),
-    el("button", { class: "action quiet", type: "button", text: "Not this", onclick: react("not this") }),
-    el("button", { class: "action quiet", type: "button", text: "Tell me more", onclick: react("tell me more") }),
+  return {
+    acts: [
+      el("button", { class: "action quiet", type: "button", text: "More like this", onclick: react("more like this") }),
+      el("button", { class: "action quiet", type: "button", text: "Not this", onclick: react("not this") }),
+      el("button", { class: "action quiet", type: "button", text: "Tell me more", onclick: react("tell me more") }),
+    ],
     said,
-  ]);
+  };
 }
 
 /* *In your library*: the artist's works in circulation, each selectable in
@@ -349,7 +360,8 @@ function heldSection(works, grid, selection) {
   for (const work of works.works) grid.append(heldCard(work, selection));
   const shown = works.works.length;
   return el("section", { class: "panel", "aria-labelledby": "in-your-library" }, [
-    el("h2", { id: "in-your-library", text: `In your library (${works.total})` }),
+    // Uncounted: the page's line of facts above the toolbar says how many.
+    el("h2", { id: "in-your-library", text: "In your library" }),
     shown ? grid : el("p", { class: "muted", text: "None of their works is in circulation." }),
     works.total > shown ? el("p", { class: "muted", text: `Showing ${shown} of ${works.total}.` }) : null,
   ]);

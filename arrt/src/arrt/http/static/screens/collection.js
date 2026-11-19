@@ -285,24 +285,28 @@ function artistName(work) {
   return link({ view: "artist", id: work.artist.artist_id }, { class: "link", text: work.artist.name });
 }
 
-/* The contact-sheet tile: the picture, and the words behind hover and focus.
+/* The Posters tile: the picture, and its label beneath it on the page's
+ * ground — title, then artist — as the Artists index's posters carry theirs
+ * (`design-direction.md` § Tiles). **Never behind hover**: a phone has none, and
+ * a grid of untitled squares at thousands of works was the home page there
+ * (audit 2026-11-19, finding 4). Smaller than an Overview card's label, one
+ * line of each, because Posters is the view for many works at once.
  *
- * **On focus as well as on hover**, which the CSS does with `:focus-within` — a
- * keyboard has no hover, so metadata that appeared only under a pointer would not
- * exist for half the people using this.
+ * The picture is the tile's one Tab stop, named with the whole label
+ * (`workName`), so the words beneath are hidden from a screen reader rather
+ * than read a second time; the title still opens the work to a pointer or a
+ * finger, out of the tab order, as an Overview card's picture does.
  *
- * The archived badge is the one thing that does NOT hide with the caption. A
- * badge is not metadata about the work, it is a mark on an exception: a work out
- * of circulation that looks identical to one on the wall until you point at it is
- * the silence `statusBadge` was written to end. */
+ * The archived badge sits over the picture: a mark on an exception, not part
+ * of the label. */
 function contactTile(work, selection) {
   const status = statusBadge(work);
   return el("li", { class: "tile", "data-artwork": work.artwork_id }, [
     selection ? selectBox(work, selection) : null,
     status ? el("div", { class: "tile-status" }, [status]) : null,
     cardImage(work),
-    el("div", { class: "tile-caption" }, [
-      el("span", { class: "tile-title", text: work.title }),
+    el("div", { class: "tile-caption", "aria-hidden": true }, [
+      link({ view: "work", id: work.artwork_id }, { class: "tile-title", tabindex: "-1", text: work.title }),
       el("span", { class: "tile-artist", text: work.artist ? work.artist.name : "Artist unrecorded" }),
     ]),
   ]);
@@ -360,7 +364,11 @@ function skeletonGrid(density) {
     tiles.push(
       el("li", { class: density === CONTACT ? "tile skeleton" : "card tile-skeleton skeleton" }, [
         el("div", { class: "card-image" }),
-        density === CONTACT ? null : el("div", { class: "card-body" }, [el("p", { class: "skeleton-line" })]),
+        // A Posters tile's label is beneath its picture, so its placeholder
+        // reserves the label's two lines as the real one does.
+        density === CONTACT
+          ? el("div", { class: "tile-caption" }, [el("p", { class: "skeleton-line" })])
+          : el("div", { class: "card-body" }, [el("p", { class: "skeleton-line" })]),
       ]),
     );
   }
@@ -621,21 +629,22 @@ function railsHidden() {
   return state.params.filters === "hidden";
 }
 
-/* The *arr toolbar over the works: *Select* on the left, and the acts on what
- * is selected beside it while it is on; View, Sort and Filter on the right
- * (`core/toolbar.js`).
+/* The *arr toolbar over the works, in the one shape every list page has
+ * (`core/toolbar.js`): View, Sort, the filters' toggle and *Select* on the
+ * right, and the acts on what is selected on the left while it is on. The
+ * count is the line of facts above it, not here.
  *
  * A theme filtered here is in the Sort menu's order, as any filter is; its
  * curated order is its own page's. */
 function pageToolbar(density, selection) {
-  const controls = [
-    menuButton({
+  return toolbar({
+    view: menuButton({
       label: "View",
       options: VIEWS,
       current: density,
       onChoose: (value) => goWithParams({ density: value }),
     }),
-    menuButton({
+    sort: menuButton({
       label: "Sort",
       options: SORTS,
       current: offeredSort() || "title",
@@ -643,14 +652,14 @@ function pageToolbar(density, selection) {
     }),
     // Its label says what pressing it does, *Show filters* or *Hide filters*,
     // rather than a pressed state on a word that reads the same either way (#288).
-    el("button", {
+    filters: el("button", {
       class: "action quiet filters-toggle",
       type: "button",
       text: railsHidden() ? "Show filters" : "Hide filters",
       onclick: () => goWithParams({ filters: railsHidden() ? "" : "hidden" }),
     }),
-  ];
-  return toolbar({ actions: selection ? [selection.toggle, selection.bar] : [], controls });
+    selection,
+  });
 }
 
 /* -- the three empty states -------------------------------------------------- */

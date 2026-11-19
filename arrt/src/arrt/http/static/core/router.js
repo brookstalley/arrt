@@ -135,7 +135,12 @@ function defaultReturn(view) {
  *
  * **A sidebar page has no way back, because it is not inside anything** — its
  * way out is the sidebar. The exception is a page showing one of its things,
- * `#theme/<id>`, whose way back is its own index. */
+ * `#theme/<id>`, whose way back is its own index.
+ *
+ * **A breadcrumb link, never a button** (`design-direction.md` § How a page
+ * reads; ruling 1 of 2026-10-27): `back-link`, small and muted above the
+ * page's name. It wore the act's bordered shape until 2026-11-19 (audit 6,
+ * finding 13). */
 export function backLink() {
   const from = state.params && state.params.from;
   const opener = returnTarget(from);
@@ -156,7 +161,7 @@ export function backLink() {
  * decided before `link`'s own click handler, which then stands aside. */
 function returning(target, text) {
   const { view, id = null, params = null } = target;
-  const node = link(target, { class: "action quiet", text });
+  const node = link(target, { class: "back-link", text });
   node.addEventListener(
     "click",
     (event) => {
@@ -176,11 +181,12 @@ function returning(target, text) {
   return node;
 }
 
-/* The back link in the paragraph every screen sets it in, or nothing when the
- * screen is a sidebar page with nowhere to go back to. */
+/* The back link in the breadcrumb paragraph above the page's name, or nothing
+ * when the screen is a sidebar page with nowhere to go back to. A screen sets
+ * this first, before its `h1`, rather than wrapping `backLink` itself. */
 export function backRow() {
   const back = backLink();
-  return back ? el("p", {}, [back]) : null;
+  return back ? el("p", { class: "breadcrumb" }, [back]) : null;
 }
 
 /* The state a navigation carries over when the caller did not say.

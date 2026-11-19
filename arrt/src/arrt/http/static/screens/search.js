@@ -26,10 +26,12 @@ import { offeredThemes } from "../core/membership.js";
 import { selectionMode } from "../core/selecting.js";
 import { gettable, heldPicture, lifeDates, named, reviewMark, stateMark, statePicture, topicKinds, topicName, workState } from "../core/registry.js";
 import { el, fill, render } from "../core/render.js";
-import { backLink, link, setTitle } from "../core/router.js";
+import { backRow, link, setTitle } from "../core/router.js";
 import { asksWikidata, fold } from "../core/search.js";
 import { state } from "../core/state.js";
 import { toolbar } from "../core/toolbar.js";
+import { noPicture } from "../core/badges.js";
+import { noun } from "../core/counting.js";
 
 /* How many of the library's works the page lists. Artworks, one click away,
  * holds the rest and the tools to act on them. */
@@ -49,7 +51,7 @@ const HALVES = { held: "Held", "not-held": "Not held" };
 export async function viewSearch(generation) {
   const query = (state.params.q || "").trim();
   if (!query) {
-    render(generation, el("p", {}, [backLink()]), el("h1", { text: "Search" }), el("p", { class: "note", text: "Type in the search box above to search." }));
+    render(generation, backRow(), el("h1", { text: "Search" }), el("p", { class: "note", text: "Type in the search box above to search." }));
     return;
   }
   // Asked now, beside the library, and awaited after the Held group is drawn.
@@ -104,6 +106,9 @@ export async function viewSearch(generation) {
     "not-held": Object.fromEntries(KINDS.map(([kind]) => [kind, section("not-held", kind)])),
   };
   const nothingHeld = el("p", { class: "muted results-none", text: "Nothing you hold matches." });
+  // The page's count, where every list page says it: the line of facts under
+  // its name, before the toolbar. Kept as rows arrive (`settle`).
+  const facts = el("p", { class: "muted page-facts" });
   // The Not held group's one line, whatever Wikidata did: asking, found,
   // nothing more, or why it could not be asked.
   const registryNote = el("p", { class: "muted", "aria-live": "polite", text: "Asking Wikidata…" });
@@ -136,9 +141,10 @@ export async function viewSearch(generation) {
   setTitle(generation, `Results for “${query}”`);
   render(
     generation,
-    el("p", {}, [backLink()]),
+    backRow(),
     el("h1", { text: `Results for “${query}”` }),
-    toolbar({ actions: [selection.toggle, selection.bar] }),
+    facts,
+    toolbar({ selection }),
     top,
     el("section", { class: "panel", "aria-labelledby": "results-held" }, [
       el("h2", { id: "results-held", text: "Held" }),
@@ -170,6 +176,9 @@ export async function viewSearch(generation) {
   };
   const settle = () => {
     nothingHeld.hidden = KINDS.some(([kind]) => !sections.held[kind].hidden);
+    facts.textContent = heldFacts(library, sections.held);
+    // Nothing held is said once, by the Held group's own line.
+    facts.hidden = !facts.textContent;
   };
   paintFound();
   paintNamed();
@@ -183,6 +192,23 @@ export async function viewSearch(generation) {
     if (registry.found && registry.named) sayWhatWikidataDid(registryNote, query, registry, sections["not-held"]);
   };
   await Promise.all([fromRegistry.then(arrive("found", paintFound)), fromTopics.then(arrive("named", paintNamed))]);
+}
+
+/* How much of what the words find you hold, in one line: "4 held: 3 works,
+ * 1 artist". Works count the library's every match, listed here or not
+ * (`total`), and the held ones Wikidata adds; artists and topics are their
+ * rows. What Wikidata has beyond that is said in the Not held group. */
+function heldFacts(library, held) {
+  const rows = (kind) => held[kind].querySelectorAll(":scope > .results-list > li").length;
+  const works = library.total + Math.max(0, rows("works") - library.works.length);
+  const parts = [
+    [works, "work"],
+    [rows("artists"), "artist"],
+    [rows("topics"), "topic"],
+  ].filter(([count]) => count > 0);
+  const all = parts.reduce((sum, [count]) => sum + count, 0);
+  if (!all) return "";
+  return `${all.toLocaleString("en-US")} held: ${parts.map(([count, word]) => `${count.toLocaleString("en-US")} ${noun(count, word)}`).join(", ")}`;
 }
 
 /* Said in the Not held group once both of Wikidata's searches have answered.
@@ -280,14 +306,21 @@ function artistRow(row) {
 
 /* The works: the library's first, and Wikidata's split the same way. Any of
  * them can be ticked: a held work to add to a theme or archive, one the library
- * does not hold to get. */
+ * does not hold to get.
+ *
+ * **"Held" is said once, by the group's heading**, never again on each row
+ * (audit 6, finding 14: a Held heading, a Works heading, then ● Held on every
+ * row). What a held row does say is whether there is a picture of it: "Do I
+ * have it?" answered yes for a work with nothing to hang, while its own page
+ * said *No picture*. So a library row with no master says *No picture* in its
+ * picture's place, as a tile does. */
 function workRows(library, found, selection) {
   const shown = new Set(library.works.map((work) => work.artwork_id));
   const held = library.works.map((work) => ({
     title: work.title,
     by: work.artist ? work.artist.name : null,
-    picture: heldPicture(work),
-    mark: workState({ held_artwork_ids: [work.artwork_id] }, { opens: false, picture: false }),
+    picture: heldPicture(work) || absentPicture(),
+    mark: null,
     open: { view: "work", id: work.artwork_id },
     artworkId: work.artwork_id,
     box: selection.heldBox(work),
@@ -301,7 +334,9 @@ function workRows(library, found, selection) {
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
         picture: statePicture(work),
-        mark: workState(work, { opens: false, grouped: true, picture: false }),
+        // Under Held, the group says it; a row says only what the group does
+        // not, which is two held works naming one item (*Held ×2*).
+        mark: isHeld && work.held_artwork_ids.length === 1 ? null : workState(work, { opens: false, grouped: true, picture: false }),
         open: { view: "work", id: isHeld ? work.held_artwork_ids[0] : work.qid },
         artworkId: isHeld ? work.held_artwork_ids[0] : null,
         box: isHeld
@@ -314,6 +349,12 @@ function workRows(library, found, selection) {
     }
   }
   return { held, notHeld };
+}
+
+/* A held row's picture when the work has none yet: the one placeholder every
+ * screen draws (`noPicture`), in the row's picture frame. */
+function absentPicture() {
+  return el("span", { class: "work-pic work-pic-absent" }, [noPicture()]);
 }
 
 function workRow(row) {
