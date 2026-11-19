@@ -21,20 +21,14 @@ surface, and no backends.** No metrics store, no tracing collector, no dashboard
 Naming what is deliberately absent matters as much as what is present — a future
 reader should not conclude these were forgotten.
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** The defining
-> constraint is unchanged, and so is the single panel in the curation UI. What
-> moves:
-> - **The heartbeat becomes an HTTP POST** from each Player to the server (waves
->   2–3). It stops being a file in a shared directory.
-> - **Logs live on two machines.** The server's are in the NAS container's log,
->   and each Player's are in its Pi's journal.
-> - **The server gains scheduled work** (Watches and upgrade re-searches, wave
->   6). Its failures happen with no curator in the session, which fires the
->   push-notification revisit trigger recorded under § Accepted detection
->   latency. *(Revisited 2026-11-09: panel-only holds, see there.)*
->
-> The dated notes below mark each place. As-built content is unchanged, because
-> it describes the running Pi.
+> **Landed (waves 2, 3 and 6).** The defining constraint is unchanged, and so is
+> the single panel in the curation UI. The heartbeat is an HTTP POST from each
+> Player to the server and no longer a file in a shared directory; logs live on two
+> machines (the server's in the NAS container's log, each Player's in its Pi's
+> journal); and the server has scheduled work (Watches, built 2026-11-09), whose
+> failures happen with no curator in the session and fire the push-notification
+> revisit trigger recorded under § Accepted detection latency (*revisited
+> 2026-11-09: panel-only holds, see there*).
 
 ## Signals
 
@@ -408,18 +402,14 @@ there is no budget signal to log and none is invented.
 
 ## The Health Surface
 
-> **Direction changed 2026-09-30. See `re-architecture.md` § Seam 2.** The
-> heartbeat's *transport* changes and its *contract* does not. In wave 2 each
-> Player sends the same document as `POST /walls/{wall_id}/heartbeat`, and the
-> file channel retires in wave 3. The one named key, `reported_at`, stays the
-> contract for the same reason it is one today. The wall id moves from the
-> filename into the path. Both copies of the name are still checked against each
-> other, because the Player and server must agree on the route exactly as they
-> agree on the filename today. Wave 1's contract pins the key: both planes are
-> tested against `contract/schemas/heartbeat.v1.schema.json`. The route's
-> spelling is pinned when wave 2 builds it, by a `contract/routes.json` that the
-> server's route tests and the Player's client tests both assert against. After
-> the repo split, `contract/` is the only thing both repos share.
+> **Landed (waves 2 and 3, `re-architecture.md` § Seam 2).** The heartbeat's
+> *transport* changed and its *contract* did not: each Player sends the same document
+> as `POST /walls/{wall_id}/heartbeat`, the file channel is retired, and the one named
+> key, `reported_at`, stays the contract. The wall id is in the path, and both
+> copies of the name are checked against each other. Both sides are tested against
+> `contract/schemas/heartbeat.v1.schema.json` and the spelling of the route against
+> `contract/routes.json`, and `contract/` is the only thing the two repositories
+> share.
 >
 > What changes with the transport:
 > - **The 60-second interval stops being a wear budget.** It remains bounded by
@@ -432,8 +422,8 @@ there is no budget signal to log and none is invented.
 > - **The Player may add its screen geometry** as an observation, so the panel
 >   can say a work is below the floor *on that wall*. The Library never reads it.
 > - **The Player's cache state becomes worth reporting**: how many of the
->   playlist's media it holds, and whether any are missing. That is the new way
->   "down looks like up": a newly hung playlist whose media never arrived.
+>   theme's media it holds, and whether any are missing. That is the new way
+>   "down looks like up": a newly hung theme whose media never arrived.
 
 **Display writes a heartbeat; curation reads and displays it.**
 

@@ -1066,17 +1066,10 @@ retired. Geometry arrives as a parameter; `arrt-player:src/arrt_player/config.py
 is a configuration, not a fault** — which matters here because a household adding a
 display without a panel must not read as a broken one.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** This rule is about
-> to reach further than the label. The television's own geometry leaves the
-> catalogue in wave 4: the mat is composed on the Player for its own screen, and
-> the `tv_display` rendition and `TV_PANEL_*` leave curation. A caption in the mat
-> makes that necessary for accessibility too, because the mat has to be sized
-> for the caption's type, and only the device that knows the reading distance
-> and the screen can size it.
->
-> *(Wave 4g, 2026-10-10: done. The `tv_display` rendition is gone, the server
-> reads no `TV_PANEL_*`, and each Player composes its own mat. A caption in the
-> mat is still #217.)*
+> **Landed (wave 4g, 2026-10-10).** The television's geometry left the catalogue:
+> the `tv_display` rendition is gone, the server reads no `TV_PANEL_*`, and each
+> Player composes its own mat. **Still open:** a caption in the mat, which the
+> mat's sizing has to serve, is #217 (Player work, wave 6+).
 
 ### The panel has no brightness control, and that is why the rest of this matters
 

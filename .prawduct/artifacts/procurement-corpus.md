@@ -78,7 +78,7 @@ because they have separate fixes; "hard to get" is not one thing.
 
 | Failure | Meaning | Whose fix |
 |---|---|---|
-| **identity** | No registry item, or the item is ambiguous (many *Untitled*, shared names) | the identity matcher; the catalogue's own identity |
+| **identity** | No registry item, or the item is ambiguous (many *Untitled*, shared names) | the identity matcher; the Library's own identity |
 | **no image** | No source holds any image | a new source |
 | **resolution** | Images exist, but below the floor (below) | a better source; an upgrade later |
 | **fidelity** | The image is not of the work alone: a photograph of a wall, with perspective, context, glare | review; possibly a crop |
@@ -657,27 +657,23 @@ hand and per site, comes before any build.
 
 ### The probe, and run 3: MoMA through a plugin (2026-10-04)
 
-**The probe, by hand.** The owner chose MoMA as the next reader. Measured before
-building it:
+**The probe, by hand.** The owner chose MoMA as the next reader. What this
+corpus keeps of it:
 
-- **Every HTML page on www.moma.org is behind a Cloudflare JavaScript
-  challenge.** A plain request gets 403, whatever user agent it sends. Images
-  under `/media/` are not challenged.
 - **MoMA's open data is too small.** Its GitHub collection (160,700 records,
   95,702 with an image URL) caps every image at 1,024 px on the long edge, just
   under the floor on the owner's panel (about 1,060). Eight of the nine open MoMA
   works are in it, each at exactly 1,024.
-- **The work pages name the same file at up to 2,000 px**, under signed URLs that
-  cannot be resized by hand. They were read with a real browser on two works,
-  *Drowning Girl* (1,983 × 2,000) and *Colors for a Large Wall* (2,000 × 1,992).
-- **A work page with no image has no hero image and no `image` in its structured
-  data**, measured on three works MoMA shows no image of.
+- **The museum's own pages hold larger files, up to 2,000 px**, which a plain
+  request cannot read, so the reader is a private source plugin
+  (`re-architecture.md` § Sources are plugins).
 - **The Met is out for now.** None of its four open works is public domain, so
   its open API gives no image for any of them.
 
-The reader is a private source plugin, because it passes a bot challenge
-(`re-architecture.md` § Sources are plugins). Its design and measurements live
-in the private repository.
+**How the pages are read, and what was measured on them while building the
+reader, are in the private repository** and not here: this repository is public,
+and a recipe for passing a museum's protections is not a finding about the
+corpus. This section records only what the reader found.
 
 **Run 3.** Run `acb5dc84`, on the NAS, on Arrt `eb2529e` with the plugin: a
 re-search of the nine open works whose item carries a MoMA ID (P2014), the same
@@ -749,11 +745,9 @@ over plain HTTP. During the SFMOMA probe the owner asked whether anything larger
 than 2,048 px was available, which added Google Arts & Culture.
 
 - **SFMOMA: plain HTTP, no JavaScript challenge, and at most 2,048 px.** Its
-  pages sit behind Cloudflare, which screens user agents rather than browsers: a
-  bare `Mozilla/5.0` and httpx's default name get 403, while Arrt's default agent
-  gets 200. Each page names its image on a CloudFront host, with WordPress's
-  resized copies. The largest is the uploaded file. Every larger or `-scaled`
-  name tried answers 403, and the old collection API no longer resolves.
+  pages screen some clients and answer Arrt's own; how it is read is in the
+  private plugin repository, with the rest of that reader. The largest file a
+  page offers is 2,048 px, and the old collection API no longer resolves.
   - *Margarethe* (row 48): 2,048 × 1,501. *Sulamith* (49): 2,048 × 1,609.
     *256 Farben* (46): only an 850 × 476 `-web` file, under the floor.
   - Its works link their page from Wikidata as "described at URL" (P973): 1,452
