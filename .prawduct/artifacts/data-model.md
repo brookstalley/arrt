@@ -111,7 +111,7 @@ entities owned by the plane that talks to that device.
 
 > **What the catalogue file holds per device today** *(a description, written
 > 2026-11-19 from the code; the norm's wording above awaits the owner, question 1
-> of `decisions-arrt-wave-2.md`, and is untouched)*. The Status of 2026-10-10
+> of the wave-2 decisions put to them, and is untouched)*. The Status of 2026-10-10
 > above says the one device fact the server still keeps is a wall's last
 > heartbeat, in a file outside the catalogue. That was the whole of it when
 > written, and it is not now. The file `catalogue.sqlite` holds, each in a table
