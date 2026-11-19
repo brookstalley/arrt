@@ -27,6 +27,7 @@ import logging
 import sqlite3
 import uuid
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -650,3 +651,54 @@ def open_existing(path: Path | str) -> sqlite3.Connection:
     connection = sqlite3.connect(str(path))
     connection.row_factory = sqlite3.Row
     return connection
+
+
+# -- the file's record of which release last opened it ------------------------------
+#
+# The record is `file.py`'s (`OPENED_SCHEMA`, and the guard that reads it before
+# anything else touches the file). Its reads and writes are here, beside
+# `file_had_table` and `open_existing`, because this module is where the open's
+# work on the file as a file reaches the driver: `file.py` asks, and imports no
+# driver of its own (`tests/unit/test_persistence_boundary.py`).
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogueOpened:
+    """What the file's record says of the last open."""
+
+    release: str
+    opened_at: str
+    migrations_completed: bool
+
+
+def last_opened(connection: sqlite3.Connection) -> CatalogueOpened | None:
+    """The file's record of its last open, or None when it has none (a new file, or one no release carrying it opened)."""
+    has_table = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'catalogue_opened'").fetchone()
+    if has_table is None:
+        return None
+    row = connection.execute("SELECT release, opened_at, migrations_completed FROM catalogue_opened WHERE id = 1").fetchone()
+    if row is None:
+        return None
+    return CatalogueOpened(release=str(row[0]), opened_at=str(row[1]), migrations_completed=bool(row[2]))
+
+
+def record_the_open(
+    connection: sqlite3.Connection, *, release: str, now: Callable[[], datetime] = system_now, completed: bool
+) -> None:
+    """Write this open into the file's record: first as begun, before any migration, then as completed, after all of them.
+
+    Two writes rather than one after the migrations, so that a start killed in
+    the middle of migrating leaves the file saying so: this release opened it,
+    and did not finish. The next start rewrites the row as begun and finishes.
+    The instant is the open's, written with the first.
+    """
+    if completed:
+        connection.execute("UPDATE catalogue_opened SET migrations_completed = 1 WHERE id = 1")
+    else:
+        connection.execute(
+            "INSERT INTO catalogue_opened (id, release, opened_at, migrations_completed) VALUES (1, ?, ?, 0) "
+            "ON CONFLICT (id) DO UPDATE SET release = excluded.release, opened_at = excluded.opened_at, "
+            "migrations_completed = 0",
+            (release, now().isoformat()),
+        )
+    connection.commit()

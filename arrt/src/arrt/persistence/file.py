@@ -15,9 +15,7 @@ adapter reaching for a table nobody created is refused by name on its first call
 import importlib.metadata
 import logging
 import re
-import sqlite3
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -27,13 +25,16 @@ from arrt.persistence.backup import finish_migration, take_pre_migration_snapsho
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.migrations import (
     DEFAULT_WALL_NAME,
+    CatalogueOpened,
     carry_rotation_to_walls,
     establish_the_wall,
     file_had_table,
+    last_opened,
     mark_the_default_theme,
     open_existing,
     pending_drops,
     random_id,
+    record_the_open,
     rename_awaiting_to_wanted,
     retire_conversations,
     retire_directives,
@@ -96,28 +97,8 @@ def _release_order(release: str) -> tuple[int, int, int] | None:
     return None if found is None else (int(found[1]), int(found[2]), int(found[3]))
 
 
-@dataclass(frozen=True, slots=True)
-class CatalogueOpened:
-    """What the file's record says of the last open."""
-
-    release: str
-    opened_at: str
-    migrations_completed: bool
-
-
 class NewerRelease(RuntimeError):
     """The file was last opened by a release newer than this one, so this one does not open it."""
-
-
-def last_opened(connection: sqlite3.Connection) -> CatalogueOpened | None:
-    """The file's record of its last open, or None when it has none (a new file, or one no release carrying it opened)."""
-    has_table = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'catalogue_opened'").fetchone()
-    if has_table is None:
-        return None
-    row = connection.execute("SELECT release, opened_at, migrations_completed FROM catalogue_opened WHERE id = 1").fetchone()
-    if row is None:
-        return None
-    return CatalogueOpened(release=str(row[0]), opened_at=str(row[1]), migrations_completed=bool(row[2]))
 
 
 def refuse_a_newer_release(path: Path, *, release: str) -> CatalogueOpened | None:
@@ -177,28 +158,6 @@ def refuse_a_newer_release(path: Path, *, release: str) -> CatalogueOpened | Non
             },
         )
     return recorded
-
-
-def record_the_open(
-    connection: sqlite3.Connection, *, release: str, now: Callable[[], datetime] = system_now, completed: bool
-) -> None:
-    """Write this open into the file's record: first as begun, before any migration, then as completed, after all of them.
-
-    Two writes rather than one after the migrations, so that a start killed in
-    the middle of migrating leaves the file saying so: this release opened it,
-    and did not finish. The next start rewrites the row as begun and finishes.
-    The instant is the open's, written with the first.
-    """
-    if completed:
-        connection.execute("UPDATE catalogue_opened SET migrations_completed = 1 WHERE id = 1")
-    else:
-        connection.execute(
-            "INSERT INTO catalogue_opened (id, release, opened_at, migrations_completed) VALUES (1, ?, ?, 0) "
-            "ON CONFLICT (id) DO UPDATE SET release = excluded.release, opened_at = excluded.opened_at, "
-            "migrations_completed = 0",
-            (release, now().isoformat()),
-        )
-    connection.commit()
 
 
 def open_catalogue_file(
