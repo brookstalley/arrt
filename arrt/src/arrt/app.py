@@ -19,7 +19,7 @@ makes the mount work.
 """
 
 import logging
-from collections.abc import AsyncIterator, Collection, Sequence
+from collections.abc import AsyncIterator, Callable, Collection, Sequence
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Final
@@ -64,6 +64,28 @@ MCP_SESSION_IDLE_TIMEOUT_SECONDS: Final[float] = 1800.0
 
 #: Where the client's stylesheet and script are served from.
 STATIC_PATH: Final[str] = "/static"
+
+
+def _start_jobs(
+    services: Services,
+    *,
+    sweep_topics: bool,
+    acquire_queue: bool,
+    schedule: bool,
+    backup: CatalogueBackup | None,
+    backup_interval_seconds: int,
+) -> list[Callable[[], None]]:
+    """Start each background job asked for, in this order; each one's halt, in the same order."""
+    halts: list[Callable[[], None]] = []
+    if sweep_topics:
+        halts.append(start_topic_sweep(services.topic_sweep))
+    if acquire_queue:
+        halts.append(start_acquisition_queue(services.acquisition_queue))
+    if schedule:
+        halts.append(start_scheduler(services.scheduler))
+    if backup is not None:
+        halts.append(start_backups(backup, interval_seconds=backup_interval_seconds))
+    return halts
 
 
 def create_app(
@@ -121,16 +143,14 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         # Stopped in the reverse of the order started, each one only if asked for.
-        halts = [
-            start()
-            for asked, start in (
-                (sweep_topics, lambda: start_topic_sweep(services.topic_sweep)),
-                (acquire_queue, lambda: start_acquisition_queue(services.acquisition_queue)),
-                (schedule, lambda: start_scheduler(services.scheduler)),
-                (backup is not None, lambda: start_backups(backup, interval_seconds=backup_interval_seconds)),
-            )
-            if asked
-        ]
+        halts = _start_jobs(
+            services,
+            sweep_topics=sweep_topics,
+            acquire_queue=acquire_queue,
+            schedule=schedule,
+            backup=backup,
+            backup_interval_seconds=backup_interval_seconds,
+        )
         if backup is None:
             log.info("the catalogue will not be backed up; BACKUP_DIR is not set")
         else:

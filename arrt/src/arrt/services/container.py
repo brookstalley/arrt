@@ -23,7 +23,7 @@ from datetime import datetime
 from decimal import Decimal
 from functools import partial
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 # Module scope, and the three `_default_*` helpers below used to import this at
 # function scope instead, explained as breaking a cycle: "config reads this
@@ -106,6 +106,18 @@ class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
     that one object serves both. When Programming's tables move to a file of
     their own, `bind` takes two stores and this type goes.
     """
+
+
+class _RunnerOptions(TypedDict, total=False):
+    """`DiscoveryRunner`'s arguments that `bind` passes only when asked, so the runner's own default stands otherwise."""
+
+    check_page: Callable[[str], str]
+
+
+class _LookOptions(TypedDict, total=False):
+    """`LookService`'s, as `_RunnerOptions` is the runner's."""
+
+    now: Callable[[], datetime]
 
 
 @dataclass(frozen=True, slots=True)
@@ -367,6 +379,7 @@ class Services:
         judge = None if pool is None else PhaseTwoEngine(pool, profile=quality_profile, registry=registry)
         # One taste service, whose brief both Ask's prompt and phase 1's read.
         taste_service = TasteService(discovery)
+        runner_options: _RunnerOptions = {} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}
         runner_service = DiscoveryRunner(
             discovery_service,
             engine,
@@ -382,8 +395,9 @@ class Services:
             # The pages a run's search cited reach a plugin only past the fetch
             # policy, resolving names the way acquisition does: a suite's stated
             # answers, or the system's.
-            **({} if resolve is None else {"check_page": partial(check_fetchable, resolve=resolve)}),
+            **runner_options,
         )
+        look_options: _LookOptions = {} if look_now is None else {"now": look_now}
         registry_works = RegistryWorkService(catalogue, registry, kept=kept, wanted=discovery_service, profile=quality_profile)
         clients = ClientService(catalogue, display_settings, library)
         return cls(
@@ -431,7 +445,7 @@ class Services:
                 pool=pool,
                 judge=judge,
                 pictures=pictures,
-                **({} if look_now is None else {"now": look_now}),
+                **look_options,
             ),
             topics=topic_service,
             topic_sweep=topic_sweep,

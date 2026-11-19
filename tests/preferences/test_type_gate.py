@@ -30,12 +30,15 @@ ARRT = ROOT / "arrt"
 PYPROJECT = ARRT / "pyproject.toml"
 
 #: The seam's modules, which run strict: the plan's DECISION names them.
+#: `arrt.services.conformance` states, in types, that the adapters satisfy the
+#: seam's Protocols, so it is checked as strictly as they are.
 SEAM_MODULES = (
     "arrt.library.events",
     "arrt.library.facade",
     "arrt.library.readiness",
     "arrt.persistence.catalogue",
     "arrt.programming.store",
+    "arrt.services.conformance",
     "arrt.services.container",
 )
 
@@ -97,7 +100,19 @@ def _modules_with_errors(tmp_path: pathlib.Path) -> set[str]:
     unratcheted = tmp_path / "pyproject.toml"
     unratcheted.write_text(_to_toml(mypy), encoding="utf-8")
     done = subprocess.run(
-        ["uv", "run", "--no-sync", "mypy", "--config-file", str(unratcheted), "--no-error-summary"],
+        # A cache of its own: options differ from the plain run's, and sharing one
+        # cache would make each invalidate the other's (measured here: 22 s warm, minutes cold).
+        [
+            "uv",
+            "run",
+            "--no-sync",
+            "mypy",
+            "--config-file",
+            str(unratcheted),
+            "--cache-dir",
+            ".mypy_cache/unratcheted",
+            "--no-error-summary",
+        ],
         cwd=ARRT,
         capture_output=True,
         text=True,
@@ -157,6 +172,8 @@ def test_the_seam_is_checked_strictly_and_never_excused():
     assert not missing, f"seam modules missing from the strict override: {missing}"
     off = [flag for flag in STRICT_FLAGS if strict.get(flag) is not True]
     assert not off, f"the strict override does not set {off}"
+    excused = sorted(m for m in SEAM_MODULES if _listed(m, _ratchet()))
+    assert not excused, f"seam modules on the ratchet, so nothing checks them: {excused}"
     absent = [m for m in SEAM_MODULES if not (ARRT / "src" / (m.replace(".", "/") + ".py")).is_file()]
     assert not absent, f"seam modules that no longer exist where the override names them: {absent}"
 

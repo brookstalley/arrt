@@ -339,6 +339,7 @@ module = [
     "arrt.library.readiness",
     "arrt.persistence.catalogue",
     "arrt.programming.store",
+    "arrt.services.conformance",
     "arrt.services.container",
 ]
 # `--strict`'s flags that the tree above does not already set, named one by one:
@@ -359,7 +360,6 @@ extra_checks = true
 # listed has an error. Never add a module to it; fix the error.
 [[tool.mypy.overrides]]
 module = [
-    "arrt.app",
     "arrt.ask.agent",
     "arrt.ask.cards",
     "arrt.http.api",
@@ -379,15 +379,10 @@ module = [
     "arrt.library.sources.rijksmuseum",
     "arrt.library.sources.smk",
     "arrt.library.sources.yale",
-    "arrt.logs",
     "arrt.mcp.bindings",
-    "arrt.persistence.records",
-    "arrt.persistence.sqlite",
     "arrt.programming.clients",
     "arrt.programming.display",
     "arrt.programming.manifest.heartbeat",
     "arrt.programming.schedule",
-    "arrt.services.container",
-    "arrt.services.fields",
 ]
 ignore_errors = true
