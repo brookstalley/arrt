@@ -74,7 +74,6 @@ SLEEP_MARK = re.compile(r"#.*\bsleep:\s*\S")
 #: sleeps) at the commit that wrote this guard. Sorted; each chunk of 13-19
 #: deletes its own rows as it converts them.
 UNCONVERTED: dict[str, tuple[int, int]] = {
-    "test_acquisition_states.py": (40, 0),
     "test_activity.py": (14, 0),
     "test_archiving_a_work.py": (35, 0),
     "test_clean_up_facets.py": (19, 0),
