@@ -64,7 +64,8 @@ class TestTheZeroByteGuard:
         # the failure the catalogue refuses to record.
         _run(tmp_path, _serves())
         assert not (tmp_path / "raw" / "work.jpg").exists()
-        assert list((tmp_path / "raw").glob("*.partial")) == []
+        # Nothing at all, hidden staging files included, whatever they are named.
+        assert list((tmp_path / "raw").iterdir()) == []
 
     def test_a_body_of_only_empty_chunks_is_empty(self, tmp_path):
         result = _run(tmp_path, _serves(b"", b"", b""))
@@ -81,7 +82,8 @@ class TestTheSizeCeiling:
         # Truncating would record a half-image nothing downstream could detect.
         _run(tmp_path, _serves(b"x" * 100), max_bytes=50)
         assert not (tmp_path / "raw" / "work.jpg").exists()
-        assert list((tmp_path / "raw").glob("*.partial")) == []
+        # Nothing at all, hidden staging files included, whatever they are named.
+        assert list((tmp_path / "raw").iterdir()) == []
 
     def test_a_body_exactly_at_the_ceiling_is_kept(self, tmp_path):
         result = _run(tmp_path, _serves(b"x" * 50), max_bytes=50)
@@ -132,6 +134,34 @@ class TestRefetching:
         _run(tmp_path, _serves(b"partial", raises=RuntimeError("boom")))
 
         assert held.read_bytes() == b"the image the work is displaying"
+        # And the failed attempt's staging file went with it: the held image is all there is.
+        assert list(held.parent.iterdir()) == [held]
+
+    def test_two_fetches_of_one_work_at_once_each_keep_their_own_bytes(self, tmp_path):
+        """The queue and a curator's retry can fetch one work at the same moment.
+
+        The second fetch starts while the first is still streaming. Sharing one
+        staging name, the second truncated the first's file under it and both
+        handed back the same path, holding neither body whole.
+        """
+        inner = {}
+
+        @contextmanager
+        def first_stream(_url):
+            def chunks():
+                yield b"first-"
+                inner["result"] = _run(tmp_path, _serves(b"second body"))
+                yield b"body"
+
+            yield chunks()
+
+        outer = _run(tmp_path, first_stream)
+        second = inner["result"]
+
+        assert outer.path != second.path
+        assert outer.path.read_bytes() == b"first-body"
+        assert second.path.read_bytes() == b"second body"
+        assert outer.content_hash == hashlib.sha256(b"first-body").hexdigest()
 
 
 @pytest.mark.parametrize("chunks", [(b"a",), (b"a", b"b"), (b"a" * 1000,)])

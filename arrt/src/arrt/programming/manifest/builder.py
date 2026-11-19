@@ -15,15 +15,15 @@ rename is atomic within a filesystem, so a reader never observes a half-written
 one. The feed itself is spelled by `v2.py`.
 """
 
+import io
 import json
-import os
-import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
+from arrt import atomic
 from arrt.counting import agree, agree_partitive, counted
 from arrt.library.facade import Media, PlayableWork, Unplayable, UnplayableReason
 from arrt.persistence.records import Theme, Wall
@@ -189,26 +189,21 @@ def media_document(media: Media) -> dict[str, Any]:
 def write_atomically(path: Path, document: dict[str, Any]) -> None:
     """Replace the manifest in one step, so no reader ever sees a partial one.
 
-    The temp file is created in the destination's own directory because
-    `os.replace` is only atomic within a filesystem, and the obvious temp
-    location is frequently a different one.
+    `atomic.write_with` stages it beside the destination, syncs it and renames
+    it over the old one, so a reader polling this path is handed the previous
+    document whole or the new one whole, never a truncated one that parses as
+    invalid JSON rather than as absent.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as stream:
-            json.dump(document, stream, indent=2, ensure_ascii=False)
-            stream.write("\n")
-            # The rename below publishes whatever is in the file. Without this the
-            # bytes may still be in a buffer, and a reader would be handed a
-            # truncated document that parses as invalid JSON rather than as absent.
-            stream.flush()
-            os.fsync(stream.fileno())
-        Path(temporary).replace(path)
-    except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; the temp file must go on any exit
-        # Wider than `Exception` deliberately, and it swallows nothing: a
-        # `KeyboardInterrupt` or an early close leaves this body just as surely
-        # as an error does, and each one would strand a `.theme-manifest-….v2.json.*`
-        # file beside the real manifest. The same exception continues.
-        Path(temporary).unlink(missing_ok=True)
-        raise
+
+    def fill(handle: BinaryIO) -> None:
+        text = io.TextIOWrapper(handle, encoding="utf-8")
+        try:
+            json.dump(document, text, indent=2, ensure_ascii=False)
+            text.write("\n")
+        finally:
+            # Handed back rather than closed, on every exit: the writer owns the
+            # handle, syncs it, and removes it after a failure, and a wrapper
+            # left to the collector would close it under the writer.
+            text.detach()
+
+    atomic.write_with(path, fill)

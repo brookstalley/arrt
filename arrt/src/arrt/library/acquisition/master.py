@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from arrt import atomic
 from arrt.library.services.imaging import encode_downscaled, reading
 from arrt.library.services.quality import PRESENTATION_MASTER_LONG_EDGE_PX
 
@@ -70,14 +71,10 @@ def make_master(source: Path, *, destination: Path) -> Master:
     been written, so a failure partway costs the work nothing it already had.
     """
     frame = reading(source, lambda: encode_downscaled(source, max_edge=PRESENTATION_MASTER_LONG_EDGE_PX, quality=JPEG_QUALITY))
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    staged = destination.with_name(f"{destination.name}.making")
-    try:
-        staged.write_bytes(frame.data)
-        staged.replace(destination)
-    except OSError:
-        staged.unlink(missing_ok=True)
-        raise
+    # Through a staging name of its own: the queue and a regenerate can make the
+    # same work's master at once, and two writers sharing one staging file move
+    # each other's half-written bytes into place.
+    atomic.write_bytes(destination, frame.data)
     return Master(path=destination, width=frame.width, height=frame.height)
 
 

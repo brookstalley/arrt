@@ -13,11 +13,12 @@ test for each. No canvas is composed on this side: each wall's Player draws its
 own mat.
 """
 
-from pathlib import Path
+import errno
 
 import pytest
 from PIL import Image
 
+from arrt import atomic
 from arrt.library.services.thumbnails import (
     LARGE_THUMBNAIL_MAX_EDGE_PX,
     THUMBNAIL_MAX_EDGE_PX,
@@ -251,21 +252,25 @@ class TestGenerating:
         contract did not. Encoding now happens in memory and only the finished
         bytes reach the disk, so a failure during *encode* can no longer strand
         anything — there is nothing on disk yet to strand. What remains is the
-        disk write itself, which is what this now fails, and it is covered by the
-        `finally` rather than by either named handler.
+        disk write itself, which is what this now fails.
+
+        **It fails where the shared writer meets the disk**: the bytes are in the
+        staging file and the sync refuses them, which is where a full disk on a
+        network mount says so. The staging file is on disk at that moment, so
+        only the writer's own cleanup can leave the cache empty.
         """
         artwork = work()
-        intact = Path.write_bytes
+        staged_when_refused = []
 
-        def fail_partway(self, data):
-            intact(self, b"\xff\xd8half an image")
-            raise OSError("no space left on device")
+        def refuse(descriptor):
+            staged_when_refused.extend(path for path in _leftovers(settings) if path.name.startswith("."))
+            raise OSError(errno.ENOSPC, "no space left on device")
 
-        monkeypatch.setattr(Path, "write_bytes", fail_partway)
+        monkeypatch.setattr(atomic.os, "fsync", refuse)
         with pytest.raises(ThumbnailUnavailable, match="could not be read"):
             thumbnails.thumbnail(artwork.id)
-        monkeypatch.setattr(Path, "write_bytes", intact)
 
+        assert staged_when_refused, "the write never reached the disk, so the cleanup was not exercised"
         assert _leftovers(settings) == []
 
     def test_a_mode_pillow_refuses_to_convert_is_reported_not_raised(self, thumbnails, work, monkeypatch):
