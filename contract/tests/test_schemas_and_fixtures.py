@@ -129,6 +129,29 @@ def test_every_invalid_fixture_says_what_it_breaks():
             assert row.get("breaks") in {"schema", "semantics"}, row["path"]
 
 
+#: Superseded in contract 1.2.0 and kept required until heartbeat major 2: a
+#: required key made optional is a writer change an older reader refuses.
+SUPERSEDED = ("television_reachable", "television_showing_art", "has_label_surface", "label_surface_working")
+
+
+@pytest.mark.parametrize("name", SUPERSEDED)
+def test_a_superseded_wall_heartbeat_field_is_said_to_be_and_is_still_required(name):
+    heartbeat = schema("schemas/heartbeat.v1.schema.json")
+
+    assert name in heartbeat["required"]
+    assert heartbeat["properties"][name]["description"].startswith("Superseded")
+
+
+def test_invalid_client_heartbeats_say_whether_the_server_must_refuse_them():
+    """Arrt's suite reads this flag to choose its 400 test or its tolerance test; a row without it is one neither runs."""
+    rows = [row for row in INDEX if row["path"].startswith("fixtures/client-heartbeat.v1/invalid/")]
+
+    assert rows
+    for row in rows:
+        assert isinstance(row.get("server_must_refuse"), bool), row["path"]
+    assert {row["server_must_refuse"] for row in rows} == {True, False}
+
+
 def test_invalid_manifests_say_whether_a_player_must_refuse_them():
     """Arrt Player's suite reads this flag while collecting, so a row without it stops that suite at collection."""
     for row in INDEX:

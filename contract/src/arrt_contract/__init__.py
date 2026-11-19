@@ -4,7 +4,9 @@
 tested against: the JSON Schemas, the fixtures that pin each schema's rules, the
 conformance vectors every Player runs, the routes a Player may request, and
 `semantic_errors`, the reference statement of the manifest rules a schema cannot
-state. They travel together because the schemas alone do not carry those rules,
+state, what each route answers (`transport`), the household's words both sides
+say (`vocabulary`), and frozen copies of each released minor (`released`). They
+travel together because the schemas alone do not carry those rules,
 and a Player pinned to schemas without them would pass documents Arrt refuses.
 
 Arrt owns the source. A Player depends on a released version and reads the
@@ -27,13 +29,16 @@ __all__ = [
     "fixtures",
     "instant_key",
     "registry",
+    "released",
     "root",
     "routes",
     "schema",
     "semantic_errors",
     "specification",
     "timing",
+    "transport",
     "validator",
+    "vocabulary",
 ]
 
 _HERE = Path(__file__).resolve().parent
@@ -71,9 +76,10 @@ def _load(relative: str) -> Any:  # noqa: ANN401 -- a JSON document is any JSON 
     return json.loads((root() / relative).read_text(encoding="utf-8"))
 
 
-def schema(relative: str) -> dict:
+def schema(relative: str) -> dict[str, Any]:
     """One schema, by its path under `root()`, such as `schemas/manifest.v2.schema.json`."""
-    return _load(relative)
+    document: dict[str, Any] = _load(relative)
+    return document
 
 
 @cache
@@ -108,17 +114,20 @@ def instant_key(relative: str) -> str:
     keys = [key for key in document.get("required", []) if properties.get(key, {}).get("format") == "date-time"]
     if len(keys) != 1:
         raise ValueError(f"{relative} has {len(keys)} required date-time properties, not one: {keys}")
-    return keys[0]
+    key: str = keys[0]
+    return key
 
 
-def fixtures() -> list[dict]:
+def fixtures() -> list[dict[str, Any]]:
     """The fixture index's rows: each fixture's path, its schema, whether it is valid, and what an invalid one breaks."""
-    return _load("fixtures/index.json")["fixtures"]
+    rows: list[dict[str, Any]] = _load("fixtures/index.json")["fixtures"]
+    return rows
 
 
-def routes() -> dict[str, dict]:
+def routes() -> dict[str, dict[str, str]]:
     """The routes a Player may request, and nothing else, by name: each a `method` and a `path`."""
-    return _load("routes.json")["routes"]
+    named: dict[str, dict[str, str]] = _load("routes.json")["routes"]
+    return named
 
 
 def timing() -> dict[str, int]:
@@ -126,11 +135,47 @@ def timing() -> dict[str, int]:
     return {key: value for key, value in _load("timing.json").items() if not key.startswith("_")}
 
 
+def transport() -> dict[str, Any]:
+    """What each route answers and what each answer means to a Player: `transport.json`.
+
+    `routes` holds, for each route `routes()` names, its `answers` (one row per
+    status a Player may meet: `case`, `status`, `body`, `means`, `player`), the
+    schema of the document it serves or takes, and for a document its
+    `max_bytes`. Beside them: `conditional_get` (the ETag rule and its cases),
+    `unanswered` (what any 5xx or no answer means), `error_body` and
+    `size_bounds`. `player-contract.md` § Transport is the prose of it.
+    """
+    table: dict[str, Any] = _load("transport.json")
+    return table
+
+
+def vocabulary() -> dict[str, Any]:
+    """The household's words both sides say alike: `vocabulary.json`.
+
+    `display_states` maps each display state to its `word`, who reports it
+    (`reported_by`), whether it is a setup step (`setup`) and what it `means`;
+    `pairing` names the settings page's two pairing fields.
+    """
+    words: dict[str, Any] = _load("vocabulary.json")
+    return words
+
+
+def released() -> dict[str, Path]:
+    """Each released version's frozen copy, by version: a directory holding its `fixtures/` and `routes.json`.
+
+    Copied from the release's tag when it was cut, with `sha256.json` recording
+    each file's hash then. A consumer can hold itself to what an older Player or
+    server was tested against: every valid fixture of a release this major
+    still validates at this version (`contract/tests/test_released.py`).
+    """
+    return {path.name: path for path in sorted((root() / "released").iterdir()) if path.is_dir()}
+
+
 def _instant(text: str) -> datetime:
     return datetime.fromisoformat(text)
 
 
-def semantic_errors(document: dict) -> list[str]:
+def semantic_errors(document: dict[str, Any]) -> list[str]:
     """The major 2 rules a schema cannot state, each broken rule reported once.
 
     Every work the schedule, a scene or staging names is in `works`; slots run

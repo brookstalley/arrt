@@ -78,9 +78,15 @@ def test_the_wheel_carries_the_data_inside_the_package(wheel):
     names = set(zipfile.ZipFile(wheel).namelist())
     on_disk = {
         f"arrt_contract/{path.relative_to(CHECKOUT)}"
-        for kind in ("schemas", "fixtures", "vectors")
+        for kind in ("schemas", "fixtures", "vectors", "released")
         for path in (CHECKOUT / kind).rglob("*.json")
-    } | {"arrt_contract/routes.json", "arrt_contract/timing.json", "arrt_contract/player-contract.md"}
+    } | {
+        "arrt_contract/routes.json",
+        "arrt_contract/timing.json",
+        "arrt_contract/transport.json",
+        "arrt_contract/vocabulary.json",
+        "arrt_contract/player-contract.md",
+    }
     assert on_disk <= names, sorted(on_disk - names)
 
 
@@ -96,6 +102,11 @@ def test_an_installed_wheel_reads_its_own_data(wheel, tmp_path, monkeypatch):
     assert installed.specification().read_text(encoding="utf-8").startswith("---\nartifact: player-contract\n")
     assert len(installed.fixtures()) == len(arrt_contract.fixtures())
     assert installed.routes() == arrt_contract.routes()
+    assert installed.transport() == arrt_contract.transport()
+    assert installed.vocabulary() == arrt_contract.vocabulary()
+    assert {version: path.relative_to(package) for version, path in installed.released().items()} == {
+        version: path.relative_to(arrt_contract.root()) for version, path in arrt_contract.released().items()
+    }
     assert installed.validator("schemas/label.v1.schema.json").schema["$id"].endswith("label.v1.schema.json")
 
 
