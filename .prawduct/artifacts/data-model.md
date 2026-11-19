@@ -8,28 +8,32 @@ last_validated: null
 
 # Data Model
 
-> **Direction changed 2026-09-30. Read `re-architecture.md`.** The entities below
-> are as built. The target assigns each to one of three roles:
-> - **Library:** Artwork, Artist, Source, Original, MatColor, WorkFacet, Affinity,
->   DiscoveryRun, CandidateWork, CandidateImage, SpendRecord and ResolveRunWork.
-> - **Programming:** Theme (now a playlist), ThemeMembership, Wall,
->   ThemeAssignment and Directive.
-> - **Player:** TvBinding (already display-only).
+> **Direction changed 2026-09-30. Read `re-architecture.md`; what it changed here
+> has landed, except two things named below.** Each entity belongs to one of
+> three roles, and `tests/preferences/test_seam_foreign_keys.py` (its `OWNER`
+> table) holds every table of the catalogue file to one of the first two:
+> - **Library:** Artwork, Artist, Source, Original, Rendition, MatColor, WorkFacet,
+>   AcquisitionQueue, HistoryEvent, Affinity, DiscoveryRun, CandidateWork,
+>   CandidateImage, SpendRecord, ResolveRunWork, Watch, Sighting, RunCitation and
+>   StoredSetting.
+> - **Programming:** Theme (a theme is what *playlist* named in the re-architecture,
+>   and the contract's one `playlist` field keeps that name), ThemeMembership,
+>   ThemeAssignment, DefaultThemeOffer, WorkExclusion, Wall, Client, Display,
+>   LabelOutput, Reported screen, Showing and Scene (`scenes`, `scene_pins`).
+> - **Player:** TvBinding, which is Arrt Player's and not in this repository's code
+>   (its section below stays as the record of what the per-device norm keeps out).
 >
-> Library and Programming share one server process but get **separate stores
-> with no cross-seam foreign keys** (`architecture.md` § Direction, the
-> Library/Programming seam norms). Three changes are planned and not built:
-> - The `tv_display` Rendition leaves the catalogue. Compositing moves to the
->   Player (wave 4), and a device-independent presentation master takes its place.
-> - The entities in § Planned entities are added.
-> - The two foreign keys that cross the seam today are dropped:
->   `theme_memberships.artwork_id` and `directives.pinned_work_id`.
->
-> *(Wave 4g, 2026-10-10: the first and the half of the third are built. The
-> `tv_display` Rendition and its `mat_hex` column are gone, and the presentation
-> master is what readiness rests on (§ Rendition). The Directive entity and its
-> table are gone (§ Directive), taking `directives.pinned_work_id` with them;
-> `theme_memberships.artwork_id` is the one cross-seam key left, for #216.)*
+> Built since 2026-09-30: the `tv_display` Rendition and its `mat_hex` column are
+> gone and the presentation master is what readiness rests on (§ Rendition); the
+> Directive entity and its table are gone (§ Directive); the entities in § Entities the
+> re-architecture added are built except ProgrammingTag and the smart theme rule.
+> **Not built:** the two stores. Library and Programming share one catalogue file
+> and one server process, and **one foreign key crosses the seam**,
+> `theme_memberships.artwork_id`. The split into two files and that key's removal
+> (`architecture.md` § Direction, rule 3; #216) are not a requirement now (the
+> owner, ruling 9 of 2026-11-19), so Programming's tables stay in the file and
+> hold the Library's ids as opaque text, as `showings`, `work_exclusions` and
+> `scene_pins` do.
 
 ## Direction
 
@@ -40,7 +44,7 @@ identity independent of where it was found. Source URLs are attributes of a
 > **Why:** The 2024 catalogue keyed identity on the source URL. Two consequences
 > followed: if a museum reorganises its site the artwork's identity breaks, and
 > the same painting sourced from two institutions becomes two unrelated records.
-> Both are silent corruptions — nothing errors, the collection just quietly
+> Both are silent corruptions — nothing errors, the Library just quietly
 > degrades.
 >
 > **Status:** steady-state.
@@ -104,6 +108,39 @@ entities owned by the plane that talks to that device.
 > **Rulings:** the Wall entity, and which client drives it on which named output,
 > conform — a wall is a place and its assignment a curatorial act (§ Wall, ruled
 > 2026-10-02 and amended by `clients.md`).
+
+> **What the catalogue file holds per device today** *(a description, written
+> 2026-11-19 from the code; the norm's wording above awaits the owner, question 1
+> of `decisions-arrt-wave-2.md`, and is untouched)*. The Status of 2026-10-10
+> above says the one device fact the server still keeps is a wall's last
+> heartbeat, in a file outside the catalogue. That was the whole of it when
+> written, and it is not now. The file `catalogue.sqlite` holds, each in a table
+> Programming owns:
+> - **`clients`:** a Player's name and the verifier of its one token. Nothing
+>   about the device (`persistence/sqlite.py`).
+> - **`displays`:** one physical screen by the `identity` its Player read from the
+>   device (a Frame's device id, else `{client_id}/{output}`), the Player that last
+>   reported it, the Player's name for the `output`, its `kind` (`frame` or
+>   `framebuffer`) and when first seen.
+> - **`label_outputs`:** a caption surface by Player and output name, and the wall
+>   it captions.
+> - **`walls`:** a place, its `display_id`, and the settings the server sends down
+>   (mat mode, interval, shuffle, the range of shapes).
+> - **`reported_screens`:** each screen size a display's Player reported, and
+>   when it last did, kept a week, so a work is judged against the largest size
+>   reported recently (§ Reported screen).
+> - **`showings`:** what each wall showed, one row per stretch of one work, from
+>   the Players' heartbeats (§ Showing).
+>
+> Still outside the catalogue, one file each under `ART_ROOT`, overwritten at
+> each report: the last heartbeat of each wall (`display-heartbeat-{wall_id}.json`)
+> and of each Player (`client-heartbeat-{client_id}.json`). A Player's network
+> address, a panel's geometry and model, and a television's content ids are in
+> neither; `reported_screens` keeps screen *sizes*, which is geometry, and says
+> so. What `test_catalogue_store.py` holds is the columns of the tables it lists
+> in `_EXPECTED_SCHEMA` (`clients`, `displays`, `label_outputs`, `walls`,
+> `showings` among them; `reported_screens` is not listed) and one forbidden
+> column by name, `display_fit`; it does not hold the norm's sentence.
 
 **Derived artifacts are regenerated, never transported.** Anything rendered for a
 specific output geometry is reproducible from upstream inputs and is never
@@ -219,7 +256,7 @@ to serve, elicited from the Product Brief's core flows:
 | Q12 | Which proposed works could not be resolved to any credible image, and which kind of nothing was it? | 2 |
 | Q13 | What has the curator reacted warmly or coolly to — by artist, movement, era or subject — so a later conversation opens knowing it and discovery can weight what it proposes? | 1, 2 |
 | Q14 | How was each of those judgments arrived at, so it can be revisited, corrected, or rebuilt if the way we derive them changes? | 1 |
-| Q15 | What is this work — its movement, period and subject — so a catalogue of thousands can be filtered down to the handful worth looking at, and so taste can be matched against it? | 5 |
+| Q15 | What is this work — its movement, period and subject — so a Library of thousands can be filtered down to the handful worth looking at, and so taste can be matched against it? | 5 |
 | Q16 | Which theme do new works join, if any, so that what the curator accepts lands somewhere it can be hung? At most one, enforced by the store. | Ruling 8 |
 | Q17 | Has this work already been offered to the default theme, so that neither a restart nor a restore puts back a work the curator took out? | Ruling 8 |
 | Q18 | Is this registry result a work the library holds, so a list of an artist's works can mark the ones held without matching on titles? | Ruling 7 |
@@ -336,11 +373,11 @@ with the presented token's client. The question `clients.Placements` answers onc
 for all three, so `GET /client`, admission and every display state cannot
 disagree.
 
-**Q15 is what makes the collection navigable at the amended scale**
+**Q15 is what makes the Library navigable at the amended scale**
 (`nonfunctional-requirements.md`, thousands of works). At 41 works a curator
 scrolls; at 4,000 an unfiltered grid is a wall of pictures with no way in. It is
 answered by `WorkFacet`, in the same vocabulary `Affinity` uses, because the second
-half of the question — matching taste against the catalogue — is impossible if the
+half of the question — matching taste against the Library — is impossible if the
 two sides name things differently.
 
 **Q13 and Q14 arrived together on 2026-08-10, with conversational intent-forming**
@@ -611,22 +648,15 @@ the art tree that rsync carries and git does not.
 > with no producer is the same defect the re-search review flagged, so the value is
 > removed rather than reserved.
 
-> **Direction changed 2026-09-30.** The derived `display_fit` verdict above is
-> computed from panel geometry that the server will no longer hold after wave 4.
-> Target (settled later on 2026-09-30): the Player reports its geometry in its
-> heartbeat as a capability, and **Programming** judges adequacy per wall by
-> comparing it with the work's pixel dimensions ("this work is too small for the
-> living room"). The Player composes and does not judge. Selection and the review
-> card judge against the Library's quality profile, which is stated in pixels
-> and names no device. The Library keeps only `width` and `height`, as this
-> section already requires.
->
-> **Built 2026-10-08 (wave 4b).** The verdict is now judged against the quality
-> profile (§ Quality profile), by `library/services/quality.py`: `meets_minimum`
-> or `below_minimum`, and none when a size is unknown. `native` and
-> `matted_small` are retired with the box they were judged against; the
-> paragraphs above stay as the record of why the verdict is derived, which is
-> unchanged. Programming's per-wall judgement is wave 4e.
+> **Landed (waves 4b and 4e, 2026-10-08 and 2026-10-09; `re-architecture.md`).**
+> The derived `display_fit` verdict above is judged against the Library's quality
+> profile (§ Quality profile), in pixels and naming no device, by
+> `library/services/quality.py`: `meets_minimum` or `below_minimum`, and none when
+> a size is unknown. `native` and `matted_small` are retired with the box they were
+> judged against. Programming judges a work against each wall's reported screen
+> (`programming/adequacy.py`; § Reported screen), and the Player composes and
+> does not judge. The paragraphs above stay as the record of why the verdict is
+> derived.
 
 ### AcquisitionQueue
 
@@ -756,7 +786,7 @@ regenerating it costs money.
 
 ### Theme
 
-> **Programming-owned from 2026-09-30** (`re-architecture.md`). A theme becomes a **playlist**, and can become a **smart playlist**: a rule over Library facets and Programming tags, plus manual additions and exclusions (see § Planned entities). Its store moves to Programming's own file.
+> **Programming-owned from 2026-09-30** (`re-architecture.md`). A theme is Programming's, and can become a **smart theme** (the re-architecture's smart playlist; **not built**): a rule over Library facets and Programming tags, plus manual additions and exclusions (see § Entities the re-architecture added). Its tables stay in the one catalogue file for now, because the store split is not a requirement (the owner, ruling 9 of 2026-11-19). The contract's `playlist` field is where a wall's feed names the theme; the field keeps its name until the contract's next breaking version (ruling 1 of 2026-11-19).
 
 The curator's unit of intention. What "per-user preferences" resolved to — a
 naming and grouping concept, not an accounts concept.
@@ -1228,7 +1258,7 @@ the wall is created so that no caller ever has to make it.
 > writes a facet.
 
 What a work *is*, in the same typed vocabulary the curator's taste is expressed in.
-Answers Q15. Added 2026-08-10 with the collection's retrieval surface
+Answers Q15. Added 2026-08-10 with the Library's retrieval surface
 (`information-architecture.md` § Retrieval).
 
 | Field | Type | Constraints | Description |
@@ -1266,7 +1296,7 @@ Answers Q15. Added 2026-08-10 with the collection's retrieval surface
 > `sourced`, at least for the wired collection. That is a fact about the providers
 > rather than a defect, and it is exactly why every row must say which it is: a
 > facet the museum published and a facet a model guessed carry different authority,
-> and a curator correcting the catalogue needs to know which one they are arguing
+> and a curator correcting the Library needs to know which one they are arguing
 > with.
 >
 > **The operator confirmed this direction on 2026-08-10 — lean on model
@@ -2477,7 +2507,7 @@ the catalogue.
 - **WorkFacet** and **Affinity** share the `kind` vocabulary and are joined on
   (`kind`, `value`) rather than by a foreign key. **Deliberately a value join:** an
   affinity may name a movement no work in the catalogue has yet, which is the
-  normal state for taste that runs ahead of the collection — and an FK would make
+  normal state for taste that runs ahead of the Library — and an FK would make
   that judgment unwritable, the same reason `Affinity.value` is not an FK to
   `Artist`.
 - An **Affinity** may resolve to one **Artist** (many-to-one, optional). **The
@@ -3102,12 +3132,16 @@ single interaction the product exists to make easy.
 > display plane's own store, not in the catalogue — per this artifact's own third
 > Direction norm.
 
-## Planned entities (re-architecture, 2026-09-30, not built)
+## Entities the re-architecture added (2026-09-30)
 
-Proposals from `re-architecture.md`, to be settled in the wave that builds each.
-Field lists are starting points, not contracts. Each is a persisted format, so
-its wave's plan enumerates the questions it must answer before the fields are
-fixed (`methodology/planning.md`).
+Proposed in `re-architecture.md` and settled in the wave that built each. **Built:**
+Watch, Player observation, Wall settings (the mat mode, interval, shuffle and
+shapes; the label settings wait), Schedule entry, Reported screen, Scene (less
+*keep*) and the Quality profile; each says so and where it lives. **Not built:**
+ProgrammingTag and the smart theme rule, which have no wave. Field lists on the
+two not built are starting points, not contracts; each is a persisted format, so
+the plan that builds one enumerates the questions it must answer before the
+fields are fixed (`methodology/planning.md`).
 
 ### ProgrammingTag *(Programming)*
 
@@ -3122,9 +3156,9 @@ Unique on (`work_id`, `tag`). The vocabulary is open, unlike `VocabularyKind`,
 because it is household language rather than a taxonomy that taste has to join
 against.
 
-### Smart playlist rule *(Programming; fields on Theme)*
+### Smart theme rule *(Programming; fields on Theme; not built)*
 
-A theme gains an optional **rule**: boolean AND/OR/NOT over Library facets
+The re-architecture's *smart playlist*. A theme gains an optional **rule**: boolean AND/OR/NOT over Library facets
 (`kind: value`), Programming tags, and perhaps a date range. Explicit
 memberships act as manual additions, and an exclusion list removes works. The
 rule is evaluated in Programming: the Library facade returns the ids matching the
@@ -3215,7 +3249,7 @@ and `show_now` and `next` republish the schedule; scenes and staging are 4f.)*
 The manifest also lists works under
 **staging**, so Players fetch and compose a scene's works while it is being
 assembled. Wave 4.
-*(Wave 4f, 2026-10-26: built less keep, which waits for a pin or a playlist to
+*(Wave 4f, 2026-10-26: built less keep, which waits for a pin or a theme to
 keep into (`build-plan-wave-4f-scenes.md`). Two tables: `scenes` (id, status of
 draft, live or ended; lifetime of preview or hold; `starts_at`, `until`,
 `created_at`, `ended_at`) and `scene_pins` (scene, wall, work; one work per wall
