@@ -169,10 +169,11 @@ class LibraryFacade:
         self._catalogue.record_event(act.kind, wall_id=act.wall_id, theme_id=act.theme_id, work_id=act.work_id, detail=act.detail)
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
-        """Be told which work changed, after each change commits.
+        """Be told which works changed, after each change commits.
 
-        The announcement names the work and what happened, and nothing else. A
-        subscriber that needs to know whether the work can still go on a wall
+        The announcement names the works one commit changed and what happened to
+        them, and nothing else: a bulk act is one announcement, not one per work.
+        A subscriber that needs to know whether a work can still go on a wall
         asks `playable`, which is the only verdict there is. After a split this
         is a webhook registration.
         """
