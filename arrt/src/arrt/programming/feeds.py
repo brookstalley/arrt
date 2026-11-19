@@ -365,7 +365,7 @@ class FeedPublisher:
             mentioned = {work_id for feed in feeds.values() if feed for work_id in feed.carried}
             asked = mentioned if named is None else mentioned & named
             joining = {
-                wall_id: self._held(theme_id, named) - set(feeds[wall_id].works if feeds[wall_id] else ())
+                wall_id: self._held(theme_id, named) - set(had.works if (had := feeds[wall_id]) else ())
                 for wall_id, theme_id in hung.items()
             }
             asked |= {work_id for candidates in joining.values() for work_id in candidates}
@@ -375,7 +375,7 @@ class FeedPublisher:
                 wall.id: {
                     work_id
                     for work_id in self._pinned_work_ids(wall.id)
-                    if (named is None or work_id in named) and work_id not in (feeds[wall.id].carried if feeds[wall.id] else {})
+                    if (named is None or work_id in named) and work_id not in (had.carried if (had := feeds[wall.id]) else {})
                 }
                 for wall in walls
             }
@@ -680,7 +680,7 @@ class FeedPublisher:
             beside.held.append(_Held(wall_id, playlist, schedule, works))
             return schedule
         walls = {wall.id: wall for wall in self._store.list_walls()}
-        feeds = {other: feed for other in walls if (feed := self.published(other)) is not None}
+        feeds = {other: current for other in walls if (current := self.published(other)) is not None}
         neighbours = sorted(
             other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
         )

@@ -279,6 +279,7 @@ class Scenes:
         kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
         for pin in self._pins_on_held_walls(view.pins):
             wall = self._store.get_wall(pin.wall_id)
+            assert wall is not None  # noqa: S101 -- `_pins_on_held_walls` held it a moment ago
             contents = heartbeat.read(self._settings.heartbeat_path(wall.id)).contents or {}
             walls.append(
                 SceneWall(
@@ -340,6 +341,7 @@ class Scenes:
         }
         for pin in self._pins_on_held_walls(pins):
             wall = self._store.get_wall(pin.wall_id)
+            assert wall is not None  # noqa: S101 -- `_pins_on_held_walls` held it a moment ago
             words: dict[str, object] = {"scene_id": scene.id, **detail, "wall_name": wall.name}
             if pin.work_id in titles:
                 words["title"] = titles[pin.work_id]
