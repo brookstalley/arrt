@@ -8,6 +8,7 @@ the default, so a control that changed only the page would fail.
 """
 
 import json
+import re
 from datetime import UTC, datetime
 
 import httpx
@@ -20,6 +21,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 REPORT = {
     "outputs": [
@@ -293,6 +296,59 @@ def test_escape_closes_the_dialog_and_changes_nothing(ui, services, the_wall, ha
 
     assert services.display.get_wall(the_wall.id).name == the_wall.name
     assert walls_read(ui)[the_wall.id]["client_id"] is None
+
+
+def test_the_dialog_has_one_filled_act_and_it_is_show_it_there(ui, services, the_wall, hall, a_theme_to_hang):
+    """One filled act per region (`design-direction.md` § Buttons; audit 2026-11-19, finding 7).
+
+    Every section is drawn: a hung wall, so its rotation, shapes and mat are
+    offered, and a Player with a free label panel, so *Caption it* is too.
+    Five were filled; *Show it there* is the one, and every other commit is quiet.
+    """
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
+    # A panel recorded for Hall Pi and captioning nothing, so *Caption it* is offered.
+    labelled = services.clients.add_label(the_wall.id, client_id=hall.id, output="epd-0")
+    services.clients.remove_label(the_wall.id, label_id=labelled.label.id)
+    dialog = open_edit(ui, the_wall.name)
+    expect(dialog.get_by_role("button", name=f"Caption {the_wall.name} with this label panel")).to_be_visible()
+
+    filled = dialog.locator("button.action:not(.quiet)")
+    expect(filled).to_have_count(1)
+    expect(filled).to_have_accessible_name(f"Show {the_wall.name} there")
+    for name in (
+        f"Rename {the_wall.name}",
+        f"Caption {the_wall.name} with this label panel",
+        f"Set the rotation on {the_wall.name}",
+        f"Set the shapes on {the_wall.name}",
+        f"Set the mat on {the_wall.name}",
+    ):
+        expect(dialog.get_by_role("button", name=name)).to_have_class(re.compile(r"\bquiet\b"))
+
+
+def test_close_names_the_sections_it_would_leave_unset(ui, services, the_wall, hall, a_theme_to_hang):
+    """Audit 2026-11-19, finding 7: edit two sections, set one, and Close could not say which was saved.
+
+    The line above *Close* names each section whose fields differ from what the
+    server last took, in the dialog's order; setting one takes it off the line,
+    and putting a field back takes its section off too.
+    """
+    services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
+    dialog = open_edit(ui, the_wall.name)
+    unsaved = dialog.locator("p.wall-unsaved")
+    expect(unsaved).to_be_hidden()
+
+    dialog.get_by_label(f"Mat on {the_wall.name}", exact=True).select_option("none")
+    dialog.get_by_label("Name", exact=True).fill("The hall")
+    expect(unsaved).to_have_text("Not set yet: Name and Mat. Close leaves them as they were.")
+    close = dialog.get_by_role("button", name="Close")
+    expect(close).to_have_attribute("aria-describedby", unsaved.get_attribute("id"))
+
+    dialog.get_by_role("button", name=f"Set the mat on {the_wall.name}").click()
+    expect(unsaved).to_have_text("Not set yet: Name. Close leaves it as it was.")
+    assert services.display.get_wall(the_wall.id).mat_mode == "none"
+
+    dialog.get_by_label("Name", exact=True).fill(the_wall.name)
+    expect(unsaved).to_be_hidden()
 
 
 @pytest.fixture

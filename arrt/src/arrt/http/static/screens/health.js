@@ -1,4 +1,10 @@
-/* Status — the observations the panel states, and the spend record.
+/* Status — the observations the panel states: each wall's last report, the
+ * image sources, the Watches, the kept pictures and the backup.
+ *
+ * **It holds no spend record.** `information-architecture.md` said it did, and
+ * `services/health.py` deliberately leaves spend off this reading; a Get's cost
+ * is on its own page, and the month's spend is the sidebar's (audit
+ * 2026-11-19, F12).
  *
  * **Status, under System**, where every *arr app keeps its health checks
  * (`information-architecture.md` § The *arr layout). The top-bar indicator and
@@ -6,7 +12,11 @@
  * Its address is still `#health`, from before the rename, so a failure's link
  * and a curator's bookmark keep working.
  *
- * **One heartbeat panel per wall.** The reading became one per wall because a
+ * **Its words are the household's** (§ Vocabulary): a Player reports for a
+ * wall. The server's own sentences, which name the file they read, "the display
+ * plane" and the heartbeat, are debug's (ruling 1 of 2026-10-11).
+ *
+ * **One report panel per wall.** The reading became one per wall because a
  * single observation for an installation with two rooms cannot name the room
  * that went quiet. One wall is the degenerate case of many here as everywhere
  * else on this surface: with one wall this is one panel and reads exactly as the
@@ -118,7 +128,7 @@ function heartbeatPanel(wall, titles) {
   if (!reading) {
     return el("div", { class: "panel wall-reading" }, [
       el("h2", {}, [name]),
-      el("p", { class: "note", text: "The health reading carries no heartbeat for this wall." }),
+      el("p", { class: "note", text: "This status reading says nothing about this wall." }),
     ]);
   }
   // `wall-reading` as well as `panel`, and the extra class earns its place twice
@@ -153,7 +163,7 @@ function heartbeatPanel(wall, titles) {
           // sentence and the per-wall one is the survivor: with a panel per room
           // "here" has several possible referents and names none of them, which
           // is the exact ambiguity splitting the heartbeat per wall removed.
-          text: "Nothing has ever written a heartbeat for this wall. Where no display is pointed at it, that is the correct reading rather than a fault.",
+          text: "No Player has ever reported for this wall. Where no Player shows it yet, that is expected rather than a fault.",
         })
       : null,
     details(
@@ -199,7 +209,7 @@ function heartbeatPanels(health, titles) {
     return [
       el("div", { class: "panel" }, [
         el("h2", { text: "Walls" }),
-        el("p", { class: "note", text: "No wall is recorded, so there is no heartbeat to read." }),
+        el("p", { class: "note", text: "No wall is recorded, so there is no report to read." }),
       ]),
     ];
   }
@@ -329,11 +339,14 @@ function picturesPanel(health) {
   }
   return el("div", { class: "panel pictures-reading" }, [
     el("h2", { text: "Kept pictures" }),
+    // The server's sentence carries the count's age, so the facts below do not
+    // say it a second time (audit 2026-11-19, finding 20: "counted 226 seconds
+    // ago" over "Counted 4 minutes ago"). The sentence stays because it also
+    // carries what an unreadable store means; its wording is the server's.
     el("p", { class: "reading-sentence", text: pictures.description }),
     facts([
       ["Files", pictures.pictures_files.toLocaleString()],
       ["Bytes", pictures.pictures_bytes.toLocaleString()],
-      ["Counted", ago(pictures.age_seconds)],
       // Only when the disk refused part of the walk: the count is then short,
       // and saying so is what keeps an unreadable store from reading as an empty one.
       ["Could not be read", pictures.unreadable ? `${pictures.unreadable.toLocaleString()} entries` : null],
@@ -388,7 +401,15 @@ export async function viewHealth(generation) {
     picturesPanel(health),
     el("div", { class: "panel" }, [
       el("h2", { text: "Backup" }),
-      el("p", { class: "reading-sentence", text: health.backup.description }),
+      // The server's sentence names the record's file when there is no backup
+      // or it cannot be read, which is plumbing (audit 2026-11-19, finding 8):
+      // then the sentence is debug's, and the facts and the note below say it
+      // in words. A completed backup's sentence names no file and is said.
+      health.backup.absent || health.backup.problem
+        ? DEBUG
+          ? el("p", { class: "muted raw-sentence", text: health.backup.description })
+          : null
+        : el("p", { class: "reading-sentence", text: health.backup.description }),
       facts([
         ["Last completed", health.backup.completed_at ? dated(health.backup.completed_at) : null],
         ["Problem", health.backup.problem],

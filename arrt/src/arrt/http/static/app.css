@@ -2371,6 +2371,27 @@ section.scene {
   margin: 0 0 var(--space-3);
 }
 
+/* The note about taking down, once under several cards: one step clear of
+   them and no wider than a card, so it reads as a caption to the cards rather
+   than a banner touching the last one (audit 2026-11-19, finding 6). */
+.walls-note {
+  margin-top: var(--space-4);
+  max-width: 48rem;
+}
+
+/* Why *Show it there* cannot work yet, under the row it disables, and the line
+   above *Close* naming what it would leave unset: each one small, muted line. */
+.wall-not-yet,
+.wall-unsaved {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.wall-unsaved {
+  margin-bottom: var(--space-3);
+  text-align: right;
+}
+
 /* -- players ---------------------------------------------------------------- */
 
 /* A row's screens and its label panels: one per line, each its state and then
@@ -2416,6 +2437,22 @@ section.scene {
 .token-once p {
   margin: 0 0 var(--space-3);
   overflow-wrap: anywhere;
+}
+
+/* The token's field with *Copy* beside it, and what copying did after that.
+   The field takes the room left over, so *Copy* stays on its line on a phone. */
+.token-once .token-row {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.token-once .token-row .field {
+  flex: 1 1 14rem;
+}
+
+.token-copied {
+  font-size: var(--text-sm);
 }
 
 /* One query's offered works, under the sentence that describes that query.

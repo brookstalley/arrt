@@ -29,23 +29,30 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.persistence.records import MatMethod, RenditionKind
 from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 #: The phrase each reason states, keyed by the reason. Several for the silent
-#: one, because "nothing was ever written", "something was written and cannot be
-#: parsed" and "the reading names no heartbeat for this wall" send an operator to
-#: three different places on the appliance while being one reason: the display
-#: plane is not speaking, and the wall is dark either way.
+#: one, because "nothing has reported", "something reported and cannot be read"
+#: and "the reading says nothing about this wall" send a person to three
+#: different places on the Player while being one reason: its Player is not
+#: speaking, and the wall is dark either way. In the household's words since
+#: audit 2026-11-19 (F5): no plane, no heartbeat, no display for a Player.
 REASONS = {
     "no theme hung": ("Nothing is hanging on",),
     "an empty theme": ("holds no works yet",),
-    "the display plane silent": (
-        "No display has ever reported for",
-        "heartbeat cannot be read",
-        "carries no heartbeat for",
+    "its Player silent": (
+        "has not reported for",
+        "last report cannot be read",
+        "The status reading says nothing about",
     ),
-    "a plane out of reach": ("The curation plane answered", "The curation plane did not answer"),
+    "a reading out of reach": (
+        "The walls could not be read",
+        "The server could not work out what",
+        "and what its Player reports was not",
+    ),
 }
 
 
@@ -133,6 +140,20 @@ def a_hung_wall(services, a_full_theme, the_wall):
     return the_wall
 
 
+@pytest.fixture
+def a_shown_wall(services, a_hung_wall):
+    """The hung wall on a Player's screen, the Player holding its token and never having reported.
+
+    Reason three is about a wall whose Player is silent, so the wall has one:
+    a wall no Player shows says *No Player* instead, once (audit 2026-11-19,
+    finding 6), and is `test_a_wall_no_player_shows_says_so_once_and_not_twice`.
+    """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
+    services.clients.assign_wall(a_hung_wall.id, client_id=hall.id, output="hdmi-a-1")
+    return a_hung_wall
+
+
 # -- reason one: no theme hung ------------------------------------------------
 
 
@@ -174,6 +195,21 @@ def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, th
 
 
 # -- reason two: an empty theme -----------------------------------------------
+
+
+def test_the_take_down_note_for_one_empty_wall_sits_inside_its_card(ui, a_theme, the_wall):
+    """Audit 2026-11-19, finding 6: outside the card it sat wider than it and touching it.
+
+    One wall hanging nothing: the note is about that wall, so it is in that
+    wall's card. Several: it is said once, under the cards
+    (`test_hanging_a_theme.py`, the take-down note said once).
+    """
+    ui.open("#walls")
+    card = ui.page.locator(f"section.wall[data-wall='{the_wall.id}']")
+    note = ui.page.locator("p", has_text="goes on showing what it was showing until a theme is hung")
+    expect(note).to_have_count(1)
+    expect(card.locator("p", has_text="goes on showing what it was showing until a theme is hung")).to_have_count(1)
+    expect(ui.page.locator("#view > p.walls-note")).to_have_count(0)
 
 
 def test_an_empty_theme_says_the_theme_is_empty_and_offers_to_fill_it(ui, services, a_theme, the_wall):
@@ -250,45 +286,50 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ]
 
 
-# -- reason three: the display plane silent -----------------------------------
+# -- reason three: its Player silent ------------------------------------------
 
 
-def test_a_wall_whose_display_has_never_reported_says_so_and_points_at_the_reading(ui, a_hung_wall):
+def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui, a_shown_wall):
     """Published is not showing, and this screen must not conflate them.
 
-    The manifest is written and correct; nothing has ever picked it up. A screen
-    that showed the pictures and said nothing would be reporting the curation
-    plane's intention as the television's state.
+    The feed is written and correct; nothing has ever picked it up. A screen
+    that showed the pictures and said nothing would be reporting the server's
+    intention as the television's state. The way to its reading is a link named
+    for the page it opens, Status (audit 2026-11-19, finding 6: it was "Open the
+    reading for …").
     """
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["the display plane silent"]
-    assert f"No display has ever reported for {a_hung_wall.name}." in ui.text()
-    assert ui.page.locator("a", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
+    assert _reasons_named(ui) == ["its Player silent"]
+    assert f"Hall Pi has not reported for {a_shown_wall.name} yet" in ui.text()
+    status = ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_shown_wall.name}'s reading")
+    assert status.inner_text() == "Status"
+    assert status.get_attribute("href") == "#health"
+    assert ui.page.locator("a", has_text="Open the reading").count() == 0
 
 
-def test_a_heartbeat_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_hung_wall, a_health_reading, a_wall_reading):
-    """Still the display plane not speaking, and still the same fix.
+def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_shown_wall, a_health_reading, a_wall_reading):
+    """Still its Player not speaking, and still the same way on.
 
     A report that cannot be parsed leaves the wall exactly as dark as no report
     at all, so it is one reason rather than two — but the sentence carries what
-    could not be read, because that is the half an operator acts on.
+    could not be read, because that is the half a person acts on.
     """
     ui.serve(
         "**/api/health",
-        a_health_reading(walls=[a_wall_reading(wall_id=a_hung_wall.id, name=a_hung_wall.name, problem="the file is not JSON")]),
+        a_health_reading(walls=[a_wall_reading(wall_id=a_shown_wall.id, name=a_shown_wall.name, problem="the file is not JSON")]),
     )
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["the display plane silent"]
-    assert f"{a_hung_wall.name}'s heartbeat cannot be read: the file is not JSON." in ui.text()
-    assert ui.page.locator("a", has_text=f"Open the reading for {a_hung_wall.name}").count() == 1
+    assert _reasons_named(ui) == ["its Player silent"]
+    assert f"{a_shown_wall.name}'s last report cannot be read: the file is not JSON." in ui.text()
+    assert ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_shown_wall.name}'s reading").count() == 1
 
 
-def test_a_reading_that_names_no_heartbeat_for_this_wall_is_never_read_as_well(ui, a_hung_wall, a_health_reading):
+def test_a_reading_that_says_nothing_about_this_wall_is_never_read_as_well(ui, a_shown_wall, a_health_reading):
     """A wall reported as fine because its observation was missing is the failure this product refuses.
 
     The aggregate can arrive carrying no reading for a wall — a shape change, a
@@ -299,8 +340,58 @@ def test_a_reading_that_names_no_heartbeat_for_this_wall_is_never_read_as_well(u
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["the display plane silent"]
-    assert f"The health reading carries no heartbeat for {a_hung_wall.name}" in ui.text()
+    assert _reasons_named(ui) == ["its Player silent"]
+    assert f"The status reading says nothing about {a_shown_wall.name}" in ui.text()
+
+
+def test_a_wall_no_player_shows_says_so_once_and_not_twice(ui, a_hung_wall):
+    """No Player and not reported were two notices saying one thing (audit 2026-11-19, finding 6).
+
+    A wall no Player shows has nothing that could report for it, so its *No
+    Player* line is the whole of what is wrong: no second notice that it has not
+    reported, and no link to a reading that cannot exist.
+    """
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    card = ui.page.locator("section.wall")
+    assert card.locator("p.wall-problem").inner_text().startswith("No Player shows this wall.")
+    assert _reasons_named(ui) == []
+    assert card.locator("p.note").count() == 0
+    assert card.get_by_role("link", name="Status", exact=False).count() == 0
+
+
+def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, an_all_excluded_theme, the_wall):
+    """The theme puts nothing on the wall, and its Player has not reported: one notice, both facts.
+
+    The pair the audit saw stacked (finding 6): "… so the wall is dark." over
+    "… has not reported …". Each stays said, in one notice, the dark one first.
+    """
+    services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
+    hall = services.clients.add_client(name="Hall Pi")
+    services.access.issue(hall.id)
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    card = ui.page.locator("section.wall")
+    notices = card.locator("p.note")
+    assert notices.count() == 1
+    words = notices.inner_text()
+    assert words.index("so the wall is dark.") < words.index(f"Hall Pi has not reported for {the_wall.name} yet")
+    assert card.locator(".wall-dark-summary").inner_text().endswith("so the wall is dark.")
+
+
+def test_a_dark_wall_no_player_shows_keeps_its_dark_notice(ui, services, an_all_excluded_theme, the_wall):
+    """The other branch: with no Player, the dark notice stands alone and is not dropped with the silent one."""
+    services.display.activate_theme(an_all_excluded_theme.id, wall_id=the_wall.id)
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall .wall-controls")
+
+    card = ui.page.locator("section.wall")
+    assert card.locator("p.note").count() == 1
+    assert card.locator(".wall-dark-summary").inner_text().endswith("so the wall is dark.")
+    assert "has not reported" not in card.inner_text()
 
 
 def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
@@ -319,43 +410,43 @@ def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
     assert _reasons_named(ui) == []
 
 
-# -- reason four: a plane this screen could not reach --------------------------
+# -- reason four: a reading this screen could not reach ------------------------
 
 
-def test_a_health_reading_that_never_arrives_says_which_plane_did_answer(ui, a_hung_wall):
-    """Not "something went wrong": which of the two planes spoke.
+def test_a_health_reading_that_never_arrives_says_which_side_did_answer(ui, a_hung_wall):
+    """Not "something went wrong": which read answered.
 
-    The distinction is the curator's next move. The curation plane answering and
-    the display plane's reading not arriving is a fault in one place; the
-    curation plane not answering at all is a fault in another.
+    The distinction is the curator's next move. The walls answering and what
+    their Players report not arriving is a fault in one place; the walls not
+    answering at all is a fault in another.
     """
     ui.serve("**/api/health", (500, {"error": "the heartbeat directory could not be opened"}))
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["a plane out of reach"]
-    assert f"The curation plane answered for {a_hung_wall.name}" in ui.text()
-    assert "the reading that speaks for the display plane did not" in ui.text()
+    assert _reasons_named(ui) == ["a reading out of reach"]
+    assert f"{a_hung_wall.name} was read, and what its Player reports was not" in ui.text()
     assert "the heartbeat directory could not be opened" in ui.text()
     assert ui.page.locator("button", has_text="Ask again").count() == 1
 
 
 def test_a_manifest_that_cannot_be_built_names_the_wall_it_was_asked_about(ui, a_hung_wall):
-    """The same reason from the other side, and the plane that answered is the other one.
+    """The same reason from the other side, and the side that refused is the other one.
 
-    Here the curation plane is the one that refused, and it refused about one
-    wall — so the sentence says which, rather than blanking a screen that may be
-    reporting three rooms correctly.
+    Here the server is the one that refused, and it refused about one wall — so
+    the sentence says which, rather than blanking a screen that may be reporting
+    three rooms correctly, and that what the Player reports is not what decided it.
     """
     ui.serve("**/api/manifest*", (500, {"error": "the theme could not be evaluated"}))
 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["a plane out of reach"]
-    assert f"refused {a_hung_wall.name}'s build" in ui.text()
-    assert "The display plane was not asked." in ui.text()
+    assert _reasons_named(ui) == ["a reading out of reach"]
+    assert f"The server could not work out what {a_hung_wall.name} should show" in ui.text()
+    assert "the theme could not be evaluated" in ui.text()
+    assert "whatever its Player reports." in ui.text()
 
 
 def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(ui):
@@ -365,8 +456,8 @@ def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(
     ui.open("#walls")
     ui.page.wait_for_selector("h1")
 
-    assert _reasons_named(ui) == ["a plane out of reach"]
-    assert "The curation plane did not answer" in ui.text()
+    assert _reasons_named(ui) == ["a reading out of reach"]
+    assert "The walls could not be read" in ui.text()
     assert "the catalogue is locked" in ui.text()
     assert ui.page.locator("button", has_text="Ask again").count() == 1
 
@@ -374,12 +465,17 @@ def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(
 # -- hanging, and the question asked first -------------------------------------
 
 
-def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_full_theme, the_wall):
+def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, services, a_full_theme, the_wall):
     """ "Hang Winter on The wall?", never "Hang Winter?".
 
     Even with one wall, and that is the point: a sentence that reads correctly
     today only because there is one possible target silently becomes wrong.
+    The wall is on a Player's screen, since the question promises the house
+    sees a change only where a Player shows the wall (audit 2026-11-19, finding
+    19; the other branch is the test after this one).
     """
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
@@ -394,6 +490,17 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, a_full
     # rather than a sentence this screen composed about what it expects.
     assert "All 1 work in this theme is on the wall." in consequence
     assert f"Everyone in the house sees {the_wall.name} change." in consequence
+
+
+def test_hanging_on_a_wall_no_player_shows_promises_no_one_sees_it(ui, a_full_theme, the_wall):
+    """Finding 19 of audit 2026-11-19: the question said everyone would see a wall change that nothing shows."""
+    ui.open("#walls")
+    ui.page.wait_for_selector("section.wall")
+
+    ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
+    consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
+    expect(consequence).to_contain_text(f"No Player shows {the_wall.name} yet, so nothing shows it until one does.")
+    assert "Everyone in the house" not in consequence.inner_text()
 
 
 def test_declining_the_question_leaves_the_wall_exactly_as_it_was(ui, services, a_full_theme, the_wall):
@@ -520,13 +627,13 @@ def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_hung_wall, a_health_
     assert _skip(ui, a_hung_wall.name).count() == 1
 
 
-def test_a_wall_no_display_has_reported_for_is_not_offered_a_skip_either(ui, a_hung_wall):
+def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui, a_shown_wall):
     """The other half of the gate: something is published, and nothing is showing it."""
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert _reasons_named(ui) == ["the display plane silent"]
-    assert _skip(ui, a_hung_wall.name).count() == 0
+    assert _reasons_named(ui) == ["its Player silent"]
+    assert _skip(ui, a_shown_wall.name).count() == 0
 
 
 def test_the_card_lists_no_theme_inventory(ui, a_hung_wall, a_health_reading, a_wall_reading):

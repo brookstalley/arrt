@@ -74,8 +74,10 @@ export function statusReading(health) {
       // and dropping it would make the indicator silent about exactly one room.
       const name = wall.wall_name || "An unnamed wall";
       const reading = wall.heartbeat;
-      if (!reading) troubles.push(`${name} carries no heartbeat`);
-      else if (reading.problem) troubles.push(`${name}'s heartbeat cannot be read`);
+      // In the household's words (§ Vocabulary; audit 2026-11-19, F5): a
+      // Player reports for a wall, and "heartbeat" is the wire's word.
+      if (!reading) troubles.push(`The status reading says nothing about ${name}`);
+      else if (reading.problem) troubles.push(`${name}'s last report cannot be read`);
       else if (reading.absent) troubles.push(`${name} has not reported`);
     }
   }
