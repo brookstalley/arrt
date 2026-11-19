@@ -23,6 +23,7 @@ from arrt.library.discovery.images import offers_images
 from arrt.library.discovery.openrouter import KeyStatus, OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
+from arrt.library.registry.remembering import RememberingRegistry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.library.sources import SourceContext
@@ -155,12 +156,17 @@ def _no_finder(sources: SourceRoster) -> str:
     return f"none ({'; '.join(reasons)})" if reasons else "none (no source plugin is installed)"
 
 
-def _registry(settings: Settings) -> WikidataRegistry | None:
-    """Wikidata, or nothing while this deployment has not named itself to it."""
+def _registry(settings: Settings) -> Registry | None:
+    """Wikidata, or nothing while this deployment has not named itself to it.
+
+    Remembering each work's pages (`RememberingRegistry`), because every finder
+    asks them at once for every work, and this one registry is what the plugins
+    and phase 2 are both handed.
+    """
     if not settings.wikidata_user_agent:
         return None
     # The pages' timeout, not the matcher's: see INTERACTIVE_TIMEOUT_SECONDS.
-    return WikidataRegistry(user_agent=settings.wikidata_user_agent, timeout=INTERACTIVE_TIMEOUT_SECONDS)
+    return RememberingRegistry(WikidataRegistry(user_agent=settings.wikidata_user_agent, timeout=INTERACTIVE_TIMEOUT_SECONDS))
 
 
 def main(argv: Sequence[str] = ()) -> None:
