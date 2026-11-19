@@ -330,7 +330,7 @@ PLAYER_POLLS = [
 
 
 @pytest.mark.parametrize("target", PLAYER_POLLS)
-@pytest.mark.parametrize("status", [200, 204, 304])
+@pytest.mark.parametrize("status", [200, 204, 206, 299, 304])
 def test_a_successful_player_poll_writes_no_access_line(target, status):
     assert not _kept(target, status)
 
@@ -340,9 +340,9 @@ def test_a_successful_heartbeat_writes_no_access_line(target):
     assert not _kept(target, 204, method="POST")
 
 
-@pytest.mark.parametrize("status", [400, 401, 403, 404, 413, 500])
+@pytest.mark.parametrize("status", [199, 300, 301, 302, 303, 307, 400, 401, 403, 404, 413, 500])
 @pytest.mark.parametrize("target", PLAYER_POLLS)
-def test_a_refused_or_failed_player_request_keeps_its_line(target, status):
+def test_a_player_request_that_did_not_succeed_keeps_its_line(target, status):
     assert _kept(target, status)
 
 

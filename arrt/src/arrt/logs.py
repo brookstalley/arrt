@@ -46,7 +46,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
-from http import HTTPStatus
 from typing import Any, Final
 
 #: The correlation key for the run currently being worked on, if any. A context
@@ -99,6 +98,14 @@ _PLAYER_ROUTES: Final[tuple[re.Pattern[str], ...]] = tuple(_route_pattern(templa
 #: uvicorn's access record carries `(client address, method, target, HTTP version, status)`.
 _ACCESS_ARGUMENTS: Final[int] = 5
 
+#: The statuses a successful poll answers with: any 2xx, and 304 for a manifest
+#: or a picture the Player already holds. Plain integers rather than
+#: `http.HTTPStatus`: this module is imported everywhere, and the guard that keeps
+#: the network beyond the engine seam reads any import of `http` as reach.
+_OK: Final[int] = 200
+_MULTIPLE_CHOICES: Final[int] = 300
+_NOT_MODIFIED: Final[int] = 304
+
 
 class QuietPlayerPolls(logging.Filter):
     """Drop uvicorn's access line for a request to a Player's route that succeeded.
@@ -116,7 +123,7 @@ class QuietPlayerPolls(logging.Filter):
         target, status = args[2], args[4]
         if not isinstance(target, str) or not isinstance(status, int):
             return True
-        if not (HTTPStatus.OK <= status < HTTPStatus.MULTIPLE_CHOICES or status == HTTPStatus.NOT_MODIFIED):
+        if not (_OK <= status < _MULTIPLE_CHOICES or status == _NOT_MODIFIED):
             return True
         path = target.partition("?")[0]
         return not any(pattern.fullmatch(path) for pattern in _PLAYER_ROUTES)
