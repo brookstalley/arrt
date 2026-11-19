@@ -22,6 +22,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 
 def _near_the_end() -> int:
     """`NEAR_THE_END` read from the client, so a wait on the observer's reach
@@ -93,8 +95,8 @@ def test_the_grid_pages_through_a_catalogue_larger_than_one_page(ui, a_catalogue
 
     # In the facts line, in the empty state's words, since the heading became the
     # page's name (ruling 1 of 2026-10-27).
-    assert ui.page.inner_text("#view .page-facts") == f"{a_catalogue_past_one_page:,} works"
-    assert ui.page.locator("ul.grid li.card").count() == a_catalogue_past_one_page
+    expect(ui.page.locator("#view .page-facts")).to_have_text(f"{a_catalogue_past_one_page:,} works", use_inner_text=True)
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(a_catalogue_past_one_page)
 
     # The count alone passes against a server that answered in one page, which
     # would leave the loop this test exists for unexecuted. Asserting the
@@ -131,9 +133,17 @@ def test_the_next_page_arrives_as_the_curator_scrolls(ui, a_catalogue_past_one_p
     """Scrolling toward the end asks for more, without *Show more* being pressed."""
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
-    first = ui.page.locator("ul.grid li.card").count()
+    # The first page is painted whole, with its own count of itself.
+    expect(ui.page.locator("#view .show-more-count")).to_have_text(
+        re.compile(rf"^Showing \d+ of {a_catalogue_past_one_page}\.$"), use_inner_text=True
+    )
+    first = ui.page.locator(
+        "ul.grid li.card"
+    ).count()  # one-shot: the size of the first page, read once it says how many it holds
     assert first < a_catalogue_past_one_page, "one page held everything, so nothing here is paged"
-    assert ui.page.inner_text("#view .show-more-count") == f"Showing {first} of {a_catalogue_past_one_page}."
+    expect(ui.page.locator("#view .show-more-count")).to_have_text(
+        f"Showing {first} of {a_catalogue_past_one_page}.", use_inner_text=True
+    )
 
     ui.page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
 
@@ -156,14 +166,18 @@ def test_show_more_takes_the_keyboard_to_the_first_work_it_brought(ui, a_catalog
     # Settled first, so the only page the scroll fetches is the one the focus
     # below sets off.
     ui.page.wait_for_function(SETTLED, arg=NEAR_THE_END)
-    first = ui.page.locator("ul.grid li.card").count()
+    first = ui.page.locator(
+        "ul.grid li.card"
+    ).count()  # one-shot: the count the focus's page must exceed, read once the grid has settled
 
     button = ui.page.locator("#view button.show-more")
     assert button.evaluate("node => node.tagName") == "BUTTON"
     button.focus()
     ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=first)
     ui.page.wait_for_function("() => !document.querySelector('ul.grid-skeleton')")
-    scrolled_in = ui.page.locator("ul.grid li.card").count()
+    scrolled_in = ui.page.locator(
+        "ul.grid li.card"
+    ).count()  # one-shot: the count the press's page must exceed, read once nothing is on its way
 
     ui.page.keyboard.press("Enter")
     ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=scrolled_in)
@@ -172,7 +186,9 @@ def test_show_more_takes_the_keyboard_to_the_first_work_it_brought(ui, a_catalog
     ui.page.wait_for_function(
         "(id) => document.activeElement && document.activeElement.closest('li.card')"
         " && document.activeElement.closest('li.card').dataset.artwork === id",
-        arg=arrived.get_attribute("data-artwork"),
+        arg=arrived.get_attribute(
+            "data-artwork"
+        ),  # one-shot: the work the keyboard must land on, read once the press's page has landed
     )
 
 
@@ -189,13 +205,17 @@ def test_show_more_counts_from_the_press_once_the_keyboard_has_left_it(ui, a_cat
     # Settled as above, so the focus below is what sets off the scroll's page.
     ui.page.wait_for_function(SETTLED, arg=NEAR_THE_END)
     button = ui.page.locator("#view button.show-more")
-    reached = ui.page.locator("ul.grid li.card").count()
+    reached = ui.page.locator(
+        "ul.grid li.card"
+    ).count()  # one-shot: the count the focus's page must exceed, read once the grid has settled
     button.focus()
     ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=reached)
     ui.page.wait_for_function("() => !document.querySelector('ul.grid-skeleton')")
     button.evaluate("node => node.blur()")
 
-    pressed = ui.page.locator("ul.grid li.card").count()
+    pressed = ui.page.locator(
+        "ul.grid li.card"
+    ).count()  # one-shot: the count the press's page must exceed, read once nothing is on its way
     button.evaluate("node => node.click()")
     ui.page.wait_for_function("(n) => document.querySelectorAll('ul.grid li.card').length > n", arg=pressed)
 
@@ -203,7 +223,9 @@ def test_show_more_counts_from_the_press_once_the_keyboard_has_left_it(ui, a_cat
     ui.page.wait_for_function(
         "(id) => document.activeElement && document.activeElement.closest('li.card')"
         " && document.activeElement.closest('li.card').dataset.artwork === id",
-        arg=arrived.get_attribute("data-artwork"),
+        arg=arrived.get_attribute(
+            "data-artwork"
+        ),  # one-shot: the work the keyboard must land on, read once the press's page has landed
     )
 
 
@@ -219,8 +241,8 @@ def test_the_grid_says_nothing_is_missing_when_nothing_is(ui, a_catalogue_past_o
     # absent only because paging has not finished.
     show_every_work(ui)
 
-    assert ui.page.locator("ul.grid li.card").count() == a_catalogue_past_one_page
-    assert "are held and are not on this page" not in ui.text()
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(a_catalogue_past_one_page)
+    expect(ui.view).not_to_contain_text("are held and are not on this page", use_inner_text=True)
 
 
 def test_the_grid_stops_when_a_page_comes_back_empty(ui):
@@ -245,8 +267,8 @@ def test_the_grid_stops_when_a_page_comes_back_empty(ui):
 
     # Two requests and no more: the second answered empty, and that ended it.
     assert len(ui.requests_matching("/api/works?")) == 2
-    assert ui.page.locator("ul.grid li.card").count() == 1
-    assert ui.page.locator("#view button.show-more").count() == 0
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(1)
+    expect(ui.page.locator("#view button.show-more")).to_have_count(0)
 
 
 def test_the_grid_pages_past_the_old_ceiling_and_misses_nothing(ui):
@@ -271,12 +293,12 @@ def test_the_grid_pages_past_the_old_ceiling_and_misses_nothing(ui):
     ui.page.wait_for_selector("ul.grid li.card")
     show_every_work(ui)
 
-    assert ui.page.locator("ul.grid li.card").count() == pages
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(pages)
     assert len(ui.requests_matching("/api/works?")) == pages
     # In the facts line, in the empty state's words, since the heading became the
     # page's name (ruling 1 of 2026-10-27).
-    assert ui.page.inner_text("#view .page-facts") == f"{pages:,} works"
-    assert "not on this page" not in ui.text()
+    expect(ui.page.locator("#view .page-facts")).to_have_text(f"{pages:,} works", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("not on this page", use_inner_text=True)
 
 
 def test_a_shortfall_of_exactly_one_reads_in_the_singular(ui):
@@ -307,8 +329,8 @@ def test_a_shortfall_of_exactly_one_reads_in_the_singular(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("#view p.note")
 
-    assert "1 more is held and is not on this page" in ui.text()
-    assert "are held" not in ui.text()
+    expect(ui.view).to_contain_text("1 more is held and is not on this page", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("are held", use_inner_text=True)
 
 
 # -- a tile whose image has gone --------------------------------------------
@@ -331,7 +353,7 @@ def test_a_tile_whose_image_cannot_be_loaded_says_so(ui, work_with_an_image):
 
     # The broken image must be gone, not merely covered: an <img> left in place
     # is still announced, and still draws the browser's own broken-image glyph.
-    assert ui.page.locator("ul.grid img").count() == 0
+    expect(ui.page.locator("ul.grid img")).to_have_count(0)
 
 
 def test_a_tile_whose_image_loads_keeps_its_picture(ui, work_with_an_image):
@@ -340,8 +362,12 @@ def test_a_tile_whose_image_loads_keeps_its_picture(ui, work_with_an_image):
 
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid img")
+    # The picture has loaded, so a failure to load would have been heard by now.
+    ui.page.wait_for_function(
+        "() => { const img = document.querySelector('ul.grid img'); return img && img.complete && img.naturalWidth > 0; }"
+    )
 
-    assert "Its image could not be loaded just now." not in ui.text()
+    expect(ui.view).not_to_contain_text("Its image could not be loaded just now.", use_inner_text=True)
 
 
 # -- where the keyboard lands -----------------------------------------------
@@ -400,8 +426,9 @@ def test_a_slow_view_does_not_paint_over_the_one_navigated_to(ui):
     ui.page.wait_for_selector("h1:has-text('Status')")
 
     # The collection grid starts loading, and is left before its request answers.
-    ui.page.evaluate("() => go('collection')")
-    ui.page.wait_for_timeout(300)
+    # Left once its request has been made, which is the request held above.
+    with ui.page.expect_request("**/api/works?*"):
+        ui.page.evaluate("() => go('collection')")
     ui.page.evaluate("() => go('health')")
     ui.page.wait_for_selector("h1:has-text('Status')")
 
@@ -412,10 +439,11 @@ def test_a_slow_view_does_not_paint_over_the_one_navigated_to(ui):
             content_type="application/json",
             body=json.dumps(a_listing([a_catalogue_work(title="A work still arriving")])),
         )
-    ui.page.wait_for_timeout(500)
+    # Nothing on the page changes if the guard holds, so there is no condition to wait on.
+    ui.page.wait_for_timeout(500)  # sleep: proves the abandoned request's paint, which would land after its answer, never does
 
-    assert "Status" in ui.text()
-    assert "A work still arriving" not in ui.text()
+    expect(ui.view).to_contain_text("Status", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("A work still arriving", use_inner_text=True)
 
 
 def test_the_view_a_curator_is_actually_on_still_paints(ui):
@@ -428,4 +456,4 @@ def test_the_view_a_curator_is_actually_on_still_paints(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    assert "works" in ui.text()
+    expect(ui.view).to_contain_text("works", use_inner_text=True)

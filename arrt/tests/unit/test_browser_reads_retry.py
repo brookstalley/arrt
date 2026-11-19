@@ -107,7 +107,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_the_confirmation.py": (9, 0),
     "test_the_controls.py": (8, 0),
     "test_the_debug_view.py": (14, 0),
-    "test_the_grid.py": (24, 2),
     "test_the_health_panel.py": (9, 0),
     "test_the_history.py": (21, 0),
     "test_the_look.py": (26, 1),
