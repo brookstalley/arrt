@@ -633,7 +633,7 @@ it.
   Players never open it at all, so nothing here reverses that decision.
 - **The server container gets a memory limit.** On a shared NAS, a gigapixel
   acquisition must not be able to starve the operator's other applications.
-  This replaces the `MemoryMax` in `curation.service`.
+  This replaces the `MemoryMax` in the Pi's retired systemd unit.
 - **From wave 3, the backup covers two catalogue files as a pair.** A restore
   has to be exercised against Programming references to works the restored
   Library does not hold.
