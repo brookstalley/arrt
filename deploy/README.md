@@ -89,6 +89,16 @@ place of Arrt's.
   from PyPI.
 - **Rebuild it for every Arrt commit you deploy.** It carries Arrt's code
   inside it, so a derived image left on an old tag holds the server back too.
+- **A plugin that reads through a browser, or is otherwise slow, declares its
+  deadlines before an image is built from this server (interface 1.5).** The host
+  waits 60 seconds for a finder or a reader, 30 for a preview and 120 for a
+  browse, and a call that takes longer is answered "could not be asked", so a
+  plugin whose pages take longer than that, left as it was written for 1.4,
+  would never answer and every work behind it would wait. It declares
+  `SourcePlugin(deadlines={"finder": ..., "reader": ...})` in seconds, at most
+  3,600 each, and a value outside that is refused at load, naming it
+  (`docs/source-plugins.md`, `source-plugins.md` § Versioning and errors). A 1.4
+  plugin loads unchanged and gets the defaults.
 
 **How to tell it worked:** the startup log has `source plugin <name> loaded`, or
 the reason it declined, and the health panel lists it. Run once with
@@ -131,6 +141,29 @@ Four more things changed at the server's edges:
   is a few kilobytes.
 
 **The way back** is the previous image. Nothing in the catalogue changed.
+
+## Before an upgrade that drops something (2026-11-19)
+
+**The server copies the catalogue itself before a migration that drops a column
+or a table.** The three sections below each say to copy the catalogue by hand
+before deploying their release, and that is still sound, but from this release a
+catalogue that needs such a migration is copied first by the server, whoever
+forgot. The copy is `pre-migration-<UTC instant>.sqlite`, in `BACKUP_DIR` when it
+is set and beside the catalogue when it is not. The three newest are kept,
+outside the backup generations' count, so no number of restarts prunes them. A
+catalogue already on the current shape, or a new one, takes none.
+
+**If the copy cannot be written, the server does not start**, and the catalogue is
+left exactly as it was: the message names the directory and the reason (a full
+disk, a read-only mount). Free the space or make the directory writable, or point
+`BACKUP_DIR` at one that is, and start again. Nothing is dropped without its
+copy, so nothing is lost by the refusal.
+
+**The way back across such a migration** is that copy and the previous image
+together (`operational-spec.md` § Backup and Restore). A restart is not a
+backup either way: the start-up backup pass is skipped while the newest
+generation is younger than `BACKUP_INTERVAL_SECONDS`, so a server restarting in a
+loop no longer replaces the generations from before the upgrade.
 
 ## Clients (2026-10-02, `build-plan-clients.md`)
 

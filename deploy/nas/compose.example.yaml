@@ -43,7 +43,9 @@ services:
         max-file: "3"
     environment:
       ART_ROOT: /art
-      # The backup job writes generations here, daily and at every start.
+      # The backup job writes generations here, daily and at start unless the newest
+      # is younger than the interval; a copy taken before a migration that drops
+      # anything goes here too (`pre-migration-<instant>.sqlite`, three kept).
       BACKUP_DIR: /backups
     # The keys and the house's settings (OPENROUTER_API_KEY,
     # WIKIDATA_USER_AGENT, ARTIC_USER_AGENT, CURATION_ALLOWED_HOSTS, …) — see
