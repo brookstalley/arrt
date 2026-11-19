@@ -1,15 +1,20 @@
-"""The suite's feed guard reports a malformed feed by the schema's own words.
+"""The suite's feed guard reports a malformed feed by the schema's own words, and is wired where feeds are built.
 
 `problems` is what every publish path in this suite is checked through. The
 semantic rules read keys the schema requires, so a feed missing one must come
 back as the schema's message, never as a `KeyError` from the rules that
-presumed it.
+presumed it. And `conftest.py` wraps the builder in the namespace the feed
+publisher calls it from, which the last test here proves through the real
+publisher: a wrapper on a name nothing calls checks nothing, silently.
 """
 
 import json
 
+import pytest
 from arrt_contract import fixtures, root
 from feed_guard import problems
+
+from arrt.programming import feeds as feeds_module
 
 
 def _valid_feed() -> dict:
@@ -34,3 +39,26 @@ def test_a_schema_valid_feed_is_still_held_to_the_semantic_rules():
     assert feed["schedule"]["slots"], "the fixture needs a slot for this to say anything"
 
     assert problems(feed) == ["a work is named that is not in works"]
+
+
+def test_a_feed_the_publisher_spells_that_breaks_the_contract_fails_the_test(display, ready_work, wall_id, monkeypatch):
+    """Through `conftest.py`'s guard as wired, not a wrapper of this test's own: a hang whose feed lacks `media` is stopped.
+
+    Red when the guard wraps the builder in a namespace the publisher does not
+    call it from (`display.py`, where it lived until 2026-11-19): the hang then
+    publishes the broken feed and nothing raises.
+    """
+    theme = display.add_theme(name="Late night")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
+    spelled = feeds_module.work_document
+
+    def without_media(work):
+        return {key: value for key, value in spelled(work).items() if key != "media"}
+
+    monkeypatch.setattr(feeds_module, "work_document", without_media)
+
+    with pytest.raises(AssertionError, match="breaks the Player contract") as stopped:
+        display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert "'media' is a required property" in str(stopped.value)
+    assert display.hanging_on(wall_id) is None, "the act the guard stopped was rolled back"

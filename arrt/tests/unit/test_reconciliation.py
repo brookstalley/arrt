@@ -22,7 +22,7 @@ import pytest
 
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.records import FetchStatus, RenditionKind, ThemeMembership
-from arrt.programming import display as display_module
+from arrt.programming import feeds as feeds_module
 from arrt.services.errors import ServiceError
 
 
@@ -458,7 +458,7 @@ def test_a_step_that_cannot_reach_the_wall_leaves_the_feed_as_it_was(
     def full_disk(path, document):
         raise OSError("No space left on device")
 
-    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    monkeypatch.setattr(feeds_module, "write_atomically", full_disk)
     with pytest.raises(OSError, match="No space left on device"):
         display.step_display(wall_id)
 
@@ -477,7 +477,7 @@ def test_a_hang_whose_manifest_cannot_be_written_is_not_recorded(display, ready_
     def full_disk(path, document):
         raise OSError("No space left on device")
 
-    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    monkeypatch.setattr(feeds_module, "write_atomically", full_disk)
     with pytest.raises(OSError, match="No space left on device"):
         display.activate_theme(second.id, wall_id=wall_id)
 
@@ -504,7 +504,7 @@ def test_an_edit_whose_feed_cannot_be_written_is_refused_whole(display, ready_wo
         "remove": lambda: display.remove_from_theme(theme_id=theme.id, artwork_id=work.id),
         "remove_many": lambda: display.remove_works_from_theme(theme_id=theme.id, artwork_ids=[work.id]),
     }[act]
-    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    monkeypatch.setattr(feeds_module, "write_atomically", full_disk)
     with pytest.raises(OSError, match="No space left on device"):
         edit()
 
@@ -544,7 +544,7 @@ def test_a_start_that_cannot_rewrite_a_manifest_still_serves(
     def full_disk(path, document):
         raise OSError("No space left on device")
 
-    monkeypatch.setattr(display_module, "write_atomically", full_disk)
+    monkeypatch.setattr(feeds_module, "write_atomically", full_disk)
     with caplog.at_level(logging.ERROR, logger="arrt.services.container"):
         services.reconcile()
 
