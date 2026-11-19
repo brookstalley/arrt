@@ -99,6 +99,12 @@ COPY --from=repo all.json /all.json
 # that writes beside itself fails here as it would in the app; HOME points at
 # the one place it may write. `--no-sync` because the environment was synced
 # above, and a sync as this user could not write to it.
+#
+# **`player_e2e` is deselected here, by `pyproject.toml`'s addopts, and is not run.**
+# `tests/system/test_a_real_player.py` installs Arrt Player from GitHub with git, and
+# this stage has no git and should reach no network. The built app stage meets a real
+# Player in `image.yml`'s own job on a pull request into `main` instead. Under the
+# addopts' `-n auto` pytest prints no "deselected" count, so this line is where it is said.
 USER 568:568
 ENV HOME=/tmp
 RUN uv run --no-sync pytest -q -p no:cacheprovider --ignore=tests/browser --junitxml=/tmp/results.xml
