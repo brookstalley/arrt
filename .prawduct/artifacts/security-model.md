@@ -23,18 +23,13 @@ genuinely live:
 4. **The trust boundary**, because it is carried entirely by the network layer,
    which is a real decision with real consequences if it ever changes.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The product is
-> becoming a **server** (Library + Programming) on the operator's NAS and a
-> **player** at each wall. In this file, that affects:
-> - **the trust boundary:** a new LAN listener whose clients are devices, a
->   heartbeat POST that is the first write route a non-curator holds, and an
->   open question on player authentication;
-> - **credential placement:** the OpenRouter key moves with the server to the NAS;
-> - **prompt injection:** Watches fire the "unattended discovery" trigger below;
-> - **supply chain:** the server's interpreter comes from a container image.
->
-> The four live concerns listed above do not change. The notes below sit at each
-> affected section. None of them is built yet.
+> **Landed (waves 2 to 4, `re-architecture.md`).** The product is a **server**
+> (Library and Programming) on the operator's NAS and a **Player** at each wall.
+> The notes at each section it touched say what is built: the trust boundary's new
+> inbound surface and the client token (§ Trust Boundary, § Credentials and
+> Secrets), the OpenRouter key's move with the server, the unattended trigger
+> (§ The unattended trigger fired) and the server's image (§ Supply Chain). The
+> four live concerns listed above did not change.
 
 ## Direction
 
@@ -144,44 +139,16 @@ That is not a gradual degradation; it is a cliff. Any change that exposes the
 curation plane publicly is a structural characteristic flip and triggers the full
 re-derivation protocol, not a patch.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md` § Seam 2 and
-> § Deployment target.** Three things change at this boundary. The first comes in
-> wave 3, and the other two in wave 2, when the HTTP routes first appear on the
-> server that already listens on the Pi. None of them is the public-exposure cliff above, and that paragraph
-> binds as it stands.
->
-> 1. **The server moves from the Pi to the operator's NAS.** The surfaces stay
->    LAN-only and are reached remotely the same way. The host changes, and the
->    boundary does not.
-> 2. **A new inbound surface appears, and its clients are devices, not the
->    curator.** `GET /walls/{id}/manifest` and `GET /media/{hash}` are
->    read-only, and they expose nothing the curation UI does not already show.
->    `POST /walls/{id}/heartbeat` is a **write**: anything on the LAN that can
->    reach it can make a wall's health read green while its screen is dark, or
->    red while it works. That is the product's defining silent-failure shape,
->    manufactured on purpose. It is an integrity exposure, not a
->    confidentiality one, and it cannot reach the catalogue. It is still the
->    first write route held by something that is not the curator.
-> 3. **"Anyone on the network is the curator" needs a narrower statement for
->    that route.** Before wave 2 ships the POST, decide one of. *(Moved
->    later on 2026-09-30 from "before wave 3": the curation server on the Pi is
->    already reachable on the LAN, so the route exists from wave 2.)*
->    - (a) the LAN stays the whole boundary, and the heartbeat is accepted from
->      any LAN host, recorded as an accepted risk; or
->    - (b) each Player holds a per-wall token that the server checks on the
->      POST, and optionally on the GETs.
->
->    (b) adds the product's first credential held by something other than the
->    curator's own processes, and a row in the Inventory below.
->
->    **Decided 2026-09-30: (b).** The operator ruled "each wall gets a token".
->    The token is checked on every wall route and on media, not only on the
->    POST. That extension is the advisor's, and it is vetoable. The full
->    record, including issue, storage and rotation, is in `re-architecture.md`
->    § Seam 2.
->
-> The Player's reverse path (the TV websocket, SPI) is unchanged, and it stays
-> the only thing that talks to a television.
+> **Landed (waves 2 and 3, `re-architecture.md` § Seam 2 and § Deployment
+> target).** The server runs on the operator's NAS, and the boundary did not
+> change with the host: the surfaces stay LAN-only. The Player's routes (a wall's
+> manifest and media, read-only; heartbeats, a **write** held by something that is
+> not the curator, an integrity exposure that cannot reach the catalogue) are
+> guarded by the client token the owner chose on 2026-09-30 and made per client on
+> 2026-10-02 (`clients.md`): checked on every Player route and on media, with its
+> row in § Credentials and Secrets. The public-exposure cliff above binds as it
+> stands. The Player's reverse path (the television's websocket, SPI) is unchanged
+> and is the only thing that talks to a television.
 
 **Being on the LAN means being on it, not having a browser there.** Since
 2026-11-08 (the owner's ruling on #53) every surface but the
@@ -244,33 +211,18 @@ pulls over HTTP, its own client token, and the curation plane holds no
 device credentials. That falls out of the topology rather
 than being separately enforced.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** The separation
-> above survives the move, and becomes a separation of *machines* rather than of
-> processes on one Pi. That is stronger.
-> - **The OpenRouter key and any museum keys move with the server to the NAS**,
->   configured as secrets of the server's container, not in its image and not in
->   this public repository.
-> - **The TV pairing token stays with the Player** on the Pi at the wall. The
->   server never holds it, and after wave 4 the server does not even know a
->   television exists.
-> - **Each Player holds a per-wall token** (§ Trust Boundary, option b, decided
->   2026-09-30), and the server holds only the matching verifier. **Built
->   2026-09-30 (wave 2b Chunk 03)**, and its row is in the Inventory above. It is
->   32 random bytes, shown once, compared in constant time, and never logged: a
->   refusal is logged by wall and status, once per wall per ten minutes. Media
->   answers to any wall's token, because a render is shared by every wall that
->   shows it.
-> - **Amended 2026-10-02 by the owner's ruling that clients are first-class
->   (`clients.md`): the token is per client, not per wall.** One installed Player
->   drives several walls with one credential, admitted to the walls assigned to
->   it (`401` for no valid token, `403` for a wall not its client's); media
->   answers to any client's token. Kind unchanged: 32 random bytes, shown once,
->   SHA-256 verifier, constant-time compare, never logged. A refusal is logged
->   by client name, or as "an unknown client", once per that subject per ten
->   minutes. **Wall tokens are retired**: nothing admits one, and the server
->   drops the stored wall verifiers on opening a catalogue that holds them
->   (`migrations.retire_wall_tokens`). The credential is still the product's
->   only one held by something other than the curator's processes.
+> **Landed (waves 2 to 4, 2026-09-30 to 2026-10-10).** The separation above is now
+> one of *machines*: the OpenRouter key and any museum keys are secrets of the
+> server's container on the NAS, not in its image and not in this public
+> repository; the television's pairing token stays with the Player, and the server
+> holds none and knows no television. The Player holds one **client token**, per
+> client since 2026-10-02 (`clients.md`; its row is in the Inventory above, and
+> wall tokens are retired, the server dropping any stored wall verifier on opening
+> a catalogue that holds one, `migrations.retire_wall_tokens`). It is 32 random
+> bytes, shown once, compared in constant time and never logged: a refusal is
+> logged by client name, or as "an unknown client", once per subject per ten
+> minutes. It is still the only credential held by something other than the
+> curator's processes.
 
 ### The repository is public
 
@@ -345,6 +297,44 @@ prose, which this section already carries. It is not worth a second exposure.
 cloned. Only rotation invalidates it. Untracking is hygiene for the *next* token,
 never remediation for this one.
 
+### Private network details in public history are accepted residue — 2026-11-19
+
+**Status: accepted by the owner, nothing in use changed.** The audit of 2026-11-19
+found that this public repository's history still carries real details of the
+household's network, which the tree no longer does:
+
+- **A television's private (RFC 1918) LAN address**, in the 2024 modules
+  (`config.py`, `art.py` and `remote_test.py`), in the commits `56677f4d` and
+  `5244a83e`. Both are reachable from `origin/main`. The address left the tree in
+  `ba007cdc`.
+- **The Pi's mDNS hostname with its login name**, in a findings artifact, in the
+  commit `a7dd24bd`, scrubbed from the tree in `530b3c14`.
+
+The details themselves are not repeated here: this is the public tree, and the
+commit ids are how to find them. **The owner ruled on 2026-11-19: "leave commits
+alone, later we can get that"**, and on the provider keys, "don't sweat the keys"
+(`owner-rulings.md`). So:
+
+- **History is not rewritten.** Rewriting a public history that is cloned changes
+  every commit id downstream of it, for details whose exposure is LAN-scoped (an
+  address that routes nowhere outside the house, a hostname that resolves only on
+  it). Honest severity: low as an exploit,
+  and a breach of `project-preferences.md`'s deployment-values rule as policy, which
+  is why it is recorded and not quietly dropped.
+- **Nothing in use is changed**: no address was renumbered, no host renamed, no
+  login retired, and no key rotated, because of this record. The provider keys
+  are temporary and are not rotated on the owner's word. If the owner reopens it,
+  the work is a history rewrite plus a renumbering at home, and the private
+  specifics belong in the operator's own repository either way.
+- **The CI OpenRouter key's ceiling stays recorded as unknown** (§ Inventory): the
+  provider console is where it is found.
+
+**The guard that exists does not see history.** `tests/preferences/test_deployment_values.py`
+reads the tree as it is: one check refuses a private-range address or a home path in
+a source module, and another refuses this checkout's own deployment values in any
+tracked file. A hostname written into a document is not a shape the first looks
+for, and neither reads a commit that is already made.
+
 ## Prompt Injection
 
 This is the product's most interesting exposure and the one most easily
@@ -394,24 +384,12 @@ must be re-derived rather than extended:
   around.
 - Any credential becoming reachable from a tool.
 
-> **Direction changed 2026-09-30 — the second trigger is now scheduled to fire.**
-> `re-architecture.md` § Procurement adds **Watches**: standing searches that
-> re-run discovery on a cadence with no curator in the session. Their result
-> policy is notify, queue for review, or **auto-accept**.
-> - A Watch set to **queue for review** removes bound 6 and leaves bound 4.
->   Nothing reaches the wall until a human sees it.
-> - A Watch set to **auto-accept** removes both, and bound 4 turns into
->   detection after the fact.
->
-> The per-Watch spending cap is a new instance of bound 1's control, and is
-> welcome. It bounds cost, not content. **This section must be re-derived, not
-> extended, in the plan that builds Watches, before any Watch runs.** That
-> plan owes an answer to whether auto-accept is offered at all, and if so what
-> replaces the human in `set_verdict`'s visible-ids bound. It is not re-derived
-> here, because Watches have no design beyond the anchor doc yet.
->
 > **Fired and re-derived 2026-11-09:** § The unattended trigger fired, below.
-> Auto-accept is not offered (the owner, 2026-11-09).
+> `re-architecture.md` § Procurement's **Watches** (standing searches re-run on a
+> cadence with no curator in the session) are built, remove bounds 4 and 6, and
+> carry a per-Watch spending cap, which is bound 1's control and bounds cost, not
+> content. Auto-accept is not offered (the owner, 2026-11-09): what a Watch finds
+> waits in To review.
 
 ### The credential trigger fired — re-derived 2026-11-19
 
@@ -753,12 +731,11 @@ limit. The only "abuse" vector is an unbounded agent loop spending money, which 
 handled as a cost control (`nonfunctional-requirements.md` § Direction), not as an
 abuse control.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md`.** Two footnotes
-> apply once the Player surface exists, and neither reverses "not applicable".
-> - **Players poll**, at about 1 s per wall. That is a handful of requests per
->   second across a household, from known devices: load, not abuse.
-> - **A Watch is a new way to spend without a person.** Its per-period spending
->   cap is a cost control under the same norm, not a rate limit.
+> **Landed (Player surface and Watches).** Two footnotes, neither reversing "not
+> applicable": **Players poll**, about once a second per wall, which is a handful
+> of requests per second from known devices, load and not abuse; and **a Watch
+> is a way to spend without a person**, whose per-period cap is a cost control
+> under the same norm, not a rate limit.
 
 ## Supply Chain
 
@@ -774,21 +751,19 @@ CPython CVE is now a two-plane action where an operator would reasonably assume 
 The display plane is unaffected — it runs the system 3.13 and is patched by `apt`
 like anything else.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md` § Deployment
-> target.** From wave 3 the server runs as a container on the operator's NAS.
-> - Its CPython and its wheels come from the **image**, built from this
->   repository and pushed to a LAN registry. Patching it therefore means
->   **rebuilding and redeploying the image**, not `uv python upgrade` on the Pi.
->   The two-step caveat above stays true for as long as curation runs on the Pi.
->   *(2026-11-08: the image installs exactly the version in `.python-version`,
->   uv-managed only, and `tests/test_one_python.py` holds it. A CPython fix is a
->   change to that pin first; rebuilding alone reinstalls the same patch.)*
-> - The image's base and its build are a new link in the supply chain. They are
->   the same trust class as the PyPI wheels accepted above, and like them, no
->   provenance policy has been decided. *(Pinning, 2026-11-08: the uv image and
->   the Debian base are pinned by digest, Python by exact version, uv by
->   version in CI and the image.)*
-> - The Player stays on the Pi's system interpreter and `apt`, unchanged.
+> **Landed (wave 3).** The server runs as a container on the operator's NAS. Its
+> CPython and its wheels come from the **image**, built from this repository and
+> pushed to a LAN registry, so patching it means **rebuilding and redeploying the
+> image**, not `uv python upgrade`. The image installs exactly the version in
+> `.python-version`, uv-managed only, and `tests/test_one_python.py` holds it: a
+> CPython fix is a change to that pin first, because rebuilding alone reinstalls
+> the same patch. The image's base and build are a link in the supply chain of the
+> same trust class as the PyPI wheels accepted above, and like them have no
+> provenance policy; the uv image and the Debian base are pinned by digest, Python
+> by exact version, uv by version in CI and the image *(2026-11-08)*. The Player
+> stays on the Pi's system interpreter and `apt`, unchanged; the two-step caveat
+> above (`apt upgrade` does not patch curation's interpreter) is the Pi's, and
+> the server no longer runs there.
 
 This is a narrowing of an already-accepted surface rather than a new one. Both
 planes install PyPI wheels into venvs, which is a far larger volume of third-party
