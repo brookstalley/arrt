@@ -226,7 +226,7 @@ Developer preferences for how code is written in this project. Captured during d
   — the TV's address and port, the art root, and the geographic coordinates all left source
   along with the secrets that were already there, and a test now fails on any of them
   reappearing. _(This read "everything else hardcoded as module constants in `config.py`
-  including the TV's IP address, the art root `/home/tvpi/art`, and geographic coordinates",
+  including the TV's IP address, the art root `/home/<user>/art`, and geographic coordinates",
   which the same chunk that hoisted them made false.)_ See `boundary-patterns.md` § `ART_ROOT` filesystem contract.
 
 ## Workflow

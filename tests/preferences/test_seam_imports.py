@@ -20,12 +20,26 @@ business. The Library's package `__init__` is walked rather than exempted, becau
 importing the facade runs it: an import added there would reach Programming's
 process without appearing in any Programming file.
 
+**The Library's storage is Library.** Half of the Library lives outside
+`arrt.library`: its two contracts (`persistence.catalogue`, `persistence.discovery`)
+and the adapters over them (`persistence.sqlite`, `persistence.sqlite_discovery`),
+with the discovery records behind them (`persistence.discovery_records`). None
+imports `arrt.library`, so a guard keyed on that package alone passes
+`from arrt.persistence.sqlite import SqliteCatalogue` in a Programming module.
+`LIBRARY_STORAGE` names them, and they are forbidden to Programming as the
+Library's own modules are. Programming's own contract is `arrt.programming.store`.
+
 **What this cannot see**, stated so nobody reads more into a green run: which
 names a module uses from the shared kernel. `persistence.records` holds both
 sides' record types until rule 3 gives Programming its own store, so a
 Programming module could use `Artwork` from there and pass. Programming's store
 protocol, which hands it only its own tables, is what stands in the way of that
-until then.
+until then. Nor does it see a new module in `arrt.persistence` that holds Library
+storage: `LIBRARY_STORAGE` is a list kept by hand, and a storage module added
+beside those five passes until it is named there. And it reads imports, not SQL:
+a Programming statement that reads a Library table through a connection it was
+handed crosses the seam without an import (`test_seam_foreign_keys.py` holds only
+the foreign keys).
 """
 
 import pathlib
@@ -40,6 +54,23 @@ SOURCE_ROOT = REPOSITORY_ROOT / "arrt" / "src"
 LIBRARY = "arrt.library"
 PROGRAMMING = "arrt.programming"
 FACADE = "arrt.library.facade"
+
+#: The Library's storage modules, which live in `arrt.persistence` and not under
+#: `arrt.library`. Forbidden to Programming exactly as `arrt.library.*` is.
+LIBRARY_STORAGE = (
+    "arrt.persistence.catalogue",
+    "arrt.persistence.sqlite",
+    "arrt.persistence.discovery",
+    "arrt.persistence.sqlite_discovery",
+    "arrt.persistence.discovery_records",
+)
+
+
+def test_the_library_storage_modules_exist():
+    """A renamed storage module would leave `LIBRARY_STORAGE` naming nothing, and the guard quietly blind to it."""
+    missing = [name for name in LIBRARY_STORAGE if _file_of(name, SOURCE_ROOT) is None]
+
+    assert missing == [], f"LIBRARY_STORAGE names modules that do not exist: {missing}"
 
 
 def test_both_sides_have_modules_to_check():
@@ -95,6 +126,33 @@ class TestTheGuardCanFail:
         assert _crossings(offences) == ["arrt.library.catalogue"]
         assert "shared.py" in offences[0], "the offence did not name the file that actually crosses"
 
+    @pytest.mark.parametrize("storage", LIBRARY_STORAGE)
+    def test_it_catches_programming_importing_a_library_storage_module(self, tmp_path: pathlib.Path, storage: str):
+        """The Library's storage lives in `arrt.persistence`, which no `arrt.library` import names."""
+        root = _tree(tmp_path, {"programming/walls.py": f"from {storage} import Anything\n"})
+
+        assert _crossings(_programming_offences(root)) == [storage]
+
+    def test_it_catches_programming_reaching_library_storage_one_helper_away(self, tmp_path: pathlib.Path):
+        root = _tree(
+            tmp_path,
+            {
+                "shared.py": "from arrt.persistence.sqlite import SqliteCatalogue\n",
+                "programming/walls.py": "from arrt import shared\n",
+            },
+        )
+
+        offences = _programming_offences(root)
+
+        assert _crossings(offences) == ["arrt.persistence.sqlite"]
+        assert "shared.py" in offences[0], "the offence did not name the file that actually crosses"
+
+    def test_it_lets_programming_use_the_shared_records(self, tmp_path: pathlib.Path):
+        """`persistence.records` is the shared kernel until rule 3, so it is not a crossing."""
+        root = _tree(tmp_path, {"programming/walls.py": "from arrt.persistence.records import Wall\n"})
+
+        assert _programming_offences(root) == []
+
     def test_it_does_not_object_to_what_the_facade_imports(self, tmp_path: pathlib.Path):
         root = _tree(tmp_path, {"programming/walls.py": "from arrt.library.facade import playable\n"})
 
@@ -148,10 +206,17 @@ def _programming_offences(root: pathlib.Path) -> list[str]:
     return _offences(
         _modules_under(root, PROGRAMMING),
         root,
-        forbidden=lambda name: _within(name, LIBRARY) and name != LIBRARY,
+        forbidden=_is_library_module,
         stop_at={FACADE},
         subject="a Library module other than the facade",
     )
+
+
+def _is_library_module(name: str) -> bool:
+    """A module Programming may not reach: any `arrt.library.*` but the package itself, or Library storage."""
+    if _within(name, LIBRARY):
+        return name != LIBRARY
+    return any(_within(name, storage) for storage in LIBRARY_STORAGE)
 
 
 def _library_offences(root: pathlib.Path) -> list[str]:
@@ -279,6 +344,13 @@ def _tree(tmp_path: pathlib.Path, files: dict[str, str]) -> pathlib.Path:
         "library/__init__.py": "",
         "library/facade.py": "from arrt.library import catalogue\n",
         "library/catalogue.py": "",
+        "persistence/__init__.py": "",
+        "persistence/records.py": "",
+        "persistence/catalogue.py": "",
+        "persistence/sqlite.py": "",
+        "persistence/discovery.py": "",
+        "persistence/sqlite_discovery.py": "",
+        "persistence/discovery_records.py": "",
         "programming/__init__.py": "",
         "programming/display.py": "",
         "programming/manifest.py": "",
