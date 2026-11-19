@@ -10,6 +10,7 @@ giving up, partial results, the pause) is about outcomes no transport double
 produces on demand and about days no test can wait.
 """
 
+import errno
 import logging
 import sqlite3
 import threading
@@ -655,6 +656,65 @@ class TestThePause:
         assert queue.pause is not None
         assert queue.pause.condition == type(fault).__name__
         assert queue.state_of([artwork_id])[artwork_id].failures == 0
+
+    @pytest.mark.parametrize(
+        "fault",
+        [
+            OSError(errno.ENOSPC, "No space left on device"),
+            OSError(errno.EROFS, "Read-only file system"),
+            sqlite3.OperationalError("database is locked"),
+        ],
+        ids=["ENOSPC", "EROFS", "OperationalError"],
+    )
+    def test_a_fault_of_the_host_raised_mid_fetch_pauses_and_counts_against_no_work(self, queue, work, fetcher, store, fault):
+        """A full disk met mid-fetch fails every work in turn; it must not count against each until all are given up."""
+        first, second = work("One"), work("Two")
+        fetcher.answers = [fault]
+
+        result = queue.run()
+
+        assert result.paused is not None
+        assert result.paused.condition == type(fault).__name__
+        assert (result.failed, result.gave_up) == (0, 0)
+        # The pass stopped on it: the second work was not tried against the same disk.
+        assert [artwork_id for artwork_id, _ in fetcher.calls] == [first]
+        assert queue.pause is not None
+        assert queue.state_of([first])[first].failures == 0
+        assert queue.state_of([second])[second].phase is AcquisitionPhase.PAUSED
+        row = store.get_queued_acquisition(first)
+        assert row is None or row.failures == 0
+
+        # The host recovers: the same work is fetched on the next pass, still counted nowhere.
+        result = queue.run()
+        assert (result.paused, result.acquired) == (None, 2)
+
+    def test_a_fault_of_the_host_raised_while_preparing_pauses_too(self, queue, work, preparer, store):
+        artwork_id = work()
+
+        def full(artwork_id, *, force=False):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        preparer.prepare = full
+
+        result = queue.run()
+
+        assert result.paused is not None
+        assert result.paused.condition == "OSError"
+        row = store.get_queued_acquisition(artwork_id)
+        assert row is None or row.failures == 0
+
+    @pytest.mark.parametrize(
+        "fault", [OSError(errno.ENOENT, "No such file"), OSError(errno.EACCES, "Permission denied"), OSError("x")]
+    )
+    def test_an_oserror_about_one_works_file_still_counts_against_that_work(self, queue, work, fetcher, fault):
+        """The pause is for the host's faults, not every OSError: a missing or unreadable file is one work's."""
+        artwork_id = work()
+        fetcher.answers = [fault]
+
+        result = queue.run()
+
+        assert result.paused is None
+        assert (result.failed, queue.state_of([artwork_id])[artwork_id].failures) == (1, 1)
 
     def test_a_paused_queue_tries_again_within_a_quarter_of_an_hour(self, queue, work, fetcher):
         work()

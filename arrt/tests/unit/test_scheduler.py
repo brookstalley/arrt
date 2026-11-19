@@ -410,3 +410,43 @@ def test_a_started_run_whose_record_fails_is_counted_named_in_the_log_and_the_pa
     assert services.watches.get(second.id).last_run_id == runs_of(services, second.id)[0].id
     for run in (first_run, *runs_of(services, second.id)):
         settled(services, run.id)
+
+
+def test_a_watch_whose_start_was_not_recorded_is_not_started_again_by_the_next_pass(services, monkeypatch):
+    """The run is the record that the Watch was tried: a failed note of it must not make the next pass start another paid run."""
+    from arrt.services.errors import ServiceError
+
+    switch_on(services)
+    watch = a_watch(services)
+
+    def refusing(watch_id: str, run_id: str) -> None:
+        raise ServiceError("the catalogue refused the write")
+
+    monkeypatch.setattr(services.watches, "record_started", refusing)
+
+    first = services.scheduler.run_pass()
+    [run] = runs_of(services, watch.id)
+    settled(services, run.id)
+    second = services.scheduler.run_pass()
+
+    assert first["watches"] == PassResult(due=1, started=1, refused=0)
+    assert second["watches"].started == 0, "the unrecorded start was started again"
+    assert second["watches"].due == 0
+    assert len(runs_of(services, watch.id)) == 1
+    assert services.watches.get(watch.id).last_run_id is None, "the note really did fail, or this proves nothing"
+
+
+def test_an_unrecorded_start_is_due_again_a_cadence_after_the_run_began_not_after_the_watch_was_made(services, monkeypatch):
+    from arrt.services.errors import ServiceError
+
+    switch_on(services)
+    watch = a_watch(services, cadence="daily")
+    monkeypatch.setattr(
+        services.watches, "record_started", lambda *_: (_ for _ in ()).throw(ServiceError("the catalogue refused the write"))
+    )
+    services.scheduler.run_pass()
+    [run] = runs_of(services, watch.id)
+    settled(services, run.id)
+    standing = services.watches.standing(services.watches.get(watch.id))
+
+    assert standing.next_due_at == run.started_at + timedelta(days=1)

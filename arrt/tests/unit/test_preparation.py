@@ -728,3 +728,178 @@ def test_a_preview_of_the_derivation_logs_nothing_and_recording_it_does(prep, se
     recorded = prep.derive_mat(work.id)
     assert recorded.mat_hex == previewed
     assert [r for r in caplog.records if moved in r.getMessage()], "recording the derivation no longer explains the move"
+
+
+# -- a refused mat write keeps the billed cost ------------------------------------
+
+
+class TestARefusedMatWriteKeepsWhatTheCallCost:
+    """The vision call is billed whether or not its colour is accepted, so the spend row comes first.
+
+    Red before: the row was written after the colour, so a refused write (here the
+    catalogue refusing, as it does a colour under the floor or on a bad disk)
+    left a billed call that no month total contained, and the queue's retry paid again.
+    """
+
+    @staticmethod
+    def _refuse_the_write(service, monkeypatch):
+        def refusing(**_):
+            raise ServiceError("the catalogue refused the mat")
+
+        monkeypatch.setattr(service, "record_mat_color", refusing)
+
+    def test_a_first_preparation_whose_mat_write_is_refused_leaves_its_spend_row(
+        self, service, discovery, discovery_store, settings, prep_settings, monkeypatch
+    ):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.00006626")), prep_settings, spend=discovery)
+        self._refuse_the_write(service, monkeypatch)
+
+        with pytest.raises(ServiceError, match="refused the mat"):
+            prep.prepare(work.id)
+
+        assert _mat_spend(discovery_store) == {(work.id, Decimal("0.00006626"), "qwen/qwen3.7-flash", 1)}
+        assert service.current_mat_color(work.id) is None, "the write was refused, or this proves nothing"
+
+    def test_choosing_again_whose_mat_write_is_refused_leaves_its_spend_row(
+        self, service, discovery, discovery_store, settings, prep_settings, monkeypatch
+    ):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#27285b", Decimal("0.00006626")), prep_settings, spend=discovery)
+        self._refuse_the_write(service, monkeypatch)
+
+        with pytest.raises(ServiceError, match="refused the mat"):
+            prep.choose_mat(work.id)
+
+        assert _mat_spend(discovery_store) == {(work.id, Decimal("0.00006626"), "qwen/qwen3.7-flash", 1)}
+
+
+# -- one work is prepared by one caller at a time ---------------------------------
+
+
+class TestOneWorkAtATime:
+    """`prepare` and `regenerate` of one work must not overlap, and two works must not wait for each other.
+
+    The master is staged at one fixed name per work, so two writers of one work
+    can move each other's half-written file into place (audit 2 S8). The master
+    maker is wrapped to record who is inside it; nothing else is replaced.
+    """
+
+    @staticmethod
+    def _watching_the_master_maker(monkeypatch, *, hold_seconds: float):
+        import threading
+        import time
+
+        from arrt.library.acquisition import preparation as module
+
+        real = module.make_master
+        lock = threading.Lock()
+        inside: dict[str, int] = {}
+        seen = {"most_at_once": 0, "most_of_one_work": 0}
+
+        def watched(source, *, destination):
+            key = destination.name
+            with lock:
+                inside[key] = inside.get(key, 0) + 1
+                seen["most_of_one_work"] = max(seen["most_of_one_work"], inside[key])
+                seen["most_at_once"] = max(seen["most_at_once"], sum(inside.values()))
+            try:
+                time.sleep(hold_seconds)
+                return real(source, destination=destination)
+            finally:
+                with lock:
+                    inside[key] -= 1
+
+        monkeypatch.setattr(module, "make_master", watched)
+        return seen
+
+    @staticmethod
+    def _together(*calls):
+        import threading
+
+        failures: list[BaseException] = []
+
+        def run(call):
+            try:
+                call()
+            except BaseException as exc:  # noqa: BLE001 - reported to the test, which asserts there are none
+                failures.append(exc)
+
+        threads = [threading.Thread(target=run, args=(call,)) for call in calls]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(30)
+        assert not any(thread.is_alive() for thread in threads), "a preparation never finished"
+        assert failures == []
+
+    def test_a_second_preparation_of_the_same_work_waits_for_the_first(self, prep, service, settings, monkeypatch):
+        work, _ = _work_with_original(service, settings)
+        prep.prepare(work.id)
+        seen = self._watching_the_master_maker(monkeypatch, hold_seconds=0.3)
+
+        self._together(lambda: prep.prepare(work.id, force=True), lambda: prep.prepare(work.id, force=True))
+
+        assert seen["most_of_one_work"] == 1, "two writers staged one work's master at once"
+
+    def test_different_works_are_prepared_at_the_same_time(self, prep, service, settings, monkeypatch):
+        first, _ = _work_with_original(service, settings)
+        second, _ = _work_with_original(service, settings)
+        seen = self._watching_the_master_maker(monkeypatch, hold_seconds=0.5)
+
+        self._together(lambda: prep.prepare(first.id, force=True), lambda: prep.prepare(second.id, force=True))
+
+        assert seen["most_at_once"] == 2, "one work's preparation held another's up"
+        assert seen["most_of_one_work"] == 1
+
+    def test_a_remake_waits_for_a_mat_choice_of_the_same_work_and_the_table_empties(
+        self, service, discovery, settings, prep_settings, monkeypatch
+    ):
+        import threading
+        import time
+
+        from arrt.library.acquisition import preparation as module
+
+        work, _ = _work_with_original(service, settings)
+        engine = _spending_engine("#27285b", Decimal("0.0001"))
+        prep = PreparationService(service, engine, prep_settings, spend=discovery)
+        prep.prepare(work.id)
+        choosing = threading.Event()
+        asking = threading.Event()
+        overlapped: list[bool] = []
+        real_choose, real_make = engine.choose, module.make_master
+
+        def slow_choose(image_path):
+            asking.set()
+            choosing.set()
+            time.sleep(0.4)
+            try:
+                return real_choose(image_path)
+            finally:
+                choosing.clear()
+
+        def watched_master(source, *, destination):
+            overlapped.append(choosing.is_set())
+            return real_make(source, destination=destination)
+
+        monkeypatch.setattr(engine, "choose", slow_choose)
+        monkeypatch.setattr(module, "make_master", watched_master)
+
+        def remake_once_the_model_is_being_asked():
+            assert asking.wait(10)
+            prep.prepare(work.id, force=True)
+
+        self._together(lambda: prep.choose_mat(work.id), remake_once_the_model_is_being_asked)
+
+        assert overlapped == [False], "a remake staged the master while a mat choice of the same work was in progress"
+        assert prep._in_flight == {}, "a finished preparation left its lock in the table"
+
+    def test_a_refused_preparation_releases_the_work(self, prep, service):
+        work = service.add_artwork(title="No image")
+
+        with pytest.raises(ServiceError):
+            prep.prepare(work.id)
+        with pytest.raises(ServiceError):
+            prep.prepare(work.id)
+
+        assert prep._in_flight == {}

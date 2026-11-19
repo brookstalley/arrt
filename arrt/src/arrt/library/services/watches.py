@@ -188,7 +188,13 @@ class WatchService:
         """Where `watch` stands now. The scheduler and the screen both read it, so they agree on "due"."""
         now = self._now()
         cadence = self.cadence_of(watch)
-        run = None if watch.last_run_id is None else self._store.get_run(watch.last_run_id)
+        # The newest run carrying this Watch's id, not the one the Watch's own note
+        # names: the run row is written when the run starts, and the note is a
+        # second write that can fail (`watch.unrecorded_start`), after which the
+        # note names an older run and the Watch would be due again at once.
+        run = self._store.latest_run_of_watch(watch.id)
+        if run is None and watch.last_run_id is not None:
+            run = self._store.get_run(watch.last_run_id)
         last_status = None if run is None else run.status
         in_flight = run is not None and not run.status.is_terminal and self._working_on(run.id)
         due_at = None if not watch.enabled or in_flight else _next_due(watch, cadence, run)
@@ -377,12 +383,24 @@ def _cadence(raw: str) -> str | None:
 
 
 def _next_due(watch: Watch, cadence: Cadence, last_run: DiscoveryRun | None) -> datetime:
-    """When `watch` is next due: at once if never tried, soon after a refusal or an unfinished run, else a cadence on."""
-    if watch.last_attempt_at is None:
+    """When `watch` is next due: at once if never tried, soon after a refusal or an unfinished run, else a cadence on.
+
+    A run the Watch's own note does not name is a start the Watch failed to
+    record: it counts as an attempt when it began, and it supersedes a refusal
+    the note still holds, because the Watch has been tried since. Keyed on the
+    note naming another run, not on the run being newer than the last attempt,
+    so a Watch whose notes are all in order reads as it always did.
+    """
+    attempted = watch.last_attempt_at
+    refused = watch.last_refusal is not None
+    if last_run is not None and last_run.id != watch.last_run_id and (attempted is None or last_run.started_at > attempted):
+        attempted = last_run.started_at
+        refused = False
+    if attempted is None:
         return watch.created_at
-    again_soon = watch.last_refusal is not None or (last_run is not None and last_run.status in _DID_NOT_FINISH)
+    again_soon = refused or (last_run is not None and last_run.status in _DID_NOT_FINISH)
     wait = min(INTERVAL[cadence], RETRY_AFTER) if again_soon else INTERVAL[cadence]
-    return watch.last_attempt_at + wait
+    return attempted + wait
 
 
 def _sentence(watch: Watch, last_status: RunStatus | None, *, in_flight: bool, overdue: bool) -> str:
