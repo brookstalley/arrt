@@ -343,7 +343,7 @@
           ],
           "properties": {
             "url": {
-              "description": "Where to fetch it: a URI reference, resolved against the manifest's own URL. Today the server serves it at /media/sha256-<hex>; after a Library/Programming split it may name the Library's host, and no Player needs to change. The sha256 is the identity: the Player verifies the bytes against it, so a url that disagrees is caught at download and discarded.",
+              "description": "Where to fetch it: a URI reference, resolved against the manifest's own URL. Arrt writes /media/sha256-<hex>, served by the same server to any client's valid token. It may be absolute and name another host, which a reader must read (the fixture media-on-another-host); nothing here promises how media would be served if the server were split (player-contract.md § Transport). The sha256 is the identity: the Player verifies the bytes against it, so a url that disagrees is caught at download and discarded.",
               "type": "string",
               "format": "uri-reference",
               "minLength": 1
