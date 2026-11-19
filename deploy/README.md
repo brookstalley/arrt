@@ -24,10 +24,12 @@ Player's steps are in its repository.
   `/healthz` for the container's healthcheck. Build it for the NAS with
   `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
   curation suite inside it with `--target test --build-context repo=.`, as the
-  app's own user. CI builds that target natively on amd64 on a pull request that
-  changes the image's environment: its Dockerfile, interpreter pin or dependency
-  files (`.github/workflows/image.yml`). A change to source or tests alone does
-  not build it, so run that workflow by hand before a release. On an arm Mac it builds under emulation, takes far longer, and
+  app's own user. CI builds that target natively on amd64 on every pull request
+  into `main`, which is a release, so the image is built before every release
+  without anyone remembering to; on a pull request into any other branch it builds
+  only when the image's environment changes: its Dockerfile, interpreter pin or
+  dependency files (`.github/workflows/image.yml`). A change to source or tests
+  alone does not build it there, and the workflow can also be run by hand. On an arm Mac it builds under emulation, takes far longer, and
   a test that times a server's answer can fail there for that reason alone.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 

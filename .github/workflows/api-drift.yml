@@ -62,10 +62,14 @@ concurrency:
 # `issues: write` is wider than a probe run needs, and it is what buys the
 # failure route: without it the only notification is the default Actions email,
 # whose limits are in the header above. Nothing here reads an issue's contents;
-# the scripts only list titles, create, and comment.
+# the scripts only list titles, create, and comment. It is granted per job, to
+# the two free probes that report their own failure and to `report-openrouter`,
+# and never to the job that holds the OpenRouter key: that job reads its secret
+# in a step that runs a test suite, and a job able to write issues should not be
+# the one running code with a key in reach. `tests/test_actions_pinned.py` holds
+# that no job with a secret of the repository's can write issues.
 permissions:
   contents: read
-  issues: write
 
 jobs:
   # One job per marker rather than a single `-m "a or b"` run, so a museum outage
@@ -90,9 +94,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 6 * * 1'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           version: "0.11.32"
           enable-cache: true
@@ -125,9 +132,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 6 * * 1'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           version: "0.11.32"
           enable-cache: true
@@ -171,9 +181,13 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.include_paid)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Read-only on purpose: this job holds the OpenRouter key, so it cannot write
+    # issues. Its failure is reported by `report-openrouter` below.
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           version: "0.11.32"
           enable-cache: true
@@ -190,8 +204,25 @@ jobs:
         # in CI is a provisioning failure, not a legitimate absence.
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
-      - name: Say so where a human will see it
-        if: failure() && github.event_name == 'schedule'
+
+  # The paid probe's failure route, in a job of its own so that the job holding the
+  # key is not the one allowed to write issues. It holds no secret of the
+  # repository's: it checks out the script and reports under the same contract name
+  # the probe job used to, on scheduled runs only, as the two jobs above do.
+  report-openrouter:
+    name: "Say so where a human will see it (OpenRouter)"
+    needs: openrouter
+    if: failure() && github.event_name == 'schedule' && needs.openrouter.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Open or comment on the issue
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
