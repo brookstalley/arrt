@@ -80,7 +80,7 @@ place of Arrt's.
   one commit may differ. The private source plugins' repository found a second step
   necessary for a reproducible image: it exports the plugin's own `uv.lock` as a
   constraints file (`plugin_constraints.py`, there) and passes it to the install
-  beside Arrt's. Its `deploy/Dockerfile` is the recipe to copy; the snippet above
+  beside Arrt's. Its `arrt-sources:deploy/Dockerfile` is the recipe to copy; the snippet above
   is the part that protects Arrt, not the whole of a reproducible build.
 - **The plugin names no `arrt` dependency** (`docs/source-plugins.md` § A plugin
   is a distribution with one entry point), so nothing here can fetch an `arrt`
