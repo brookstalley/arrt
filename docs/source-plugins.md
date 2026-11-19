@@ -44,6 +44,20 @@ plugins it does not name follow by name.
 PLUGIN: Final = SourcePlugin(api_major=1, create=_create, claims=claims, museum="Tate")
 ```
 
+A plugin that reads pages through a browser, and needs longer than the host's
+default deadline (§ Deadlines), says so and which interface it needs:
+
+```python
+PLUGIN: Final = SourcePlugin(
+    api_major=1,
+    api_minor=5,
+    create=_create,
+    claims=claims,
+    museum="The Museum of Modern Art",
+    deadlines={"finder": 600, "reader": 600},
+)
+```
+
 **Name the museum** (1.4): `museum` is what a curator reads wherever Arrt names
 your source, on every page and in every sentence. Without it, your plugin's id
 stands in, and the browser shows ids only in its debug view. One line of plain
@@ -51,8 +65,22 @@ text, at most 120 characters; anything else is refused at startup
 (`source.museum_refused`) and the id stands. It is read whether or not the
 factory declines.
 `SourcePlugin` takes `museum` only from 1.4: on an older Arrt the keyword is a
-`TypeError` at import and the plugin is left out. A plugin that must load on both
-passes it only when `"museum" in SourcePlugin.__dataclass_fields__`.
+`TypeError` at import and the plugin is left out, and since 1.5 the reason says
+the plugin may need a newer Arrt. A plugin that must load on both passes it only
+when `"museum" in SourcePlugin.__dataclass_fields__`.
+The built-ins name their museum differently, with a module-level `MUSEUM`
+constant beside the plugin rather than `museum=`. Arrt reads that constant only
+from its own modules, so a plugin from elsewhere passes `museum=`.
+
+**Say which minor you need** (1.5): `api_minor` is the newest interface minor
+your plugin reads, `0` when you pass nothing. A plugin needing a newer minor
+than the Arrt it is installed in is refused at startup, naming both ("it needs
+source interface 1.6, and this Arrt is 1.5"), rather than loaded to fault on
+the first call that reads a field this Arrt does not have. A plugin passing
+`museum=` needs 1.4, and one passing `deadlines=` or `api_minor=` needs 1.5. Like
+`museum`, `api_minor` and `deadlines` are a `TypeError` at import on an older
+Arrt; pass them only when they are in `SourcePlugin.__dataclass_fields__` if the
+plugin must load on one.
 
 Arrt imports the module and calls `create` once at startup with a
 `SourceContext`. The factory answers with `SourceParts` (any of a finder, a
@@ -83,10 +111,11 @@ configured the plugin.
   also load on an older Arrt, and decline when you need it and it is `None`.
 
 `api_major` is the interface major the plugin was written for. Today that is
-`1` (`API_VERSION` is `(1, 4)`). Arrt refuses a plugin written for another major,
+`1` (`API_VERSION` is `(1, 5)`). Arrt refuses a plugin written for another major,
 by name, and loads one written for an older minor, because a minor only adds
 optional capabilities. 1.1 added `ImageQuery.pages`, 1.2 `SourceContext.data_dir`,
-1.3 the IIIF parsers (§ Reading IIIF), and 1.4 `SourcePlugin.museum`.
+1.3 the IIIF parsers (§ Reading IIIF), 1.4 `SourcePlugin.museum`, and 1.5
+`SourcePlugin.api_minor` and `SourcePlugin.deadlines`.
 
 ## Import from `arrt.library.sources` and nothing else
 
@@ -152,6 +181,10 @@ At most one of each, in `SourceParts`:
   URL `dezoomify-rs` reads, such as a IIIF `info.json`), or `.none(reason)` (the
   page is the expected one and shows no image).
 - A reader says how to fetch and never fetches the image itself.
+- **A plugin with a reader declares `claims`, and one that declares `claims`
+  provides a reader.** Either alone is refused at startup ("it declares claims
+  and provides no reader"), since every URL it claimed would fail, or none would
+  ever reach it.
 
 ### Reading IIIF
 
@@ -189,16 +222,65 @@ is the example.
 has told you nothing about what it holds. Check for the shape you expect, and
 raise `ImageSearchFailure` when it is absent.
 
+**What you answer is checked.** An image's `estimated_width` and
+`estimated_height` are positive whole numbers or `None` (not a string, not `0`,
+not `True`); its `title` is text and its `title` and `artist` at most 2,000
+characters, as is a `FetchLocator.none` reason; a preview is at most
+`context.preview_max_bytes`. Anything else is a fault, as below, and a preview
+past the ceiling is also the `None` of a failed preview.
+
+**What you yield before you fail is kept.** A finder whose `find_images` is a
+generator that yields an image and then raises `ImageSearchFailure` (or
+`ImageQueryUnanswerable`) has said that image: the run judges it beside the
+other sources' answers, and the source still counts as could not be asked. What
+a finder yielded before it faulted is not kept.
+
 **Anything else you raise is a fault.** Arrt contains it to the call, logs it at
 error with the traceback (`event=source.plugin_fault`), counts it on the health
 panel, and records the call as could-not-be-asked. That keeps one broken plugin
 from stopping a run. It is not a way to answer: a plugin that faults on every
 call reads as a broken plugin on the panel.
 
+## Deadlines
+
+**Arrt waits for each call into your plugin for a bounded time, and a call that
+misses it is "could not be asked".** By default a `find_images` or a `read` gets
+60 seconds, a `fetch_preview` 30, and a collection's `browse` 120. A call past
+its deadline is answered for you, as if you had raised `ImageSearchFailure`
+(a preview as `None`, a browse as `CollectionBrowseFailure`); it is logged
+(`event=source.plugin_deadline`), counted against your plugin on the health
+panel beside its faults, and the work is asked again later. It is not a fault.
+
+**A plugin that needs longer says so**, with `deadlines`: a mapping from any of
+`"finder"`, `"reader"`, `"preview"` and `"browse"` to seconds. A kind you do not
+name keeps its default. Each value is a number of seconds above zero and at most
+Arrt's ceiling, 900 seconds; anything else (more than 900, zero or less, not
+finite, not a number, or a kind not in that list) leaves the plugin out at
+startup, named with the reason. Declare the time your own bounds allow a call at
+its worst, because Arrt cuts it off at what you declare: a browser plugin whose
+page may take 480 seconds, queue included, declares at least that.
+
+**Arrt cannot stop your call; it stops waiting for it.** Python cannot stop a
+thread, so the call goes on running, on a daemon thread of its own. When it
+returns, whatever it returned or raised is discarded and logged
+(`event=source.plugin_late`): the run or look that asked has already settled
+without it. At most four of your calls run past their deadline at once; while
+four do, a new call to your plugin is answered "could not be asked" at once,
+without being made, until one of them returns. So bound your own work as well
+(every read, every lock you wait for, every child process): a call that never
+returns holds its thread for the life of the process.
+
+**A run waits for every source.** Every finder is asked at once and the run
+answers when the last has answered or reached its deadline, so a longer
+deadline is how long your plugin can hold every Get when it is slow. A look
+waits behind a run asking your plugin, and asks it again once the run is done
+or has given up.
+
 ## What Arrt does for you, and what it does not
 
 **Arrt does:**
 
+- wait for each call no longer than its deadline (§ Deadlines);
 - fetch every locator a reader returns, after its own address check (http or
   https, a public address, no `.local` name) on the URL in the locator, with the
   size bounds and the tile cache. A direct fetch re-checks every redirect hop.
