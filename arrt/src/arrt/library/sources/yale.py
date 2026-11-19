@@ -361,8 +361,8 @@ class YaleFinder:
             if ref is not None:
                 objects.setdefault(ref, page)
         found: list[FoundImage] = []
-        for ref, page in list(objects.items())[:_RESULT_LIMIT]:
-            image = self._image(ref, page=page)
+        for ref, spelt in list(objects.items())[:_RESULT_LIMIT]:
+            image = self._image(ref, page=spelt)
             if image is not None:
                 found.append(image)
         return found
