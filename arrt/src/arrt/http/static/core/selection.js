@@ -18,6 +18,7 @@
 import { attempt } from "./acting.js";
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
+import { whoSees } from "./hanging.js";
 
 /* What a wall would stop showing, said after "in place of". */
 function replacing(wall) {
@@ -29,7 +30,7 @@ function replacing(wall) {
 export function hangQuestion(title, wall) {
   return {
     title: `Hang ${title} on ${wall.name}?`,
-    consequence: `${wall.name} shows it until something else is hung there${replacing(wall)}. Everyone in the house sees ${wall.name} change.`,
+    consequence: `${wall.name} shows it until something else is hung there${replacing(wall)}. ${whoSees([wall])}`,
     confirmLabel: "Hang",
   };
 }

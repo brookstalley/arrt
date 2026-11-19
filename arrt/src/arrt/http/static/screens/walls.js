@@ -102,9 +102,7 @@ export async function viewWalls(generation) {
     render(
       generation,
       heading(),
-      ...unreachable(
-        `The curation plane did not answer — ${failure.message} — so nothing can be said about any wall. The display plane was not asked.`,
-      ),
+      ...unreachable(`The walls could not be read — ${failure.message} — so nothing can be said about any wall.`),
     );
     return;
   }
@@ -133,7 +131,13 @@ export async function viewWalls(generation) {
   }
 
   const live = scenes ? scenes.live : null;
-  const sections = walls.walls.map((wall, index) => wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live));
+  // The note about taking down sits in the card it explains when one wall
+  // hangs nothing, and once under the cards when several do (said once, for
+  // the reason `takeDownNote` gives).
+  const empty = walls.walls.filter((wall) => !wall.theme);
+  const sections = walls.walls.map((wall, index) =>
+    wallSection(wall, builds[index], beats, nows[index], themes.themes, shownBy, live, empty.length === 1 && !wall.theme),
+  );
   // The live scene, if any, is one line above the cards; assembling one is the
   // Scene… dialog's, which reads the scene again when pressed. Both are painted
   // by `paintScene`.
@@ -146,7 +150,7 @@ export async function viewWalls(generation) {
     toolbar({ actions: [addWallOpener(), sceneOpener(scene)] }),
     scene.node,
     el("div", { class: "walls" }, sections),
-    walls.walls.some((wall) => !wall.theme) ? takeDownNote() : null,
+    empty.length > 1 ? takeDownNote() : null,
   );
 }
 
@@ -201,13 +205,15 @@ function sceneOpener(scene) {
  * for a failed one — the same inference `activate_theme`'s docstring cites when
  * it argues that hanging must publish immediately.
  *
- * Once, under every section, rather than once per wall: it is one fact about how
- * taking down works, not a property of any particular wall, and three empty rooms
- * would otherwise print it three times. `information-architecture.md` states the
- * general form — a qualifier that applies to every row is a footnote under the
- * block rather than a mark on each row. */
-function takeDownNote() {
-  return el("p", { class: "note", text: "A wall goes on showing what it was showing until a theme is hung." });
+ * In the card when one wall hangs nothing, where it is about that wall (audit
+ * 2026-11-19, finding 6: outside the card it sat wider than it and touching
+ * it). Once, under the cards, when several do: then it is one fact about how
+ * taking down works, not a property of any particular wall, and three empty
+ * rooms would otherwise print it three times. `information-architecture.md`
+ * states the general form — a qualifier that applies to every row is a
+ * footnote under the block rather than a mark on each row. */
+function takeDownNote(inCard = false) {
+  return el("p", { class: inCard ? "muted wall-take-down" : "note walls-note", text: "A wall goes on showing what it was showing until a theme is hung." });
 }
 
 /* Which Player shows this wall, said only when it is a problem
@@ -220,27 +226,59 @@ function takeDownNote() {
  * No Player is mended in this wall's own *Edit…*, where its Player and screen
  * are set (ruling 4 of 2026-10-27), so the line opens it. A fault is mended at
  * the Players, in their settings, and Settings › Players names both. */
-function assignmentProblem(wall, edit) {
+function assignmentProblem(wall, edit, shownBy) {
   if (wall.display && wall.display.fault) {
-    return el("p", { class: "note wall-problem wall-fault" }, [
-      el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
-      link({ view: "clients" }, { text: "See Settings › Players" }),
-    ]);
+    return [
+      el("p", { class: "note wall-problem wall-fault" }, [
+        el("span", { text: `${GLYPHS.problem} ${wall.display.fault.description} ` }),
+        link({ view: "clients" }, { text: "See Settings › Players" }),
+      ]),
+    ];
   }
   if (!wall.client_id) {
-    return el("p", { class: "muted wall-problem" }, [
-      el("span", { text: "No Player shows this wall. " }),
-      el("button", {
-        class: "action quiet",
-        type: "button",
-        text: "Choose its Player…",
-        "aria-haspopup": "dialog",
-        "aria-label": `Choose the Player for ${wall.name}…`,
-        onclick: edit,
-      }),
-    ]);
+    const waiting = waitingPlayers(shownBy);
+    const one = waiting.length === 1;
+    return [
+      el("p", { class: "muted wall-problem" }, [
+        el("span", { text: "No Player shows this wall. " }),
+        el("button", {
+          class: "action quiet",
+          type: "button",
+          text: "Choose its Player…",
+          "aria-haspopup": "dialog",
+          "aria-label": `Choose the Player for ${wall.name}…`,
+          onclick: edit,
+        }),
+      ]),
+      // A Player added and not yet reporting is the step a household is on
+      // while setting a wall up, so what the page waits for is said where the
+      // next step is, rather than found as a screen picker with nothing in it
+      // (audit 2026-11-19, finding 2).
+      waiting.length
+        ? el("p", {
+            class: "muted wall-waiting",
+            text:
+              `${listedWords(waiting.map((client) => client.name))} ${one ? "has" : "have"} not reported yet. ` +
+              `${one ? "Its screens" : "Their screens"} can be chosen here once ${one ? "it is running with its token and reports" : "they are running with their tokens and report"}.`,
+          })
+        : null,
+    ];
   }
-  return null;
+  return [];
+}
+
+/* The Players holding a token that have never reported: added, and not yet
+ * running (or not yet reaching this server). A Player with no token cannot
+ * report at all, and Settings › Players says so in its row. */
+function waitingPlayers(shownBy) {
+  if (!shownBy || !shownBy.byId) return [];
+  return [...shownBy.byId.values()].filter((client) => client.token_issued_at && client.heartbeat && client.heartbeat.absent);
+}
+
+/* "a", "a and b", "a, b and c". */
+function listedWords(names) {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /* Every client by its id, or why they could not be read.
@@ -415,9 +453,13 @@ function reasonFor(wall, build, beats) {
   return "hanging";
 }
 
-function wallSection(wall, build, beats, now, themes, shownBy, live) {
+function wallSection(wall, build, beats, now, themes, shownBy, live, noteInCard = false) {
   const manifest = build.manifest;
   const reason = reasonFor(wall, build, beats);
+  // None of the theme reaches the wall: said only then, which is when it stops
+  // the wall's job; otherwise the count of works it cannot show is a link at the
+  // card's foot (rule: an exception stays quiet until it blocks).
+  const dark = Boolean(manifest && reason !== "empty-theme" && manifest.entries.length === 0);
   // What the card's acts read the current work from. The lead can be replaced
   // after a Skip without repainting the controls, so they read it here rather
   // than from a value captured when they were drawn.
@@ -442,7 +484,7 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
     card.lead,
     // Which Player shows the wall is its configuration, and is said here only
     // when it is a problem: no Player, or a screen two Players claim.
-    assignmentProblem(wall, (event) => editWall(event.currentTarget, wall)),
+    ...assignmentProblem(wall, (event) => editWall(event.currentTarget, wall), shownBy),
     // The server's sentence, so Walls and the tool surface say the same thing
     // about a Player that cannot read this server's feed. Under the lead, which
     // leads the card whatever else it has to say.
@@ -450,11 +492,12 @@ function wallSection(wall, build, beats, now, themes, shownBy, live) {
     sceneLine(wall, live),
     acts(card, reason, manifest),
     card.said,
-    // Said only when none of the theme reaches the wall, which is when it stops
-    // the wall's job; otherwise the count of works it cannot show is a link at
-    // the card's foot (rule: an exception stays quiet until it blocks).
-    manifest && reason !== "empty-theme" && manifest.entries.length === 0 ? summaryLine(manifest) : null,
-    ...emptiness(reason, wall, build, beats, themes),
+    // A wall that is dark and whose Player has not reported is one notice, not
+    // two stacked ones each saying the wall shows nothing (audit 2026-11-19,
+    // finding 6): the silent reason carries the summary when there is one.
+    dark && reason !== "silent" ? summaryLine(manifest) : null,
+    ...emptiness(reason, wall, build, beats, themes, shownBy, dark ? manifest : null),
+    !wall.theme && noteInCard ? takeDownNote(true) : null,
     hangingFacts(wall, themes, manifest),
     card.next,
     footer(wall, manifest),
@@ -825,7 +868,7 @@ function sceneLine(wall, live) {
  * glyph only draws the eye to it. */
 function summaryLine(manifest) {
   if (manifest.entries.length > 0) return el("p", { class: "note", text: manifest.summary });
-  return el("p", { class: "note wall-feed wall-dark" }, [el("span", { text: `${GLYPHS.problem} ${manifest.summary}` })]);
+  return el("p", { class: "note wall-feed wall-dark" }, [el("span", { class: "wall-dark-summary", text: `${GLYPHS.problem} ${manifest.summary}` })]);
 }
 
 /* A screen not showing art, in the product's voice. `showing_art` and `silent`
@@ -866,8 +909,8 @@ function stateLead(wall, shown, said, silent, last, first) {
             ? el("p", {
                 class: "muted",
                 text: shown.since
-                  ? `${wall.name}'s display is reporting, and cannot say what its screen is showing.`
-                  : `${wall.name}'s display is reporting, and has not said which work it is showing.`,
+                  ? `${wall.name}'s Player is reporting, and cannot say what its screen is showing.`
+                  : `${wall.name}'s Player is reporting, and has not said which work it is showing.`,
               })
             : null,
           shown.since ? el("p", { class: "muted", text: `Since ${readable(shown.since)}` }) : null,
@@ -1025,10 +1068,10 @@ function nextUp(wall, now) {
  * decoration: they are four branches with four texts and four fixes, and a
  * dispatch that fell through to a shared sentence would be the single "nothing is
  * showing" this screen exists not to say. */
-function emptiness(reason, wall, build, beats, themes) {
+function emptiness(reason, wall, build, beats, themes, shownBy, dark) {
   if (reason === "no-theme") return noThemeHung(wall, themes);
   if (reason === "empty-theme") return emptyTheme(wall, build.manifest);
-  if (reason === "silent") return planeSilent(wall, beats.byWall.get(wall.wall_id));
+  if (reason === "silent") return notReported(wall, beats.byWall.get(wall.wall_id), shownBy, dark);
   if (reason === "unreachable") return unreachable(cannotReach(wall, build, beats));
   return [];
 }
@@ -1072,33 +1115,44 @@ function emptyTheme(wall, manifest) {
   ];
 }
 
-/* Reason three: this plane published, and no display has said anything back.
+/* Reason three: the wall's feed is written, and its Player has said nothing back.
  *
  * **A reading that arrived**, which is what separates this from reason four: the
- * curation plane answered, and what it answered with is that the display plane
- * has not spoken. Both an absent heartbeat and one that cannot be read land here
- * — a corrupt report is still the display plane failing to speak, the wall is
- * equally dark either way, and the fix is the same: go and read the observation
- * in full. What differs is the sentence, because "nothing has ever been written"
- * and "something was written and cannot be parsed" send an operator to different
- * places on the appliance. */
-function planeSilent(wall, beat) {
+ * server answered, and what it answered with is that no Player has reported for
+ * the wall. Both an absent report and one that cannot be read land here — the
+ * wall is equally dark either way, and the way on is the same: its reading on
+ * Status. What differs is the sentence, because "nothing has reported" and
+ * "something reported and cannot be read" send a person to different places on
+ * the Player.
+ *
+ * **One notice, said once** (audit 2026-11-19, finding 6). A wall no Player
+ * shows has its *No Player* line, which already says nothing can show it, so
+ * nothing is added here. When none of the theme reaches the wall either, that
+ * sentence leads this one in the same notice rather than stacking a second. */
+function notReported(wall, beat, shownBy, dark) {
+  const unassigned = !wall.client_id || (wall.display_state && wall.display_state.state === "unassigned");
+  if (unassigned) return dark ? [summaryLine(dark)] : [];
+  const player = shownBy && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   return [
-    el("p", { class: "note", text: silence(wall, beat) }),
-    el("div", { class: "row" }, [
-      link({ view: "health" }, { class: "action quiet", text: `Open the reading for ${wall.name}` }),
+    el("p", { class: `note wall-unreported${dark ? " wall-dark" : ""}` }, [
+      dark ? el("span", { class: "wall-dark-summary", text: `${GLYPHS.problem} ${dark.summary}` }) : null,
+      dark ? " " : null,
+      el("span", { text: `${silence(wall, beat, player ? player.name : null)} Its reading is on ` }),
+      link({ view: "health" }, { text: "Status", "aria-label": `Status, for ${wall.name}'s reading` }),
+      ".",
     ]),
   ];
 }
 
-function silence(wall, beat) {
+function silence(wall, beat, playerName) {
+  const player = playerName || "Its Player";
   if (!beat) {
-    return `The health reading carries no heartbeat for ${wall.name}, so nothing here can say whether a display is serving it.`;
+    return `The status reading says nothing about ${wall.name}, so nothing here can say whether its Player is showing it.`;
   }
   if (beat.problem) {
-    return `${wall.name}'s heartbeat cannot be read: ${beat.problem}. What is published is what a display would pick up, and nothing confirms one has.`;
+    return `${wall.name}'s last report cannot be read: ${beat.problem}. Nothing confirms its Player is showing it.`;
   }
-  return `No display has ever reported for ${wall.name}. What is published is waiting to be picked up; until something reports, nothing here can say the wall is showing it.`;
+  return `${player} has not reported for ${wall.name} yet, so nothing here can say what is on it. Once ${playerName || "it"} is running with its token, it reports within a minute or so.`;
 }
 
 /* Reason four: a plane could not be reached, and the sentence says which one did
@@ -1125,9 +1179,9 @@ function unreachable(words) {
 
 function cannotReach(wall, build, beats) {
   if (build.failure) {
-    return `The curation plane answered for the walls and refused ${wall.name}'s build — ${build.failure} — so nothing here can say what is on this wall. The display plane was not asked.`;
+    return `The server could not work out what ${wall.name} should show — ${build.failure} — so nothing here can say what is on it, whatever its Player reports.`;
   }
-  return `The curation plane answered for ${wall.name}, and the reading that speaks for the display plane did not — ${beats.failure} — so nothing here can say whether anything is on the wall.`;
+  return `${wall.name} was read, and what its Player reports was not — ${beats.failure} — so nothing here can say whether anything is on it.`;
 }
 
 /* Skip and Remove…: the card's acts, under the work they act on.
@@ -1181,7 +1235,7 @@ function skipButton(card) {
         event.currentTarget,
         `skip the work on ${wall.name}`,
         () => api(`/api/walls/${encodeURIComponent(wall.wall_id)}/next`, { method: "POST" }),
-        { then: () => awaitNext(card, `Skipped. ${wall.name} shows its next work when its display next reports, usually within a minute.`) },
+        { then: () => awaitNext(card, `Skipped. ${wall.name} shows its next work when its Player next reports, usually within a minute.`) },
       ),
   });
 }
@@ -1247,7 +1301,7 @@ function removedSaid(wall, title, scope, from) {
     scope === "every_wall"
       ? `${title} is kept off every wall. It stays in the library and in its themes.`
       : `${title} is out of ${from}. Nothing else changed.`;
-  return `${done} ${wall.name} shows its next work when its display next reports.`;
+  return `${done} ${wall.name} shows its next work when its Player next reports.`;
 }
 
 /* *Hanging*: what the wall hangs, as the control that hangs another (ruling 3
@@ -1402,7 +1456,24 @@ const EXCLUSION_WORDS = {
  * changed something: the name, the Player and the labels close it at once, since
  * the card is where they show; the rotation, shapes and mat leave it open to go
  * on working in, and the card's *Changes*, next works and what it cannot show
- * catch up on the way out. */
+ * catch up on the way out.
+ *
+ * **One filled act** (`design-direction.md` § Buttons; audit 2026-11-19, finding
+ * 7, where five were filled). Chosen over one *Save* for every section, and
+ * recorded why: each section is its own write on its own route, the server can
+ * refuse one or keep one with a notice the curator has to read where it was made
+ * (`closeUnlessNoticed`), and a single Save would have to report several partial
+ * outcomes at once and decide whether to close over them. So every section keeps
+ * its own commit, quiet, and *Show it there* is the filled default: where a wall
+ * shows is the one setting without which it shows nothing anywhere, and the step
+ * *Choose its Player…* opens this dialog for. While it cannot work (its Player
+ * has reported no screen) it is disabled, and so looks it: then nothing in the
+ * dialog is the thing to do now, and the sentence beside it says what is awaited.
+ *
+ * **Close says what it leaves unset** (`unsavedLine`): each section that tracks
+ * a value names itself above *Close* while its fields differ from what the
+ * server last took, so a curator who changed two sections and set one sees which
+ * one Close would drop. */
 async function editWall(control, painted) {
   // Read when pressed, never from the page's last paint: a write in another
   // dialog, or on another surface, lands before any repaint that follows it, and
@@ -1426,7 +1497,7 @@ async function editWall(control, painted) {
   edit.panel = openPanel({
     title: `Edit ${wall.name}`,
     body: [
-      nameSection(wall, edit.done),
+      nameSection(wall, edit),
       whereSection(wall, shownBy, edit),
       labelsSection(wall, shownBy, edit),
       // The rotation, shapes and mat are set against the wall's feed; when it
@@ -1435,8 +1506,8 @@ async function editWall(control, painted) {
       feed.failure
         ? el("p", { class: "note wall-feed-unread", text: `Its rotation, shapes and mat cannot be set here: the wall's feed could not be read — ${feed.failure}.` })
         : null,
-      ...(manifest ? playbackPanels(wall, manifest, edit.changed) : []),
-      manifest ? matPanel(wall, edit.changed) : null,
+      ...(manifest ? playbackPanels(wall, manifest, edit) : []),
+      manifest ? matPanel(wall, edit) : null,
       el("div", { class: "panel" }, [
         el("h3", { text: "Delete" }),
         el("div", { class: "row" }, [
@@ -1458,6 +1529,28 @@ async function editWall(control, painted) {
     ],
     onClose: edit.closed,
   });
+  unsavedLine(edit);
+}
+
+/* The line above *Close* naming each section whose fields the curator changed
+ * and has not set, read with *Close* by a screen reader. Empty, and hidden,
+ * while nothing is unset. Kept current on every input in the dialog, and after
+ * each section's commit moves its baseline. */
+function unsavedLine(edit) {
+  const { dialog } = edit.panel;
+  const close = dialog.querySelector(".confirm-actions button");
+  const line = el("p", { class: "muted wall-unsaved", id: `unsaved-${Date.now()}`, role: "status", hidden: true });
+  dialog.querySelector(".confirm-actions").before(line);
+  if (close) close.setAttribute("aria-describedby", line.id);
+  edit.settle = () => {
+    const names = edit.tracked.filter((section) => section.dirty()).map((section) => section.name);
+    line.hidden = !names.length;
+    line.textContent = names.length
+      ? `Not set yet: ${listedWords(names)}. Close leaves ${names.length === 1 ? "it" : "them"} as ${names.length === 1 ? "it was" : "they were"}.`
+      : "";
+  };
+  dialog.addEventListener("input", edit.settle);
+  dialog.addEventListener("change", edit.settle);
 }
 
 /* *Delete…*: forgets the wall for good (the owner's rulings of 2026-10-30,
@@ -1522,7 +1615,10 @@ async function readingOnce(key, control, read) {
  * dialog is closed by its own handle, so this never closes a panel it did not
  * open. */
 function editing() {
-  const edit = { panel: null, wrote: false };
+  // `tracked`: the sections whose unset changes *Close* names (`unsavedLine`),
+  // each `{ name, dirty }`; `settle` repaints that line once it exists.
+  const edit = { panel: null, wrote: false, tracked: [], settle: () => {} };
+  edit.track = (name, dirty) => edit.tracked.push({ name, dirty });
   edit.changed = () => (edit.wrote = true);
   edit.done = () => {
     edit.changed();
@@ -1536,15 +1632,17 @@ function editing() {
 
 /* The wall's name. The server refuses an empty one or one another wall has, in
  * words this dialog shows beside the field. */
-function nameSection(wall, done) {
+function nameSection(wall, edit) {
   const nameId = `wall-name-${wall.wall_id}`;
   const field = el("input", { id: nameId, type: "text", value: wall.name });
+  const done = edit.done;
+  edit.track("Name", () => field.value.trim() !== wall.name);
   return el("div", { class: "panel" }, [
     el("h3", { text: "Name" }),
     el("div", { class: "row" }, [
       el("div", { class: "field" }, [el("label", { for: nameId, text: "Name" }), field]),
       el("button", {
-        class: "action",
+        class: "action quiet",
         type: "button",
         text: "Rename",
         "aria-label": `Rename ${wall.name}`,
@@ -1567,18 +1665,117 @@ function screensOf(client) {
   return outputs.filter((output) => output.kind !== "epd");
 }
 
+/* How often an open *Where it shows* asks again whether the Player it waits on
+ * has reported. Bounded by the dialog: it stops when the dialog closes, or once
+ * the Player reports. */
+const AWAIT_REPORT_MS = 3000;
+
+/* Why *Show it there* cannot work yet for this Player, in words, or null when
+ * it can. A wall goes on a screen the Player reported, so until it has
+ * reported one there is nothing to put it on: the server would refuse the
+ * empty choice ("output cannot be empty"), and the household would meet that
+ * refusal at the step the screens point them to (audit 2026-11-19, finding 2). */
+function notYet(client) {
+  if (!client || screensOf(client).length) return null;
+  const beat = client.heartbeat || {};
+  if (!client.token_issued_at) {
+    return `${client.name} has no token yet, so it cannot report. Issue one in its Edit…, on Settings › Players; its screens appear here once it reports.`;
+  }
+  if (beat.absent) {
+    return `${client.name} has not reported yet. It must be running with its token, from its own settings page; its screens appear here once it reports, usually within a minute of starting.`;
+  }
+  if (beat.problem) return `${client.name}'s last report could not be read, so its screens are not known. They appear here once it reports again.`;
+  return `${client.name} reported no screen. One appears here once a screen is connected to it and it reports again.`;
+}
+
 /* Which Player shows the wall, and on which screen: the line that says what the
  * Player last reported about it, then the two pickers and *Show it there*. None
- * takes the wall off its Player; its theme stays hung. */
+ * takes the wall off its Player; its theme stays hung.
+ *
+ * *Show it there* is disabled while the chosen Player has reported no screen,
+ * with the reason beside it (`notYet`), and the section asks again until that
+ * Player reports, so a household that has just started it sees its screens
+ * arrive in the dialog they are looking at. */
 function whereSection(wall, shownBy, edit) {
   const clients = shownBy.byId ? [...shownBy.byId.values()] : [];
   const playerId = `wall-player-${wall.wall_id}`;
   const screenId = `wall-screen-${wall.wall_id}`;
+  const whyId = `wall-not-yet-${wall.wall_id}`;
   const player = el("select", { id: playerId }, [
     el("option", { value: "", text: "None", selected: !wall.client_id }),
     ...clients.map((client) => el("option", { value: client.client_id, text: client.name, selected: client.client_id === wall.client_id })),
   ]);
   const screen = el("select", { id: screenId });
+  const why = el("p", { class: "muted wall-not-yet", id: whyId, hidden: true });
+  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
+  const show = el("button", {
+    class: "action",
+    type: "button",
+    text: "Show it there",
+    "aria-label": `Show ${wall.name} there`,
+    onclick: (event) =>
+      attempt(
+        event.currentTarget,
+        player.value ? `show ${wall.name} on that screen` : `take ${wall.name} off its Player`,
+        () =>
+          player.value
+            ? api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, {
+                method: "POST",
+                body: JSON.stringify({ client_id: player.value, output: screen.value }),
+              })
+            : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
+        { then: closeUnlessNoticed(edit, said) },
+      ),
+  });
+  const section = el("div", { class: "panel" });
+  const sayWhy = () => {
+    const words = notYet(shownBy.byId ? shownBy.byId.get(player.value) : null);
+    why.textContent = words || "";
+    why.hidden = !words;
+    show.disabled = Boolean(words);
+    if (words) show.setAttribute("aria-describedby", whyId);
+    else show.removeAttribute("aria-describedby");
+    return Boolean(words);
+  };
+  // Asks again while the chosen Player is one that can still report (it holds
+  // a token) and has not; stops with the dialog, and once it has.
+  let asking = false;
+  const awaitReport = () => {
+    const chosen = shownBy.byId ? shownBy.byId.get(player.value) : null;
+    if (asking || !chosen || !chosen.token_issued_at || !notYet(chosen)) return;
+    asking = true;
+    // The first ask is a tick after the dialog opened, so a section no longer
+    // in the document is one whose dialog has closed.
+    const ask = async () => {
+      if (!section.isConnected) {
+        asking = false;
+        return;
+      }
+      try {
+        const listing = await api("/api/clients");
+        for (const client of listing.clients) shownBy.byId.set(client.client_id, client);
+      } catch {
+        // A listing that did not arrive this time is asked again; the sentence
+        // beside the act already says what is awaited.
+      }
+      if (!section.isConnected) {
+        asking = false;
+        return;
+      }
+      const now = shownBy.byId.get(player.value);
+      if (now && !notYet(now)) {
+        asking = false;
+        fillScreens();
+        return;
+      }
+      if (!now || !now.token_issued_at) {
+        asking = false;
+        return;
+      }
+      setTimeout(ask, AWAIT_REPORT_MS);
+    };
+    setTimeout(ask, AWAIT_REPORT_MS);
+  };
   const fillScreens = () => {
     const client = shownBy.byId ? shownBy.byId.get(player.value) : null;
     const screens = screensOf(client);
@@ -1599,39 +1796,34 @@ function whereSection(wall, shownBy, edit) {
         : [el("option", { value: "", text: client ? "It has not reported its screens" : "—", disabled: true, selected: true })]),
     );
     screen.disabled = !client || !screens.length;
+    if (sayWhy()) awaitReport();
+    edit.settle();
   };
   player.addEventListener("change", fillScreens);
   fillScreens();
-  const said = el("p", { class: "note wall-notice", role: "status", hidden: true });
-  return el("div", { class: "panel" }, [
+  // Unset once the curator has chosen a Player or a screen other than the ones
+  // the wall is on. Only once chosen: a wall on a screen its Player's report
+  // does not list opens with another screen offered, which is not a change.
+  let touched = false;
+  for (const picker of [player, screen]) picker.addEventListener("change", () => (touched = true));
+  edit.track(
+    "Where it shows",
+    () => touched && ((player.value || "") !== (wall.client_id || "") || Boolean(player.value && !screen.disabled && screen.value !== (wall.output || ""))),
+  );
+  fill(
+    section,
     el("h3", { text: "Where it shows" }),
     assignmentLine(wall, shownBy),
     shownBy.failure ? el("p", { class: "note", text: `The Players could not be read — ${shownBy.failure}.` }) : null,
     el("div", { class: "row" }, [
       el("div", { class: "field" }, [el("label", { for: playerId, text: `Player for ${wall.name}` }), player]),
       el("div", { class: "field" }, [el("label", { for: screenId, text: "Screen" }), screen]),
-      el("button", {
-        class: "action",
-        type: "button",
-        text: "Show it there",
-        "aria-label": `Show ${wall.name} there`,
-        onclick: (event) =>
-          attempt(
-            event.currentTarget,
-            player.value ? `show ${wall.name} on that screen` : `take ${wall.name} off its Player`,
-            () =>
-              player.value
-                ? api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, {
-                    method: "POST",
-                    body: JSON.stringify({ client_id: player.value, output: screen.value }),
-                  })
-                : api(`/api/walls/${encodeURIComponent(wall.wall_id)}/client`, { method: "DELETE" }),
-            { then: closeUnlessNoticed(edit, said) },
-          ),
-      }),
+      show,
     ]),
+    why,
     said,
-  ]);
+  );
+  return section;
 }
 
 /* What a write that places a wall or a label does next. The server keeps an
@@ -1693,7 +1885,7 @@ function labelsSection(wall, shownBy, edit) {
       ? el("div", { class: "row" }, [
           el("div", { class: "field" }, [el("label", { for: pickId, text: `Caption ${wall.name} with` }), pick]),
           el("button", {
-            class: "action",
+            class: "action quiet",
             type: "button",
             text: "Caption it",
             "aria-label": `Caption ${wall.name} with this label panel`,
@@ -1770,10 +1962,10 @@ function addWallOpener() {
  * server leaves the rest as they are: a body carrying the other panel's
  * settings as this page first drew them would put back whatever was set since,
  * here or on another surface. */
-function playbackPanels(wall, manifest, changed) {
+function playbackPanels(wall, manifest, edit) {
   const send = (changes) =>
     api(`/api/walls/${encodeURIComponent(wall.wall_id)}/playback`, { method: "PUT", body: JSON.stringify(changes) });
-  return [rotationPanel(wall, manifest, send, changed), shapesPanel(wall, send, changed)];
+  return [rotationPanel(wall, manifest, send, edit), shapesPanel(wall, send, edit)];
 }
 
 /* The wall's orders in the curator's words, in the order the picker offers
@@ -1794,7 +1986,7 @@ const ORDER_CHOICES = [
  * default. The facts say what the wall plays at now, the default resolved, and
  * are asked of the server again (`GET /api/manifest`) after Set rather than worked out here,
  * since only the server knows the default. */
-function rotationPanel(wall, manifest, send, changed) {
+function rotationPanel(wall, manifest, send, edit) {
   const intervalId = `interval-${wall.wall_id}`;
   const orderId = `order-${wall.wall_id}`;
   const interval = el("input", {
@@ -1815,6 +2007,9 @@ function rotationPanel(wall, manifest, send, changed) {
   // Said here and the dialog left open, as the mat's is; the card catches up
   // when it closes (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
+  // What the server last took, which *Close* compares the fields against.
+  let taken = [interval.value, order.value];
+  edit.track("How it rotates", () => interval.value !== taken[0] || order.value !== taken[1]);
   return el("div", { class: "panel" }, [
     el("h3", { text: "How it rotates" }),
     now,
@@ -1822,7 +2017,7 @@ function rotationPanel(wall, manifest, send, changed) {
       el("div", { class: "field" }, [el("label", { for: intervalId, text: `Minutes each work stays up on ${wall.name}` }), interval]),
       el("div", { class: "field" }, [el("label", { for: orderId, text: `Order on ${wall.name}` }), order]),
       el("button", {
-        class: "action",
+        class: "action quiet",
         type: "button",
         text: "Set the rotation",
         "aria-label": `Set the rotation on ${wall.name}`,
@@ -1851,7 +2046,9 @@ function rotationPanel(wall, manifest, send, changed) {
               }),
             {
               then: async () => {
-                changed();
+                edit.changed();
+                taken = [interval.value, order.value];
+                edit.settle();
                 const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
                 fill(now, rotationFacts(fresh));
                 said.textContent = `Rotation on ${wall.name}: ${rotationWords(fresh)}.`;
@@ -1880,7 +2077,7 @@ const SHAPE_CHOICES = [
  * beside them as a hint and never applied. A range that leaves nothing is
  * honoured and the wall goes dark, so after Set the panel says the server's own
  * summary, which says that. */
-function shapesPanel(wall, send, changed) {
+function shapesPanel(wall, send, edit) {
   const pickerId = `shapes-${wall.wall_id}`;
   const tallestId = `tallest-${wall.wall_id}`;
   const widestId = `widest-${wall.wall_id}`;
@@ -1905,6 +2102,9 @@ function shapesPanel(wall, send, changed) {
   // Said here and the dialog left open, as the mat's is; the card catches up
   // when it closes (`editWall`).
   const said = el("p", { class: "wall-said", role: "status" });
+  // What the server last took, which *Close* compares the fields against.
+  let taken = [tallest.value.trim(), widest.value.trim()];
+  edit.track("Shapes it shows", () => tallest.value.trim() !== taken[0] || widest.value.trim() !== taken[1]);
   return el("div", { class: "panel" }, [
     el("h3", { text: "Shapes it shows" }),
     now,
@@ -1915,7 +2115,7 @@ function shapesPanel(wall, send, changed) {
       el("div", { class: "field" }, [el("label", { for: tallestId, text: `Tallest on ${wall.name}, as width:height` }), tallest]),
       el("div", { class: "field" }, [el("label", { for: widestId, text: `Widest on ${wall.name}, as width:height` }), widest]),
       el("button", {
-        class: "action",
+        class: "action quiet",
         type: "button",
         text: "Set the shapes",
         "aria-label": `Set the shapes on ${wall.name}`,
@@ -1926,10 +2126,12 @@ function shapesPanel(wall, send, changed) {
             () => send({ tallest: tallest.value.trim() || null, widest: widest.value.trim() || null }),
             {
               then: async (answer) => {
-                changed();
+                edit.changed();
                 tallest.value = answer.tallest ?? "";
                 widest.value = answer.widest ?? "";
                 picker.value = chosen();
+                taken = [tallest.value.trim(), widest.value.trim()];
+                edit.settle();
                 fill(now, shapeFacts(answer));
                 const fresh = await api(`/api/manifest?wall_id=${encodeURIComponent(wall.wall_id)}`);
                 said.textContent = `${wall.name} shows ${answer.shapes ?? "every shape"}. ${fresh.summary}`;
@@ -1983,7 +2185,7 @@ const MAT_CHOICES = [
 /* How the wall's Player draws the mat. The colour is always the work's own and
  * the width the Player's, so this chooses only how much of the screen the mat
  * fills. */
-function matPanel(wall, changed) {
+function matPanel(wall, edit) {
   const pickerId = `mat-${wall.wall_id}`;
   const picker = el("select", { id: pickerId });
   // Said here and the dialog left open; the card catches up when it closes
@@ -1992,12 +2194,15 @@ function matPanel(wall, changed) {
   for (const [value, words] of MAT_CHOICES) {
     picker.append(el("option", { value, text: words, selected: (wall.mat_mode || "") === value }));
   }
+  // What the server last took, which *Close* compares the picker against.
+  let taken = wall.mat_mode || "";
+  edit.track("Mat", () => picker.value !== taken);
   return el("div", { class: "panel" }, [
     el("h3", { text: "Mat" }),
     el("div", { class: "row" }, [
       el("div", { class: "field" }, [el("label", { for: pickerId, text: `Mat on ${wall.name}` }), picker]),
       el("button", {
-        class: "action",
+        class: "action quiet",
         type: "button",
         text: "Set the mat",
         "aria-label": `Set the mat on ${wall.name}`,
@@ -2012,7 +2217,9 @@ function matPanel(wall, changed) {
               }),
             {
               then: (answer) => {
-                changed();
+                edit.changed();
+                taken = answer.mat_mode || "";
+                edit.settle();
                 const [, , words] = MAT_CHOICES.find(([value]) => value === (answer.mat_mode || ""));
                 said.textContent = `Mat on ${wall.name}: ${words}.`;
               },
