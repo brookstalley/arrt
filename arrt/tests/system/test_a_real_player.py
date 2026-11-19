@@ -292,12 +292,14 @@ class Relay:
 # -- the server, as a process or as the built image ---------------------------------------
 
 
-def _docker() -> str:
-    """The docker client, found on the path, or the run fails naming it."""
+def _docker(*arguments: str) -> subprocess.CompletedProcess[str]:
+    """One docker command, its output captured; the run fails naming it when docker is not on the path."""
     found = shutil.which("docker")
     if found is None:
         pytest.fail("ARRT_SERVER_IMAGE names an image to run, and `docker` is not on PATH")
-    return found
+    return subprocess.run(  # noqa: S603 -- the docker client, with arguments this file composes
+        [found, *arguments], capture_output=True, text=True, check=False
+    )
 
 
 @dataclass
@@ -314,32 +316,27 @@ class ArrtContainer:
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
-        subprocess.run(  # noqa: S603 -- docker, with arguments this file composes
-            [
-                _docker(),
-                "run",
-                "--detach",
-                "--name",
-                self.name,
-                "--user",
-                f"{os.getuid()}:{os.getgid()}",
-                "--volume",
-                f"{self.art_root}:/art",
-                "--publish",
-                f"127.0.0.1:{port}:8770",
-                self.image,
-            ],
-            check=True,
-            capture_output=True,
+        started = _docker(
+            "run",
+            "--detach",
+            "--name",
+            self.name,
+            # The test's own user, so the server writes the art root this test made.
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "--volume",
+            f"{self.art_root}:/art",
+            "--publish",
+            f"127.0.0.1:{port}:8770",
+            self.image,
         )
+        if started.returncode != 0:
+            pytest.fail(f"docker could not start {self.image} ({started.returncode}):\n{started.stderr}")
         self._started = True
         self.base_url = f"http://127.0.0.1:{port}"
         deadline = time.monotonic() + DEADLINE_SECONDS * 3
         while time.monotonic() < deadline:
-            running = subprocess.run(  # noqa: S603 -- docker
-                [_docker(), "inspect", "--format", "{{.State.Running}}", self.name], capture_output=True, text=True, check=False
-            ).stdout.strip()
-            if running != "true":
+            if _docker("inspect", "--format", "{{.State.Running}}", self.name).stdout.strip() != "true":
                 pytest.fail(f"the server image exited before it answered:\n{self.tail()}")
             try:
                 httpx.get(self.base_url + "/api/walls", timeout=2.0)
@@ -351,18 +348,16 @@ class ArrtContainer:
 
     def stop(self) -> None:
         if self._started:
-            subprocess.run([_docker(), "stop", "--time", "45", self.name], capture_output=True, check=False)  # noqa: S603
-            subprocess.run([_docker(), "rm", "--force", self.name], capture_output=True, check=False)  # noqa: S603
+            _docker("stop", "--time", "45", self.name)
+            _docker("rm", "--force", self.name)
             self._started = False
 
     def tail(self, lines: int = 40) -> str:
-        done = subprocess.run(  # noqa: S603 -- docker
-            [_docker(), "logs", "--tail", str(lines), self.name], capture_output=True, text=True, check=False
-        )
+        done = _docker("logs", "--tail", str(lines), self.name)
         return (done.stdout + done.stderr) or "(no output)"
 
     def events(self) -> list[dict]:
-        done = subprocess.run([_docker(), "logs", self.name], capture_output=True, text=True, check=False)  # noqa: S603
+        done = _docker("logs", self.name)
         found = []
         for line in (done.stdout + done.stderr).splitlines():
             with contextlib.suppress(ValueError):
