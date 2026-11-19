@@ -367,6 +367,7 @@ module = [
     "arrt.mcp.bindings",
     "arrt.programming.clients",
     "arrt.programming.display",
+    "arrt.programming.feeds",
     "arrt.programming.manifest.heartbeat",
     "arrt.programming.schedule",
 ]
