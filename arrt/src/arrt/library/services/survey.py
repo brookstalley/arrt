@@ -127,7 +127,7 @@ class SurveyService:
         offset: int = 0,
         sort: str | None = None,
         artist_id: str | None = None,
-        within: Sequence[str] | None = None,
+        within: Sequence[str] | frozenset[str] | None = None,
     ) -> WorkSurveyPage:
         """A page of works, each with its fit verdict and its image state.
 

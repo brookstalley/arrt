@@ -639,7 +639,9 @@ class DiscoveryRunner:
             month=month,
         )
 
-    def list_runs(self, *, status: RunStatus | None = None, kind: RunKind | None = None, awaiting: bool = False) -> RunListing:
+    def list_runs(
+        self, *, status: RunStatus | str | None = None, kind: RunKind | str | None = None, awaiting: bool = False
+    ) -> RunListing:
         """The newest runs, optionally narrowed, capped at `MAX_RUNS_LISTED`.
 
         **`status` and `kind` are filters, not bounds.** Omitting both is the
