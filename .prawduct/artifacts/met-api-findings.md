@@ -60,21 +60,18 @@ the recorded answers the unit suite reads are `arrt/tests/fixtures/met/`.
 ## The web pages
 
 - `https://www.metmuseum.org/art/collection/search/<id>` answered a plain client
-  with HTTP 429 and a "Vercel Security Checkpoint" page. Reading them needs a
-  browser, which is a private plugin's job (`source-plugins.md` § One holder, two
-  plugins).
-- **In a browser the checkpoint passes, and in-copyright works are web-size at
-  most** (measured 2026-10-06 in camoufox, with requests to `www.metmuseum.org`
-  only; each page took 1–8 s). The page's embedded data lists each image with
-  `originalImageUrl`, `iiifSourceImageUrl`, `webImageUrl` and their sizes, plus
-  `isOasc`, `isRestricted` and `isThumbnail`. For Kelly's *Blue Green Red*
-  (489307, restricted), the named original (3629 × 4000) is HTTP 404, the IIIF
-  source is 544 × 600, and `web-large` on the image host (not named for it) is
-  567 × 625. Warhol's *Untitled from Marilyn Monroe* (398902) and Sonia Delaunay's
-  *Prose on the Trans-Siberian Railway* (822544) are thumbnail-only, at 150 × 148
-  and 84 × 150, under every name. An open-access work (436535) names its full
-  original. The private reader was built anyway, by the owner's choice, to
-  picture wanted works (`build-plan-wanted-pictures.md`).
+  with HTTP 429 and a bot-check page, so reading the pages is a private plugin's
+  job (`source-plugins.md` § One holder, two plugins). **How that reader gets past
+  the check, and what it reads from a page, are in the private repository**, not
+  here: this is a public repository, and a recipe for passing a museum's
+  protections is not a finding about its API.
+- **What it found (measured 2026-10-06): in-copyright works are web-size at most.**
+  Kelly's *Blue Green Red* (489307, restricted) has no original and no picture
+  larger than 567 × 625. Warhol's *Untitled from Marilyn Monroe* (398902) and Sonia
+  Delaunay's *Prose on the Trans-Siberian Railway* (822544) are thumbnail-only, at
+  150 × 148 and 84 × 150. An open-access work (436535) has its full original. The
+  private reader was built anyway, by the owner's choice, to picture wanted works
+  (`build-plan-wanted-pictures.md`).
 
 ## Wikidata
 
