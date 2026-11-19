@@ -169,6 +169,15 @@ def read_published(path: Path) -> Published | None:
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("The major 2 manifest at %s cannot be read (%s); the next publish replaces it.", path, exc)
         return None
+    return published_from(document, where=path)
+
+
+def published_from(document: dict[str, Any], *, where: Path | str) -> Published | None:
+    """A major 2 document read back, as `read_published` reads one from its file; `where` names it in the log.
+
+    Separate so a feed decided in a transaction that has not yet written it
+    (`DisplayService._published`) is read exactly as the file it becomes.
+    """
     try:
         schedule = document["schedule"]
         slots = tuple(
@@ -187,7 +196,7 @@ def read_published(path: Path) -> Published | None:
             control_works={work_id: entry for work_id, entry in document["works"].items() if work_id not in scheduled},
         )
     except (KeyError, TypeError, ValueError) as exc:
-        log.warning("The major 2 manifest at %s is not one this server wrote (%s); the next publish replaces it.", path, exc)
+        log.warning("The major 2 manifest at %s is not one this server wrote (%s); the next publish replaces it.", where, exc)
         return None
 
 

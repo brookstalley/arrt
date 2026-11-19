@@ -15,7 +15,7 @@ contract gives: every rule about what a valid arrangement looks like belongs to
 the service, which is the only caller.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from typing import Protocol
@@ -51,6 +51,17 @@ class ProgrammingStore(Protocol):
 
     def reading(self) -> AbstractContextManager[None]:
         """Group several reads so they answer about one instant."""
+        ...
+
+    def after_commit(self, callback: Callable[[], None]) -> None:
+        """Run `callback` once the writes made so far are committed, and not before.
+
+        Inside `transaction()` it waits for the outermost block to commit and is
+        discarded on rollback; outside one it runs at once. The shared adapter
+        has always had it (`CatalogueStore.after_commit`); Programming uses the
+        "at once" half to refuse publishing a feed inside a transaction it did
+        not open (`DisplayService._publishing`).
+        """
         ...
 
     # -- themes ---------------------------------------------------------------

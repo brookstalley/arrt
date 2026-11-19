@@ -16,6 +16,12 @@ until the next start and never leaves it undone.
 (`CatalogueStore.after_commit`). Acceptance adds a work inside discovery's own
 transaction, and an announcement made inside it would describe a work that a
 rollback could still take back.
+
+**One event names every work one commit changed the same way.** A bulk archive
+of fifty works is one announcement of fifty ids, not fifty of one, so a
+subscriber acts once for the act: Programming reconciles every wall once and
+writes each feed once, where it used to rebuild every wall once per work on the
+request's thread. A list is also what the webhook would carry.
 """
 
 import logging
@@ -43,15 +49,21 @@ class WorkChange(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class WorkChanged:
-    """One announcement: which work, and what happened to it.
+    """One announcement: which works, and what happened to them.
 
     It carries no record and no verdict. A subscriber that needs to know whether
-    the work can still go on a wall asks the facade, so the announcement and the
+    a work can still go on a wall asks the facade, so the announcement and the
     answer cannot disagree.
     """
 
     change: WorkChange
-    work_id: str
+    #: Every work one commit changed this way, each once, in the order changed.
+    #: Never empty: nothing is announced for no work.
+    work_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not self.work_ids:
+            raise ValueError(f"A {self.change.value} announcement names at least one work.")
 
 
 type WorkChangedHandler = Callable[[WorkChanged], None]
@@ -84,5 +96,5 @@ class LibraryEvents:
                 log.exception(
                     "A subscriber failed to act on %s for work %s; the change stands, and the next start reconciles it.",
                     event.change.value,
-                    event.work_id,
+                    ", ".join(event.work_ids),
                 )

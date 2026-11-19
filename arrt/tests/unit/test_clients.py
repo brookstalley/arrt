@@ -256,9 +256,27 @@ def test_an_unreadable_report_is_treated_as_no_report(clients, pi, wall_id, wall
     assert "has not reported its outputs yet" in clients.assign_wall(wall_id, client_id=pi.id, output="frame").notice
 
 
-def test_an_output_name_must_not_be_blank(clients, pi, wall_id):
-    with pytest.raises(ServiceError, match="output cannot be empty"):
+@pytest.mark.parametrize(
+    ("report", "said"),
+    [
+        (None, "The Pi in the hall has not reported its screens yet, so there is no screen to show The wall on. Start"),
+        ({**_REPORT, "outputs": []}, "The Pi in the hall reports no screens, so there is none to show The wall on."),
+        (_REPORT, "Choose which of The Pi in the hall's screens shows The wall: it reported 'frame', 'hdmi-a-1'."),
+    ],
+)
+def test_a_blank_output_is_refused_saying_what_the_player_has_reported(clients, pi, wall_id, report, said):
+    """The UX walk's finding 2: "output cannot be empty" named a validator, not that the Player had not reported.
+
+    Rewritten from a match on that sentence, which the plan replaced: each case
+    is still refused and assigns nothing, and now says which of the three it is.
+    """
+    if report is not None:
+        clients.record_heartbeat(pi.id, report)
+    with pytest.raises(ServiceError) as refused:
         clients.assign_wall(wall_id, client_id=pi.id, output="  ")
+
+    assert str(refused.value).startswith(said)
+    assert clients.placement_of(wall_id).display is None
 
 
 def test_assigning_an_unknown_wall_or_client_is_refused(clients, pi, wall_id):
