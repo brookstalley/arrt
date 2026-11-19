@@ -7,8 +7,11 @@ cards already decided fold into one "N decided" line after that. Each test
 holds one of those, on the review screen, where every part of it applies.
 """
 
+import re
+
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card
+from playwright.sync_api import expect
 
 from arrt.persistence.discovery_records import ResolutionStatus, UnresolvedReason, Verdict
 
@@ -37,6 +40,9 @@ def _open_review(ui, cards):
     ui.serve(f"**/api/runs/{RUN_ID}/candidates*", a_candidate_page(cards))
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("#view li.review-card", state="attached")
+    # Every card is drawn, folded ones included, in one paint: what the order
+    # read below and the counts of fold lines are about.
+    expect(ui.page.locator("#view li.review-card")).to_have_count(len(cards))
 
 
 def _order(ui):
@@ -69,10 +75,12 @@ def test_cards_with_a_picture_to_judge_come_first_and_are_open(mixed):
 
 def test_found_none_cards_fold_into_one_line_after_them(mixed):
     fold = mixed.page.locator("#view details.fold-found-none")
-    assert fold.locator(":scope > summary").inner_text().strip() == "2 found no image"
-    assert fold.get_attribute("open") is None
-    ids = [li.get_attribute("data-work") for li in fold.locator("li.review-card").all()]
-    assert ids == ["lost-1", "lost-2"]
+    expect(fold.locator(":scope > summary")).to_have_text("2 found no image", use_inner_text=True)
+    expect(fold).not_to_have_attribute("open")
+    folded = fold.locator("li.review-card")
+    expect(folded).to_have_count(2)
+    for at, work_id in enumerate(["lost-1", "lost-2"]):
+        expect(folded.nth(at)).to_have_attribute("data-work", work_id)
     # Folded, not gone: nothing of them is on screen until the line is opened.
     assert ["lost-1", False] in _order(mixed)
 
@@ -81,26 +89,31 @@ def test_opening_the_found_none_line_shows_the_same_cards_with_want_and_forget(m
     mixed.page.click("#view details.fold-found-none > summary")
 
     card = mixed.page.locator("#view li.review-card[data-work='lost-1']")
-    assert card.is_visible()
-    assert card.locator("button:text-is('Want')").is_visible()
-    assert card.locator("button:text-is('Forget')").is_visible()
+    expect(card).to_be_visible()
+    expect(card.locator("button:text-is('Want')")).to_be_visible()
+    expect(card.locator("button:text-is('Forget')")).to_be_visible()
     # The line only opens: it carries no act of its own.
-    assert mixed.page.locator("#view details.fold-found-none > summary button").count() == 0
+    expect(mixed.page.locator("#view details.fold-found-none > summary button")).to_have_count(0)
 
 
 def test_decided_cards_fold_into_the_last_line(mixed):
-    folds = mixed.page.locator("#view details.fold").all()
-    assert [f.get_attribute("class").split()[-1] for f in folds] == ["fold-found-none", "fold-decided"]
+    # Two fold lines, found-none first and decided last: each one's last class.
+    folds = mixed.page.locator("#view details.fold")
+    expect(folds).to_have_count(2)
+    expect(folds.nth(0)).to_have_attribute("class", re.compile(r"(^|\s)fold-found-none\s*$"))
+    expect(folds.nth(1)).to_have_attribute("class", re.compile(r"(^|\s)fold-decided\s*$"))
     decided = mixed.page.locator("#view details.fold-decided")
-    assert decided.locator(":scope > summary").inner_text().strip() == "2 decided"
-    ids = [li.get_attribute("data-work") for li in decided.locator("li.review-card").all()]
-    assert ids == ["taken", "gone"]
+    expect(decided.locator(":scope > summary")).to_have_text("2 decided", use_inner_text=True)
+    folded = decided.locator("li.review-card")
+    expect(folded).to_have_count(2)
+    for at, work_id in enumerate(["taken", "gone"]):
+        expect(folded.nth(at)).to_have_attribute("data-work", work_id)
 
 
 def test_a_page_with_nothing_to_fold_draws_no_fold_lines(ui):
     _open_review(ui, [a_card(work=a_candidate(work_id="judge-1"))])
 
-    assert ui.page.locator("#view details.fold").count() == 0
+    expect(ui.page.locator("#view details.fold")).to_have_count(0)
 
 
 def test_a_fold_of_one_reads_in_the_singular(ui):
@@ -113,8 +126,8 @@ def test_a_fold_of_one_reads_in_the_singular(ui):
         ],
     )
 
-    assert ui.page.locator("#view details.fold-found-none > summary").inner_text().strip() == "1 found no image"
-    assert ui.page.locator("#view details.fold-decided > summary").inner_text().strip() == "1 decided"
+    expect(ui.page.locator("#view details.fold-found-none > summary")).to_have_text("1 found no image", use_inner_text=True)
+    expect(ui.page.locator("#view details.fold-decided > summary")).to_have_text("1 decided", use_inner_text=True)
 
 
 def test_a_page_with_nothing_left_to_judge_says_so(ui):
@@ -126,11 +139,11 @@ def test_a_page_with_nothing_left_to_judge_says_so(ui):
         ],
     )
 
-    assert "Nothing here is left to judge by its picture." in ui.page.inner_text("#view")
+    expect(ui.view).to_contain_text("Nothing here is left to judge by its picture.", use_inner_text=True)
 
 
 def test_a_page_with_a_card_to_judge_does_not_say_nothing_is_left(mixed):
-    assert "Nothing here is left to judge by its picture." not in mixed.page.inner_text("#view")
+    expect(mixed.view).not_to_contain_text("Nothing here is left to judge by its picture.", use_inner_text=True)
 
 
 # -- a Get still looking, whose page redraws every poll ------------------------------
@@ -188,8 +201,8 @@ def test_a_card_decided_while_a_get_looks_stays_where_it_was(ui):
     _repainted(ui)
 
     card = ui.page.locator("#view li.review-card[data-work='judge']")
-    assert card.is_visible(), "the card decided this visit moved out from under the curator"
-    assert ui.page.locator("#view details.fold-decided").count() == 0
+    expect(card, "the card decided this visit moved out from under the curator").to_be_visible()
+    expect(ui.page.locator("#view details.fold-decided")).to_have_count(0)
 
 
 def test_a_fold_opened_while_a_get_looks_stays_open(ui):
@@ -208,8 +221,8 @@ def test_a_fold_opened_while_a_get_looks_stays_open(ui):
     ui.page.click("#view details.fold-found-none > summary")
     _repainted(ui)
 
-    assert ui.page.locator("#view details.fold-found-none").get_attribute("open") is not None
-    assert ui.page.locator("#view li.review-card[data-work='lost']").is_visible()
+    expect(ui.page.locator("#view details.fold-found-none")).to_have_attribute("open")
+    expect(ui.page.locator("#view li.review-card[data-work='lost']")).to_be_visible()
 
 
 def test_a_card_whose_search_ends_with_nothing_folds_while_the_get_looks(ui):
@@ -233,5 +246,5 @@ def test_a_card_whose_search_ends_with_nothing_folds_while_the_get_looks(ui):
     _repainted(ui)
 
     fold = ui.page.locator("#view details.fold-found-none")
-    assert fold.count() == 1
-    assert fold.locator("li.review-card[data-work='lost']").count() == 1
+    expect(fold).to_have_count(1)
+    expect(fold.locator("li.review-card[data-work='lost']")).to_have_count(1)
