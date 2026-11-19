@@ -624,7 +624,7 @@ def _import_row(store: PictureStore, discovery: DiscoveryService, image: Candida
             preview_path = image.preview_path
             # `import_previews` hands over only rows that name a preview; inside this
             # `try` a row that did not would count as `failed`, as it always would have.
-            assert preview_path is not None  # noqa: S101
+            assert preview_path is not None  # noqa: S101 -- narrows for mypy; inside the try a None still counts as failed
             source = store.art_root / preview_path
             if not source.is_file():
                 return "missing"
