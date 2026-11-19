@@ -43,9 +43,14 @@ nobody reads a promise here that the code does not carry.
   name: `transaction()` below is the same capability with the handle left
   implicit, and it is what a rule spanning rows is applied inside.
 - `upsert` also takes `cas`, an optimistic-lock fence against a row's previous
-  `date_updated`. Nothing here has that column, and a single-writer process on a
-  serialised connection has no concurrent modification to lose — so the parameter
-  would be one that could only ever be passed `None`.
+  `date_updated`. Nothing here has that column, and leaving the fence out is
+  safe **only where the row a write replaces was read inside the same
+  `transaction()`**: the lock is then held across the whole read-modify-write,
+  and no other thread can commit between the read and the write. A serialised
+  connection does not make that true by itself. Each method takes the lock for
+  its own statement and lets it go, so a row read outside a transaction and
+  written back whole inside one puts back whatever another thread changed in
+  between. That precondition is the callers' to keep, and nothing here checks it.
 - `pk` is required here and optional there, because the framework permits a
   backend that already knows a table's key; this one takes it and then checks it
   against the key the file actually declares.
@@ -67,14 +72,17 @@ name is a bug whose message names internals and must not be repeated to whoever
 made the request.
 
 **Concurrency.** One connection is opened with `check_same_thread=False` and every
-statement runs under a single reentrant lock. The server accepts requests on an
-event loop thread while tests and startup code touch the store from another, so
-the connection genuinely crosses threads; the lock is what makes that safe rather
-than usually-safe. Queries are sub-millisecond point lookups against a
-household-sized catalogue, so serialising them costs nothing worth measuring — and
-a transaction holds the lock for its whole body, which is what lets the one
-connection carry a multi-statement group without another thread writing into the
-middle of it.
+statement runs under a single reentrant lock. Many threads reach it: the HTTP
+handlers, which are synchronous and run on Starlette's worker threadpool; MCP
+tool calls and Ask's tools, on asyncio's default executor; and the background
+threads, which are the topic sweep, the acquisition queue, the scheduler and
+each discovery run. (The backup opens a connection of its own and never touches
+this one.) The lock is what makes that safe rather than usually-safe.
+Most statements are point lookups against a household-sized catalogue, but not
+all: text search runs a Python function over every row (`define_function`), and
+every other thread waits while it does. A transaction holds the lock for its
+whole body, which is what lets the one connection carry a multi-statement group
+without another thread writing into the middle of it.
 """
 
 import logging
