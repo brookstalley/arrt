@@ -29,6 +29,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Final
 
+from arrt import atomic
 from arrt.library.acquisition.dezoomify import (
     DezoomifyUnavailable,
     TileOutcome,
@@ -531,7 +532,9 @@ class AcquisitionService:
             _discard(staged)
             return self._record_failure(source, f"the fetched bytes are not a readable image: {exc}")
 
-        staged.replace(destination)
+        # The staged file is whole and synced (both fetch paths sync it), so this
+        # is the last step of the shared writer: rename, then sync the directory.
+        atomic.promote(staged, destination)
         relative = str(destination.relative_to(self._settings.art_root))
         self._catalogue.record_original(
             artwork_id=source.artwork_id,
