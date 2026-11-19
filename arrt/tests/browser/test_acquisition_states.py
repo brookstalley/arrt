@@ -20,10 +20,10 @@ from arrt.library.acquisition.queue import QueuePause
 from arrt.library.acquisition.service import remedy_for
 from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
 
-pytest.importorskip(
+expect = pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
-)
+).expect
 
 
 @pytest.fixture
@@ -48,7 +48,7 @@ def accepted(services):
 
 def open_work(ui, work):
     ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h2:has-text('Master image')")
+    ui.page.wait_for_selector("#view h2:text-is('Picture')")
 
 
 # -- the Work page ------------------------------------------------------------
@@ -63,8 +63,15 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
     assert "queued" in line
     assert "Waiting its turn to be fetched" in line
     assert ui.page.locator(".acquisition-line button").count() == 0, "nothing has failed, so there is nothing to retry"
-    panel = ui.page.locator(".panel:has(h2:has-text('Master image'))").inner_text()
-    assert "No master image has been acquired" not in panel, "the queue's line replaces the bare sentence"
+    # The queue's line replaces the bare "no picture yet" sentence: the Picture
+    # panel holds its heading and that line and nothing else. Keyed on what the
+    # panel holds rather than on the sentence's wording, which a rewording would
+    # leave this passing without checking anything (until 2026-11-19 it asserted
+    # one wording's absence).
+    panel = ui.page.locator(".work-record > .panel:has(h2:text-is('Picture'))")
+    expect(panel).to_have_count(1)
+    expect(panel.locator(".acquisition-line")).to_have_count(1)
+    expect(panel.locator(":scope > :not(h2, .acquisition-line)")).to_have_count(0)
 
 
 def test_a_work_the_queue_gave_up_on_says_why_and_retry_puts_it_back(ui, accepted, store):
@@ -396,7 +403,7 @@ def test_an_accepted_card_the_queue_owes_nothing_and_holds_no_image_says_none_is
 def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_record(ui, accepted, store):
     """The page a curator meets most while the library fills: no picture, a
     failed try, a source. The label still sits beside where the picture would
-    be, and the failure is in the Master image section, ruled like the rest."""
+    be, and the failure is in the Picture section, ruled like the rest."""
     work = accepted()
     _failed(store, work, "the connection was reset.")
     ui.page.set_viewport_size({"width": 1280, "height": 900})
@@ -407,7 +414,7 @@ def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_recor
           const hero = document.querySelector('.work-head > .work-hero').getBoundingClientRect();
           const label = document.querySelector('.work-head > .work-label').getBoundingClientRect();
           const master = [...document.querySelectorAll('.work-record > .panel')]
-            .find((panel) => panel.querySelector('h2')?.textContent === 'Master image');
+            .find((panel) => panel.querySelector('h2')?.textContent === 'Picture');
           return {
             side_by_side: label.left >= hero.right,
             failure_in_master: Boolean(master && master.querySelector('.acquisition-line')),

@@ -49,9 +49,9 @@ def _re_acquired_since_render(service, ready_work) -> str:
 #: from it rather than copied, and a reason with no row here is a failure.
 _CASES: dict[UnplayableReason, tuple[Callable[..., str], str]] = {
     UnplayableReason.ARCHIVED: (_archived, "archived"),
-    UnplayableReason.NO_ORIGINAL: (lambda service, ready_work: ready_work(original=False).id, "master image"),
+    UnplayableReason.NO_ORIGINAL: (lambda service, ready_work: ready_work(original=False).id, "no picture yet"),
     UnplayableReason.NO_MAT_COLOR: (lambda service, ready_work: ready_work(mat=False).id, "mat colour"),
-    UnplayableReason.NO_RENDITION: (lambda service, ready_work: ready_work(master=False).id, "presentation master"),
+    UnplayableReason.NO_RENDITION: (lambda service, ready_work: ready_work(master=False).id, "copy for the walls"),
     UnplayableReason.STALE_RENDITION: (_re_acquired_since_render, "earlier acquisition"),
     UnplayableReason.NOT_IN_CATALOGUE: (lambda service, ready_work: "no-such-work", "No artwork with id"),
 }

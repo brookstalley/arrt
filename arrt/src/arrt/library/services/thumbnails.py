@@ -128,13 +128,13 @@ class ThumbnailService:
         """The master a tile is drawn from, or `ThumbnailUnavailable` saying why there is none."""
         original = self._catalogue.get_original(artwork_id)
         if original is None:
-            raise ThumbnailUnavailable("No master image has been acquired for this work yet.")
+            raise ThumbnailUnavailable("This work has no picture yet.")
         return self._master(original.relative_path)
 
     def _master(self, relative: str) -> ThumbnailSource:
         master = self._settings.art_root / relative
         if not master.is_file():
-            raise ThumbnailUnavailable(f"The master image is recorded at {relative} but no file is there.")
+            raise ThumbnailUnavailable(f"Its picture is recorded at {relative} but no file is there.")
         return ThumbnailSource(path=master)
 
     def thumbnail(self, artwork_id: str, *, large: bool = False) -> Path:

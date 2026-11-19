@@ -155,11 +155,16 @@ export function workState(work, { noImage = null, opens = true, grouped = false,
  * search typeahead and results, where a picture in the badge was 48 px and read
  * as part of the mark: `ux-review-2026-10.md` finding 38). `workState(…, {
  * picture: false })` is the badge that goes with it. Null where the state has
- * no picture; a held one that cannot be loaded takes its frame with it, as the
+ * no picture, a held work with no master included: the search names the held
+ * work that holds one (`pictured_artwork_id`), so no request goes out for a
+ * thumbnail the server would refuse, and a list that draws *No picture* in its
+ * place can. A held one that cannot be loaded takes its frame with it, as the
  * badge's did. */
 export function statePicture(work) {
   const held = work.held_artwork_ids || [];
-  if (held.length) return workPicture("held", `/api/works/${encodeURIComponent(held[0])}/thumbnail`);
+  if (held.length) {
+    return work.pictured_artwork_id ? workPicture("held", `/api/works/${encodeURIComponent(work.pictured_artwork_id)}/thumbnail`) : null;
+  }
   if (work.in_review || !work.image) return null;
   return workPicture(work.wanted ? "wanted" : "not-held", `${work.image}?width=${FOUND_WIDTH}`);
 }

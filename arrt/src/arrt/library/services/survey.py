@@ -201,7 +201,7 @@ class SurveyService:
         artwork_id = detail.artwork.id
         original = self._catalogue.get_original(artwork_id)
         fit = None if original is None else self._catalogue.fit(artwork_id, profile=self._profile)
-        fit_note = None if original is not None else "No master image has been acquired, so its size is unknown."
+        fit_note = None if original is not None else "It has no picture yet, so its size is unknown."
         try:
             self._thumbnails.source_for(artwork_id)
         except ThumbnailUnavailable as absent:

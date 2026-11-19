@@ -157,9 +157,9 @@ async def test_every_description_lists_the_actions_the_schema_allows(tools):
 #: stale render went unmentioned in the tip while this guard reported it covered.
 _SHOW_NOW_TIP_PREPARES_FOR = {
     UnplayableReason.ARCHIVED: "archived",
-    UnplayableReason.NO_ORIGINAL: "master image",
+    UnplayableReason.NO_ORIGINAL: "missing its picture",
     UnplayableReason.NO_MAT_COLOR: "mat colour",
-    UnplayableReason.NO_RENDITION: "presentation master",
+    UnplayableReason.NO_RENDITION: "copy for the walls",
     # A stale render is present rather than missing, so "render" alone does not
     # describe it and would be satisfied by the row above.
     UnplayableReason.STALE_RENDITION: "earlier acquisition",

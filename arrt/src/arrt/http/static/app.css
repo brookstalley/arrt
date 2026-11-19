@@ -3458,6 +3458,28 @@ section.offered + section.offered {
   color: var(--text-strong);
 }
 
+/* On a touch screen the line is a finger's target, 44px tall as every control
+   is (`accessibility-spec.md` § Touch targets), by its height alone: no box,
+   no fill, still the underlined words, so the sidebar does not gain a button.
+   The block gives back the padding the taller line takes up, so its words sit
+   where they sat and the sidebar grows by as little as it can. */
+@media (pointer: coarse) {
+  .sidebar .budget {
+    padding-block: var(--space-1);
+  }
+
+  .sidebar .budget a.budget-line {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--control-h);
+  }
+
+  .sidebar .budget .budget-note {
+    margin-top: 0;
+    padding-bottom: var(--space-2);
+  }
+}
+
 .sidebar .budget .budget-note {
   margin-top: var(--space-1);
   font-size: var(--text-xs);

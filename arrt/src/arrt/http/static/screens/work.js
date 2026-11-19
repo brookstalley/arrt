@@ -786,7 +786,7 @@ function recordPanels(detail, generation, where) {
 
   panels.push(
     el("div", { class: "panel" }, [
-      el("h2", { text: "Master image" }),
+      el("h2", { text: "Picture" }),
       detail.original
         ? facts([
             // Where it lies and what it hashes to are for whoever is debugging
@@ -798,7 +798,7 @@ function recordPanels(detail, generation, where) {
           ])
         : detail.acquisition
           ? null
-          : el("p", { class: "muted", text: "No master image has been acquired for this work yet." }),
+          : el("p", { class: "muted", text: "This work has no picture yet." }),
       // Where the work stands in the acquisition queue, while it owes one: a
       // work held with no image is queued, fetching, failed or paused, and a
       // page that only said "not acquired yet" read the same in every case.
@@ -836,7 +836,7 @@ function recordPanels(detail, generation, where) {
       el("h2", { text: "What has been rendered" }),
       detail.renditions.length
         ? table(
-            "A rendition is stale when the master it was made from is no longer the master this work holds.",
+            "A rendition is stale when the picture it was made from is no longer the picture this work holds.",
             ["Kind", "Target", "File", "State"],
             detail.renditions.map((r) => [
               r.kind,

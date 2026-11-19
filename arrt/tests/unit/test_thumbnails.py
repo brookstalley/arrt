@@ -79,7 +79,7 @@ class TestWhichImageIsUsed:
 
     def test_a_work_with_no_master_says_so_rather_than_failing_obscurely(self, thumbnails, work):
         artwork = work(master=False)
-        with pytest.raises(ThumbnailUnavailable, match="No master image has been acquired"):
+        with pytest.raises(ThumbnailUnavailable, match="This work has no picture yet"):
             thumbnails.source_for(artwork.id)
 
     def test_a_master_recorded_but_absent_names_the_path_it_expected(self, thumbnails, service, settings, work):

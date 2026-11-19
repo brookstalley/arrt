@@ -85,7 +85,8 @@ def test_a_work_with_no_acquired_original_is_excluded_and_named(display, ready_w
 
     assert build.entries == []
     assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_ORIGINAL]
-    assert "acquired" in build.exclusions[0].detail
+    # "acquired" until 2026-11-19, when "master image" became "picture" (audit-2 M7).
+    assert "no picture yet" in build.exclusions[0].detail
 
 
 class _ForgetsOneWork:
@@ -465,7 +466,7 @@ def test_showing_a_work_that_cannot_reach_the_wall_is_refused_with_its_reason(
     published = wall_settings.manifest_v2_path(wall_id).read_bytes()
     work = ready_work(master=False)
 
-    with pytest.raises(ServiceError, match="no presentation master has been made"):
+    with pytest.raises(ServiceError, match="its copy for the walls has not been made"):
         display.show_work_now(wall_id, work.id)
 
     # And nothing was published: a refused show-now leaves the wall's feed as it was.
