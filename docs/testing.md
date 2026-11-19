@@ -78,6 +78,178 @@ the chosen tests run and pass unmutated, so forgetting the marker now fails
 loudly instead of reporting every mutation caught by runs that executed no test.
 (`-n0` is the tool's own default — see the sweep paragraph below.)
 
+### Assertions read the page through `expect`
+
+A one-shot read — `loc.inner_text()`, `loc.count()`, `loc.is_visible()` — returns
+what the page holds at the instant it is called, and an `assert` on it passes or
+fails on whichever side of a repaint that instant fell. Playwright's `expect(loc)`
+asks the same question and keeps asking until the page agrees or the timeout
+passes. That difference is most of this suite's flakes (audit 7, S1a: twelve
+issues between August and November).
+
+**`arrt/tests/unit/test_browser_reads_retry.py` holds it.** It reads every file in
+`arrt/tests/browser/` and refuses a one-shot read or a fixed sleep in any file
+not on its `UNCONVERTED` list, which holds each remaining file's count and only
+shrinks: a file listed with more or fewer than it has fails, and so does a
+converted file still on the list. Two markers excuse one statement each, and
+each needs its reason after the colon:
+
+- `# one-shot: <why>` — a read that computes a value rather than asserting one
+  (the title to click next, the count to compare after a reload), placed after a
+  wait or an `expect` of the state it reads;
+- `# sleep: <why>` — a fixed wait that proves nothing happens for a while, which
+  no condition can stand for.
+
+**`expect` waits as long as a locator does.** `tests/browser/conftest.py` sets
+`expect`'s timeout to 30 seconds, Playwright's default for an action and for
+`wait_for`, where its own default is 5. A converted read then fails no sooner
+than the wait it replaced. Pass a shorter `timeout=` only where the bound is
+the claim, and say so.
+
+**The view is `ui.view`**, the `#view` locator, so `ui.text()` (the view's
+`innerText`, read once) has a retrying form: `expect(ui.view)`.
+
+#### The table
+
+Each row is one shape as it stands in an `assert`, with how many there were at
+the commit that wrote the guard (2,046 reads across the suite, 1,723 of them
+inside an `assert`). `s` is a string, `n` a number, `loc` a Locator. Every text
+row passes `use_inner_text=True`, because these tests read `innerText` and
+`expect` compares `textContent` without it: `textContent` includes text that
+CSS hides and ignores `text-transform`, so a bare conversion changes what the
+assertion means. An `expect` written before this table without it is left as it
+was written.
+
+| One-shot read | Count | Retrying form |
+|---|---:|---|
+| `assert loc.inner_text() == s` | 264 | `expect(loc).to_have_text(s, use_inner_text=True)` |
+| `assert " ".join(loc.inner_text().split()) == s` | 24 | `expect(loc).to_have_text(s, use_inner_text=True)`: a string is compared whitespace-normalised, which is what the join did |
+| `assert loc.inner_text().strip() == s` | 10 | the same: normalising trims |
+| `assert s in loc.inner_text()` | 129 | `expect(loc).to_contain_text(s, use_inner_text=True)` |
+| `assert s not in loc.inner_text()` | 62 | `expect(loc).not_to_contain_text(s, use_inner_text=True)`, under the anchor rule below |
+| `assert s in ui.text()` / `not in` | 103 / 64 | `expect(ui.view).to_contain_text(s, use_inner_text=True)` / `not_to_contain_text` |
+| `assert loc.inner_text().startswith(s)` | 35 | `expect(loc).to_have_text(re.compile("^" + re.escape(s)), use_inner_text=True)` |
+| `assert loc.inner_text().endswith(s)` | 13 | `expect(loc).to_have_text(re.compile(re.escape(s) + "$"), use_inner_text=True)` |
+| `assert loc.inner_text().strip().startswith(s)` / `.endswith(s)` | 14 | the same, with the strip in the pattern: `r"^\s*" + re.escape(s)` / `re.escape(s) + r"\s*$"` |
+| `assert s not in loc.inner_text().lower()` | 2 | `not_to_contain_text(s, use_inner_text=True, ignore_case=True)` |
+| `loc.text_content()` in any of the above | 6 | the same row **without** `use_inner_text`: it was `textContent` |
+| `assert loc.all_inner_texts() == [..]` | 51 | `expect(loc).to_have_text([..], use_inner_text=True)` |
+| `assert loc.all_text_contents() == [..]` | 9 | `expect(loc).to_have_text([..])` |
+| `assert loc.count() == n`, `n` > 0 | 244 | `expect(loc).to_have_count(n)` |
+| `assert loc.count() == 0` | 289 | `expect(loc).to_have_count(0)`, under the anchor rule |
+| `assert loc.count() >= n` / `> 0` / truthy | 6 | `expect(loc.nth(n - 1)).to_be_attached()` / `expect(loc.first).to_be_attached()` |
+| `assert loc.get_attribute(a) == v` | 118 | `expect(loc).to_have_attribute(a, v)` |
+| `assert loc.get_attribute(a).startswith(s)` / `.endswith(s)` | 15 | `expect(loc).to_have_attribute(a, re.compile("^" + re.escape(s)))` / `re.escape(s) + "$"` |
+| `assert s in loc.get_attribute(a)` | 15 | `expect(loc).to_have_attribute(a, re.compile(re.escape(s)))`: a substring, as `in` was |
+| `assert s not in (loc.get_attribute(a) or "")` | 2 | `expect(loc).not_to_have_attribute(a, re.compile(re.escape(s)))`, under the anchor rule; it passes when the attribute is absent, as `or ""` did |
+| `assert loc.get_attribute(a) is None` / `is not None` | 11 | `expect(loc).not_to_have_attribute(a)` / `expect(loc).to_have_attribute(a)` |
+| `assert loc.is_visible()` / `not loc.is_visible()` | 59 / 19 | `expect(loc).to_be_visible()` / `expect(loc).to_be_hidden()`, under the anchor rule |
+| `assert loc.is_hidden()` | 35 | `expect(loc).to_be_hidden()`, under the anchor rule |
+| `assert loc.is_checked()` / `is_disabled()` / `is_enabled()`, and `not` | 4 / 11 / 8 / 1 | `to_be_checked()` / `to_be_disabled()` / `to_be_enabled()`; `not_to_be_checked()`, and `not is_disabled()` is `to_be_enabled()` |
+| `assert loc.input_value() == v` | 39 | `expect(loc).to_have_value(v)` |
+| a tuple of reads compared to a tuple: `assert (a.input_value(), b.is_disabled()) == (x, True)` | 13 | one `expect` per element, each by its own row |
+| `assert page.title() == s` / `.startswith(s)` / `re.match(r"^s\b", …)` / `s not in` | 6 | `expect(page).to_have_title(s)` / `re.compile("^" + re.escape(s))` / `re.compile(r"^s\b")` / `not_to_have_title(re.compile(re.escape(s)))` |
+| `assert page.url.endswith(s)` (not counted: an attribute, read after the wait that moved it) | — | `expect(page).to_have_url(re.compile(re.escape(s) + "$"))` |
+| `page.inner_text(sel)`, `page.get_attribute(sel, a)`, `page.is_visible(sel)` | — | `page.locator(sel).first`, then the row above: a Page read takes the first match, and `expect` refuses a locator that matches several |
+| `text = loc.inner_text()` then `assert … in text` | 105 (+ 27 of `ui.text()`) | one `expect(loc)` per assertion, and the assignment goes |
+| a read that computes (a title to click, a count to compare later) | — | stays, after an `expect` of the state it reads, with `# one-shot: <why>` |
+| `bounding_box()` | 44 | stays, after an `expect` of the state it measures, with `# one-shot: <why>` (geometry, as `evaluate` is) |
+| `page.evaluate(…)`, `loc.evaluate(…)` | not counted | out of scope (the plan's decision): a computed value no `expect` retries. Placed after an `expect` of the state it reads; `wait_for_function` is its retrying form where the claim is a predicate |
+| `ui.page.wait_for_timeout(ms)`, a `setTimeout` promise | 39 | a wait on the condition it stood for; one that proves nothing happens for a while stays, with `# sleep: <why>` |
+
+#### The hazards, each with the wrong conversion and the right one
+
+Each was measured on Playwright 1.62 (a page set with `set_content`, each form
+asserted against it).
+
+1. **`innerText` and `textContent`.** `to_have_text` without `use_inner_text`
+   reads `textContent`: a `display: none` child's words count, and
+   `text-transform: uppercase` does not. Wrong: `to_contain_text("Hidden")` where
+   the test read `inner_text()`; right: `use_inner_text=True`. An element that
+   is *itself* hidden is another matter: its `innerText` is its text content,
+   both as a read and through `use_inner_text`, so a text assertion on it
+   passes as the read did and says nothing about whether it shows. Where the
+   claim is that it shows, add `to_be_visible()`; never assume one from the
+   other.
+2. **Whitespace.** A *string* is compared normalised on both sides: runs of
+   whitespace, newlines and non-breaking spaces become one space, the ends are
+   trimmed and zero-width spaces dropped. So `to_contain_text("a\nb")` matches
+   `a b` on one line, and `to_have_text("11 am")` matches `11 am`. A test
+   whose claim is the line break or the non-breaking space is weaker as a
+   string. Right: a *regular expression*, which is matched against the raw
+   `innerText`: `to_have_text(re.compile(r"a\nb"))`.
+3. **Exact and substring.** `to_have_text(s)` is the whole text; `to_contain_text(s)`
+   is a substring. `==` is the first, `in` the second; `startswith` is neither,
+   and is a regex anchored with `^`.
+4. **Lists.** `to_have_text([..])` is the whole list, in order, each item whole.
+   `to_contain_text([..])` passes on any subset in order: wrong for `==`.
+5. **Several matches.** Text, attribute, value and state assertions refuse a
+   locator matching more than one element, as `loc.inner_text()` did. A Page
+   read (`page.inner_text(sel)`) took the first match silently: convert it with
+   `.first`, or narrow the selector. `to_have_count` counts every match, hidden
+   ones included, as `count()` did: never swap it for `to_be_visible`.
+6. **Absence passes at once.** `to_have_count(0)`, `to_be_hidden()`,
+   `not_to_contain_text` and `not_to_have_attribute` are true of a page that has
+   not painted yet, so they pass before the write they are about has happened.
+   The one-shot form had the same weakness, and it was covered by the wait above
+   it. **The anchor rule:** a negative assertion stands after a positive wait or
+   `expect` on something only the settled state has; keep that anchor, and put
+   the negative after it, never first. (A text negative on an element that is
+   *absent* fails rather than passes, as the one-shot read did.)
+7. **Inequality.** `assert loc.inner_text() != before` becomes
+   `not_to_have_text(before)`, which passes on any intermediate paint, the
+   empty one included. Right: assert the value it changes *to*.
+8. **Snapshots.** Several assertions over one read saw one instant; converted,
+   each sees its own. For a settled screen that is the same claim. Where the
+   claim is that one moment held all of them together, a person must think.
+9. **Time.** `expect` gives up after the suite's 30 seconds, where the read
+   gave up never. Do not add `timeout=` to make a converted test faster.
+
+#### Where there is no mechanical form
+
+These are left for a person, and the chunk that meets one says in its report
+what it did (counts at the commit that wrote the guard):
+
+- **Something has not happened yet** — an `assert` that the old value is still
+  there between an act and its effect ("until the Player reports, the card
+  still leads with Nighthawks"). A retrying positive of the old value passes at
+  once, as the read did; it cannot tell "not yet" from "changed and changed
+  back". Keep it as the retrying positive, and anchor it after something that
+  shows the act was received (the act's own notice). Not countable by shape.
+- **A count expected to change** — a count read, then an act, then a comparison
+  (`count() >= loaded`): the first read computes (`# one-shot:`), the second
+  becomes `expect(loc.nth(loaded - 1)).to_be_attached()`. Twenty-two
+  `count()` reads are assigned or returned.
+- **A read used to compute** — 259 reads are assigned and 40 returned by a
+  helper; each is either the snapshot of an assertion (convert it per the table)
+  or a value the test uses (keep it, `# one-shot:`). Telling which is reading
+  the test.
+- **Simultaneity** — a read taken at the moment something else appeared,
+  because the claim is that both changed together ("the watch replaces the
+  lead and Next together"). A retrying `expect` after the notice would pass on
+  a list that caught up later. Keep the read, at the notice, with
+  `# one-shot:`; it is not a race when the client writes both in one turn.
+- **Text arithmetic** — `.split(" · ")[0]`, `.replace(…)`, `.count(s) == 1` ("said
+  once"), `sorted(…)`, `len(…)`, comprehensions over `all_inner_texts()`
+  (`all(t.startswith("From ") for t in …)`), membership of one item in a list
+  (`s in loc.all_inner_texts()`), and `<` or `<=` on a count: 47. Where
+  the length is known, a list of anchored regexes keeps it
+  (`to_have_text([re.compile("^From ")] * 3, use_inner_text=True)`); "said
+  once" is a regex with a negative lookahead or a count of matching elements,
+  chosen for what the test means.
+- **Markup** — `inner_html()`: 1. There is no retrying read of markup; assert the
+  element the markup would hold instead (`to_have_count(0)` on
+  `a[href*='<id>']`), which is narrower, and say so.
+- **Geometry** — 44 `bounding_box()` reads. `to_be_in_viewport()` is an
+  intersection test, not the inequality the tests write.
+- **The request log** — `ui.requests_matching(…)` reads Python's list, not the
+  page (49). A request that must happen is `with page.expect_request(…)`; one
+  that must not is a claim over time, held open by the anchor rule or by a
+  `# sleep:` that says how long nothing happened.
+- **Elapsed time from the machine's clock** — a test that seeds a time from
+  `datetime.now` and asserts on elapsed time is listed for wave 2b's Chunk 43
+  (clocks), not changed here.
+
 ## The live suites
 
 Four markers — `live_museum`, `live_binary`, `live_api`, `llm_eval` — all

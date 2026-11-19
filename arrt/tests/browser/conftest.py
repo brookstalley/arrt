@@ -40,6 +40,13 @@ navigates away from. Every one passed alone and failed in the full suite, where 
 heavier test ran ahead of it and moved the timing. Wait for the *new* thing — the
 text the write produced, the section the navigation lands on — and let the
 assertions be about the rest.
+
+**And the assertions retry.** A read such as `loc.inner_text()` is one instant
+of the page; `expect(loc).to_have_text(…, use_inner_text=True)` is the same
+question asked until the page agrees. The table of which read becomes which
+assertion, and the shapes that have none, is `docs/testing.md` § "Assertions
+read the page through `expect`"; `tests/unit/test_browser_reads_retry.py`
+refuses a one-shot read or a fixed sleep in a converted file.
 """
 
 import io
@@ -59,6 +66,18 @@ from arrt.persistence.records import (
 )
 
 BROWSER_DIR = pathlib.Path(__file__).parent
+
+#: How long an `expect` keeps asking: Playwright's own default for an action
+#: and for `wait_for`, where `expect`'s is five seconds. A converted read then
+#: gives up no sooner than the wait it replaced did, under the pool's load.
+EXPECT_TIMEOUT_MS = 30_000
+
+try:
+    from playwright.sync_api import expect
+except ImportError:  # collected without the browser group: every test here skips
+    expect = None
+else:
+    expect.set_options(timeout=EXPECT_TIMEOUT_MS)
 
 
 def pytest_collection_modifyitems(items):
@@ -362,8 +381,14 @@ class Ui:
             lambda route: route.fulfill(status=200, content_type="image/jpeg", body=body),
         )
 
+    @property
+    def view(self):
+        """The screen's own region, for `expect(ui.view).to_contain_text(…, use_inner_text=True)`."""
+        return self.page.locator("#view")
+
     def text(self) -> str:
-        return self.page.inner_text("#view")
+        """The view's words, read once: the read `expect(ui.view)` replaces (`docs/testing.md`)."""
+        return self.page.inner_text("#view")  # one-shot: counted where each caller asserts on it
 
     def focused(self) -> str:
         """What the keyboard is standing on, named so a test can assert it."""
@@ -386,8 +411,10 @@ class Ui:
             "[@role='alert'][normalize-space(.) != '']"
         )
         beside.wait_for(state="visible")
-        assert self.page.locator("#error").is_hidden(), "a failed act was reported in the banner as well"
-        return beside.inner_text()
+        expect(self.page.locator("#error"), "a failed act was reported in the banner as well").to_be_hidden()
+        # The sentence is written into the alert in one go, and the wait above
+        # is for it to have words: what is read is the whole of it.
+        return beside.inner_text()  # one-shot: read once the alert has its words, which arrive in one write
 
     def open_folds(self) -> None:
         """Open Review's fold lines, for a test about a card that starts folded.
@@ -416,12 +443,14 @@ class Ui:
 
         tiles = self.page.locator("ul.grid > li")
         for _ in range(presses):
-            if until is not None and tiles.count() >= until:
+            # A loop that polls, rather than an assertion: each read decides
+            # whether to press again, and the next turn reads again.
+            if until is not None and tiles.count() >= until:  # one-shot: polled, once a press
                 return
             button = self.page.locator("#view button.show-more")
-            if button.count() == 0:
+            if button.count() == 0:  # one-shot: polled, once a press
                 if until is not None:
-                    raise AssertionError(f"Show more ran out at {tiles.count()} tiles, short of {until}")
+                    raise AssertionError(f"Show more ran out at {tiles.count()} tiles, short of {until}")  # one-shot: the message
                 return
             try:
                 button.click(timeout=2_000)
