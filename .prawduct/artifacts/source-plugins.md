@@ -197,6 +197,34 @@ see. With plugins, one faulty package would otherwise stop every run. The suites
 keep the old strictness by failing any test in which `source.plugin_fault` is
 logged.
 
+**A call past its deadline is "could not be asked"** (since 1.5). Arrt waits 60 s
+for a finder or a reader, 30 s for a preview and 120 s for a collection's browse,
+unless the plugin declares longer (`SourcePlugin.deadlines`, at most
+`DEADLINE_CEILING_SECONDS`, 900 s). Before deadlines, one hung finder held every
+Get, because the pool waits for every source, and every look at that source
+waited behind it. A call past its deadline is recorded against the plugin beside
+its faults (`source.plugin_deadline`) and is not a fault. Python cannot stop the
+call, so it runs on, on a daemon thread: its answer, when it comes, is discarded
+(`source.plugin_late`), and at most four such calls per plugin run at once,
+after which a new call is "could not be asked" without being made. The pool has
+a backstop of its own, a source's deadline and five seconds, for a finder handed
+to it unwrapped. *The deadlines are the owner's (audit wave 1, 2026-11-19); the
+declaration is the coordinator's, because the private browser plugins' pages
+measured 77-100 s with a 480 s worst case.*
+
+**Answers are checked beyond their type** (1.5): an image's dimensions are
+positive whole numbers or `None`, its title text, its title and artist and a
+locator's reason at most 2,000 characters, and a preview at most the
+deployment's `preview_max_bytes`; anything else is a fault. What a finder
+yielded before it raised `ImageSearchFailure` or `ImageQueryUnanswerable` is
+kept, as the pool always kept it for an unwrapped finder; what it yielded before
+a fault is not.
+
+**The health panel counts "could not be asked" beside faults.** A parser that
+no longer recognises a redesigned museum page answers "could not be asked" for
+every work, which is no fault, so a plugin that has answered nothing else since
+startup is said to have, with how many times.
+
 ## The Wikidata finder
 
 For a work with a QID, Arrt itself finds the holders' pages, with no search:
@@ -323,7 +351,9 @@ pages are lost with it; a later search of the work records them.
   pool does today. The built-in order stands (Commons, then the Art Institute,
   the owner's ruling of 2026-10-01). *Mine:* `SOURCE_ORDER`, a comma-separated
   list of plugin names, sets it; plugins it does not name follow, by name.
-- **Two readers claiming one URL:** the one first in that order reads it.
+- **Two readers claiming one URL:** the one first in that order reads it, and
+  the overlap is logged once per pair, naming both (`source.claims_overlap`),
+  because the second would never read a URL the first claims.
 - **A plugin that fails to load does not stop Arrt.** *Mine:* an import error, a
   factory that raises, or an incompatible version is logged at error with the
   plugin's name, and Arrt starts without it. A wall that goes dark because a
@@ -409,6 +439,16 @@ open data, which the NGA's is, is offered for exactly that.
   its id, as one that declares nothing is. A built-in keeps its module's `MUSEUM`.
   *The owner's ruling 1 of 2026-10-11 (`ia-proposal.md`): a plugin id is shown only
   in debug, which needs every source to have a name (#355).*
+- **1.5 (2026-11-19) added `SourcePlugin.api_minor` and `SourcePlugin.deadlines`.**
+  `api_minor` is the newest minor a plugin reads; one needing a newer minor than
+  this Arrt is refused at load naming both ("it needs source interface 1.6, and
+  this Arrt is 1.5") rather than loaded to fault on its first call, and an import
+  failing on a keyword `SourcePlugin` does not take says the plugin may need a
+  newer Arrt. `deadlines` maps `finder`, `reader`, `preview` or `browse` to the
+  seconds the host waits for that kind of call, above zero and at most 900; a
+  value outside that, or another key, is refused at load by name (§ Three
+  answers, plus a fault). A plugin built for 1.4 loads unchanged and gets the
+  defaults.
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
   import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,
