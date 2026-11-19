@@ -98,7 +98,7 @@ owner, are in the plan and its ledger.
   `image.yml` builds the image's test target unfiltered on every pull request into `main`; the
   seam guard counts the Library's five storage modules as the Library's; a new test holds the
   catalogue file's cross-seam foreign keys at exactly one; the deployment-values scan reads
-  every tracked text file and knows tailnet, IPv6 local, `.lan`/`.local` and `user@host` shapes.
+  every tracked text file and knows tailnet, IPv6 local, `.lan`/`.local` and account-at-machine login shapes.
   The pins and the new `image.yml` filter have not run on GitHub's runners yet.
 
 ## Not done, and why
