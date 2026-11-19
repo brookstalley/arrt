@@ -10,6 +10,132 @@ each entry, which is the durable form.
 
 ## Pending
 
+### Setting up a wall and its Player, at a real wall — added 2026-11-19
+
+**`build-plan-audit-wave-1.md`.** On the NAS, once the release with this
+branch is deployed, with a Player you have not yet paired (a spare Pi, or the
+real one with its token rotated), and the wall in front of you. Do it in the order
+the screens give it; the question is whether the page ever leaves you stranded.
+
+- **Add the Player.** Settings › Players › *Add Player…*, a name, *Create*. The
+  list behind the dialog already shows the new Player ("waiting for it to
+  report", not "never reported"), and the line under the page's name says the
+  page is waiting. *Copy* puts the token on the clipboard; try it once over the
+  address you really use (plain http by its address on the network is the case
+  that has no clipboard API: the token is selected for the keyboard instead).
+- **Put it on the Player.** On that Player's own settings page the fields are
+  *Token* and *Server address*, the words the dialog uses. Is the instruction
+  enough to do it without opening anything else?
+- **Choose its screen.** Walls › *Edit…* on a wall › *Where it shows*. Before the
+  Player has reported, *Show it there* is disabled and the sentence beside it
+  says why. Start the Player and watch: within a few seconds of its first report
+  the act enables itself and the screen appears in the picker, with no reload.
+  Press it. Does the card now show the wall's work?
+- **Not set yet.** In the same dialog change a wall's name and close it without
+  *Rename*: the line above *Close* names what was left unset.
+- **One filled act.** Is *Show it there* the only filled button in the dialog,
+  and does each other section still say plainly when it has been set?
+- **The words.** Nothing on Walls, Players or Status says "plane", "heartbeat" or
+  "display" for a Player. Say if one still does.
+- **Hang with no Player.** *Hang…* a theme on a wall no Player shows: the
+  question says nothing shows it yet instead of promising that everyone in the
+  house will see it change.
+
+### Lists, toolbars and back links, on a phone and a desktop — added 2026-11-19
+
+**`build-plan-audit-wave-1.md`.** On the NAS, once deployed.
+
+- **Posters.** Artworks in Posters: every tile carries its title and artist
+  beneath it on the page's ground, on a phone with no hover. Does the grid still
+  read as a grid of pictures at your library's size?
+- **One toolbar.** Artworks, Artists, one Artist and a search's results: the acts
+  are on the left; View, Sort, the filters' button and *Select* on the right, in
+  that order, on every page that has them. *Select*, then check the acts on what
+  is ticked appear on the left, and that on a phone View and Sort step aside while
+  *Stop selecting* stays. A Topic's page and a theme's page keep *Select* beside
+  their acts for now; say whether the difference is noticed.
+- **A work with no picture.** *Hang…* is there, disabled, and says why.
+- **Back links.** On a work, an artist, a topic and a theme the way back is a
+  muted link above the name, not a button.
+- **Search.** The top-bar box says *Search*; "Held" is said once per group on the
+  results page, and a held work with no picture says *No picture* where its
+  picture would be.
+
+### Ask without a key, the spend link, the Queue and the words — added 2026-11-19
+
+**`build-plan-audit-wave-1.md`.** On the NAS, once deployed. For the
+first step you need a server with no `OPENROUTER_API_KEY`: a scratch container,
+not the household's.
+
+- **Ask with no key.** Ask's box and *Ask* are disabled with one plain sentence,
+  the search box's dropdown offers no *Ask about…*, and nothing says "the server
+  failed".
+- **Spend.** The budget line in the sidebar is a link, reachable by Tab, to
+  History filtered to Gets. Is that where you would look for what a Get cost?
+- **The Queue.** One heading for failures; no *Retry now* on a row; a *Retry*
+  over more than five works asks first, naming the count (do not confirm it
+  unless you mean to).
+- **Plumbing.** Topics, a work with no source, and a failed match say what is
+  wrong without naming a setting, a UUID or a path; Settings › Sources and Status
+  still name the setting, as the operator's pages.
+- **Phone.** Settings › General: each label stands over its field.
+
+### What the server does at its edges, on the NAS — added 2026-11-19
+
+**`build-plan-audit-wave-1.md`.** After the image is deployed:
+
+- **The published port.** From a machine on another network than the proxy's (a
+  guest or IoT network, or over the VPN), `curl -s -o /dev/null -w '%{http_code}'
+  http://<NAS address>:<host port>/healthz` does not answer. The real compose
+  file's `ports:` names one address, not every interface.
+- **The journal.** A wall polling its manifest every second no longer writes an
+  access line per poll; a refused one still does. The container's log is bounded.
+- **The proxy.** The interface still loads through the reverse proxy, and nothing
+  of yours embeds it in a page of its own (it cannot be framed now).
+- **A migration that drops something.** The next upgrade that drops a column or
+  a table leaves a `pre-migration-<instant>.sqlite` in `BACKUP_DIR`, and the
+  journal says `catalogue.snapshot_taken`. To see the refusal without losing
+  anything, point `BACKUP_DIR` at a read-only directory on a scratch copy of the
+  catalogue and confirm the server will not start and names the directory.
+- **Restarts.** Restart the container twice within the hour: the journal says
+  `backup.skipped_recent`, and the generations on disk are not replaced.
+- **The tile fetcher's new staging name.** `cd arrt && uv run pytest -m live_binary
+  -n0` against the deployed `dezoomify-rs`: the live test has not been run since
+  the staging name changed to `.<stem>.<token>.partial<suffix>`.
+
+### Source plugins under their deadlines — added 2026-11-19
+
+**`build-plan-audit-wave-1.md`, with the private plugins' repository.**
+Not until the image with the private browser plugins has been rebuilt from this
+server (interface 1.5) with each plugin declaring its deadlines; an image built
+without them would answer "could not be asked" at 60 seconds for every browser
+page. Then, on the NAS:
+
+- **Status › Image sources.** Every plugin reads *loaded*, none says it has
+  answered nothing but "could not be asked".
+- **A Get of a work only a browser plugin can read.** It finishes, slowly, and
+  the Work page shows the page read. If a plugin is cut off, the journal says
+  `source.plugin_deadline` naming it and its operation.
+- **A look beside a Get.** A second look at the same work while the first runs
+  is not kept waiting behind it.
+
+### The television is left alone, measured at the set — added 2026-11-19
+
+**`nonfunctional-requirements.md` § The television belongs to whoever is using
+it, and `arrt-player`'s `samsung-tv-state-findings.md`.** With the Frame, and
+somebody at it. The Player now reads the set before every write, not only a
+selection, and holds an upload, a removal, a brightness change and a slideshow
+switch-off while a programme shows. Two things the gate relies on have not been
+measured:
+
+- **Does `PowerState` on port 8002 read `on` while a programme shows?** If it
+  reads `standby`, the gate admits every write but a selection during television.
+  Watch something on the set and ask it.
+- **Would a held write have been visible over a programme?** If an upload, a
+  deletion, the slideshow switch-off or a brightness change does not disturb one,
+  the gate can release that verb.
+- **An upload in flight when the set leaves art mode** still finishes.
+
 ### ✅ Deleting a wall, and Edit… reading what is true — added 2026-10-30, VERIFIED 2026-11-08
 
 **Looked at by the owner on 2026-11-08** on the NAS, image
@@ -1568,10 +1694,18 @@ synced. After this reaches the Pi:
 2. Archive a work that is currently in the wall's rotation. It should come out
    of the rotation without a sync. The journal says `took works the Library no
    longer offers off the published manifest`.
-3. Restart `curation.service`. The journal should say `Reconciled … against the
+3. Restart the server (the container on the NAS; `curation.service` on the Pi
+   when this was written). The journal should say `Reconciled … against the
    Library at startup: nothing to change`.
 
-### The Pi's units after the renames to arrt/ and postarr/ — added 2026-09-30, rewritten 2026-10-01
+### ~~The Pi's units after the renames to arrt/ and postarr/~~ — retired 2026-11-19
+
+> **Retired 2026-11-19.** The server has run in a container on the NAS since
+> 2026-10-02, `deploy/curation.service` is deleted, and the Player's unit lives in
+> `brookstalley/arrt-player`, so nothing here can be run: there is no
+> `deploy/curation.service` or `deploy/display.service` to copy. The Player's
+> own runbook is the way to move the Pi to a new revision. Kept below as the
+> record. *(Added 2026-09-30, rewritten 2026-10-01.)*
 
 **Wave 2a and the rename of 2026-10-01, in one step.** The projects moved from
 `curation/` and `display/` to `curatarr/` and `arrt/` (wave 2a), and then to
