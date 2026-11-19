@@ -365,9 +365,10 @@ module = [
     "arrt.http.api",
     "arrt.mcp.bindings",
     "arrt.programming.clients",
-    "arrt.programming.display",
     "arrt.programming.feeds",
     "arrt.programming.manifest.heartbeat",
+    "arrt.programming.reports",
+    "arrt.programming.scenes",
     "arrt.programming.schedule",
 ]
 ignore_errors = true
