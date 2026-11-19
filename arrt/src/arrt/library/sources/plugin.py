@@ -34,7 +34,9 @@ from arrt.library.sources.reading import Reader
 #: `manifest_metadata`), which a plugin may use and none must.
 #: 1.4 added `SourcePlugin.museum`, the name a curator knows the source by.
 #: 1.5 added `SourcePlugin.api_minor`, so a plugin that needs a newer minor than
-#: this Arrt is refused at load by name rather than faulting on its first call.
+#: this Arrt is refused at load by name rather than faulting on its first call,
+#: and `SourcePlugin.deadlines`, for a plugin whose calls take longer than the
+#: host's default deadlines.
 API_VERSION: Final[tuple[int, int]] = (1, 5)
 
 
@@ -140,3 +142,13 @@ class SourcePlugin:
     #: plugin that must load on one passes it only when `"api_minor" in
     #: SourcePlugin.__dataclass_fields__`.
     api_minor: int = 0
+    #: Seconds the host waits for each kind of call into this plugin, where its
+    #: default is too short (1.5): any of `"finder"` (`find_images`), `"reader"`
+    #: (`read`), `"preview"` (`fetch_preview`) and `"browse"`, each above zero and
+    #: at most the host's ceiling of 900. A kind not named keeps the default: 60
+    #: for a finder or a reader, 30 for a preview, 120 for a browse. A call past
+    #: its deadline is "could not be asked". Anything else declared here (another
+    #: key, a value out of bounds) leaves the plugin out at load, named. Static,
+    #: like `claims`: declare the worst a call can take within the plugin's own
+    #: bounds, because the host stops waiting there.
+    deadlines: Mapping[str, float] | None = None

@@ -12,6 +12,7 @@ Every deadline here is a fraction of a second, given through `Deadlines` or the
 pool's `deadline_seconds`; nothing waits out the real ones.
 """
 
+import importlib.metadata
 import logging
 import threading
 import time
@@ -29,7 +30,16 @@ from arrt.library.discovery.pool import RUN_DEADLINE_SECONDS, AskOutcome, ImageS
 from arrt.library.registry import ItemId, RegistryCreator, RegistryText, RegistryWork
 from arrt.library.services.look import LookService, SourceState
 from arrt.library.services.pictures import PictureStore
-from arrt.library.sources.loading import FINDER_DEADLINE_SECONDS, Deadlines, SourceRoster
+from arrt.library.sources import SourceContext, SourceParts, SourcePlugin
+from arrt.library.sources.loading import (
+    DEADLINE_CEILING_SECONDS,
+    ENTRY_POINT_GROUP,
+    FINDER_DEADLINE_SECONDS,
+    Deadlines,
+    PluginState,
+    SourceRoster,
+    load_sources,
+)
 
 #: A deadline a test can pass in a moment.
 QUICK = 0.2
@@ -341,3 +351,193 @@ def test_a_look_is_not_kept_waiting_behind_a_run_whose_source_hung(services, set
         run.join(SETTLE)
     # The run settled without the hung source, as could not be asked.
     assert ended == ["No image source could be asked: SMK, National Gallery of Denmark."]
+
+
+# -- a plugin may declare a longer deadline (1.5) --------------------------------------
+#
+# A page read through the private plugins' browser was measured at 77-100 s, and
+# its worst case is 480 s, so the default 60 s would leave such a plugin "could
+# not be asked" on every call. These run on simulated time: the plugin says when
+# it would answer, and the host's wait is told how long it may wait, so 300 s is
+# never waited out.
+
+
+class SimulatedTime:
+    """The host's wait for a call, on a clock the plugin moves: a call answering at `t` beats a deadline `d` when `t <= d`."""
+
+    def __init__(self) -> None:
+        self._asked = threading.Event()
+        self._gate = threading.Event()
+        self.answers_at: float | None = None
+        self.waited_for: list[float] = []
+
+    def sleep(self, seconds: float) -> None:
+        """What the plugin calls instead of taking `seconds`: it returns when the host's wait has decided."""
+        self.answers_at = seconds
+        self._asked.set()
+        assert self._gate.wait(SETTLE), "the host never decided"
+
+    def wait_for(self, done: threading.Event, seconds: float) -> bool:
+        """The host's wait: whether the call ended within `seconds` of simulated time."""
+        self.waited_for.append(seconds)
+        assert self._asked.wait(SETTLE), "the plugin was never asked"
+        if self.answers_at is not None and self.answers_at <= seconds:
+            self._gate.set()
+            return done.wait(SETTLE)
+        # Past the deadline: the call is left hung until the test releases it,
+        # so it cannot finish in the moment between this answer and the host's.
+        return False
+
+    def release(self) -> None:
+        """Let a call the host gave up on return, late."""
+        self._gate.set()
+
+
+def slow_plugin(clock: SimulatedTime, *, takes: float, deadlines=None) -> SourcePlugin:
+    class Slow(StubFinder):
+        def find_images(self, query):
+            clock.sleep(takes)
+            return super().find_images(query)
+
+    return SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=Slow("slowpage")), api_minor=5, deadlines=deadlines)
+
+
+def load_slow(clock: SimulatedTime, plugin: SourcePlugin) -> SourceRoster:
+    point = importlib.metadata.EntryPoint(name="slowpage", value="plugin_fakes:GOOD", group=ENTRY_POINT_GROUP)
+    return load_sources(
+        SourceContext(environ={}, user_agent="arrt-tests/0", preview_max_bytes=1_000_000),
+        entry_points=[_Fixed(point, plugin)],
+        wait_for=clock.wait_for,
+    )
+
+
+class _Fixed:
+    def __init__(self, point, plugin) -> None:
+        self.name = point.name
+        self._plugin = plugin
+
+    def load(self):
+        return self._plugin
+
+
+def test_a_plugin_declaring_300_seconds_that_answers_at_200_is_not_cut_off():
+    clock = SimulatedTime()
+    roster = load_slow(clock, slow_plugin(clock, takes=200, deadlines={"finder": 300}))
+
+    found = list(roster.finders[0].find_images(QUERY))
+
+    assert [image.provider for image in found] == ["slowpage"]
+    assert clock.waited_for == [300]
+    assert reading(roster, "slowpage").answered == 1
+
+
+def test_the_same_plugin_answering_at_301_is_cut_off_at_its_declared_300():
+    clock = SimulatedTime()
+    roster = load_slow(clock, slow_plugin(clock, takes=301, deadlines={"finder": 300}))
+
+    try:
+        with pytest.raises(ImageSearchFailure, match="did not answer within 300 seconds"):
+            list(roster.finders[0].find_images(QUERY))
+    finally:
+        clock.release()
+    assert reading(roster, "slowpage").unasked == 1
+
+
+@pytest.mark.parametrize(("takes", "cut"), [(60, False), (61, True)])
+def test_a_plugin_declaring_nothing_is_cut_at_the_default(takes, cut):
+    clock = SimulatedTime()
+    roster = load_slow(clock, slow_plugin(clock, takes=takes))
+
+    if cut:
+        try:
+            with pytest.raises(ImageSearchFailure, match="did not answer within 60 seconds"):
+                list(roster.finders[0].find_images(QUERY))
+        finally:
+            clock.release()
+    else:
+        assert len(list(roster.finders[0].find_images(QUERY))) == 1
+    assert clock.waited_for == [FINDER_DEADLINE_SECONDS]
+
+
+def test_a_declaration_for_one_kind_of_call_leaves_the_others_at_their_defaults():
+    clock = SimulatedTime()
+    roster = load_slow(clock, slow_plugin(clock, takes=1, deadlines={"preview": 90}))
+
+    list(roster.finders[0].find_images(QUERY))
+
+    assert clock.waited_for == [FINDER_DEADLINE_SECONDS]
+
+
+@pytest.mark.parametrize(
+    ("declared", "said"),
+    [
+        ({"finder": 901}, "its finder deadline of 901 seconds is past this Arrt's ceiling of 900"),
+        ({"reader": 0}, "its reader deadline of 0 is not a number of seconds above zero"),
+        ({"browse": -5}, "its browse deadline of -5 is not a number of seconds above zero"),
+        ({"finder": float("inf")}, "its finder deadline of inf is not a number of seconds above zero"),
+        ({"finder": float("nan")}, "its finder deadline of nan is not a number of seconds above zero"),
+        ({"finder": "300"}, "its finder deadline of '300' is not a number of seconds above zero"),
+        ({"finder": True}, "its finder deadline of True is not a number of seconds above zero"),
+        ({"finders": 300}, "it declares a deadline for 'finders', which is not a kind of call (finder, reader, preview, browse)"),
+        (["finder"], "its deadlines are a list, not a mapping of kind of call to seconds"),
+    ],
+)
+def test_a_declaration_out_of_bounds_is_refused_at_load_by_name(declared, said):
+    plugin = SourcePlugin(api_major=1, create=_never_called, api_minor=5, deadlines=declared)  # type: ignore[arg-type]
+
+    roster = load_slow(SimulatedTime(), plugin)
+
+    (slow,) = roster.observe()
+    assert (slow.state, slow.reason) == (PluginState.FAILED, said)
+    assert roster.finders == ()
+
+
+def _never_called(_context):
+    raise AssertionError("a plugin refused at load has its factory called")
+
+
+def test_a_declaration_at_the_ceiling_loads():
+    assert DEADLINE_CEILING_SECONDS == 900
+    clock = SimulatedTime()
+    roster = load_slow(clock, slow_plugin(clock, takes=900, deadlines={"finder": 900, "reader": 900.0}))
+
+    assert len(list(roster.finders[0].find_images(QUERY))) == 1
+
+
+def test_the_pool_waits_for_a_declared_deadline_and_no_longer_than_the_slowest_source_needs():
+    """A run's backstop follows each source's own deadline, so it never cuts a declared plugin short.
+
+    The fast source hangs and is cut by its own (default) deadline; the slow one
+    declared longer and answers inside it. A pool waiting only the default would
+    lose the slow one's answer.
+    """
+    hung = Hung("fast")
+    late_gate = threading.Event()
+
+    class Declared(StubFinder):
+        def find_images(self, query):
+            assert late_gate.wait(SETTLE)
+            return super().find_images(query)
+
+    plugin_fast = SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=hung))
+    plugin_slow = SourcePlugin(
+        api_major=1, create=lambda _c: SourceParts(finder=Declared("declared")), api_minor=5, deadlines={"finder": 1.5}
+    )
+    point = importlib.metadata.EntryPoint(name="x", value="plugin_fakes:GOOD", group=ENTRY_POINT_GROUP)
+    fast_point, slow_point = _Fixed(point, plugin_fast), _Fixed(point, plugin_slow)
+    fast_point.name, slow_point.name = "fast", "declared"
+    roster = load_sources(
+        SourceContext(environ={}, user_agent="arrt-tests/0", preview_max_bytes=1_000_000),
+        entry_points=[fast_point, slow_point],
+        deadlines=Deadlines(finder=QUICK),
+    )
+    pool = ImageSourcePool(roster.finders, margin_seconds=0.1)
+    threading.Timer(0.8, late_gate.set).start()
+    try:
+        answer = pool.find_images(QUERY)
+    finally:
+        hung.gate.set()
+        late_gate.set()
+
+    assert answer.unreachable == ("fast",)
+    assert [image.provider for image in answer.images] == ["declared"]

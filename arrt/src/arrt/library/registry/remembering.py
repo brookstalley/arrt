@@ -54,8 +54,9 @@ from arrt.library.registry.identifiers import IdentifierScheme
 PAGES_REMEMBERED_SECONDS: Final[float] = 600.0
 
 #: How long a caller waits for another caller's request for the same item before
-#: it is told the registry could not be asked. As long as a finder's own deadline
-#: (`library/sources/loading.py`), past which nobody is listening anyway.
+#: it is told the registry could not be asked. The request itself is bounded by
+#: the registry's own HTTP timeouts, well inside this; this bounds only a wait on
+#: a request that never ends, as a finder's default deadline does.
 SHARED_WAIT_SECONDS: Final[float] = 60.0
 
 

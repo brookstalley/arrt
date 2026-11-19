@@ -51,12 +51,15 @@ from arrt.library.sources.names import museum_name
 
 log = logging.getLogger(__name__)
 
-#: Seconds a run waits for one source before it calls that source "could not be
-#: asked" for the work. Past a plugin's own deadline by a margin, so a plugin's
-#: finder, which answers "could not be asked" at its deadline in its own words,
-#: is heard saying so before this cuts in. A backstop for a finder handed to the
-#: pool unwrapped, which nothing else bounds.
-RUN_DEADLINE_SECONDS: Final[float] = FINDER_DEADLINE_SECONDS + 5.0
+#: Seconds past a source's own deadline that a run still waits for it, so a
+#: plugin's finder, which answers "could not be asked" at its deadline in its own
+#: words, is heard saying so before the run's backstop cuts in.
+RUN_MARGIN_SECONDS: Final[float] = 5.0
+#: Seconds a run waits for a source that states no deadline of its own: a finder
+#: handed to the pool unwrapped, which nothing else bounds. A plugin's finder
+#: states its own (`deadline_seconds`), which may be longer when the plugin
+#: declared it, and the run waits for that and the margin instead.
+RUN_DEADLINE_SECONDS: Final[float] = FINDER_DEADLINE_SECONDS + RUN_MARGIN_SECONDS
 
 
 class NoSourceCanAnswer(ImageSearchFailure):
@@ -122,10 +125,24 @@ class SourceAnswer:
     failure: str | None = None
 
 
+def _own_deadline(source: Finder) -> float:
+    """How long a source says its `find_images` is waited for, or the default when it says nothing usable."""
+    own = getattr(source, "deadline_seconds", None)
+    if isinstance(own, int | float) and not isinstance(own, bool) and own > 0:
+        return float(own)
+    return FINDER_DEADLINE_SECONDS
+
+
 class ImageSourcePool:
     """The image sources phase 2 asks, in order of preference."""
 
-    def __init__(self, sources: Sequence[Finder], *, deadline_seconds: float = RUN_DEADLINE_SECONDS) -> None:
+    def __init__(
+        self,
+        sources: Sequence[Finder],
+        *,
+        deadline_seconds: float | None = None,
+        margin_seconds: float = RUN_MARGIN_SECONDS,
+    ) -> None:
         if not sources:
             # An empty pool would answer every work with nothing, which reads as
             # "no source holds it". A deployment with no source has no pool at
@@ -145,8 +162,14 @@ class ImageSourcePool:
         #: that wakes a waiting look when a source's count falls to nothing.
         self._run_asks: Counter[str] = Counter()
         self._runs_done = threading.Condition()
-        #: How long a run waits for each source (`RUN_DEADLINE_SECONDS`).
-        self._deadline = deadline_seconds
+        #: How long a run waits for its sources: the slowest source's own deadline
+        #: and the margin, unless a test fixes it. A run waits for every source
+        #: before it answers, so the slowest is what it waits for in any case.
+        self._deadline = (
+            deadline_seconds
+            if deadline_seconds is not None
+            else max(_own_deadline(source) for source in self._sources) + margin_seconds
+        )
 
     @property
     def providers(self) -> tuple[str, ...]:

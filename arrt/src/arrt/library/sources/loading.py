@@ -44,6 +44,7 @@ says before it reaches the journal, `/api/health` or the panel.
 import contextvars
 import importlib.metadata
 import logging
+import math
 import re
 import threading
 import time
@@ -102,6 +103,16 @@ PREVIEW_DEADLINE_SECONDS: Final[float] = 30.0
 #: Seconds a collection's `browse` is waited for: it answers several queries in
 #: one call, so it is given longer than one work's search.
 BROWSE_DEADLINE_SECONDS: Final[float] = 120.0
+#: The longest deadline a plugin may declare for one call (`SourcePlugin.deadlines`).
+#: One page read through the private plugins' browser was measured at 77-100 s,
+#: and its own bounds allow 480 s at worst, its wait for the one browser included;
+#: the slowest-paced site waits up to 490 s for its turn. Fifteen minutes covers
+#: those with room. It is also how long one slow source can hold a Get, because a
+#: run waits for every source, so it is not set higher than the worst case needs.
+DEADLINE_CEILING_SECONDS: Final[float] = 900.0
+#: The kinds of call a plugin may declare a deadline for, each a field of `Deadlines`.
+DEADLINE_KINDS: Final[tuple[str, ...]] = ("finder", "reader", "preview", "browse")
+
 #: How many of one plugin's calls may still be running after their deadline
 #: passed. A call that outlives its deadline keeps its thread until the plugin
 #: returns, and a plugin hung on every call would otherwise add one per work for
@@ -132,6 +143,39 @@ class Deadlines:
 
 #: The deadlines the wiring runs with: the named constants above.
 DEFAULT_DEADLINES: Final[Deadlines] = Deadlines()
+
+#: How the host waits for a call: until `done` is set or `seconds` pass, and whether it was set.
+#: A parameter of the loader only so a test can run a 300 s deadline on simulated time.
+WaitFor = Callable[[threading.Event, float], bool]
+
+
+def _wait(done: threading.Event, seconds: float) -> bool:
+    return done.wait(seconds)
+
+
+def declared_deadlines(plugin: SourcePlugin, base: Deadlines) -> Deadlines | str:
+    """`base`, with what the plugin declares in its place; or why the declaration cannot load.
+
+    Refused by name rather than clamped: a plugin that asked for more than the
+    ceiling, or for nothing at all, would otherwise run under a deadline nobody
+    chose, and be cut off as "could not be asked" where its author expected an
+    answer.
+    """
+    declared = getattr(plugin, "deadlines", None)
+    if declared is None:
+        return base
+    if not isinstance(declared, Mapping):
+        return f"its deadlines are a {type(declared).__name__}, not a mapping of kind of call to seconds"
+    chosen: dict[str, float] = {}
+    for kind, seconds in declared.items():
+        if kind not in DEADLINE_KINDS:
+            return f"it declares a deadline for {kind!r}, which is not a kind of call ({', '.join(DEADLINE_KINDS)})"
+        if isinstance(seconds, bool) or not isinstance(seconds, int | float) or not math.isfinite(seconds) or seconds <= 0:
+            return f"its {kind} deadline of {seconds!r} is not a number of seconds above zero"
+        if seconds > DEADLINE_CEILING_SECONDS:
+            return f"its {kind} deadline of {seconds:g} seconds is past this Arrt's ceiling of {DEADLINE_CEILING_SECONDS:g}"
+        chosen[kind] = float(seconds)
+    return replace(base, **chosen)
 
 
 def _reraise_scrubbed(exc: Exception, kind: type[Exception]) -> NoReturn:
@@ -348,9 +392,10 @@ class _Calls:
     more per work. Being daemon threads, they never hold the process open at exit.
     """
 
-    def __init__(self, plugin: str, limit: int) -> None:
+    def __init__(self, plugin: str, limit: int, wait_for: WaitFor = _wait) -> None:
         self._plugin = plugin
         self._limit = limit
+        self._wait_for = wait_for
         self._lock = threading.Lock()
         self._stragglers = 0
 
@@ -389,7 +434,7 @@ class _Calls:
                 )
 
         threading.Thread(target=work, name=f"source-plugin-{self._plugin}", daemon=True).start()
-        if not pending.done.wait(deadline):
+        if not self._wait_for(pending.done, deadline):
             with self._lock:
                 # It may have finished between the wait ending and the lock, and
                 # then its answer stands.
@@ -579,6 +624,11 @@ class _ContainedFinder:
     def provider(self) -> str:
         return self._plugin
 
+    @property
+    def deadline_seconds(self) -> float:
+        """How long `find_images` is waited for: what the pool's own backstop is set past."""
+        return self._deadlines.finder
+
     def find_images(self, query: ImageQuery) -> Iterable[FoundImage | FoundPage]:
         """The finder's answer, checked; or, when it failed after saying something, that, then the failure.
 
@@ -698,16 +748,30 @@ class _ContainedCollection:
 class _Containment:
     """What every wrapper of one roster shares: the counts, the deadlines, the preview ceiling, and each plugin's calls."""
 
-    def __init__(self, tally: _Tally, deadlines: Deadlines, preview_max_bytes: int) -> None:
+    def __init__(
+        self,
+        tally: _Tally,
+        deadlines: Deadlines,
+        preview_max_bytes: int,
+        *,
+        declared: Mapping[str, Deadlines] | None = None,
+        wait_for: WaitFor = _wait,
+    ) -> None:
         self.tally = tally
         self._deadlines = deadlines
+        #: Each plugin's own deadlines, where it declared any (`declared_deadlines`).
+        self._declared = dict(declared or {})
         self._preview_max_bytes = preview_max_bytes
+        self._wait_for = wait_for
         #: Per plugin, not per part, so a plugin hung in its reader and its finder
         #: alike holds no more threads than one hung in either.
         self._calls: dict[str, _Calls] = {}
 
     def _calls_of(self, plugin: str) -> _Calls:
-        return self._calls.setdefault(plugin, _Calls(plugin, self._deadlines.stragglers))
+        return self._calls.setdefault(plugin, _Calls(plugin, self._deadlines.stragglers, self._wait_for))
+
+    def _deadlines_of(self, plugin: str) -> Deadlines:
+        return self._declared.get(plugin, self._deadlines)
 
     def finder(self, inner: Finder, plugin: str) -> _ContainedFinder:
         return _ContainedFinder(
@@ -715,15 +779,17 @@ class _Containment:
             plugin,
             self.tally,
             calls=self._calls_of(plugin),
-            deadlines=self._deadlines,
+            deadlines=self._deadlines_of(plugin),
             preview_max_bytes=self._preview_max_bytes,
         )
 
     def reader(self, inner: Reader, plugin: str) -> _ContainedReader:
-        return _ContainedReader(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=self._deadlines)
+        deadlines = self._deadlines_of(plugin)
+        return _ContainedReader(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=deadlines)
 
     def collection(self, inner: CollectionBrowse, plugin: str) -> _ContainedCollection:
-        return _ContainedCollection(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=self._deadlines)
+        deadlines = self._deadlines_of(plugin)
+        return _ContainedCollection(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=deadlines)
 
 
 def _not_loaded(plugin: str, reason: str | None) -> str:
@@ -937,6 +1003,7 @@ def load_sources(
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     data_root: Path | None = None,
     deadlines: Deadlines = DEFAULT_DEADLINES,
+    wait_for: WaitFor = _wait,
 ) -> SourceRoster:
     """Load every installed plugin, and say what became of each.
 
@@ -946,11 +1013,12 @@ def load_sources(
     installing a distribution per case. `data_root` is where plugins keep files:
     each is handed `data_root / <its name>` as `SourceContext.data_dir`
     (`_own_directory`). `deadlines` is how long each call into a loaded plugin is
-    waited for; the wiring takes the named defaults.
+    waited for unless the plugin declares its own (`SourcePlugin.deadlines`); the
+    wiring takes the named defaults. `wait_for` is how the waiting is done, a
+    parameter only so a test can run a long deadline on simulated time.
     """
     found = list(importlib.metadata.entry_points(group=ENTRY_POINT_GROUP) if entry_points is None else entry_points)
     tally = _Tally(now)
-    contain = _Containment(tally, deadlines, context.preview_max_bytes)
     states: dict[str, tuple[PluginState, str | None]] = {}
     parts: dict[str, SourceParts] = {}
     plugins: dict[str, SourcePlugin] = {}
@@ -982,6 +1050,9 @@ def load_sources(
         else:
             states[entry.name] = (PluginState.FAILED, loaded)
 
+    # Each loaded plugin's deadlines: a declaration that could not load has already left it out (`_load_one`).
+    declared = {name: own for name in parts if isinstance(own := declared_deadlines(plugins[name], deadlines), Deadlines)}
+    contain = _Containment(tally, deadlines, context.preview_max_bytes, declared=declared, wait_for=wait_for)
     museums = {name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None}
     declare_museums(museums)
 
@@ -1178,7 +1249,8 @@ def _version_refusal(plugin: SourcePlugin) -> str | None:
         return f"it declares an interface minor of {needs!r}, which is not a whole number"
     if needs > minor:
         return f"it needs source interface {major}.{needs}, and this Arrt is {major}.{minor}"
-    return None
+    declared = declared_deadlines(plugin, DEFAULT_DEADLINES)
+    return declared if isinstance(declared, str) else None
 
 
 def _breach(name: str, plugin: SourcePlugin, parts: SourceParts) -> str | None:
