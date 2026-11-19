@@ -254,8 +254,10 @@ convenience would otherwise make that split a migration.
    repoint at the split, with no code change on the consuming side.
 
 > **Status:** `in-transition`, tracked by `re-architecture.md` § Order of work,
-> and for rule 3 by #216 (filed 2026-10-05, after wave 3 shipped without the store
-> split). **Interim rule:** new code that touches themes,
+> except rule 3, which has no wave and is not being built toward: a
+> Library/Programming split is not a requirement now (ruling 9 of 2026-11-19,
+> `.prawduct/owner-rulings.md`), so its store split (#216) is not scheduled.
+> **Interim rule:** new code that touches themes,
 > walls, directives (until wave 4g) or manifests is written against the rules above wherever it
 > can be without the package split: no new cross-seam foreign keys, no new direct
 > reads of catalogue tables from `programming/display.py`'s domain.
