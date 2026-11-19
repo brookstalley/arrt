@@ -19,6 +19,7 @@ any other theme, which sends its id; or *New theme…*, created by `POST
 """
 
 import json
+import re
 
 import pytest
 
@@ -29,6 +30,7 @@ pytest.importorskip(
 
 from fakes import FakeRegistry
 from payloads import a_candidate, a_candidate_page, a_card, a_run, a_run_view
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     RegistryArtist,
@@ -156,7 +158,7 @@ def press_get(ui) -> None:
 
 def get_ticked(ui, scope="#view") -> None:
     """Get what is ticked, into whatever *Add to* holds."""
-    if not ui.page.locator("dialog[open]").count():
+    if not ui.page.locator("dialog[open]").count():  # one-shot: opens the dialog only when no step before it has
         open_get(ui, scope)
     press_get(ui)
 
@@ -192,8 +194,15 @@ def reopen_with(ui, row: str) -> None:
     open_get(ui)
 
 
-def status_text(ui) -> str:
-    return " ".join(ui.page.locator("#view .get-status").inner_text().split())
+def get_status(ui):
+    """The sentence a Get leaves beside its control."""
+    return ui.page.locator("#view .get-status")
+
+
+def into_cell(ui):
+    """The first run's *Into* cell in Queue, found by its heading."""
+    headings = ui.page.locator("#view thead th").all_text_contents()  # one-shot: the column's place, read once the table is drawn
+    return ui.page.locator("#view tbody tr").first.locator("td").nth(headings.index("Into"))
 
 
 # -- the Artist page ---------------------------------------------------------------
@@ -206,26 +215,32 @@ def test_their_work_gets_exactly_the_ticked_works_the_library_does_not_hold(ui, 
     table = ui.page.locator("section table")
     table.wait_for()
 
-    assert table.locator("tr:has-text('The Hunters in the Snow') input[type='checkbox']").count() == 0, "a held row has no box"
+    # A box is there on a row the library does not hold, so the rows have drawn
+    # when the held row is found to have none.
+    expect(table.locator("tr:has-text('The Harvesters') input[type='checkbox']")).to_have_count(1)
+    expect(table.locator("tr:has-text('The Hunters in the Snow') input[type='checkbox']"), "a held row has no box").to_have_count(
+        0
+    )
     # In the toolbar, *Get…* opens the choice; the dialog's button is the Get.
     button = ui.page.locator("#view button.get-open")
-    assert (button.inner_text(), button.is_disabled()) == ("Get…", True)
+    expect(button).to_have_text("Get…", use_inner_text=True)
+    expect(button).to_be_disabled()
     table.locator("tr:has-text('The Harvesters') input[type='checkbox']").check()
     table.locator("tr:has-text('The Corn Harvest') input[type='checkbox']").check()
-    assert button.inner_text() == "Get 2 works…"
+    expect(button).to_have_text("Get 2 works…", use_inner_text=True)
     open_get(ui)
-    assert ui.page.inner_text("dialog button.get-confirm") == "Get 2 works"
+    expect(ui.page.locator("dialog button.get-confirm")).to_have_text("Get 2 works", use_inner_text=True)
     press_get(ui)
 
     ui.page.wait_for_selector("#view .get-status a:text-is('Open the Get')")
     assert sent == [[HARVESTERS, CORN]]
-    assert status_text(ui) == "Getting 2 works into All works. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 2 works into All works. Open the Get", use_inner_text=True)
     # The dialog closed before the sentence took the keyboard, or its close would
     # have handed focus back to *Get…* over it.
-    assert ui.page.locator("dialog[open]").count() == 0
+    expect(ui.page.locator("dialog[open]")).to_have_count(0)
     assert ui.page.evaluate("() => document.activeElement.classList.contains('get-status')")
-    assert table.locator("input[type='checkbox']:checked").count() == 0, "the ticks are cleared once got"
-    assert button.is_disabled()
+    expect(table.locator("input[type='checkbox']:checked"), "the ticks are cleared once got").to_have_count(0)
+    expect(button).to_be_disabled()
 
 
 @pytest.mark.parametrize("leave", ["Escape", "Cancel"])
@@ -243,7 +258,7 @@ def test_leaving_the_get_dialog_gets_nothing_and_returns_to_get(ui, all_works, l
     ui.page.wait_for_selector("dialog", state="detached")
     assert bodies == []
     assert ui.page.evaluate("() => document.activeElement.classList.contains('get-open')")
-    assert ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']").is_checked()
+    expect(ui.page.locator("section table tr:has-text('The Harvesters') input[type='checkbox']")).to_be_checked()
 
 
 def test_unticking_the_last_work_disables_get_again(ui):
@@ -254,9 +269,12 @@ def test_unticking_the_last_work_disables_get_again(ui):
     button = ui.page.locator("#view button.get-open")
 
     box.check()
+    # The state it returns to is the one it began in, so say the tick took.
+    expect(button).to_have_text("Get 1 work…", use_inner_text=True)
     box.uncheck()
 
-    assert (button.inner_text(), button.is_disabled()) == ("Get…", True)
+    expect(button).to_have_text("Get…", use_inner_text=True)
+    expect(button).to_be_disabled()
 
 
 def test_the_announcement_opens_the_run(ui):
@@ -298,7 +316,7 @@ def test_what_a_get_left_out_is_said(ui, answer, said, all_works):
     get_ticked(ui)
 
     ui.page.wait_for_function("() => document.querySelector('#view .get-status').textContent.length > 0")
-    assert status_text(ui) == said
+    expect(get_status(ui)).to_have_text(said, use_inner_text=True)
 
 
 def test_a_refused_get_is_said_beside_get_and_keeps_the_ticks(ui):
@@ -322,9 +340,9 @@ def test_a_refused_get_is_said_beside_get_and_keeps_the_ticks(ui):
         "Couldn't get 1 work: A Get names its works by their Wikidata items, and Wikidata is not configured on this server. "
         "Nothing was changed."
     )
-    assert box.is_checked()
-    assert not get.is_disabled()
-    assert ui.page.locator("dialog[open]").count() == 1, "the dialog stays open, so trying again is one press"
+    expect(box).to_be_checked()
+    expect(get).to_be_enabled()
+    expect(ui.page.locator("dialog[open]"), "the dialog stays open, so trying again is one press").to_have_count(1)
 
 
 # -- the results page ----------------------------------------------------------------
@@ -364,7 +382,7 @@ def test_the_results_page_gets_into_a_chosen_theme(ui, winter, all_works):
 
     ui.page.wait_for_selector("#view .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [CORN], "theme_id": winter.id}]
-    assert status_text(ui) == "Getting 1 work into Winter. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into Winter. Open the Get", use_inner_text=True)
 
 
 def test_the_results_page_gets_into_a_new_theme_it_makes_first(ui, services, all_works):
@@ -380,7 +398,7 @@ def test_the_results_page_gets_into_a_new_theme_it_makes_first(ui, services, all
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "Harvests")
     assert writes == ["api/themes", "api/gets"], "the theme exists before the Get that names it starts"
     assert bodies == [{"qids": [CORN], "theme_id": created.id}]
-    assert status_text(ui) == "Getting 1 work into Harvests. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into Harvests. Open the Get", use_inner_text=True)
 
 
 # -- one work's page -----------------------------------------------------------------
@@ -395,9 +413,11 @@ def test_a_work_not_held_is_got_from_its_own_page(ui, all_works):
 
     ui.page.wait_for_selector("#view .get-status a:text-is('Open the Get')")
     assert sent == [[HUNTERS]]
-    assert status_text(ui) == "Getting 1 work into All works. Open the Get"
-    assert button.is_disabled(), "got once, a second press would only be left out"
-    assert ui.page.locator("#view button:has-text('Search museums'), #view :is(a, button):has-text('Ask about')").count() == 0
+    expect(get_status(ui)).to_have_text("Getting 1 work into All works. Open the Get", use_inner_text=True)
+    expect(button, "got once, a second press would only be left out").to_be_disabled()
+    expect(ui.page.locator("#view button:has-text('Search museums'), #view :is(a, button):has-text('Ask about')")).to_have_count(
+        0
+    )
 
 
 # -- where the works go: Add to ----------------------------------------------------
@@ -409,9 +429,9 @@ def test_add_to_is_a_labelled_select_with_the_default_first_and_selected(ui, win
 
     picker = add_to(ui)
     assert picker.evaluate("node => node.tagName") == "SELECT"
-    assert [text.strip() for text in picker.locator("option").all_inner_texts()] == ["All works", "Winter", "New theme…"]
+    expect(picker.locator("option")).to_have_text(["All works", "Winter", "New theme…"], use_inner_text=True)
     assert picker.evaluate("node => node.selectedOptions[0].textContent") == "All works"
-    assert not new_name(ui).is_visible(), "no name is asked for until New theme… is"
+    expect(new_name(ui), "no name is asked for until New theme… is").to_be_hidden()
 
 
 def test_the_default_sends_no_theme_id_and_the_confirmation_names_it(ui, winter, all_works):
@@ -422,7 +442,7 @@ def test_the_default_sends_no_theme_id_and_the_confirmation_names_it(ui, winter,
 
     ui.page.wait_for_selector("#view .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [HARVESTERS]}], "the default is the absence of a theme_id, never a null or the default's id"
-    assert status_text(ui) == "Getting 1 work into All works. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into All works. Open the Get", use_inner_text=True)
 
 
 def test_picking_a_theme_sends_its_id_and_the_confirmation_names_it(ui, winter, all_works):
@@ -434,7 +454,7 @@ def test_picking_a_theme_sends_its_id_and_the_confirmation_names_it(ui, winter, 
 
     ui.page.wait_for_selector("#view .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": winter.id}]
-    assert status_text(ui) == "Getting 1 work into Winter. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into Winter. Open the Get", use_inner_text=True)
 
 
 def test_a_new_name_creates_the_theme_first_and_sends_its_id(ui, services, all_works):
@@ -450,10 +470,10 @@ def test_a_new_name_creates_the_theme_first_and_sends_its_id(ui, services, all_w
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
     assert writes == ["api/themes", "api/gets"], "the theme exists before the Get that names it starts"
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
-    assert status_text(ui) == "Getting 1 work into 16th century. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into 16th century. Open the Get", use_inner_text=True)
     reopen_with(ui, "The Corn Harvest")
     assert add_to(ui).evaluate("node => node.selectedOptions[0].textContent") == "16th century", "the new theme stays chosen"
-    assert not new_name(ui).is_visible()
+    expect(new_name(ui)).to_be_hidden()
 
 
 def test_a_second_get_into_a_new_theme_joins_it_rather_than_making_another(ui, services, all_works):
@@ -487,7 +507,7 @@ def test_a_typed_name_that_is_already_a_theme_joins_it(ui, services, winter, all
     assert writes == ["api/gets"]
     assert bodies == [{"qids": [HARVESTERS], "theme_id": winter.id}]
     assert theme_names(services) == ["All works", "Winter"]
-    assert status_text(ui) == "Getting 1 work into Winter. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into Winter. Open the Get", use_inner_text=True)
 
 
 def test_with_no_default_the_first_choice_says_the_works_join_no_theme(ui, winter):
@@ -499,7 +519,7 @@ def test_with_no_default_the_first_choice_says_the_works_join_no_theme(ui, winte
 
     ui.page.wait_for_selector("#view .get-status a:text-is('Open the Get')")
     assert bodies == [{"qids": [HARVESTERS]}]
-    assert status_text(ui) == "Getting 1 work into no theme. Open the Get"
+    expect(get_status(ui)).to_have_text("Getting 1 work into no theme. Open the Get", use_inner_text=True)
 
 
 def test_themes_that_cannot_be_read_start_nothing_and_say_why(ui, all_works):
@@ -542,10 +562,13 @@ def mount_with_a_default_name(ui, default_name: str) -> None:
     open_get(ui, "#harness")
 
 
-def harness_get(ui) -> str:
+def harness_status(ui):
+    return ui.page.locator("#harness .get-status")
+
+
+def harness_get(ui) -> None:
     press_get(ui)
     ui.page.wait_for_selector("#harness .get-status a:text-is('Open the Get')")
-    return " ".join(ui.page.locator("#harness .get-status").inner_text().split())
 
 
 def test_a_default_name_that_is_already_a_theme_selects_it_rather_than_creating_a_second(ui, services, winter, all_works):
@@ -553,26 +576,24 @@ def test_a_default_name_that_is_already_a_theme_selects_it_rather_than_creating_
     writes = record_writes(ui)
     mount_with_a_default_name(ui, "WINTER")
 
-    assert [text.strip() for text in add_to(ui).locator("option").all_inner_texts()] == [
-        "All works",
-        "Winter",
-        "New theme…",
-    ], "a name that is a theme is not offered again as a new one"
+    expect(add_to(ui).locator("option"), "a name that is a theme is not offered again as a new one").to_have_text(
+        ["All works", "Winter", "New theme…"], use_inner_text=True
+    )
     assert add_to(ui).evaluate("node => node.selectedOptions[0].textContent") == "Winter"
-    assert not new_name(ui).is_visible()
-    said = harness_get(ui)
+    expect(new_name(ui)).to_be_hidden()
+    harness_get(ui)
 
     assert writes == ["api/gets"]
     assert bodies == [{"qids": [HARVESTERS], "theme_id": winter.id}]
     assert theme_names(services) == ["All works", "Winter"]
-    assert said == "Getting 1 work into Winter. Open the Get"
+    expect(harness_status(ui)).to_have_text("Getting 1 work into Winter. Open the Get", use_inner_text=True)
 
 
 def test_a_default_name_that_is_the_default_theme_sends_no_theme_id(ui, all_works):
     bodies = record_gets(ui, a_get())
     mount_with_a_default_name(ui, "All works")
 
-    assert [text.strip() for text in add_to(ui).locator("option").all_inner_texts()] == ["All works", "New theme…"]
+    expect(add_to(ui).locator("option")).to_have_text(["All works", "New theme…"], use_inner_text=True)
     harness_get(ui)
 
     assert bodies == [{"qids": [HARVESTERS]}]
@@ -590,30 +611,24 @@ def test_a_default_name_that_is_no_theme_yet_is_offered_as_a_new_one(ui, service
     mount_with_a_default_name(ui, "16th century")
 
     picker = add_to(ui)
-    assert [text.strip() for text in picker.locator("option").all_inner_texts()] == [
-        "All works",
-        "Winter",
-        "16th century (new theme)",
-        "New theme…",
-    ]
+    expect(picker.locator("option")).to_have_text(
+        ["All works", "Winter", "16th century (new theme)", "New theme…"], use_inner_text=True
+    )
     assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
-    assert not new_name(ui).is_visible(), "nothing is typed, so nothing is asked"
+    expect(new_name(ui), "nothing is typed, so nothing is asked").to_be_hidden()
     assert theme_names(services) == ["All works", "Winter"], "offering the name makes no theme"
-    said = harness_get(ui)
+    harness_get(ui)
 
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
     assert writes == ["api/themes", "api/gets"], "the theme exists before the Get that names it starts"
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
-    assert said == "Getting 1 work into 16th century. Open the Get"
+    expect(harness_status(ui)).to_have_text("Getting 1 work into 16th century. Open the Get", use_inner_text=True)
     # Read in the dialog a second Get opens, since the first closed it.
     ui.page.check("#harness input[type='checkbox']")
     open_get(ui, "#harness")
-    assert [text.strip() for text in picker.locator("option").all_inner_texts()] == [
-        "All works",
-        "Winter",
-        "16th century",
-        "New theme…",
-    ], "made, the name is a theme like any other and is no longer offered as new"
+    expect(picker.locator("option"), "made, the name is a theme like any other and is no longer offered as new").to_have_text(
+        ["All works", "Winter", "16th century", "New theme…"], use_inner_text=True
+    )
     assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century"
 
 
@@ -643,20 +658,20 @@ def test_new_theme_beside_a_default_name_asks_for_a_name_of_its_own(ui, services
     name = new_name(ui)
 
     picker.select_option(label="New theme…")
-    assert name.is_visible()
-    assert name.input_value() == ""
+    expect(name).to_be_visible()
+    expect(name).to_have_value("")
 
     picker.select_option(label="16th century (new theme)")
-    assert not name.is_visible()
+    expect(name).to_be_hidden()
 
     picker.select_option(label="New theme…")
     name.fill("Snow")
-    said = harness_get(ui)
+    harness_get(ui)
 
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "Snow")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
     assert theme_names(services) == ["All works", "Snow"], "the offered name is made only when it is the one chosen"
-    assert said == "Getting 1 work into Snow. Open the Get"
+    expect(harness_status(ui)).to_have_text("Getting 1 work into Snow. Open the Get", use_inner_text=True)
 
 
 # -- the run, in Queue and on its own screen ------------------------------------------
@@ -675,8 +690,7 @@ def test_queue_lists_a_get_as_one(ui):
     ui.open("#queue")
     ui.page.wait_for_selector("#view table")
 
-    row = " ".join(ui.page.locator("#view tbody tr").first.inner_text().split())
-    assert row.startswith("Works you chose Get "), row
+    expect(ui.page.locator("#view tbody tr").first).to_have_text(re.compile(r"^Works you chose\s+Get\s+\S"), use_inner_text=True)
 
 
 @pytest.mark.parametrize(
@@ -702,10 +716,9 @@ def test_the_run_screen_words_a_get_as_one(ui, status, said):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view h1:text-is('Get')")
 
-    text = " ".join(ui.text().split())
-    assert said in text
-    assert "2 works you chose." in text
-    assert "asked for" not in text
+    expect(ui.view).to_contain_text(said, use_inner_text=True)
+    expect(ui.view).to_contain_text("2 works you chose.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("asked for", use_inner_text=True)
 
 
 def test_a_chosen_work_in_review_links_the_item_it_was_got_by(ui):
@@ -715,8 +728,8 @@ def test_a_chosen_work_in_review_links_the_item_it_was_got_by(ui):
     ui.open(f"#review/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("#view h1").first.inner_text() == "Get"
-    assert ui.page.locator("#view a:text-is('← Get')").count() == 1
+    expect(ui.page.locator("#view h1").first).to_have_text("Get", use_inner_text=True)
+    expect(ui.page.locator("#view a:text-is('← Get')")).to_have_count(1)
     ui.page.click(f"li.card .card-meta a:text-is('{HUNTERS}')")
 
     ui.page.wait_for_function(f"() => window.location.hash.startsWith('#work/{HUNTERS}')")
@@ -758,9 +771,7 @@ def test_queue_says_where_a_gets_works_go(ui, destinations, case):
     ui.open("#queue")
     ui.page.wait_for_selector("#view table")
 
-    headings = ui.page.locator("#view thead th").all_text_contents()
-    cells = ui.page.locator("#view tbody tr").first.locator("td").all_text_contents()
-    assert cells[headings.index("Into")].strip() == cell
+    expect(into_cell(ui)).to_have_text(cell)
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -770,7 +781,7 @@ def test_the_run_page_says_where_a_gets_works_go(ui, destinations, case):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("#view h1:text-is('Get')")
 
-    assert ui.page.locator("#view .run-destination").inner_text() == sentence
+    expect(ui.page.locator("#view .run-destination")).to_have_text(sentence, use_inner_text=True)
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -782,7 +793,7 @@ def test_review_names_the_destination(ui, destinations, case):
     ui.open(f"#review/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("#view .run-destination").inner_text() == sentence
+    expect(ui.page.locator("#view .run-destination")).to_have_text(sentence, use_inner_text=True)
 
 
 def test_a_run_page_that_could_not_name_the_theme_tries_again_at_the_next_poll(ui):
@@ -807,7 +818,9 @@ def test_a_run_page_that_could_not_name_the_theme_tries_again_at_the_next_poll(u
     ui.open(f"#get/{GET_ID}")
     sentence = ui.page.locator("#view .run-destination")
     sentence.wait_for()
-    assert sentence.inner_text() == "Which theme works you accept from this Get join could not be looked up just now."
+    expect(sentence).to_have_text(
+        "Which theme works you accept from this Get join could not be looked up just now.", use_inner_text=True
+    )
 
     ui.page.wait_for_selector("#view .run-destination:text-is('Works you accept from this Get join All works.')")
 
@@ -823,14 +836,13 @@ def test_a_re_search_defers_to_the_run_it_re_searches(ui, winter, all_works):
     ui.serve("**/api/runs/r-again", a_run_view(re_search))
     ui.open("#queue")
     ui.page.wait_for_selector("#view table")
-    headings = ui.page.locator("#view thead th").all_text_contents()
-    cells = ui.page.locator("#view tbody tr").first.locator("td").all_text_contents()
-    assert cells[headings.index("Into")].strip() == "the same theme as the earlier Get"
+    expect(into_cell(ui)).to_have_text("the same theme as the earlier Get")
 
     ui.open("#get/r-again")
     ui.page.wait_for_selector("#view .run-destination")
-    assert ui.page.locator("#view .run-destination").inner_text() == (
-        "Works you accept from this Get join the theme the earlier Get they came from sends its works to."
+    expect(ui.page.locator("#view .run-destination")).to_have_text(
+        "Works you accept from this Get join the theme the earlier Get they came from sends its works to.",
+        use_inner_text=True,
     )
 
 
@@ -840,8 +852,8 @@ def test_review_with_no_default_says_accepted_works_join_no_theme(ui, winter):
     ui.open(f"#review/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("#view .run-destination").inner_text() == (
-        "Works you accept from this Get join no theme, because no theme is the default."
+    expect(ui.page.locator("#view .run-destination")).to_have_text(
+        "Works you accept from this Get join no theme, because no theme is the default.", use_inner_text=True
     )
 
 
@@ -852,8 +864,8 @@ def test_review_still_opens_when_the_themes_cannot_be_read(ui):
     ui.open(f"#review/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("#view .run-destination").inner_text() == (
-        "Which theme works you accept from this Get join could not be looked up just now."
+    expect(ui.page.locator("#view .run-destination")).to_have_text(
+        "Which theme works you accept from this Get join could not be looked up just now.", use_inner_text=True
     )
 
 
@@ -862,4 +874,4 @@ def test_an_artist_with_no_description_shows_nothing_in_its_place(ui):
     ui.open(f"#artist/{BRUEGEL}")
     ui.page.locator("section table").wait_for()
 
-    assert "null" not in ui.text()
+    expect(ui.view).not_to_contain_text("null", use_inner_text=True)
