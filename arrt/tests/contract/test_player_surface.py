@@ -28,6 +28,7 @@ from arrt.library.readiness import MEDIA_PATH_TEMPLATE
 from arrt.mcp.tools import TOOLS
 from arrt.persistence.records import RenditionKind
 from arrt.programming.access import REFUSAL_LOG_INTERVAL_SECONDS
+from arrt.programming.client_heartbeat import client_heartbeat_path_in
 
 CONTRACT = root()
 ROUTES = routes()
@@ -634,3 +635,78 @@ async def test_the_tool_surface_refuses_the_retired_action(server_url, wall_id):
     wall = next(entry for entry in walls["walls"] if entry["wall_id"] == wall_id)
     assert (wall["client_id"], wall["output"]) == (None, None)
     assert "token_issued_at" not in wall
+
+
+# -- the body cap (audit-8 F10) ---------------------------------------------------------
+
+_HEARTBEAT_FIXTURES = {
+    "heartbeat": "heartbeat.v1/valid/minor-1-with-schema.json",
+    "client_heartbeat": "client-heartbeat.v1/valid/frame-and-hdmi.json",
+}
+
+
+def _padded_to(route: str, size: int) -> bytes:
+    """A valid heartbeat for `route` with one extra key, padded so the body is exactly `size` bytes."""
+    document = json.loads((CONTRACT / "fixtures" / _HEARTBEAT_FIXTURES[route]).read_text())
+    unpadded = len(json.dumps({**document, "padding": ""}).encode())
+    return json.dumps({**document, "padding": "x" * (size - unpadded)}).encode()
+
+
+def _was_recorded(route: str, services, wall_id, hall_pi, wall_settings) -> bool:
+    if route == "heartbeat":
+        return (
+            next(entry for entry in services.display.survey_wall_status() if entry.wall.id == wall_id).heartbeat.contents
+            is not None
+        )
+    return client_heartbeat_path_in(wall_settings.art_root, hall_pi.id).exists()
+
+
+@pytest.mark.parametrize("route", sorted(_HEARTBEAT_FIXTURES))
+def test_a_heartbeat_over_the_body_cap_is_refused_413_and_nothing_is_recorded(
+    server_url, services, token, wall_id, hall_pi, wall_settings, route
+):
+    response = httpx.post(
+        server_url + _path(route, wall_id=wall_id),
+        content=_padded_to(route, 300 * 1024),
+        headers={**_bearer(token), "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"].startswith("A request to this server may carry at most 256 KiB")
+    assert not _was_recorded(route, services, wall_id, hall_pi, wall_settings)
+
+
+@pytest.mark.parametrize("route", sorted(_HEARTBEAT_FIXTURES))
+def test_a_body_with_no_declared_length_is_refused_once_it_passes_the_cap(server_url, token, wall_id, route):
+    """Chunked, so there is no `Content-Length` to refuse on and the body is counted as it arrives."""
+    body = _padded_to(route, 300 * 1024)
+
+    def chunks():
+        for start in range(0, len(body), 16 * 1024):
+            yield body[start : start + 16 * 1024]
+
+    response = httpx.post(
+        server_url + _path(route, wall_id=wall_id),
+        content=chunks(),
+        headers={**_bearer(token), "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 413
+
+
+@pytest.mark.parametrize("route", sorted(_HEARTBEAT_FIXTURES))
+def test_a_heartbeat_exactly_at_the_cap_is_accepted_and_recorded(
+    server_url, services, token, wall_id, hall_pi, wall_settings, route
+):
+    """The cap is a ceiling, and a body read to be counted still reaches the handler whole."""
+    body = _padded_to(route, player.BODY_LIMIT_BYTES)
+    assert len(body) == player.BODY_LIMIT_BYTES
+
+    response = httpx.post(
+        server_url + _path(route, wall_id=wall_id),
+        content=body,
+        headers={**_bearer(token), "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 204, response.text
+    assert _was_recorded(route, services, wall_id, hall_pi, wall_settings)

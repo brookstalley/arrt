@@ -1,9 +1,26 @@
-/* The page toolbar, as the *arr apps draw it: actions on the left, and the
- * controls over how the page is shown — View, Sort, Filter — on the right.
+/* The page toolbar, as the *arr apps draw it: acts on the left, and the
+ * controls over how the page is shown — View, Sort, Filters and Select — on
+ * the right.
  *
- * `information-architecture.md` § The *arr layout. Shared, and knowing no
- * screen: a page hands it its own actions and controls, built with the helpers
- * below, so every list page that has them puts them in the same place.
+ * `information-architecture.md` § The *arr layout; `design-direction.md`
+ * § Component Patterns, "How a page reads" (ruling 1 of 2026-10-27). Shared,
+ * and knowing no screen: a page hands it its own acts and whichever of the
+ * named controls it has, built with the helpers below, and **the toolbar puts
+ * them in their places**. The order on the right is `CONTROL_ORDER`, decided
+ * here once rather than by each page's list, so no two list pages can disagree
+ * about where Sort is: a page names its controls, it does not arrange them.
+ * Each control's slot carries `data-control`, which is how a reader (and the
+ * test that holds the list pages to one shape) tells them apart.
+ *
+ * **Select is a control on the right; what it selects acts on the left.** A
+ * page passes its `selectionMode` (`core/selecting.js`) as `selection`: the
+ * toggle stands last on the right, and the acts on what is ticked stand on the
+ * left after the page's own, shown while the mode is on. With a selection the
+ * page's own acts carry `page-act`, so a phone can step them aside while it
+ * selects, as it steps View, Sort and the filters aside (`app.css`).
+ *
+ * **The count is not the toolbar's.** It is the page's line of facts under
+ * its name (`.page-facts`), the one place every list page says how many.
  *
  * **View and Sort are menu buttons**, and the filter rails' control is a plain
  * button whose label says what it does (*Show filters*, *Hide filters*), built
@@ -20,9 +37,19 @@
 
 import { el } from "./render.js";
 
-export function toolbar({ actions = [], controls = [] } = {}) {
+/* Where each control stands on the toolbar's right, left to right. */
+export const CONTROL_ORDER = ["view", "sort", "filters", "select"];
+
+export function toolbar({ actions = [], view = null, sort = null, filters = null, selection = null } = {}) {
+  const own = actions.filter(Boolean);
+  if (selection) for (const act of own) act.classList.add("page-act");
+  const named = { view, sort, filters, select: selection ? selection.toggle : null };
+  const controls = CONTROL_ORDER.filter((name) => named[name]).map((name) => {
+    named[name].dataset.control = name;
+    return named[name];
+  });
   return el("div", { class: "page-toolbar" }, [
-    el("div", { class: "page-toolbar-actions" }, actions),
+    el("div", { class: "page-toolbar-actions" }, selection ? [...own, selection.bar] : own),
     el("div", { class: "page-toolbar-controls" }, controls),
   ]);
 }

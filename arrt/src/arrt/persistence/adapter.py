@@ -100,6 +100,10 @@ class TableAdapter:
         """
         return self._store.reading()
 
+    def in_transaction(self) -> bool:
+        """Whether a transaction is open on the calling thread, through either adapter: the file's, as `transaction` is."""
+        return self._store.in_transaction()
+
     def after_commit(self, callback: Callable[[], None]) -> None:
         """Run `callback` once the writes made so far are committed.
 

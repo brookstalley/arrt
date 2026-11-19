@@ -100,7 +100,7 @@ export function workName(work) {
  * (Artworks, Artists, a topic, the Work page): one sentence in the picture's
  * place. The server's note says why in its own words, an exception's as often
  * as not, and three wordings of it across four screens was the plumbing showing
- * (`ux-review-2026-10.md` finding 37); the why is the Work page's *Master image*
+ * (`ux-review-2026-10.md` finding 37); the why is the Work page's *Picture*
  * panel's to say. With `?debug` the note is shown beneath, for whoever asked. */
 export function noPicture(note = null) {
   return el("div", { class: "card-image-absent no-picture" }, [

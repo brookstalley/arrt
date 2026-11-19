@@ -246,7 +246,8 @@ class TestWithNoRegistryConfigured:
         view = http.get(f"/api/artists/{rothko.id}/registry").raise_for_status().json()
 
         assert view["state"] == "not_configured"
-        assert "WIKIDATA_USER_AGENT" in view["note"]
+        # In the household's words, naming no setting (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+        assert view["note"] == "Wikidata is not configured on this server."
 
 
 def _give_a_master(service, work):

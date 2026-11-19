@@ -8,8 +8,10 @@ catalogue; nothing here is mocked except the one fault each failure test needs.
 """
 
 import json
+import os
 import sqlite3
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -242,3 +244,134 @@ def test_a_pass_not_told_when_starts_and_completes_by_the_job_s_clock(tmp_path, 
         NOON.isoformat(),
         (NOON + timedelta(seconds=1)).isoformat(),
     )
+
+
+# -- the start-up pass after an upgrade ----------------------------------------------
+
+DAY = 24 * 60 * 60
+
+
+def _upgraded_job(tmp_path, catalogue, *, keep=14, generation_age=timedelta(hours=2)):
+    """A job holding one generation from before the upgrade, `generation_age` old at the first start."""
+    clock = Clock(NOON)
+    job = CatalogueBackup(
+        catalogue_path=catalogue,
+        directory=tmp_path / "backups",
+        receipt_path=catalogue.parent / BACKUP_RECEIPT_FILENAME,
+        keep=keep,
+        clock=clock,
+    )
+    before = job.run(now=NOON - generation_age).path
+    return job, clock, before
+
+
+def _start(job, clock, at, *, interval=DAY):
+    """One start of the server: the backup schedule begins at `at`, and the server stops again.
+
+    `halt` joins the thread, and a pass decided at the start runs before the
+    loop first waits, so by the time this returns a start that backs up has.
+    """
+    clock.at = at
+    halt = start_backups(job, interval_seconds=interval)
+    halt()
+
+
+@pytest.mark.parametrize("starts", [3, 14, 20])
+def test_a_crash_loop_after_an_upgrade_leaves_the_generation_from_before_it(tmp_path, catalogue, starts):
+    """Starts within an hour of a generation younger than the interval write nothing, so none is pruned.
+
+    Twenty is more starts than the fourteen generations kept, the crash loop
+    that replaced every pre-upgrade copy; three is fewer, where only the count
+    of generations written says whether a start backed up.
+    """
+    job, clock, before = _upgraded_job(tmp_path, catalogue)
+
+    for start in range(starts):
+        _start(job, clock, NOON + timedelta(minutes=3 * start))
+
+    generations = sorted((tmp_path / "backups").glob("catalogue-*Z.sqlite"))
+    assert generations == [before]
+    assert titles(before) == ["Nighthawks", "The Persistence of Memory"]
+
+
+def test_a_start_after_the_interval_has_passed_backs_up_at_once(tmp_path, catalogue):
+    job, clock, before = _upgraded_job(tmp_path, catalogue, generation_age=timedelta(hours=25))
+
+    _start(job, clock, NOON)
+
+    generations = sorted((tmp_path / "backups").glob("catalogue-*Z.sqlite"))
+    assert before in generations
+    assert len(generations) == 2
+
+
+def test_a_generation_named_after_now_does_not_stand_in_for_a_backup(tmp_path, catalogue):
+    """A clock set back makes the newest generation look as if it were taken in the future; the pass runs."""
+    job, clock, _ = _upgraded_job(tmp_path, catalogue, generation_age=-timedelta(days=3))
+
+    _start(job, clock, NOON)
+
+    assert len(list((tmp_path / "backups").glob("catalogue-*Z.sqlite"))) == 2
+
+
+def test_a_skipped_start_backs_up_when_the_interval_since_the_generation_ends(tmp_path, catalogue):
+    """What is left of the interval, not a whole one more: a server restarting more often than the interval still backs up."""
+    hour = 60 * 60
+    job, clock, _ = _upgraded_job(tmp_path, catalogue, generation_age=timedelta(seconds=hour - 1))
+    clock.at = NOON
+    passes = threading.Semaphore(0)
+
+    halt = start_backups(job, interval_seconds=hour, after_pass=passes.release)
+    try:
+        assert passes.acquire(timeout=10), "the first pass waited a whole interval, not what was left of it"
+    finally:
+        halt()
+
+    assert len(list((tmp_path / "backups").glob("catalogue-*Z.sqlite"))) == 2
+
+
+def test_a_snapshot_beside_the_generations_is_never_counted_or_pruned_by_them(tmp_path, catalogue):
+    """The pre-migration copy shares BACKUP_DIR and stays out of the generations' retention."""
+    directory = tmp_path / "backups"
+    directory.mkdir()
+    snapshot = directory / "pre-migration-20261001T000000Z.sqlite"
+    snapshot.write_bytes(catalogue.read_bytes())
+    job = CatalogueBackup(
+        catalogue_path=catalogue, directory=directory, receipt_path=tmp_path / "r.json", keep=1, clock=Clock(NOON)
+    )
+
+    for day in range(3):
+        result = job.run(now=NOON + timedelta(days=day))
+
+    assert result.kept == 1
+    assert snapshot.exists()
+
+
+def _left_by_a_killed_copy(directory, name, *, hours_old):
+    """A staged copy as a pass or an open killed mid-`VACUUM INTO` leaves it, `hours_old` by its mtime."""
+    from arrt import atomic
+
+    directory.mkdir(parents=True, exist_ok=True)
+    staged = atomic.staging_path(directory / name)
+    staged.write_bytes(b"half a catalogue")
+    stamp = time.time() - hours_old * 3600
+    os.utime(staged, (stamp, stamp))
+    return staged
+
+
+@pytest.mark.parametrize("hours_old", [25, 24 * 30], ids=["a day old", "a month old"])
+def test_a_pass_sweeps_what_a_killed_copy_left_staged_and_only_that(job, tmp_path, hours_old):
+    """Each staged copy has a name of its own, so nothing else would ever claim one; a fresh one may be in progress."""
+    backups = tmp_path / "backups"
+    stale_generation = _left_by_a_killed_copy(backups, "catalogue-20261001T120000Z.sqlite", hours_old=hours_old)
+    stale_snapshot = _left_by_a_killed_copy(backups, "pre-migration-20261001T120000Z.sqlite", hours_old=hours_old)
+    in_progress = _left_by_a_killed_copy(backups, "catalogue-20261002T115959Z.sqlite", hours_old=1)
+    someone_elses = backups / ".notes.sqlite.x.tmp"
+    someone_elses.write_bytes(b"not ours")
+    os.utime(someone_elses, (0, 0))
+
+    job.run()
+
+    assert not stale_generation.exists()
+    assert not stale_snapshot.exists()
+    assert in_progress.exists()
+    assert someone_elses.exists()

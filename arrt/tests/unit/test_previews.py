@@ -8,6 +8,8 @@ Each drives a whole run, because the caller is `DiscoveryRunner._record_instance
 and testing the cache beside the engine would prove each half and not the seam.
 """
 
+import errno
+
 import pytest
 from fakes import FakeFinder, a_work, an_image
 
@@ -83,12 +85,19 @@ def test_a_re_search_after_the_picture_is_kept_asks_no_source(services, engine, 
 
 
 def test_a_run_completes_when_no_picture_can_be_written(services, engine, settings, museum, pictures, monkeypatch):
-    """`keep` returning `None` is only worth anything if the caller carries on."""
+    """`keep` returning `None` is only worth anything if the caller carries on.
 
-    def explode(self, _data):
-        raise OSError("no space left on device")
+    The disk is made full at the shared writer every picture goes through
+    (`arrt.atomic`). Until 2026-11-19 this patched `Path.write_bytes`, which the
+    picture store called then; chunk 04 of `build-plan-audit-wave-1.md` moved
+    it to `atomic.write_bytes`, which `write_with` is the bottom of, and the
+    old patch no longer reached any write.
+    """
 
-    monkeypatch.setattr("pathlib.Path.write_bytes", explode)
+    def explode(*_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr("arrt.atomic.write_with", explode)
 
     run_id = a_run(services, engine, settings, museum, pictures, "The Elephants")
 

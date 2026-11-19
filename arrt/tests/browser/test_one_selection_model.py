@@ -22,6 +22,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     CommonsFile,
@@ -220,36 +221,80 @@ def toolbar_position(ui) -> str:
     return ui.page.locator("#view .page-toolbar").first.evaluate("(bar) => getComputedStyle(bar).position")
 
 
-@pytest.mark.parametrize("a_list", list(LISTS), indirect=True)
+#: The lists drawn with the shared toolbar's named `selection` (`core/toolbar.js`):
+#: *Select* is the last control on the right, and the acts on what it selects
+#: stand on the left. A Topic's page is among them: it handed the toolbar its
+#: toggle and bar as acts and so kept *Select* on the left, until it moved to
+#: `toolbar({ selection })` with the others.
+SELECT_ON_THE_RIGHT = ["artworks", "artist", "search", "topic"]
+
+
+@pytest.mark.parametrize("a_list", SELECT_ON_THE_RIGHT, indirect=True)
 def test_the_acts_on_a_selection_take_the_toolbar_s_left_side(ui, a_list):
     """`design-direction.md` § Component Patterns, "How a page reads": a list's
-    acts on what is selected take the toolbar's left side, beside *Select*. They
-    sat in a bar at the window's foot until the rule (ruling 1 of 2026-10-27).
+    acts on what is selected take the toolbar's left side; *Select*, a control
+    over how the page is shown, is last on its right. They sat in a bar at the
+    window's foot until the rule (ruling 1 of 2026-10-27).
 
-    The half with Select off is the one an over-eager toolbar fails: it holds
-    *Select* and nothing else, and it scrolls away with the page."""
+    *(Until 2026-11-19 this asserted *Select* alone on the left with the acts
+    after it. Audit 6 finding 12 found no two list pages agreeing on the
+    toolbar, and chunk 07 of `build-plan-audit-wave-1.md` gave the toolbar one
+    order, `CONTROL_ORDER`, with Select last on the right; the acts on what is
+    selected stay on the left.)*
+
+    The half with Select off is the one an over-eager toolbar fails: no act on
+    a selection is shown, and the toolbar scrolls away with the page."""
     address, acts = a_list
     open_list(ui, address)
     left = ui.page.locator("#view .page-toolbar-actions").first
+    right = ui.page.locator("#view .page-toolbar-controls").first
 
-    assert left.locator(":scope > :visible").count() == 1
-    assert left.locator(":scope > :visible").first.inner_text() == "Select"
+    assert right.locator(":scope > :visible").last.inner_text() == "Select"
+    assert right.locator(":scope > :visible").last.get_attribute("data-control") == "select"
+    assert left.locator("button.select-toggle").count() == 0
+    assert left.locator(".selection").is_hidden()
     assert toolbar_position(ui) == "static"
 
     ui.page.click("#view button.select-toggle")
 
     for act in acts:
-        assert left.locator(f".selection {act}").is_visible(), f"{act} is not in the toolbar"
-    # After the toggle, in that order: the acts follow the control that showed them.
-    assert left.evaluate("(side) => [...side.children].map((child) => child.className)")[:2] == [
-        "action quiet select-toggle",
-        "selection",
-    ]
+        assert left.locator(f".selection {act}").is_visible(), f"{act} is not in the toolbar's left side"
+    # The acts on the selection follow the page's own acts, last on the left;
+    # the toggle stays last on the right, saying how to leave.
+    assert left.evaluate("(side) => [...side.children].map((child) => child.className)")[-1] == "selection"
+    assert right.locator(":scope > :visible").last.inner_text() == "Stop selecting"
     assert toolbar_position(ui) == "sticky"
 
     ui.page.click("#view button.select-toggle")
 
     assert toolbar_position(ui) == "static"
+
+
+@pytest.mark.parametrize("a_list", ["topic"], indirect=True)
+@pytest.mark.parametrize("width", [390, 1280])
+def test_on_a_topic_the_toolbar_has_one_layout_with_the_other_lists(ui, a_list, width):
+    """A Topic's page has no acts of its own and none of View, Sort or the
+    filters: *Select* is its toolbar's one control, so what is held to here is
+    that it stands on the right, alone, and that *Stop selecting* stays through
+    the phone's stepping aside, as on every list.
+
+    The order of the left side is the shared test above, which Topics is now
+    one of; this is the half it cannot say, because on a phone nothing else on
+    a Topic's toolbar is left to step aside."""
+    ui.page.set_viewport_size({"width": width, "height": 800})
+    address, acts = a_list
+    open_list(ui, address)
+    left = ui.page.locator("#view .page-toolbar-actions").first
+    right = ui.page.locator("#view .page-toolbar-controls").first
+
+    expect(right.locator(":scope > :visible")).to_have_text(["Select"])
+    expect(left.locator(":scope > :visible")).to_have_count(0)
+
+    ui.page.click("#view button.select-toggle")
+
+    expect(right.locator(":scope > :visible")).to_have_text(["Stop selecting"])
+    for act in acts:
+        expect(left.locator(f".selection {act}")).to_be_visible()
 
 
 def test_the_acts_stay_in_reach_at_the_end_of_a_long_list(ui, studies):
@@ -273,17 +318,29 @@ def test_the_acts_stay_in_reach_at_the_end_of_a_long_list(ui, studies):
 def test_on_a_phone_view_and_sort_step_aside_while_selecting(ui, seeded_service, width, hidden_while_selecting):
     """A phone's sticky toolbar held a third of the screen over the works; View,
     Sort and the filters leave it while *Select* is on, since each repaints the
-    list and drops the selection. A wide window has the room, and keeps them."""
+    list and drops the selection. A wide window has the room, and keeps them.
+
+    *Stop selecting* stays: since 2026-11-19 it stands with them on the right
+    (`core/toolbar.js`, chunk 07 of `build-plan-audit-wave-1.md`), and hiding
+    the whole right side, as this asserted until then, would take the way out
+    of the mode with it."""
     ui.page.set_viewport_size({"width": width, "height": 800})
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     controls = ui.page.locator("#view .page-toolbar-controls")
+    stepping_aside = [controls.locator(f'[data-control="{name}"]') for name in ("view", "sort", "filters")]
+    toggle = controls.locator('[data-control="select"]')
 
-    assert controls.is_visible()
+    for control in stepping_aside:
+        assert control.is_visible()
     ui.page.click("button.select-toggle")
-    assert controls.is_hidden() is hidden_while_selecting
-    ui.page.click("button.select-toggle")
-    assert controls.is_visible()
+    for control in stepping_aside:
+        assert control.is_hidden() is hidden_while_selecting
+    assert toggle.is_visible()
+    assert toggle.inner_text() == "Stop selecting"
+    toggle.click()
+    for control in stepping_aside:
+        assert control.is_visible()
 
 
 def tab_stops(ui, presses=120) -> list[str]:

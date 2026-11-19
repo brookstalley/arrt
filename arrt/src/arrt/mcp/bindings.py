@@ -893,6 +893,7 @@ def _registry_search(services: Services, arguments: Mapping[str, Any]) -> dict[s
                 "image": work.image,
                 "creator": None if work.creator is None else _creator_fields(work.creator, found.held_artists),
                 "held_artwork_ids": list(found.held_works.get(work.qid, ())),
+                "pictured_artwork_id": found.pictured_works.get(work.qid),
                 "wanted": work.qid in found.wanted_works,
                 "in_review": _in_review_fields(found.waiting_works.get(work.qid)),
             }
@@ -1407,7 +1408,21 @@ def _pictures_fields(reading: PicturesReading) -> dict[str, Any]:
 
 
 def _sync(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
-    return _built(services, services.display.sync(arguments["wall_id"], arguments.get("theme_id")))
+    # The wall alone: the registry refuses a `theme_id` before this runs, because
+    # a sync that took one published a theme no wall was recorded as hanging.
+    return _built(services, services.display.sync(arguments["wall_id"]))
+
+
+def _preview(services: Services, arguments: Mapping[str, Any]) -> dict[str, Any]:
+    """What a theme would put on a wall, evaluated and not written.
+
+    `build_manifest` is the read half of `sync` and of `activate`, and the one
+    `GET /api/manifest` answers from, so the report is the one a hang would
+    return. The only difference is the sentence: a preview says what *would* be
+    on the wall.
+    """
+    build = services.display.build_manifest(arguments["wall_id"], arguments.get("theme_id"))
+    return _built(services, build, notice=_preview_notice(build))
 
 
 def _list_walls(services: Services, _arguments: Mapping[str, Any]) -> dict[str, Any]:
@@ -1775,8 +1790,8 @@ def _affinity_fields(affinity: Affinity) -> dict[str, Any]:
     }
 
 
-def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
-    """What a manifest build looks like to a caller. Shared by `sync` and `activate`.
+def _built(services: Services, build: ManifestBuild, *, notice: str | None = None) -> dict[str, Any]:
+    """What a manifest build looks like to a caller. Shared by `sync`, `activate` and `preview`.
 
     One shape for both, because they answer the same question — what is on the
     wall now, and what is not — and two shapes would let a caller learn the
@@ -1806,7 +1821,7 @@ def _built(services: Services, build: ManifestBuild) -> dict[str, Any]:
         ],
         considered=build.considered,
         rotation={"interval_seconds": build.rotation_interval_seconds, "shuffle": build.shuffle},
-        notice=_sync_notice(build),
+        notice=_sync_notice(build) if notice is None else notice,
     )
 
 
@@ -1893,6 +1908,7 @@ BINDINGS: Final[Mapping[tuple[str, str], Binding]] = {
     ("art_display", "set_mat_mode"): _set_mat_mode,
     ("art_display", "set_playback"): _set_playback,
     ("art_display", "status"): _wall_status,
+    ("art_display", "preview"): _preview,
     ("art_display", "sync"): _sync,
     ("art_display", "show_now"): _show_now,
     ("art_display", "next"): _next,
@@ -2936,3 +2952,20 @@ def _sync_notice(build: ManifestBuild) -> str:
     if not build.exclusions:
         return summary
     return f"{summary} See not_on_the_wall for each one and why."
+
+
+def _preview_notice(build: ManifestBuild) -> str:
+    """What a preview says, in the conditional: nothing is on the wall because of it.
+
+    Built from the build's own counts, not from `summarise`, which says "is on
+    the wall": true of a build that was published, false of one only evaluated.
+    """
+    prefix = "Preview only, nothing was changed."
+    if build.considered == 0:
+        return f"{prefix} This theme holds no works yet, so nothing would be on the wall."
+    placed = len(build.entries)
+    sentence = f"{prefix} {placed} of {counted(build.considered, 'work')} in this theme would be on the wall"
+    if not build.exclusions:
+        return f"{sentence}."
+    dark = ", so the wall would be dark" if placed == 0 else ""
+    return f"{sentence}; {len(build.exclusions)} would not{dark}. See not_on_the_wall for each one and why."

@@ -223,7 +223,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     items="string",
                     description=(
                         f"Only works whose size on the wall is in one of these bands: {', '.join(FIT_BANDS)} "
-                        "(unknown: no master yet). The result's fits counts each band."
+                        "(unknown: no picture yet). The result's fits counts each band."
                     ),
                 ),
                 Param(
@@ -312,7 +312,7 @@ ART_CATALOGUE: Final = ToolRecord(
             # Changed 2026-10-02 from fetching in the call to queueing: a breaking
             # description change by `api-contract.md` § Versioning, announced
             # with the plan that made it (`build-plan-after-review.md` Chunk 02).
-            description="Queue the work's master image to be fetched again, first in line, and return at once.",
+            description="Queue the work's picture to be fetched again, first in line, and return at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
@@ -395,7 +395,10 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="regenerate",
-            description="Make a work's presentation master from the image it holds, and give it a mat colour if it has none.",
+            description=(
+                "Make a work's presentation master (its copy for the walls) from the picture it holds, "
+                "and give it a mat colour if it has none."
+            ),
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _FORCE),
             tips=(
@@ -405,7 +408,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     "answer reports cost_usd, so a call that spent nothing says so."
                 ),
                 (
-                    "Ordinarily it does only what is needed: a work whose master is already current is reported "
+                    "Ordinarily it does only what is needed: a work whose presentation master is already current is reported "
                     "unchanged rather than made again. Each wall's Player draws the mat itself."
                 ),
                 "Use force=true after clearing the masters directory.",
@@ -1301,7 +1304,10 @@ _SCENE_ID = Param(
 ART_THEME: Final = ToolRecord(
     name="art_theme",
     title="Art themes",
-    summary="Group works into themes, hang a theme on a named wall, and show a work per wall together as a scene.",
+    summary=(
+        "Group works into themes, hang a theme or chosen works (hang_selection) on a named wall, "
+        "and show a work per wall together as a scene."
+    ),
     read_only=False,
     destructive=True,
     open_world=False,
@@ -1325,7 +1331,8 @@ ART_THEME: Final = ToolRecord(
             tips=(
                 (
                     "Membership is curatorial, not technical: a work can be in a theme and still not be displayable. "
-                    "Use art_display(action='sync') to see which members would actually reach the wall, and why not."
+                    "Use art_display(action='preview') to see which members would actually reach a wall, and why not. "
+                    "It writes nothing."
                 ),
             ),
         ),
@@ -1438,10 +1445,13 @@ ART_THEME: Final = ToolRecord(
                     "within about a second. No separate sync is needed."
                 ),
                 (
-                    "The result names every member that will NOT be on the wall and why, exactly as "
-                    "art_display(action='sync') does — a theme can be half-displayable."
+                    "The result names every member that will NOT be on the wall and why, as "
+                    "art_display(action='preview') does before hanging — a theme can be half-displayable."
                 ),
-                "Switching costs no television writes: the whole library stays on the TV and rotation is driven from here.",
+                (
+                    "Switching rewrites the wall's feed. Its Player reads it on its next poll and fetches or uploads "
+                    "any work it lacks, which can take a while."
+                ),
             ),
         ),
         Action(
@@ -1471,7 +1481,7 @@ ART_THEME: Final = ToolRecord(
         ),
         Action(
             name="not_again",
-            description="Not this one again: take a work out of the theme on a wall, or keep it off every wall.",
+            description="Remove a work: out of the theme on a wall, or off every wall.",
             example="art_theme(action='not_again', wall_id='<a wall_id>', artwork_id='<an artwork_id>', scope='theme')",
             params=(
                 _WALL_ID,
@@ -1649,10 +1659,13 @@ _LABEL_ID = Param(
     required=True,
 )
 
-_SYNC_THEME_ID = Param(
+#: Which theme `preview` evaluates. Distinct from `_THEME_ID`, which is required: here
+#: omitting it means the one already hanging on the wall. `sync` declares no theme at
+#: all, so one it is handed is refused by name rather than published unrecorded.
+_PREVIEW_THEME_ID = Param(
     name="theme_id",
     type="string",
-    description="Which theme to publish. Omit to publish the one already hanging on that wall, which is the usual case.",
+    description="Which theme to look at. Omit to look at the one hanging on that wall.",
 )
 
 ART_DISPLAY: Final = ToolRecord(
@@ -1687,13 +1700,13 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="add_wall",
-            description="Record a wall, a place where art hangs. It arrives with nothing on it.",
+            description="Record a wall, a place where art hangs, with nothing on it.",
             example="art_display(action='add_wall', name='Living room')",
             params=(_NAME,),
             tips=(
                 (
-                    "A wall is a place and a name, never a device: which display serves it is that display's own "
-                    "configuration, and nothing about a television is recorded here."
+                    "A wall is a place and a name, never a device: the display it is shown on (display_id) and how "
+                    "its mat is drawn (mat_mode) are recorded on it, and assigned apart from the name."
                 ),
                 "Refuses a name that is empty or already taken.",
                 (
@@ -1801,7 +1814,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="status",
-            description=("Report each wall's last report and when, and the picture store's size."),
+            description="Report each wall's last report and the picture store's size.",
             example="art_display(action='status')",
             tips=(
                 (
@@ -1811,33 +1824,44 @@ ART_DISPLAY: Final = ToolRecord(
                 ),
                 (
                     "This reports an observation and its age in seconds, never a verdict about health. "
-                    "If no display has ever run for a wall, it says so plainly rather than reporting a zero."
+                    "If no Player has ever reported for a wall, it says so plainly rather than reporting a zero."
                 ),
                 (
-                    "It takes no wall and reports every one of them: each wall's display writes its own "
-                    "heartbeat, so the answerable question is which wall has gone quiet — and an answer about "
+                    "It takes no wall and reports every one of them: each wall's Player reports it separately, "
+                    "so the answerable question is which wall has gone quiet — and an answer about "
                     "one room could be given while another was dark."
                 ),
             ),
         ),
         Action(
-            name="sync",
-            description="Rebuild a named wall's manifest from what is hanging there.",
-            example="art_display(action='sync', wall_id='<a wall_id>')",
-            params=(_WALL_ID, _SYNC_THEME_ID),
+            name="preview",
+            description="Show what a theme would put on a named wall. Writes nothing.",
+            example="art_display(action='preview', wall_id='<a wall_id>', theme_id='<a theme_id>')",
+            params=(_WALL_ID, _PREVIEW_THEME_ID),
             tips=(
                 (
-                    "Refused when nothing is hanging on that wall and no theme_id is given — there is nothing "
-                    "to put on it. Hang one with art_theme(action='activate') first."
+                    "Reads only: the wall, its feed and its history are left as they were, so it is the way to check "
+                    "a theme against a wall before art_theme(action='activate') hangs it. Omit theme_id to look at "
+                    "what is hanging there; refused when nothing is and no theme_id is given."
                 ),
                 (
-                    "The result names every theme member that will NOT be on the wall and why. "
-                    "A theme can be half-displayable, and this is the only place that says so."
+                    "The result names every theme member that would NOT be on the wall and why. A theme can be "
+                    "half-displayable, and this is where that is said before anything changes."
                 ),
+            ),
+        ),
+        Action(
+            name="sync",
+            description="Republish what is hanging on a named wall.",
+            example="art_display(action='sync', wall_id='<a wall_id>')",
+            params=(_WALL_ID,),
+            tips=(
                 (
-                    "Switching themes costs no television writes: the whole library stays on the TV "
-                    "and rotation is driven from here."
+                    "Rebuilds and rewrites the feed of the theme already hanging on that wall; it takes no theme_id and "
+                    "never hangs another. Refused when nothing is hanging there: hang one with "
+                    "art_theme(action='activate') first. To check a theme first, use action='preview'."
                 ),
+                "The result names every theme member that is NOT on the wall and why, as preview does.",
             ),
         ),
         Action(
@@ -1848,15 +1872,16 @@ ART_DISPLAY: Final = ToolRecord(
             tips=(
                 (
                     "Any work that could not reach the wall is refused rather than shown — archived, "
-                    "missing its acquired master image, its mat colour or its presentation master (the picture "
-                    "each wall's Player is sent), carrying a presentation master made from an earlier acquisition, "
+                    "missing its picture, its mat colour or its copy for the walls (the presentation master each "
+                    "wall's Player is sent), carrying a copy for the walls made from an earlier acquisition, "
                     "or naming no work the catalogue holds. The "
                     "refusal names which, in the same words "
                     "art_display(action='sync') uses for an excluded work."
                 ),
                 (
                     "It republishes the wall's schedule starting with this work; it does not confirm the "
-                    "screen changed. A work outside the theme hanging there is shown for one slot."
+                    "screen changed. It lasts one slot, then rotation carries on; to put works up and keep them "
+                    "there use art_theme(action='hang_selection')."
                 ),
             ),
         ),
@@ -1894,7 +1919,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="add_client",
-            description="Record a client. It has no token and shows no wall until given them.",
+            description="Record a client, with no token and no wall yet.",
             example="art_display(action='add_client', name='Hall Pi')",
             params=(_NAME,),
             tips=(
@@ -1907,7 +1932,7 @@ ART_DISPLAY: Final = ToolRecord(
         ),
         Action(
             name="rename_client",
-            description="Give a client a new name. Its token and its walls are unchanged.",
+            description="Rename a client; its token and walls are unchanged.",
             example="art_display(action='rename_client', client_id='<a client_id>', name='Study Pi')",
             params=(_CLIENT_ID, _NAME),
         ),

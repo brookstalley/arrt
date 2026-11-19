@@ -10,6 +10,7 @@ giving up, partial results, the pause) is about outcomes no transport double
 produces on demand and about days no test can wait.
 """
 
+import errno
 import logging
 import sqlite3
 import threading
@@ -44,6 +45,7 @@ from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
 from arrt.library.readiness import PlayableWork
 from arrt.persistence.discovery_records import Verdict
+from arrt.persistence.errors import StorageFault
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -655,6 +657,138 @@ class TestThePause:
         assert queue.pause is not None
         assert queue.pause.condition == type(fault).__name__
         assert queue.state_of([artwork_id])[artwork_id].failures == 0
+
+    @pytest.mark.parametrize(
+        ("fault", "condition"),
+        [
+            (OSError(errno.ENOSPC, "No space left on device"), "ENOSPC"),
+            (OSError(errno.EROFS, "Read-only file system"), "EROFS"),
+            (StorageFault("database is locked"), "StorageFault"),
+        ],
+        ids=["ENOSPC", "EROFS", "StorageFault"],
+    )
+    def test_a_fault_of_the_host_raised_mid_fetch_pauses_and_counts_against_no_work(
+        self, queue, work, fetcher, store, fault, condition
+    ):
+        """A full disk met mid-fetch fails every work in turn; it must not count against each until all are given up."""
+        first, second = work("One"), work("Two")
+        fetcher.answers = [fault]
+
+        result = queue.run()
+
+        assert result.paused is not None
+        # A disk's fault is named by its errno, so its pause finds its remedy
+        # (`DEPLOYMENT_REMEDIES`); `OSError` by name is a surprise's, which has none.
+        assert result.paused.condition == condition
+        assert result.paused.remedy is not None
+        assert (result.failed, result.gave_up) == (0, 0)
+        # The pass stopped on it: the second work was not tried against the same disk.
+        assert [artwork_id for artwork_id, _ in fetcher.calls] == [first]
+        assert queue.pause is not None
+        assert queue.state_of([first])[first].failures == 0
+        assert queue.state_of([second])[second].phase is AcquisitionPhase.PAUSED
+        row = store.get_queued_acquisition(first)
+        assert row is None or row.failures == 0
+
+        # The host recovers: the same work is fetched on the next pass, still counted nowhere.
+        result = queue.run()
+        assert (result.paused, result.acquired) == (None, 2)
+
+    def test_a_database_that_refuses_to_write_mid_fetch_pauses_through_the_real_store(
+        self, queue, work, fetcher, store, quiet_catalogue_file
+    ):
+        """The driver's own fault, raised by the real store, reaches the queue as one it pauses on.
+
+        The parametrised test above raises the fault by hand; this one makes the
+        catalogue's own connection refuse a write while the fetch records its
+        original, so what arrives is whatever the store makes of the driver's
+        `OperationalError`. Were the store to let the driver's type through, the
+        queue (which may not import the driver) would count it against the work.
+        """
+        first, second = work("One"), work("Two")
+        connection = quiet_catalogue_file._connection
+        acquire = fetcher.acquire
+
+        def refused(artwork_id, *, source_id=None):
+            connection.execute("PRAGMA query_only = ON")
+            return acquire(artwork_id, source_id=source_id)
+
+        fetcher.acquire = refused
+        try:
+            result = queue.run()
+        finally:
+            connection.execute("PRAGMA query_only = OFF")
+            fetcher.acquire = acquire
+
+        assert result.paused is not None
+        assert result.paused.condition == "StorageFault"
+        assert "readonly" in result.paused.detail
+        assert result.paused.remedy is not None
+        assert (result.failed, result.gave_up) == (0, 0)
+        assert [artwork_id for artwork_id, _ in fetcher.calls] == [first]
+        assert queue.state_of([first])[first].failures == 0
+
+        result = queue.run()
+        assert (result.paused, result.acquired) == (None, 2)
+        assert queue.state_of([first, second]) == {}
+
+    def test_a_statement_the_code_got_wrong_mid_fetch_counts_against_the_work_and_does_not_pause(
+        self, queue, work, fetcher, quiet_catalogue_file
+    ):
+        """The driver's `OperationalError` for a column the file lacks is a defect, so it surfaces as one.
+
+        Raised by the real store, as a migration that left a column behind
+        would: the queue counts it against the work in hand, as any surprise,
+        and fetches the next, rather than pausing on it as if the disk were full.
+        """
+        first, second = work("One"), work("Two")
+        acquire = fetcher.acquire
+
+        def wrong(artwork_id, *, source_id=None):
+            if artwork_id == first:
+                quiet_catalogue_file.select_rows("SELECT no_such_column FROM artworks")
+            return acquire(artwork_id, source_id=source_id)
+
+        fetcher.acquire = wrong
+        try:
+            result = queue.run()
+        finally:
+            fetcher.acquire = acquire
+
+        assert result.paused is None
+        assert (result.failed, result.acquired) == (1, 1)
+        assert queue.state_of([first])[first].failures == 1
+        assert "no such column" in queue.state_of([first])[first].detail
+        assert queue.state_of([second]) == {}, "the work behind it was not fetched"
+
+    def test_a_fault_of_the_host_raised_while_preparing_pauses_too(self, queue, work, preparer, store):
+        artwork_id = work()
+
+        def full(artwork_id, *, force=False):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        preparer.prepare = full
+
+        result = queue.run()
+
+        assert result.paused is not None
+        assert result.paused.condition == "ENOSPC"
+        assert result.paused.remedy is not None
+        row = store.get_queued_acquisition(artwork_id)
+        assert row is None or row.failures == 0
+
+    @pytest.mark.parametrize(
+        "fault", [OSError(errno.ENOENT, "No such file"), OSError(errno.EACCES, "Permission denied"), OSError("x")]
+    )
+    def test_an_oserror_about_one_works_file_still_counts_against_that_work(self, queue, work, fetcher, fault):
+        """The pause is for the host's faults, not every OSError: a missing or unreadable file is one work's."""
+        artwork_id = work()
+        fetcher.answers = [fault]
+
+        result = queue.run()
+
+        assert result.paused is None
+        assert (result.failed, queue.state_of([artwork_id])[artwork_id].failures) == (1, 1)
 
     def test_a_paused_queue_tries_again_within_a_quarter_of_an_hour(self, queue, work, fetcher):
         work()

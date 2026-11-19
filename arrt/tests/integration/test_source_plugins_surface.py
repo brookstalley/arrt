@@ -43,7 +43,7 @@ async def test_the_route_lists_each_plugin_with_its_distribution_version_and_par
     listing = (await request("GET", f"{server_url}/api/sources")).json()
     by_name = {source["name"]: source for source in listing["sources"]}
 
-    assert listing["interface_version"] == "1.4"
+    assert listing["interface_version"] == "1.5"
     # 1.4: every plugin carries the name a curator knows it by.
     assert by_name["met"]["museum"] == "Metropolitan Museum of Art"
     assert all(source["museum"] for source in listing["sources"])

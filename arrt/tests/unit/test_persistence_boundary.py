@@ -26,13 +26,15 @@ _MAY_IMPORT_SQLITE = {
     # The kept answers file, which is not the catalogue and holds nothing a
     # record names. Every way it fails is a miss rather than an error, so it
     # has to catch the driver's own errors (a file that is not a database, a
-    # disk that refuses a write), which the durable store lets through. Inside
+    # disk that refuses a write) on the connection it opens itself, where the
+    # durable store's translation into `StorageFault` never reaches. Inside
     # the persistence package, the line this guard draws.
     "arrt.persistence.kept",
     # The catalogue's backup: `VACUUM INTO` a generation, then `PRAGMA
-    # integrity_check` on the copy before it is named. Both are operations on the
-    # file as a file, which the record contract exists not to know about, on a
-    # connection of its own that never writes the catalogue. Inside the
+    # integrity_check` on the copy before it is named, and the mark a copy before
+    # a migration leaves in the catalogue's `user_version`. All are operations on
+    # the file as a file, which the record contract exists not to know about, on
+    # connections of its own that write the catalogue only that mark. Inside the
     # persistence package, the line this guard draws.
     "arrt.persistence.backup",
 }

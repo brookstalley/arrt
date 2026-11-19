@@ -45,6 +45,16 @@ def test_a_watch_written_here_is_listed_with_its_sentence_and_its_controls(ui, s
     assert ui.page.locator(".page-facts").inner_text() == "1 Watch, 1 on."
 
 
+def test_a_watch_s_words_are_described_as_asked_of_ask_and_never_of_discover(ui):
+    """The page Ask was called Discover until 2026-10-02; its help said so for a month after (audit-6 finding 21)."""
+    ui.open("#watches")
+    ui.page.wait_for_selector(".new-watch")
+
+    text = ui.page.inner_text("#view")
+    assert "as you would put it to Ask" in text
+    assert "Discover" not in text
+
+
 def test_a_watch_refused_while_unattended_work_is_off_says_so_and_points_to_general(ui, services):
     watch = services.watches.create(intent_text=WORDS, surface=InitiatedBy.WEB_UI)
     services.scheduler.run_pass()

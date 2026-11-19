@@ -24,17 +24,19 @@ across planes — but the reader and the writer still belong in one module, and
 this is where the writer lands.
 """
 
+import contextlib
 import json
 import logging
 import sqlite3
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Final
 
-from arrt import observations
+from arrt import atomic, observations
+from arrt.persistence import migrations
 from arrt.persistence.records import BackupReading
 
 log = logging.getLogger(__name__)
@@ -74,9 +76,28 @@ def read(path: Path, *, now: datetime | None = None) -> BackupReading:
 #: file systems a backup directory may be mounted from refuse.
 _GENERATION_FORMAT: Final[str] = "catalogue-%Y%m%dT%H%M%SZ.sqlite"
 _GENERATION_GLOB: Final[str] = "catalogue-*Z.sqlite"
-#: A copy in progress. Never matched by the glob above, so a pass that dies
-#: half-way leaves nothing retention or a restorer mistakes for a generation.
-_PARTIAL_SUFFIX: Final[str] = ".partial"
+#: A copy in progress is staged under `atomic.staging_path`'s hidden name, which
+#: the glob above never matches, so a pass that dies half-way leaves nothing
+#: retention or a restorer mistakes for a generation; what it does leave is
+#: swept once stale (`_sweep_staging`).
+
+#: The copy taken before a migration drops anything, named like a generation
+#: but never matched by its glob: it sits outside the generations' count, so no
+#: number of starts after an upgrade can prune it (`operational-spec.md`
+#: § Backup and Restore).
+_SNAPSHOT_FORMAT: Final[str] = "pre-migration-%Y%m%dT%H%M%SZ.sqlite"
+_SNAPSHOT_GLOB: Final[str] = "pre-migration-*Z.sqlite"
+#: Pre-migration copies kept. Three, so the copy from before one upgrade
+#: survives the next two.
+SNAPSHOTS_KEPT: Final[int] = 3
+
+#: What the catalogue's `PRAGMA user_version` holds from the moment its copy is
+#: taken until the migrations that copy was taken for have all run. A start that
+#: finds it takes no second copy: the file is no longer as the previous release
+#: left it, and the copy that is already holds what a rollback needs. Nothing
+#: else in the catalogue reads `user_version`, and the previous release leaves it
+#: 0, so a file it wrote never carries the mark. ("arrt" in ASCII.)
+MIGRATION_BEGUN: Final[int] = 0x61727274
 
 #: How long a stopping job is waited for: one copy of a household catalogue
 #: takes well under a second, so a job still running after this is wedged.
@@ -154,22 +175,19 @@ class CatalogueBackup:
 
     def _take(self, started: datetime) -> BackupResult:
         self._directory.mkdir(parents=True, exist_ok=True)
+        # A pass killed mid-copy leaves its staged copy, under a name of its
+        # own that nothing else claims and the generations' glob never counts.
+        _sweep_staging(self._directory)
         final = self._directory / started.strftime(_GENERATION_FORMAT)
-        partial = final.with_name(final.name + _PARTIAL_SUFFIX)
-        partial.unlink(missing_ok=True)
         # A connection of its own, read-only: VACUUM INTO reads one consistent
-        # snapshot and never takes the server's write lock.
-        try:
-            source = sqlite3.connect(f"file:{self._catalogue_path}?mode=ro", uri=True)
-            try:
-                source.execute("VACUUM INTO ?", (str(partial),))
-            finally:
-                source.close()
-            _require_intact(partial)
-            partial.replace(final)
-        except BaseException:
-            partial.unlink(missing_ok=True)
-            raise
+        # snapshot and takes no lock a writer needs to *begin*, but it holds a
+        # SHARED lock for the whole copy. The catalogue runs on the default
+        # rollback journal, where a commit needs every SHARED lock released, so
+        # the server's commits wait on the copy (Python's default busy timeout,
+        # 5 s) and fail with "database is locked" past that. A household
+        # catalogue copies in well under a second; one that grew past the
+        # timeout would show as refused writes while the backup runs.
+        _copy_intact(sqlite3.connect(f"file:{self._catalogue_path}?mode=ro", uri=True), final)
         removed = self._retain()
         byte_size = final.stat().st_size
         kept = len(self._generations())
@@ -178,6 +196,13 @@ class CatalogueBackup:
 
     def _generations(self) -> list[Path]:
         return sorted(self._directory.glob(_GENERATION_GLOB))
+
+    def newest_age(self, *, now: datetime | None = None) -> timedelta | None:
+        """How long ago the newest generation was taken, read from its name; None when there is none."""
+        named = [moment for moment in (_instant(path.name, _GENERATION_FORMAT) for path in self._generations()) if moment]
+        if not named:
+            return None
+        return (now or self._clock()) - max(named)
 
     def _retain(self) -> tuple[str, ...]:
         """Remove all but the newest `keep` generations; only files this job named."""
@@ -196,13 +221,51 @@ class CatalogueBackup:
             "bytes": byte_size,
             "generations_kept": kept,
         }
-        partial = self._receipt_path.with_name(self._receipt_path.name + _PARTIAL_SUFFIX)
-        partial.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-        partial.replace(self._receipt_path)
+        atomic.write_bytes(self._receipt_path, (json.dumps(document, indent=2) + "\n").encode("utf-8"))
 
 
 class BackupFailed(Exception):
     """A backup pass that ran and produced nothing it could trust."""
+
+
+def _copy_intact(source: sqlite3.Connection, final: Path) -> None:
+    """Copy what `source` holds to `final` with `VACUUM INTO`, checked and synced before it is named. Closes `source`.
+
+    Staged under a name of its own and renamed only once SQLite calls the copy
+    intact, so `final` is a whole copy or absent; a failure anywhere removes the
+    staged copy and continues.
+    """
+    staging = atomic.staging_path(final)
+    try:
+        try:
+            source.execute("VACUUM INTO ?", (str(staging),))
+        finally:
+            source.close()
+        _require_intact(staging)
+        atomic.sync_file(staging)
+        atomic.promote(staging, final)
+    except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; a half copy must go on any exit
+        with contextlib.suppress(OSError):
+            staging.unlink(missing_ok=True)
+        raise
+
+
+def _sweep_staging(directory: Path) -> int:
+    """Remove the copies a killed pass or open left staged here, once stale: generations' and pre-migration copies'.
+
+    The age rule is the art tree's (`atomic.STALE_STAGING_AFTER`), far longer
+    than any copy of a household catalogue takes, so a copy in progress is never
+    swept. Only names this module stages under are touched.
+    """
+    return sum(atomic.sweep_stale_in(directory, names=names) for names in (_GENERATION_GLOB, _SNAPSHOT_GLOB))
+
+
+def _instant(name: str, form: str) -> datetime | None:
+    """The moment a file of ours is named for, or None for a name that is not one of them."""
+    try:
+        return datetime.strptime(name, form).replace(tzinfo=UTC)
+    except ValueError:
+        return None
 
 
 def _require_intact(copy: Path) -> None:
@@ -222,15 +285,29 @@ def start_backups(
     interval_seconds: float,
     after_pass: Callable[[], None] = lambda: None,
 ) -> Callable[[], None]:
-    """Back up once now, then every `interval_seconds`, on a daemon thread; return the call that stops it.
+    """Back up now unless a recent generation stands, then every `interval_seconds`; return the call that stops it.
 
-    Now rather than after the first interval: a server that restarts more often
-    than the interval would otherwise never back up. A failed pass is logged by the job and the loop carries on —
-    the receipt's age on the health panel is what says it has been failing.
+    **Now rather than after the first interval**, so a server that restarts more
+    often than the interval still backs up. **Not now while the newest
+    generation is younger than the interval**: that generation already is the
+    backup the start-up pass exists to take, and retention keeps generations by
+    count, so a server restarting every few minutes after an upgrade would
+    otherwise replace every generation from before it with copies of the
+    upgraded file within the hour. The first pass then waits out what is left of
+    the interval since that generation. A newest generation named later than now
+    (a clock set back) is not trusted to stand in, and the pass runs.
+
+    Decided before the thread starts, so by the time this returns the start-up
+    pass has been skipped or is under way. A failed pass is logged by the job
+    and the loop carries on — the receipt's age on the health panel is what says
+    it has been failing.
     """
     stop = threading.Event()
+    first_wait = _start_up_wait(job, interval_seconds)
 
     def loop() -> None:
+        if first_wait > 0 and stop.wait(first_wait):
+            return
         while True:
             try:
                 job.run()
@@ -253,3 +330,181 @@ def start_backups(
             )
 
     return halt
+
+
+def _start_up_wait(job: CatalogueBackup, interval_seconds: float) -> float:
+    """Seconds before the first pass: none, unless the newest generation is younger than the interval."""
+    try:
+        age = job.newest_age()
+    except OSError as exc:
+        # A directory that cannot be listed cannot vouch for a recent backup:
+        # the pass runs, and fails or succeeds on its own terms.
+        log.warning("could not list the backup directory: %s", exc, extra={"event": "backup.unlisted", "detail": str(exc)})
+        return 0.0
+    if age is None or age < timedelta(0) or age.total_seconds() >= interval_seconds:
+        return 0.0
+    remaining = interval_seconds - age.total_seconds()
+    log.info(
+        "skipped the start-up backup: the newest generation is %ds old, younger than the interval",
+        int(age.total_seconds()),
+        extra={"event": "backup.skipped_recent", "age_seconds": age.total_seconds(), "next_in_seconds": remaining},
+    )
+    return remaining
+
+
+# -- the copy taken before a migration drops anything ---------------------------
+
+
+class SnapshotFailed(RuntimeError):
+    """The copy a destructive migration needs first could not be taken, so no migration may run."""
+
+
+def take_pre_migration_snapshot(
+    catalogue_path: Path,
+    *,
+    directory: Path,
+    would_drop: Callable[[sqlite3.Connection], tuple[str, ...]],
+    now: datetime,
+    keep: int = SNAPSHOTS_KEPT,
+) -> Path | None:
+    """Copy the catalogue aside if opening it would drop anything; return the copy, or None when nothing would go.
+
+    `would_drop` is the migrations' own question (`migrations.pending_drops`),
+    asked of the file before any of them runs, so a file already on the current
+    shape, and a new one, take no copy. The copy is the file as the previous
+    release left it, taken before the store widens it or creates a table, and
+    named `pre-migration-<UTC instant>.sqlite` in `directory`, outside the
+    generations' count.
+
+    **One copy per migration, however many starts it takes.** Once the copy is
+    written the file is marked (`MIGRATION_BEGUN`), and the mark stays until
+    the last migration has run (`finish_migration`). A start that finds the
+    mark, and a copy in `directory`, takes none: by then the store has widened
+    the file and may have rewritten or dropped some of it, so a copy of it
+    would not be the file as the previous release left it, and the one that is
+    stays the newest. A migration that fails on every start therefore leaves
+    that copy where the rollback looks for it, whatever the steps before the
+    failing one changed. A marked file with no copy in `directory` (the copy was
+    removed, or `BACKUP_DIR` moved) is copied again, since a later copy is
+    better than none.
+
+    **Raises `SnapshotFailed` when the copy cannot be taken**, with the
+    catalogue untouched and no half copy left: a disk that is full or a
+    directory that is read-only stops the open rather than letting it drop
+    anything without a copy.
+    """
+    if not catalogue_path.exists():
+        return None
+    # Read-write though it mostly reads: a hot journal left by a killed writer
+    # has to be rolled back before the file can be read at all.
+    source = migrations.open_existing(catalogue_path)
+    try:
+        drops = would_drop(source)
+        if not drops:
+            # A start killed between the last migration and its mark's removal.
+            finish_migration(source)
+            source.close()
+            return None
+        begun = _marked(source)
+    except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; the connection must close on any exit
+        source.close()
+        raise
+    earlier = _snapshots(directory) if directory.is_dir() else []
+    if begun and earlier:
+        source.close()
+        log.info(
+            "took no second copy: the migration the copy %s was taken for has not finished",
+            earlier[-1].name,
+            extra={"event": "catalogue.snapshot_kept", "path": str(earlier[-1]), "drops": list(drops)},
+        )
+        return earlier[-1]
+    final = directory / now.astimezone(UTC).strftime(_SNAPSHOT_FORMAT)
+    if final.exists():
+        # An earlier open in this same second already copied the file, from a
+        # state no later than this one; it is kept rather than overwritten.
+        source.close()
+        log.info(
+            "kept the pre-migration copy already taken this second",
+            extra={"event": "catalogue.snapshot_kept", "path": str(final), "drops": list(drops)},
+        )
+        return final
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        _sweep_staging(directory)
+        _copy_intact(source, final)
+    except (OSError, sqlite3.Error, BackupFailed) as exc:
+        source.close()
+        log.error(  # noqa: TRY400 -- the reason is the message; the traceback goes with the raise below
+            "the catalogue was not migrated: the copy taken first could not be written to %s: %s",
+            directory,
+            exc,
+            extra={"event": "catalogue.snapshot_failed", "directory": str(directory), "detail": str(exc), "drops": list(drops)},
+        )
+        raise SnapshotFailed(
+            f"The catalogue at {catalogue_path} needs a migration that drops {', '.join(drops)}, and the copy "
+            f"taken first could not be written to {directory}: {exc}. Nothing in the catalogue has been changed. "
+            "Free space there or make it writable (or set BACKUP_DIR to a directory that is), then start again."
+        ) from exc
+    if not begun:
+        _mark(catalogue_path)
+    removed = _retain_snapshots(directory, keep=keep)
+    log.info(
+        "copied the catalogue aside before migrating it",
+        extra={"event": "catalogue.snapshot_taken", "path": str(final), "drops": list(drops), "removed": list(removed)},
+    )
+    return final
+
+
+def finish_migration(connection: sqlite3.Connection) -> None:
+    """Remove the mark a pre-migration copy left on the catalogue: every migration it was taken for has run.
+
+    The open runs it after every other migration, so the mark goes only once
+    they have all succeeded, and the next upgrade that drops something takes a
+    copy of its own. A `user_version` other than the mark is left as it is.
+    """
+    if _marked(connection):
+        connection.execute("PRAGMA user_version = 0")
+        connection.commit()
+
+
+def _marked(connection: sqlite3.Connection) -> bool:
+    return connection.execute("PRAGMA user_version").fetchone()[0] == MIGRATION_BEGUN
+
+
+def _mark(catalogue_path: Path) -> None:
+    """Mark the catalogue as copied for the migration about to run; after the copy, so a failed copy marks nothing."""
+    connection = migrations.open_existing(catalogue_path)
+    try:
+        connection.execute(f"PRAGMA user_version = {MIGRATION_BEGUN}")
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _snapshots(directory: Path) -> list[Path]:
+    """The pre-migration copies in `directory`, oldest first; only files named as this module names them."""
+    return sorted(path for path in directory.glob(_SNAPSHOT_GLOB) if _instant(path.name, _SNAPSHOT_FORMAT) is not None)
+
+
+def _retain_snapshots(directory: Path, *, keep: int) -> tuple[str, ...]:
+    """Remove all but the newest `keep` pre-migration copies; return the names that went.
+
+    After the new copy is written and checked, so a removal that fails costs
+    nothing the open needs: it is logged and the open goes on, rather than
+    stopping the server over a copy it no longer wants.
+    """
+    snapshots = _snapshots(directory)
+    removed: list[str] = []
+    for path in snapshots[: max(0, len(snapshots) - keep)]:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            log.warning(
+                "could not remove the older pre-migration copy %s: %s",
+                path,
+                exc,
+                extra={"event": "catalogue.snapshot_prune_failed", "path": str(path), "detail": str(exc)},
+            )
+            continue
+        removed.append(path.name)
+    return tuple(removed)

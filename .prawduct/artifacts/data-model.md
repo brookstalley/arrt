@@ -1071,7 +1071,10 @@ reported with an identity is matched on it, one without on the client and the
 output's name. A display recorded by place takes the identity when its output
 first reports one, with its wall; an identity recorded on another client moves to
 the reporting one with its wall, unless that client still reports it (Q52), which
-is a fault left for the curator. Nothing about the device beyond what it is and
+is a fault left for the curator. A move is automatic and is logged at WARNING
+naming both clients *(since 2026-11-19)*: any client's token can make one by
+reporting an identity another client has stopped reporting, so a move nobody
+made is one an operator can find in the journal. Nothing about the device beyond what it is and
 where it is plugged in: the forbidden list on § Wall holds here too, and the
 Frame's network address stays on the client's host.
 `[DECISION: the Display record carries kind (frame, framebuffer) | Walls and Settings must say what a display is without asking the client, and kind is a category, not a measurement | builder's call, owner can veto]`
@@ -2195,7 +2198,11 @@ path consults it before spending.
 > queue or MCP's `regenerate`) and `choose_mat`. A row is written when the model
 > answered, or billed for an answer it could not use; a call that never reached
 > the model costs nothing and writes nothing. `model_id` names the model asked even
-> when the colour fell back, since that is who billed.
+> when the colour fell back, since that is who billed. *(Since 2026-11-19 the row
+> is written before the colour is, so a colour the store then refuses leaves the
+> billed cost recorded where it used to leave none; and one work is prepared by one
+> caller at a time, a second `prepare` or `regenerate` of it waiting for the first,
+> while different works do not wait for each other.)*
 >
 > **The coupling the earlier deferral named is contained, not removed.**
 > `record_spend` still lives on `DiscoveryService`, and preparation reaches it
@@ -2599,8 +2606,9 @@ would leave the work reading `resolving` forever with nothing to correct it" —
 moved the truth to the run row without re-asking that question of the run row. The
 defect moved with it, and got worse: combined with constraint 14, a crash left the
 covered works **permanently un-re-searchable**, silently, on the only tool that
-spends money. The curation unit's `MemoryMax` exists precisely to cause OOM kills,
-and a deploy is `systemctl restart` — so this is routine, not exotic.
+spends money. The curation process's memory bound (the retired unit's `MemoryMax`, the
+container's `mem_limit` since the server moved) exists precisely to cause OOM kills,
+and a deploy is a restart — so this is routine, not exotic.
 
 **Why startup reconciliation rather than timeouts or heartbeats:** a run in a
 process-held state only advances while the curation process that owns it is alive,
@@ -2738,6 +2746,17 @@ suppresses it and leaves the verdict where it was.
 
 ## Constraints
 
+**How the store says a write failed** *(since 2026-11-19)*. A row the file refuses
+(a key or a constraint) is a `StorageError`, worded for whoever asked. A fault of the
+database itself (another process holding its lock, a file that cannot be opened, a
+full, read-only, failing or corrupt disk, read from SQLite's result code) is a
+`StorageFault`, raised in place of the driver's own error, so nothing above the
+persistence layer imports the driver to recognise it. An error of the statement
+itself (a table or a column the file does not have) is neither, and reaches the
+caller as the driver raised it. A commit the file refuses rolls the transaction back, so none of its
+writes is read back afterwards as if kept, and so does a single write outside a
+transaction that fails (`persistence/durable.py`).
+
 1. **At most one Theme hangs on a Wall, enforced by `ThemeAssignment.wall_id`
    being the primary key.** There is nothing here to detect or reconcile: a second
    theme on a wall is a row the store will not accept. A wall with no assignment
@@ -2796,12 +2815,16 @@ suppresses it and leaves the verdict where it was.
    constraint makes it impossible to record one as valid.
 6. **All stored paths are relative to `ART_ROOT`.** No absolute paths in any
    record. This is what makes the catalogue portable between planes and machines,
-   and it is the fix for `/home/tvpi/art` having been hardcoded in `config.py`.
+   and it is the fix for `/home/<user>/art` having been hardcoded in `config.py`.
 7. **Suppression has two scopes and they never share a key.**
    a. A `rejected` **CandidateWork**'s `work_dedup_key` suppresses that *work* from
       future proposals, unless the curator explicitly reconsiders it.
    b. A **CandidateImage** with `rejected_at` set is excluded from re-selection for
-      its work, and this must leave the work itself eligible.
+      its work, and this must leave the work itself eligible. Acceptance honours
+      it too *(since 2026-11-19)*: a turned-down scan stays a candidate and is
+      promoted into no `Source` of the work, which has no field to carry the
+      rejection, so a promoted one would return as an ordinary alternate that a
+      retry or a better-image flow offered beside the real ones.
    Enforcing (b) through (a) is the failure mode: turning down a scan would
    blacklist the painting. **Q11.**
    **(b) is scoped to the URL, not to the row that holds it** *(added 2026-08-03,

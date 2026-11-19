@@ -581,13 +581,19 @@ def test_the_servers_registry_gives_up_sooner_than_the_matchers():
     from types import SimpleNamespace
 
     from arrt.__main__ import _registry
+    from arrt.library.registry.remembering import RememberingRegistry
     from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, TIMEOUT_SECONDS
 
     # `_registry` reads one setting; the rest of `Settings` is the server's.
+    # Since 2026-11-19 it wraps Wikidata in `RememberingRegistry` (chunk 02 of
+    # `build-plan-audit-wave-1.md`); the timeout is the wrapped client's.
     server = _registry(SimpleNamespace(wikidata_user_agent=UA))
     matcher = WikidataRegistry(user_agent=UA)
 
-    assert server._http.timeout.read == INTERACTIVE_TIMEOUT_SECONDS < TIMEOUT_SECONDS == matcher._http.timeout.read
+    assert isinstance(server, RememberingRegistry)
+    wikidata = server._inner
+    assert isinstance(wikidata, WikidataRegistry)
+    assert wikidata._http.timeout.read == INTERACTIVE_TIMEOUT_SECONDS < TIMEOUT_SECONDS == matcher._http.timeout.read
 
 
 COMMONS_FILE = "https://commons.wikimedia.org/wiki/Special:FilePath/Robert%20Delaunay%2C%20Rythmes%2C%201934.jpg"

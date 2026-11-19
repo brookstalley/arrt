@@ -45,7 +45,7 @@ import threading
 import uuid
 from collections import Counter
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -55,6 +55,7 @@ from urllib.parse import parse_qsl, quote, urlsplit
 
 from PIL import Image
 
+from arrt import atomic
 from arrt.library.services.imaging import UNDECODABLE, UNREADABLE, encode_downscaled, measure
 from arrt.services.errors import ServiceError
 
@@ -73,7 +74,8 @@ TIERS: Final[tuple[int, ...]] = (480, 2048)
 #: land on a screen a curator is looking at.
 JPEG_QUALITY: Final[int] = 82
 
-#: What a write's temporary file ends with. `clean` removes exactly these.
+#: What a write's temporary file ends with (`atomic.staging_path` names it so).
+#: `clean` removes exactly these.
 _TEMPORARY_SUFFIX: Final[str] = ".tmp"
 
 #: A stored file's name: the key, its tier, and `.jpg`.
@@ -412,21 +414,15 @@ class PictureStore:
         return largest
 
     def _write(self, destination: Path, data: bytes) -> None:
-        """Write `data` at `destination` through a temporary name of its own, then rename it."""
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        # A name per attempt, so two writers can never interleave bytes in one
-        # temporary file; rename is atomic, so a reader sees the old file or the
-        # new one and never a half.
-        staging = destination.with_name(f"{destination.name}.{self._staging_token()}{_TEMPORARY_SUFFIX}")
-        try:
-            staging.write_bytes(data)
-            staging.replace(destination)
-        finally:
-            # A no-op after a successful rename. After a failed one, the cleanup
-            # may fail for the reason the write did, and the write's failure is
-            # the one worth raising.
-            with suppress(OSError):
-                staging.unlink(missing_ok=True)
+        """Write `data` at `destination` through a temporary name of its own, then rename it.
+
+        The name carries the store's token and ends `.tmp`, which is what
+        `clean` sweeps; a reader sees the old file or the new one, never a half.
+        """
+        # Not synced: a tier that is missing or empty is not kept (`_present`),
+        # so the next ask fetches it again, and that is all a power cut can
+        # leave of an unsynced one.
+        atomic.write_bytes(destination, data, token=self._staging_token(), durable=False)
 
     @contextmanager
     def _held(self, key: str) -> Iterator[None]:

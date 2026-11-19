@@ -286,7 +286,11 @@ convenience would otherwise make that split a migration.
 > **Rule 4 migrated 2026-09-30** (wave 2b Chunk 02). The Library announces
 > `work.accepted`, `work.archived`, `work.image_changed` and `work.mat_changed`
 > through `library/events.py`, only after the change commits
-> (`CatalogueStore.after_commit`). Programming subscribes through the facade.
+> (`CatalogueStore.after_commit`). *(Since 2026-11-19 an announcement names every
+> work one commit changed the same way, `WorkChanged.work_ids`, so a bulk archive of
+> fifty works reaches Programming once: it reconciles every wall once and writes
+> each feed once. The event stays remote-shaped, since a list is what a webhook
+> would carry.)* Programming subscribes through the facade.
 > Its handler and its startup reconciliation apply one rule: any work the Library
 > now refuses comes off every published manifest carrying it, and any pin naming
 > it is withdrawn. The published document is patched, never rebuilt. *(Since
@@ -341,6 +345,16 @@ convenience would otherwise make that split a migration.
 > guard in the style of `tests/preferences/test_plane_isolation.py` for rule 1.
 > Rule 3's schema test arrives with its store split (#216). Rows are in `project-preferences.md`
 > § Enforcement.
+>
+> *(2026-11-19: both guards are stricter than that paragraph says. The import
+> guard counts the Library's five storage modules in `arrt.persistence` as the
+> Library's, which it had not, so Programming importing a storage adapter is now
+> reported. A test of rule 3 exists ahead of the store split:
+> `tests/preferences/test_seam_foreign_keys.py` builds the file's schema, asks
+> SQLite for every table's foreign keys, requires every table to be classified as
+> the Library's or Programming's, and holds the keys that cross to exactly
+> `theme_memberships.artwork_id`. It reads `REFERENCES` clauses and so cannot see a
+> Library id kept as text and joined in SQL.)*
 
 ## Overview & Topology
 
@@ -996,7 +1010,14 @@ read by display.
 - **Atomicity:** written to a temp file in the same directory and `os.replace`d
   onto the target. POSIX rename is atomic within a filesystem, so display never
   observes a partial manifest. This is the entire concurrency-control story
-  between the planes.
+  between the planes. *(Since 2026-11-19 the one writer is `arrt/atomic.py`, which
+  every file the server writes this way uses: a staging name no other writer
+  holds, the file synced before the rename and the directory after it, and the
+  staging file removed on any failure. A file the server makes again when it is
+  missing or empty, a thumbnail or a kept picture's tier, is staged and renamed
+  the same way but not synced. The feeds one act decides are staged first
+  and renamed as the last step of the transaction that decided them, so a feed
+  changes only with what recorded it: `DisplayService._publishing`.)*
 - **Contents:** a schema version, the active theme's identity, the **rotation
   settings** that drive the display timer (`rotation_interval_seconds`, `shuffle`),
   a **directive block** (below), and an ordered list of entries — for each, the
@@ -1253,7 +1274,7 @@ See `re-architecture.md`.)* What remains:
 
 | Failure | Effect on the rest | Intended behaviour |
 |---|---|---|
-| curation process down/restarting/crashed | none **on display**; a run actively working dies with it, while one at `awaiting_approval` survives | Display keeps rotating the last manifest indefinitely — **normal operation, not degradation**, the norm working. But this is *not* "no effect": a run actively working is lost, and **on next start curation reconciles runs left in a process-held state (`resolving_works`, `resolving_images`) to `interrupted`** (`data-model.md` → State Machines). `awaiting_approval` is deliberately NOT reconciled — it is human-held state that must survive a restart. Without reconciliation a crash would strand the run's works as permanently un-re-searchable via constraint 14. Note `MemoryMax` on the curation unit exists to cause exactly this kill |
+| curation process down/restarting/crashed | none **on display**; a run actively working dies with it, while one at `awaiting_approval` survives | Display keeps rotating the last manifest indefinitely — **normal operation, not degradation**, the norm working. But this is *not* "no effect": a run actively working is lost, and **on next start curation reconciles runs left in a process-held state (`resolving_works`, `resolving_images`) to `interrupted`** (`data-model.md` → State Machines). `awaiting_approval` is deliberately NOT reconciled — it is human-held state that must survive a restart. Without reconciliation a crash would strand the run's works as permanently un-re-searchable via constraint 14. Note the server container's memory limit (`mem_limit`, `deploy/nas/compose.example.yaml`) exists to cause exactly this kill |
 | display process down | none to curation; wall freezes | TV stays in art mode holding the last work; label goes stale. systemd restarts |
 | Manifest references a missing image file | one work unshowable | Display **skips it, logs at WARNING, continues the rotation.** Never crashes, never blanks the wall. Fatal-for-one-item, per the recorded error taxonomy |
 | Manifest has an unknown major schema version | new theme not adopted | Display **keeps the previous manifest** and logs at ERROR. Refusing to guess beats rendering a misparse |
@@ -1264,7 +1285,7 @@ which the Player shows when the set is back in art mode.)* The cost is that the 
 | E-paper write fails | label stale | Log and continue; never let a panel failure stop the TV rotation |
 | Budget exhausted mid-run (the provider refuses — a 403; see `openrouter-api-findings.md`) | discovery halts partially | `halted_by_budget`, a modelled outcome. Already-acquired works stay acquired |
 | The picture store grows | **curation only** | There is no ceiling (owner, 2026-10-06), so the store is watched rather than bounded: the health panel and `art_display(action='status')` state its files and bytes, from a walk at most ten minutes old. Nothing deletes a kept picture; the disk-headroom guard ahead of acquisition is unchanged. *(Replaced 2026-10-06 the row for the preview sweep stopping, which retired with the norm.)* |
-| SD card full | **both planes** | The one genuinely shared failure. **Built 2026-08-03**: `library/acquisition/space.py` refuses before a fetch begins, sized by `MIN_FREE_BYTES` (2 GiB) and protecting `catalogue.sqlite` on the same device rather than the fetch. It raises rather than recording, because a full disk is a fact about the machine that every work behind this one would hit. **It is not the only one, and this row said it was until 2026-08-04.** The rule is general: a condition no source is at fault for raises, because a `failed` row against a source sends whoever reads it to the museum to look for a problem that is in the deployment. Three qualify today — a full disk, `dezoomify-rs` missing, and a provider with no tile resolver wired — and the next acquisition failure is judged against that rule rather than against this list, which is why the rule is stated here and the count is not |
+| SD card full | **both planes** | The one genuinely shared failure. **Built 2026-08-03**: `library/acquisition/space.py` refuses before a fetch begins, sized by `MIN_FREE_BYTES` (2 GiB) and protecting `catalogue.sqlite` on the same device rather than the fetch. It raises rather than recording, because a full disk is a fact about the machine that every work behind this one would hit. **It is not the only one, and this row said it was until 2026-08-04.** The rule is general: a condition no source is at fault for raises, because a `failed` row against a source sends whoever reads it to the museum to look for a problem that is in the deployment. Three qualify today — a full disk, `dezoomify-rs` missing, and a provider with no tile resolver wired — and the next acquisition failure is judged against that rule rather than against this list, which is why the rule is stated here and the count is not. *(Since 2026-11-19 the same rule holds for a fault of the host that surfaces in the middle of one work: a full or read-only disk (`ENOSPC`, `EROFS`) or a database error pauses the acquisition queue and counts against no work, where it used to count against each work in turn and give all of them up in about four days.)* |
 | SD card corruption | catastrophic | The catalogue is the irreplaceable asset and it lives here. Mitigation is off-device backup — see `operational-spec.md` |
 
 **Restart order does not exist**, and that is a property worth naming: neither
@@ -1335,8 +1356,10 @@ quietly reading a catalogue it does not understand. The missing half was the
 record.
 
 So a rollback **across a migration is a restore, not a checkout**: check out the
-previous commit, put back the `catalogue.sqlite` copied before the deploy, then
-restart both. **The backup is the rollback plan** — without one, rolling back
+previous commit, put back the `catalogue.sqlite` copied before the deploy (since
+2026-11-19 the server takes that copy itself before a migration that drops
+something, `pre-migration-<instant>.sqlite`, and refuses to migrate when it cannot
+write it), then restart both. **The backup is the rollback plan** — without one, rolling back
 across this migration is not possible, and re-creating what the migration removed
 by hand would reset the directive counter it was careful to carry. A rollback
 that crosses no migration is still the old two-step. `operational-spec.md`
@@ -1374,7 +1397,8 @@ retrieval and the browser client, both above this layer.
    provider's choice, and the bytes are held whole in RAM before anything
    reaches disk. That read is bounded at `PREVIEW_MAX_BYTES` and enforced while
    streaming, so the ceiling — not the box — is what an endless body costs. The
-   unit's `MemoryMax` sits behind it and would contain the blast to "curation
+   curation process's memory bound (the retired unit's `MemoryMax`; the
+   container's `mem_limit` since the server moved) sits behind it and would contain the blast to "curation
    dies" rather than "the wall goes dark", which is worth stating because it
    made the unbounded read look survivable: a run lost to a thumbnail is still
    the tail wagging the dog.

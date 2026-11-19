@@ -1359,23 +1359,26 @@ descriptions of it.
 | Requirement | Why it is not automatic |
 |---|---|
 | Every new live region announces without moving focus, and is not rewritten unchanged | The client has exactly one `role="status"` region today and no `aria-live` anywhere. The IA adds at least three |
-| Contact-sheet metadata is available on **focus**, not only on hover | The IA's default density above a few hundred works puts metadata on hover. Hover-only metadata does not exist for a keyboard |
+| Contact-sheet metadata is available on **focus**, not only on hover | The IA's default density above a few hundred works puts metadata on hover. Hover-only metadata does not exist for a keyboard. *(2026-11-19: Posters now print each tile's title and artist beneath it, so no metadata is hover-only there, or on a phone, which has no hover; the requirement stays for any metadata that is revealed.)* |
 | A zero-count facet option is **disabled and still perceivable**, with its count in the accessible name | Disabled controls are skipped by the tab sequence, so a count that lives only in adjacent text is a count a screen-reader user never hears. The IA's rule is disabled-not-hidden precisely so the vocabulary does not appear to shrink |
 | The masthead compresses without overflowing, and no element loses its word | Five non-wrapping tabs already overflow a 375px viewport, and the prototype reproduced the same failure at tablet width the moment the status label grew |
 | Skeletons occupy the final geometry | A grid that reflows as images arrive is a vestibular and cognitive cost as well as an aesthetic one, and the built client has already shipped that bug |
 | Every screen and consequential state is addressable | Back and escape are then the browser's, natively, rather than reimplemented — which is the accessible behaviour by default |
 
-### Touch targets — stated, and not yet in the stylesheet
+### Touch targets
 
-**Owed, with the same status as the revised palettes.** `design-direction.md`
-requires control heights of 2.75rem (44px) under `@media (pointer: coarse)`, with a
-2.25rem default that clears WCAG 2.2 AA's 24px floor. **`arrt/src/arrt/http/static/app.css` contains no
-`pointer: coarse` block and no control height**, verified 2026-08-11 — so the rule
-is a proposal today and is recorded as one here rather than as a practice.
+`design-direction.md` requires control heights of 2.75rem (44px) under `@media
+(pointer: coarse)`. **`arrt/src/arrt/http/static/app.css` has it**: `--control-h`
+(2.5rem, which clears WCAG 2.2 AA's 24px floor) and `--control-h-compact` (2rem) both
+rise to 2.75rem under a coarse pointer, and the sidebar's budget line, a link and
+not a control drawn as one, is given the same height there by its own block.
+`tests/browser/test_the_controls.py::test_a_touch_screen_gets_44px_controls`
+measures every visible control, the sidebar's links included, on four kinds of page
+with a touch context. *(Until 2026-11-19 this section said the stylesheet had no
+such block, true when it was verified on 2026-08-11 and not since.)*
 
-The keying is the part worth preserving when it lands: **on the pointer, not the
-viewport.** A small window on a desktop still has a mouse, so viewport width is the
-wrong signal.
+The keying is the part worth preserving: **on the pointer, not the viewport.** A
+small window on a desktop still has a mouse, so viewport width is the wrong signal.
 
 ### Reduced motion
 

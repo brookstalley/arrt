@@ -145,7 +145,9 @@ def create_app(
 
     app = FastAPI(
         title="Curation",
-        description="Curation plane for the Samsung Frame art loader.",
+        description=(
+            "Arrt, the household's art server: the Library and Programming, the browser interface, MCP and the Player's routes."
+        ),
         lifespan=lifespan,
     )
     # Read by the HTTP handlers off application state. The services are built

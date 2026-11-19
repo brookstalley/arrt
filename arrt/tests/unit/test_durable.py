@@ -10,10 +10,15 @@ which is how a duplicate id and a missing parent could have swapped messages
 without a single test noticing.
 """
 
+import logging
+import sqlite3
+import threading
+
 import pytest
 
 from arrt.persistence.catalogue import StorageError, StoreMisuseError
 from arrt.persistence.durable import OrderBy, SqliteDurableStore
+from arrt.persistence.errors import StorageFault
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS makers (
@@ -636,6 +641,179 @@ def test_a_rolled_back_transaction_never_reached_the_file(tmp_path):
         assert reopened.scan("things") == []
     finally:
         reopened.close()
+
+
+# -- a fault of the host --------------------------------------------------------
+#
+# A file the driver cannot use arrives as the store's `StorageFault`, so a layer
+# above that must tell it from a refusal (the acquisition queue pauses on it) can
+# do so without importing the driver. Each test makes the real driver raise.
+
+
+def _no_waiting(store):
+    """Make the store's connection give up on a lock at once rather than after five seconds."""
+    store._connection.execute("PRAGMA busy_timeout = 0")
+
+
+def test_a_write_the_file_refuses_is_a_fault_of_the_host_not_a_refusal(store):
+    store._connection.execute("PRAGMA query_only = ON")
+
+    with pytest.raises(StorageFault, match="readonly") as raised:
+        _thing(store, "t1", "First")
+
+    assert not isinstance(raised.value, StorageError), "a host fault would be shown as a refusal of the request"
+    assert isinstance(raised.value.__cause__, sqlite3.OperationalError)
+    # The failed write left no transaction open to hold the file's write lock,
+    # and once the file can be written, a write is kept.
+    assert store._connection.in_transaction is False
+    store._connection.execute("PRAGMA query_only = OFF")
+    _thing(store, "t2", "Second")
+    assert [row["id"] for row in store.scan("things")] == ["t2"]
+
+
+@pytest.mark.parametrize(
+    "read",
+    [
+        lambda store: store.fetch_one("things", {"id": "t1"}),
+        lambda store: store.scan("things"),
+        lambda store: store.select_page("things", order_by=[OrderBy("id")]),
+        lambda store: store.select_rows('SELECT * FROM "things"'),
+    ],
+    ids=["fetch_one", "scan", "select_page", "select_rows"],
+)
+def test_a_read_of_a_file_another_process_has_locked_is_a_fault_of_the_host(tmp_path, read):
+    path = tmp_path / "store.sqlite"
+    store = SqliteDurableStore(path, _SCHEMA)
+    _no_waiting(store)
+    other = sqlite3.connect(path, isolation_level=None)
+    try:
+        other.execute("BEGIN EXCLUSIVE")
+
+        with pytest.raises(StorageFault, match="locked"):
+            read(store)
+    finally:
+        other.close()
+        store.close()
+
+
+def _in_a_transaction(store):
+    with store.transaction():
+        _thing(store, "t1", "First")
+
+
+@pytest.mark.parametrize(
+    "write", [_in_a_transaction, lambda store: _thing(store, "t1", "First")], ids=["transaction", "single_write"]
+)
+def test_a_commit_another_process_holds_off_is_a_fault_of_the_host_and_keeps_nothing(tmp_path, write):
+    """A refused commit is rolled back: its caller was told it failed, so nothing may read it back or publish it later."""
+    path = tmp_path / "store.sqlite"
+    store = SqliteDurableStore(path, _SCHEMA)
+    _no_waiting(store)
+    reader = sqlite3.connect(path, isolation_level=None)
+    try:
+        # A reader mid-read holds a shared lock, which a commit cannot pass.
+        reader.execute("BEGIN")
+        reader.execute('SELECT * FROM "things"').fetchall()
+
+        with pytest.raises(StorageFault, match="locked"):
+            write(store)
+
+        reader.execute("COMMIT")
+        assert store.scan("things") == []
+        _thing(store, "t2", "Second")
+        assert [row["id"] for row in store.scan("things")] == ["t2"]
+    finally:
+        reader.close()
+        store.close()
+
+
+@pytest.mark.parametrize(
+    ("statement", "words"),
+    [
+        ('SELECT * FROM "nothing_by_this_name"', "no such table"),
+        ('SELECT no_such_column FROM "things"', "no such column"),
+        ('SELEC * FROM "things"', "syntax error"),
+    ],
+    ids=["no such table", "no such column", "syntax"],
+)
+def test_a_statement_this_code_got_wrong_is_its_own_error_not_a_fault_of_the_host(store, statement, words):
+    """The driver raises `OperationalError` for these too; read by its result code, they are a defect, not the disk.
+
+    Taken for a fault of the host, a migration that left a column behind would
+    pause the acquisition queue every fifteen minutes with a remedy about
+    locks and disks, and never be counted as the error it is.
+    """
+    with pytest.raises(sqlite3.OperationalError, match=words) as raised:
+        store.select_rows(statement)
+
+    assert not isinstance(raised.value, StorageFault)
+    assert raised.value.sqlite_errorcode == sqlite3.SQLITE_ERROR
+
+
+def test_whether_a_transaction_is_open_is_answered_for_the_calling_thread(store):
+    """Yes inside a block and its nested blocks, to the thread that opened it; no outside, after, and to any other."""
+    answers: dict[str, bool] = {"before": store.in_transaction()}
+    with store.transaction():
+        answers["inside"] = store.in_transaction()
+        with store.transaction():
+            answers["nested"] = store.in_transaction()
+        answers["after the nested one"] = store.in_transaction()
+        other = threading.Thread(target=lambda: answers.__setitem__("another thread", store.in_transaction()))
+        other.start()
+        other.join(timeout=5)
+    answers["after"] = store.in_transaction()
+    with pytest.raises(_Refused), store.transaction():
+        raise _Refused("rolled back")
+    answers["after a rollback"] = store.in_transaction()
+
+    assert answers == {
+        "before": False,
+        "inside": True,
+        "nested": True,
+        "after the nested one": True,
+        "another thread": False,
+        "after": False,
+        "after a rollback": False,
+    }
+
+
+class _RollbackFails:
+    """The store's connection, except that a rollback fails as a failing disk would make it."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def rollback(self):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+class _Refused(Exception):
+    """A body's refusal of the request, which the caller is owed whatever the rollback does."""
+
+
+@pytest.mark.parametrize(
+    "error",
+    [_Refused("That name is taken"), StorageFault("database or disk is full")],
+    ids=["a refusal", "a fault of the statement"],
+)
+def test_a_rollback_that_fails_leaves_the_body_s_own_error_to_reach_the_caller(store, caplog, error):
+    store._connection = _RollbackFails(store._connection)
+
+    def body():
+        with store.transaction():
+            _thing(store, "t1", "First")
+            raise error
+
+    with caplog.at_level(logging.ERROR, logger="arrt.persistence.durable"), pytest.raises(type(error)) as raised:
+        body()
+
+    assert raised.value is error
+    assert [record.detail for record in caplog.records if getattr(record, "event", None) == "store.rollback_failed"] == [
+        "disk I/O error"
+    ]
 
 
 # -- ordering additions --------------------------------------------------------

@@ -22,11 +22,30 @@ services:
     # In place of the Pi unit's MemoryMax: one large image held in memory at a
     # time, with headroom.
     mem_limit: 3g
+    # **Bound to one address, never to every interface.** The server asks no one
+    # who they are (`security-model.md` § Trust Boundary), and its host check admits
+    # any IP address as the name asked for, so a port published on every NAS
+    # interface is reachable by everything that can route to the NAS: a guest or IoT
+    # network, a VPN. Publish it to the address only the reverse proxy reaches:
+    # loopback when the proxy runs on this host, or the address on the network the
+    # proxy shares with this container. Or publish nothing and put the proxy and
+    # this container on one Docker network, which the proxy reaches by service name.
     ports:
-      - "<host port>:8770"
+      - "<address the proxy reaches, e.g. 127.0.0.1>:<host port>:8770"
+    # Docker's default json-file driver keeps every line for ever. The server writes
+    # a line per failure, run and refusal, and none per successful Player request
+    # (`arrt/src/arrt/logs.py`); this bounds the rest at three files of ten
+    # megabytes each, however busy the household is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       ART_ROOT: /art
-      # The backup job writes generations here, daily and at every start.
+      # The backup job writes generations here, daily and at start unless the newest
+      # is younger than the interval; a copy taken before a migration that drops
+      # anything goes here too (`pre-migration-<instant>.sqlite`, three kept).
       BACKUP_DIR: /backups
     # The keys and the house's settings (OPENROUTER_API_KEY,
     # WIKIDATA_USER_AGENT, ARTIC_USER_AGENT, CURATION_ALLOWED_HOSTS, …) — see

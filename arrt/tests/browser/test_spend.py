@@ -10,15 +10,16 @@ budget is spent, in the server's words.
 """
 
 import pytest
+from conftest import Ui
 from payloads import a_candidate, a_run, a_run_view, an_estimate
 
 from arrt.http.models import BudgetOut, CostTiersOut
 from arrt.persistence.discovery_records import RunStatus
 
-pytest.importorskip(
+expect = pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
-)
+).expect
 
 RUN_ID = "run-under-test"
 TIERS = CostTiersOut(cents_below_usd="0.05", dimes_below_usd="0.50")
@@ -32,7 +33,12 @@ def a_budget(state, *, remaining=None, budget=None, spent=None, note=None) -> di
 
 def _budget_said(ui) -> list[str]:
     ui.page.wait_for_selector("#sidebar .budget .budget-line")
-    return [" ".join(text.split()) for text in ui.page.locator("#sidebar .budget p").all_inner_texts()]
+    # The line is a link since audit-6 finding 10 and its note a paragraph; one
+    # union locator keeps them in the order they are drawn.
+    return [
+        " ".join(text.split())
+        for text in ui.page.locator("#sidebar .budget .budget-line, #sidebar .budget .budget-note").all_inner_texts()
+    ]
 
 
 # -- the sidebar's budget ---------------------------------------------------------
@@ -87,6 +93,84 @@ def test_the_real_server_without_a_key_says_nothing_spends(ui):
     ui.open("")
 
     assert _budget_said(ui)[0] == "Nothing spends"
+
+
+@pytest.mark.parametrize("state", ["known", "uncapped", "not_configured", "unavailable"])
+def test_the_budget_line_is_a_link_to_the_history_of_gets_in_every_state(ui, state):
+    """Checking spend has somewhere to go (audit-6 finding 10): History, filtered to Gets."""
+    ui.serve("**/api/budget", a_budget(state, remaining="12.4" if state == "known" else None))
+    ui.open("#collection")
+    line = ui.page.locator("#sidebar .budget a.budget-line")
+    expect(line).to_have_count(1)
+    expect(line).to_have_attribute("href", "#history?kind=gets")
+
+    line.click()
+
+    ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
+    expect(ui.page.locator("#view ul.history-kinds a[aria-current='page']")).to_have_text("Gets")
+
+
+def test_the_budget_line_is_a_tab_stop_after_the_sidebar_s_pages(ui):
+    ui.serve("**/api/budget", a_budget("known", remaining="12.4", budget="20", spent="7.6"))
+    ui.open("#collection")
+    expect(ui.page.locator("#sidebar .budget a.budget-line")).to_be_visible()
+
+    ui.page.locator("#sidebar ul a:visible").last.focus()
+    ui.page.keyboard.press("Tab")
+
+    focused = ui.page.evaluate("() => document.activeElement.className + ' ' + document.activeElement.getAttribute('href')")
+    assert focused == "budget-line #history?kind=gets"
+
+
+def test_following_the_budget_line_on_a_phone_closes_the_drawer_it_was_in(ui):
+    ui.serve("**/api/budget", a_budget("known", remaining="12.4", budget="20", spent="7.6"))
+    ui.page.set_viewport_size({"width": 390, "height": 844})
+    ui.open("#collection")
+    ui.page.click("button.menu-button")
+    expect(ui.page.locator("#sidebar")).to_have_attribute("data-open", "")
+
+    ui.page.click("#sidebar .budget a.budget-line")
+
+    ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
+    expect(ui.page.locator("#sidebar")).not_to_have_attribute("data-open", "")
+
+
+def test_in_a_phone_s_drawer_the_budget_line_is_a_finger_s_target_and_not_a_button(browser, server_url):
+    """A finger needs 44px (`accessibility-spec.md` § Touch targets), and the
+    line gets them by its height alone: still the underlined words on the
+    sidebar's ground, with no box, fill or border, so the sidebar gains a target
+    and not a button. Measured in the drawer, where a phone sees it, with a
+    note beneath, since the note is what the taller line could crowd."""
+    context = browser.new_context(has_touch=True, is_mobile=True, viewport={"width": 390, "height": 844})
+    try:
+        page = context.new_page()
+        page.route(lambda url: not url.startswith(f"{server_url}/"), lambda route: route.abort())
+        ui = Ui(page, server_url)
+        ui.serve("**/api/budget", a_budget("configured", remaining="12.4", budget="20", spent="7.6", note="Nothing enforces it."))
+        ui.open("#collection")
+        ui.page.click("button.menu-button")
+        line = ui.page.locator("#sidebar .budget a.budget-line")
+        expect(line).to_be_visible()
+        expect(line).to_have_text("$12.40 left this month")
+
+        drawn = line.evaluate("""(node) => {
+              const style = getComputedStyle(node);
+              const note = node.parentElement.querySelector('.budget-note').getBoundingClientRect();
+              return {
+                height: node.getBoundingClientRect().height,
+                underlined: style.textDecorationLine,
+                fill: style.backgroundColor,
+                border: ['Top', 'Right', 'Bottom', 'Left'].map((side) => style[`border${side}Width`]),
+                overlap: node.getBoundingClientRect().bottom - note.top,
+              };
+            }""")
+        assert drawn["height"] >= 44 - 0.5, f"the budget line is {drawn['height']}px tall on a touch screen"
+        assert drawn["underlined"] == "underline"
+        assert drawn["fill"] == "rgba(0, 0, 0, 0)", f"the budget line has a fill: {drawn['fill']}"
+        assert drawn["border"] == ["0px"] * 4, f"the budget line has a border: {drawn['border']}"
+        assert drawn["overlap"] <= 0.5, "the taller line runs into its note"
+    finally:
+        context.close()
 
 
 def test_a_budget_that_cannot_be_read_says_so_and_is_asked_again(ui):

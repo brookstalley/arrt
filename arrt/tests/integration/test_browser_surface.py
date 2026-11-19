@@ -247,9 +247,9 @@ class TestTheWorkGrid:
         held = seeded_service.list_artworks().entries[0].artwork
         card = card_for(http.get("/api/works").json(), held.id)
         assert card["fit"] is None
-        assert "No master image" in card["fit_note"]
+        assert "no picture yet" in card["fit_note"]
         assert card["image"]["available"] is False
-        assert "No master image" in card["image"]["note"]
+        assert "no picture yet" in card["image"]["note"]
 
     def test_a_page_describes_its_own_place_in_the_set(self, http, hold):
         for index in range(4):
@@ -286,7 +286,7 @@ class TestThumbnails:
         empty = next(work for work in seeded_service.list_artworks().entries)
         response = http.get(f"/api/works/{empty.artwork.id}/thumbnail")
         assert response.status_code == 400
-        assert "No master image" in response.json()["error"]
+        assert "no picture yet" in response.json()["error"]
 
     def test_a_large_thumbnail_is_the_work_itself_and_bigger_than_the_tile(self, http, hold):
         """Walls' lead: the bare work, at its own aspect, sharper than a tile, never the canvas."""
@@ -334,7 +334,7 @@ class TestThumbnails:
         empty = next(work for work in seeded_service.list_artworks().entries)
         response = http.get(f"/api/works/{empty.artwork.id}/wall-preview")
         assert response.status_code == 400
-        assert "No master image" in response.json()["error"]
+        assert "no picture yet" in response.json()["error"]
 
 
 class TestWorkDetail:
@@ -628,7 +628,7 @@ class TestTheWholeLoop:
         assert excluded[no_mat.id]["reason"] == "no_mat_color"
         assert "No mat colour has been chosen" in excluded[no_mat.id]["detail"]
         assert excluded[no_render.id]["reason"] == "no_rendition"
-        assert "no presentation master has been made" in excluded[no_render.id]["detail"]
+        assert "its copy for the walls has not been made" in excluded[no_render.id]["detail"]
         assert published["summary"] == "1 of 3 works in this theme is on the wall; 2 are not currently displayable."
 
         # And the standing view of the wall agrees with what activation returned.

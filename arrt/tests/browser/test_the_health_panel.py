@@ -99,7 +99,9 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
     page = ui.text()
-    assert "Nothing has ever written a heartbeat for this wall." in page
+    # In the household's words (audit 2026-11-19, F5): a Player reports for a
+    # wall; "heartbeat" and "display" for the Player are retired.
+    assert "No Player has ever reported for this wall." in page
     # The age in the unit a person reads it in, on the wall that *did* report.
     assert "4 days ago" in page
     # Never a green dot. The panel states what was found and how long ago; whether

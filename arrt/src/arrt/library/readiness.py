@@ -193,7 +193,7 @@ def assess(inputs: WorkInputs) -> Unplayable | None:
         return _unplayable(
             artwork,
             UnplayableReason.NO_ORIGINAL,
-            "No master image has been acquired for it yet.",
+            "It has no picture yet, so there is nothing to show on a wall.",
         )
     if inputs.mat_color is None:
         return _unplayable(
@@ -212,7 +212,7 @@ def _master_refusal(inputs: WorkInputs) -> Unplayable | None:
         return _unplayable(
             artwork,
             UnplayableReason.NO_RENDITION,
-            "It has an image, but no presentation master has been made from it yet.",
+            "It has a picture, but its copy for the walls has not been made yet.",
         )
     # Through the shared predicate, because it already owns what "current"
     # means, so the review grid and the wall cannot judge one master two ways.
@@ -220,13 +220,13 @@ def _master_refusal(inputs: WorkInputs) -> Unplayable | None:
         return _unplayable(
             artwork,
             UnplayableReason.STALE_RENDITION,
-            "Its presentation master was made from an earlier acquisition and needs making again.",
+            "Its copy for the walls was made from an earlier acquisition and needs making again.",
         )
     if media_of(master) is None or inputs.master_size is None:
         return _unplayable(
             artwork,
             UnplayableReason.NO_RENDITION,
-            "Its presentation master's file cannot be read, so it cannot be sent to a wall.",
+            "Its copy for the walls cannot be read, so it cannot be sent to a wall.",
         )
     return None
 

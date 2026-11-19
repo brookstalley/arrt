@@ -317,6 +317,11 @@ class RegistryWorkFoundOut(BaseModel):
     #: The library's works in circulation that are this one: by QID, or, for a
     #: held work with none, by title and artist. A held work is never also not held.
     held_artwork_ids: list[str]
+    #: The first of `held_artwork_ids` that holds a master image, whose thumbnail
+    #: is `/api/works/{id}/thumbnail`. None when the row is not held or no held
+    #: work of it holds one, so a client never asks for a thumbnail that cannot
+    #: be made and says *No picture* instead.
+    pictured_artwork_id: str | None
     #: A wanted work names this item (Wanted). Reported beside
     #: `held_artwork_ids` rather than instead of it: the page decides which mark
     #: wins (held), and both are true when a wanted work has since been acquired.

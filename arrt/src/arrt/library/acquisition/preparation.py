@@ -29,6 +29,9 @@ remembered to do it.
 """
 
 import logging
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
@@ -126,6 +129,55 @@ class PreparationService:
         #: default that silently drops spend looks exactly like working wiring,
         #: and the month total would omit every mat call without anything failing.
         self._spend = spend
+        #: One lock per work being prepared, and how many callers hold or await it,
+        #: so the entry goes when the last one leaves. `_guard` only protects this
+        #: table; it is never held while a work is being prepared.
+        self._guard = threading.Lock()
+        self._in_flight: dict[str, tuple[threading.Lock, int]] = {}
+        #: The same, for recording a work's mat (`_deciding_the_mat`): held only
+        #: around a read and a write, never across a call to the model.
+        self._deciding: dict[str, tuple[threading.Lock, int]] = {}
+
+    @contextmanager
+    def _one_at_a_time(self, artwork_id: str) -> Iterator[None]:
+        """Hold this work's lock: a second preparation of it waits, and another work's does not.
+
+        **Per work, because the queue's `prepare` and an MCP or HTTP `regenerate`
+        of the same work can otherwise run at once**, and both would ask the
+        model for the same mat and pay for it twice, and make the same master
+        twice. A lock over every work would make a curator's remake wait behind
+        the whole queue.
+        """
+        with self._held(self._in_flight, artwork_id):
+            yield
+
+    @contextmanager
+    def _deciding_the_mat(self, artwork_id: str) -> Iterator[None]:
+        """Hold this work's mat while one is recorded, so the check of what is current and the write are one step.
+
+        Separate from `_one_at_a_time`, which a preparation holds while the
+        model is asked: a curator's own colour would otherwise wait out the
+        model's whole answer before it was taken.
+        """
+        with self._held(self._deciding, artwork_id):
+            yield
+
+    @contextmanager
+    def _held(self, table: dict[str, tuple[threading.Lock, int]], artwork_id: str) -> Iterator[None]:
+        """Hold `table`'s lock for this work, counting who holds or awaits it so the entry goes with the last."""
+        with self._guard:
+            lock, holders = table.get(artwork_id, (threading.Lock(), 0))
+            table[artwork_id] = (lock, holders + 1)
+        try:
+            with lock:
+                yield
+        finally:
+            with self._guard:
+                lock, holders = table[artwork_id]
+                if holders == 1:
+                    del table[artwork_id]
+                else:
+                    table[artwork_id] = (lock, holders - 1)
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult:
         """Make this work ready for the wall, doing only what is not already done.
@@ -143,7 +195,14 @@ class PreparationService:
         freshly acquired work asks the vision model, and `acquire()` does not
         prepare, so that first call is the normal case rather than an edge. The
         cost comes back on `cost_usd` and the caller reports it.
+
+        **One work is prepared by one caller at a time**; a second `prepare` of the
+        same work waits for the first and then finds it current.
         """
+        with self._one_at_a_time(artwork_id):
+            return self._prepare(artwork_id, force=force)
+
+    def _prepare(self, artwork_id: str, *, force: bool) -> PreparationResult:
         original = self._catalogue.get_original(artwork_id)
         if original is None:
             raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to prepare; acquire it first.")
@@ -160,8 +219,16 @@ class PreparationService:
             )
 
         made = self._make_master_if_owed(artwork_id, source=source, force=force)
-        mat, chosen = self._current_or_chosen_mat(artwork_id, source=source)
-        done = [part for part, did in (("its presentation master was made", made), ("its mat was chosen", chosen)) if did]
+        mat, chosen, kept = self._current_or_chosen_mat(artwork_id, source=source)
+        done = [
+            part
+            for part, did in (
+                ("its presentation master was made", made),
+                ("its mat was chosen", chosen is not None and not kept),
+                ("the mat a person chose while the model was asked was kept", kept),
+            )
+            if did
+        ]
         return PreparationResult(
             artwork_id=artwork_id,
             outcome=PreparationOutcome.PREPARED if done else PreparationOutcome.UNCHANGED,
@@ -179,20 +246,31 @@ class PreparationService:
         Its own operation rather than a flag on `prepare`, because it is the one
         that spends money and the one that supersedes a judgement. The previous
         colour is kept — `record_mat_color` never overwrites — so a worse choice
-        is reversible.
+        is reversible. Under the work's lock, as `prepare` is: both ask the model.
         """
-        choice = self._mat.choose(self._source_for_a_mat(artwork_id))
-        self._catalogue.record_mat_color(
-            artwork_id=artwork_id,
-            hex_rgb=choice.hex_rgb,
-            method=choice.method,
-            lab_l=choice.lab_l,
-            lab_a=choice.lab_a,
-            lab_b=choice.lab_b,
-            reason=choice.reason or None,
-            model_id=choice.model_id,
-        )
+        with self._one_at_a_time(artwork_id):
+            return self._choose_mat(artwork_id)
+
+    def _choose_mat(self, artwork_id: str) -> PreparationResult:
+        source = self._source_for_a_mat(artwork_id)
+        asked_over = self._catalogue.current_mat_color(artwork_id)
+        choice = self._mat.choose(source)
+        # Spend first: the call is billed whether or not the colour is accepted, and
+        # a refused write (a darker colour than the floor, a full disk) must not
+        # lose the cost the month's total is owed.
         self._record_spend(artwork_id, choice)
+        standing = self._record_the_models_mat(artwork_id, choice, asked_over=asked_over)
+        if standing is not None:
+            return PreparationResult(
+                artwork_id=artwork_id,
+                outcome=PreparationOutcome.UNCHANGED,
+                detail=f"a person chose {standing.hex_rgb} while the model was asked, and their mat stands",
+                mat_hex=standing.hex_rgb,
+                mat_method=standing.method.value,
+                relative_path=self._master_path(artwork_id),
+                cost_usd=choice.cost_usd,
+                mat_fallback_detail=choice.fallback_detail,
+            )
         # Nothing to redraw: the colour rides each wall's feed, which is
         # republished when the Library announces the change.
         return PreparationResult(
@@ -235,15 +313,16 @@ class PreparationService:
         failed. Free, and the previous colour is kept, as every choice keeps it.
         """
         choice = derive(self._source_for_a_mat(artwork_id))
-        recorded = self._catalogue.record_mat_color(
-            artwork_id=artwork_id,
-            hex_rgb=choice.hex_rgb,
-            method=choice.method,
-            lab_l=choice.lab_l,
-            lab_a=choice.lab_a,
-            lab_b=choice.lab_b,
-            reason=choice.reason,
-        )
+        with self._deciding_the_mat(artwork_id):
+            recorded = self._catalogue.record_mat_color(
+                artwork_id=artwork_id,
+                hex_rgb=choice.hex_rgb,
+                method=choice.method,
+                lab_l=choice.lab_l,
+                lab_a=choice.lab_a,
+                lab_b=choice.lab_b,
+                reason=choice.reason,
+            )
         return PreparationResult(
             artwork_id=artwork_id,
             outcome=PreparationOutcome.PREPARED,
@@ -293,9 +372,10 @@ class PreparationService:
             normalised = format_hex(parse_hex(hex_rgb))
         except ColorError as exc:
             raise ServiceError(str(exc)) from exc
-        recorded = self._catalogue.record_mat_color(
-            artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL, reason=reason
-        )
+        with self._deciding_the_mat(artwork_id):
+            recorded = self._catalogue.record_mat_color(
+                artwork_id=artwork_id, hex_rgb=normalised, method=MatMethod.MANUAL, reason=reason
+            )
         return PreparationResult(
             artwork_id=artwork_id,
             outcome=PreparationOutcome.PREPARED,
@@ -305,7 +385,7 @@ class PreparationService:
             relative_path=self._master_path(artwork_id),
         )
 
-    def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None]:
+    def _current_or_chosen_mat(self, artwork_id: str, *, source: Path) -> tuple[MatColor, MatChoice | None, bool]:
         """The mat in force, choosing one only if the work has none it may keep.
 
         **The reason a remake is free for a work that already has a mat.** A
@@ -318,7 +398,9 @@ class PreparationService:
         `MatChoice` carries what the call cost and whether the model actually
         answered. Without it the caller cannot tell a free call from a paid one,
         and would have to either report every preparation as free — which is
-        false on a work's first — or report a cost it never incurred.
+        false on a work's first — or report a cost it never incurred. The third
+        says the model's answer was not recorded, because a person chose a mat
+        while it was asked (`_record_the_models_mat`); the record is then theirs.
 
         **A mat below the floor is not kept**, whoever chose it: nothing can record
         one now (`CatalogueService.record_mat_color` refuses it), so it is a
@@ -326,7 +408,7 @@ class PreparationService:
         """
         current = self._catalogue.current_mat_color(artwork_id)
         if current is not None and not below_the_floor(current.hex_rgb):
-            return current, None
+            return current, None, False
         if current is not None:
             log.info(
                 "the mat of %s, %s, is below the floor of L* %g; choosing again",
@@ -336,18 +418,51 @@ class PreparationService:
                 extra={"event": "preparation.mat_below_floor", "artwork_id": artwork_id, "hex_rgb": current.hex_rgb},
             )
         choice = self._mat.choose(source)
-        recorded = self._catalogue.record_mat_color(
-            artwork_id=artwork_id,
-            hex_rgb=choice.hex_rgb,
-            method=choice.method,
-            lab_l=choice.lab_l,
-            lab_a=choice.lab_a,
-            lab_b=choice.lab_b,
-            reason=choice.reason or None,
-            model_id=choice.model_id,
-        )
+        # Before the colour is written, so a refused write keeps the billed cost
+        # (and the queue's retry, which asks the model again, is a second row).
         self._record_spend(artwork_id, choice)
-        return recorded, choice
+        standing = self._record_the_models_mat(artwork_id, choice, asked_over=current)
+        if standing is not None:
+            return standing, choice, True
+        recorded = self._catalogue.current_mat_color(artwork_id)
+        if recorded is None:
+            raise ServiceError(f"Artwork {artwork_id!r} has no mat after one was recorded for it.")
+        return recorded, choice, False
+
+    def _record_the_models_mat(self, artwork_id: str, choice: MatChoice, *, asked_over: MatColor | None) -> MatColor | None:
+        """Record the model's colour unless the mat changed while it was asked; else return the mat that stands.
+
+        **A person's choice wins.** The model takes seconds to answer, and a
+        curator who presses a preset or types a colour meanwhile has decided:
+        recording the model's answer after theirs would put back a colour they
+        had just replaced, with nothing said. So the mat in force is compared
+        with the one the model was asked over, by its record (the same colour
+        chosen again is still a decision), and the answer is recorded only if
+        they are one. The check and the write are one step under the work's mat
+        lock, which every mat this service records takes. Its cost is recorded
+        either way, by the caller: it was billed.
+        """
+        with self._deciding_the_mat(artwork_id):
+            now = self._catalogue.current_mat_color(artwork_id)
+            if (now.id if now else None) != (asked_over.id if asked_over else None):
+                log.info(
+                    "kept the mat chosen for %s while the model was asked, rather than the model's %s",
+                    artwork_id,
+                    choice.hex_rgb,
+                    extra={"event": "preparation.mat_kept_over_model", "artwork_id": artwork_id},
+                )
+                return now
+            self._catalogue.record_mat_color(
+                artwork_id=artwork_id,
+                hex_rgb=choice.hex_rgb,
+                method=choice.method,
+                lab_l=choice.lab_l,
+                lab_a=choice.lab_a,
+                lab_b=choice.lab_b,
+                reason=choice.reason or None,
+                model_id=choice.model_id,
+            )
+        return None
 
     def _record_spend(self, artwork_id: str, choice: MatChoice) -> None:
         """Record what asking the model for this work's mat cost, when the model answered or billed.

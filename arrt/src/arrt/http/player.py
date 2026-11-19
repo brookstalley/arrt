@@ -27,11 +27,13 @@ its token check and its write still run in a worker thread.
 import hashlib
 import json
 import re
+from collections.abc import Callable, Coroutine
 from pathlib import PurePosixPath
 from typing import Annotated, Any, Final
 
 from fastapi import APIRouter, Body, Depends, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from starlette.concurrency import run_in_threadpool
 
 from arrt.library.readiness import CONTENT_TYPES, MEDIA_PATH_TEMPLATE
@@ -40,7 +42,63 @@ from arrt.programming.access import Admission
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
 from arrt.services.container import Services
 
-router = APIRouter()
+#: The most a Player's request may carry: 256 KiB. A heartbeat is a few kilobytes,
+#: so this is ten times anything valid. It is a limit of this server's, not a rule
+#: of the contract's schema (`player-contract.md` § Transport), which is why
+#: raising it cuts no contract tag. Without it the body was read whole and parsed
+#: before anything judged it, by any holder of a client token.
+BODY_LIMIT_BYTES: Final[int] = 256 * 1024
+
+_BodyHandler = Callable[[Request], Coroutine[Any, Any, Response]]
+
+
+def too_large() -> JSONResponse:
+    """`413` in the contract's error shape."""
+    return JSONResponse(
+        status_code=413,
+        content={"error": f"A request to this server may carry at most {BODY_LIMIT_BYTES // 1024} KiB."},
+    )
+
+
+class BoundedRoute(APIRoute):
+    """A route that refuses a body over `BODY_LIMIT_BYTES` with `413`, before anything parses it.
+
+    On the router rather than in each handler because FastAPI parses a declared
+    body before a handler or its dependencies run, so a check inside a handler is
+    a check after the cost. A `Content-Length` over the limit is refused unread; a
+    body with none (chunked) is read only until it passes the limit. What was read
+    within the limit is handed on as the body, so the handler sees what was sent.
+    """
+
+    def get_route_handler(self) -> _BodyHandler:
+        handler = super().get_route_handler()
+
+        async def bounded(request: Request) -> Response:
+            if request.method not in {"POST", "PUT", "PATCH"}:
+                return await handler(request)
+            declared = request.headers.get("content-length", "")
+            if declared.isdigit() and int(declared) > BODY_LIMIT_BYTES:
+                return too_large()
+            body = bytearray()
+            async for chunk in request.stream():
+                body += chunk
+                if len(body) > BODY_LIMIT_BYTES:
+                    return too_large()
+            replayed = False
+
+            async def replay() -> dict[str, Any]:
+                nonlocal replayed
+                if replayed:
+                    return {"type": "http.disconnect"}
+                replayed = True
+                return {"type": "http.request", "body": bytes(body), "more_body": False}
+
+            return await handler(Request(request.scope, replay))
+
+        return bounded
+
+
+router = APIRouter(route_class=BoundedRoute)
 
 #: The routes, as `contract/routes.json` spells them. The media route is the
 #: Library's own template, so the URL a manifest names and the route that answers

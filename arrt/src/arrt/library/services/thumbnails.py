@@ -20,13 +20,13 @@ untracked pile of files nothing owns.
 """
 
 import logging
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 from PIL import Image
 
+from arrt import atomic
 from arrt.library.services.catalogue import CatalogueService
 from arrt.library.services.imaging import UNDECODABLE, encode_downscaled
 from arrt.persistence.records import RenditionKind
@@ -128,13 +128,13 @@ class ThumbnailService:
         """The master a tile is drawn from, or `ThumbnailUnavailable` saying why there is none."""
         original = self._catalogue.get_original(artwork_id)
         if original is None:
-            raise ThumbnailUnavailable("No master image has been acquired for this work yet.")
+            raise ThumbnailUnavailable("This work has no picture yet.")
         return self._master(original.relative_path)
 
     def _master(self, relative: str) -> ThumbnailSource:
         master = self._settings.art_root / relative
         if not master.is_file():
-            raise ThumbnailUnavailable(f"The master image is recorded at {relative} but no file is there.")
+            raise ThumbnailUnavailable(f"Its picture is recorded at {relative} but no file is there.")
         return ThumbnailSource(path=master)
 
     def thumbnail(self, artwork_id: str, *, large: bool = False) -> Path:
@@ -206,8 +206,9 @@ class ThumbnailService:
         # cached file is wrong: a fresh row can point at a file someone deleted,
         # or at another path than this product's (a row written before the
         # products had their own directories), and a present file can predate
-        # the master it claims to depict.
-        if held is not None and not held.stale and recorded_here and cached.is_file():
+        # the master it claims to depict. An empty one is what a power cut can
+        # leave of a thumbnail, which is written unsynced (`_write`).
+        if held is not None and not held.stale and recorded_here and _made(cached):
             return cached
 
         self._write(source.path, cached, max_edge=max_edge, quality=quality)
@@ -236,24 +237,26 @@ class ThumbnailService:
 
     def _write(self, source: Path, destination: Path, *, max_edge: int, quality: int) -> None:
         """Downscale `source` into `destination`, atomically."""
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        # A distinct name per attempt, so two requests for the same work racing
-        # each other cannot write the same temp file: rename is atomic, but two
-        # writers sharing one path are interleaving their bytes before it.
-        staging = destination.with_name(f"{destination.name}.{uuid.uuid4().hex}.tmp")
-        # **Cleanup in `finally`, not per handler.** The staging name is unique
-        # per attempt, so anything this method fails to unlink is stranded for
-        # good and every retry strands another — and cleaning up only inside the
-        # handlers meant an exception neither of them named leaked a file as well
-        # as a 500. After a successful `replace` the name is already gone, so
-        # the unlink is a no-op on the happy path.
+        # A staging name of its own per attempt, so two requests for the same
+        # work racing each other never write one file; the writer removes it on
+        # any failure, so a retry strands nothing. A disk that refuses the write
+        # raises `OSError`, one of `UNDECODABLE`, so it is answered as a missing
+        # thumbnail beside the work, as a decode failure is, rather than as a
+        # fault over the whole grid.
         try:
             frame = encode_downscaled(source, max_edge=max_edge, quality=quality)
-            staging.write_bytes(frame.data)
-            staging.replace(destination)
+            # Not synced: a thumbnail is made again whenever it is missing or
+            # empty, which is all a power cut can leave of an unsynced one.
+            atomic.write_bytes(destination, frame.data, durable=False)
         except Image.DecompressionBombError as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} is too large to open safely: {exc}") from exc
         except UNDECODABLE as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} could not be read: {exc}") from exc
-        finally:
-            staging.unlink(missing_ok=True)
+
+
+def _made(path: Path) -> bool:
+    """Whether a thumbnail is on disk with something in it."""
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False

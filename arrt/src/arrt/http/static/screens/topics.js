@@ -261,7 +261,7 @@ export async function viewTopic(qid, generation) {
     }
     if (!selection) {
       selection = topicSelection(page.works, heldGrid, themes, defaultName(page, known));
-      if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ actions: [selection.toggle, selection.bar] }));
+      if (toggleSlot.isConnected) toggleSlot.replaceWith(toolbar({ selection }));
     }
     paintWorks(worksSection, known, works, selection);
   };

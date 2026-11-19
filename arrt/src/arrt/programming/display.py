@@ -17,17 +17,19 @@ the slot on the wall now, or a fresh start — lives here.
 Methods are synchronous, for the reason `catalogue.py` gives.
 """
 
+import json
 import logging
 import uuid
 from collections import Counter
-from collections.abc import Collection, Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
 
-from arrt import observations
+from arrt import atomic, observations
 from arrt.library.facade import (
     EventKind,
     LibraryFacade,
@@ -58,7 +60,7 @@ from arrt.programming.manifest import heartbeat
 from arrt.programming.manifest.builder import Exclusion, KeptOff, ManifestBuild, write_atomically
 from arrt.programming.manifest.heartbeat import HeartbeatReading, heartbeat_path_in
 from arrt.programming.manifest.v2 import SCHEMA_MAJOR as MANIFEST_MAJOR
-from arrt.programming.manifest.v2 import Feed, Published, SceneEntry, manifest_v2_path_in, work_document
+from arrt.programming.manifest.v2 import Feed, Published, SceneEntry, manifest_v2_path_in, published_from, work_document
 from arrt.programming.manifest.v2 import as_document as as_v2_document
 from arrt.programming.manifest.v2 import read_published as read_published_v2
 from arrt.programming.schedule import (
@@ -75,7 +77,7 @@ from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member, require_text
-from arrt.services.store import store_write
+from arrt.services.store import ActState, store_write
 
 log = logging.getLogger(__name__)
 
@@ -167,7 +169,7 @@ class ThemeCount:
 class DisplaySettings:
     """The deployment facts the walls' operations need.
 
-    **Named for the plane rather than for a wall**, because a wall is now a
+    **Named for the service rather than for a wall**, because a wall is now a
     first-class entity with a name and an id: a type called `WallSettings` beside
     `Services.bind(wall=…)` read as though the container were being handed a
     wall, when what it is handed is where this installation publishes and the
@@ -178,8 +180,8 @@ class DisplaySettings:
     and would make every caller share one.
     """
 
-    #: The directory both planes share. The feed and the heartbeat are named
-    #: from it **per wall**, so this holds the root and not a file: the catalogue
+    #: The art root, where this server keeps each wall's feed and heartbeat. They
+    #: are named from it **per wall**, so this holds the root and not a file: the catalogue
     #: names as many walls as the curator has rooms, and each one has its own
     #: pair of files.
     art_root: Path
@@ -188,11 +190,11 @@ class DisplaySettings:
     shuffle: bool
 
     def manifest_v2_path(self, wall_id: str) -> Path:
-        """Where this plane publishes one wall's feed."""
+        """Where this server publishes one wall's feed."""
         return manifest_v2_path_in(self.art_root, wall_id)
 
     def heartbeat_path(self, wall_id: str) -> Path:
-        """Where the display serving one wall reports. Never written by this plane."""
+        """Where one wall's last heartbeat is kept: written by `record_heartbeat`, from what its Player POSTs."""
         return heartbeat_path_in(self.art_root, wall_id)
 
 
@@ -265,7 +267,7 @@ def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
     **No threshold is applied and no word like "healthy" appears.** What is
     stated are facts a reader cannot get wrong — a wall has written a heartbeat
     or it has not, and if it has, how long ago in the unit a person reads it in.
-    Whether four minutes is late is the reader's to decide, because this plane
+    Whether four minutes is late is the reader's to decide, because this server
     does not know whether that television was switched off on purpose.
 
     A function rather than a method, because the browser panel and the tool
@@ -275,11 +277,11 @@ def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
     lying.
     """
     if not readings:
-        # Unreachable through a catalogue this plane opened, which seeds a wall on
+        # Unreachable through a catalogue this server opened, which seeds a wall on
         # first open — so it means a file something else wrote, and saying that
         # plainly beats a sentence composed over an empty list that reads as an
         # all-clear.
-        return "No wall is in the catalogue, so there is nothing for a display plane to report about."
+        return "No wall is in the catalogue, so there is nothing for a Player to report about."
     silent = [seen for seen in readings if seen.heartbeat.absent or seen.heartbeat.problem is not None]
     if silent:
         names = ", ".join(repr(seen.wall.name) for seen in silent)
@@ -442,6 +444,85 @@ class DisplayService:
         self._library = library
         self._settings = settings
         self._placements = Placements(store, settings.art_root)
+        #: The feeds the open publishing transaction has decided, by wall, written
+        #: as its last step (`_publishing`). Seen only by the act that opened it:
+        #: any other reads the published file, which is what Players have.
+        self._staged: ActState[dict[str, dict[str, Any]]] = ActState(store)
+
+    # -- the feeds' transaction -----------------------------------------------
+
+    @contextmanager
+    def _publishing(self) -> Iterator[None]:
+        """One store transaction whose feeds are written as its last step, so a feed changes only with what decided it.
+
+        **Every act that publishes a feed runs in one.** A feed is a file beside
+        the catalogue, so no transaction holds it; what this gives instead:
+
+        - **A feed is decided in the body and written at its end**, after every
+          other statement of the act has run. A later step that raises (a
+          selection that cannot be retired, after a hang published the wall)
+          rolls the act back with no feed written. Until 2026-11-19 each feed
+          was written as it was built, and that step left the walls showing a
+          hang the catalogue did not record.
+        - **A feed that cannot be written rolls the act back**, as before: the
+          write is still inside the transaction, and the catalogue never names
+          a theme the wall is not showing (backlog #35).
+        - **The feeds of one act change together or not at all**, as far as a
+          filesystem allows (`_write_staged`).
+        - **Each wall's feed is written once per act**, however many steps
+          rebuilt it: a bulk archive that rebuilds a wall for each of fifty
+          works writes it once, so its Player re-fetches once.
+
+        What remains is the commit itself failing after the files are renamed
+        into place, and startup `reconcile` republishes a feed whose theme is
+        not the one hung. The store's lock is held throughout, which is what
+        serialises every build of a feed with its write, so no lock of this
+        service's own is needed. Nesting joins the outer act; opening one
+        inside another kind of transaction is refused by name, since its feeds
+        would be written before that transaction decided anything.
+        """
+        if self._staged.current() is not None:
+            with self._store.transaction():
+                yield
+            return
+        if self._store.in_transaction():
+            raise RuntimeError("A feed is published from a transaction of its own (`_publishing`), never inside another.")
+        with self._staged.opened({}) as staged:
+            yield
+            self._write_staged(staged)
+
+    def _published(self, wall_id: str) -> Published | None:
+        """The wall's feed as this act has decided it, else as published: what every build reads back."""
+        staged = self._staged.current()
+        if staged is not None and wall_id in staged:
+            # Through JSON, so it reads exactly as the file it will be.
+            return published_from(json.loads(json.dumps(staged[wall_id])), where=f"the feed staged for wall {wall_id}")
+        return read_published_v2(self._settings.manifest_v2_path(wall_id))
+
+    def _write_staged(self, staged: Mapping[str, dict[str, Any]]) -> None:
+        """Write the feeds an act decided: each beside its feed first, then each into place.
+
+        The first pass is the one that can fail (a full disk, a directory gone
+        read-only), and a failure there removes what it wrote and raises, so no
+        wall's feed has changed. The second is one rename per wall, within one
+        directory, each made durable by `atomic.promote`. The staging name is fixed per wall: every write is made under
+        the store's lock, so no two can meet on it.
+        """
+        ready: list[tuple[Path, Path]] = []
+        try:
+            for wall_id, document in staged.items():
+                path = self._settings.manifest_v2_path(wall_id)
+                beside = path.with_name(f".{path.name}.staged")
+                write_atomically(beside, document)
+                ready.append((beside, path))
+        except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; no half-written act is left
+            for beside, _ in ready:
+                beside.unlink(missing_ok=True)
+            raise
+        for beside, path in ready:
+            # Each staged feed is whole and synced (`write_atomically`); the
+            # shared writer's last step renames it and syncs the directory.
+            atomic.promote(beside, path)
 
     # -- reads: themes --------------------------------------------------------
 
@@ -555,7 +636,7 @@ class DisplayService:
 
     def _upcoming(self, wall_id: str) -> Sequence[Slot]:
         """The published schedule's next slots, starting after now: the one on the wall now is not among them."""
-        published = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        published = self._published(wall_id)
         if published is None:
             return ()
         now = datetime.now(UTC)
@@ -636,7 +717,7 @@ class DisplayService:
         render still counts as on it, since the curator's act — hanging the
         theme — is what this answers for.
 
-        Ids, opaque to this plane, for the bindings to hand the Library, as
+        Ids, opaque to Programming, for the bindings to hand the Library, as
         `theme_work_ids` are. One read scope.
         """
         with self._store.reading():
@@ -689,9 +770,14 @@ class DisplayService:
         (`player-contract.md`), so a Player sees no change. What changes is what a
         person reads: Walls, History, and every confirmation that names the wall.
         """
-        wall = self.get_wall(wall_id)
-        renamed = replace(wall, name=require_text(name, field="name"))
+        chosen = require_text(name, field="name")
+        # Read inside the transaction it writes in, as every whole-row write of
+        # a wall is: a Player's heartbeat can move the wall to another display
+        # (`ClientService._merge_place`), and a wall read before it would put
+        # the old display back.
         with self._store.transaction():
+            wall = self.get_wall(wall_id)
+            renamed = replace(wall, name=chosen)
             self._refuse_a_taken_name(renamed)
             store_write(self._store.update_wall, renamed)
         log.info("Wall %r is now called %r.", wall.name, renamed.name)
@@ -733,8 +819,8 @@ class DisplayService:
         (`migrations.establish_the_wall`). Returns the wall as it was, so a
         caller can name it.
         """
-        wall = self.get_wall(wall_id)
         with self._store.transaction():
+            wall = self.get_wall(wall_id)
             assignment = self._store.get_assignment(wall_id)
             if assignment is not None:
                 store_write(self._store.remove_assignment, wall_id)
@@ -770,11 +856,12 @@ class DisplayService:
         Republishes the wall's feed with the setting and changes nothing else in
         it: the schedule and every work stay as published.
         """
-        wall = self.get_wall(wall_id)
         chosen = None if mode is None else require_member(mode, enum=MatMode, field="mat mode").value
-        with self._store.transaction():
+        # Read where it is written, for the reason `rename_wall` gives.
+        with self._publishing():
+            wall = self.get_wall(wall_id)
             store_write(self._store.update_wall, replace(wall, mat_mode=chosen))
-            feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            feed = self._published(wall_id)
             if feed is not None:
                 self._patch_v2_works(wall_id, feed, {})
         log.info("Wall %r: the mat is now %s.", wall.name, chosen or "the Player's own choice")
@@ -807,26 +894,27 @@ class DisplayService:
         to rebuild from, a work the range took off could never come back when
         the range was widened again.
         """
-        wall = self.get_wall(wall_id)
-        chosen = replace(
-            wall,
-            rotation_interval_seconds=(
-                wall.rotation_interval_seconds
-                if isinstance(rotation_interval_seconds, Unset)
-                else self._require_interval(rotation_interval_seconds)
-            ),
-            shuffle=wall.shuffle if isinstance(shuffle, Unset) else shuffle,
-            min_aspect_ratio=(
-                wall.min_aspect_ratio if isinstance(tallest, Unset) else None if tallest is None else shape.parse(tallest)
-            ),
-            max_aspect_ratio=(
-                wall.max_aspect_ratio if isinstance(widest, Unset) else None if widest is None else shape.parse(widest)
-            ),
-        )
-        shape.require_range(chosen.min_aspect_ratio, chosen.max_aspect_ratio)
-        with self._store.transaction():
+        # Read where it is written, for the reason `rename_wall` gives.
+        with self._publishing():
+            wall = self.get_wall(wall_id)
+            chosen = replace(
+                wall,
+                rotation_interval_seconds=(
+                    wall.rotation_interval_seconds
+                    if isinstance(rotation_interval_seconds, Unset)
+                    else self._require_interval(rotation_interval_seconds)
+                ),
+                shuffle=wall.shuffle if isinstance(shuffle, Unset) else shuffle,
+                min_aspect_ratio=(
+                    wall.min_aspect_ratio if isinstance(tallest, Unset) else None if tallest is None else shape.parse(tallest)
+                ),
+                max_aspect_ratio=(
+                    wall.max_aspect_ratio if isinstance(widest, Unset) else None if widest is None else shape.parse(widest)
+                ),
+            )
+            shape.require_range(chosen.min_aspect_ratio, chosen.max_aspect_ratio)
             store_write(self._store.update_wall, chosen)
-            build = self._republish(wall_id, read_published_v2(self._settings.manifest_v2_path(wall_id)))
+            build = self._republish(wall_id, self._published(wall_id))
         interval, shuffled = self.pace(chosen)
         log.info(
             "Wall %r: each work stays up %ds%s, %s%s; it shows %s.",
@@ -912,7 +1000,7 @@ class DisplayService:
             return []
         # Asked before the transaction, and once for every work: the facade is
         # written as if remote, so it is one coarse question, never one per work
-        # and never with this plane's lock held.
+        # and never with the store's lock held.
         destinations = self._library.destinations(unoffered)
         joined: list[str] = []
         joined_by_theme: Counter[str] = Counter()
@@ -948,7 +1036,7 @@ class DisplayService:
     def catch_up_offers(self) -> Sequence[str]:
         """Offer every accepted work that was never offered the theme it was accepted into. Run at start.
 
-        For an announcement lost between the Library's commit and this plane's
+        For an announcement lost between the Library's commit and Programming's
         handler. It goes through `offer_destinations`, so a work whose
         announcement was lost lands where a delivered one would. Every work the
         catalogue held before the default existed was recorded as offered when
@@ -971,27 +1059,33 @@ class DisplayService:
         the two-step alternative exists only as an artefact of how the operations
         decompose.
 
-        The switch costs **zero television writes**: the whole library stays on
-        the TV and rotation is driven from here, so this is a file rewrite rather
-        than minutes of upload churn.
+        **Here, the switch is a file rewrite**: the server writes the wall's feed
+        and nothing else. What it costs at the wall is the Player's: it reads the
+        feed on its next poll and fetches, or for a Frame uploads to the
+        television, any work of the new theme it does not hold, which can take a
+        while. Nothing here writes to a television.
 
         It returns the build, not the theme, because the theme alone cannot say
         how much of itself reached the wall — and a switch that silently put up
         four of a theme's twelve works is the failure this report exists for.
         """
         self.get_theme(theme_id)
-        self.get_wall(wall_id)
-        replaced = self._store.get_assignment(wall_id)
-        # One transaction around the hang and the publish, so a manifest that
-        # could not be written takes the hang back with it. Recording the hang
-        # and then failing to publish left the catalogue naming a theme the wall
-        # was not showing, with nothing to say the two disagreed.
-        with self._store.transaction():
+        # One act around the hang, the publish and the retirement, and it holds
+        # both ways (`_publishing`). A feed that cannot be written takes the hang
+        # back: recording the hang and then failing to publish left the
+        # catalogue naming a theme the wall was not showing, with nothing to say
+        # the two disagreed. And a step after the publish that raises (the
+        # selection replaced cannot be retired) writes no feed, so the walls do
+        # not show a hang the catalogue rolled back. What it replaces is read
+        # inside, so a hang made meanwhile is the one retired.
+        with self._publishing():
+            self.get_wall(wall_id)
+            replaced = self._store.get_assignment(wall_id)
             store_write(
                 self._store.set_assignment,
                 ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
             )
-            build = self.sync(wall_id, theme_id)
+            build = self.sync(wall_id)
             self._retire_selection(replaced)
         self._record_hang(build)
         return build
@@ -1021,7 +1115,6 @@ class DisplayService:
             if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
                 raise ServiceError(answer.detail)
         now = datetime.now(UTC)
-        replaced = self._store.get_assignment(wall_id)
         theme_id = str(uuid.uuid4())
         theme = Theme(
             id=theme_id,
@@ -1031,7 +1124,9 @@ class DisplayService:
             created_at=now,
             hidden=True,
         )
-        with self._store.transaction():
+        # One act, and what it replaces read inside it, as `activate_theme` says.
+        with self._publishing():
+            replaced = self._store.get_assignment(wall_id)
             store_write(self._store.add_theme, theme)
             for position, artwork_id in enumerate(chosen):
                 store_write(
@@ -1039,7 +1134,7 @@ class DisplayService:
                     ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=now, position=position),
                 )
             store_write(self._store.set_assignment, ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=now))
-            build = self.sync(wall_id, theme_id)
+            build = self.sync(wall_id)
             self._retire_selection(replaced)
         self._record_hang(build)
         return build
@@ -1071,14 +1166,15 @@ class DisplayService:
 
         Returns the theme it left, so the answer can say which.
         """
-        wall = self.get_wall(wall_id)
-        theme = self._require_hanging(wall)
-        if self._store.get_membership(theme.id, artwork_id) is None:
-            raise ServiceError(
-                f"Artwork {artwork_id!r} is not in {theme.name!r}, which is what hangs on {wall.name!r}, "
-                "so there is nothing to take it out of."
-            )
-        with self._store.transaction():
+        # Read inside, so the theme it leaves is the one hanging when it leaves.
+        with self._publishing():
+            wall = self.get_wall(wall_id)
+            theme = self._require_hanging(wall)
+            if self._store.get_membership(theme.id, artwork_id) is None:
+                raise ServiceError(
+                    f"Artwork {artwork_id!r} is not in {theme.name!r}, which is what hangs on {wall.name!r}, "
+                    "so there is nothing to take it out of."
+                )
             store_write(self._store.remove_membership, theme.id, artwork_id)
             self._withdraw(artwork_id, [hung.id for hung in self.walls_hanging(theme.id)], cause="leaving its theme")
         self._library.record(
@@ -1110,7 +1206,7 @@ class DisplayService:
         if any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
             raise ServiceError(f"Artwork {artwork_id!r} is already kept off every wall.")
         exclusion = WorkExclusion(artwork_id=artwork_id, excluded_at=datetime.now(UTC))
-        with self._store.transaction():
+        with self._publishing():
             store_write(self._store.add_exclusion, exclusion)
             self._withdraw(artwork_id, [wall.id for wall in self._store.list_walls()], cause="being kept off every wall")
         self._library.record(
@@ -1132,7 +1228,7 @@ class DisplayService:
         """
         if not any(exclusion.artwork_id == artwork_id for exclusion in self._store.list_exclusions()):
             raise ServiceError(f"Artwork {artwork_id!r} is not kept off the walls, so there is nothing to allow.")
-        with self._store.transaction():
+        with self._publishing():
             store_write(self._store.remove_exclusion, artwork_id)
             self.reconcile([artwork_id], cause="being allowed back")
         self._library.record(ProgrammingAct(kind=EventKind.ALLOWED, work_id=artwork_id))
@@ -1176,15 +1272,16 @@ class DisplayService:
         entirely and the same one deleting the last theme already had. Publishing
         an empty feed would blank the wall as a side effect of tidying up.
         """
-        wall = self.get_wall(wall_id)
-        assignment = self._store.get_assignment(wall_id)
-        if assignment is None:
-            raise ServiceError(f"Nothing is hanging on wall {wall_id!r}, so there is nothing to take down.")
-        taken_down = self.get_theme(assignment.theme_id)
+        # Read inside, so a hang made meanwhile is the one taken down and retired.
         with self._store.transaction():
+            wall = self.get_wall(wall_id)
+            assignment = self._store.get_assignment(wall_id)
+            if assignment is None:
+                raise ServiceError(f"Nothing is hanging on wall {wall_id!r}, so there is nothing to take down.")
+            taken_down = self.get_theme(assignment.theme_id)
             store_write(self._store.remove_assignment, wall_id)
             self._retire_selection(assignment)
-        # The only operation in this plane that deliberately leaves the catalogue
+        # The only operation in Programming that deliberately leaves the catalogue
         # and the wall disagreeing for an unbounded time, so it is the one an
         # operator asking "why is the set showing a theme that hangs nowhere"
         # comes to the journal for. `sync`'s two lines are the precedent: what a
@@ -1229,7 +1326,7 @@ class DisplayService:
         self.get_listed_theme(theme_id)
         self._require_held(artwork_id)
         target = self._require_position(position)
-        with self._store.transaction():
+        with self._publishing():
             membership = self._insert(theme_id=theme_id, artwork_id=artwork_id, position=target)
             self.reconcile([artwork_id], cause="joining its theme")
         return membership
@@ -1269,7 +1366,7 @@ class DisplayService:
             if not isinstance(answer, PlayableWork) and answer.reason is UnplayableReason.NOT_IN_CATALOGUE:
                 raise ServiceError(answer.detail)
         now = datetime.now(UTC)
-        with self._store.transaction():
+        with self._publishing():
             others = list(self._store.list_memberships(theme_id))
             held = {membership.artwork_id for membership in others}
             joining = [artwork_id for artwork_id in chosen if artwork_id not in held]
@@ -1293,7 +1390,7 @@ class DisplayService:
         """
         self.get_theme(theme_id)
         removed: list[str] = []
-        with self._store.transaction():
+        with self._publishing():
             for artwork_id in dict.fromkeys(artwork_ids):
                 if self._store.get_membership(theme_id, artwork_id) is None:
                     continue
@@ -1391,7 +1488,7 @@ class DisplayService:
         """
         if self._store.get_membership(theme_id, artwork_id) is None:
             raise ServiceError(f"Artwork {artwork_id!r} is not in theme {theme_id!r}.")
-        with self._store.transaction():
+        with self._publishing():
             store_write(self._store.remove_membership, theme_id, artwork_id)
             self._withdraw(artwork_id, [wall.id for wall in self.walls_hanging(theme_id)], cause="leaving its theme")
 
@@ -1435,7 +1532,7 @@ class DisplayService:
         **A deletion that is permitted does not rewrite any manifest.** A theme
         that hangs nowhere is on no wall to take a picture off, and a wall whose
         theme was taken down keeps showing what it was showing — the same posture
-        as curation being stopped entirely: the display plane runs off the last
+        as the server being stopped entirely: a Player runs off the last
         manifest indefinitely, and that is normal operation rather than
         degradation. Publishing an empty manifest instead would blank the wall as
         a side effect of tidying up the catalogue.
@@ -1458,7 +1555,7 @@ class DisplayService:
                 store_write(self._store.remove_membership, theme_id, membership.artwork_id)
             store_write(self._store.remove_theme, theme_id)
 
-    # -- reads: what the display plane says about itself -----------------------
+    # -- reads: what each wall's Player says about itself -----------------------
 
     def survey_wall_status(self) -> Sequence[WallHeartbeat]:
         """Every wall with whatever the display serving it last said.
@@ -1487,7 +1584,7 @@ class DisplayService:
         beside it (`_write_v2`).
         """
         self.get_wall(wall_id)
-        with self._store.transaction():
+        with self._publishing():
             return self._restart(wall_id, pinned=None)
 
     def show_work_now(self, wall_id: str, artwork_id: str) -> str:
@@ -1503,7 +1600,7 @@ class DisplayService:
         """
         self.get_wall(wall_id)
         answer = self._require_showable(artwork_id)
-        with self._store.transaction():
+        with self._publishing():
             return self._restart(wall_id, pinned=answer)
 
     # -- scenes ---------------------------------------------------------------
@@ -1543,9 +1640,9 @@ class DisplayService:
         """
         wall = self.get_wall(wall_id)
         answer = self._require_showable(artwork_id)
-        with self._store.transaction():
+        with self._publishing():
             scene = self._require_scene(scene_id, SceneStatus.DRAFT)
-            if read_published_v2(self._settings.manifest_v2_path(wall_id)) is None:
+            if self._published(wall_id) is None:
                 raise ServiceError(
                     f"Nothing has been hung on {wall.name!r} yet, so it has no feed to show a scene over. "
                     "Hang a theme there first."
@@ -1558,7 +1655,7 @@ class DisplayService:
     def unpin_scene(self, scene_id: str, wall_id: str) -> SceneView:
         """Take this wall out of the draft and stop staging its work there."""
         wall = self.get_wall(wall_id)
-        with self._store.transaction():
+        with self._publishing():
             self._require_scene(scene_id, SceneStatus.DRAFT)
             store_write(self._store.remove_pin, scene_id, wall_id)
             self._patch_walls([wall_id])
@@ -1567,7 +1664,7 @@ class DisplayService:
 
     def discard_scene(self, scene_id: str) -> None:
         """Forget a draft, and stop staging its works."""
-        with self._store.transaction():
+        with self._publishing():
             self._require_scene(scene_id, SceneStatus.DRAFT)
             walls = [pin.wall_id for pin in self._store.list_pins(scene_id)]
             for wall_id in walls:
@@ -1594,7 +1691,7 @@ class DisplayService:
             raise ServiceError(
                 f"A preview lasts at most {MAX_PREVIEW_MINUTES} minutes, got {length}. Hold the scene to keep it longer."
             )
-        with self._store.transaction():
+        with self._publishing():
             ended = self._settle_scenes()
             scene = self._require_scene(scene_id, SceneStatus.DRAFT)
             pins = self._store.list_pins(scene_id)
@@ -1636,7 +1733,7 @@ class DisplayService:
 
     def release_scene(self, scene_id: str) -> SceneView:
         """End a live scene now; each of its walls returns to its schedule where the schedule is now."""
-        with self._store.transaction():
+        with self._publishing():
             ended = self._settle_scenes()
             scene = self._require_scene(scene_id, SceneStatus.LIVE)
             released = self._end(scene, at=datetime.now(UTC), how=SceneEnding.RELEASED, words="released")
@@ -1782,7 +1879,7 @@ class DisplayService:
         """
         held = {wall.id for wall in self._store.list_walls()}
         for wall_id in dict.fromkeys(wall_id for wall_id in wall_ids if wall_id in held):
-            feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+            feed = self._published(wall_id)
             if feed is None:
                 # A wall with no feed has nothing to show a scene over, and a pin
                 # to one is refused; this is a feed removed since.
@@ -1845,16 +1942,24 @@ class DisplayService:
             shuffle=shuffle,
         )
 
-    def sync(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
-        """Rebuild the wall's feed and publish it.
+    def sync(self, wall_id: str) -> ManifestBuild:
+        """Rebuild the wall's feed from what is hung on it, and publish it.
+
+        **What is hung, and nothing else.** It takes no theme: a feed of a theme
+        the catalogue does not record as hung would put on the wall what the
+        catalogue says is not there, with nothing to show the two disagree.
+        Hanging is `activate_theme` or `hang_selection`, each of which records
+        the hang and then publishes through here in the same transaction, so
+        what this reads is the hang it has just written. What a theme would put
+        on a wall, without writing, is `build_manifest`.
 
         Returns what it wrote **and what it left out**. A caller that only
         reports the entry count is describing a theme that may be silently
         half on the wall.
 
         This writes desired state; it does not command the television. The wall
-        converges within the display plane's poll interval, and saying anything
-        stronger would assert something this plane cannot observe.
+        converges within its Player's poll interval, and saying anything
+        stronger would assert something this server cannot observe.
 
         **It writes this wall's feed, and another wall's only when the two share
         a work**, so hanging a theme in the study leaves the living room's file
@@ -1866,8 +1971,8 @@ class DisplayService:
         # every rewrite of a published feed: a step or a reconciliation
         # rewriting it between the build and the write would otherwise be
         # overwritten by a document built before it.
-        with self._store.transaction():
-            build = self.build_manifest(wall_id, theme_id)
+        with self._publishing():
+            build = self.build_manifest(wall_id)
             self._sync_v2(build)
         _log_published(build)
         return build
@@ -1882,15 +1987,14 @@ class DisplayService:
         too-small is judged against, and extending the wall's horizon when
         less than two days of it are left.
 
-        Written to the same file the file channel writes, so every existing
-        reader sees a heartbeat that arrived over HTTP exactly as it sees one
-        that did not. Refused, and nothing written, if the health panel could
-        not read it.
+        Kept as the wall's heartbeat file (`heartbeat_path`), which is what
+        every reader of a wall's report opens. Refused, and nothing written, if
+        the health panel could not read it.
         """
         self.get_wall(wall_id)
         problem = heartbeat.problem_with(document)
         if problem is not None:
-            raise ServiceError(f"That is not a heartbeat this plane can read: {problem}")
+            raise ServiceError(f"That is not a heartbeat this server can read: {problem}")
         write_atomically(self._settings.heartbeat_path(wall_id), document)
         self._record_showing(wall_id, document)
         self._record_screen(wall_id, document)
@@ -1925,10 +2029,10 @@ class DisplayService:
         Any source of a reported state feeds the record through here: the
         heartbeat today, and display state reported on change when it arrives.
         **A record that cannot be written is logged, never raised**: the report is
-        the Player's, and its heartbeat must not be refused for this plane's
+        the Player's, and its heartbeat must not be refused for this server's
         bookkeeping.
         """
-        published = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        published = self._published(wall_id)
         # The scene's work too: a wall showing its scene shows a work its feed carries.
         playable = frozenset() if published is None else frozenset(published.carried)
         try:
@@ -1937,8 +2041,8 @@ class DisplayService:
                 for showing in showings.advance(latest, reported, wall_id=wall_id, at=at, playable=playable):
                     self._store.save_showing(showing)
         # A bulkhead, not a filter: the store translates only a refused row into
-        # `StorageError`, and a full disk or a held lock arrives as the driver's
-        # own error, which this layer may not name. Whatever fails here, the
+        # `StorageError` and a full disk or a held lock into `StorageFault`, and
+        # anything else arrives as whatever raised it. Whatever fails here, the
         # heartbeat's later steps still run, and one of them rolls the wall's
         # horizon forward.
         except Exception:  # prawduct:allow prawduct/broad-except -- the shown record never stops a heartbeat
@@ -1967,7 +2071,7 @@ class DisplayService:
     def last_shown_by_work(self) -> Mapping[str, datetime]:
         """Each work any wall has shown, with the latest report naming it; walls since removed count.
 
-        Ids, opaque to this plane, as `work_ids_on_walls` returns them, for the
+        Ids, opaque to Programming, as `work_ids_on_walls` returns them, for the
         composer to meet with the Library's (`services/works_filter.py`). Read
         from the showings' last sight, so a work up now counts as shown now.
         """
@@ -2002,7 +2106,7 @@ class DisplayService:
         screen = self.largest_screen(wall_id)
         if screen is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_SCREEN)
-        feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        feed = self._published(wall_id)
         if feed is None:
             return SizeJudgement(None, frozenset(), Unjudged.NO_FEED)
         small = frozenset(
@@ -2070,20 +2174,23 @@ class DisplayService:
     # -- keeping published manifests true to the Library ---------------------
 
     def on_work_changed(self, event: WorkChanged) -> None:
-        """The Library changed a work: take it off walls it can no longer go on, or put it on walls whose theme holds it.
+        """The Library changed works: take them off walls they can no longer go on, or put them on walls whose theme holds them.
 
         A newly accepted work is offered its theme too. It joins no feed then,
         since acceptance is what queues its preparation; its master's
         announcement puts it on the wall.
 
         Subscribed to the Library's announcements. The rules are the ones startup
-        applies, narrowed to the one work, so the running server and a restarted
-        one cannot disagree. The offer is made once per work, so an acceptance
-        announced for a restore offers nothing (`offer_destinations`).
+        applies, narrowed to the works named, so the running server and a
+        restarted one cannot disagree. **One reconciliation for the whole
+        announcement**: a bulk archive names every work it archived
+        (`library/events.py`), so each wall is rebuilt and written once for the
+        act. The offer is made once per work, so an acceptance announced for a
+        restore offers nothing (`offer_destinations`).
         """
-        self.reconcile([event.work_id], cause=event.change.value)
+        self.reconcile(event.work_ids, cause=event.change.value)
         if event.change is WorkChange.ACCEPTED:
-            self.offer_destinations([event.work_id])
+            self.offer_destinations(event.work_ids)
 
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
         """Make every published feed agree with what the Library will show.
@@ -2109,9 +2216,9 @@ class DisplayService:
         builds the hung theme, carries it (`_roll_v2`).
         """
         named = None if work_ids is None else set(work_ids)
-        with self._store.transaction():
+        with self._publishing():
             walls = self._store.list_walls()
-            feeds = {wall.id: read_published_v2(self._settings.manifest_v2_path(wall.id)) for wall in walls}
+            feeds = {wall.id: self._published(wall.id) for wall in walls}
             hung = {assignment.wall_id: assignment.theme_id for assignment in self._store.list_assignments()}
             mentioned = {work_id for feed in feeds.values() if feed for work_id in feed.carried}
             asked = mentioned if named is None else mentioned & named
@@ -2137,13 +2244,18 @@ class DisplayService:
             # may have rebuilt it beside that wall, and the copy read above would
             # write the old schedule back over the new.
             republished = [
-                wall.id
-                for wall in walls
-                if self._reconcile_v2(wall.id, read_published_v2(self._settings.manifest_v2_path(wall.id)), answers, cause=cause)
+                wall.id for wall in walls if self._reconcile_v2(wall.id, self._published(wall.id), answers, cause=cause)
             ]
             for wall_id, theme_id in hung.items():
                 shown = {work_id for work_id in joining[wall_id] if isinstance(answers.get(work_id), PlayableWork)}
-                if (shown or self._unpublished(wall_id)) and self._publish_additions(wall_id, theme_id, shown, cause=cause):
+                # At a start, a feed of another theme than the one hung too: what
+                # a hang leaves when its files were renamed into place and its
+                # commit then failed (`_publishing`), which no roll would mend
+                # until the horizon ran low.
+                disowned = named is None and self._of_another_theme(wall_id, theme_id)
+                if (shown or disowned or self._unpublished(wall_id)) and self._publish_additions(
+                    wall_id, theme_id, shown, cause=cause, whole=disowned
+                ):
                     republished.append(wall_id)
             kept_off = {exclusion.artwork_id for exclusion in self._store.list_exclusions()}
             for wall_id, candidates in returning.items():
@@ -2169,13 +2281,23 @@ class DisplayService:
 
         A feed on disk that cannot be read is not unpublished: start-up leaves
         it for the next publish to replace, as reconciliation always has, so a
-        bad file cannot stop the plane starting. A work joining the wall's theme
+        bad file cannot stop the server starting. A work joining the wall's theme
         is such a publish, as a hang is.
         """
+        staged = self._staged.current()
+        if staged is not None and wall_id in staged:
+            return False
         return not self._settings.manifest_v2_path(wall_id).exists()
 
-    def _publish_additions(self, wall_id: str, theme_id: str, work_ids: Iterable[str], *, cause: str) -> bool:
-        """Republish the hung theme's feed if one of these works joins it, or if it has none. True if it did.
+    def _of_another_theme(self, wall_id: str, theme_id: str) -> bool:
+        """Whether the wall's feed, read as published, carries a theme other than this one."""
+        feed = self._published(wall_id)
+        return feed is not None and feed.playlist_id != theme_id
+
+    def _publish_additions(
+        self, wall_id: str, theme_id: str, work_ids: Iterable[str], *, cause: str, whole: bool = False
+    ) -> bool:
+        """Republish the hung theme's feed if one of these works joins it, if it has none, or if `whole`. True if it did.
 
         Built as a hang builds it, and published as re-hanging the same theme
         publishes it: the slot on the wall now is kept. A work joins when the
@@ -2184,20 +2306,20 @@ class DisplayService:
         or the announcement concerns: a feed names only what its horizon
         schedules, so a member it lacks may simply not be due.
         """
-        feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        feed = self._published(wall_id)
         build = self.build_manifest(wall_id, theme_id)
         sent = {work.work_id for work in build.entries}
         joining = sorted(set(work_ids) & sent - set(feed.works if feed is not None else ()))
-        if feed is not None and not joining:
+        if feed is not None and not joining and not whole:
             return False
         self._sync_v2(build)
-        log.info(
-            "Wall %r: published theme %r%s (after %s).",
-            build.wall.name,
-            build.theme.name,
-            f" with {', '.join(joining)} joining" if joining else ", which had no feed on this wall",
-            cause,
-        )
+        if joining:
+            said = f" with {', '.join(joining)} joining"
+        elif feed is None:
+            said = ", which had no feed on this wall"
+        else:
+            said = f" in place of {feed.playlist_name!r}, which its feed carried"
+        log.info("Wall %r: published theme %r%s (after %s).", build.wall.name, build.theme.name, said, cause)
         return True
 
     # -- the feed: the wall's schedule ------------------------------------------
@@ -2218,7 +2340,7 @@ class DisplayService:
         The same theme as the feed already carries keeps the slot on the wall now
         (re-hanging it is how a curator republishes); another theme starts fresh.
         """
-        previous = read_published_v2(self._settings.manifest_v2_path(build.wall.id))
+        previous = self._published(build.wall.id)
         works: dict[str, Mapping[str, Any]] = {work.work_id: work_document(work) for work in build.entries}
         start: Start = StartFresh()
         guests: dict[str, Mapping[str, Any]] = {}
@@ -2250,7 +2372,7 @@ class DisplayService:
         the silence this product exists to avoid.
         """
         wall = self.get_wall(wall_id)
-        previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        previous = self._published(wall_id)
         if previous is None:
             raise ServiceError(
                 f"Nothing has been hung on {wall.name!r} yet, so there is nothing to move on. Hang a theme there first."
@@ -2273,7 +2395,7 @@ class DisplayService:
         The slot on the wall now is kept unless it shows one of them, and then the
         wall starts fresh: `Keep` keeps only a work the rebuild still carries.
         """
-        previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        previous = self._published(wall_id)
         if previous is None or not refused & set(previous.carried):
             return False
         if refused & set(previous.works):
@@ -2286,7 +2408,7 @@ class DisplayService:
             self._patch_v2_works(wall_id, previous, {})
         # Said for what actually left: a work leaving its theme stays on the
         # wall when a scene pins it, because the control layer puts it back.
-        after = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        after = self._published(wall_id)
         left = sorted(refused & set(previous.carried) - set(after.carried if after is not None else ()))
         if left:
             log.info("Wall %r: took %s off the feed (after %s).", self.get_wall(wall_id).name, ", ".join(left), cause)
@@ -2306,8 +2428,8 @@ class DisplayService:
         reaches the wall at the next roll, within a day, without a re-hang. A wall with nothing hung
         goes on with what its feed carries.
         """
-        with self._store.transaction():
-            previous = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        with self._publishing():
+            previous = self._published(wall_id)
             if previous is None or previous.horizon_until - datetime.now(UTC) >= ROLL_WHEN_LEFT:
                 return
             build = self._republish(wall_id, previous)
@@ -2416,9 +2538,7 @@ class DisplayService:
             beside.held.append(_Held(wall_id, playlist, schedule, works))
             return schedule
         walls = {wall.id: wall for wall in self._store.list_walls()}
-        feeds = {
-            other: feed for other in walls if (feed := read_published_v2(self._settings.manifest_v2_path(other))) is not None
-        }
+        feeds = {other: feed for other in walls if (feed := self._published(other)) is not None}
         neighbours = sorted(
             other for other, feed in feeds.items() if other != wall_id and not feed.works.keys().isdisjoint(works)
         )
@@ -2510,7 +2630,7 @@ class DisplayService:
         would change the picture on a wall nobody touched. The work on it now
         changes only when that work has left the wall, as at any rebuild.
         """
-        feed = read_published_v2(self._settings.manifest_v2_path(wall_id))
+        feed = self._published(wall_id)
         if feed is None:
             return
         self._republish(wall_id, feed, beside=beside)
@@ -2520,10 +2640,11 @@ class DisplayService:
 
         Returns the build when it built the theme. From the theme so one with
         more works than a horizon names is not narrowed to those its feed named.
-        **A feed not of the hung theme** (written, then the hang's transaction
-        rolled back) is put right by the wall's own roll or setting change, which
-        publish the hung theme and so start it fresh; a pass `beside` another
-        wall leaves it as it is, since that would change the picture on a wall
+        **A feed not of the hung theme** (its files renamed into place, then the
+        hang's commit failed, `_publishing`) is put right at the next start
+        (`reconcile`) or by the wall's own roll or setting change, which publish
+        the hung theme and so start it fresh; a pass `beside` another wall
+        leaves it as it is, since that would change the picture on a wall
         nobody touched.
         """
         assignment = self._store.get_assignment(wall_id)
@@ -2627,7 +2748,7 @@ class DisplayService:
         schedule: Schedule,
         works: Mapping[str, Mapping[str, Any]],
     ) -> None:
-        """Spell the wall's feed and write it: the one place a wall's feed is written.
+        """Spell the wall's feed and stage it for the act's end (`_publishing`): the one place a wall's feed is decided.
 
         **Everything the store decides about the wall is added here**, not by
         each caller: its settings, and its control layer, the scene it shows and
@@ -2648,7 +2769,10 @@ class DisplayService:
             scene=control.scene,
             staging=control.staging,
         )
-        write_atomically(self._settings.manifest_v2_path(wall_id), as_v2_document(feed))
+        staged = self._staged.current()
+        if staged is None:
+            raise RuntimeError(f"Wall {wall_id}'s feed was published outside `_publishing`, where nothing would write it.")
+        staged[wall_id] = as_v2_document(feed)
 
     def _control_layer(self, wall_id: str) -> _Control:
         """The scene this wall shows now and the works a draft stages on it, with their entries.
@@ -2797,8 +2921,8 @@ class DisplayService:
     def _require_interval(seconds: int | None) -> int | None:
         """Null inherits the default; a number has to be a length of time.
 
-        Zero is refused rather than treated as "as fast as possible": the display
-        plane would spin selecting images, and nothing about that reads as a
+        Zero is refused rather than treated as "as fast as possible": a Player
+        would spin selecting images, and nothing about that reads as a
         setting somebody chose.
         """
         if seconds is not None and seconds <= 0:

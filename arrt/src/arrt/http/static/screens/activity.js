@@ -17,6 +17,7 @@
 
 import { acquisitionBadge, acquisitionSentence, retryButton } from "../core/acquiring.js";
 import { attempt } from "../core/acting.js";
+import { confirmAct } from "../core/confirm.js";
 import { readable, stamp } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { paintWanted } from "../core/awaiting.js";
@@ -161,14 +162,44 @@ function retryAllSentence(result) {
   return parts.join(" ");
 }
 
+/* How many works a group's Retry puts back in line without asking. Over this it
+ * names the count and asks first: a retry of thousands is thousands of museum
+ * requests, and nothing about "Retry 2000" says so. */
+const RETRY_ASKS_ABOVE = 5;
+
 /* The works that failed, one row per cause. A cause opens into its works at its
  * own address (`#queue?cause=…`), which is navigation and so a link; its Retry
  * is an act and so a button, retrying the whole group in one request. The
  * button says how many it retries ("Retry 3"), or just "Retry" for one, so it
- * never reads as retrying every failure on the page. */
+ * never reads as retrying every failure on the page. It is the page's filled
+ * act only when there is one group; with several, no group's is (design
+ * direction: if two things are filled, neither is). A group over a handful of
+ * works asks first. */
 function failurePanel(listing, causes, opened, generation) {
   const repaint = () => viewQueue(generation);
   const params = state.params;
+  const only = causes.causes.length === 1;
+  const retryGroup = async (control, group) => {
+    if (group.works > RETRY_ASKS_ABOVE) {
+      const agreed = await confirmAct({
+        title: `Retry ${counted(group.works, "work")}?`,
+        consequence: `They go back in line and are fetched again, one at a time, each asking its museum for the image. They failed because: ${group.cause}`,
+        confirmLabel: `Retry ${group.works}`,
+      });
+      if (!agreed) return;
+    }
+    await attempt(
+      control,
+      `retry the ${counted(group.works, "work")} that failed`,
+      () => api("/api/acquisitions/causes/retry", { method: "POST", body: JSON.stringify({ cause: group.cause }) }),
+      {
+        then: (result) => {
+          retryAllSaid = retryAllSentence(result);
+          return repaint();
+        },
+      },
+    );
+  };
   const rows = causes.causes.map((group) => {
     const isOpen = opened && opened.cause === group.cause;
     const split = group.gave_up && group.failed ? ` (${group.failed} failed, ${group.gave_up} gave up)` : "";
@@ -191,30 +222,20 @@ function failurePanel(listing, causes, opened, generation) {
             },
           ),
           el("button", {
-            class: "action",
+            class: only ? "action" : "action quiet",
             type: "button",
             text: group.works === 1 ? "Retry" : `Retry ${group.works}`,
             "aria-label": `Retry the ${counted(group.works, "work")} that failed: ${group.cause}`,
-            onclick: (event) =>
-              attempt(
-                event.currentTarget,
-                `retry the ${counted(group.works, "work")} that failed`,
-                () => api("/api/acquisitions/causes/retry", { method: "POST", body: JSON.stringify({ cause: group.cause }) }),
-                {
-                  then: (result) => {
-                    retryAllSaid = retryAllSentence(result);
-                    return repaint();
-                  },
-                },
-              ),
+            onclick: (event) => retryGroup(event.currentTarget, group),
           }),
         ]),
       ]),
-      isOpen ? causeWorks(opened, repaint) : null,
+      isOpen ? causeWorks(opened) : null,
     ]);
   });
+  // No heading of its own: the section's summary above says how many failed,
+  // and a heading restating it put the count three times on one screen.
   return el("section", { class: "failures", "aria-label": "Failed" }, [
-    el("h3", { text: `Failed (${listing.failing})` }),
     el("p", { class: "muted", text: "Grouped by why the last try failed. Each group's Retry puts its works back in line." }),
     el("ul", { class: "failure-causes" }, rows),
     pager(causes, "causes_offset", causes.causes.length, "causes"),
@@ -222,19 +243,18 @@ function failurePanel(listing, causes, opened, generation) {
 }
 
 /* One cause's works, a page at a time, each named by its title and opening its
- * Work page, with its own Retry. The cause is the group's heading, so each
- * row's sentence leaves it out. */
-function causeWorks(page, repaint) {
+ * Work page, where its own Retry is. No act on a row: the group's Retry is the
+ * act here, and a button on each of a page of rows is what design direction
+ * rules out. The cause is the group's heading, so each row's sentence leaves it
+ * out. */
+function causeWorks(page) {
   if (!page.works.length) {
     return el("p", { class: "muted", text: "None of them is waiting for this reason any more: the queue tried them again." });
   }
   const rows = page.works.map(({ title, acquisition }) => [
     link({ view: "work", id: acquisition.artwork_id }, { class: "link", text: title }),
     acquisitionBadge(acquisition),
-    el("div", { class: "stack-tight" }, [
-      el("span", { text: acquisitionSentence(acquisition, { cause: false }) }),
-      retryButton(acquisition, title, repaint),
-    ]),
+    acquisitionSentence(acquisition, { cause: false }),
   ]);
   return el("div", { class: "failure-cause-works" }, [
     table(`Failed works: ${page.cause}`, ["Work", "State", "What happened"], rows, { stacked: true }),
@@ -308,7 +328,9 @@ export async function viewQueue(generation) {
       : "No Get is in flight.";
     panels.push(
       emptyState(nothing, "A Get you start in Ask, or on works you chose, shows here while it works.", [
-        link({ view: "discover" }, { class: "action", text: "Go to Ask" }),
+        // Quiet: a way on, and the failed fetches below may hold the page's one
+        // filled act.
+        link({ view: "discover" }, { class: "action quiet", text: "Go to Ask" }),
       ]),
     );
   } else {
@@ -611,12 +633,10 @@ export async function viewWanted(generation) {
     panels.push(
       emptyState(
         "Nothing is wanted.",
-        // The two controls that put a work here, by the words they carry: a
-        // review card's Want, offered where a Get found no scan of the work,
-        // and Turn it down on the scan a card offers, under Scans.
-        "A work comes here when a Get finds no scan of it and you press Want on its review " +
-          "card, or when you turn down the scan its card offers (Scans, then Turn it down). It waits here until " +
-          "you get it again.",
+        // What Wanted is, not the clicks that fill it: a work you want and hold
+        // no acceptable scan of, whether a Get found none or you turned one down.
+        "Wanted holds the works you want and have no acceptable scan of: ones a Get found no scan for, " +
+          "and ones whose scan you turned down. Each waits here until you get it again.",
         [link({ view: "to_review" }, { class: "action quiet", text: "Open To review" })],
       ),
     );

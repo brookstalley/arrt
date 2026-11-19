@@ -752,3 +752,267 @@ def test_a_plugin_s_reading_carries_the_museum_it_declared():
 
     identities = {reading.name: reading.identity.museum for reading in roster.observe()}
     assert identities == {"good": "Tate", "other": None}
+
+
+# -- what a finder said before it failed reaches the pool ----------------------------
+
+
+class _SaysThenFails(StubFinder):
+    """A finder whose generator yields one image and then raises what it is told to."""
+
+    def __init__(self, provider: str, raises: Exception) -> None:
+        super().__init__(provider)
+        self._then = raises
+
+    def find_images(self, query):
+        yield from super().find_images(query)
+        raise self._then
+
+
+def test_an_image_a_finder_yielded_before_it_could_not_be_asked_reaches_the_pool():
+    """`SourceAnswer` says a finder that yields and then raises has said those; through the containment too."""
+    roster = SourceRoster.of(finders=[_SaysThenFails("halfway", ImageSearchFailure("page two did not load")), StubFinder("good")])
+
+    answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Nighthawks"))
+
+    assert answer.unreachable == ("halfway",)
+    assert sorted(image.provider for image in answer.images) == ["good", "halfway"]
+
+
+@pytest.mark.plugin_fault_expected
+def test_what_a_finder_yielded_before_it_faulted_is_not_kept():
+    """A fault is an answer outside the interface, and nothing said beside it is trusted."""
+    roster = SourceRoster.of(finders=[_SaysThenFails("broken", KeyError("gone")), StubFinder("good")])
+
+    answer = ImageSourcePool(roster.finders).find_images(ImageQuery(title="Nighthawks"))
+
+    assert answer.unreachable == ("broken",)
+    assert [image.provider for image in answer.images] == ["good"]
+
+
+# -- answers checked beyond their type -----------------------------------------------
+
+
+def _image(provider: str, **fields) -> object:
+    from arrt.library.sources import AcquisitionMethod, FoundImage, SourceClass
+
+    return FoundImage(
+        **{
+            "url": f"https://{provider}.example/1",
+            "provider": provider,
+            "source_class": SourceClass.INSTITUTIONAL,
+            "acquisition_method": AcquisitionMethod.DIRECT_HTTP,
+            "title": "Nighthawks",
+            **fields,
+        }
+    )
+
+
+@pytest.mark.plugin_fault_expected
+@pytest.mark.parametrize(
+    ("fields", "said"),
+    [
+        ({"estimated_width": "2201"}, "estimated_width is '2201', not a positive int or None"),
+        ({"estimated_height": 0}, "estimated_height is 0, not a positive int or None"),
+        ({"estimated_width": True}, "estimated_width is True, not a positive int or None"),
+        ({"title": "T" * 2001}, "title is 2,001 characters, past 2,000"),
+        ({"artist": "A" * 2001}, "artist is 2,001 characters, past 2,000"),
+        ({"title": None}, "title is a NoneType, not text"),
+    ],
+)
+def test_an_image_whose_size_or_words_break_the_interface_is_a_contained_fault(fields, said):
+    plugin = SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=Answers("sloppy", [_image("sloppy", **fields)])))
+    roster = load_sources(context(), entry_points=[_Fixed(entry("sloppy", "GOOD"), plugin)], order=(), now=lambda: MOMENT)
+
+    with pytest.raises(ImageSearchFailure, match="sloppy plugin faulted"):
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    assert said in roster.observe()[0].last_fault
+
+
+def test_an_image_at_the_bounds_passes():
+    """The edges the checks above refuse past: a 1 px side, no size at all, and exactly the longest text."""
+    found = _image("tidy", estimated_width=1, estimated_height=None, title="T" * 2000, artist="A" * 2000)
+    roster = SourceRoster.of(finders=[Answers("tidy", [found])])
+
+    assert list(roster.finders[0].find_images(ImageQuery(title="Nighthawks"))) == [found]
+
+
+@pytest.mark.plugin_fault_expected
+def test_a_preview_past_the_deployments_ceiling_is_a_failed_preview_and_a_fault():
+    """A 20 MB body against the 16 MB default: the finder was told to stop reading at the ceiling."""
+    from arrt.library.discovery.images import DEFAULT_PREVIEW_MAX_BYTES
+
+    class Oversized(StubFinder):
+        def fetch_preview(self, url):
+            return b"x" * (20 * 1024 * 1024)
+
+    plugin = SourcePlugin(api_major=1, create=lambda _c: SourceParts(finder=Oversized("big")))
+    roster = load_sources(
+        SourceContext(environ={}, user_agent="arrt-tests/0", preview_max_bytes=DEFAULT_PREVIEW_MAX_BYTES),
+        entry_points=[_Fixed(entry("big", "GOOD"), plugin)],
+        now=lambda: MOMENT,
+    )
+
+    assert roster.finders[0].fetch_preview("https://big.example/p.jpg") is None
+    assert "past this deployment's preview_max_bytes of 16,777,216" in roster.observe()[0].last_fault
+
+
+def test_a_preview_at_the_ceiling_is_kept():
+    class Exact(StubFinder):
+        def fetch_preview(self, url):
+            return b"x" * 4096
+
+    roster = SourceRoster.of(finders=[Exact("exact")], preview_max_bytes=4096)
+
+    assert roster.finders[0].fetch_preview("https://exact.example/p.jpg") == b"x" * 4096
+
+
+@pytest.mark.plugin_fault_expected
+def test_a_readers_reason_past_the_bound_is_a_contained_fault():
+    from arrt.library.sources import FetchLocator
+
+    roster = SourceRoster.of(
+        readers={"wordy": (claims_example, StubReader(answer=FetchLocator.none("R" * 2001)))}, now=lambda: MOMENT
+    )
+
+    with pytest.raises(ImageSearchFailure, match="wordy plugin faulted"):
+        roster.route("https://example.org/works/1").reader.read("https://example.org/works/1")
+    assert "read answered a reason that is not text of at most 2,000 characters" in roster.observe()[0].last_fault
+
+
+def test_two_plugins_claiming_one_url_are_said_once_per_pair_naming_both(caplog):
+    roster = SourceRoster.of(readers={"met": (claims_example, StubReader()), "met_pages": (claims_example, StubReader())})
+
+    with caplog.at_level(logging.WARNING, logger=FAULT_LOGGER):
+        first = roster.route("https://example.org/works/1")
+        roster.route("https://example.org/works/2")
+
+    assert first.plugin == "met", "the first in order reads it"
+    overlaps = [r for r in caplog.records if getattr(r, "event", None) == "source.claims_overlap"]
+    assert [(r.plugin, r.other) for r in overlaps] == [("met", "met_pages")]
+    assert "met and met_pages both claim https://example.org/works/1" in overlaps[0].getMessage()
+
+
+def test_one_plugin_claiming_a_url_says_nothing_of_overlap(caplog):
+    roster = SourceRoster.of(readers={"met": (claims_example, StubReader()), "other": (lambda _url: False, StubReader())})
+
+    with caplog.at_level(logging.WARNING, logger=FAULT_LOGGER):
+        assert roster.route("https://example.org/works/1").plugin == "met"
+
+    assert not [r for r in caplog.records if getattr(r, "event", None) == "source.claims_overlap"]
+
+
+# -- 1.5: a plugin says which minor it needs ------------------------------------------
+
+
+def test_the_interface_is_1_5():
+    assert API_VERSION == (1, 5)
+
+
+@pytest.mark.parametrize(("minor", "loads"), [(0, True), (4, True), (5, True), (6, False)])
+def test_a_plugin_needing_a_newer_minor_is_refused_naming_both_versions(minor, loads):
+    plugin = SourcePlugin(api_major=1, create=plugin_fakes._good, api_minor=minor)
+
+    roster = load_sources(context(), entry_points=[_Fixed(entry("good", "GOOD"), plugin)])
+
+    state, reason = states(roster)["good"]
+    if loads:
+        assert (state, reason) == (PluginState.LOADED, None)
+    else:
+        assert state is PluginState.FAILED
+        assert reason == "it needs source interface 1.6, and this Arrt is 1.5"
+        assert roster.finders == ()
+
+
+@pytest.mark.parametrize("minor", ["5", -1, True])
+def test_a_minor_that_is_not_a_whole_number_is_refused_by_name(minor):
+    plugin = SourcePlugin(api_major=1, create=plugin_fakes._good, api_minor=minor)  # type: ignore[arg-type]
+
+    roster = load_sources(context(), entry_points=[_Fixed(entry("good", "GOOD"), plugin)])
+
+    said = f"it declares an interface minor of {minor!r}, which is not a whole number"
+    assert states(roster)["good"] == (PluginState.FAILED, said)
+
+
+def test_a_plugin_passing_a_keyword_this_arrt_does_not_take_is_told_it_may_need_a_newer_arrt():
+    class _Unimportable:
+        name = "newer"
+
+        def load(self):
+            return SourcePlugin(api_major=1, create=plugin_fakes._good, api_wish=7)  # type: ignore[call-arg]
+
+    roster = load_sources(context(), entry_points=[_Unimportable()])
+
+    state, reason = states(roster)["newer"]
+    assert state is PluginState.FAILED
+    assert reason.startswith("it could not be imported: TypeError")
+    assert "unexpected keyword argument 'api_wish'" in reason
+    assert reason.endswith("; it may need a newer Arrt than this one, which provides source interface 1.5")
+
+
+def test_a_plugin_that_cannot_be_imported_for_another_reason_is_not_told_about_versions():
+    broken = importlib.metadata.EntryPoint(name="gone", value="no_such_module:PLUGIN", group=ENTRY_POINT_GROUP)
+
+    (reading,) = load_sources(context(), entry_points=[broken]).observe()
+
+    assert "newer Arrt" not in reading.reason
+
+
+# -- could not be asked, counted and said -------------------------------------------
+
+
+def test_a_plugin_that_has_only_ever_been_could_not_be_asked_says_so_on_status():
+    """A museum's redesign: its parser says "could not be asked" for every work, and none of it is a fault."""
+    failing = StubFinder("moma", raises=ImageSearchFailure("the page had no work record"))
+    roster = SourceRoster.of(finders=[failing], now=lambda: MOMENT)
+    for _ in range(5):
+        with pytest.raises(ImageSearchFailure):
+            roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    (out,) = _health(_health_of(roster, now=MOMENT + timedelta(seconds=30))).sources
+
+    assert out.faults == 0
+    assert out.description == (
+        "The moma plugin is loaded and has answered nothing since startup but that it could not be asked: "
+        "5 times, the last 30 seconds ago (the page had no work record). Works it would have answered wait "
+        "instead of being settled."
+    )
+
+
+def test_a_plugin_that_answered_and_sometimes_could_not_be_asked_says_both():
+    flaky = StubFinder("flaky")
+    roster = SourceRoster.of(finders=[flaky], now=lambda: MOMENT)
+    list(roster.finders[0].find_images(ImageQuery(title="Nighthawks")))
+    flaky._raises = ImageSearchFailure("timed out")
+    with pytest.raises(ImageSearchFailure):
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    (out,) = _health(_health_of(roster, now=MOMENT + timedelta(seconds=7))).sources
+
+    assert out.description == (
+        "The flaky plugin is loaded, with no faults since startup; it could not be asked once, "
+        "the last 7 seconds ago (timed out)."
+    )
+
+
+def test_cannot_answer_is_an_answer_and_keeps_a_plugin_from_reading_as_only_could_not_be_asked():
+    finder = StubFinder("byitem", raises=ImageQueryUnanswerable("by item only"))
+    roster = SourceRoster.of(finders=[finder], now=lambda: MOMENT)
+    with pytest.raises(ImageQueryUnanswerable):
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    (reading,) = roster.observe()
+    assert (reading.answered, reading.unasked) == (1, 0)
+
+
+@pytest.mark.plugin_fault_expected
+def test_a_plugin_with_faults_and_nothing_else_says_it_has_answered_nothing_else():
+    roster = SourceRoster.of(finders=[StubFinder("broken", raises=KeyError("field"))], now=lambda: MOMENT)
+    with pytest.raises(ImageSearchFailure):
+        roster.finders[0].find_images(ImageQuery(title="Nighthawks"))
+
+    (out,) = _health(_health_of(roster, now=MOMENT + timedelta(seconds=3))).sources
+
+    assert out.description.startswith("The broken plugin is loaded, with 1 fault since startup, the last 3 seconds ago")
+    assert out.description.endswith(" It has answered nothing else since startup.")

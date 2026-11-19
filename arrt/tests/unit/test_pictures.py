@@ -8,6 +8,7 @@ answered with one picture, a small source refused a large ask, a bomb written to
 disk, a half-written file served, and anything deleted.
 """
 
+import errno
 import logging
 import pathlib
 import threading
@@ -18,6 +19,7 @@ import pytest
 from fakes import counted_tokens
 from PIL import Image
 
+from arrt import atomic
 from arrt.library.services.pictures import (
     TIERS,
     PictureRefused,
@@ -292,6 +294,25 @@ def test_two_concurrent_asks_for_one_key_make_one_fetch(art_root):
     assert answers[0] == answers[1] is not None
 
 
+def test_a_kept_picture_is_written_without_syncing_and_an_empty_tier_is_fetched_again(art_root, monkeypatch):
+    """A tier is made again when it is missing or empty, which is all a power cut can leave of an unsynced write."""
+    from arrt import atomic
+
+    synced: list[int] = []
+    real = atomic.os.fsync
+    monkeypatch.setattr(atomic.os, "fsync", lambda descriptor: synced.append(descriptor) or real(descriptor))
+    source = CountingSource()
+    store = a_store(art_root, source)
+
+    largest = art_root / store.keep("artic", URL, PREVIEW_URL)
+    assert synced == []
+    largest.write_bytes(b"")
+    store.keep("artic", URL, PREVIEW_URL)
+
+    assert largest.stat().st_size > 0
+    assert len(source.asked) == 2
+
+
 def test_nothing_temporary_is_left_after_a_write(art_root):
     a_store(art_root, CountingSource()).keep("artic", URL, PREVIEW_URL)
 
@@ -386,13 +407,33 @@ def test_an_unreadable_store_degrades_the_card_rather_than_failing_the_run(art_r
 
 
 def test_bytes_that_cannot_be_written_degrade_the_card_rather_than_failing_the_run(art_root, monkeypatch, caplog):
-    def explode(self, _data):
-        raise OSError("no space left on device")
+    # Where the shared writer meets the disk: the staging file is created and
+    # the write into it is refused, as a full disk refuses it. (A kept picture
+    # is written unsynced, so no sync is there to refuse it.)
+    create = atomic._create_staging
 
-    monkeypatch.setattr("pathlib.Path.write_bytes", explode)
+    class Full:
+        def __init__(self, handle):
+            self._handle = handle
+
+        def write(self, _data):
+            raise OSError(errno.ENOSPC, "no space left on device")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            self._handle.close()
+
+    def refusing(destination, token):
+        path, handle = create(destination, token)
+        return path, Full(handle)
+
+    monkeypatch.setattr(atomic, "_create_staging", refusing)
 
     with caplog.at_level(logging.INFO):
         assert a_store(art_root, CountingSource()).keep("artic", URL, PREVIEW_URL) is None
+    assert every_file(art_root) == set(), "a refused write left its staging file behind"
 
     (line,) = [record for record in caplog.records if getattr(record, "event", "").startswith("picture.")]
     assert (line.event, line.levelno) == ("picture.unwritable", logging.WARNING)

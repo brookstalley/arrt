@@ -85,7 +85,8 @@ def test_a_work_with_no_acquired_original_is_excluded_and_named(display, ready_w
 
     assert build.entries == []
     assert [exclusion.reason for exclusion in build.exclusions] == [UnplayableReason.NO_ORIGINAL]
-    assert "acquired" in build.exclusions[0].detail
+    # "acquired" until 2026-11-19, when "master image" became "picture" (audit-2 M7).
+    assert "no picture yet" in build.exclusions[0].detail
 
 
 class _ForgetsOneWork:
@@ -315,7 +316,7 @@ def test_the_written_feed_is_json_a_player_can_parse(display, ready_work, theme_
     work = ready_work()
     theme = theme_of(work)
 
-    display.sync(wall_id, theme.id)
+    display.activate_theme(theme.id, wall_id=wall_id)
 
     document = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())
     assert document["schema"]["major"] == SCHEMA_MAJOR
@@ -323,12 +324,36 @@ def test_the_written_feed_is_json_a_player_can_parse(display, ready_work, theme_
     assert list(document["works"]) == [work.id]
 
 
+def test_sync_publishes_what_is_hung_and_cannot_be_handed_another_theme(
+    display, store, ready_work, theme_of, wall_settings, wall_id
+):
+    """A feed of a theme the catalogue does not record as hung would show the wall something it says is not there.
+
+    So the service takes no theme to publish, whatever surface calls it, and a
+    republish puts up the hung theme again.
+    """
+    hung = theme_of(ready_work("Nighthawks"), name="Hung")
+    other = theme_of(ready_work("Chop Suey"), name="Not hung")
+    display.activate_theme(hung.id, wall_id=wall_id)
+    path = wall_settings.manifest_v2_path(wall_id)
+    before = path.read_bytes()
+
+    with pytest.raises(TypeError):
+        display.sync(wall_id, other.id)
+
+    assert path.read_bytes() == before
+    assert store.get_assignment(wall_id).theme_id == hung.id
+    build = display.sync(wall_id)
+    assert build.theme.id == hung.id
+    assert json.loads(path.read_text())["playlist"]["name"] == "Hung"
+
+
 def test_the_feed_does_not_carry_the_exclusions(display, ready_work, theme_of, wall_settings, wall_id):
     """They are curation's report about its own catalogue, not something a Player can use."""
     shown = ready_work("Nighthawks")
     theme = theme_of(shown, ready_work("Chop Suey", original=False))
 
-    build = display.sync(wall_id, theme.id)
+    build = display.activate_theme(theme.id, wall_id=wall_id)
 
     assert len(build.exclusions) == 1
     document = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())
@@ -465,7 +490,7 @@ def test_showing_a_work_that_cannot_reach_the_wall_is_refused_with_its_reason(
     published = wall_settings.manifest_v2_path(wall_id).read_bytes()
     work = ready_work(master=False)
 
-    with pytest.raises(ServiceError, match="no presentation master has been made"):
+    with pytest.raises(ServiceError, match="its copy for the walls has not been made"):
         display.show_work_now(wall_id, work.id)
 
     # And nothing was published: a refused show-now leaves the wall's feed as it was.

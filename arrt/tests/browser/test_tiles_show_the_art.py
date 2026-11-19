@@ -71,7 +71,7 @@ def test_a_tile_carries_no_badge_that_says_nothing(ui, composed, work_with_an_im
     verdict = ui.page.evaluate(f"() => fetch('/api/works/{big.id}').then(r => r.json()).then(d => d.work.fit.verdict)")
     assert verdict == "meets_minimum", "the fixture no longer makes the case this test is about"
     footer = ui.page.locator(f"li.card[data-artwork='{big.id}'] .card-footer").inner_text()
-    for word in ("minimum", "wall render", "master image"):
+    for word in ("minimum", "wall render", "master"):
         assert word not in footer, f"the tile still says {word!r}"
     small_footer = ui.page.locator(f"li.card[data-artwork='{small.id}'] .card-footer").inner_text()
     assert small_footer.strip(), "a fit worth saying went with the ones that say nothing"

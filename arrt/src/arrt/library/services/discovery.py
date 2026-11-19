@@ -1484,6 +1484,12 @@ class DiscoveryService:
             wikidata_qid=work.wikidata_qid,
         )
         for image in images:
+            # A scan the curator turned down stays a candidate and is never
+            # promoted: `Source` has no field to carry the rejection, so a promoted
+            # one would come back as an ordinary alternate that retry_acquisition
+            # and any better-image flow offer beside the real ones (constraint 7b).
+            if image.rejected_at is not None:
+                continue
             self._catalogue.add_source(
                 artwork_id=artwork.id,
                 url=image.url,

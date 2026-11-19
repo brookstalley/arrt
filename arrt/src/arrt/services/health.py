@@ -47,14 +47,23 @@ from arrt.programming.display import DisplayService, WallHeartbeat, describe_wal
 
 @dataclass(frozen=True, slots=True)
 class SourceHealth:
-    """One installed source plugin, with the age of its last fault."""
+    """One installed source plugin, with the age of its last fault and of its last "could not be asked"."""
 
     reading: PluginReading
     #: Seconds since the last contained fault, or `None` when there was none.
     last_fault_age_seconds: float | None
+    #: Seconds since the last call that was "could not be asked", or `None` when there was none.
+    last_unasked_age_seconds: float | None = None
 
     def describe(self) -> str:
-        """What happened to this plugin, in a sentence: an observation, never a verdict."""
+        """What happened to this plugin, in a sentence: an observation, never a verdict.
+
+        **A plugin that has only ever said "could not be asked" is said to have.**
+        A parser that no longer recognises a museum's redesigned pages answers
+        that, in the interface's own words, for every work, and is no fault; by
+        faults alone it read "loaded, with no faults" while every work it would
+        have answered waited.
+        """
         reading = self.reading
         # By the museum, not the plugin id: the id is a key, and a curator
         # reading "smk is loaded" learns nothing about which collection.
@@ -63,14 +72,33 @@ class SourceHealth:
             return f"The {museum} plugin is installed and not configured here: {reading.reason}."
         if reading.state is PluginState.FAILED:
             return f"The {museum} plugin is installed and was not loaded: {reading.reason}."
+        unasked = self._unasked()
+        if reading.faults == 0 and reading.unasked and not reading.answered:
+            return (
+                f"The {museum} plugin is loaded and has answered nothing since startup but that it could not be "
+                f"asked: {unasked}. Works it would have answered wait instead of being settled."
+            )
         if reading.faults == 0:
-            return f"The {museum} plugin is loaded, with no faults since startup."
+            said = f"The {museum} plugin is loaded, with no faults since startup."
+            return said if not reading.unasked else f"{said[:-1]}; it could not be asked {unasked}."
         plural = "fault" if reading.faults == 1 else "faults"
-        return (
+        said = (
             f"The {museum} plugin is loaded, with {reading.faults} {plural} since startup, the last "
             f"{self.last_fault_age_seconds:.0f} seconds ago ({reading.last_fault}). Each was recorded as the "
             "source not being reachable, so works it would have answered wait instead of being settled."
         )
+        if reading.unasked:
+            said += f" It could also not be asked {unasked}."
+        if not reading.answered:
+            said += " It has answered nothing else since startup."
+        return said
+
+    def _unasked(self) -> str:
+        """How many times the plugin could not be asked, when last, and what it said then."""
+        reading = self.reading
+        times = "once" if reading.unasked == 1 else f"{reading.unasked} times"
+        age = "" if self.last_unasked_age_seconds is None else f", the last {self.last_unasked_age_seconds:.0f} seconds ago"
+        return f"{times}{age} ({reading.last_unasked})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +257,9 @@ class HealthService:
             SourceHealth(
                 reading=reading,
                 last_fault_age_seconds=(None if reading.last_fault_at is None else (now - reading.last_fault_at).total_seconds()),
+                last_unasked_age_seconds=(
+                    None if reading.last_unasked_at is None else (now - reading.last_unasked_at).total_seconds()
+                ),
             )
             for reading in self._sources.observe()
         ]

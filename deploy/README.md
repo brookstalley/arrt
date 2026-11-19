@@ -24,10 +24,12 @@ Player's steps are in its repository.
   `/healthz` for the container's healthcheck. Build it for the NAS with
   `docker buildx build --platform linux/amd64 -t arrt:<commit> arrt/`; run the
   curation suite inside it with `--target test --build-context repo=.`, as the
-  app's own user. CI builds that target natively on amd64 on a pull request that
-  changes the image's environment: its Dockerfile, interpreter pin or dependency
-  files (`.github/workflows/image.yml`). A change to source or tests alone does
-  not build it, so run that workflow by hand before a release. On an arm Mac it builds under emulation, takes far longer, and
+  app's own user. CI builds that target natively on amd64 on every pull request
+  into `main`, which is a release, so the image is built before every release
+  without anyone remembering to; on a pull request into any other branch it builds
+  only when the image's environment changes: its Dockerfile, interpreter pin or
+  dependency files (`.github/workflows/image.yml`). A change to source or tests
+  alone does not build it there, and the workflow can also be run by hand. On an arm Mac it builds under emulation, takes far longer, and
   a test that times a server's answer can fail there for that reason alone.
 - `deploy/nas/compose.example.yaml` — the app's shape with placeholders.
 
@@ -74,20 +76,94 @@ place of Arrt's.
   the conflict. Fix such a plugin, not the constraint.
 - **`USER root` for the install, then back.** Arrt's image runs as 568 and its
   venv is root's. Change the last line if the compose file runs another user.
+- **The plugin's own lock is held the same way.** The constraint above keeps
+  Arrt's versions; the plugin's dependencies Arrt does not already carry
+  still resolve to whatever is newest on the day of the build, so two builds of
+  one commit may differ. The private source plugins' repository found a second step
+  necessary for a reproducible image: it exports the plugin's own `uv.lock` as a
+  constraints file (`plugin_constraints.py`, there) and passes it to the install
+  beside Arrt's. Its `arrt-sources:deploy/Dockerfile` is the recipe to copy; the snippet above
+  is the part that protects Arrt, not the whole of a reproducible build.
 - **The plugin names no `arrt` dependency** (`docs/source-plugins.md` § A plugin
   is a distribution with one entry point), so nothing here can fetch an `arrt`
   from PyPI.
 - **Rebuild it for every Arrt commit you deploy.** It carries Arrt's code
   inside it, so a derived image left on an old tag holds the server back too.
+- **A plugin that reads through a browser, or is otherwise slow, declares its
+  deadlines before an image is built from this server (interface 1.5).** The host
+  waits 60 seconds for a finder or a reader, 30 for a preview and 120 for a
+  browse, and a call that takes longer is answered "could not be asked", so a
+  plugin whose pages take longer than that, left as it was written for 1.4,
+  would never answer and every work behind it would wait. It declares
+  `SourcePlugin(deadlines={"finder": ..., "reader": ...})` in seconds, at most
+  3,600 each, and a value outside that is refused at load, naming it
+  (`docs/source-plugins.md`, `source-plugins.md` § Versioning and errors). A 1.4
+  plugin loads unchanged and gets the defaults.
 
 **How to tell it worked:** the startup log has `source plugin <name> loaded`, or
 the reason it declined, and the health panel lists it. Run once with
 `--entrypoint python` and the snippet in `docs/source-plugins.md` § Testing to
 see the same answer before deploying. Verified 2026-10-03 against `arrt:0e10e6d`,
 with the guide's example reader: the plugin read `loaded` beside
-the three built-ins, as uid 568.
+the three built-ins that existed then, as uid 568. There are ten today: the
+`arrt.sources` entry points in `arrt/pyproject.toml` are the list.
 
 What installing a plugin trusts is `security-model.md` § Source plugins.
+
+### What is reachable, and what is logged (2026-11-19)
+
+**The boundary is every network that can route to the published port**, not the
+reverse proxy. The server asks no one who they are, and its host check admits any
+IP address as the name asked for (`security-model.md` § Trust Boundary), so a
+port published on every NAS interface lets a guest network, an IoT network or a
+VPN reach everything the proxy does, without it. `deploy/nas/compose.example.yaml`
+now publishes the port to one address (the proxy's, or loopback) and bounds
+Docker's log. **Before deploying**, set the real file's `ports:` to the address
+only the proxy reaches, then check from a machine on another network that
+`curl -s -o /dev/null -w '%{http_code}' http://<NAS address>:<host port>/healthz`
+does not answer.
+
+Four more things changed at the server's edges:
+
+- **A Player's successful requests write no access line.** A manifest, label,
+  media or heartbeat request answered `2xx` or `304` is not logged; a refusal
+  (`401`, `403`, `404`) still is, and so is every request to any other route.
+  Before this, one wall wrote about 170,000 lines a day.
+- **A request the browser marks `Sec-Fetch-Site: cross-site` is refused** on
+  `/api` and `/mcp` (`403`): a page elsewhere can no longer start a look by a
+  `GET` that carries no `Origin`. The interface's own requests, an MCP client
+  (which sends no such header) and a Player are unaffected, and so is a link to
+  a page of the interface from anywhere.
+- **The browser interface cannot be framed** (`frame-ancestors 'none'`,
+  `X-Frame-Options: DENY`). A reverse proxy that serves the interface inside
+  another page needs its own header to say so.
+- **A Player's request body over 256 KiB is refused with `413`.** A heartbeat
+  is a few kilobytes.
+
+**The way back** is the previous image. Nothing in the catalogue changed.
+
+## Before an upgrade that drops something (2026-11-19)
+
+**The server copies the catalogue itself before a migration that drops a column
+or a table.** The three sections below each say to copy the catalogue by hand
+before deploying their release, and that is still sound, but from this release a
+catalogue that needs such a migration is copied first by the server, whoever
+forgot. The copy is `pre-migration-<UTC instant>.sqlite`, in `BACKUP_DIR` when it
+is set and beside the catalogue when it is not. The three newest are kept,
+outside the backup generations' count, so no number of restarts prunes them. A
+catalogue already on the current shape, or a new one, takes none.
+
+**If the copy cannot be written, the server does not start**, and the catalogue is
+left exactly as it was: the message names the directory and the reason (a full
+disk, a read-only mount). Free the space or make the directory writable, or point
+`BACKUP_DIR` at one that is, and start again. Nothing is dropped without its
+copy, so nothing is lost by the refusal.
+
+**The way back across such a migration** is that copy and the previous image
+together (`operational-spec.md` § Backup and Restore). A restart is not a
+backup either way: the start-up backup pass is skipped while the newest
+generation is younger than `BACKUP_INTERVAL_SECONDS`, so a server restarting in a
+loop no longer replaces the generations from before the upgrade.
 
 ## Clients (2026-10-02, `build-plan-clients.md`)
 
@@ -264,13 +340,7 @@ so its month's spend fails once Ask has written one:
 That forgets only what Ask spent since the upgrade, which the earlier server
 never counted.
 
-## `curation.service`
-
-`deploy/curation.service` runs the server under systemd rather than in a
-container. It ran the server on the Pi from 2026-08-11 until the server moved to
-the NAS on 2026-10-02, and has been stopped and disabled there since. The
-service account, the paths and the cutover it was installed in are recorded in
-Arrt Player's `deploy/README.md`, beside the Pi's own unit.
+## Restarting the server
 
 **A restart is not a way to force a republish.** At every start the server
 reconciles each published feed against the Library (`DisplayService.reconcile`)

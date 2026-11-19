@@ -198,9 +198,9 @@ def _a_wall(*, wall_id="wall-1", name="The living room", absent=False, problem=N
             "absent": absent,
             "problem": problem,
             "description": (
-                f"No heartbeat file exists for {name}; the display plane has not reported yet."
+                f"No heartbeat file exists for {name}; this wall's Player has not reported yet."
                 if absent
-                else f"The display plane last reported {age_seconds:.0f} seconds ago."
+                else f"This wall's Player last reported {age_seconds:.0f} seconds ago."
             ),
             "reported": None if absent else {"reported_at": "2026-08-12T09:14:02+00:00"} | (reported or {}),
         },

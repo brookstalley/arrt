@@ -43,9 +43,11 @@ nobody reads a promise here that the code does not carry.
   name: `transaction()` below is the same capability with the handle left
   implicit, and it is what a rule spanning rows is applied inside.
 - `upsert` also takes `cas`, an optimistic-lock fence against a row's previous
-  `date_updated`. Nothing here has that column, and a single-writer process on a
-  serialised connection has no concurrent modification to lose — so the parameter
-  would be one that could only ever be passed `None`.
+  `date_updated`. Nothing here has that column, and the fence is left out on a
+  rule the callers keep. Every statement is serialised, but a read taken outside
+  `transaction()` and written back inside one can lose a concurrent write; a
+  whole-row write is read inside the transaction that makes it, which holds the
+  lock across the whole read-modify-write. Nothing here checks that rule.
 - `pk` is required here and optional there, because the framework permits a
   backend that already knows a table's key; this one takes it and then checks it
   against the key the file actually declares.
@@ -67,16 +69,20 @@ name is a bug whose message names internals and must not be repeated to whoever
 made the request.
 
 **Concurrency.** One connection is opened with `check_same_thread=False` and every
-statement runs under a single reentrant lock. The server accepts requests on an
-event loop thread while tests and startup code touch the store from another, so
-the connection genuinely crosses threads; the lock is what makes that safe rather
-than usually-safe. Queries are sub-millisecond point lookups against a
-household-sized catalogue, so serialising them costs nothing worth measuring — and
-a transaction holds the lock for its whole body, which is what lets the one
-connection carry a multi-statement group without another thread writing into the
-middle of it.
+statement runs under a single reentrant lock. Many threads reach it: the HTTP
+handlers, which are synchronous and run on Starlette's worker threadpool; MCP
+tool calls and Ask's tools, on asyncio's default executor; and the background
+threads, which are the topic sweep, the acquisition queue, the scheduler and
+each discovery run. (The backup opens a connection of its own and never touches
+this one.) The lock is what makes that safe rather than usually-safe.
+Most statements are point lookups against a household-sized catalogue, but not
+all: text search runs a Python function over every row (`define_function`), and
+every other thread waits while it does. A transaction holds the lock for its
+whole body, which is what lets the one connection carry a multi-statement group
+without another thread writing into the middle of it.
 """
 
+import contextlib
 import logging
 import sqlite3
 import threading
@@ -86,9 +92,69 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Literal, get_args
 
-from arrt.persistence.errors import StorageError, StoreMisuseError
+from arrt.persistence.errors import StorageError, StorageFault, StoreMisuseError
 
 log = logging.getLogger(__name__)
+
+
+#: SQLite's primary result codes that say the file cannot be used, whatever was
+#: asked of it: permission refused, another connection holding it (busy, locked,
+#: or the locking protocol failing), a read-only, failing, full or corrupt file,
+#: one that cannot be opened, and one that is not a database. Everything else
+#: the driver raises, `SQLITE_ERROR` above all ("no such table", "no such
+#: column", a syntax error), is about the statement, so it is this code's fault
+#: and stays what it is.
+_HOST_FAULT_CODES: Final[frozenset[int]] = frozenset(
+    {
+        sqlite3.SQLITE_PERM,
+        sqlite3.SQLITE_BUSY,
+        sqlite3.SQLITE_LOCKED,
+        sqlite3.SQLITE_READONLY,
+        sqlite3.SQLITE_IOERR,
+        sqlite3.SQLITE_CORRUPT,
+        sqlite3.SQLITE_FULL,
+        sqlite3.SQLITE_CANTOPEN,
+        sqlite3.SQLITE_PROTOCOL,
+        sqlite3.SQLITE_NOTADB,
+    }
+)
+
+#: An extended result code carries its primary code in the low byte
+#: (`SQLITE_IOERR_WRITE` is `SQLITE_IOERR | (3 << 8)`).
+_PRIMARY_CODE_MASK: Final[int] = 0xFF
+
+
+def _is_host_fault(exc: sqlite3.Error) -> bool:
+    """Whether the driver's error says the file cannot be used, read from its result code, never its text.
+
+    An error with no code was not raised by SQLite, and is not called a fault of
+    the host on the strength of its words.
+    """
+    code = getattr(exc, "sqlite_errorcode", None)
+    return code is not None and code & _PRIMARY_CODE_MASK in _HOST_FAULT_CODES
+
+
+@contextmanager
+def _host_faults() -> Iterator[None]:
+    """Raise the driver's error as the persistence layer's `StorageFault` when the file itself cannot be used.
+
+    A lock another process holds, a file that cannot be opened, a full,
+    read-only, failing or corrupt disk (`_HOST_FAULT_CODES`): a layer above that
+    must react to that fault may not import the driver to recognise it. Every
+    statement this store runs once it is open goes through here. Anything else
+    the driver raises passes through as it is, so a statement naming a table or
+    a column the file does not have surfaces as the defect it is rather than
+    pausing the acquisition queue as if the disk were at fault. A constraint the
+    file refuses is an `IntegrityError`, which `_write` translates into a
+    `StorageError` before it reaches here.
+    """
+    try:
+        yield
+    except sqlite3.DatabaseError as exc:
+        if not _is_host_fault(exc):
+            raise
+        raise StorageFault(str(exc)) from exc
+
 
 #: How `upsert` resolves a row that is already present. `raise` is a plain insert
 #: and is what a catalogue addition wants — re-adding a work is a mistake, not an
@@ -213,6 +279,9 @@ class SqliteDurableStore:
         #: How many `transaction()` blocks are open. Non-zero means a write must
         #: leave committing to the outermost one.
         self._depth = 0
+        #: The thread whose outermost `transaction()` is open, for
+        #: `in_transaction`; None while none is.
+        self._owner: int | None = None
         #: Callbacks waiting for the outermost `transaction()` to commit. Emptied
         #: when it does, and discarded when it rolls back.
         self._after_commit: list[Callable[[], None]] = []
@@ -272,6 +341,7 @@ class SqliteDurableStore:
                     self._depth -= 1
                 return
             self._depth = 1
+            self._owner = threading.get_ident()
             try:
                 yield
             except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; rollback must run on any exit
@@ -281,17 +351,43 @@ class SqliteDurableStore:
                 # the body just as surely as an error does, and leaving half a
                 # rule applied is the one outcome this block exists to prevent.
                 self._after_commit.clear()
-                self._connection.rollback()
+                try:
+                    self._connection.rollback()
+                except sqlite3.Error as failed:
+                    # The body's exception is the one the caller must see: a
+                    # refusal stays a refusal even when the rollback after it
+                    # fails, and the fault that failed the body stays that
+                    # fault. The rollback's own failure is the journal's.
+                    log.exception(
+                        "a transaction's rollback failed too",
+                        extra={"event": "store.rollback_failed", "detail": str(failed)},
+                    )
                 raise
             else:
-                self._connection.commit()
+                try:
+                    self._commit()
+                except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; no callback after it
+                    self._after_commit.clear()
+                    raise
                 committed, self._after_commit = self._after_commit, []
             finally:
                 self._depth = 0
+                self._owner = None
         # Outside the lock, so a callback that opens a transaction of its own
         # waits its turn like any other caller rather than joining this one.
         for callback in committed:
             callback()
+
+    def in_transaction(self) -> bool:
+        """Whether a `transaction()` block is open on the calling thread.
+
+        For a service that keeps state for the length of one act
+        (`services.store.ActState`) or refuses to open one inside another. Asked
+        without the lock, so a thread outside one never waits on the thread
+        inside: the lock lets one thread at a time open a block, and only that
+        one is answered yes.
+        """
+        return self._owner == threading.get_ident()
 
     def after_commit(self, callback: Callable[[], None]) -> None:
         """Run `callback` once the writes made so far are committed, and not before.
@@ -322,7 +418,7 @@ class SqliteDurableStore:
     def fetch_one(self, table: str, pk: Mapping[str, Any]) -> dict[str, Any] | None:
         """Return the row whose primary key equals `pk`, or None on a miss."""
         where, values = self._equality(table, pk, as_key=True)
-        with self._lock:
+        with self._lock, _host_faults():
             row = self._connection.execute(
                 f'SELECT * FROM "{table}" WHERE {where}', values  # noqa: S608 -- names checked by _validate
             ).fetchone()
@@ -372,7 +468,7 @@ class SqliteDurableStore:
         """
         where, values = self._equality(table, filters or {}, as_key=False)
         clause = "" if not where else f" WHERE {where}"
-        with self._lock:
+        with self._lock, _host_faults():
             rows = self._connection.execute(
                 f'SELECT * FROM "{table}"{clause}', values  # noqa: S608 -- names checked by _validate
             ).fetchall()
@@ -409,7 +505,7 @@ class SqliteDurableStore:
             window, page_values = " LIMIT -1 OFFSET ?", (*values, offset)
         else:
             window, page_values = " LIMIT ? OFFSET ?", (*values, limit, offset)
-        with self._lock:
+        with self._lock, _host_faults():
             total = self._connection.execute(
                 f'SELECT COUNT(*) FROM "{table}"{clause}', values  # noqa: S608 -- names checked by _validate
             ).fetchone()[0]
@@ -470,7 +566,7 @@ class SqliteDurableStore:
         through it would leave an implicit transaction open for the next commit to
         publish. `SELECT` only.
         """
-        with self._lock:
+        with self._lock, _host_faults():
             rows = self._connection.execute(statement, tuple(values)).fetchall()
         return [dict(row) for row in rows]
 
@@ -686,9 +782,15 @@ class SqliteDurableStore:
         rows, and rolling back here would discard writes the caller made before
         this one and still believes in.
         """
-        with self._lock:
+        with self._lock, _host_faults():
             try:
                 rowcount = int(self._connection.execute(statement, values).rowcount)
+            except sqlite3.OperationalError:
+                # The same implicit transaction as below, for the same reason;
+                # `_host_faults` then raises it as a `StorageFault` if it is the host's.
+                if not self._depth:
+                    self._connection.rollback()
+                raise
             except sqlite3.IntegrityError as exc:
                 if not self._depth:
                     # A failed statement writes nothing, but sqlite3 has already
@@ -706,5 +808,24 @@ class SqliteDurableStore:
                 log.warning("Refused a write to %s: %s", table, exc)
                 raise StorageError(reason, reason=reason) from exc
             if not self._depth:
-                self._connection.commit()
+                self._commit()
             return rowcount
+
+    def _commit(self) -> None:
+        """Commit, or on a commit the file refuses, roll back and raise `StorageFault`.
+
+        A commit that fails (another process holds the file, the disk is full)
+        leaves the driver's transaction open. Left so, the writes in it would be
+        read back as if kept and published by the next commit that succeeds,
+        though their caller was told they failed.
+        """
+        try:
+            self._connection.commit()
+        except sqlite3.DatabaseError as exc:
+            # The commit's fault is the one worth raising; a rollback that also
+            # fails leaves the connection no worse than the commit did.
+            with contextlib.suppress(sqlite3.DatabaseError):
+                self._connection.rollback()
+            if not _is_host_fault(exc):
+                raise
+            raise StorageFault(str(exc)) from exc

@@ -1,10 +1,13 @@
-"""The narrow reverse channel: what the display plane says about itself.
+"""The narrow reverse channel: what a wall's Player says about itself.
 
-The manifest runs curation → display. This is the only thing that runs the other
-way, and it is deliberately not a dependency: display writes this file and never
-checks whether anyone read it, so curation being absent changes nothing about the
-wall. Curation reading a stale one, or none at all, is likewise not an error — it
-is an observation, and this module's job is to report it as one.
+The feed runs server → Player. This is the only thing that runs the other way,
+and it is deliberately not a dependency: the Player POSTs a heartbeat for each
+wall it shows (`player-contract.md` § The heartbeat) and never waits on what the
+server makes of it, so a server that is down changes nothing about the wall. The
+server keeps each one as a file per wall under `ART_ROOT`
+(`DisplayService.record_heartbeat`), which is what every reader here reads; a
+stale one, or none at all, is likewise not an error — it is an observation, and
+this module's job is to report it as one.
 
 **Nothing here decides whether a Player is healthy.** It reports what was
 found and how old it is, in absolute terms. A green dot is a verdict, and a
@@ -32,9 +35,9 @@ from typing import Any, Final
 
 from arrt import observations
 
-#: Written into `ART_ROOT` by the display plane, **one file per wall**. Not
-#: configurable, for the same reason the manifest's name is not: both planes must
-#: agree where it is.
+#: Written into `ART_ROOT` by the server from each Player's POST, **one file
+#: per wall**. Not configurable, for the same reason the feed's name is not: the
+#: server and its tools have to agree where it is.
 #:
 #: Per wall because health has to be able to name *which* wall is silent, and one
 #: shared file has no way to say it — the second display would simply overwrite
@@ -43,7 +46,7 @@ from arrt import observations
 HEARTBEAT_FILENAME_TEMPLATE: Final[str] = "display-heartbeat-{wall_id}.json"
 
 #: The key carrying the instant, and a contract rather than a preference. A writer
-#: that spells it `timestamp` produces a plane that looks *down* to curation while
+#: that spells it `timestamp` produces a Player that looks *down* to the server while
 #: running perfectly — this product's defining failure mode manufactured by the
 #: mechanism built to detect it. `observability-strategy.md` names it for the same
 #: reason. Everything else in the document is the writer's to shape.
@@ -74,7 +77,7 @@ _INSTANT: Final[re.Pattern[str]] = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class HeartbeatReading:
-    """What curation can observe about the display plane, stated as observation.
+    """What the server can observe about a wall's Player, stated as observation.
 
     `absent` and `unreadable` are different answers on purpose. Nothing has ever
     run is a normal state on a fresh deployment; a file that exists and will not
@@ -86,42 +89,42 @@ class HeartbeatReading:
     reported_at: datetime | None
     #: How long ago it was written, in seconds. None when there is nothing to age.
     age_seconds: float | None
-    #: The document as display wrote it, or None if absent or unreadable.
+    #: The document as the Player sent it, or None if absent or unreadable.
     contents: dict[str, Any] | None
     #: Set when a file is present but could not be read as a heartbeat.
     problem: str | None
 
     @property
     def absent(self) -> bool:
-        """True when the display plane has never written a heartbeat here."""
+        """True when no Player has ever reported for this wall."""
         return self.contents is None and self.problem is None
 
     def describe(self) -> str:
         """One sentence stating what was observed, never a verdict about it.
 
         The age is in the unit a person reads it in rather than in seconds. A
-        display plane down since Tuesday reported "345600 seconds ago", which is
+        Player down since Tuesday reported "345600 seconds ago", which is
         a conversion the reader has to do on the one surface built so they would
         not have to — and `observability-strategy.md` states the target wording.
         """
         if self.absent:
-            return f"No heartbeat file exists at {self.path}; the display plane has not reported yet."
+            return f"No heartbeat file exists at {self.path}; this wall's Player has not reported yet."
         if self.problem is not None:
             return f"The heartbeat file at {self.path} could not be read: {self.problem}"
-        return f"The display plane last reported {observations.ago(self.age_seconds)}."
+        return f"This wall's Player last reported {observations.ago(self.age_seconds)}."
 
 
 def heartbeat_path_in(art_root: Path, wall_id: str) -> Path:
     """Where one wall's heartbeat lives under a given art root.
 
-    The one place the template is filled in on this side, mirroring the display
-    plane's `path_in` — which is the only thing this has to agree with.
+    The one place the template is filled in, so the file `record_heartbeat` writes
+    is the one every reader opens.
     """
     return art_root / HEARTBEAT_FILENAME_TEMPLATE.format(wall_id=wall_id)
 
 
 def problem_with(document: object) -> str | None:
-    """Why this document is not a heartbeat this plane can read, or None if it is.
+    """Why this document is not a heartbeat this server can read, or None if it is.
 
     The same test `read` applies to a file, so a heartbeat accepted over HTTP is
     one the health panel will show and never one it reports as unreadable. A
@@ -134,7 +137,7 @@ def problem_with(document: object) -> str | None:
         return f"a heartbeat carries a readable {REPORTED_AT_KEY!r} timestamp."
     schema = document.get("schema")
     if schema is not None and (not isinstance(schema, dict) or schema.get("major") != 1):
-        return "this plane reads heartbeat schema major 1."
+        return "this server reads heartbeat schema major 1."
     if "capabilities" in document:
         problem = _problem_with_screen(document["capabilities"])
         if problem is not None:

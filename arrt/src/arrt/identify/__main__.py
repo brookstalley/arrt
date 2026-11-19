@@ -16,7 +16,7 @@ from arrt.config import Settings
 from arrt.library.registry import RegistryUnavailable
 from arrt.library.registry.wikidata import WikidataRegistry
 from arrt.library.services.identity import IdentityReport, IdentityService
-from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.file import open_configured_catalogue
 from arrt.persistence.sqlite import SqliteCatalogue
 
 
@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     registry = WikidataRegistry(user_agent=settings.wikidata_user_agent)
-    catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
+    catalogue_file = open_configured_catalogue(settings)
     try:
         report = IdentityService(SqliteCatalogue(catalogue_file), registry).match()
     except RegistryUnavailable as exc:

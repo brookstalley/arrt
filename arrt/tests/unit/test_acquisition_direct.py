@@ -1,10 +1,13 @@
 """The single-request fetch path, and the ceilings it enforces on the way in."""
 
+import errno
 import hashlib
+import os
 from contextlib import contextmanager
 
 import pytest
 
+from arrt import atomic
 from arrt.library.acquisition.direct import direct_fetch
 
 
@@ -64,7 +67,8 @@ class TestTheZeroByteGuard:
         # the failure the catalogue refuses to record.
         _run(tmp_path, _serves())
         assert not (tmp_path / "raw" / "work.jpg").exists()
-        assert list((tmp_path / "raw").glob("*.partial")) == []
+        # Nothing at all, hidden staging files included, whatever they are named.
+        assert list((tmp_path / "raw").iterdir()) == []
 
     def test_a_body_of_only_empty_chunks_is_empty(self, tmp_path):
         result = _run(tmp_path, _serves(b"", b"", b""))
@@ -81,7 +85,8 @@ class TestTheSizeCeiling:
         # Truncating would record a half-image nothing downstream could detect.
         _run(tmp_path, _serves(b"x" * 100), max_bytes=50)
         assert not (tmp_path / "raw" / "work.jpg").exists()
-        assert list((tmp_path / "raw").glob("*.partial")) == []
+        # Nothing at all, hidden staging files included, whatever they are named.
+        assert list((tmp_path / "raw").iterdir()) == []
 
     def test_a_body_exactly_at_the_ceiling_is_kept(self, tmp_path):
         result = _run(tmp_path, _serves(b"x" * 50), max_bytes=50)
@@ -116,6 +121,66 @@ class TestFailures:
         assert result.byte_size == 0
 
 
+class _FillsUp:
+    """A staging file on a disk that refuses the write: it opens, and every write fails with `number`."""
+
+    def __init__(self, handle, number):
+        self._handle = handle
+        self._number = number
+
+    def write(self, _data):
+        raise OSError(self._number, os.strerror(self._number))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self._handle.close()
+
+    def __getattr__(self, name):
+        return getattr(self._handle, name)
+
+
+def _the_disk_refuses(monkeypatch, where, number):
+    """The disk refuses at `where`: creating the staging file, or writing into it."""
+    real = atomic._create_staging
+
+    def create(destination, token):
+        if where == "create":
+            raise OSError(number, os.strerror(number))
+        path, handle = real(destination, token)
+        return path, _FillsUp(handle, number)
+
+    monkeypatch.setattr(atomic, "_create_staging", create)
+
+
+class TestTheDisksOwnFaults:
+    """A full or read-only disk is no fault of the work's, so it is raised for the queue to pause on, not recorded."""
+
+    @pytest.mark.parametrize(
+        ("where", "number"),
+        [("create", errno.EROFS), ("write", errno.ENOSPC), ("write", errno.EROFS)],
+        ids=["read-only at create", "full mid-write", "read-only mid-write"],
+    )
+    def test_it_is_raised_and_leaves_nothing_staged(self, tmp_path, monkeypatch, where, number):
+        _the_disk_refuses(monkeypatch, where, number)
+
+        with pytest.raises(OSError, match=os.strerror(number)) as raised:
+            _run(tmp_path, _serves(b"abc", b"def"))
+
+        assert raised.value.errno == number
+        assert list((tmp_path / "raw").iterdir()) == []
+
+    def test_any_other_fault_writing_the_file_is_recorded_against_the_work(self, tmp_path, monkeypatch):
+        """A refused permission is about this path, not the disk, so it stays one work's failed fetch."""
+        _the_disk_refuses(monkeypatch, "write", errno.EACCES)
+
+        result = _run(tmp_path, _serves(b"abc"))
+
+        assert not result.usable
+        assert os.strerror(errno.EACCES) in result.detail
+
+
 class TestRefetching:
     def test_a_second_fetch_replaces_what_the_first_staged(self, tmp_path):
         _run(tmp_path, _serves(b"old"))
@@ -132,6 +197,34 @@ class TestRefetching:
         _run(tmp_path, _serves(b"partial", raises=RuntimeError("boom")))
 
         assert held.read_bytes() == b"the image the work is displaying"
+        # And the failed attempt's staging file went with it: the held image is all there is.
+        assert list(held.parent.iterdir()) == [held]
+
+    def test_two_fetches_of_one_work_at_once_each_keep_their_own_bytes(self, tmp_path):
+        """The queue and a curator's retry can fetch one work at the same moment.
+
+        The second fetch starts while the first is still streaming. Sharing one
+        staging name, the second truncated the first's file under it and both
+        handed back the same path, holding neither body whole.
+        """
+        inner = {}
+
+        @contextmanager
+        def first_stream(_url):
+            def chunks():
+                yield b"first-"
+                inner["result"] = _run(tmp_path, _serves(b"second body"))
+                yield b"body"
+
+            yield chunks()
+
+        outer = _run(tmp_path, first_stream)
+        second = inner["result"]
+
+        assert outer.path != second.path
+        assert outer.path.read_bytes() == b"first-body"
+        assert second.path.read_bytes() == b"second body"
+        assert outer.content_hash == hashlib.sha256(b"first-body").hexdigest()
 
 
 @pytest.mark.parametrize("chunks", [(b"a",), (b"a", b"b"), (b"a" * 1000,)])

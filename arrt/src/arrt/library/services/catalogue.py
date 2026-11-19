@@ -26,7 +26,8 @@ without an event loop.
 import hashlib
 import logging
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,7 +66,7 @@ from arrt.persistence.records import (
 )
 from arrt.services.errors import ServiceError
 from arrt.services.fields import description_markup, relative_path, require_member, require_text
-from arrt.services.store import store_write
+from arrt.services.store import ActState, store_write
 
 log = logging.getLogger(__name__)
 
@@ -243,15 +244,45 @@ class CatalogueService:
         #: None for a catalogue that never serves media, which records renders
         #: without a content hash and serves none.
         self._art_root = art_root
+        #: The works a bulk act has changed so far, by how, announced together
+        #: when its transaction commits (`_announcing_together`). Seen only by
+        #: the act that opened it.
+        self._gathered: ActState[dict[WorkChange, list[str]]] = ActState(store)
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
-        """Be told, after each commit, which work changed and how."""
+        """Be told, after each commit, which works changed and how."""
         self._events.subscribe(handler)
 
     def _announce(self, change: WorkChange, artwork_id: str) -> None:
-        """Publish once the change is committed, and not at all if it is rolled back."""
-        event = WorkChanged(change=change, work_id=artwork_id)
+        """Publish once the change is committed, and not at all if it is rolled back.
+
+        Inside a bulk act, gathered into the one announcement the act makes.
+        """
+        gathered = self._gathered.current()
+        if gathered is not None:
+            gathered.setdefault(change, []).append(artwork_id)
+            return
+        event = WorkChanged(change=change, work_ids=(artwork_id,))
         self._store.after_commit(lambda: self._events.publish(event))
+
+    @contextmanager
+    def _announcing_together(self) -> Iterator[None]:
+        """One transaction whose works are announced as one event per kind of change, once it commits.
+
+        A bulk act's fifty archives are one `work.archived` of fifty ids, so a
+        subscriber acts once (`events.py`). Gathered only while the act's
+        transaction holds the store, so no other act's announcement joins it; a
+        rollback discards the gathered works with the change they describe.
+        Nesting joins the outer act.
+        """
+        if self._gathered.current() is not None:
+            yield
+            return
+        with self._gathered.opened({}) as gathered:
+            yield
+            for change, work_ids in gathered.items():
+                event = WorkChanged(change=change, work_ids=tuple(dict.fromkeys(work_ids)))
+                self._store.after_commit(lambda event=event: self._events.publish(event))
 
     # -- reads: works ---------------------------------------------------------
 
@@ -418,7 +449,9 @@ class CatalogueService:
         words, so nothing is half-done.
         """
         archived: list[str] = []
-        with self._store.transaction():
+        # Announced as one: every wall is reconciled once for the act, not once
+        # per work on the request's thread (`events.py`).
+        with self._announcing_together():
             for artwork_id in dict.fromkeys(artwork_ids):
                 if self._require_artwork(artwork_id).status is ArtworkStatus.ARCHIVED:
                     continue
@@ -1163,8 +1196,11 @@ class CatalogueService:
         **The bytes are hashed again before they are returned**, and bytes that
         no longer match are refused as not held. A re-render overwrites its file
         at the same path before its row records the new hash, and "a hash never
-        serves different bytes" has to hold through that window too. A render is
-        a few megabytes, and a Player fetches each one once.
+        serves different bytes" has to hold through that window too. What bounds
+        the cost is the presentation master: a JPEG at quality 95 whose long edge
+        is at most 7,680 px (`quality.py`, `acquisition/master.py`), so tens of
+        megabytes read and hashed at the most, a bound from those settings rather
+        than a measured size. A Player fetches each render once.
         """
         if self._art_root is None:
             return None

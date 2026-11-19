@@ -20,6 +20,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import ItemId, RegistryArtist, RegistryHolding, RegistryPerson, RegistryText, RegistryWorkEntry
 from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
@@ -191,7 +192,10 @@ class TestTheArtistPage:
         service.add_artwork(title="Not a Rothko", artist_id=other.id)
         _page(ui, artist)
 
-        assert ui.page.locator("#in-your-library").inner_text() == "In your library (1)"
+        # The count is the page's line of facts, above the toolbar, as on every
+        # list page (audit 6, finding 12); the section's heading names it only.
+        assert ui.page.locator("#view .page-facts").inner_text() == "1 work in your library"
+        assert ui.page.locator("#in-your-library").inner_text() == "In your library"
         assert ui.page.locator("section[aria-labelledby='in-your-library'] .card-title").all_inner_texts() == [work.title]
 
     def test_two_held_works_naming_one_item_are_shown_as_a_duplicate(self, ui, services, service, rothko):
@@ -341,6 +345,23 @@ class TestTheArtistPage:
         affinities = {(affinity.kind, affinity.value): affinity for affinity in services.taste.list_affinities()}
         recorded = affinities[("artist", "Mark Rothko")]
         assert (str(recorded.sentiment), recorded.open_to_more) == ("loves", True)
+
+    def test_the_reactions_are_acts_on_the_toolbars_left_and_select_is_on_its_right(self, ui, rothko):
+        """Audit 6, finding 12: the three reactions sat stacked in the head above
+        *Select*. They are acts on the artist, so they take the toolbar's left
+        side, and *Select* stands on the right with the other controls; their
+        answer is still said, under the toolbar."""
+        artist, _work = rothko
+        _page(ui, artist)
+
+        toolbar = ui.page.locator("#view .page-toolbar")
+        expect(toolbar).to_have_count(1)
+        expect(toolbar.locator(".page-toolbar-actions > button")).to_have_text(["More like this", "Not this", "Tell me more"])
+        expect(toolbar.locator(".page-toolbar-controls > button")).to_have_text(["Select"])
+        expect(ui.page.locator("#view .panel button:has-text('More like this')")).to_have_count(0)
+
+        ui.page.click("#view .page-toolbar button:has-text('Not this')")
+        expect(ui.page.locator("#view .page-toolbar + p[aria-live]")).to_have_text("Recorded: not this for Mark Rothko.")
 
     def test_tell_me_more_writes_cool_and_still_open(self, ui, services, rothko):
         """The one place an artist with no judgment yet can be given it, since Ask's cards carry two."""

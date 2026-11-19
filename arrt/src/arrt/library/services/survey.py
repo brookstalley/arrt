@@ -159,8 +159,8 @@ class SurveyService:
 
         Artworks' *Size* facet counts and filters by this, so it is the same
         verdict a card shows — the quality profile's — reached in one read of
-        the masters' sizes rather
-        than one per work. A work with no master is `NO_SIZE_KNOWN`, its own
+        the originals' sizes rather than one per work. A work with no original
+        image is `NO_SIZE_KNOWN`, its own
         band rather than left out, so the bands' counts add up to the works.
         """
         sizes = self._catalogue.original_sizes(artwork_ids)
@@ -201,7 +201,7 @@ class SurveyService:
         artwork_id = detail.artwork.id
         original = self._catalogue.get_original(artwork_id)
         fit = None if original is None else self._catalogue.fit(artwork_id, profile=self._profile)
-        fit_note = None if original is not None else "No master image has been acquired, so its size is unknown."
+        fit_note = None if original is not None else "It has no picture yet, so its size is unknown."
         try:
             self._thumbnails.source_for(artwork_id)
         except ThumbnailUnavailable as absent:

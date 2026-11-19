@@ -13,11 +13,12 @@ test for each. No canvas is composed on this side: each wall's Player draws its
 own mat.
 """
 
-from pathlib import Path
+import errno
 
 import pytest
 from PIL import Image
 
+from arrt import atomic
 from arrt.library.services.thumbnails import (
     LARGE_THUMBNAIL_MAX_EDGE_PX,
     THUMBNAIL_MAX_EDGE_PX,
@@ -78,7 +79,7 @@ class TestWhichImageIsUsed:
 
     def test_a_work_with_no_master_says_so_rather_than_failing_obscurely(self, thumbnails, work):
         artwork = work(master=False)
-        with pytest.raises(ThumbnailUnavailable, match="No master image has been acquired"):
+        with pytest.raises(ThumbnailUnavailable, match="This work has no picture yet"):
             thumbnails.source_for(artwork.id)
 
     def test_a_master_recorded_but_absent_names_the_path_it_expected(self, thumbnails, service, settings, work):
@@ -223,6 +224,28 @@ class TestGenerating:
         first.unlink()
         assert thumbnails.thumbnail(artwork.id).is_file()
 
+    def test_an_empty_cache_file_is_rebuilt_even_though_its_row_is_current(self, thumbnails, work):
+        """A thumbnail is written unsynced, and an empty file is what a power cut can leave of one."""
+        artwork = work()
+        first = thumbnails.thumbnail(artwork.id)
+        first.write_bytes(b"")
+
+        assert thumbnails.thumbnail(artwork.id).stat().st_size > 0
+
+    def test_a_thumbnail_is_written_without_syncing(self, thumbnails, work, monkeypatch):
+        """Two fsyncs per tile on a NAS fill a grid slowly; a thumbnail is made again whenever it is missing."""
+        from arrt import atomic
+
+        artwork = work()  # the master is written here, before syncs are counted
+        synced: list[int] = []
+        real = atomic.os.fsync
+        monkeypatch.setattr(atomic.os, "fsync", lambda descriptor: synced.append(descriptor) or real(descriptor))
+
+        thumbnails.thumbnail(artwork.id)
+        thumbnails.thumbnail(artwork.id, large=True)
+
+        assert synced == []
+
     def test_a_file_that_is_not_an_image_is_reported_rather_than_raised_as_a_fault(self, thumbnails, service, settings, work):
         artwork = work()
         (settings.art_root / f"raw/{artwork.id}.jpg").write_bytes(b"this is not a picture")
@@ -251,21 +274,41 @@ class TestGenerating:
         contract did not. Encoding now happens in memory and only the finished
         bytes reach the disk, so a failure during *encode* can no longer strand
         anything — there is nothing on disk yet to strand. What remains is the
-        disk write itself, which is what this now fails, and it is covered by the
-        `finally` rather than by either named handler.
+        disk write itself, which is what this now fails.
+
+        **It fails where the shared writer meets the disk**: the staging file
+        is created and the write into it is refused, as a full disk refuses it.
+        (A thumbnail is written unsynced, so the sync this once failed at no
+        longer runs.) The staging file is on disk at that moment, so only the
+        writer's own cleanup can leave the cache empty.
         """
         artwork = work()
-        intact = Path.write_bytes
+        staged_when_refused = []
+        create = atomic._create_staging
 
-        def fail_partway(self, data):
-            intact(self, b"\xff\xd8half an image")
-            raise OSError("no space left on device")
+        class Full:
+            def __init__(self, handle):
+                self._handle = handle
 
-        monkeypatch.setattr(Path, "write_bytes", fail_partway)
+            def write(self, _data):
+                staged_when_refused.extend(path for path in _leftovers(settings) if path.name.startswith("."))
+                raise OSError(errno.ENOSPC, "no space left on device")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                self._handle.close()
+
+        def refusing(destination, token):
+            path, handle = create(destination, token)
+            return path, Full(handle)
+
+        monkeypatch.setattr(atomic, "_create_staging", refusing)
         with pytest.raises(ThumbnailUnavailable, match="could not be read"):
             thumbnails.thumbnail(artwork.id)
-        monkeypatch.setattr(Path, "write_bytes", intact)
 
+        assert staged_when_refused, "the write never reached the disk, so the cleanup was not exercised"
         assert _leftovers(settings) == []
 
     def test_a_mode_pillow_refuses_to_convert_is_reported_not_raised(self, thumbnails, work, monkeypatch):

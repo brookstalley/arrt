@@ -27,6 +27,8 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 
+from arrt import atomic
+
 log = logging.getLogger(__name__)
 
 #: Opens a URL and yields its body in chunks. A seam rather than a direct httpx
@@ -66,14 +68,17 @@ def direct_fetch(
     is potentially very large, and re-reading it to hash it is a second pass over
     the slowest device in the deployment.
     """
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    staging = destination.with_name(f"{destination.name}.partial")
+    # A staging file of its own per attempt, so two fetches of one work never
+    # write into each other; what a killed attempt left is cleared once stale.
+    atomic.sweep_stale(destination)
     digest = hashlib.sha256()
     written = 0
     over_ceiling = False
 
     try:
-        with open_stream(url) as chunks, staging.open("wb") as handle:
+        # Synced on a clean exit and removed on any exception, by `staged`, so
+        # the two handlers below have nothing of their own to discard.
+        with open_stream(url) as chunks, atomic.staged(destination) as (staging, handle):
             for chunk in chunks:
                 if not chunk:
                     continue
@@ -89,16 +94,20 @@ def direct_fetch(
                 digest.update(chunk)
                 handle.write(chunk)
     except OSError as exc:
-        # Covers both ends: a disk that cannot be written and a transport that
-        # raises while streaming. Both mean no image, and the message says which.
-        _discard(staging)
+        if exc.errno in atomic.DISK_FAULT_ERRNOS:
+            # A full or read-only disk is no fault of this work's: it would fail
+            # every fetch behind it the same way, so it goes to the queue, which
+            # pauses on it rather than counting it against each work in turn.
+            raise
+        # Otherwise either end: a file that could not be written here, or a
+        # transport that raised while streaming. Both mean no image, and the
+        # message says which.
         return DirectResult(path=None, byte_size=0, content_hash=None, detail=f"the fetch failed: {exc}")
     except Exception as exc:  # prawduct:allow prawduct/broad-except -- a source fault must not end the run
         # The transport seam is free to raise anything — an httpx URL error is
         # not an `OSError` and not an `HTTPError` either — and one bad source
         # must degrade to a recorded fetch failure rather than ending an
         # acquisition pass over the works behind it.
-        _discard(staging)
         log.warning("direct fetch of %s raised %s", url, type(exc).__name__, exc_info=True)
         return DirectResult(
             path=None,
@@ -137,6 +146,7 @@ def _discard(path: Path) -> None:
         if path.exists():
             path.unlink()
     except OSError as exc:
-        # A stranded `.partial` is never read — nothing looks for that suffix —
-        # so this is worth a line in the journal and nothing more.
+        # A stranded staging file is never read — its name is hidden and nothing
+        # looks for it — and the next attempt sweeps it once it is stale, so
+        # this is worth a line in the journal and nothing more.
         log.warning("could not remove the staged file at %s: %s", path, exc)

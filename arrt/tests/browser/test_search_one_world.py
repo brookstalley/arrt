@@ -17,6 +17,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from scripted_model import ScriptedModel
 
 from arrt.library.registry import (
     ItemId,
@@ -70,6 +71,12 @@ def _registry(**more):
         },
         **more,
     )
+
+
+@pytest.fixture
+def ask_model():
+    """A server with a key: the dropdown offers Ask only where Ask can answer (audit-6 finding 9)."""
+    return ScriptedModel(replies=[])
 
 
 @pytest.fixture

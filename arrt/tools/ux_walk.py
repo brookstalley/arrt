@@ -29,6 +29,13 @@ it, and stops it with SIGTERM and removes that `ART_ROOT` when done. That corpus
 has no pictures, so every thumbnail is answered with a flat placeholder and the
 sheet says so.
 
+**The synthetic server is a throwaway in what it knows too.** It starts with an
+environment built from an allowlist (`SYNTHETIC_INHERITS`), every setting
+`.env.example` declares blank, and the server's `.env` loading stubbed out
+(`SYNTHETIC_LAUNCHER`), so the operator's OpenRouter key, museum user agents and
+budget never reach it. Before this, it inherited them all and showed the real
+monthly balance in every capture.
+
 Needs the `browser` dependency group and a downloaded Chromium, as the browser
 suite does (`docs/testing.md`). The accessibility scan is axe-core, fetched from
 cdnjs once and cached under the output directory; offline, the scan is reported
@@ -53,7 +60,7 @@ import tempfile
 import time
 import urllib.request
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.error import URLError
@@ -737,8 +744,91 @@ def _free_port() -> int:
         return probe.getsockname()[1]
 
 
+#: What the synthetic server may inherit from the process that starts it: what a
+#: Python process needs to start, find its temporary directory and print text, and
+#: nothing the operator put there for another purpose. **An allowlist, not the
+#: parent's environment less some names**, because the names a deny-list forgets
+#: are the keys of whatever was installed last.
+SYNTHETIC_INHERITS: tuple[str, ...] = ("PATH", "HOME", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TEMP", "TMP", "TZ", "SYSTEMROOT")
+
+ENV_EXAMPLE = _CURATION.parent / ".env.example"
+
+_DECLARED = re.compile(r"^#*[ \t]*([A-Z][A-Z0-9_]*)=", re.MULTILINE)
+
+
+def declared_names(text: str) -> set[str]:
+    """Every setting `.env.example` declares, the commented-out optional ones included."""
+    return set(_DECLARED.findall(text))
+
+
+#: What a list of names to blank must hold to be `.env.example` at all: the paid key
+#: this isolation exists for, and the three settings the walk sets itself.
+MUST_DECLARE: frozenset[str] = frozenset({"OPENROUTER_API_KEY", "ART_ROOT", "CURATION_HOST", "CURATION_PORT"})
+
+
+def names_to_blank(example: Path | None = None) -> set[str]:
+    """The names a synthetic server starts with blank, read from `example`; refused by name when it cannot be.
+
+    **No quiet "nothing to blank".** The file is the repository root's, outside this
+    project, so a copy of `arrt/` alone (an image, a packaging) does not carry it. A
+    missing, unreadable or unrecognisable file would otherwise start the server with
+    nothing blanked and the `.env` stub as its only lock, so each refuses, naming the
+    file and what it lacked.
+    """
+    example = ENV_EXAMPLE if example is None else example
+    try:
+        text = example.read_text(encoding="utf-8")
+    except OSError as e:
+        raise RuntimeError(
+            f"the synthetic server's isolation reads the names to blank from {example}, which could not be read ({e}); "
+            "run from a whole checkout of the repository, or copy its root .env.example there"
+        ) from e
+    names = declared_names(text)
+    missing = sorted(MUST_DECLARE - names)
+    if missing:
+        raise RuntimeError(
+            f"{example} does not declare {missing}, so it is not the list of names the synthetic server must start blank"
+        )
+    return names
+
+
+def synthetic_environment(parent: Mapping[str, str], *, art_root: Path, port: int, declared: Iterable[str]) -> dict[str, str]:
+    """What a synthetic server starts with: the allowlist, the walk's own three settings, every other declared name blank.
+
+    **Blank, not absent.** The server calls `load_dotenv()` without `override`, so a
+    name that is unset takes its value from the operator's `.env`, which is how this
+    walk once read the paid OpenRouter key and showed the real balance in every
+    capture; a name that is set, even to the empty string, is left as it is. The
+    launcher (`SYNTHETIC_LAUNCHER`) stops `.env` being read at all, and this is the
+    second lock, for the names `.env.example` declares.
+    """
+    environment = {name: parent[name] for name in SYNTHETIC_INHERITS if name in parent}
+    environment.update(dict.fromkeys(declared, ""))
+    environment.update({"ART_ROOT": str(art_root), "CURATION_HOST": "127.0.0.1", "CURATION_PORT": str(port)})
+    return environment
+
+
+#: Starts the server's entry point with `.env` loading stubbed out, so the file the
+#: server finds above its own directory (the operator's, in a checkout) is never
+#: read. The stub is installed before the server imports its configuration, which
+#: takes `load_dotenv` by name. `sys.argv` is cleared so the module sees none.
+SYNTHETIC_LAUNCHER = (
+    "import runpy, sys, dotenv\n"
+    "dotenv.load_dotenv = lambda *args, **kwargs: False\n"
+    "module = sys.argv[1]\n"
+    "del sys.argv[1:]\n"
+    "runpy.run_module(module, run_name='__main__', alter_sys=True)\n"
+)
+
+
+def synthetic_command(module: str = "arrt") -> list[str]:
+    """The command that runs `module` as `python -m` would, under `SYNTHETIC_LAUNCHER`."""
+    return [sys.executable, "-c", SYNTHETIC_LAUNCHER, module]
+
+
 def boot_synthetic(size: int) -> tuple[subprocess.Popen, str, Path]:
     """Seed a scratch ART_ROOT with the suite's large corpus and start the real entry point on it."""
+    declared = names_to_blank()  # first, so a refusal seeds nothing and leaves no scratch library behind
     sys.path.insert(0, str(_CURATION / "src"))
     sys.path.insert(0, str(_CURATION / "tests"))  # the suite conftest's own imports (`fakes`, `fault_guard`)
     from arrt.config import CATALOGUE_FILENAME
@@ -756,8 +846,8 @@ def boot_synthetic(size: int) -> tuple[subprocess.Popen, str, Path]:
     catalogue_file, _service, _works = _open_seeded_catalogue(root / CATALOGUE_FILENAME, size=size, seed=20260812)
     catalogue_file.close()
     port = _free_port()
-    environment = {**os.environ, "ART_ROOT": str(root), "CURATION_HOST": "127.0.0.1", "CURATION_PORT": str(port)}
-    server = subprocess.Popen([sys.executable, "-m", "arrt"], cwd=_CURATION, env=environment)
+    environment = synthetic_environment(os.environ, art_root=root, port=port, declared=declared)
+    server = subprocess.Popen(synthetic_command(), cwd=_CURATION, env=environment)  # noqa: S603 -- our own interpreter
     base_url = f"http://127.0.0.1:{port}"
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:

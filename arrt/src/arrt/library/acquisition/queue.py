@@ -30,7 +30,9 @@ disk below `MIN_FREE_BYTES`, no dezoomify-rs, a provider with no resolver) are
 none of them one work's fault, and retrying the work cannot fix any of them. So
 the pass stops, the queue remembers why, and it tries again every 15 minutes and
 on every wake. `acquire` journals the fault itself (`acquisition.deployment_fault`);
-the queue adds the pause.
+the queue adds the pause. So does a fault of the host that surfaces mid-work, as an
+`OSError` for a full or read-only disk (`ENOSPC`, `EROFS`) or the store's `StorageFault`:
+it would fail every work in turn, so it pauses the queue and counts against none.
 
 **What is stored answers five questions and no more** (`data-model.md` Q31 to
 Q35, the `acquisition_queue` table): which works are due, how many times each has
@@ -39,6 +41,7 @@ whether the queue gave up, and which source a Retry named. What is in flight and
 why the queue is paused live in memory; a restart re-derives both by trying.
 """
 
+import errno
 import logging
 import threading
 from collections.abc import Callable, Mapping, Sequence
@@ -47,12 +50,14 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Final, Protocol
 
+from arrt import atomic
 from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, below_the_floor
 from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
+from arrt.persistence.errors import StorageFault
 from arrt.persistence.records import ArtworkStatus, QueuedAcquisition
 from arrt.services.errors import ServiceError
 
@@ -595,11 +600,27 @@ class AcquisitionQueue:
             except (
                 Exception
             ) as exc:  # prawduct:allow prawduct/broad-except -- one work's surprise must not hold every work behind it
+                if _is_host_fault(exc):
+                    # The host's, not this work's: a full or read-only disk and a
+                    # database that cannot be written fail every work in turn, and
+                    # counting each against its own work would give all of them up
+                    # in about four days. Paused instead, as `NotEnoughSpace` is
+                    # before a fetch, with the work still first in line and its
+                    # failure count as it was.
+                    pause = QueuePause(condition=_host_condition(exc), detail=str(exc) or repr(exc), since=self._clock())
+                    log.exception(
+                        "acquiring %s hit a fault of the host's, so the queue pauses and the work is not counted: %s",
+                        artwork_id,
+                        pause.detail,
+                        extra={"event": "acquisition.queue_host_fault", "artwork_id": artwork_id, "condition": pause.condition},
+                    )
+                    self._enter_pause(pause)
+                    raise _Paused(pause) from exc
                 # Counted against this work rather than pausing the queue: a
                 # pause leaves the work first in line, so an error peculiar to it
                 # would be met again on every pass and nothing behind it would
-                # ever be fetched. A fault that is truly the host's fails each work
-                # in turn instead, on the retry schedule, and says so on each.
+                # ever be fetched. A fault that is the host's is not this: it is
+                # paused on above, before it can be counted.
                 log.exception(
                     "acquiring %s raised an error nothing expected; it counts as a failure of that work",
                     artwork_id,
@@ -692,6 +713,42 @@ class AcquisitionQueue:
         if not upcoming:
             return IDLE_SECONDS
         return min(IDLE_SECONDS, max(_MIN_WAIT_SECONDS, (min(upcoming) - now).total_seconds()))
+
+
+#: The `errno`s of an `OSError` that is the host's rather than a work's: the disk
+#: is full, or has been remounted read-only (`atomic.DISK_FAULT_ERRNOS`, the set
+#: the writers let through for this). Anything else an `OSError` says (a missing
+#: file, a refused permission) is about the path of one work.
+_HOST_ERRNOS: Final[frozenset[int]] = atomic.DISK_FAULT_ERRNOS
+
+
+def _is_host_fault(exc: Exception) -> bool:
+    """Whether `exc` would fail every work in turn, so it pauses the queue instead of counting against one.
+
+    A full or read-only disk, or a database the store reports as a `StorageFault`
+    (locked, unable to open, disk I/O). Not every `OSError`: most are about one
+    work's file.
+
+    A locked database is in the pause too, though it is usually brief: it is
+    the host's contention and no work's doing, so counting it would push the work
+    in hand an hour back and a step towards being given up, where the pause costs
+    the queue at most a quarter of an hour and ends on the next wake.
+    """
+    if isinstance(exc, StorageFault):
+        return True
+    return isinstance(exc, OSError) and exc.errno in _HOST_ERRNOS
+
+
+def _host_condition(exc: Exception) -> str:
+    """The name a host fault's pause carries, which is how `DEPLOYMENT_REMEDIES` finds its remedy.
+
+    A disk's fault by its `errno` (`ENOSPC`, `EROFS`), not its type: `OSError`
+    by name is also what `note_error` records for a surprise, which has no
+    remedy to give. A database's by its type, `StorageFault`.
+    """
+    if isinstance(exc, OSError) and exc.errno is not None:
+        return errno.errorcode[exc.errno]
+    return type(exc).__name__
 
 
 #: What a failed work's cause is when its row recorded none, which no path

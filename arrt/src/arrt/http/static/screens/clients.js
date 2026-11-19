@@ -38,7 +38,7 @@ import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { confirmAct } from "../core/confirm.js";
-import { agree, counted } from "../core/counting.js";
+import { agree, counted, listed } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { openPanel } from "../core/editing.js";
 import { isStale, screenCell, screenName } from "../core/outputs.js";
@@ -65,6 +65,7 @@ export async function viewClients(generation) {
   // when the page became Players, as every renamed page's has.
   const asked = state.params.client;
   const reporting = players.filter((player) => statusOf(player).reporting).length;
+  const waiting = players.filter((player) => statusOf(player).waiting).length;
   // One sentence per fault, though each Player in it carries it: the server's
   // sentence names them all, so it is said once.
   const faults = [...new Set(players.flatMap((player) => player.faults.map((fault) => fault.description)))];
@@ -74,7 +75,7 @@ export async function viewClients(generation) {
     el("h1", { text: "Players" }),
     el("p", {
       class: "muted page-facts",
-      text: players.length ? `${counted(players.length, "Player")} · ${reporting} reporting` : counted(0, "Player"),
+      text: pageFacts(players.length, reporting, waiting),
     }),
     toolbar({ actions: [addOpener()] }),
     said ? spoken(said) : null,
@@ -89,6 +90,17 @@ export async function viewClients(generation) {
 
   const status = document.querySelector("#view [data-said]");
   if (said && status) status.focus();
+}
+
+/* The one line under the page's name: how many Players, how many report, and
+ * how many the page is waiting on for a first report, which is the step a
+ * household setting one up is on (audit 2026-11-19, finding 2). "1 Player ·
+ * waiting for it to report"; "3 Players · 1 reporting · waiting for 2 to
+ * report". */
+function pageFacts(count, reporting, waiting) {
+  if (!count) return counted(0, "Player");
+  if (count === 1 && waiting === 1) return `${counted(1, "Player")} · waiting for it to report`;
+  return [counted(count, "Player"), `${reporting} reporting`, waiting ? `waiting for ${waiting} to report` : null].filter(Boolean).join(" · ");
 }
 
 /* A sentence an act left behind, announced and focusable. */
@@ -143,7 +155,18 @@ function playersTable(players, asked, wallNames) {
 function statusOf(player) {
   const beat = player.heartbeat;
   if (!player.token_issued_at) return { glyph: GLYPHS.none, word: "No token", more: "Admitted nowhere until one is issued, in Edit…" };
-  if (beat.absent) return { glyph: GLYPHS.none, word: "Never reported", more: null };
+  // A token and no report yet: the page is waiting for it, and the words say so
+  // and what it waits on, rather than "Never reported", which read as a fault
+  // on the evening the Player was added (audit 2026-11-19, finding 2).
+  if (beat.absent) {
+    return {
+      // Waiting on the machine, which is ◌'s one meaning (`core/glyphs.js`).
+      glyph: GLYPHS.waiting,
+      word: "Waiting for it to report",
+      more: "Once it is running with its token, it reports here within a minute or so.",
+      waiting: true,
+    };
+  }
   if (beat.problem) return { glyph: GLYPHS.problem, word: "Report unreadable", more: beat.description };
   if (isStale(beat)) return { glyph: GLYPHS.waiting, word: `Not heard from since ${dated(beat.reported_at)}`, more: null };
   return { glyph: GLYPHS.good, word: "Reporting", more: beat.description, reporting: true };
@@ -284,8 +307,11 @@ function addOpener() {
   });
 }
 
-/* Issue a token and show it once, in a dialog of its own; the page repaints
- * when that dialog closes. A failure is said above the table instead. */
+/* Issue a token and show it once, in a dialog of its own. The page behind is
+ * repainted first, so the list under the dialog already holds the Player and
+ * says it is waiting for its report (audit 2026-11-19, finding 15: it read
+ * "0 Players" until the dialog closed). A failure is said above the table
+ * instead. */
 async function issueInto(player, lead = null) {
   let issued;
   try {
@@ -295,17 +321,57 @@ async function issueInto(player, lead = null) {
     await refresh();
     return;
   }
+  await refresh();
   tokenOnce(player, issued.token, lead);
+}
+
+/* Put `field`'s value on the clipboard. The clipboard API is there only in a
+ * secure context, and a household server is often reached over plain http by
+ * its address on the network, where it is absent: then the field's own text is
+ * selected and copied the older way. Answers whether either worked. */
+async function copyFrom(field) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(field.value);
+      return true;
+    } catch {
+      // Refused (a permission, a page not focused): the older way below.
+    }
+  }
+  field.focus();
+  field.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  }
 }
 
 /* The token, the one time it exists here, and what to do with it.
  *
  * In a read-only field rather than as text, so it is selected whole and copied
- * whole; focused and selected as the dialog opens. The address a Player needs
- * is the one this browser reached the server at, which is said as such: a
- * Player on another network may reach it by another name. */
+ * whole; focused and selected as the dialog opens, with *Copy* beside it. What
+ * to do with it is said in the Player's own words: its settings page has
+ * *Token* and *Server address* (audit 2026-11-19, F6; the Player's names since
+ * its own audit-wave-1 chunk 07), so those are the names given, not the
+ * environment variables behind them. The address a
+ * Player needs is the one this browser reached the server at, which is said as
+ * such: a Player on another network may reach it by another name. Then what
+ * happens next, so the household knows what this page is waiting for. */
 function tokenOnce(player, token, lead) {
   const field = el("input", { type: "text", id: "player-token", readonly: true, value: token, spellcheck: "false", autocomplete: "off" });
+  const copied = el("span", { class: "muted token-copied", role: "status" });
+  const copy = el("button", {
+    class: "action quiet",
+    type: "button",
+    text: "Copy",
+    "aria-label": `Copy ${player.name}'s token`,
+    onclick: async () => {
+      copied.textContent = (await copyFrom(field))
+        ? "Copied."
+        : "This browser would not copy it. The token is selected: copy it with the keyboard.";
+    },
+  });
   openPanel({
     title: `${player.name}'s token`,
     lead,
@@ -314,16 +380,21 @@ function tokenOnce(player, token, lead) {
         el("p", {
           text: `This is ${player.name}'s new token, and the only time it is shown: only a verifier of it is kept, so copy it now.`,
         }),
-        el("div", { class: "field" }, [el("label", { for: "player-token", text: `Token for ${player.name}` }), field]),
+        el("div", { class: "row token-row" }, [el("div", { class: "field" }, [el("label", { for: "player-token", text: `Token for ${player.name}` }), field]), copy, copied]),
         el("p", {
           text:
-            `In ${player.name}'s settings, set CLIENT_TOKEN to this token, and SERVER_URL to this server's ` +
-            `address as that Player reaches it — from this browser, ${window.location.origin}.`,
+            `On ${player.name}'s own settings page, put this token in Token, and this server's address in ` +
+            `Server address, as that Player reaches it — from this browser, ${window.location.origin}. Then save there.`,
+        }),
+        el("p", {
+          text:
+            !player.heartbeat || player.heartbeat.absent
+              ? `${player.name} is listed under Players, waiting for it to report. Once it is running with this token it reports within a minute or so, and its screens can then be chosen in a wall's Edit…, on Walls.`
+              : `Until its settings carry this token, ${player.name} is refused and the walls it shows stop changing; once they do, it reports again within a minute or so.`,
         }),
       ]),
     ],
     closeLabel: "Done",
-    onClose: () => refresh(),
   });
   field.focus();
   field.select();
@@ -459,8 +530,3 @@ async function remove(player) {
   await refresh();
 }
 
-/* "Study", "Study and Hall", "Study, Hall and Landing". */
-function listed(names) {
-  if (names.length < 2) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}

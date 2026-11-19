@@ -1,4 +1,4 @@
-"""Which names this server answers to, and which pages may call it.
+"""Which names this server answers to, which pages may call it, and which may frame it.
 
 **DNS rebinding is the attack this refuses.** The server performs no
 authentication (`security-model.md` § Trust Boundary): anyone on the household's
@@ -25,6 +25,33 @@ So the browser interface opened by address calls itself, and no other page does.
 never pass. A request with no `Origin` passes, since that is how every
 non-browser client (an MCP client, a Player, `curl`) calls.
 
+**What `Sec-Fetch-Site` adds, which `Origin` cannot.** A browser sends `Origin` on
+every cross-origin request that is not a plain `GET` or `HEAD`, and none on those:
+an `<img src>` or a no-cors `fetch` of another page's `/api/...` URL arrives with
+the server's own address in `Host`, no `Origin`, and the household's browser's
+network position. `GET /api/registry/works/<qid>/look` starts a look, which asks
+every image source and keeps what it fetches, so such a request has an effect
+though its page can never read the answer. Every current browser also sends
+`Sec-Fetch-Site`, naming the relation between the page and the target:
+`same-origin`, `same-site`, `cross-site` or `none` (typed or bookmarked).
+**`/api` and `/mcp` refuse `cross-site`.** The interface's own requests say
+`same-origin`; an MCP client, `curl` and a Player send no such header and are not
+asked for one, because a refusal of the absent header would refuse every client
+that is not a browser. The pages and `/static` are not refused: a link to the
+interface from a chat or a bookmark is a `cross-site` navigation, and the page it
+loads can do nothing the guard above would not already stop. `same-site` (another
+port on the same host) is not refused either: where it carries an `Origin` the
+rule above refuses it, and the header names a relation, not a fault.
+
+**No page may frame the interface.** A page that framed it would show the
+household Arrt's own buttons under its own pictures, and each click would be a
+same-origin request the checks above rightly pass: a paid Get, a theme hung on a
+wall, a Player's token rotated. Every HTML response, the shell, `/docs` and any
+page a static file is, carries `Content-Security-Policy: frame-ancestors 'none'`
+and `X-Frame-Options: DENY`, the second for a browser that predates the first.
+It is added here, to the response, rather than at each route that builds a page,
+so a page added later is covered the day it is mounted.
+
 **The Player's routes are not checked.** Each one already requires the wall's
 token, which a rebinding page cannot read. And a Player configured with a name
 the server was never told about would otherwise lose its feed. Which routes those
@@ -34,8 +61,8 @@ here, so a route the contract adds is exempt the day it is mounted.
 
 import ipaddress
 import logging
-from collections.abc import Collection, Sequence
-from typing import Final
+from collections.abc import Collection, MutableMapping, Sequence
+from typing import Any, Final
 
 from starlette.routing import BaseRoute, Match
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -45,6 +72,21 @@ log = logging.getLogger(__name__)
 #: The setting a refusal names, so the operator who reaches the server by a new
 #: name is told what to change rather than left with a bare status code.
 ALLOWED_HOSTS_SETTING: Final[str] = "CURATION_ALLOWED_HOSTS"
+
+#: The surfaces a page elsewhere may not call, whatever method it uses: the JSON
+#: API and the MCP mount (`app.MCP_PATH`). Matched as a path or a path's parent, so
+#: `/apiary` is not `/api`.
+CROSS_SITE_REFUSED_UNDER: Final[tuple[str, ...]] = ("/api", "/mcp")
+
+#: What forbids a page to be shown inside another: the standard header, and the
+#: older one for a browser that does not read it. Added to every HTML response.
+FRAME_HEADERS: Final[tuple[tuple[bytes, bytes], ...]] = (
+    (b"content-security-policy", b"frame-ancestors 'none'"),
+    (b"x-frame-options", b"DENY"),
+)
+
+#: The value a browser sends in `Sec-Fetch-Site` for a request from a page of another site.
+CROSS_SITE: Final[str] = "cross-site"
 
 #: `421 Misdirected Request` for a name this server does not answer to: the
 #: request reached the wrong server as far as this one is concerned.
@@ -109,6 +151,8 @@ class HostGuard:
             await self._app(scope, receive, send)
             return
         headers = {key.decode("latin-1"): value.decode("latin-1") for key, value in scope["headers"]}
+        if scope["type"] == "http":
+            send = _unframed(send)
         host = hostname(headers.get("host", ""))
         if not is_allowed(host, self._allowed):
             log.warning("refused a request for host %r on %s; not in %s", host, scope["path"], ALLOWED_HOSTS_SETTING)
@@ -131,6 +175,17 @@ class HostGuard:
                 f"to {ALLOWED_HOSTS_SETTING}.",
             )
             return
+        if scope["type"] == "http" and _is_under(scope["path"], CROSS_SITE_REFUSED_UNDER):
+            site = headers.get("sec-fetch-site", "").strip().lower()
+            if site == CROSS_SITE:
+                log.warning("refused a cross-site request on %s", scope["path"])
+                await _refuse(
+                    scope,
+                    send,
+                    ORIGIN_REFUSED,
+                    "A page of another site may not call this server's API or MCP surface.",
+                )
+                return
         await self._app(scope, receive, send)
 
     def _origin_allowed(self, origin: str, host: str) -> bool:
@@ -149,6 +204,28 @@ class HostGuard:
         # PARTIAL is a path that matches with the wrong method; the route answers
         # it with 405, which is no less the Player's route for being refused.
         return any(route.matches(scope)[0] is not Match.NONE for route in self._exempt)
+
+
+def _is_under(path: str, prefixes: Sequence[str]) -> bool:
+    """Whether `path` is one of `prefixes` or below it, never merely starting with the same letters."""
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in prefixes)
+
+
+def _unframed(send: Send) -> Send:
+    """`send`, with `FRAME_HEADERS` added to the start of a response whose content type is HTML."""
+
+    async def wrapped(message: MutableMapping[str, Any]) -> None:
+        if message["type"] == "http.response.start":
+            held = list(message.get("headers", ()))
+            if any(name.lower() == b"content-type" and value.lower().startswith(b"text/html") for name, value in held):
+                present = {name.lower() for name, _ in held}
+                held.extend(
+                    header for header in FRAME_HEADERS if header[0] == b"content-security-policy" or header[0] not in present
+                )
+                message = {**message, "headers": held}
+        await send(message)
+
+    return wrapped
 
 
 def _origin(origin: str) -> tuple[str, str, int | None] | None:

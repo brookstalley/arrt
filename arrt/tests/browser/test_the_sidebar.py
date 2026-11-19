@@ -374,7 +374,10 @@ def test_health_names_each_wall_rather_than_one_display_plane(ui, a_health_readi
     # pinned their own wording; the per-wall one survives the merge, because with
     # a panel per room "here" has several possible referents and names none of
     # them — the ambiguity that splitting the heartbeat per wall removed.
-    assert "Nothing has ever written a heartbeat for this wall" in ui.text()
+    # It said "Nothing has ever written a heartbeat for this wall" until
+    # 2026-11-19, when chunk 06 of `build-plan-audit-wave-1.md` took "heartbeat"
+    # off the household's screens: a Player reports, and the wall is still named.
+    assert "No Player has ever reported for this wall." in ui.text()
 
 
 def test_a_health_reading_the_screen_cannot_parse_is_stated_rather_than_thrown(ui):
@@ -563,7 +566,10 @@ def test_the_indicator_names_a_reading_that_could_not_be_read(ui, a_health_readi
     ui.page.wait_for_selector("#status[data-state='unwell']")
 
     words = ui.page.inner_text("#status")
-    assert "The study's heartbeat cannot be read" in words
+    # "The study's heartbeat cannot be read" until 2026-11-19: chunk 06 of
+    # `build-plan-audit-wave-1.md` took "heartbeat" off the household's screens.
+    assert "The study's last report cannot be read" in words
+    assert "heartbeat" not in words
     assert "has not reported" not in words, "an unreadable file was reported as a silent one"
 
 

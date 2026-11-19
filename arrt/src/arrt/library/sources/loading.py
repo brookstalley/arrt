@@ -25,27 +25,41 @@ The containment is a wrapper around each plugin's parts, made here, rather than 
 `try` at each place a part is called. A wrapper covers every caller, including the
 next one somebody adds, and a `try` covers the callers someone remembered.
 
+**Every call into a plugin has a deadline, and one it misses is "could not be
+asked".** A finder or reader gets `FINDER_DEADLINE_SECONDS` or
+`READER_DEADLINE_SECONDS`, a preview `PREVIEW_DEADLINE_SECONDS` and a browse
+`BROWSE_DEADLINE_SECONDS`. Without one, a plugin that hung (a server trickling
+bytes, a lock waited on for ever) held every Get, because the pool waits for
+every source, and every look at that source waited behind the Get. A call past
+its deadline is recorded against the plugin beside its faults, and the caller
+moves on. Python cannot stop a thread, so the call itself is not stopped:
+`_Calls` says what becomes of it.
+
 **A plugin's error text is scrubbed before it is shown or logged.** An HTTP
 client's error names the URL it asked, and a paid source's key often travels in
 the query string, so query strings are cut from anything a plugin's exception
 says before it reaches the journal, `/api/health` or the panel.
 """
 
+import contextvars
 import importlib.metadata
 import logging
+import math
 import re
 import threading
+import time
 import traceback
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, NoReturn
+from typing import Final, NoReturn, TypeVar
 
 from arrt.library.discovery.browse import BrowseQuery, CollectionBrowse, CollectionBrowseFailure, OfferedGroup
 from arrt.library.discovery.images import (
+    DEFAULT_PREVIEW_MAX_BYTES,
     Finder,
     FoundImage,
     FoundPage,
@@ -74,6 +88,96 @@ DEFAULT_SOURCE_ORDER: Final[tuple[str, ...]] = ("commons", "artic")
 #: the containment cannot leave the guard listening to a logger nothing writes to.
 FAULT_EVENT: Final[str] = "source.plugin_fault"
 FAULT_LOGGER: Final[str] = log.name
+
+#: Seconds a finder's `find_images` is waited for. A finder answers for one work,
+#: and a run asks every finder at once and waits for the slowest, so this is how
+#: long one hung source can hold a Get. Long enough for a paced HTTP plugin to
+#: wait its turn and read its page; the private browser plugins allow a page far
+#: longer, and such a page is then "could not be asked" and asked again later.
+FINDER_DEADLINE_SECONDS: Final[float] = 60.0
+#: Seconds a reader's `read` is waited for: one page, as a finder's search is.
+READER_DEADLINE_SECONDS: Final[float] = 60.0
+#: Seconds a `fetch_preview` is waited for. A look waits this long for a card's
+#: picture, and a preview that does not arrive is a card without one.
+PREVIEW_DEADLINE_SECONDS: Final[float] = 30.0
+#: Seconds a collection's `browse` is waited for: it answers several queries in
+#: one call, so it is given longer than one work's search.
+BROWSE_DEADLINE_SECONDS: Final[float] = 120.0
+#: The longest deadline a plugin may declare for one call (`SourcePlugin.deadlines`).
+#: A sanity bound on in-process code the owner installed and already trusts, not a
+#: security boundary: it catches a declaration that is a slip (a day, not a
+#: minute), and refuses nothing an honest worst case needs. The private browser
+#: plugins' own bounds allow 1,012 s for one page and 2,044 s for one holder read
+#: behind a crawl delay; an hour covers those with room. It is also how long one
+#: slow source can hold a Get, because a run waits for every source, so a plugin
+#: declares its own worst case rather than this.
+DEADLINE_CEILING_SECONDS: Final[float] = 3600.0
+#: The kinds of call a plugin may declare a deadline for, each a field of `Deadlines`.
+DEADLINE_KINDS: Final[tuple[str, ...]] = ("finder", "reader", "preview", "browse")
+
+#: How many of one plugin's calls may still be running after their deadline
+#: passed. A call that outlives its deadline keeps its thread until the plugin
+#: returns, and a plugin hung on every call would otherwise add one per work for
+#: ever. Past this many, a new call to that plugin is "could not be asked" at
+#: once, without starting it, until one of them returns.
+STRAGGLERS_PER_PLUGIN: Final[int] = 4
+
+#: The longest title, artist, or reason for showing no image a plugin may answer.
+#: Past it the text is not a title but a page, which every card, journal line and
+#: record that carries it would then carry too.
+ANSWER_TEXT_MAX_CHARS: Final[int] = 2_000
+
+
+@dataclass(frozen=True, slots=True)
+class Deadlines:
+    """How long each kind of call into a plugin is waited for, and how many may outlive it.
+
+    The named constants above, gathered so a test can give a plugin a deadline it
+    can pass in a fraction of a second; the wiring takes the defaults.
+    """
+
+    finder: float = FINDER_DEADLINE_SECONDS
+    reader: float = READER_DEADLINE_SECONDS
+    preview: float = PREVIEW_DEADLINE_SECONDS
+    browse: float = BROWSE_DEADLINE_SECONDS
+    stragglers: int = STRAGGLERS_PER_PLUGIN
+
+
+#: The deadlines the wiring runs with: the named constants above.
+DEFAULT_DEADLINES: Final[Deadlines] = Deadlines()
+
+#: How the host waits for a call: until `done` is set or `seconds` pass, and whether it was set.
+#: A parameter of the loader only so a test can run a 300 s deadline on simulated time.
+WaitFor = Callable[[threading.Event, float], bool]
+
+
+def _wait(done: threading.Event, seconds: float) -> bool:
+    return done.wait(seconds)
+
+
+def declared_deadlines(plugin: SourcePlugin, base: Deadlines) -> Deadlines | str:
+    """`base`, with what the plugin declares in its place; or why the declaration cannot load.
+
+    Refused by name rather than clamped: a plugin that asked for more than the
+    ceiling, or for nothing at all, would otherwise run under a deadline nobody
+    chose, and be cut off as "could not be asked" where its author expected an
+    answer.
+    """
+    declared = getattr(plugin, "deadlines", None)
+    if declared is None:
+        return base
+    if not isinstance(declared, Mapping):
+        return f"its deadlines are a {type(declared).__name__}, not a mapping of kind of call to seconds"
+    chosen: dict[str, float] = {}
+    for kind, seconds in declared.items():
+        if kind not in DEADLINE_KINDS:
+            return f"it declares a deadline for {kind!r}, which is not a kind of call ({', '.join(DEADLINE_KINDS)})"
+        if isinstance(seconds, bool) or not isinstance(seconds, int | float) or not math.isfinite(seconds) or seconds <= 0:
+            return f"its {kind} deadline of {seconds!r} is not a number of seconds above zero"
+        if seconds > DEADLINE_CEILING_SECONDS:
+            return f"its {kind} deadline of {seconds:g} seconds is past this Arrt's ceiling of {DEADLINE_CEILING_SECONDS:g}"
+        chosen[kind] = float(seconds)
+    return replace(base, **chosen)
 
 
 def _reraise_scrubbed(exc: Exception, kind: type[Exception]) -> NoReturn:
@@ -156,6 +260,20 @@ class PluginReading:
     #: What the most recent fault was, as its type and scrubbed message.
     last_fault: str | None
     identity: PluginIdentity = PluginIdentity()
+    #: Calls that were "could not be asked" since startup: the plugin's own
+    #: `ImageSearchFailure` or `CollectionBrowseFailure`, or a call past its
+    #: deadline. Faults are counted apart, in `faults`. A museum that redesigned
+    #: its pages reads here, not there, because a parser that does not recognise
+    #: a page says so in the interface's own words.
+    unasked: int = 0
+    #: When the most recent of those was, or `None` when there was none.
+    last_unasked_at: datetime | None = None
+    #: What the most recent of those said, scrubbed.
+    last_unasked: str | None = None
+    #: Calls that ended in any other answer of the interface's: something, nothing,
+    #: or "cannot answer this kind of work". With none, and `unasked` above zero,
+    #: the plugin has said nothing since startup but that it could not be asked.
+    answered: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,16 +300,51 @@ class _InterfaceBreach(Exception):
     """A plugin answered in a shape the interface does not allow."""
 
 
-class _Faults:
-    """Per-plugin fault counts, written from the pool's worker threads."""
+class _DeadlinePassed(Exception):
+    """A call into a plugin was not answered in time, or was not started because too many of its calls had not been."""
+
+
+@dataclass(slots=True)
+class _Count:
+    """What one plugin's calls have ended in since startup."""
+
+    faults: int = 0
+    last_fault: tuple[datetime, str] | None = None
+    unasked: int = 0
+    last_unasked: tuple[datetime, str] | None = None
+    answered: int = 0
+
+
+class _Tally:
+    """Per-plugin counts of faults, could-not-be-asked answers and other answers, written from many threads."""
 
     def __init__(self, now: Callable[[], datetime]) -> None:
         self._now = now
         self._lock = threading.Lock()
-        self._count: dict[str, int] = {}
-        self._last: dict[str, tuple[datetime, str]] = {}
+        self._counts: dict[str, _Count] = {}
 
-    def record(self, plugin: str, operation: str, exc: BaseException) -> None:
+    def _of(self, plugin: str) -> _Count:
+        return self._counts.setdefault(plugin, _Count())
+
+    def unasked(self, plugin: str, said: str) -> None:
+        """A call that ended in "could not be asked", in the interface's words or past its deadline."""
+        with self._lock:
+            count = self._of(plugin)
+            count.unasked += 1
+            count.last_unasked = (self._now(), scrub(said))
+
+    def answered(self, plugin: str) -> None:
+        """A call that ended in any other answer the interface allows."""
+        with self._lock:
+            self._of(plugin).answered += 1
+
+    def of(self, plugin: str) -> _Count:
+        """A copy of one plugin's counts, as they stand."""
+        with self._lock:
+            count = self._counts.get(plugin, _Count())
+            return _Count(count.faults, count.last_fault, count.unasked, count.last_unasked, count.answered)
+
+    def fault(self, plugin: str, operation: str, exc: BaseException) -> None:
         said = describe_exception(exc)
         # The frames without the message, because the message is what may carry a
         # key and the frames are what a maintainer needs. `exc_info` would print
@@ -206,55 +359,235 @@ class _Faults:
             extra={"event": FAULT_EVENT, "plugin": plugin, "operation": operation},
         )
         with self._lock:
-            self._count[plugin] = self._count.get(plugin, 0) + 1
-            self._last[plugin] = (self._now(), said)
+            count = self._of(plugin)
+            count.faults += 1
+            count.last_fault = (self._now(), said)
 
-    def of(self, plugin: str) -> tuple[int, datetime | None, str | None]:
+
+_Answer = TypeVar("_Answer")
+
+
+@dataclass(slots=True)
+class _Call:
+    """One call on its own thread: what it ended in, and whether its caller stopped waiting for it."""
+
+    done: threading.Event = field(default_factory=threading.Event)
+    value: object = None
+    error: BaseException | None = None
+    finished: bool = False
+    abandoned: bool = False
+
+
+class _Calls:
+    """One plugin's calls, each run on a thread of its own and waited for no longer than its deadline.
+
+    **What becomes of a call that outlives its deadline.** Python cannot stop a
+    thread, so the call runs on, on its own daemon thread, which holds nothing of
+    the caller's: the caller has already been answered "could not be asked" and
+    moved on. When the call finally returns, whatever it returned or raised is
+    discarded and logged (`source.plugin_late`). It is never recorded as an
+    answer, because the run or look that asked has settled without it, and an
+    image arriving after that would belong to nobody. At most
+    `Deadlines.stragglers` such calls per plugin run at once: past that, a new
+    call is refused at once, as "could not be asked", without being started, so a
+    plugin hung on every call holds a fixed number of threads rather than one
+    more per work. Being daemon threads, they never hold the process open at exit.
+    """
+
+    def __init__(self, plugin: str, limit: int, wait_for: WaitFor = _wait) -> None:
+        self._plugin = plugin
+        self._limit = limit
+        self._wait_for = wait_for
+        self._lock = threading.Lock()
+        self._stragglers = 0
+
+    def run(self, operation: str, deadline: float, call: Callable[[], _Answer]) -> _Answer:
+        """What `call` answers, or raises, if it does so within `deadline` seconds; else `_DeadlinePassed`."""
         with self._lock:
-            last = self._last.get(plugin)
-            return self._count.get(plugin, 0), None if last is None else last[0], None if last is None else last[1]
+            if self._stragglers >= self._limit:
+                raise _DeadlinePassed(
+                    f"it was not asked, because {self._stragglers} of its earlier calls are still running past their deadline"
+                )
+        pending = _Call()
+        started = time.monotonic()
+        # The caller's context, so what the plugin logs still carries the run it works for.
+        context = contextvars.copy_context()
+
+        def work() -> None:
+            try:
+                pending.value = context.run(call)
+            except BaseException as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- carried to the caller's thread
+                pending.error = exc
+            with self._lock:
+                pending.finished = True
+                late = pending.abandoned
+                if late:
+                    self._stragglers -= 1
+            pending.done.set()
+            if late:
+                ended = "answered" if pending.error is None else f"raised {describe_exception(pending.error)}"
+                log.warning(
+                    "source plugin %s %s during %s %.0f seconds after it was asked, past its deadline; discarded",
+                    self._plugin,
+                    ended,
+                    operation,
+                    time.monotonic() - started,
+                    extra={"event": "source.plugin_late", "plugin": self._plugin, "operation": operation},
+                )
+
+        threading.Thread(target=work, name=f"source-plugin-{self._plugin}", daemon=True).start()
+        if not self._wait_for(pending.done, deadline):
+            with self._lock:
+                # It may have finished between the wait ending and the lock, and
+                # then its answer stands.
+                if not pending.finished:
+                    pending.abandoned = True
+                    self._stragglers += 1
+            if pending.abandoned:
+                raise _DeadlinePassed(f"it did not answer within {deadline:g} seconds")
+        if pending.error is not None:
+            raise pending.error
+        return pending.value  # type: ignore[return-value]  # what `call` returned
 
 
-def _images(answer: object, plugin: str, *, pages_only: bool = False) -> tuple[FoundImage | FoundPage, ...]:
-    """A finder's answer, checked. Each image is recorded under its own `provider`,
-    and previews and fetches are routed back by it, so an image under another
-    plugin's name would be stored and fetched as that plugin's. A page carries no
-    name, because nothing is recorded under one.
+class _Said:
+    """What a finder handed over before it failed, handed on as the finder handed it: yielded, then the failure raised.
 
-    A finder that declared it offers pages only may not answer an image: the pool
-    does not count it as having answered, so its image would sit beside a work
-    left waiting as if no source could be asked."""
-    if isinstance(answer, str | bytes) or not isinstance(answer, Iterable):
-        raise _InterfaceBreach(f"find_images answered a {type(answer).__name__}, not a list of FoundImage")
-    images = tuple(answer)
-    for image in images:
-        if isinstance(image, FoundPage):
+    The pool keeps what a source said before it failed (`SourceAnswer`), and
+    reads it by iterating. A finder whose generator yields an image and then
+    raises has said that image, and collecting the answer whole inside the
+    containment, as it once was, dropped it.
+    """
+
+    def __init__(self, said: tuple[FoundImage | FoundPage, ...], failure: Exception) -> None:
+        self._said = said
+        self._failure = failure
+
+    def __iter__(self) -> Iterator[FoundImage | FoundPage]:
+        yield from self._said
+        raise self._failure
+
+
+class _Heard:
+    """What a finder has yielded so far, each checked: added to by the call's thread, read by its caller's."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._found: list[FoundImage | FoundPage] = []
+
+    def add(self, found: FoundImage | FoundPage) -> None:
+        with self._lock:
+            self._found.append(found)
+
+    def so_far(self) -> tuple[FoundImage | FoundPage, ...]:
+        """Everything heard until now. Taken once, when the caller answers, so what a call
+        yields past its deadline lands after the copy and reaches nobody."""
+        with self._lock:
+            return tuple(self._found)
+
+
+def _check_found(found: object, plugin: str, *, pages_only: bool) -> FoundImage | FoundPage:
+    """One thing a finder answered, checked.
+
+    Each image is recorded under its own `provider`, and previews and fetches are
+    routed back by it, so an image under another plugin's name would be stored
+    and fetched as that plugin's. A page carries no name, because nothing is
+    recorded under one. A finder that declared it offers pages only may not
+    answer an image: the pool does not count it as having answered, so its image
+    would sit beside a work left waiting as if no source could be asked.
+
+    The dimensions are what a work's size on the wall is computed from: a width
+    given as a string passed the type check alone and then failed the run in
+    phase 2, outside this containment. The texts are bounded for the reason a
+    museum's name is (`_museum_of`).
+    """
+    if isinstance(found, FoundPage):
+        return found
+    if not isinstance(found, FoundImage):
+        raise _InterfaceBreach(f"find_images answered a {type(found).__name__} among its images")
+    if pages_only:
+        raise _InterfaceBreach("find_images answered a FoundImage from a finder that declares offers_images = False")
+    if found.provider != plugin:
+        raise _InterfaceBreach(
+            f"find_images answered an image recorded under {found.provider!r}; a plugin's images "
+            f"are recorded under its own name, {plugin!r}"
+        )
+    _check_image_fields(found)
+    return found
+
+
+def _check_image_fields(found: FoundImage) -> None:
+    """An image's sizes and words, checked: positive whole numbers or `None`, and bounded text."""
+    for name, size in (("estimated_width", found.estimated_width), ("estimated_height", found.estimated_height)):
+        if size is not None and (isinstance(size, bool) or not isinstance(size, int) or size <= 0):
+            raise _InterfaceBreach(f"find_images answered an image whose {name} is {size!r}, not a positive int or None")
+    for name, text in (("title", found.title), ("artist", found.artist)):
+        if text is None and name == "artist":
             continue
-        if not isinstance(image, FoundImage):
-            raise _InterfaceBreach(f"find_images answered a {type(image).__name__} among its images")
-        if pages_only:
-            raise _InterfaceBreach("find_images answered a FoundImage from a finder that declares offers_images = False")
-        if image.provider != plugin:
+        if not isinstance(text, str):
+            raise _InterfaceBreach(f"find_images answered an image whose {name} is a {type(text).__name__}, not text")
+        if len(text) > ANSWER_TEXT_MAX_CHARS:
             raise _InterfaceBreach(
-                f"find_images answered an image recorded under {image.provider!r}; a plugin's images "
-                f"are recorded under its own name, {plugin!r}"
+                f"find_images answered an image whose {name} is {len(text):,} characters, past {ANSWER_TEXT_MAX_CHARS:,}"
             )
-    return images
 
 
-def _preview(answer: object) -> bytes | None:
+def _preview(answer: object, max_bytes: int) -> bytes | None:
+    """A preview, checked: bytes or `None`, and no more bytes than this deployment's ceiling.
+
+    The finder was told to stop reading at the ceiling (`Finder.fetch_preview`),
+    and one that did not has already held the whole body in memory; refusing it
+    here keeps it from going on into the picture store and Pillow.
+    """
     if answer is not None and not isinstance(answer, bytes):
         raise _InterfaceBreach(f"fetch_preview answered a {type(answer).__name__}, not bytes or None")
+    if answer is not None and len(answer) > max_bytes:
+        raise _InterfaceBreach(
+            f"fetch_preview answered {len(answer):,} bytes, past this deployment's preview_max_bytes of {max_bytes:,}"
+        )
     return answer
 
 
 def _locator(answer: object) -> FetchLocator:
-    """A reader's answer, checked for its type. Its words are left as they are here: a
-    `none` reason and a URL both reach anyone only through acquisition, which scrubs
-    them where it records and journals them, and a URL to fetch must stay whole."""
+    """A reader's answer, checked for its type and the length of its reason.
+
+    Its words are otherwise left as they are here: a `none` reason and a URL both
+    reach anyone only through acquisition, which scrubs them where it records and
+    journals them, and a URL to fetch must stay whole.
+    """
     if not isinstance(answer, FetchLocator):
         raise _InterfaceBreach(f"read answered a {type(answer).__name__}, not a FetchLocator")
+    reason = answer.reason
+    if reason is not None and (not isinstance(reason, str) or len(reason) > ANSWER_TEXT_MAX_CHARS):
+        raise _InterfaceBreach(f"read answered a reason that is not text of at most {ANSWER_TEXT_MAX_CHARS:,} characters")
     return answer
+
+
+def _past_deadline(plugin: str, operation: str, passed: _DeadlinePassed, tally: _Tally) -> str:
+    """Record a call past its deadline against the plugin, say so in the journal, and return the words to answer with."""
+    said = f"the {museum_name(plugin)} plugin could not be asked: {passed}"
+    tally.unasked(plugin, said)
+    log.warning(
+        "source plugin %s, during %s: %s; recorded as could not be asked",
+        plugin,
+        operation,
+        passed,
+        extra={"event": "source.plugin_deadline", "plugin": plugin, "operation": operation},
+    )
+    return said
+
+
+def _scrubbed(exc: Exception, kind: type[Exception]) -> Exception:
+    """`exc` itself when its message carries no query string; else a `kind` saying the same without one.
+
+    `_reraise_scrubbed`'s rule, for a failure raised later rather than now (`_Said`).
+    """
+    cleaned = scrub(str(exc))
+    if cleaned == str(exc):
+        return exc
+    replacement = kind(cleaned)
+    replacement.__suppress_context__ = True
+    return replacement
 
 
 def _groups(answer: object) -> tuple[OfferedGroup, ...]:
@@ -267,12 +600,24 @@ def _groups(answer: object) -> tuple[OfferedGroup, ...]:
 
 
 class _ContainedFinder:
-    """A plugin's finder, with anything outside its interface turned into "could not be asked"."""
+    """A plugin's finder, with anything outside its interface, or past its deadline, turned into "could not be asked"."""
 
-    def __init__(self, inner: Finder, plugin: str, faults: _Faults) -> None:
+    def __init__(
+        self,
+        inner: Finder,
+        plugin: str,
+        tally: _Tally,
+        *,
+        calls: _Calls,
+        deadlines: Deadlines,
+        preview_max_bytes: int,
+    ) -> None:
         self._inner = inner
         self._plugin = plugin
-        self._faults = faults
+        self._tally = tally
+        self._calls = calls
+        self._deadlines = deadlines
+        self._preview_max_bytes = preview_max_bytes
         #: Carried from the plugin's finder, so the pool can tell a finder of
         #: pages from one of images through the containment.
         self.offers_images = offers_images(inner)
@@ -281,54 +626,105 @@ class _ContainedFinder:
     def provider(self) -> str:
         return self._plugin
 
-    def find_images(self, query: ImageQuery) -> Sequence[FoundImage | FoundPage]:
+    @property
+    def deadline_seconds(self) -> float:
+        """How long `find_images` is waited for: what the pool's own backstop is set past."""
+        return self._deadlines.finder
+
+    def find_images(self, query: ImageQuery) -> Iterable[FoundImage | FoundPage]:
+        """The finder's answer, checked; or, when it failed after saying something, that, then the failure.
+
+        Eager when nothing was said: a failure with nothing before it is raised
+        here, as it always was, and only an answer that has something to hand
+        over before its failure is handed over to be iterated.
+        """
+        heard = _Heard()
+        pages_only = not self.offers_images
+
+        def ask() -> None:
+            answer = self._inner.find_images(query)
+            if isinstance(answer, str | bytes) or not isinstance(answer, Iterable):
+                raise _InterfaceBreach(f"find_images answered a {type(answer).__name__}, not a list of FoundImage")
+            for found in answer:
+                heard.add(_check_found(found, self._plugin, pages_only=pages_only))
+
         try:
-            return _images(self._inner.find_images(query), self._plugin, pages_only=not self.offers_images)
-        # Two of the interface's three answers, passed through as themselves with
-        # their message scrubbed (`_reraise_scrubbed`). Two clauses rather than one
-        # tuple, because the formatter writes a bare tuple in a form Python 3.12
-        # cannot parse, and the root suite's guards parse this file under 3.12 (#166).
+            self._calls.run("find_images", self._deadlines.finder, ask)
+        except _DeadlinePassed as passed:
+            failure: Exception = ImageSearchFailure(_past_deadline(self._plugin, "find_images", passed, self._tally))
+        # Two of the interface's three answers, passed on as themselves with their
+        # message scrubbed. Two clauses rather than one tuple, because the
+        # formatter writes a bare tuple in a form Python 3.12 cannot parse, and the
+        # root suite's guards parse this file under 3.12 (#166).
         except ImageSearchFailure as exc:
-            _reraise_scrubbed(exc, ImageSearchFailure)
+            self._tally.unasked(self._plugin, str(exc))
+            failure = _scrubbed(exc, ImageSearchFailure)
         except ImageQueryUnanswerable as exc:
-            _reraise_scrubbed(exc, ImageQueryUnanswerable)
+            self._tally.answered(self._plugin)
+            failure = _scrubbed(exc, ImageQueryUnanswerable)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
-            self._faults.record(self._plugin, "find_images", exc)
+            # Nothing it said is kept: a plugin answering outside its interface
+            # has said nothing that can be trusted.
+            self._tally.fault(self._plugin, "find_images", exc)
             raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+        else:
+            self._tally.answered(self._plugin)
+            return heard.so_far()
+        said = heard.so_far()
+        if not said:
+            raise failure
+        return _Said(said, failure)
 
     def fetch_preview(self, url: str) -> bytes | None:
         try:
-            return _preview(self._inner.fetch_preview(url))
+            return self._calls.run(
+                "fetch_preview",
+                self._deadlines.preview,
+                lambda: _preview(self._inner.fetch_preview(url), self._preview_max_bytes),
+            )
+        except _DeadlinePassed as passed:
+            # None is the interface's failed preview: a card without its picture.
+            _past_deadline(self._plugin, "fetch_preview", passed, self._tally)
+            return None
         except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- None is the interface's failed preview
-            self._faults.record(self._plugin, "fetch_preview", exc)
+            self._tally.fault(self._plugin, "fetch_preview", exc)
             return None
 
 
 class _ContainedReader:
-    """A plugin's reader, with anything outside its interface turned into "could not be asked"."""
+    """A plugin's reader, with anything outside its interface, or past its deadline, turned into "could not be asked"."""
 
-    def __init__(self, inner: Reader, plugin: str, faults: _Faults) -> None:
+    def __init__(self, inner: Reader, plugin: str, tally: _Tally, *, calls: _Calls, deadlines: Deadlines) -> None:
         self._inner = inner
         self._plugin = plugin
-        self._faults = faults
+        self._tally = tally
+        self._calls = calls
+        self._deadlines = deadlines
 
     def read(self, url: str) -> FetchLocator:
         try:
-            return _locator(self._inner.read(url))
+            locator = self._calls.run("read", self._deadlines.reader, lambda: _locator(self._inner.read(url)))
+        except _DeadlinePassed as passed:
+            raise ImageSearchFailure(_past_deadline(self._plugin, "read", passed, self._tally)) from None
         except ImageSearchFailure as exc:
+            self._tally.unasked(self._plugin, str(exc))
             _reraise_scrubbed(exc, ImageSearchFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- recorded against the source instead
-            self._faults.record(self._plugin, "read", exc)
+            self._tally.fault(self._plugin, "read", exc)
             raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+        self._tally.answered(self._plugin)
+        return locator
 
 
 class _ContainedCollection:
-    """A plugin's collection, with anything outside its interface turned into a browse failure."""
+    """A plugin's collection, with anything outside its interface, or past its deadline, turned into a browse failure."""
 
-    def __init__(self, inner: CollectionBrowse, plugin: str, faults: _Faults) -> None:
+    def __init__(self, inner: CollectionBrowse, plugin: str, tally: _Tally, *, calls: _Calls, deadlines: Deadlines) -> None:
         self._inner = inner
         self._plugin = plugin
-        self._faults = faults
+        self._tally = tally
+        self._calls = calls
+        self._deadlines = deadlines
 
     @property
     def provider(self) -> str:
@@ -336,12 +732,66 @@ class _ContainedCollection:
 
     def browse(self, queries: Sequence[BrowseQuery], *, per_query: int) -> Sequence[OfferedGroup]:
         try:
-            return _groups(self._inner.browse(queries, per_query=per_query))
+            groups = self._calls.run(
+                "browse", self._deadlines.browse, lambda: _groups(self._inner.browse(queries, per_query=per_query))
+            )
+        except _DeadlinePassed as passed:
+            raise CollectionBrowseFailure(_past_deadline(self._plugin, "browse", passed, self._tally)) from None
         except CollectionBrowseFailure as exc:
+            self._tally.unasked(self._plugin, str(exc))
             _reraise_scrubbed(exc, CollectionBrowseFailure)
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
-            self._faults.record(self._plugin, "browse", exc)
+            self._tally.fault(self._plugin, "browse", exc)
             raise CollectionBrowseFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
+        self._tally.answered(self._plugin)
+        return groups
+
+
+class _Containment:
+    """What every wrapper of one roster shares: the counts, the deadlines, the preview ceiling, and each plugin's calls."""
+
+    def __init__(
+        self,
+        tally: _Tally,
+        deadlines: Deadlines,
+        preview_max_bytes: int,
+        *,
+        declared: Mapping[str, Deadlines] | None = None,
+        wait_for: WaitFor = _wait,
+    ) -> None:
+        self.tally = tally
+        self._deadlines = deadlines
+        #: Each plugin's own deadlines, where it declared any (`declared_deadlines`).
+        self._declared = dict(declared or {})
+        self._preview_max_bytes = preview_max_bytes
+        self._wait_for = wait_for
+        #: Per plugin, not per part, so a plugin hung in its reader and its finder
+        #: alike holds no more threads than one hung in either.
+        self._calls: dict[str, _Calls] = {}
+
+    def _calls_of(self, plugin: str) -> _Calls:
+        return self._calls.setdefault(plugin, _Calls(plugin, self._deadlines.stragglers, self._wait_for))
+
+    def _deadlines_of(self, plugin: str) -> Deadlines:
+        return self._declared.get(plugin, self._deadlines)
+
+    def finder(self, inner: Finder, plugin: str) -> _ContainedFinder:
+        return _ContainedFinder(
+            inner,
+            plugin,
+            self.tally,
+            calls=self._calls_of(plugin),
+            deadlines=self._deadlines_of(plugin),
+            preview_max_bytes=self._preview_max_bytes,
+        )
+
+    def reader(self, inner: Reader, plugin: str) -> _ContainedReader:
+        deadlines = self._deadlines_of(plugin)
+        return _ContainedReader(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=deadlines)
+
+    def collection(self, inner: CollectionBrowse, plugin: str) -> _ContainedCollection:
+        deadlines = self._deadlines_of(plugin)
+        return _ContainedCollection(inner, plugin, self.tally, calls=self._calls_of(plugin), deadlines=deadlines)
 
 
 def _not_loaded(plugin: str, reason: str | None) -> str:
@@ -369,7 +819,7 @@ class SourceRoster:
         collection: CollectionBrowse | None,
         claimants: Sequence[_Claimant],
         states: Sequence[tuple[str, PluginState, str | None]],
-        faults: _Faults,
+        tally: _Tally,
         unknowable: Mapping[str, str] | None = None,
         identities: Mapping[str, PluginIdentity] | None = None,
     ) -> None:
@@ -378,7 +828,10 @@ class SourceRoster:
         self._collection = collection
         self._claimants = tuple(claimants)
         self._states = tuple(states)
-        self._faults = faults
+        self._tally = tally
+        #: Pairs of plugins already said to claim one URL, so each pair is said once.
+        self._overlaps: set[tuple[str, str]] = set()
+        self._overlaps_lock = threading.Lock()
         #: Installed plugins that failed before a `SourcePlugin` was got from them
         #: (an import error, an entry point naming something else, a name two
         #: distributions share), each with its reason. Which URLs they read cannot
@@ -400,6 +853,8 @@ class SourceRoster:
         unavailable: Mapping[str, tuple[Callable[[str], bool], str]] | None = None,
         unknowable: Mapping[str, str] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        deadlines: Deadlines = DEFAULT_DEADLINES,
+        preview_max_bytes: int = DEFAULT_PREVIEW_MAX_BYTES,
     ) -> SourceRoster:
         """A roster from parts in hand, without entry points: for tests, and for hand-assembled sources.
 
@@ -407,9 +862,11 @@ class SourceRoster:
         collection likewise, and a reader by its key, which carries the claims that
         route URLs to it. `unavailable` names plugins that claim URLs and declined,
         each with its reason, and `unknowable` plugins that failed before their
-        claims could be read. Every part is contained exactly as a loaded plugin's is.
+        claims could be read. Every part is contained exactly as a loaded plugin's
+        is, deadlines included.
         """
-        faults = _Faults(now)
+        tally = _Tally(now)
+        contain = _Containment(tally, deadlines, preview_max_bytes)
         readers = dict(readers or {})
         unavailable = dict(unavailable or {})
         names = [finder.provider for finder in finders]
@@ -417,13 +874,10 @@ class SourceRoster:
             names.append(collection.provider)
         names.extend(readers)
         return cls(
-            finders=[_ContainedFinder(finder, finder.provider, faults) for finder in finders],
-            collection=None if collection is None else _ContainedCollection(collection, collection.provider, faults),
+            finders=[contain.finder(finder, finder.provider) for finder in finders],
+            collection=None if collection is None else contain.collection(collection, collection.provider),
             claimants=[
-                *(
-                    _Claimant(name, claims, _ContainedReader(reader, name, faults), None)
-                    for name, (claims, reader) in readers.items()
-                ),
+                *(_Claimant(name, claims, contain.reader(reader, name), None) for name, (claims, reader) in readers.items()),
                 *(_Claimant(name, claims, None, _not_loaded(name, reason)) for name, (claims, reason) in unavailable.items()),
             ],
             states=[
@@ -431,7 +885,7 @@ class SourceRoster:
                 *((name, PluginState.DECLINED, reason) for name, (_claims, reason) in unavailable.items()),
                 *((name, PluginState.FAILED, reason) for name, reason in (unknowable or {}).items()),
             ],
-            faults=faults,
+            tally=tally,
             unknowable=unknowable,
             identities={
                 name: PluginIdentity(
@@ -469,19 +923,31 @@ class SourceRoster:
     def route(self, url: str, provider: str | None = None) -> Route:
         """Which plugin `url` needs, and whether it can be read here; the first claimant in preference order.
 
+        Every claimant is asked, so that two plugins claiming one URL are said
+        out loud (`source.claims_overlap`, once per pair) rather than kept apart
+        by convention alone: the second never reads a URL the first claims, and
+        a stored source it recorded would be read by the other's reader.
+
         `provider`, the name a stored source was recorded under, is consulted only
         when no claimant claims the URL and that name is a plugin whose claims could
         not be read. Its own rows are then a deployment fault naming it, as a
         declined plugin's are, rather than a fetch of a page only it can read.
         """
+        chosen: _Claimant | None = None
         for claimant in self._claimants:
             try:
                 claimed = bool(claimant.claims(url))
             except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a raising check claims nothing
-                self._faults.record(claimant.name, "claims", exc)
+                self._tally.fault(claimant.name, "claims", exc)
                 claimed = False
-            if claimed:
-                return Route(plugin=claimant.name, reader=claimant.reader, unavailable=claimant.unavailable)
+            if not claimed:
+                continue
+            if chosen is None:
+                chosen = claimant
+            else:
+                self._overlap(chosen.name, claimant.name, url)
+        if chosen is not None:
+            return Route(plugin=chosen.name, reader=chosen.reader, unavailable=chosen.unavailable)
         if provider is not None and provider in self._unknowable:
             return Route(
                 plugin=provider,
@@ -492,20 +958,40 @@ class SourceRoster:
             )
         return Route()
 
+    def _overlap(self, first: str, second: str, url: str) -> None:
+        """Say once per pair that two plugins claim one URL, naming both and the one that reads it."""
+        with self._overlaps_lock:
+            if (first, second) in self._overlaps:
+                return
+            self._overlaps.add((first, second))
+        log.warning(
+            "source plugins %s and %s both claim %s; %s reads it, being first in the order, and %s never will",
+            first,
+            second,
+            scrub(url),
+            first,
+            second,
+            extra={"event": "source.claims_overlap", "plugin": first, "other": second},
+        )
+
     def observe(self) -> tuple[PluginReading, ...]:
-        """Every installed plugin, now, with its faults since startup."""
+        """Every installed plugin, now, with its faults and could-not-be-asked answers since startup."""
         readings = []
         for name, state, reason in self._states:
-            faults, last_at, last = self._faults.of(name)
+            count = self._tally.of(name)
             readings.append(
                 PluginReading(
                     name=name,
                     state=state,
                     reason=reason,
-                    faults=faults,
-                    last_fault_at=last_at,
-                    last_fault=last,
+                    faults=count.faults,
+                    last_fault_at=None if count.last_fault is None else count.last_fault[0],
+                    last_fault=None if count.last_fault is None else count.last_fault[1],
                     identity=self._identities.get(name, PluginIdentity()),
+                    unasked=count.unasked,
+                    last_unasked_at=None if count.last_unasked is None else count.last_unasked[0],
+                    last_unasked=None if count.last_unasked is None else count.last_unasked[1],
+                    answered=count.answered,
                 )
             )
         return tuple(readings)
@@ -518,6 +1004,8 @@ def load_sources(
     entry_points: Iterable[importlib.metadata.EntryPoint] | None = None,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     data_root: Path | None = None,
+    deadlines: Deadlines = DEFAULT_DEADLINES,
+    wait_for: WaitFor = _wait,
 ) -> SourceRoster:
     """Load every installed plugin, and say what became of each.
 
@@ -526,10 +1014,13 @@ def load_sources(
     `ENTRY_POINT_GROUP`, and is a parameter so the loader can be tested without
     installing a distribution per case. `data_root` is where plugins keep files:
     each is handed `data_root / <its name>` as `SourceContext.data_dir`
-    (`_own_directory`).
+    (`_own_directory`). `deadlines` is how long each call into a loaded plugin is
+    waited for unless the plugin declares its own (`SourcePlugin.deadlines`); the
+    wiring takes the named defaults. `wait_for` is how the waiting is done, a
+    parameter only so a test can run a long deadline on simulated time.
     """
     found = list(importlib.metadata.entry_points(group=ENTRY_POINT_GROUP) if entry_points is None else entry_points)
-    faults = _Faults(now)
+    tally = _Tally(now)
     states: dict[str, tuple[PluginState, str | None]] = {}
     parts: dict[str, SourceParts] = {}
     plugins: dict[str, SourcePlugin] = {}
@@ -561,6 +1052,9 @@ def load_sources(
         else:
             states[entry.name] = (PluginState.FAILED, loaded)
 
+    # Each loaded plugin's deadlines: a declaration that could not load has already left it out (`_load_one`).
+    declared = {name: own for name in parts if isinstance(own := declared_deadlines(plugins[name], deadlines), Deadlines)}
+    contain = _Containment(tally, deadlines, context.preview_max_bytes, declared=declared, wait_for=wait_for)
     museums = {name: museum for name, plugin in plugins.items() if (museum := _museum_of(name, plugin)) is not None}
     declare_museums(museums)
 
@@ -582,15 +1076,13 @@ def load_sources(
         else:
             log.error("source plugin %s was not loaded: %s", name, reason, extra={"event": "source.failed", "plugin": name})
 
-    finders = [_ContainedFinder(parts[n].finder, n, faults) for n in ranked if n in parts and parts[n].finder is not None]
-    collections = [
-        _ContainedCollection(parts[n].collection, n, faults) for n in ranked if n in parts and parts[n].collection is not None
-    ]
+    finders = [contain.finder(parts[n].finder, n) for n in ranked if n in parts and parts[n].finder is not None]
+    collections = [contain.collection(parts[n].collection, n) for n in ranked if n in parts and parts[n].collection is not None]
     claimants = [
         _Claimant(
             name=n,
             claims=plugins[n].claims,
-            reader=(_ContainedReader(parts[n].reader, n, faults) if n in parts and parts[n].reader is not None else None),
+            reader=(contain.reader(parts[n].reader, n) if n in parts and parts[n].reader is not None else None),
             unavailable=None if n in parts else _not_loaded(n, states[n][1]),
         )
         for n in ranked
@@ -601,7 +1093,7 @@ def load_sources(
         collection=collections[0] if collections else None,
         claimants=claimants,
         states=[(name, *states[name]) for name in ranked],
-        faults=faults,
+        tally=tally,
         unknowable={n: states[n][1] or "" for n in ranked if n not in plugins and states[n][0] is PluginState.FAILED},
         identities={
             n: PluginIdentity(
@@ -709,14 +1201,12 @@ def _load_one(  # noqa: PLR0911 -- one return per way a plugin can fail to load,
     try:
         plugin = entry.load()
     except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- an unimportable plugin is left out, named
-        return None, f"it could not be imported: {describe_exception(exc)}"
+        return None, _unimportable(exc)
     if not isinstance(plugin, SourcePlugin):
         return None, f"its entry point names a {type(plugin).__name__}, not a SourcePlugin"
-    if plugin.api_major != API_VERSION[0]:
-        return plugin, (
-            f"it was written for source interface {plugin.api_major}, and this Arrt provides "
-            f"{API_VERSION[0]}.{API_VERSION[1]}"
-        )
+    refused = _version_refusal(plugin)
+    if refused is not None:
+        return plugin, refused
     try:
         answer = plugin.create(context)
     except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- a raising factory is left out, and named
@@ -730,6 +1220,39 @@ def _load_one(  # noqa: PLR0911 -- one return per way a plugin can fail to load,
     except Exception as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- raising parts are left out, and named
         return plugin, f"its parts raised while being checked: {describe_exception(exc)}"
     return plugin, answer if breach is None else breach
+
+
+def _unimportable(exc: Exception) -> str:
+    """Why a plugin could not be imported, and, for a keyword this Arrt's types do not take, what that may mean.
+
+    A plugin passing a field from a newer interface meets this rather than
+    `_version_refusal`, because `SourcePlugin` refuses the keyword at import,
+    before Arrt can read the minor the plugin declares beside it.
+    """
+    reason = f"it could not be imported: {describe_exception(exc)}"
+    if isinstance(exc, TypeError) and "unexpected keyword argument" in str(exc):
+        major, minor = API_VERSION
+        reason += f"; it may need a newer Arrt than this one, which provides source interface {major}.{minor}"
+    return reason
+
+
+def _version_refusal(plugin: SourcePlugin) -> str | None:
+    """Why a plugin's interface version cannot load here, or `None` when it can.
+
+    A plugin needing a newer minor is refused rather than loaded: one reading a
+    field this Arrt does not have would fault on every call instead of being
+    named once, at startup.
+    """
+    major, minor = API_VERSION
+    if plugin.api_major != major:
+        return f"it was written for source interface {plugin.api_major}, and this Arrt provides {major}.{minor}"
+    needs = getattr(plugin, "api_minor", 0)
+    if isinstance(needs, bool) or not isinstance(needs, int) or needs < 0:
+        return f"it declares an interface minor of {needs!r}, which is not a whole number"
+    if needs > minor:
+        return f"it needs source interface {major}.{needs}, and this Arrt is {major}.{minor}"
+    declared = declared_deadlines(plugin, DEFAULT_DEADLINES)
+    return declared if isinstance(declared, str) else None
 
 
 def _breach(name: str, plugin: SourcePlugin, parts: SourceParts) -> str | None:

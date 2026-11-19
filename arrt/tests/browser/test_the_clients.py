@@ -134,7 +134,9 @@ def test_the_page_opens_with_its_name_its_facts_and_its_toolbar(ui, services, se
     assert "page-facts" in tags[1]
     assert "page-toolbar" in tags[2]
     assert "table-scroll" in tags[3]
-    assert view.locator(".page-facts").inner_text() == "2 Players · 1 reporting"
+    # The one with a token and no report is waited for, and the line says so
+    # (audit 2026-11-19, finding 2).
+    assert view.locator(".page-facts").inner_text() == "2 Players · 1 reporting · waiting for 1 to report"
     headers = view.locator("thead th").all_text_contents()
     assert headers == ["Player", "Status", "Screens", "Label panel", "Settings"]
 
@@ -206,9 +208,16 @@ def test_adding_a_player_shows_its_token_once_with_what_to_do_with_it(ui, servic
     assert ui.page.evaluate("() => document.activeElement.id") == "player-token"
     note = ui.page.locator(".token-once").inner_text()
     assert "the only time it is shown" in note
-    assert "CLIENT_TOKEN" in note
-    assert "SERVER_URL" in note
-    assert server_url in note, "the address the Player needs is not stated"
+    # In the Player's own settings page's words, not the environment variables
+    # behind them (audit 2026-11-19, F6): its fields are *Token* and *Server
+    # address* (the Player renamed them from *Client token* and *Server ›
+    # Address* in its own audit wave; the old names would send nobody anywhere).
+    assert "put this token in Token, and" in note
+    assert f"this server's address in Server address, as that Player reaches it — from this browser, {server_url}." in note
+    assert "Client token" not in note
+    assert "Server › Address" not in note
+    assert "CLIENT_TOKEN" not in note
+    assert "SERVER_URL" not in note
     # One dialog, the token's: the add's own closed as it issued.
     assert ui.page.locator("dialog.panel-dialog").count() == 1
     [client] = services.clients.list_clients()
@@ -302,7 +311,12 @@ def test_a_player_that_has_not_reported_says_so_in_words(ui, services, hall):
     services.access.issue(hall.id)
     open_players(ui)
 
-    assert cell(ui, hall, "Status").inner_text() == "○ Never reported"
+    # Waiting for it, with what it waits on (audit 2026-11-19, finding 2): it
+    # was "Never reported", which read as a fault on the evening it was added.
+    assert cell(ui, hall, "Status").inner_text() == (
+        "◌ Waiting for it to report\nOnce it is running with its token, it reports here within a minute or so."
+    )
+    assert ui.page.locator(".page-facts").inner_text() == "1 Player · waiting for it to report"
     assert cell(ui, hall, "Screens").inner_text() == "Not reported yet."
     assert cell(ui, hall, "Label panel").inner_text() == "Not known until it reports."
 

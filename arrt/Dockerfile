@@ -11,9 +11,9 @@
 #   docker buildx build --platform linux/amd64 --target test --build-context repo=. arrt/
 #
 # The test target needs the repository root as a second context (`repo`): the
-# contract tests read `contract/`, and the seed and mat-corpus tests read the
-# 2024 index `all.json`, both of which sit beside `arrt/`, not in it. The app
-# image needs neither.
+# contract tests read `contract/`, the seed and mat-corpus tests read the 2024
+# index `all.json`, and the UX walk's tests read `.env.example`, all of which sit
+# beside `arrt/`, not in it. The app image needs none of them.
 #
 # The art root is a volume at /art: the catalogue, the masters and every derived
 # file live there, so the image holds code only and a rollback is a different tag.
@@ -85,6 +85,10 @@ RUN uv sync --frozen
 COPY tests ./tests
 # The UX walk's tests import `tools/ux_walk.py` by path, from beside `tests/`.
 COPY tools ./tools
+# The names the walk's synthetic server starts blank are the ones the repository
+# root's `.env.example` declares, and the harness refuses to boot without it
+# (`ux_walk.names_to_blank`). One level above `/app`. Not `.env`: nothing loads this.
+COPY --from=repo .env.example /.env.example
 # Where the tests look for it: three levels above a test file, which in the
 # image is the filesystem root.
 COPY --from=repo all.json /all.json

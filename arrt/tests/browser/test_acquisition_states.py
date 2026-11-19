@@ -17,12 +17,13 @@ import pytest
 from payloads import a_candidate, a_candidate_page, a_card
 
 from arrt.library.acquisition.queue import QueuePause
+from arrt.library.acquisition.service import remedy_for
 from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
 
-pytest.importorskip(
+expect = pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
-)
+).expect
 
 
 @pytest.fixture
@@ -47,7 +48,7 @@ def accepted(services):
 
 def open_work(ui, work):
     ui.open(f"#work/{work.id}")
-    ui.page.wait_for_selector("#view h2:has-text('Master image')")
+    ui.page.wait_for_selector("#view h2:text-is('Picture')")
 
 
 # -- the Work page ------------------------------------------------------------
@@ -62,8 +63,15 @@ def test_a_work_with_no_image_says_it_is_queued_and_offers_no_retry(ui, accepted
     assert "queued" in line
     assert "Waiting its turn to be fetched" in line
     assert ui.page.locator(".acquisition-line button").count() == 0, "nothing has failed, so there is nothing to retry"
-    panel = ui.page.locator(".panel:has(h2:has-text('Master image'))").inner_text()
-    assert "No master image has been acquired" not in panel, "the queue's line replaces the bare sentence"
+    # The queue's line replaces the bare "no picture yet" sentence: the Picture
+    # panel holds its heading and that line and nothing else. Keyed on what the
+    # panel holds rather than on the sentence's wording, which a rewording would
+    # leave this passing without checking anything (until 2026-11-19 it asserted
+    # one wording's absence).
+    panel = ui.page.locator(".work-record > .panel:has(h2:text-is('Picture'))")
+    expect(panel).to_have_count(1)
+    expect(panel.locator(".acquisition-line")).to_have_count(1)
+    expect(panel.locator(":scope > :not(h2, .acquisition-line)")).to_have_count(0)
 
 
 def test_a_work_the_queue_gave_up_on_says_why_and_retry_puts_it_back(ui, accepted, store):
@@ -123,7 +131,8 @@ def test_a_paused_queue_says_why_and_what_ends_it_on_the_work_page(ui, accepted,
     line = ui.page.inner_text(".acquisition-line")
     assert "paused" in line
     assert "Every fetch is paused: only 1.2 GB free; 2.0 GB required." in line
-    assert "MIN_FREE_BYTES" in line
+    assert "Free some space on it" in line
+    assert "MIN_FREE_BYTES" not in line, "the Work page is a household page, which names no setting"
 
 
 def test_a_pause_nothing_anticipated_points_at_the_journal_rather_than_a_remedy(ui, accepted, services):
@@ -177,7 +186,7 @@ def _failed(store, work, detail, *, failures=1):
     )
 
 
-def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_its_own_retry(ui, accepted, store):
+def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_no_retry_on_its_row(ui, accepted, store):
     accepted("Waiting")
     failed = accepted("Failed once")
     _failed(store, failed, "refused.")
@@ -200,7 +209,9 @@ def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_its_own_
     assert "Try 1 of 4 failed. It tries again at" in row, "the cause is the group's heading, not repeated per work"
     href = ui.page.locator(".failure-cause-works a:has-text('Failed once')").get_attribute("href")
     assert href.startswith(f"#work/{failed.id}")
-    assert ui.page.locator(".failure-cause-works button:has-text('Retry now')").count() == 1
+    # One Retry for the group; a row has none (design direction: never one button
+    # per row, audit-6 finding 11). A single work is retried on its own page.
+    assert ui.page.locator(".failure-cause-works button").count() == 0
     assert "cause=refused." in ui.page.url, "opening a group is an address"
 
 
@@ -294,7 +305,7 @@ def _listing(pause=None, works=(), failing=0, causes=0):
 
 
 def test_a_paused_queue_says_why_and_what_ends_it_above_the_works(ui):
-    remedy = "Free space on the art tree's disk, or lower MIN_FREE_BYTES if this deployment means to run closer to full."
+    remedy = remedy_for("NotEnoughSpace")
     ui.serve(
         "**/api/acquisitions",
         _listing(
@@ -327,7 +338,7 @@ def test_a_paused_queue_says_why_and_what_ends_it_above_the_works(ui):
 
     pause = ui.page.inner_text(".acquisition-pause")
     assert "Every fetch is paused: only 1.2 GB free" in pause
-    assert "MIN_FREE_BYTES" in pause
+    assert "Free some space on it" in pause
     panel = ui.page.inner_text(".acquisitions")
     assert panel.index("Every fetch is paused") < panel.index("Hunters in the Snow"), "the pause holds every row beneath it"
 
@@ -392,7 +403,7 @@ def test_an_accepted_card_the_queue_owes_nothing_and_holds_no_image_says_none_is
 def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_record(ui, accepted, store):
     """The page a curator meets most while the library fills: no picture, a
     failed try, a source. The label still sits beside where the picture would
-    be, and the failure is in the Master image section, ruled like the rest."""
+    be, and the failure is in the Picture section, ruled like the rest."""
     work = accepted()
     _failed(store, work, "the connection was reset.")
     ui.page.set_viewport_size({"width": 1280, "height": 900})
@@ -403,7 +414,7 @@ def test_a_failed_work_keeps_the_wall_label_layout_with_its_failure_in_the_recor
           const hero = document.querySelector('.work-head > .work-hero').getBoundingClientRect();
           const label = document.querySelector('.work-head > .work-label').getBoundingClientRect();
           const master = [...document.querySelectorAll('.work-record > .panel')]
-            .find((panel) => panel.querySelector('h2')?.textContent === 'Master image');
+            .find((panel) => panel.querySelector('h2')?.textContent === 'Picture');
           return {
             side_by_side: label.left >= hero.right,
             failure_in_master: Boolean(master && master.querySelector('.acquisition-line')),

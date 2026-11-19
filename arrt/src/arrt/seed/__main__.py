@@ -18,7 +18,7 @@ from pathlib import Path
 from arrt import logs
 from arrt.config import Settings
 from arrt.library.services.catalogue import CatalogueService
-from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.file import open_configured_catalogue
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.seed.ingest import SeedReport, seed_catalogue
 from arrt.seed.legacy import LegacyIndexError, read_index
@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     settings.art_root.mkdir(parents=True, exist_ok=True)
-    catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
+    catalogue_file = open_configured_catalogue(settings)
     try:
         # The catalogue service and nothing else: seeding writes works, artists,
         # sources, images and mats, and touches neither discovery state nor any

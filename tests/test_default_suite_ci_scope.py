@@ -13,6 +13,7 @@ shrink it while the run still reports green:
 """
 
 import pathlib
+import re
 import shlex
 import tomllib
 
@@ -197,9 +198,18 @@ DOCKERFILE = REPO / "arrt" / "Dockerfile"
 
 #: What the image copies in that `image.yml` deliberately does not watch, because the
 #: pool's suites run it on every pull request: the server's code, tests and tools, the
-#: contract package's source and the documents its tests read. The contract's own
-#: dependency declarations are watched, since they change what the image installs.
-_RUN_BY_THE_POOL = {"arrt/src", "arrt/tests", "arrt/tools", "contract", ".prawduct/artifacts/player-contract.md", "all.json"}
+#: contract package's source and the documents its tests read (`.env.example` is the
+#: UX walk's tests'). The contract's own dependency declarations are watched, since
+#: they change what the image installs.
+_RUN_BY_THE_POOL = {
+    "arrt/src",
+    "arrt/tests",
+    "arrt/tools",
+    "contract",
+    ".prawduct/artifacts/player-contract.md",
+    "all.json",
+    ".env.example",
+}
 
 
 def _copied_sources(dockerfile: str) -> set[str]:
@@ -243,9 +253,66 @@ def check_the_image_filter(copied: set[str], watched: list[str]) -> None:
     )
 
 
+def _image_inputs(workflow: dict) -> list[str]:
+    """The paths `image.yml`'s decide step builds for outside a pull request into `main`: its `IMAGE_INPUTS`."""
+    steps = workflow["jobs"]["image"]["steps"]
+    decide = next((step for step in steps if step.get("id") == "decide"), None)
+    assert decide is not None, "image.yml has no step with id `decide`, so nothing decides whether a pull request builds"
+    inputs = str((decide.get("env") or {}).get("IMAGE_INPUTS", "")).split()
+    assert inputs, "the decide step's IMAGE_INPUTS names no path, so a pull request that changes the image builds nothing"
+    return inputs
+
+
+def check_the_image_triggers(workflow: dict) -> None:
+    """Raise unless a pull request reaches the decide step unfiltered, and the step builds for `main`.
+
+    A `paths` or `branches` filter on the trigger would decide before the step does, so a
+    pull request into `main` that changes no image input would never build, which is what
+    the release build is for (audit-7 S4). The step must also name `main`, and the build
+    steps must wait on its answer.
+    """
+    pull_request = workflow[True].get("pull_request")
+    assert pull_request is not None or "pull_request" in workflow[True], "image.yml does not run on a pull request"
+    filtered = sorted(set(pull_request or {}) & {"paths", "paths-ignore", "branches", "branches-ignore"})
+    assert not filtered, f"the pull_request trigger carries {filtered}, which decides before the step that builds for main"
+    steps = workflow["jobs"]["image"]["steps"]
+    decide = next((step for step in steps if step.get("id") == "decide"), None)
+    assert decide is not None, "image.yml has no step with id `decide`"
+    assert re.search(r'"\$BASE" = main', decide["run"]), "the decide step does not build for a pull request whose base is main"
+    gated = [step for step in steps if "steps.decide.outputs.build" in str(step.get("if", ""))]
+    assert len(gated) >= 2, "the build steps do not wait on the decide step's answer"
+
+
+def test_the_image_builds_unfiltered_into_main_and_filtered_elsewhere():
+    check_the_image_triggers(yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8")))
+
+
+def _image_workflow_with(trigger: dict | None = None, run: str | None = None) -> dict:
+    workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    if trigger is not None:
+        workflow[True]["pull_request"] = trigger
+    if run is not None:
+        next(step for step in workflow["jobs"]["image"]["steps"] if step.get("id") == "decide")["run"] = run
+    return workflow
+
+
+@pytest.mark.parametrize(
+    "trigger",
+    [{"paths": ["arrt/Dockerfile"]}, {"paths-ignore": ["docs/**"]}, {"branches": ["main"]}, {"branches-ignore": ["main"]}],
+)
+def test_a_trigger_filter_that_would_skip_a_pull_request_into_main_is_refused(trigger):
+    with pytest.raises(AssertionError, match="decides before the step"):
+        check_the_image_triggers(_image_workflow_with(trigger=trigger))
+
+
+def test_a_decide_step_that_does_not_build_for_main_is_refused():
+    with pytest.raises(AssertionError, match="base is main"):
+        check_the_image_triggers(_image_workflow_with(run="echo build=true >> $GITHUB_OUTPUT"))
+
+
 def test_the_image_build_watches_everything_the_image_is_built_from():
     workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
-    watched = workflow[True]["pull_request"]["paths"]
+    watched = _image_inputs(workflow)
     copied = _copied_sources(DOCKERFILE.read_text(encoding="utf-8"))
     assert copied, "no COPY read from arrt/Dockerfile, so this checks nothing"
 

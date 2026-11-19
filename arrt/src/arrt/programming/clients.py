@@ -419,8 +419,12 @@ class ClientService:
 
     def rename_client(self, client_id: str, *, name: str) -> Client:
         """Give a client a new name. Its token and its walls are unchanged."""
-        renamed = replace(self.get_client(client_id), name=require_text(name, field="name"))
-        store_write(self._store.update_client, renamed)
+        chosen = require_text(name, field="name")
+        # Read where it is written: the row carries the token's verifier, and a
+        # client read before a token was issued would put the old one back.
+        with self._store.transaction():
+            renamed = replace(self.get_client(client_id), name=chosen)
+            store_write(self._store.update_client, renamed)
         return renamed
 
     def remove_client(self, client_id: str) -> Sequence[Wall]:
@@ -465,10 +469,12 @@ class ClientService:
         reported. Refused when that display already shows another wall, because
         one screen shows one picture.
         """
-        wall = self._require_wall(wall_id)
-        client = self.get_client(client_id)
-        output = require_text(output, field="output")
+        # Read where it is written, as every whole-row write of a wall is: a
+        # setting changed meanwhile would otherwise be put back by this one.
         with self._store.transaction():
+            wall = self._require_wall(wall_id)
+            client = self.get_client(client_id)
+            output = self._require_output(client, wall, output)
             display = self._display_on(client.id, output) or self._record_place(client, output)
             placed = self._place(wall, display, client)
         log.info("Wall %r is now shown by client %r on output %r.", wall.name, client.name, output)
@@ -476,20 +482,22 @@ class ClientService:
 
     def assign_display(self, wall_id: str, *, display_id: str) -> WallAssignment:
         """Show this wall on a display, by the display's id. Refused when it already shows another wall."""
-        wall = self._require_wall(wall_id)
-        display = self.get_display(display_id)
-        client = None if display.client_id is None else self._store.get_client(display.client_id)
+        # Read where it is written, for the reason `assign_wall` gives.
         with self._store.transaction():
+            wall = self._require_wall(wall_id)
+            display = self.get_display(display_id)
+            client = None if display.client_id is None else self._store.get_client(display.client_id)
             placed = self._place(wall, display, client)
         log.info("Wall %r is now on display %r.", wall.name, display.identity)
         return WallAssignment(wall=placed, display=display, client=client, notice=self._notice(display, client))
 
     def unassign_wall(self, wall_id: str) -> Wall:
         """Take a wall off its display. Unassigning an unassigned wall is not an error."""
-        wall = self._require_wall(wall_id)
-        unassigned = replace(wall, display_id=None)
-        if wall.display_id is not None:
-            store_write(self._store.update_wall, unassigned)
+        with self._store.transaction():
+            wall = self._require_wall(wall_id)
+            unassigned = replace(wall, display_id=None)
+            if wall.display_id is not None:
+                store_write(self._store.update_wall, unassigned)
         return unassigned
 
     # -- writes: labels -------------------------------------------------------
@@ -529,15 +537,16 @@ class ClientService:
         Refused for a label output that captions a different wall, so a stale
         screen cannot take a label off a wall it was not showing.
         """
-        wall = self._require_wall(wall_id)
-        label = self._store.get_label_output(label_id)
-        if label is None:
-            raise ServiceError(f"No label output with id {label_id!r} is recorded.")
-        if label.wall_id not in (None, wall.id):
-            raise ServiceError(f"The label output {label.output!r} does not caption {wall.name}, so it was left as it is.")
-        released = replace(label, wall_id=None)
-        if label.wall_id is not None:
-            store_write(self._store.update_label_output, released)
+        with self._store.transaction():
+            wall = self._require_wall(wall_id)
+            label = self._store.get_label_output(label_id)
+            if label is None:
+                raise ServiceError(f"No label output with id {label_id!r} is recorded.")
+            if label.wall_id not in (None, wall.id):
+                raise ServiceError(f"The label output {label.output!r} does not caption {wall.name}, so it was left as it is.")
+            released = replace(label, wall_id=None)
+            if label.wall_id is not None:
+                store_write(self._store.update_label_output, released)
         return released
 
     # -- what a client writes -------------------------------------------------
@@ -612,7 +621,36 @@ class ClientService:
             else:
                 self._release(here)
         store_write(self._store.update_display, replace(known, client_id=client.id, output=output, kind=kind))
-        log.info("The display %s is now on client %r's output %r, with its walls.", identity, client.name, output)
+        self._say_moved(known, client, output)
+
+    def _say_moved(self, display: Display, client: Client, output: str) -> None:
+        """Say that a display is now on this client's output: at WARNING, naming both, when another client had it.
+
+        The move is automatic (`clients.md`: a Frame moved to another Pi), and it
+        is also what any Player's token can do by reporting a display another
+        Player has stopped reporting (audit-8 F10), so a move nobody made is one
+        an operator can find in the journal.
+        """
+        holder = None if display.client_id in (None, client.id) else self._store.get_client(display.client_id)
+        if holder is None:
+            log.info("The display %s is now on client %r's output %r, with its walls.", display.identity, client.name, output)
+            return
+        log.warning(
+            "The display %s moved from client %r to client %r's output %r, with its walls; "
+            "%r stopped reporting it, and is refused those walls from now on.",
+            display.identity,
+            holder.name,
+            client.name,
+            output,
+            holder.name,
+            extra={
+                "event": "client.display_moved",
+                "display": display.identity,
+                "from_client": holder.name,
+                "to_client": client.name,
+                "output": output,
+            },
+        )
 
     def _first_report(self, client: Client, output: str, kind: str, identity: str, here: Display | None) -> None:
         """An identity the server has not seen, reported on `output`: name the display there, or record it."""
@@ -785,6 +823,29 @@ class ClientService:
             (label for label in self._store.list_label_outputs() if label.client_id == client_id and label.output == output),
             None,
         )
+
+    def _require_output(self, client: Client, wall: Wall, output: str) -> str:
+        """The output's name, or a refusal that says what to do when none was chosen.
+
+        An empty name is what Walls sends for a Player that has reported no
+        screens, since it has none to offer; "output cannot be empty" told the
+        curator nothing of that (the 2026-11-19 UX walk's finding 2).
+        """
+        if output.strip():
+            return output.strip()
+        names = self.read_heartbeat(client.id).output_names()
+        if names is None:
+            raise ServiceError(
+                f"{client.name} has not reported its screens yet, so there is no screen to show {wall.name} on. "
+                "Start Arrt Player on that device and wait for it to report; then choose one of its screens here."
+            )
+        if not names:
+            raise ServiceError(
+                f"{client.name} reports no screens, so there is none to show {wall.name} on. "
+                "Plug a screen into it and wait for its next report; then choose that screen here."
+            )
+        reported = ", ".join(repr(name) for name in sorted(names))
+        raise ServiceError(f"Choose which of {client.name}'s screens shows {wall.name}: it reported {reported}.")
 
     def _require_wall(self, wall_id: str) -> Wall:
         wall = self._store.get_wall(wall_id)

@@ -53,3 +53,23 @@ class StoreMisuseError(RuntimeError):
     message names internal identifiers — so it must never be translated into
     something a curator or a model reads as advice about their request.
     """
+
+
+class StorageFault(RuntimeError):
+    """The file could not be read or written at all: a fault of the host, not of the request.
+
+    The database is locked by another process, cannot be opened, or the disk
+    under it is full, read-only, failing or corrupt, which the durable store
+    reads from SQLite's result code (`durable._HOST_FAULT_CODES`). It raises
+    this in place of the driver's error, so a layer above it can tell a host
+    that cannot store anything from a request that went wrong without importing
+    the driver (`test_persistence_boundary.py` keeps the driver inside this
+    package). The acquisition queue pauses on it rather than counting it against
+    the work in hand, since it would fail every work in turn.
+
+    Deliberately **not** a `StorageError`: that type is a refusal shown to whoever
+    asked, and nothing about their request caused this. The message is the
+    driver's own text ("database is locked"), and the driver's exception is its
+    `__cause__`. An error of the statement itself ("no such column") is not
+    one of these: it reaches the caller as the driver raised it, a defect to fix.
+    """

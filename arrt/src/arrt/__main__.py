@@ -23,12 +23,13 @@ from arrt.library.discovery.images import offers_images
 from arrt.library.discovery.openrouter import KeyStatus, OpenRouterClient
 from arrt.library.discovery.phase_one import build_engine
 from arrt.library.registry import Registry
+from arrt.library.registry.remembering import RememberingRegistry
 from arrt.library.registry.wikidata import INTERACTIVE_TIMEOUT_SECONDS, WikidataRegistry
 from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.library.sources import SourceContext
 from arrt.library.sources.loading import SourceRoster, environment_of, load_sources
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
-from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.file import open_configured_catalogue
 from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
@@ -155,12 +156,17 @@ def _no_finder(sources: SourceRoster) -> str:
     return f"none ({'; '.join(reasons)})" if reasons else "none (no source plugin is installed)"
 
 
-def _registry(settings: Settings) -> WikidataRegistry | None:
-    """Wikidata, or nothing while this deployment has not named itself to it."""
+def _registry(settings: Settings) -> Registry | None:
+    """Wikidata, or nothing while this deployment has not named itself to it.
+
+    Remembering each work's pages (`RememberingRegistry`), because every finder
+    asks them at once for every work, and this one registry is what the plugins
+    and phase 2 are both handed.
+    """
     if not settings.wikidata_user_agent:
         return None
     # The pages' timeout, not the matcher's: see INTERACTIVE_TIMEOUT_SECONDS.
-    return WikidataRegistry(user_agent=settings.wikidata_user_agent, timeout=INTERACTIVE_TIMEOUT_SECONDS)
+    return RememberingRegistry(WikidataRegistry(user_agent=settings.wikidata_user_agent, timeout=INTERACTIVE_TIMEOUT_SECONDS))
 
 
 def main(argv: Sequence[str] = ()) -> None:
@@ -308,7 +314,10 @@ def main(argv: Sequence[str] = ()) -> None:
     # One connection behind both halves of the model: acceptance promotes a
     # candidate's image instances into a work's sources, and that has to commit
     # once or not at all.
-    catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
+    # A migration that would drop anything copies the file first, into the
+    # backup directory when there is one, so the copy sits beside the
+    # generations a restore is taken from (beside the catalogue otherwise).
+    catalogue_file = open_configured_catalogue(settings)
     # After `prepare`, so a mistyped root refuses before anything is written to it.
     kept = KeptAnswers(settings.kept_answers_path)
     try:

@@ -28,6 +28,8 @@ from arrt.library.registry import (
 )
 from arrt.persistence.discovery_records import RunStatus
 
+expect = pytest.importorskip("playwright.sync_api").expect
+
 pytestmark = pytest.mark.browser
 
 HUNTERS = "Q500985"
@@ -609,12 +611,58 @@ def test_a_thread_the_server_forgot_is_replaced_and_the_words_still_go(ui, ask_m
 
 
 class TestWithNoKey:
+    """Ask on a server with no key: disabled with its reason, never accepted and then refused (audit-6 finding 9)."""
+
     @pytest.fixture
     def ask_model(self):
         return None
 
-    def test_ask_says_it_needs_a_key(self, ui):
+    def test_ask_is_disabled_with_one_sentence_and_nothing_is_asked_and_refused(self, ui):
         ui.open("#discover")
         ui.page.wait_for_selector("#ask-words")
 
-        assert "Ask needs an OpenRouter key" in ui.page.locator(".panel.ask").inner_text()
+        expect(ui.page.locator("#ask-words")).to_be_disabled()
+        expect(ui.page.locator("#view button:text-is('Ask')")).to_be_disabled()
+        sentence = ui.page.locator("#ask-unavailable")
+        expect(sentence).to_have_count(1)
+        expect(sentence).to_contain_text("Ask needs an OpenRouter key")
+        expect(ui.page.locator(".panel.ask .ask-examples")).to_have_count(0)
+        # One sentence, and the variable is the operator's to read on Sources and Status.
+        expect(ui.page.locator(".panel.ask")).not_to_contain_text("OPENROUTER_API_KEY")
+        assert ui.requests_matching("/api/ask/threads") == [], "a thread was opened for a page that cannot ask"
+
+    def test_the_search_dropdown_does_not_offer_ask(self, ui):
+        ui.open("#collection")
+        ui.page.wait_for_selector("#search")
+        ui.page.fill("#search", "Dali")
+
+        expect(ui.page.locator("#search-suggestions #suggestion-all-results")).to_be_visible()
+        expect(ui.page.locator("#search-suggestions #suggestion-ask")).to_have_count(0)
+        expect(ui.page.locator("#search-suggestions")).not_to_contain_text("Ask about")
+
+
+def test_a_refusal_for_no_key_after_the_page_was_drawn_is_said_once_as_a_refusal(ui, ask_model):
+    """A server restarted without its key answers 503 to a page that drew Ask as ready.
+
+    It is the refusal, once, in the page's own sentence, and not "the server
+    failed while doing it", which is what a 5xx otherwise says.
+    """
+    ui.open("#discover")
+    ui.page.wait_for_selector("#ask-words")
+    ui.page.route(
+        "**/api/ask/threads/*/replies",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body=json.dumps({"error": "Ask needs an OpenRouter key to answer, and this server has none; nothing was spent."}),
+        ),
+    )
+
+    ask(ui, "Winter landscapes")
+
+    expect(ui.page.locator("#ask-words")).to_be_disabled()
+    expect(ui.page.locator("#ask-unavailable")).to_have_count(1)
+    expect(ui.page.locator(".panel.ask")).not_to_contain_text("the server failed")
+    expect(ui.page.locator(".panel.ask")).not_to_contain_text("Couldn't ask")
+    expect(ui.page.locator(".ask-turn")).to_have_count(0)
+    expect(ui.page.locator("#ask-words")).to_have_value("Winter landscapes")

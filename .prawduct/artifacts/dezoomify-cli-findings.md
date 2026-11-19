@@ -203,7 +203,13 @@ its absence cost a working build.** Everything above was probed; this was not, a
 a later change staged fetches as `<name>.partial` — which passed every unit test,
 because the stand-ins are shell scripts that write to their last argument whatever
 it is called, and would have failed every tiled fetch in the deployment. So a
-staged path must keep the real suffix last: `<stem>.partial<suffix>`.
+staged path must keep the real suffix last. Since 2026-11-19 the staging name is
+unique to each attempt, `.<stem>.<token>.partial<suffix>` (`arrt/atomic.py`,
+`staging_path(..., keep_suffix=True)`), so two fetches of one work cannot share a
+file; the suffix is still last, which is the property this page records. **The
+live test below has not been run against that name** (it is the hand-run
+`live_binary` marker), so the binary's acceptance of it is inferred from the
+suffix rule and not yet observed.
 
 `tests/live/test_dezoomify_contract_still_holds.py` is the durable form of this
 page. Where a behaviour is the *binary's* rather than the wrapper's, only the

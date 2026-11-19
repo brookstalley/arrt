@@ -53,6 +53,16 @@ class ProgrammingStore(Protocol):
         """Group several reads so they answer about one instant."""
         ...
 
+    def in_transaction(self) -> bool:
+        """Whether a `transaction()` block is open on the calling thread.
+
+        Programming asks it to keep the feeds one act decided (`ActState`), and
+        to refuse publishing a feed inside a transaction it did not open
+        (`DisplayService._publishing`), whose feeds would be written before
+        that transaction decided anything.
+        """
+        ...
+
     # -- themes ---------------------------------------------------------------
 
     def add_theme(self, theme: Theme) -> None:

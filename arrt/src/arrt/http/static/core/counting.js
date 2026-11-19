@@ -35,6 +35,19 @@ export function counted(count, singular, plural = null) {
   return `${count} ${noun(count, singular, plural)}`;
 }
 
+/* Names said as a list in a sentence: "", "a", "a and b", "a, b and c".
+ *
+ * The one joiner in the browser: every sentence that names several walls or
+ * Players says them through this, so a change to how a list reads is made once.
+ * It has no twin in `counting.py`, which says no lists.
+ *
+ * `names` are the words themselves; a caller holding walls maps them to their
+ * names first. */
+export function listed(names) {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
 /* The word elsewhere in the sentence that has to agree — `is`/`are`, `them`/`it`.
  *
  * No default plural, unlike `noun`: verb agreement in English is not

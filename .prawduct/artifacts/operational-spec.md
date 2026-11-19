@@ -94,7 +94,7 @@ that argument about the art tree without noticing it applied twice.
 
 **The checkout's path was a requirement nobody had written down.** This section
 said the account owns "the checkout the units execute from" and never said where
-it was; both unit files said `/home/tvpi/source/samsung-frame-art-loader`, which
+it was; both unit files said `/home/<user>/source/samsung-frame-art-loader`, which
 is not a location anyone chose so much as the path the 2024 card happened to
 have. It surfaced at the cutover as a hard blocker rather than a preference: the
 only checkout on the machine sat at `/home/<login>/source/…` under a home
@@ -244,7 +244,14 @@ process split is for on a single box.
 > exist because of co-location, and both retire in wave 3, when the server leaves
 > the Pi. Memory containment for a gigapixel acquisition is still needed on the
 > NAS, and becomes the container's memory limit, so a runaway fetch cannot
-> starve the operator's other apps. `display` keeps everything said here and
+> starve the operator's other apps. *(The curation unit's file was deleted from `deploy/`
+> on 2026-11-19: nothing had run it since the server moved to the NAS
+> on 2026-10-02, and a file nothing ran was a second place for the paths and the
+> memory bound to be wrong, and the five tests that held its environment file, its
+> retrying, its clean-stop rule and its paths went with it. The container's `mem_limit` is the
+> bound now; the Player's unit, and the rules in the paragraphs below as they
+> apply to it, are `arrt-player`'s to hold.)*
+> `display` keeps everything said here and
 > below. The rate-limit rule applies to any unit the Player ships with.
 
 **No unit may rely on systemd's stock start rate limit** (settled 2026-08-02).
@@ -590,8 +597,9 @@ that will actually get run rather than skipped.
 
 > **The backup writer is built, and a restore is not self-healing (2026-10-02,
 > `build-plan-nas.md` Chunk 02).** With `BACKUP_DIR` set, the server takes a
-> generation with `VACUUM INTO` at every start and then every
-> `BACKUP_INTERVAL_SECONDS` (default daily), checks it with `PRAGMA
+> generation with `VACUUM INTO` at start (*since 2026-11-19, only when the
+> newest generation is at least `BACKUP_INTERVAL_SECONDS` old; see below*) and
+> then every `BACKUP_INTERVAL_SECONDS` (default daily), checks it with `PRAGMA
 > integrity_check` before naming it, keeps the newest `BACKUP_KEEP` (default
 > 14), and writes `backup-status.json` beside the catalogue only when all of that
 > succeeded, which is what the health panel's age reads. Each pass logs
@@ -626,12 +634,43 @@ that will actually get run rather than skipped.
 > wall's manifest until the theme was re-hung, then served 40 works, all 40 with
 > media.
 
+> **A crash loop no longer takes the generations with it, and a destructive
+> migration is copied first (2026-11-19,
+> `build-plan-audit-wave-1.md`).** Retention counts generations, not days, so a server restarting every
+> few minutes after an upgrade used to replace every generation from before it
+> with copies of the migrated file within the hour. Two changes:
+>
+> - **The start-up pass is skipped while the newest generation is younger than
+>   `BACKUP_INTERVAL_SECONDS`** (`backup.skipped_recent` in the journal), and
+>   the first pass then comes when the interval since that generation ends. A
+>   generation named later than the clock's now is not trusted, and the pass
+>   runs. Fourteen starts within an hour leave the generation from before them
+>   in place (`arrt/tests/unit/test_backup_writer.py`).
+> - **Before any migration that drops a column or a table acts, the server
+>   copies the catalogue** with `VACUUM INTO`, checked by `PRAGMA
+>   integrity_check`, to `pre-migration-<UTC instant>.sqlite` in `BACKUP_DIR`,
+>   or beside the catalogue when `BACKUP_DIR` is not set. The copy is the file
+>   as the previous release left it, taken before the store widens it. A file
+>   already on the current shape, or a new one, takes no copy. **The three
+>   newest copies are kept, outside the generations' count**, so no number of
+>   starts prunes them. **One copy is taken per migration, however many starts
+>   it takes**: the copy marks the catalogue (`PRAGMA user_version`) until every
+>   migration has run, and a start that finds the mark takes no copy, since the
+>   file is no longer as the previous release left it. A migration failing on
+>   every start therefore leaves the copy from before the upgrade the newest
+>   one. A copy that
+>   cannot be written (a full disk, a read-only directory) **stops the start**
+>   with a message naming the directory and the remedy, and the catalogue is
+>   left exactly as it was; nothing is dropped without its copy. The journal
+>   says `catalogue.snapshot_taken` or `catalogue.snapshot_failed`.
+>   (`arrt/tests/unit/test_pre_migration_snapshot.py`.)
+
 ## Routine Operations
 
 | Operation | Procedure |
 |---|---|
 | Deploy | `git pull`, then `systemctl restart` each unit. No migration spans the planes — the manifest is regenerated, never migrated. **One-off after the 2026-08-12 upgrade: delete `theme-manifest.json` and `display-heartbeat.json` from `ART_ROOT`.** Both files became per-wall (`theme-manifest-{wall_id}.json`), nothing writes or reads the old paths any more, and nothing deletes them either — so they sit there holding whatever they held at the moment of the upgrade. Harmless to the running planes and *not* harmless to a person: a `jq` at the old path answers, with a document that will never change again, and looks exactly like a current one. Delete them and the ambiguity goes with them |
-| Rollback | **No longer `git checkout` plus two restarts, since 2026-08-12** — this row said that for the whole life of the product and stopped being true the first time the schema *dropped* something. The wall migration removes `themes.is_active`, and the previous release reopening that file refuses to start rather than running against a column it requires and cannot find. **That refusal is the good outcome**: it is loud, immediate, and it happens before anything is served, where the alternative — a release silently reading a catalogue it does not understand — is the failure this product exists to refuse. But it means a rollback across a migration is a **restore**, not a checkout: `git checkout` the previous commit, then restore `catalogue.sqlite` from the backup taken before the deploy, then restart both. **The backup is the rollback plan**; without one, rolling back across this migration is not possible. A rollback that crosses no migration is still the old two-step |
+| Rollback | **No longer `git checkout` plus two restarts, since 2026-08-12** — this row said that for the whole life of the product and stopped being true the first time the schema *dropped* something. The wall migration removes `themes.is_active`, and the previous release reopening that file refuses to start rather than running against a column it requires and cannot find. **That refusal is the good outcome**: it is loud, immediate, and it happens before anything is served, where the alternative — a release silently reading a catalogue it does not understand — is the failure this product exists to refuse. But it means a rollback across a migration is a **restore**, not a checkout: `git checkout` the previous commit, then restore `catalogue.sqlite` from the copy taken before the migration ran, then restart both. **The backup is the rollback plan.** Since 2026-11-19 the server takes that copy itself before any migration that drops a column or a table: the newest `pre-migration-*Z.sqlite` in `BACKUP_DIR`, or beside the catalogue when `BACKUP_DIR` is unset (§ Backup and Restore); a backup taken by hand before the deploy serves too. A migration that drops nothing writes no copy, and needs none. A rollback that crosses no migration is still the old two-step |
 | Restart one plane | Safe at any time, in either order. The other is unaffected by design |
 | Add disk headroom | **`tile-cache/` reclaims itself since 2026-08-03** and is no longer an operator chore: tiles are cached under the id of the source being fetched, and that directory is removed the moment the work holds a complete image. What survives a pass is exactly the tiles of a **partial** fetch, which is the one case they are worth their disk — they are what lets `art_catalogue(action='retry_acquisition')` finish the image without re-downloading what already arrived. So a `tile-cache/` that is large is a report that works are sitting partially fetched, and the remedy is to retry them rather than to delete the directory; deleting it is safe and costs those retries their head start. `temp/` belongs to the 2024 modules and is still pruned by hand until they are retired. **`api-cache/` needs no rule: the curation plane never creates one** — phase 2 asks museums over HTTP with no on-disk cache, and the directory exists only in the 2024 `config.py`. **`pictures/` is never reclaimed, by norm** (`data-model.md` § Direction, 2026-10-06): every picture fetched from outside is kept, two files each, and the store has no ceiling. Its files and bytes are on the health panel, counted at most ten minutes ago, so its growth is a figure to watch rather than a chore. **`previews/` is debris since the same day**: the startup import moves every file a row names into the store, logging `pictures.imported` with its counts; once that line reports `done`, `rm -rf previews/` loses nothing, including files no row ever named (#62). It matters here because § Risks opens with the SD card as the top operational risk |
 | **Verify the spend ceiling** | In the OpenRouter console, confirm the key in `OPENROUTER_API_KEY` still carries a **USD 20 credit limit with a monthly reset**. **This setting is the entire cap** — nothing in this repository enforces one, by ratified decision, because an application-side meter that fails open is indistinguishable from one that works. A key whose limit was cleared, or a key swapped for an uncapped one, looks identical on every surface the product exposes right up to the bill. `cd arrt && uv run pytest -m live_api` asserts it mechanically (`test_the_key_reports_a_monthly_ceiling`) and costs a few cents to run |
@@ -670,7 +709,7 @@ Mostly automatic; the table below is what a human would do when it is not.
 | A theme shows fewer works than expected | The manifest build's exclusion report | It names the per-work reason. This is the designed surface, not a diagnostic dead end |
 | Discovery refuses to start | The refusal text itself — it names the cause | *(Corrected 2026-08-02: this row sent the operator to `limit_remaining` on the health panel, a figure no surface exposes and which may not be trusted anyway — it lags by minutes, and was observed reporting credit remaining while live calls were already being refused.)* Two different refusals: **no key configured** says so and names `.env`; a run that started and then **halted_by_budget** means the provider refused the spend, for which the answer is the monthly UTC reset or a raised key limit |
 | `resolve_images` refuses work ids as "already in flight" | The named run's status | It is always a `resolve` run, and a live one is always `resolving_images`. If it is genuinely searching, wait or `cancel` it. If nothing is actually working, startup reconciliation should have moved it to `interrupted`; that it did not is a bug, not an operator action. *(Corrected 2026-07-27: this row previously told the operator to approve or decline an `awaiting_approval` run to free the ids — a state a resolve run can never reach, so the advice named a run that cannot exist.)* |
-| Acquisition fails on every work | Free disk space | The pre-acquisition guard should have caught it; if it did not, that is a bug in the guard. It refuses **before** a fetch begins and names the shortfall in GiB, so the refusal itself says whether disk is the cause. `MIN_FREE_BYTES` (default 2 GiB) is the floor, and it protects `catalogue.sqlite` on the same device rather than the fetch |
+| Acquisition fails on every work | Free disk space | The pre-acquisition guard should have caught it; if it did not, that is a bug in the guard. It refuses **before** a fetch begins and names the shortfall in GiB, so the refusal itself says whether disk is the cause. `MIN_FREE_BYTES` (default 2 GiB) is the floor, and it protects `catalogue.sqlite` on the same device rather than the fetch. A disk that fills, or turns read-only, in the middle of one work, or a database that cannot be written, pauses the queue and counts against no work (Activity › Queue says so, with a remedy), rather than giving every work up in turn |
 | Acquisition fails on one work with a refused URL | `art_catalogue(action='sources')` for that work | The fetch policy refused the URL and the reason is recorded on the source. Schemes other than `http`/`https`, and hosts that resolve to this network rather than the open internet, are refused by design (`security-model.md` § The fetch trigger fired) — a source that needs one of those is a source this product will not fetch |
 | Every tiled acquisition fails at once | `dezoomify-rs` on the unit's `PATH` | Acquisition raises rather than recording a failed fetch when the binary is absent, precisely so this is not mistaken for museums going away. Install it, or set `DEZOOMIFY_PATH` to where it lives |
 | Every **Art Institute** acquisition raises, while other providers fetch fine | `ARTIC_USER_AGENT` in `.env` | An artic source records the museum's page for the object, and the tile fetcher needs the image service — which only the collection can be asked for. Unset, there is no way to reach those tiles, so acquisition raises by name rather than handing the fetcher a URL it cannot read. Set it and the same works fetch unchanged. Raises rather than records for the same reason the row above does: no source is at fault, and a `failed` row here would send its reader to the museum |

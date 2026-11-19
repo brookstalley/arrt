@@ -178,6 +178,12 @@ of walls, each on one of its outputs. It learns its walls from the server.
   missing or unknown token is `401`. A valid token on a per-wall route for a wall
   not assigned to that client, or one the server does not hold, is `403`.
   `/media/...` accepts any client's valid token, whatever walls it drives.
+- **A request body over 256 KiB is refused with `413`**, on every Player route that
+  takes one, before it is parsed, and nothing is recorded (2026-11-19).
+  A heartbeat is a few kilobytes, so the limit is ten times anything valid. It is a
+  limit of this server's, `http/player.py` `BODY_LIMIT_BYTES`, and not a rule of
+  any schema: a Player is never asked to know it, `contract/` carries no such number,
+  and so changing it cuts no `contract-v` tag.
 - **Wall tokens are retired, and this is a breaking change** for a Player
   configured with a wall token (`WALL_TOKEN`): every request it makes is `401`
   from the change on, and its operator moves it to a client token. No

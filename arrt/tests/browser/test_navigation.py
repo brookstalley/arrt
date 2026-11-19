@@ -24,6 +24,7 @@ pytest.importorskip(
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
+from scripted_model import ScriptedModel
 
 #: The route table as `app.js` declares it, read from the file rather than
 #: copied, so a screen added tomorrow is in these tests the day it is routed.
@@ -345,7 +346,8 @@ def test_a_paint_that_lost_its_view_does_not_retitle_the_next(ui, service, seede
     assert ui.page.title() == "Walls - Arrt"
 
 
-def test_the_view_takes_focus_without_drawing_a_ring_round_the_page(ui, seeded_service):
+@pytest.mark.parametrize("ask_model", [ScriptedModel(replies=[])], ids=["a-server-with-a-key"])
+def test_the_view_takes_focus_without_drawing_a_ring_round_the_page(ui, seeded_service, ask_model):
     """Focus moves to the view on navigation so the next Tab starts in the page,
     and the view is a starting point, not a control: no ring round the page.
 
@@ -353,6 +355,11 @@ def test_the_view_takes_focus_without_drawing_a_ring_round_the_page(ui, seeded_s
     Opened by the keyboard here, because that is when a browser counts the
     script's focus as one to show (`:focus-visible`), as Safari did. The member
     that keeps the fix honest: the control the next Tab reaches still draws one.
+
+    On a server with a key, as the owner's is: since 2026-11-19 a server with
+    none disables Ask's box and its act, with the reason (chunk 08 of
+    `build-plan-audit-wave-1.md`, audit 6 finding 9), so its page holds nothing
+    a Tab can land on, and this ran on such a server until then.
     """
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")

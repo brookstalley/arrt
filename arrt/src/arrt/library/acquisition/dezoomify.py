@@ -45,6 +45,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Final
 
+from arrt import atomic
+
 log = logging.getLogger(__name__)
 
 #: How the binary announces a partial result. Read to report *how* partial, never
@@ -119,19 +121,20 @@ def tile_fetch(
     # last**. The binary picks its output encoder from the file extension, so a
     # path ending `.partial` is refused outright: probed at 2.18.1, it exits 1 with
     # `The file extension ."partial" was not recognized as an image format` and
-    # leaves a zero-byte file. Naming it `<stem>.partial<suffix>` keeps `.jpg`
-    # where the binary looks for it.
-    staged = destination.with_name(f"{destination.stem}.partial{destination.suffix}")
+    # leaves a zero-byte file. Naming it `.<stem>.<token>.partial<suffix>` keeps
+    # `.jpg` where the binary looks for it, and the token gives each attempt a
+    # name of its own, so two fetches of one work never write one file.
+    staged = atomic.staging_path(destination, keep_suffix=True)
     # Observed: given a cache directory that does not exist, the binary warns once
     # per tile and completes with an empty cache — losing exactly the
     # retry-without-refetching this directory exists for, and saying so only in
     # warnings nobody reads.
     tile_cache.mkdir(parents=True, exist_ok=True)
-    if staged.exists():
-        # The binary refuses to overwrite. A retry is a normal operation here, so
-        # a staged file left by an earlier attempt is cleared — the destination
-        # itself is not touched, so the image the work holds is never at risk.
-        staged.unlink()
+    # The binary refuses to overwrite, and a fresh name is never there to refuse.
+    # What an earlier attempt killed mid-fetch left behind is cleared once it is
+    # stale — the destination itself is not touched, so the image the work holds
+    # is never at risk.
+    atomic.sweep_stale(destination)
 
     argv = [
         resolved,
@@ -199,6 +202,11 @@ def tile_fetch(
             tiles_expected=expected,
             detail=_failure_detail(messages, completed.returncode),
         )
+
+    # The binary's bytes are on the disk before anything names them: the
+    # caller's promotion is a rename, and a rename of unsynced bytes can publish
+    # an empty file after a power cut.
+    atomic.sync_file(staged)
 
     if fetched is not None and expected is not None and fetched < expected:
         log.info("tile fetch returned %s of %s tiles for %s", fetched, expected, url)

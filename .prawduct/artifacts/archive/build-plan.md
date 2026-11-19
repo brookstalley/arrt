@@ -3592,7 +3592,7 @@ re-planned against NAS storage, with `VACUUM INTO` still required.
   two-unit deployment; three artifact `depends_on` headers disagree with the
   derivation their own prose shows. Both corrected here. **Amended 2026-08-04 —
   that pair is staler than this row says:** the Pi was rebuilt onto a fresh card
-  and every `/home/tvpi/` path in both files now points at a directory that does
+  and every `/home/<user>/` path in both files now points at a directory that does
   not exist, on behalf of a user that does not exist. Chunk 13B creates the
   account and installs the units 13A writes, so what reaches this chunk is whatever
   `deploy/` still carries afterwards.

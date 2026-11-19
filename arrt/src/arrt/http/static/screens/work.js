@@ -36,7 +36,7 @@ import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, fitBadge, noPicture, pixelSize, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
-import { counted } from "../core/counting.js";
+import { counted, listed } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { FETCH_WORDS, museumName, RIGHTS_WORDS } from "../core/providers.js";
@@ -44,10 +44,10 @@ import { enlarge } from "../core/enlarge.js";
 import { getOne } from "../core/getting.js";
 import { identityControl } from "../core/identity.js";
 import { isMatColour, mattedPicture } from "../core/mat.js";
-import { el, emphasised, fill, render } from "../core/render.js";
+import { captioned, el, emphasised, fill, render } from "../core/render.js";
 import { isQid, listHeadings, named, personLink, stateMark, wikidataLink, workCell, workState, year, yearCell } from "../core/registry.js";
 import { wallLinks } from "../core/places.js";
-import { backLink, link, redirect, setTitle } from "../core/router.js";
+import { backRow, link, redirect, setTitle } from "../core/router.js";
 import { hangSelection } from "../core/selection.js";
 import { openPanel } from "../core/editing.js";
 import { addWorksToTheme, offeredThemes, themeChoice } from "../core/membership.js";
@@ -96,6 +96,10 @@ const DERIVATION_FOOTNOTE =
  * into saying one thing in two wordings. */
 const RESTORE_CONSEQUENCE = "It goes back into the rotation of every wall hanging a theme that holds it.";
 
+/* Under a disabled *Hang…*, on a work with no picture yet: why it cannot be
+ * pressed, in the words the picture's place already says ("No picture"). */
+const NO_PICTURE_TO_HANG = "No picture yet, so there is nothing to show on a wall.";
+
 function workPath(artworkId) {
   return `/api/works/${encodeURIComponent(artworkId)}`;
 }
@@ -121,7 +125,7 @@ async function viewRegistryWork(qid, generation) {
   if (page.state !== "known") {
     render(
       generation,
-      el("p", {}, [backLink()]),
+      backRow(),
       el("h1", { text: page.state === "not_found" ? "Wikidata has no such work" : `Wikidata ${qid}` }),
       el("p", { class: "note", text: page.note }),
     );
@@ -155,7 +159,7 @@ async function viewRegistryWork(qid, generation) {
   const factLine = [made, page.year === null ? null : year(page.year), page.media.join(", ") || null, workSize(page.height_cm, page.width_cm)].filter(Boolean);
   render(
     generation,
-    el("p", {}, [backLink()]),
+    backRow(),
     el("h1", { text: title }),
     factLine.length ? factsLine(factLine) : null,
     toolbar({ actions: [getOne(qid)] }),
@@ -680,9 +684,21 @@ function paint(detail, generation, { where, focus = null }) {
 
   const strip = el("section", { class: "state-strip", "aria-label": "Where it is" });
   const page = { work, generation, where, strip, hang: null, add: null, more: null };
-  page.hang = !archived && work.image.available
-    ? el("button", { class: "action", type: "button", text: "Hang…", "aria-haspopup": "dialog", onclick: (event) => chooseWall(event.currentTarget, page) })
-    : null;
+  // A work with no picture yet has nothing a wall could show, so *Hang…* is
+  // there, disabled, with why under it: an act that vanished said nothing, and
+  // the curator went looking for it (audit 6, finding 5). `hangSlot` is what the
+  // toolbar holds, the button or the button with its reason.
+  page.hang = archived
+    ? null
+    : el("button", {
+        class: "action",
+        type: "button",
+        text: "Hang…",
+        "aria-haspopup": "dialog",
+        disabled: !work.image.available,
+        onclick: (event) => chooseWall(event.currentTarget, page),
+      });
+  page.hangSlot = page.hang && page.hang.disabled ? captioned(page.hang, NO_PICTURE_TO_HANG) : page.hang;
   const restoring = archived
     ? el("button", { class: "action", type: "button", text: "Restore", onclick: (event) => restore(event.currentTarget, page) })
     : null;
@@ -704,10 +720,10 @@ function paint(detail, generation, { where, focus = null }) {
 
   render(
     generation,
-    el("p", {}, [backLink()]),
+    backRow(),
     el("h1", { text: work.title }),
     workFacts(work, mat),
-    toolbar({ actions: [page.hang || restoring, page.add, page.more] }),
+    toolbar({ actions: [page.hangSlot || restoring, page.add, page.more] }),
     mat ? mat.panel : null,
     mat ? mat.status : null,
     el("div", { class: "work-head" }, [
@@ -736,7 +752,7 @@ function paint(detail, generation, { where, focus = null }) {
   // the page would move the keyboard onto a detached node.
   // The first act the toolbar shows: *Hang…* is there but hidden while the
   // work is kept off every wall, which an archive and a restore leave as it was.
-  const shown = [page.hang, restoring, page.add].find((control) => control && !control.hidden);
+  const shown = [page.hang, restoring, page.add].find((control) => control && !control.hidden && !control.disabled);
   const target = focus === "primary" ? shown : focus === "more" ? page.more.querySelector("button") : null;
   if (target && document.contains(target)) target.focus();
 }
@@ -770,7 +786,7 @@ function recordPanels(detail, generation, where) {
 
   panels.push(
     el("div", { class: "panel" }, [
-      el("h2", { text: "Master image" }),
+      el("h2", { text: "Picture" }),
       detail.original
         ? facts([
             // Where it lies and what it hashes to are for whoever is debugging
@@ -782,7 +798,7 @@ function recordPanels(detail, generation, where) {
           ])
         : detail.acquisition
           ? null
-          : el("p", { class: "muted", text: "No master image has been acquired for this work yet." }),
+          : el("p", { class: "muted", text: "This work has no picture yet." }),
       // Where the work stands in the acquisition queue, while it owes one: a
       // work held with no image is queued, fetching, failed or paused, and a
       // page that only said "not acquired yet" read the same in every case.
@@ -820,7 +836,7 @@ function recordPanels(detail, generation, where) {
       el("h2", { text: "What has been rendered" }),
       detail.renditions.length
         ? table(
-            "A rendition is stale when the master it was made from is no longer the master this work holds.",
+            "A rendition is stale when the picture it was made from is no longer the picture this work holds.",
             ["Kind", "Target", "File", "State"],
             detail.renditions.map((r) => [
               r.kind,
@@ -989,7 +1005,7 @@ function paintStrip(page, { said = "" } = {}) {
         }),
       ])
     : null;
-  if (page.hang) page.hang.hidden = Boolean(kept);
+  if (page.hangSlot) page.hangSlot.hidden = Boolean(kept);
 
   const status = el("p", { class: "strip-said", role: "status" });
   fill(strip, facts(lines), keptLine, status);
@@ -1214,7 +1230,7 @@ async function wallsShowing(artworkId) {
  * *different* themes, so it cannot say "that theme". */
 function wallConsequence(names) {
   if (!names.length) return "";
-  const walls = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const walls = listed(names);
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
   // Now, not at the next hang: Programming takes an archived work off every

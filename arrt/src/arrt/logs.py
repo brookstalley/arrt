@@ -29,6 +29,14 @@ and a source plugin's URLs and error text reach lines this repository's authors
 never wrote (`source-plugins.md`). Cutting it here, once, covers every call site,
 including the next one. Prompts, intents and model output are not secrets and may be logged
 freely — they carry artwork metadata and curatorial intent, nothing personal.
+
+**A Player's successful poll writes no access line.** uvicorn logs one line per
+request on `uvicorn.access`, which reaches the handler below. A wall's Player asks
+for its manifest and its label every second, so one wall wrote about 170,000 lines
+a day, and the `run_id` lines this shape exists for sat in that haystack. A request
+to a Player's route answered `2xx` or `304` is dropped by `QuietPlayerPolls`;
+a refusal, a missing feed and every request to any other route keep their line,
+because those are the ones somebody reads the log for.
 """
 
 import json
@@ -63,6 +71,62 @@ _ALWAYS: Final[tuple[str, ...]] = ("time", "level", "logger", "message")
 _BUILT_IN: Final[frozenset[str]] = frozenset(
     vars(logging.LogRecord(name="", level=0, pathname="", lineno=0, msg="", args=(), exc_info=None))
 ) | {"message", "asctime", "taskName"}
+
+
+#: The Player's routes as `contract/routes.json` spells them, which `http/player.py`
+#: mounts. Kept here and not read from the router, because this module is imported
+#: by the Library and may not import the HTTP surface; `tests/unit/test_logs.py`
+#: holds the two lists equal, so a route added to one and not the other fails by name.
+PLAYER_ROUTE_TEMPLATES: Final[tuple[str, ...]] = (
+    "/client",
+    "/client/heartbeat",
+    "/walls/{wall_id}/manifest/v{major}",
+    "/walls/{wall_id}/heartbeat",
+    "/labels/{label_id}",
+    "/media/sha256-{sha256}",
+)
+
+
+def _route_pattern(template: str) -> re.Pattern[str]:
+    """`template` as a pattern: each `{field}` is one path segment's worth of anything but `/`."""
+    return re.compile("[^/]+".join(re.escape(part) for part in re.split(r"\{[^}]*\}", template)))
+
+
+_PLAYER_ROUTES: Final[tuple[re.Pattern[str], ...]] = tuple(_route_pattern(template) for template in PLAYER_ROUTE_TEMPLATES)
+
+
+#: uvicorn's access record carries `(client address, method, target, HTTP version, status)`.
+_ACCESS_ARGUMENTS: Final[int] = 5
+
+#: The statuses a successful poll answers with: any 2xx, and 304 for a manifest
+#: or a picture the Player already holds. Plain integers rather than
+#: `http.HTTPStatus`: this module is imported everywhere, and the guard that keeps
+#: the network beyond the engine seam reads any import of `http` as reach.
+_OK: Final[int] = 200
+_MULTIPLE_CHOICES: Final[int] = 300
+_NOT_MODIFIED: Final[int] = 304
+
+
+class QuietPlayerPolls(logging.Filter):
+    """Drop uvicorn's access line for a request to a Player's route that succeeded.
+
+    Attached to the `uvicorn.access` logger, whose records carry the request as
+    arguments: `(client address, method, target, HTTP version, status)`. A record
+    in any other shape is kept: a filter that dropped what it did not understand
+    would make a missing line mean two things.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if not isinstance(args, tuple) or len(args) != _ACCESS_ARGUMENTS:
+            return True
+        target, status = args[2], args[4]
+        if not isinstance(target, str) or not isinstance(status, int):
+            return True
+        if not (_OK <= status < _MULTIPLE_CHOICES or status == _NOT_MODIFIED):
+            return True
+        path = target.partition("?")[0]
+        return not any(pattern.fullmatch(path) for pattern in _PLAYER_ROUTES)
 
 
 #: A URL's query string, which is where a paid source's key usually travels.
@@ -209,3 +273,14 @@ def configure(level: int = logging.INFO) -> None:
             root.removeHandler(existing)
     root.addHandler(handler)
     root.setLevel(level)
+
+    # On the logger the access lines are written to, so the line is dropped
+    # before it propagates anywhere. Replaced, not added to, for the same reason
+    # as the handler: a second call must not stack a second filter.
+    access = logging.getLogger("uvicorn.access")
+    for existing in list(access.filters):
+        if getattr(existing, _INSTALLED, False):
+            access.removeFilter(existing)
+    quiet = QuietPlayerPolls()
+    setattr(quiet, _INSTALLED, True)
+    access.addFilter(quiet)

@@ -22,6 +22,39 @@
 import { attempt, reportElsewhere } from "./acting.js";
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
+import { listed } from "./counting.js";
+
+/* Whether a Player shows `wall` now: the server's display state, which says
+ * `unassigned` for a wall no Player shows (none chosen, or a display two
+ * Players report). A wall read without one falls back to whether it names a
+ * Player at all. */
+export function shownByAPlayer(wall) {
+  if (wall.display_state && wall.display_state.state) return wall.display_state.state !== "unassigned";
+  return Boolean(wall.client_id);
+}
+
+/* The walls' names, for `listed`. */
+function names(walls) {
+  return walls.map((wall) => wall.name);
+}
+
+/* Who sees these walls change, said only of what is true: everyone in the
+ * house sees a wall a Player shows change, and nobody sees one no Player shows
+ * (audit 2026-11-19, finding 19: the question promised it of a wall with no
+ * Player at all). Shared with `core/selection.js`, so a selection hung on a
+ * wall says it in the same words. */
+export function whoSees(walls) {
+  const seen = walls.filter(shownByAPlayer);
+  const unseen = walls.filter((wall) => !shownByAPlayer(wall));
+  return [
+    seen.length ? `Everyone in the house sees ${listed(names(seen))} change.` : null,
+    unseen.length
+      ? `No Player shows ${listed(names(unseen))} yet, so nothing shows ${unseen.length === 1 ? "it" : "them"} until one does.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 /* Ask, and hang `themeName` on `wall` if the answer is yes: Walls' Hanging
  * picker. One wall's case of `hangOnWalls`, so the two screens ask one question
@@ -69,15 +102,13 @@ export async function hangOnWalls({ control, themeId, themeName, hangOn, takeDow
     }
   });
   if (!previewed) return false;
-  const names = (walls) => walls.map((wall) => wall.name);
-  const listed = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
   const sentences = [...previews];
   if (takeDownFrom.length) {
     sentences.push(
       `Taken down from ${listed(names(takeDownFrom))}, which ${takeDownFrom.length === 1 ? "goes" : "go"} on showing what ${takeDownFrom.length === 1 ? "it shows" : "they show"} until something else is hung there.`,
     );
   }
-  sentences.push(`Everyone in the house sees ${listed(names([...hangOn, ...takeDownFrom]))} change.`);
+  sentences.push(whoSees([...hangOn, ...takeDownFrom]));
   const confirmed = await confirmAct({
     title: hangOn.length
       ? `Hang ${themeName} on ${listed(names(hangOn))}${takeDownFrom.length ? ` and take it down from ${listed(names(takeDownFrom))}` : ""}?`

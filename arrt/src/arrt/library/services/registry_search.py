@@ -96,6 +96,10 @@ class RegistrySearch:
     held_artists: Mapping[str, str] = field(default_factory=dict)
     #: The library's works in circulation for each work found that it holds, by QID.
     held_works: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    #: For each work found that it holds, the first of those held works that
+    #: holds a master image, by QID; a held work absent here has no picture, so
+    #: a page says *No picture* and never asks for a thumbnail that cannot be made.
+    pictured_works: Mapping[str, str] = field(default_factory=dict)
     #: The QIDs among the works found that a wanted work names.
     wanted_works: frozenset[str] = frozenset()
     #: The proposed work awaiting a verdict that each work found and not held is, by QID.
@@ -164,11 +168,15 @@ class RegistrySearchService:
             if work.creator and work.creator.qid in ours:
                 held_artists.setdefault(work.creator.qid, ours[work.creator.qid])
         held_works: dict[str, Sequence[str]] = {}
+        pictured_works: dict[str, str] = {}
         waiting_works: dict[str, InReview] = {}
         for work in works:
             maker, maker_qid = (work.creator.name, work.creator.qid) if work.creator else (None, None)
             if found := twins.held_work(work.qid, work.title, maker=maker, maker_qid=maker_qid):
                 held_works[work.qid] = found
+                pictured = next((artwork_id for artwork_id in found if self._store.get_original(artwork_id) is not None), None)
+                if pictured is not None:
+                    pictured_works[work.qid] = pictured
             elif (review := twins.waiting_work(work.qid, work.title, maker=maker, maker_qid=maker_qid)) is not None:
                 waiting_works[work.qid] = review
         wanted = self._wanted.wanted_qids()
@@ -178,6 +186,7 @@ class RegistrySearchService:
             works=works,
             held_artists=held_artists,
             held_works=held_works,
+            pictured_works=pictured_works,
             wanted_works=frozenset(work.qid for work in works if work.qid in wanted),
             waiting_works=waiting_works,
             waiting_artists=waiting_artists,
