@@ -8,6 +8,8 @@ Two walls appear wherever a wall is named, since with one wall "the wall it is
 on" and "some wall" look the same.
 """
 
+import re
+
 import httpx
 import pytest
 
@@ -70,8 +72,8 @@ def more(ui, item):
 
 
 def strip_value(ui, term):
-    """The strip's value for `term`, as read."""
-    return ui.page.locator(f".state-strip dt:text-is('{term}') + dd").inner_text()
+    """The strip's value for `term`, for `expect(...).to_have_text(..., use_inner_text=True)`."""
+    return ui.page.locator(f".state-strip dt:text-is('{term}') + dd")
 
 
 def hanging_on(api, wall_id):
@@ -92,7 +94,7 @@ def test_the_title_is_the_one_h1_and_the_picture_is_the_largest_thing(ui, hangab
     open_work(ui, work)
     ui.page.wait_for_function("() => document.querySelector('img.work-picture')?.complete")
 
-    assert ui.page.locator("h1").all_inner_texts() == ["Automat"]
+    expect(ui.page.locator("h1")).to_have_text(["Automat"], use_inner_text=True)
     # A landscape work spans its column, however few pixels the copy served
     # has: the thumbnail is smaller than the column on any desktop. What spans
     # it is the work in its mat, as a wall shows it (the owner, 2026-10-07):
@@ -123,12 +125,14 @@ def test_hang_is_the_one_filled_act_and_archive_is_behind_more(ui, hangable):
     open_work(ui, work)
 
     acts = ui.page.locator(".page-toolbar-actions > button, .page-toolbar-actions > .toolbar-menu-wrap > button")
-    assert acts.all_inner_texts() == ["Hang…", "Add to theme…", "⋯"]
-    assert ui.page.locator(".page-toolbar button.action:not(.quiet)").all_inner_texts() == ["Hang…"]
-    assert ui.page.get_attribute(MORE, "aria-label") == "More acts on Automat"
-    assert ui.page.locator("#view button:has-text('Archive')").count() == 0
+    expect(acts).to_have_text(["Hang…", "Add to theme…", "⋯"], use_inner_text=True)
+    expect(ui.page.locator(".page-toolbar button.action:not(.quiet)")).to_have_text(["Hang…"], use_inner_text=True)
+    expect(ui.page.locator(MORE)).to_have_attribute("aria-label", "More acts on Automat")
+    expect(ui.page.locator("#view button:has-text('Archive')")).to_have_count(0)
     ui.page.click(MORE)
-    assert ui.page.locator(".toolbar-menu [role='menuitem']").all_inner_texts() == ["Archive…", "Match on Wikidata…"]
+    expect(ui.page.locator(".toolbar-menu [role='menuitem']")).to_have_text(
+        ["Archive…", "Match on Wikidata…"], use_inner_text=True
+    )
 
 
 def test_a_work_with_no_picture_offers_hang_disabled_and_says_why(ui, service, hangable):
@@ -142,7 +146,10 @@ def test_a_work_with_no_picture_offers_hang_disabled_and_says_why(ui, service, h
     hang = ui.page.locator(HANG)
     expect(hang).to_have_count(1)
     expect(hang).to_be_disabled()
-    reason = ui.page.locator(f"#{hang.get_attribute('aria-describedby')}")
+    expect(hang).to_have_attribute("aria-describedby", re.compile(r"\S"))
+    reason = ui.page.locator(
+        f"#{hang.get_attribute('aria-describedby')}"
+    )  # one-shot: the id of the reason, read once Hang… carries one
     expect(reason).to_have_text("No picture yet, so there is nothing to show on a wall.")
     expect(reason).to_be_visible()
     # Still the one filled act, and the toolbar's other acts are as on any work.
@@ -168,7 +175,7 @@ def test_the_page_opens_with_its_title_a_line_of_facts_and_its_toolbar(ui, hanga
         : node.matches('.page-toolbar') ? 'toolbar'
         : node.querySelector('a') ? 'back' : node.className)""")
     assert order == ["back", "title", "facts", "toolbar"]
-    assert ui.page.locator(".work-facts .mat-trigger").inner_text().strip().endswith("▾")
+    expect(ui.page.locator(".work-facts .mat-trigger")).to_have_text(re.compile(r"▾\s*$"), use_inner_text=True)
 
 
 @pytest.mark.parametrize("width", [390, 1280], ids=["phone", "desktop"])
@@ -202,8 +209,10 @@ def test_the_line_of_facts_says_who_when_what_how_big_and_the_mat(ui, service, s
     open_work(ui, work)
     ui.page.wait_for_selector(".work-facts")
 
-    assert ui.page.inner_text(".work-facts") == "Edward Hopper (American, 1882–1967) · 1927 · Oil on canvas · 71.4 × 91.4 cm"
-    assert ui.page.locator(".work-facts a").get_attribute("href").startswith(f"#artist/{hopper.id}")
+    expect(ui.page.locator(".work-facts")).to_have_text(
+        "Edward Hopper (American, 1882–1967) · 1927 · Oil on canvas · 71.4 × 91.4 cm", use_inner_text=True
+    )
+    expect(ui.page.locator(".work-facts a")).to_have_attribute("href", re.compile("^" + re.escape(f"#artist/{hopper.id}")))
 
 
 def test_the_mat_fact_shows_its_value_in_words(ui, hangable):
@@ -213,7 +222,9 @@ def test_the_mat_fact_shows_its_value_in_words(ui, hangable):
     ui.page.wait_for_selector(".work-facts .mat-trigger:not(:disabled)")
 
     # Spaces normalised: the value's swatch and words are laid out inside the button.
-    assert " ".join(ui.page.inner_text(".work-facts").split()).endswith("· Mat Chosen by the vision model ▾")
+    expect(ui.page.locator(".work-facts")).to_have_text(
+        re.compile(r"·\s+Mat\s+Chosen\s+by\s+the\s+vision\s+model\s+▾\s*$"), use_inner_text=True
+    )
 
 
 # -- absences --------------------------------------------------------------------
@@ -226,11 +237,16 @@ def test_there_is_no_rights_fact_and_no_edit(ui, service):
 
     open_work(ui, work)
 
-    assert "Public domain in the United States" not in ui.page.inner_text("#view")
-    assert ui.page.locator("#view dt:text-is('Rights')").count() == 0
-    assert ui.page.locator("#view button:has-text('Edit')").count() == 0
+    # The page is drawn (the work is titled and its toolbar is there), so what
+    # is missing is missing from a drawn page.
+    expect(ui.page.locator("#view h1")).to_have_text("Automat", use_inner_text=True)
+    expect(ui.page.locator(MORE)).to_be_visible()
+    expect(ui.view).not_to_contain_text("Public domain in the United States", use_inner_text=True)
+    expect(ui.page.locator("#view dt:text-is('Rights')")).to_have_count(0)
+    expect(ui.page.locator("#view button:has-text('Edit')")).to_have_count(0)
     ui.page.click(MORE)
-    assert ui.page.locator(".toolbar-menu [role='menuitem']:has-text('Edit')").count() == 0
+    expect(ui.page.locator(".toolbar-menu [role='menuitem']:has-text('Archive')")).to_have_count(1)
+    expect(ui.page.locator(".toolbar-menu [role='menuitem']:has-text('Edit')")).to_have_count(0)
 
 
 def test_a_work_not_kept_off_says_nothing_about_being_kept_off(ui, hangable):
@@ -238,8 +254,12 @@ def test_a_work_not_kept_off_says_nothing_about_being_kept_off(ui, hangable):
 
     open_work(ui, work)
 
-    assert ui.page.locator(".state-strip .kept-off").count() == 0
-    assert "Kept off" not in ui.page.inner_text("#view")
+    # The page is drawn (the work is titled and its toolbar is there), so what
+    # is missing is missing from a drawn page.
+    expect(ui.page.locator("#view h1")).to_have_text("Automat", use_inner_text=True)
+    expect(ui.page.locator(MORE)).to_be_visible()
+    expect(ui.page.locator(".state-strip .kept-off")).to_have_count(0)
+    expect(ui.view).not_to_contain_text("Kept off", use_inner_text=True)
 
 
 # -- the state strip -----------------------------------------------------------
@@ -262,10 +282,12 @@ def test_the_strip_names_real_themes_and_a_selection_as_its_wall(ui, services, h
 
     open_work(ui, work)
 
-    assert strip_value(ui, "Walls") == f"{hall.name}, Study"
-    assert strip_value(ui, "Themes") == f"Late night (on {hall.name}); Quiet"
-    assert ui.page.locator(".state-strip a:text-is('Quiet')").get_attribute("href").startswith(f"#theme/{unhung.id}")
-    assert "Selection" not in ui.page.inner_text(".state-strip")
+    expect(strip_value(ui, "Walls")).to_have_text(f"{hall.name}, Study", use_inner_text=True)
+    expect(strip_value(ui, "Themes")).to_have_text(f"Late night (on {hall.name}); Quiet", use_inner_text=True)
+    expect(ui.page.locator(".state-strip a:text-is('Quiet')")).to_have_attribute(
+        "href", re.compile("^" + re.escape(f"#theme/{unhung.id}"))
+    )
+    expect(ui.page.locator(".state-strip")).not_to_contain_text("Selection", use_inner_text=True)
 
 
 def test_an_old_selection_hanging_nowhere_is_not_said(ui, services, hangable):
@@ -277,8 +299,8 @@ def test_an_old_selection_hanging_nowhere_is_not_said(ui, services, hangable):
 
     open_work(ui, work)
 
-    assert strip_value(ui, "Walls") == "Not hanging on any wall."
-    assert strip_value(ui, "Themes") == "In no theme."
+    expect(strip_value(ui, "Walls")).to_have_text("Not hanging on any wall.", use_inner_text=True)
+    expect(strip_value(ui, "Themes")).to_have_text("In no theme.", use_inner_text=True)
 
 
 # -- S1: hang one work ---------------------------------------------------------
@@ -295,15 +317,15 @@ def test_s1_hanging_a_work_from_its_page_puts_it_on_the_wall(ui, api, services, 
     ui.page.click(HANG)
     ui.page.wait_for_selector("dialog.confirm[open]")
 
-    assert ui.page.inner_text(".confirm-title") == f"Hang Automat on {wall.name}?"
-    assert "in place of Late night" in ui.page.inner_text(".confirm-consequence")
+    expect(ui.page.locator(".confirm-title")).to_have_text(f"Hang Automat on {wall.name}?", use_inner_text=True)
+    expect(ui.page.locator(".confirm-consequence")).to_contain_text("in place of Late night", use_inner_text=True)
     ui.page.click(".confirm-actions button:text-is('Hang')")
     ui.page.wait_for_selector(f".state-strip .strip-said:text-is('Hung on {wall.name}.')")
 
     hung, works = hanging_on(api, wall.id)
     assert hung["hidden"] is True
     assert works == [work.id]
-    assert strip_value(ui, "Walls") == wall.name
+    expect(strip_value(ui, "Walls")).to_have_text(wall.name, use_inner_text=True)
     # The keyboard is back on the control that stands where the pressed one did.
     assert ui.page.evaluate("() => document.activeElement.textContent") == "Hang…"
 
@@ -333,18 +355,22 @@ def test_with_two_walls_hang_asks_which_and_hangs_only_there(ui, api, services, 
     ui.page.click(HANG)
     # A dialog of walls, in place of the row of buttons beside the strip (ruling 8).
     ui.page.wait_for_selector("dialog.panel-dialog[open] .wall-choices")
-    assert sorted(ui.page.locator(".wall-choices button").all_inner_texts()) == sorted([hall.name, "Study"])
+    expect(ui.page.locator(".wall-choices button")).to_have_count(2)
+    # The two walls are the claim, not the order they are offered in, and a set has no retrying form.
+    assert sorted(ui.page.locator(".wall-choices button").all_inner_texts()) == sorted(
+        [hall.name, "Study"]
+    )  # one-shot: set equality, once both walls are drawn
     ui.page.click(".wall-choices button:text-is('Study')")
     ui.page.wait_for_selector("dialog.confirm[open]")
 
-    assert ui.page.locator("dialog.panel-dialog[open]").count() == 0
-    assert ui.page.inner_text(".confirm-title") == "Hang Automat on Study?"
+    expect(ui.page.locator("dialog.panel-dialog[open]")).to_have_count(0)
+    expect(ui.page.locator(".confirm-title")).to_have_text("Hang Automat on Study?", use_inner_text=True)
     ui.page.click(".confirm-actions button:text-is('Hang')")
     ui.page.wait_for_selector(".state-strip .strip-said:text-is('Hung on Study.')")
 
     assert hanging_on(api, study.id)[1] == [work.id]
     assert hanging_on(api, hall.id) == (None, [])
-    assert strip_value(ui, "Walls") == "Study"
+    expect(strip_value(ui, "Walls")).to_have_text("Study", use_inner_text=True)
 
 
 def test_a_work_hung_that_cannot_be_shown_yet_says_why(ui, services, work_with_an_image):
@@ -357,7 +383,9 @@ def test_a_work_hung_that_cannot_be_shown_yet_says_why(ui, services, work_with_a
     ui.page.click(".confirm-actions button:text-is('Hang')")
     ui.page.wait_for_selector(".state-strip .strip-said:has-text('cannot be shown yet')")
 
-    assert ui.page.inner_text(".state-strip .strip-said").startswith(f"Hung on {wall.name}, but it cannot be shown yet: ")
+    expect(ui.page.locator(".state-strip .strip-said")).to_have_text(
+        re.compile("^" + re.escape(f"Hung on {wall.name}, but it cannot be shown yet: ")), use_inner_text=True
+    )
 
 
 def test_cancel_and_escape_in_the_walls_dialog_hang_nothing(ui, api, services, hangable):
@@ -376,7 +404,7 @@ def test_cancel_and_escape_in_the_walls_dialog_hang_nothing(ui, api, services, h
         ui.page.wait_for_selector("dialog[open]", state="detached")
         assert ui.focused() == "Hang…"
 
-    assert ui.page.locator("dialog.confirm").count() == 0
+    expect(ui.page.locator("dialog.confirm")).to_have_count(0)
     assert hanging_on(api, study.id) == (None, [])
     assert hanging_on(api, hall.id) == (None, [])
 
@@ -402,17 +430,22 @@ def test_add_to_theme_offers_the_themes_without_it_and_adds_it(ui, api, services
     ui.page.click(ADD)
     ui.page.wait_for_selector("dialog.panel-dialog[open] #add-to-theme")
 
-    offered = ui.page.locator("#add-to-theme option").all_inner_texts()
+    # The options are drawn once the last of them is.
+    expect(ui.page.locator("#add-to-theme option", has_text="New theme…")).to_have_count(1)
+    # Membership of a set has no retrying form (docs/testing.md, hazard 10).
+    offered = ui.page.locator(
+        "#add-to-theme option"
+    ).all_inner_texts()  # one-shot: the offered set, read once its last option is drawn
     assert "Already" not in offered
     assert {"Late night", "Quiet", "New theme…"} <= set(offered)
     ui.page.select_option("#add-to-theme", label="Quiet")
-    assert ui.page.inner_text("dialog[open] .add-confirm") == "Add to Quiet"
+    expect(ui.page.locator("dialog[open] .add-confirm")).to_have_text("Add to Quiet", use_inner_text=True)
     ui.page.click("dialog[open] .add-confirm")
     ui.page.wait_for_selector(".state-strip .strip-said:text-is('Added Automat to Quiet.')")
 
     assert theme_ids_holding(api, work.id) == {"Already", "Quiet"}
-    assert ui.page.locator("dialog[open]").count() == 0
-    assert "Quiet" in strip_value(ui, "Themes")
+    expect(ui.page.locator("dialog[open]")).to_have_count(0)
+    expect(strip_value(ui, "Themes")).to_contain_text("Quiet", use_inner_text=True)
     assert ui.focused() == "Add to theme…"
 
 
@@ -424,7 +457,7 @@ def test_add_to_a_new_theme_makes_it_and_adds_the_work(ui, api, services, hangab
     ui.page.click(ADD)
     ui.page.wait_for_selector("dialog.panel-dialog[open] #add-to-theme")
     ui.page.select_option("#add-to-theme", label="New theme…")
-    assert ui.page.locator("dialog[open] .add-confirm").is_disabled(), "a new theme needs its name"
+    expect(ui.page.locator("dialog[open] .add-confirm"), "a new theme needs its name").to_be_disabled()
     ui.page.fill("#add-to-theme-name", "Rainy days")
     ui.page.click("dialog[open] .add-confirm:text-is('Add to Rainy days')")
     ui.page.wait_for_selector(".state-strip .strip-said:text-is('Added Automat to Rainy days.')")
@@ -486,7 +519,7 @@ def test_more_opens_and_closes_from_the_keyboard(ui, hangable):
     ui.page.focus(MORE)
     ui.page.keyboard.press("Enter")
     ui.page.wait_for_selector(".toolbar-menu[role='menu']:visible")
-    assert ui.page.get_attribute(MORE, "aria-expanded") == "true"
+    expect(ui.page.locator(MORE)).to_have_attribute("aria-expanded", "true")
     assert ui.focused() == "Archive…"
     ui.page.keyboard.press("ArrowDown")
     assert ui.focused() == "Match on Wikidata…"
@@ -496,8 +529,8 @@ def test_more_opens_and_closes_from_the_keyboard(ui, hangable):
     assert ui.focused() == "Match on Wikidata…"
     ui.page.keyboard.press("Escape")
 
-    assert ui.page.locator(".toolbar-menu[role='menu']").is_hidden()
-    assert ui.page.get_attribute(MORE, "aria-expanded") == "false"
+    expect(ui.page.locator(".toolbar-menu[role='menu']")).to_be_hidden()
+    expect(ui.page.locator(MORE)).to_have_attribute("aria-expanded", "false")
     assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == "More acts on Automat"
 
 
@@ -511,8 +544,8 @@ def test_enter_on_an_item_runs_its_act(ui, hangable):
     ui.page.keyboard.press("Enter")
 
     ui.page.wait_for_selector("dialog.panel-dialog[open] .identity")
-    assert ui.page.inner_text("dialog[open] .confirm-title") == "Match Automat on Wikidata"
-    assert ui.page.locator(".toolbar-menu[role='menu']").is_hidden()
+    expect(ui.page.locator("dialog[open] .confirm-title")).to_have_text("Match Automat on Wikidata", use_inner_text=True)
+    expect(ui.page.locator(".toolbar-menu[role='menu']")).to_be_hidden()
     # The menu closed onto ⋯ before the act opened its dialog, so closing the
     # dialog hands the keyboard back to ⋯, not to a menu item that is hidden.
     ui.page.keyboard.press("Escape")
@@ -535,19 +568,18 @@ def test_a_work_kept_off_every_wall_says_so_and_offers_the_undo(ui, api, service
 
     # An exception, quiet: one muted line, its undo a quiet act (ruling 1), and
     # Hang… gone from the toolbar while every wall is told to keep it down.
-    assert ui.page.inner_text(".state-strip .kept-off").startswith("Kept off every wall since ")
-    assert ui.page.locator(".state-strip dt:text-is('Walls')").count() == 0
-    assert ui.page.locator(HANG).is_hidden()
+    expect(ui.page.locator(".state-strip .kept-off")).to_have_text(re.compile("^Kept off every wall since "), use_inner_text=True)
+    expect(ui.page.locator(".state-strip dt:text-is('Walls')")).to_have_count(0)
+    expect(ui.page.locator(HANG)).to_be_hidden()
     undo = ui.page.locator(".state-strip .kept-off button:text-is('Allow on walls again')")
-    assert undo.get_attribute("class") == "action quiet"
+    expect(undo).to_have_attribute("class", "action quiet")
     undo.click()
     ui.page.wait_for_selector(f"{HANG}:visible")
 
     assert api.get("/api/exclusions").json()["exclusions"] == []
-    assert strip_value(ui, "Walls") == wall.name
-    assert (
-        ui.page.inner_text(".state-strip .strip-said")
-        == "It goes back into the rotation of every wall hanging a theme that holds it."
+    expect(strip_value(ui, "Walls")).to_have_text(wall.name, use_inner_text=True)
+    expect(ui.page.locator(".state-strip .strip-said")).to_have_text(
+        "It goes back into the rotation of every wall hanging a theme that holds it.", use_inner_text=True
     )
     assert ui.page.evaluate("() => document.activeElement.textContent") == "Hang…"
 
@@ -559,12 +591,13 @@ def test_an_archived_work_offers_no_hang(ui, service, hangable):
     open_work(ui, work)
 
     # Ruling 8: an archived work cannot hang, so Restore takes the filled place.
-    assert ui.page.locator(".state-strip button").count() == 0
-    assert ui.page.locator(".state-strip dt:text-is('Walls')").count() == 0
-    assert ui.page.locator("#view button:has-text('Hang')").count() == 0
-    assert ui.page.locator(".page-toolbar button.action:not(.quiet)").all_inner_texts() == ["Restore"]
+    # The toolbar is drawn and holds Restore, so what is missing is missing from a drawn page.
+    expect(ui.page.locator(".page-toolbar button.action:not(.quiet)")).to_have_text(["Restore"], use_inner_text=True)
+    expect(ui.page.locator(".state-strip button")).to_have_count(0)
+    expect(ui.page.locator(".state-strip dt:text-is('Walls')")).to_have_count(0)
+    expect(ui.page.locator("#view button:has-text('Hang')")).to_have_count(0)
     ui.page.click(MORE)
-    assert ui.page.locator(".toolbar-menu [role='menuitem']").all_inner_texts() == ["Match on Wikidata…"]
+    expect(ui.page.locator(".toolbar-menu [role='menuitem']")).to_have_text(["Match on Wikidata…"], use_inner_text=True)
 
 
 def test_restoring_a_work_kept_off_every_wall_puts_the_keyboard_on_add(ui, service, services, hangable):
@@ -586,7 +619,9 @@ def test_restoring_a_work_kept_off_every_wall_puts_the_keyboard_on_add(ui, servi
     ui.page.wait_for_selector(".page-toolbar button:text-is('Restore')", state="detached")
 
     assert service.get_artwork(work.id).artwork.status == "accepted"
-    assert ui.page.locator(HANG).is_hidden()
+    # The restored page is drawn (Add to theme… is on it), so a hidden Hang… is hidden on a drawn page.
+    expect(ui.page.locator(ADD)).to_be_visible()
+    expect(ui.page.locator(HANG)).to_be_hidden()
     assert ui.focused() == "Add to theme…"
 
 
@@ -615,14 +650,14 @@ def test_a_museum_description_shows_its_emphasis_and_no_tags(ui, service):
     open_work(ui, work)
     description = ui.page.locator(".facts dd .described")
 
-    assert description.locator("i").inner_text() == "Untitled"
-    assert description.locator("b").inner_text() == "format"
-    text = description.inner_text()
-    assert "<" not in text
-    assert "&amp;" not in text
-    assert "format & more." in text
-    assert "\n" in text
-    assert text.endswith("Second paragraph.")
+    expect(description.locator("i")).to_have_text("Untitled", use_inner_text=True)
+    expect(description.locator("b")).to_have_text("format", use_inner_text=True)
+    expect(description).to_contain_text("format & more.", use_inner_text=True)
+    expect(description).not_to_contain_text("<", use_inner_text=True)
+    expect(description).not_to_contain_text("&amp;", use_inner_text=True)
+    # The paragraph break is the claim, so it is asked of the raw text: a string would be normalised.
+    expect(description).to_contain_text(re.compile(r"\n"), use_inner_text=True)
+    expect(description).to_have_text(re.compile(r"Second paragraph\.$"), use_inner_text=True)
 
 
 @pytest.mark.parametrize(
