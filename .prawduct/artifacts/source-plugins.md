@@ -200,7 +200,7 @@ logged.
 **A call past its deadline is "could not be asked"** (since 1.5). Arrt waits 60 s
 for a finder or a reader, 30 s for a preview and 120 s for a collection's browse,
 unless the plugin declares longer (`SourcePlugin.deadlines`, at most
-`DEADLINE_CEILING_SECONDS`, 900 s). Before deadlines, one hung finder held every
+`DEADLINE_CEILING_SECONDS`, 3,600 s). Before deadlines, one hung finder held every
 Get, because the pool waits for every source, and every look at that source
 waited behind it. A call past its deadline is recorded against the plugin beside
 its faults (`source.plugin_deadline`) and is not a fault. Python cannot stop the
@@ -208,9 +208,13 @@ call, so it runs on, on a daemon thread: its answer, when it comes, is discarded
 (`source.plugin_late`), and at most four such calls per plugin run at once,
 after which a new call is "could not be asked" without being made. The pool has
 a backstop of its own, a source's deadline and five seconds, for a finder handed
-to it unwrapped. *The deadlines are the owner's (audit wave 1, 2026-11-19); the
-declaration is the coordinator's, because the private browser plugins' pages
-measured 77-100 s with a 480 s worst case.*
+to it unwrapped. *The defaults are a plan decision (audit wave 1, 2026-11-19, vetoable by the
+owner). A plugin that reads through a browser cannot keep them: its pages
+measured 77-100 s each, and its measured worst cases are 1,012 s for one page and
+2,044 s for a reader of Stedelijk's, so it declares its own. The ceiling is a
+sanity bound on code the operator has already chosen to run in this process, not
+a security boundary, which is why it is high; it was 900 s until those worst
+cases were measured, and a plugin that needed more was refused at load.*
 
 **Answers are checked beyond their type** (1.5): an image's dimensions are
 positive whole numbers or `None`, its title text, its title and artist and a
@@ -281,6 +285,16 @@ formatter as Wikibase encodes it, and the result is kept only if it is an
 `http(s)` URL with a host, with no whitespace or control character and at most
 2048 characters. A formatter with no `$1` names no page. That is all the checking
 it gets, because it never reaches the browser.
+
+**The registry the plugins are handed remembers that answer** (interface 1.5,
+`library/registry/remembering.py`). One Get asks every finder at once and most begin
+with `pages_about` for the same item, which was one identical query to the query
+service per finder, and the service limits how many one client may run at once. The
+answer is kept per item for ten minutes, which outlasts a run's phase 2 and is short
+enough that an edit on Wikidata is seen in the same session, and finders asking for
+one item at the same moment share one request. A failure is shared with those
+waiting and never remembered, since an outage is not an answer about the item.
+Every other registry question passes straight through.
 
 **Pages no reader claims are recorded, not dropped** (§ Sightings).
 
@@ -445,14 +459,15 @@ open data, which the NGA's is, is offered for exactly that.
   this Arrt is 1.5") rather than loaded to fault on its first call, and an import
   failing on a keyword `SourcePlugin` does not take says the plugin may need a
   newer Arrt. `deadlines` maps `finder`, `reader`, `preview` or `browse` to the
-  seconds the host waits for that kind of call, above zero and at most 900; a
+  seconds the host waits for that kind of call, above zero and at most 3,600; a
   value outside that, or another key, is refused at load by name (§ Three
   answers, plus a fault). A plugin built for 1.4 loads unchanged and gets the
   defaults.
 - **`arrt.library.sources` is the only import path a plugin may use.** It lives
   under `arrt.library` rather than at the top level because the Library/Programming
-  import guard (`tests/preferences/test_seam_imports.py`) walks only `arrt.library`,
-  and a plugin importing Programming must be inside what it walks. It re-exports the
+  import guard (`tests/preferences/test_seam_imports.py`) walks `arrt.library` (and
+  the Library's five storage modules, since 2026-11-19), and a plugin importing
+  Programming must be inside what it walks. It re-exports the
   types above. Anything a plugin imports from elsewhere in `arrt` is not part of
   the interface and may break in any release. A test holds the built-in plugins to
   this, because they are what authors copy.

@@ -193,7 +193,7 @@ is not authentication: anything on the LAN that calls the server by an allowed
 name or an address is still the curator.
 
 **Two holes in that guard were found by the audit of 2026-11-19 and are closed.**
-- **A cross-site `GET` carries no `Origin`** (F7). A page elsewhere could start a
+- **A cross-site `GET` carries no `Origin`**. A page elsewhere could start a
   look (`GET /api/registry/works/{qid}/look`), which asks every image source and
   keeps what it fetches under `ART_ROOT/pictures/`, a directory with no ceiling by
   norm. It could not read the answer; it could cost museum traffic from the house
@@ -205,14 +205,14 @@ name or an address is still the curator.
   accepted. `same-site`, another port on the same host, is not refused by this
   rule: where it sends an `Origin` the one above judges it, and a no-cors `GET`
   from there, which sends none, is the same residue.
-- **The interface could be framed** (F8). A hostile page could show it inside its
+- **The interface could be framed**. A hostile page could show it inside its
   own and aim a disguised click at a paid or wall-changing button, each of which
   is a same-origin request once framed. Every HTML response now carries
   `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`.
   A reverse proxy that serves the interface inside another page would need to
   say otherwise at the proxy.
 
-**What "the LAN" is, as deployed** (F12). The house's reverse proxy is the way in,
+**What "the LAN" is, as deployed.** The house's reverse proxy is the way in,
 not the boundary: the server answers any IP address as its own name, so the
 boundary is **every network that can route to the port it is published on**. A
 compose file that publishes the port on every interface of the NAS makes the
@@ -235,9 +235,9 @@ parity split MCP exists to prevent.
 | OpenRouter API key | curation plane | **Real money.** Bounded by the per-key credit limit, which is the same control that bounds a runaway agent |
 | Samsung TV pairing token | display plane | LAN-scoped. Lets a LAN-present attacker drive the TV |
 | Museum API keys, if any | curation plane | Negligible; the ARTIC API is free and public |
-| Client token, one per client *(replaced the per-wall token 2026-10-02, `clients.md`)* | the installed Player (the client) on its host, in its environment file; the server keeps only its SHA-256 (`clients.token_verifier`) | LAN-scoped. Lets someone on the LAN read the manifests and renders of the walls assigned to that client, read which walls those are and on which outputs (`GET /client`), and forge those walls' heartbeats and the client's own. It cannot change what hangs anywhere and it opens no wall assigned to another client. **It can move another client's display, with that display's walls, to itself**: a heartbeat that names a display's identity moves it to the reporting client when the client it belongs to has not reported for three minutes (`programming/clients.py` `_reconcile_display`), which is the feature that lets a Frame move between Players (`clients.md`), kept automatic by the audit plan's decision of 2026-11-19. The move is logged at WARNING naming both Players. Until the owner's Player reports again its requests for those walls are refused (`403`), and it goes on rotating its cache. The reach is art and not a credential, so it is accepted. A client heartbeat's body is capped at 256 KiB, and the number of outputs one may report is not capped (audit-8 F10, the part not closed). Rotated by issuing again (`POST /api/clients/{client_id}/token`), which stops the old one at once; removing the client stops it too |
-| `TESTAMENT_KEY`, a CI secret (GitHub Actions) | the repository's `tests.yml` workflow, given to the steps that fetch the testament wheel from the house's console and send the worktree to the house's test pool | **Runs code on the test pool.** The pool is inferred to sit on the house's LAN, where the whole boundary is "anyone here is the curator" (audit-8 F6). Not given to a pull request from a fork. The actions that run before it in the same job are pinned by tag today (the audit plan's chunk 10 pins them by commit); a hijacked tag could capture it |
-| `OPENROUTER_API_KEY`, a CI secret (`api-drift.yml`) | the paid drift probe workflow | **Real money, on a key that is not the server's.** `nonfunctional-requirements.md` states one $20 ceiling on all LLM and search spend. **Whether this key sits under that ceiling or beside it is unknown**, and the provider console is where it is found: recorded for the owner to answer, not assumed either way |
+| Client token, one per client *(replaced the per-wall token 2026-10-02, `clients.md`)* | the installed Player (the client) on its host, in its environment file; the server keeps only its SHA-256 (`clients.token_verifier`) | LAN-scoped. Lets someone on the LAN read the manifests and renders of the walls assigned to that client, read which walls those are and on which outputs (`GET /client`), and forge those walls' heartbeats and the client's own. It cannot change what hangs anywhere and it opens no wall assigned to another client. **It can move another client's display, with that display's walls, to itself**: a heartbeat that names a display's identity moves it to the reporting client when the client it belongs to has not reported for three minutes (`programming/clients.py` `_reconcile_display`), which is the feature that lets a Frame move between Players (`clients.md`), kept automatic by the audit plan's decision of 2026-11-19. The move is logged at WARNING naming both Players. Until the owner's Player reports again its requests for those walls are refused (`403`), and it goes on rotating its cache. The reach is art and not a credential, so it is accepted. A client heartbeat's body is capped at 256 KiB, and the number of outputs one may report is not capped (the part not closed). Rotated by issuing again (`POST /api/clients/{client_id}/token`), which stops the old one at once; removing the client stops it too |
+| `TESTAMENT_KEY`, a CI secret (GitHub Actions) | the repository's `tests.yml` workflow, given to the steps that fetch the testament wheel from the house's console and send the worktree to the house's test pool | **Runs code on the test pool.** The pool is inferred to sit on the house's LAN, where the whole boundary is "anyone here is the curator" (unverified). Not given to a pull request from a fork. Every action in the workflows is pinned by commit SHA, the tag in a trailing comment (`tests/test_actions_pinned.py` fails on one that is not), so a moved tag cannot put code ahead of it in the same job; the pin proves the reference is fixed, not that it was good when fixed, and a download a `run:` step makes by hand (the dezoomify-rs fetch in `api-drift.yml`, deliberately the latest) is not a `uses:` and is not read by it |
+| `OPENROUTER_API_KEY`, a CI secret (`api-drift.yml`) | the paid drift probe workflow | **Real money, on a key that is not the server's.** `nonfunctional-requirements.md` states one $20 ceiling on all LLM and search spend. **Whether this key sits under that ceiling or beside it is unknown**, and the provider console is where it is found: recorded for the owner to answer, not assumed either way. The job that holds it has no `issues: write`; a failure of the paid probe is reported by a job of its own that holds no key (`tests/test_actions_pinned.py`) |
 
 The display plane holds no credential except the TV pairing token and, once it
 pulls over HTTP, its own client token, and the curation plane holds no
@@ -419,7 +419,7 @@ The third trigger above, "any credential becoming reachable from a tool", fired
 without this section being re-derived. `art_display(action='issue_client_token')`
 is on MCP (`mcp/bindings.py`): it mints a Player's token and returns it, once, into
 the agent's context and so into its provider's transcript. The audit of
-2026-11-19 (F9) found it. **Decided 2026-11-19 in the audit's plan (`build-plan-audit-wave-1.md`, vetoable by the owner):
+2026-11-19 found it. **Decided 2026-11-19 in the audit's plan (`build-plan-audit-wave-1.md`, vetoable by the owner):
 the action stays on MCP**, because taking it off would remove the only agent path
 to re-pair a Player, for a credential whose reach is a wall's art.
 
@@ -633,8 +633,7 @@ can write a verdict, which includes auto-accept and also an agent run unattended
 with catalogue tools; any prompt that is told unreviewed finds; or an allowance
 that is no longer bounded by the monthly budget.
 
-**A path this section's table did not name, found by the audit of 2026-11-19
-(F11).** An Ask can write taste: `art_taste` `set` is in `ASK_SCOPE`, and
+**A path this section's table did not name, found by the audit of 2026-11-19.** An Ask can write taste: `art_taste` `set` is in `ASK_SCOPE`, and
 `TasteService.brief` is quoted into every phase-1 prompt, a Watch's included. A web
 page an Ask reads can therefore plant a standing instruction, up to 160 characters
 per judgment and 200 judgments, that the next unattended run reads. It is known
@@ -885,6 +884,18 @@ one, which has the access above, they are not:
   plugin's checks. The IIIF parsers
   (interface 1.3) fetch nothing, so they add no request a plugin did not make. A
   third-party reader's locator gets bound 2 only: any public address.
+- **A plugin's call ends at a deadline, and an answer is checked beyond its
+  type** (interface 1.5, 2026-11-19). A finder, reader, preview or browse that has
+  not answered in its deadline (60, 60, 30 and 120 seconds, or what the plugin
+  declares, at most 3,600) is recorded as "could not be asked" and the run goes
+  on. Python cannot stop it, so it runs on a daemon thread, at most four per
+  plugin at once, after which new calls to that plugin are refused without being
+  made: what a hung plugin costs is a few threads, no longer every Get. An image's
+  dimensions must be positive whole numbers, its text at most 2,000 characters
+  and a preview within `preview_max_bytes`, or the answer is a fault. Against a
+  well-behaved or merely slow plugin this is the boundary; against a malicious one
+  it is not, since it can start threads of its own in the same process, which is
+  the reason the ceiling is a sanity bound and not a security one.
 - **Arrt decides** a work's identity, its rights record, duplicates, review,
   quality, spending and storage. A plugin answers "what images exist, and where".
   Since interface 1.2 a plugin is handed a directory of its own under

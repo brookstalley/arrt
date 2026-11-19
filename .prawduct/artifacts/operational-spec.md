@@ -244,7 +244,14 @@ process split is for on a single box.
 > exist because of co-location, and both retire in wave 3, when the server leaves
 > the Pi. Memory containment for a gigapixel acquisition is still needed on the
 > NAS, and becomes the container's memory limit, so a runaway fetch cannot
-> starve the operator's other apps. `display` keeps everything said here and
+> starve the operator's other apps. *(The curation unit's file was deleted from `deploy/`
+> on 2026-11-19: nothing had run it since the server moved to the NAS
+> on 2026-10-02, and a file nothing ran was a second place for the paths and the
+> memory bound to be wrong, and the five tests that held its environment file, its
+> retrying, its clean-stop rule and its paths went with it. The container's `mem_limit` is the
+> bound now; the Player's unit, and the rules in the paragraphs below as they
+> apply to it, are `arrt-player`'s to hold.)*
+> `display` keeps everything said here and
 > below. The rate-limit rule applies to any unit the Player ships with.
 
 **No unit may rely on systemd's stock start rate limit** (settled 2026-08-02).
@@ -628,8 +635,8 @@ that will actually get run rather than skipped.
 > media.
 
 > **A crash loop no longer takes the generations with it, and a destructive
-> migration is copied first (2026-11-19, `build-plan-audit-wave-1.md` Chunk
-> 04).** Retention counts generations, not days, so a server restarting every
+> migration is copied first (2026-11-19,
+> `build-plan-audit-wave-1.md`).** Retention counts generations, not days, so a server restarting every
 > few minutes after an upgrade used to replace every generation from before it
 > with copies of the migrated file within the hour. Two changes:
 >
@@ -699,7 +706,7 @@ Mostly automatic; the table below is what a human would do when it is not.
 | A theme shows fewer works than expected | The manifest build's exclusion report | It names the per-work reason. This is the designed surface, not a diagnostic dead end |
 | Discovery refuses to start | The refusal text itself — it names the cause | *(Corrected 2026-08-02: this row sent the operator to `limit_remaining` on the health panel, a figure no surface exposes and which may not be trusted anyway — it lags by minutes, and was observed reporting credit remaining while live calls were already being refused.)* Two different refusals: **no key configured** says so and names `.env`; a run that started and then **halted_by_budget** means the provider refused the spend, for which the answer is the monthly UTC reset or a raised key limit |
 | `resolve_images` refuses work ids as "already in flight" | The named run's status | It is always a `resolve` run, and a live one is always `resolving_images`. If it is genuinely searching, wait or `cancel` it. If nothing is actually working, startup reconciliation should have moved it to `interrupted`; that it did not is a bug, not an operator action. *(Corrected 2026-07-27: this row previously told the operator to approve or decline an `awaiting_approval` run to free the ids — a state a resolve run can never reach, so the advice named a run that cannot exist.)* |
-| Acquisition fails on every work | Free disk space | The pre-acquisition guard should have caught it; if it did not, that is a bug in the guard. It refuses **before** a fetch begins and names the shortfall in GiB, so the refusal itself says whether disk is the cause. `MIN_FREE_BYTES` (default 2 GiB) is the floor, and it protects `catalogue.sqlite` on the same device rather than the fetch |
+| Acquisition fails on every work | Free disk space | The pre-acquisition guard should have caught it; if it did not, that is a bug in the guard. It refuses **before** a fetch begins and names the shortfall in GiB, so the refusal itself says whether disk is the cause. `MIN_FREE_BYTES` (default 2 GiB) is the floor, and it protects `catalogue.sqlite` on the same device rather than the fetch. A disk that fills, or turns read-only, in the middle of one work, or a database that cannot be written, pauses the queue and counts against no work (Activity › Queue says so, with a remedy), rather than giving every work up in turn |
 | Acquisition fails on one work with a refused URL | `art_catalogue(action='sources')` for that work | The fetch policy refused the URL and the reason is recorded on the source. Schemes other than `http`/`https`, and hosts that resolve to this network rather than the open internet, are refused by design (`security-model.md` § The fetch trigger fired) — a source that needs one of those is a source this product will not fetch |
 | Every tiled acquisition fails at once | `dezoomify-rs` on the unit's `PATH` | Acquisition raises rather than recording a failed fetch when the binary is absent, precisely so this is not mistaken for museums going away. Install it, or set `DEZOOMIFY_PATH` to where it lives |
 | Every **Art Institute** acquisition raises, while other providers fetch fine | `ARTIC_USER_AGENT` in `.env` | An artic source records the museum's page for the object, and the tile fetcher needs the image service — which only the collection can be asked for. Unset, there is no way to reach those tiles, so acquisition raises by name rather than handing the fetcher a URL it cannot read. Set it and the same works fetch unchanged. Raises rather than records for the same reason the row above does: no source is at fault, and a `failed` row here would send its reader to the museum |

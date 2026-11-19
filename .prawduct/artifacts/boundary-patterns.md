@@ -176,7 +176,7 @@
   on the Pi, which is outstanding.
 - **Producer:** curation plane. **Consumer:** display plane. **Same machine.**
 - **Contract:** the **theme manifest** — one versioned JSON document *per wall*,
-  written atomically (temp + `os.replace`) into the shared `ART_ROOT` and polled by
+  written atomically (temp + `os.replace`, by `arrt/atomic.py` since 2026-11-19) into the shared `ART_ROOT` and polled by
   display at ~1 s. Its filename is a template both planes declare separately and
   may not import from each other. *(The file channel is gone; since wave 5 each
   plane holds the heartbeat's instant key to the contract's `instant_key` in its

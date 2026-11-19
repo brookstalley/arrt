@@ -331,6 +331,27 @@ interrupts the person watching it.** The availability target above says the
 display plane is "down" when it is not advancing through the theme; this is the
 one condition under which not advancing is correct.
 
+> **What the Player enforces, as built (2026-11-19; a description of the code
+> and not part of the statement above).** Two gates are named above, selection
+> and the power key. The Player's seam holds a third, wider one: **every write to
+> the set**, not only a selection, is read-then-sent in `tv.client.TvClient`
+> (`arrt-player:src/arrt_player/tv/client.py`, `WRITES`). Immediately before an
+> upload, a removal, a brightness change or switching off the set's own
+> slideshow, it reads art mode and then `PowerState`, and it sends only in a
+> state the verb was measured safe in: art mode on, or art mode off with
+> `PowerState` `standby`, which is dark. A set showing a programme, and a set
+> whose power cannot be read, are sent nothing. A subclass cannot define a write
+> verb of its own, so a verb added later inherits the read. A held write is not a
+> failure: it is said once, retried on one shared wait, and goes ahead when the
+> set returns to art mode, so uploads wait while somebody watches and the wall
+> catches up afterwards. Connecting is not gated (it reads, and opens the
+> remote-control channel only to mint a first token). **Two things are
+> unmeasured:** whether `PowerState` reads `on` while a programme shows, which
+> the gate relies on, and whether a held write would have disturbed a
+> programme. They are the owner's to measure at the set
+> (`operator-verification.md`). The Player's own record is `arrt-player`'s
+> `nonfunctional-requirements.md` § Leaving the television to whoever is using it.
+
 Recorded 2026-08-07, after it happened. It was not written down before because
 the failure had never been observed, and the plane had a deliberate decision
 pointing the other way — art mode was read only *after* a selection failed, on

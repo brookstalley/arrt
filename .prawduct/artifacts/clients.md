@@ -76,6 +76,17 @@ change (no transition is kept — backwards compatibility was not asked for and
 there is one Player). This is a breaking change to the Player contract's
 transport, recorded in `player-contract.md`.
 
+**Limits the server holds, added 2026-11-19.** A request body over 256 KiB to any
+route a Player calls is refused with `413` before it is parsed, and nothing is
+recorded: a heartbeat is a few kilobytes, so the cap is ten times anything
+valid. It is the server's own limit (`player-contract.md` § Transport), not a
+schema rule, so a Player is not asked to know it. And a display that a client
+reports on another Player's output follows its report, with its walls, which is
+automatic by design (a Frame moved to a different Pi should not need a
+curator): since 2026-11-19 the move is logged at WARNING, naming both Players,
+because a Player's token is all that is needed to claim a display its holder
+has stopped reporting, and an operator can then find a move nobody made.
+
 ## The Player
 
 One process per **client**, supervising one worker per assigned wall and one
