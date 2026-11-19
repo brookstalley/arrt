@@ -364,6 +364,7 @@ between planes.
 > | `acquisition.queue_failed` | INFO | one work's attempt failed; it names the try and when the next is due |
 > | `acquisition.queue_gave_up` | WARNING | a work failed its last try and waits for Retry |
 > | `acquisition.queue_paused` | WARNING | a deployment fault (`DEPLOYMENT_FAULTS`) paused every fetch, naming the condition; Activity › Queue and the Work page show it with its remedy |
+> | `acquisition.queue_host_fault` | ERROR | a fault of the host's, met in the middle of one work (a full or read-only disk, `ENOSPC` or `EROFS`; or a `sqlite3.OperationalError`, which includes a database that is locked), with its traceback and the `condition` the pause is named by. The queue pauses and the work's failure count is left as it was, since the same fault would meet every work behind it. A locked database pauses it too, and the queue tries again after fifteen minutes or on the next wake |
 > | `acquisition.queue_unexpected` | ERROR | an error nothing anticipated, from one work's attempt, with its traceback; it counts as that work's failure |
 > | `acquisition.queue_error` | ERROR | a whole pass, or the wait for the next work, raised, with its traceback; the queue pauses and the loop continues |
 > | `acquisition.queue_retry` | INFO | a curator or an agent asked for a work again |
@@ -575,6 +576,20 @@ is the job's to shape and reaches the panel the same way the heartbeat's does.
 > that succeeded and restores as whatever the destination actually holds |
 > user can veto/override]`
 
+**The start-up pass and the copy before a migration say what they did.** A start
+that finds the newest generation younger than `BACKUP_INTERVAL_SECONDS` takes no
+generation and says so at INFO (`backup.skipped_recent`, with the generation's age
+and when the next pass falls due); a backup directory that cannot be listed cannot
+vouch for a recent one, so the pass runs and says why at WARNING
+(`backup.unlisted`). Before a migration that drops a column or a table, the server
+copies the catalogue (`operational-spec.md` § Backup and Restore): INFO
+`catalogue.snapshot_taken` names the copy, what the migration would drop, the copy
+it replaced and the ones pruned; INFO `catalogue.snapshot_kept` that a copy taken in
+the same second stands; and ERROR `catalogue.snapshot_failed` that the copy could
+not be written, which stops the start with the catalogue as it was. The receipt
+and the panel's age are the generations' alone: a copy before a migration is not a
+backup and does not move the age.
+
 Both ends of this one are ours, unlike the heartbeat's, so the key cannot drift
 across planes. It can still drift in time — the reader is built and the writing
 job is separate, later work — which is why the name is written here rather than
@@ -604,6 +619,21 @@ the panel names every installed plugin and what became of it.
   because the count is about the code running now. A fault includes answering in
   a shape the interface forbids: an image under another plugin's name, or a
   `None` where a list belongs.
+- **A plugin's call past its deadline, and one that has only ever not answered.**
+  A finder or reader that has not answered in time (60 s, 30 s for a preview and
+  120 s for a browse, unless the plugin declares more, at most 3,600 s) is "could
+  not be asked", logged at WARNING as `source.plugin_deadline` naming the plugin
+  and the operation, and counted against the plugin beside its faults: it is not a
+  fault. The call goes on running on a daemon thread, and its answer, when it
+  comes, is dropped with `source.plugin_late` (WARNING); a plugin with four such
+  calls still running is answered "could not be asked" at once, without a call.
+  The pool does the same for a source it stops waiting for (`image_pool.late`,
+  WARNING). The panel's sentence for a plugin that has answered "could not be
+  asked" and nothing else since startup says so and how many times, where it used
+  to read "loaded, 0 faults": a museum page the parser no longer recognises is no
+  fault, and without that sentence it was invisible. Two loaded plugins claiming
+  one URL are logged once per pair, naming both (`source.claims_overlap`,
+  WARNING).
 - **Every URL's query string is cut from every journal line**, by the formatter
   (`logs.JsonFormatter`): message, fields and traceback alike. An HTTP client's
   error names the URL it asked, a reader may answer a URL with a key in it, and a
@@ -613,7 +643,7 @@ the panel names every installed plugin and what became of it.
   failures and decline reason at the containment (they reach the health panel),
   and a recorded acquisition failure in `_record_failure` (it reaches the Work
   page and MCP).
-- **A Player's successful request writes no access line** (2026-11-19, audit-8 F3).
+- **A Player's successful request writes no access line** (2026-11-19).
   uvicorn writes one `uvicorn.access` line per request, and a wall's Player asks for
   its manifest and its label every second, so one wall wrote about 170,000 lines a
   day (an estimate from the intervals, not a measurement) and buried the `run_id`
@@ -870,9 +900,9 @@ signal exists:
 | *Built 2026-11-09 (`build-plan-watches.md`):* a scheduled Library job (Watch; later the upgrade re-search) stopped running | `scheduler.pass` at INFO once per job per pass (every five minutes, `PASS_SECONDS`), including empty ones, as with the topic sweep, carrying `due`, `started` and `refused`. Absence over an interval is the fault in the log; `scheduler.started` says the thread began, and `scheduler.wedged` that it would not stop. **In the browser, a Watch is *overdue* when it is on, unattended work is on, and it has been due for over an hour (`OVERDUE_AFTER`) with nothing tried**, whatever its cadence, because a live scheduler tries a due Watch within one pass. Reckoned when the Watch is read, not by the scheduler, so a scheduler that died is still seen: Settings › Watches says so and the status indicator flags it. No push channel (the owner, 2026-11-09, § Accepted detection latency) |
 | *Built 2026-11-09:* a scheduled job's pass raised | `scheduler.pass_failed` at ERROR with the job's name and the trace; the other jobs' passes still run, and the next pass tries again |
 | *Built 2026-11-09:* a due Watch did not start | `watch.refused` at INFO with its `refusal` (`off`, `no_key`, `allowance_spent`, `cap_spent`, `could_not_start`), and the refusal stored on the Watch, which Settings › Watches shows in a sentence. Not a fault: the household's budget holding. `watch.could_not_start` at ERROR with the trace is the one refusal that is a fault |
-| *Built 2026-11-09:* a Watch's run started but its record did not | `watch.unrecorded_start` at ERROR, naming the run. The next pass, not seeing it, starts the Watch again, so a run of these lines is a paid run each |
+| *Built 2026-11-09:* a Watch's run started but its record did not | `watch.unrecorded_start` at ERROR, naming the run. The Watch is not started again: since 2026-11-19 "due" reads the newest run carrying the Watch's id (`WatchService.standing`), so the run is the record of the attempt and the Watch next falls due a cadence after it. Before then the next pass, not seeing the note, started the Watch again, a paid run each time |
 | Budget exhausted | `halted_by_budget` outcome on the run, and the refusal text names the cause. *(Corrected 2026-08-02: this also promised "`limit_remaining` at zero in the UI" — a figure no surface exposes, and one that lags badly enough to read non-zero while calls are already being refused. See the note under the signals table.)* |
-| Acquisition queue stopped running | `acquisition.queue_pass` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault, and Activity › Queue keeps showing *queued* works that never move. A run of `acquisition.queue_paused` is the deployment refusing (disk, binary, provider), not the worker dying |
+| Acquisition queue stopped running | `acquisition.queue_pass` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault, and Activity › Queue keeps showing *queued* works that never move. A run of `acquisition.queue_paused` or `acquisition.queue_host_fault` is the deployment refusing (disk, binary, provider, database), not the worker dying |
 | Topic sweep stopped running | `topics.swept` at INFO on every pass, including empty ones; its absence for more than a day, or after an acceptance, is the fault. A run of `topics.sweep_unavailable` is Wikidata refusing, not the sweep dying. With no `WIKIDATA_USER_AGENT` the one `topics.off` line at start says why there is nothing |
 | The picture store grows without bound | **By design** (owner, 2026-10-06: no ceiling). Its files and bytes are on the health panel and `art_display(action='status')`, counted at most ten minutes ago; the operator watches the figure. *(Replaced 2026-10-06 the row for the preview sweep stopping, which retired.)* |
 | Disk nearly full | Guarded *before* acquisition starts, not discovered as an exception during it |
@@ -881,4 +911,4 @@ signal exists:
 | Curation killed mid-run (OOM, deploy restart, crash) | **Startup reconciliation logs one line per run it moves to `interrupted`**, at WARNING, with the run id and its prior status. This is the only signal that a run died — the dying process cannot report its own death, and the operator's next clue would otherwise be `resolve_images` refusing work ids. Silence here means reconciliation did not run, which is itself the bug (`data-model.md` → State Machines) |
 | A foreign API moved under a recorded measurement | **An issue in this repo's backlog, one per contract**, opened by the failing `api-drift.yml` job; repeat failures comment on it rather than opening another. Not the panel — this failure happens on GitHub's runners, possibly while nothing of ours is running. It stays open until a human reconciles the `*-api-findings.md` document, because a green re-run proves the probe passed and nothing about whether anyone did the work. See § The one surface the panel does not cover |
 | The API-drift schedule stopped firing | **The only signal is a positive one, exactly as with the topic sweep**: a successful run per tier, whose *absence* is the fault. `drift-freshness.yml` fails past 21 days (free) or 75 days (paid), reading the tiers apart so a healthy monthly run cannot vouch for three missed Mondays. Covers both routes — never on the default branch, and disabled for repository inactivity. Detected at the next push to `main`, not continuously |
-| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |
+| A default-suite regression reaches `main` | `tests.yml` runs every suite `.testament.toml` declares (governance, curation, browser, contract) on testament's pool on every pull request. Since 2026-11-18 a push to `main` runs nothing: the release pull request already ran the tree it merges. The image's own test target is built by `image.yml` on every pull request into `main`, which is a release, and on any other pull request that changes the image's environment. Until 2026-08-06 there was no such signal at all: the repo had two workflows, and neither ran the suites that gate correctness, so a reviewer reading two green checks was reading the browser suite and a schedule |
