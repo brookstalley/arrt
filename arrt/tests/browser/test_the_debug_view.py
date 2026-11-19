@@ -72,7 +72,8 @@ def test_the_flag_survives_following_links_inside_the_app(ui, a_prepared_work):
 
 
 def test_status_keeps_its_raw_fields_for_debug(ui, a_health_reading):
-    ui.serve("**/api/health", a_health_reading())
+    reading = a_health_reading()
+    ui.serve("**/api/health", reading)
 
     ui.open("#health")
     ui.page.wait_for_selector("h1")
@@ -85,7 +86,11 @@ def test_status_keeps_its_raw_fields_for_debug(ui, a_health_reading):
     # debug's (#359): beside the curator's "Last heard from", not instead of it.
     raw = ui.page.locator(".wall-reading .raw-sentence")
     assert raw.count() == 1
-    assert "display plane" in raw.inner_text()
+    # The server's sentence itself, word for word. Until 2026-11-19 this looked
+    # for "display plane" in it, the server's wording then; the server now says
+    # "This wall's Player last reported …" (`HeartbeatReading.describe`), and the
+    # payload the suite serves says what the server would.
+    assert raw.inner_text() == reading["walls"][0]["heartbeat"]["description"]
     assert ui.page.locator(".wall-reading .reading-sentence").inner_text().startswith("Last heard from ")
 
 
