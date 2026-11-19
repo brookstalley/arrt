@@ -1365,17 +1365,20 @@ descriptions of it.
 | Skeletons occupy the final geometry | A grid that reflows as images arrive is a vestibular and cognitive cost as well as an aesthetic one, and the built client has already shipped that bug |
 | Every screen and consequential state is addressable | Back and escape are then the browser's, natively, rather than reimplemented — which is the accessible behaviour by default |
 
-### Touch targets — stated, and not yet in the stylesheet
+### Touch targets
 
-**Owed, with the same status as the revised palettes.** `design-direction.md`
-requires control heights of 2.75rem (44px) under `@media (pointer: coarse)`, with a
-2.25rem default that clears WCAG 2.2 AA's 24px floor. **`arrt/src/arrt/http/static/app.css` contains no
-`pointer: coarse` block and no control height**, verified 2026-08-11 — so the rule
-is a proposal today and is recorded as one here rather than as a practice.
+`design-direction.md` requires control heights of 2.75rem (44px) under `@media
+(pointer: coarse)`. **`arrt/src/arrt/http/static/app.css` has it**: `--control-h`
+(2.5rem, which clears WCAG 2.2 AA's 24px floor) and `--control-h-compact` (2rem) both
+rise to 2.75rem under a coarse pointer, and the sidebar's budget line, a link and
+not a control drawn as one, is given the same height there by its own block.
+`tests/browser/test_the_controls.py::test_a_touch_screen_gets_44px_controls`
+measures every visible control, the sidebar's links included, on four kinds of page
+with a touch context. *(Until 2026-11-19 this section said the stylesheet had no
+such block, true when it was verified on 2026-08-11 and not since.)*
 
-The keying is the part worth preserving when it lands: **on the pointer, not the
-viewport.** A small window on a desktop still has a mouse, so viewport width is the
-wrong signal.
+The keying is the part worth preserving: **on the pointer, not the viewport.** A
+small window on a desktop still has a mouse, so viewport width is the wrong signal.
 
 ### Reduced motion
 

@@ -35,6 +35,13 @@ owner, are in the plan and its ledger.
   bounds (1,012 s for one page, 2,044 s for Stedelijk's reader); until it has, build no image
   from this server with them.
 
+- **A commit the database refuses is now rolled back.** When the catalogue cannot be
+  written (another process holds its lock, a full, read-only or failing disk), the store
+  rolls the transaction back and raises `StorageFault`; the writes in it used to stay
+  pending and be published by the next commit that succeeded, though their caller had been
+  told they failed. A write outside a transaction that fails is rolled back the same way.
+  The acquisition queue pauses on a `StorageFault` as it does on a full disk.
+
 ## What else changed for someone running the server
 
 - **MCP.** `art_display` gains `preview` (`wall_id`, `theme_id` optional), the read-only twin of
@@ -69,6 +76,14 @@ owner, are in the plan and its ledger.
   colour. A full or read-only disk, or a database error, in the middle of a fetch pauses the
   queue (15 minutes) instead of counting against each work, which gave every work up in about
   four days. One work is prepared by one caller at a time.
+- **`pictured_artwork_id`.** `GET /api/registry/search` and `art_discovery(action='search')`
+  give each work found a `pictured_artwork_id`: the first held work of it that holds a
+  picture, or null. A client pictures a held row by that work's thumbnail and says *No
+  picture* when it is null, instead of asking for a thumbnail that cannot be made. Additive.
+- **The words for a work's images.** Curator-facing text, the MCP descriptions included,
+  calls the Original the work's **picture** and the presentation master its **copy for the
+  walls**; *master* had meant both. Records, routes and action names keep `master`. *Copy
+  for the walls* awaits the owner's confirmation.
 - **The browser.** Setting up a wall no longer dead-ends: *Show it there* is disabled with its
   reason until the Player has reported a screen, and enables itself when it does; the token
   dialog has *Copy* and names the Player's own fields (*Token*, *Server address*); the Edit wall

@@ -2746,6 +2746,15 @@ suppresses it and leaves the verdict where it was.
 
 ## Constraints
 
+**How the store says a write failed** *(since 2026-11-19)*. A row the file refuses
+(a key or a constraint) is a `StorageError`, worded for whoever asked. A fault of the
+database itself (another process holding its lock, a file that cannot be opened, a
+full, read-only or failing disk) is a `StorageFault`, raised in place of the
+driver's own error, so nothing above the persistence layer imports the driver to
+recognise it. A commit the file refuses rolls the transaction back, so none of its
+writes is read back afterwards as if kept, and so does a single write outside a
+transaction that fails (`persistence/durable.py`).
+
 1. **At most one Theme hangs on a Wall, enforced by `ThemeAssignment.wall_id`
    being the primary key.** There is nothing here to detect or reconcile: a second
    theme on a wall is a row the store will not accept. A wall with no assignment

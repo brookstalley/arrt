@@ -1307,7 +1307,7 @@ not on your catalogue, and with no worker running. Regenerate with
 `cd arrt && uv run pytest -m browser -n0 tests/browser/test_acquisition_states.py`
 and a `page.screenshot` of your own.
 
-- **Work page, *The master image*:** a work with no image says
+- **Work page, *Picture*:** a work with no image says
   `◌ queued` and "Waiting its turn to be fetched…", with no button; one the
   queue gave up on says `✗ gave up`, "Gave up after 4 tries: <why>. Nothing tries
   again until you retry.", and **Retry**, which repaints it to queued. A failed
