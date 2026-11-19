@@ -28,7 +28,7 @@ from decimal import Decimal
 from enum import StrEnum
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from PIL import Image, ImageOps
 
@@ -594,7 +594,10 @@ def dominant_color(image_path: Path) -> tuple[int, int, int]:
         # None would mean more distinct values than the limit, which quantising to
         # five cannot produce — but a fallback that raised here would defeat its
         # own purpose, so the guard is a value rather than an exception.
-        counts = quantised.getcolors(maxcolors=_FALLBACK_CLUSTERS) or [(1, 0)]
+        # `quantize` answers a palette ("P") image, whose pixel values are palette
+        # indices, so each pair's second member is an int; Pillow types it as any
+        # pixel value because `getcolors` serves every mode.
+        counts = cast("list[tuple[int, int]]", quantised.getcolors(maxcolors=_FALLBACK_CLUSTERS) or [(1, 0)])
     return _most_covered_colour(
         [(count, (palette[index * 3], palette[index * 3 + 1], palette[index * 3 + 2])) for count, index in counts]
     )

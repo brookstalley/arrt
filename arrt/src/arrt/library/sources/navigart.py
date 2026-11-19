@@ -514,12 +514,14 @@ class NavigartFinder:
         try:
             image = _image(ua)
         except _NotTheShape:
-            return _unexpected(where)
+            _unexpected(where)
+            return None
         if image is None:
             return None
         title = _title(record)
         if title is None:
-            return _unexpected(where)
+            _unexpected(where)
+            return None
         return FoundImage(
             url=url,
             provider=PROVIDER,

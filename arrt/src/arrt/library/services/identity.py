@@ -23,7 +23,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, fields, replace
 from typing import Final
 
-from arrt.library.registry import QID, Registry, RegistryPerson, RegistryUnavailable
+from arrt.library.registry import QID, ItemId, MuseumIdentifier, Registry, RegistryPerson, RegistryUnavailable
 from arrt.library.registry.identifiers import IdentifierScheme, museum_identifier
 from arrt.persistence.catalogue import CatalogueStore, WorkQuery
 from arrt.persistence.records import Artist, Artwork, IdentitySetBy
@@ -180,7 +180,9 @@ class IdentityService:
             for work in works:
                 if work.id not in asked:
                     continue
-                items = set().union(*(answers[scheme].get(value, frozenset()) for scheme, value in asked[work.id]))
+                items = set().union(
+                    *(answers[scheme].get(MuseumIdentifier(value), frozenset()) for scheme, value in asked[work.id])
+                )
                 if len(items) == 1:
                     (qid,) = items
                     store_write(
@@ -216,7 +218,7 @@ class IdentityService:
         # is reported as ambiguous rather than given twice.
         taken = {other.wikidata_qid: other.id for other in self._store.list_artists() if other.wikidata_qid}
         for artist in artists:
-            pinned = set().union(*(creators.get(qid, frozenset()) for qid in identified.get(artist.id, ())))
+            pinned = set().union(*(creators.get(ItemId(qid), frozenset()) for qid in identified.get(artist.id, ())))
             if len(pinned) == 1:
                 (qid,) = pinned
             else:

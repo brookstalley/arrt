@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
-from typing import Final
+from typing import Final, cast
 
 from arrt.library.dimensions import Units
 from arrt.persistence.discovery import DiscoveryStore
@@ -343,7 +343,11 @@ class SettingsService:
 
     def value[T](self, setting: Setting[T]) -> T:
         """This setting's value now: the environment's, else the stored one, else the default."""
-        return setting.parse(self._state(setting).value)
+        # `_state` reads a setting only through its key, `unnamed_check`, `render`
+        # and `default`, which agree with one another for any `T`; it never feeds
+        # `T` a value of another type. The registry above already holds every
+        # `Setting[T]` as a `Setting[object]` for the same reason.
+        return setting.parse(self._state(cast("Setting[object]", setting)).value)
 
     def describe(self) -> Sequence[SettingState]:
         """Every setting, in `SETTINGS`' order, with its value and where that came from."""

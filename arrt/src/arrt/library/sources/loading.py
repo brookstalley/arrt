@@ -177,7 +177,15 @@ def declared_deadlines(plugin: SourcePlugin, base: Deadlines) -> Deadlines | str
         if seconds > DEADLINE_CEILING_SECONDS:
             return f"its {kind} deadline of {seconds:g} seconds is past this Arrt's ceiling of {DEADLINE_CEILING_SECONDS:g}"
         chosen[kind] = float(seconds)
-    return replace(base, **chosen)
+    # Each kind named, because `**chosen` would hand `stragglers` (an int) a float
+    # as far as the checker can tell; `DEADLINE_KINDS` is exactly these four.
+    return replace(
+        base,
+        finder=chosen.get("finder", base.finder),
+        reader=chosen.get("reader", base.reader),
+        preview=chosen.get("preview", base.preview),
+        browse=chosen.get("browse", base.browse),
+    )
 
 
 def _reraise_scrubbed(exc: Exception, kind: type[Exception]) -> NoReturn:
@@ -1030,8 +1038,8 @@ def load_sources(
             # Two distributions registering one name would record their images
             # under one provider, and every stored row would then belong to
             # whichever loaded last. Neither is loaded.
-            reason = "two installed distributions register this name; neither is loaded"
-            states[entry.name] = (PluginState.FAILED, reason)
+            clash = "two installed distributions register this name; neither is loaded"
+            states[entry.name] = (PluginState.FAILED, clash)
             parts.pop(entry.name, None)
             plugins.pop(entry.name, None)
             # Neither distribution is this plugin's, so neither is named as its origin.
@@ -1076,17 +1084,17 @@ def load_sources(
         else:
             log.error("source plugin %s was not loaded: %s", name, reason, extra={"event": "source.failed", "plugin": name})
 
-    finders = [contain.finder(parts[n].finder, n) for n in ranked if n in parts and parts[n].finder is not None]
-    collections = [contain.collection(parts[n].collection, n) for n in ranked if n in parts and parts[n].collection is not None]
+    finders = [contain.finder(finder, n) for n in ranked if n in parts and (finder := parts[n].finder) is not None]
+    collections = [contain.collection(browse, n) for n in ranked if n in parts and (browse := parts[n].collection) is not None]
     claimants = [
         _Claimant(
             name=n,
-            claims=plugins[n].claims,
-            reader=(contain.reader(parts[n].reader, n) if n in parts and parts[n].reader is not None else None),
+            claims=claims,
+            reader=(contain.reader(reader, n) if n in parts and (reader := parts[n].reader) is not None else None),
             unavailable=None if n in parts else _not_loaded(n, states[n][1]),
         )
         for n in ranked
-        if n in plugins and plugins[n].claims is not None
+        if n in plugins and (claims := plugins[n].claims) is not None
     ]
     return SourceRoster(
         finders=finders,

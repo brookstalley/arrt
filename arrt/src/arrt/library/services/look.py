@@ -55,6 +55,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from functools import partial
 from pathlib import Path
 from typing import Final
 
@@ -376,7 +377,7 @@ class LookService:
             self._lanes.setdefault(provider, deque()).append(entry)
             if provider not in self._draining:
                 try:
-                    self._spawn(lambda provider=provider: self._drain(provider))
+                    self._spawn(partial(self._drain, provider))
                 except Exception as exc:  # prawduct:allow prawduct/broad-except -- an unstarted thread must not leave rows asking
                     log.warning(
                         "could not start the thread that asks an image source for looks",
@@ -645,21 +646,21 @@ class LookService:
         with look_context(view.qid):
             previews: dict[str, InlinePreview] = {}
             failed: list[str] = []
-            wanted = [picture for picture in view.pictures[:INLINED] if picture.key is not None]
-            missing: list[LookPicture] = []
-            for picture in wanted:
+            wanted = [(key, picture) for picture in view.pictures[:INLINED] if (key := picture.key) is not None]
+            missing: list[tuple[str, LookPicture]] = []
+            for key, picture in wanted:
                 path = self._already_kept(picture)
                 if path is None:
-                    missing.append(picture)
+                    missing.append((key, picture))
                     continue
                 preview = inline_preview(path)
-                (previews.__setitem__(picture.key, preview) if preview is not None else failed.append(picture.key))
+                (previews.__setitem__(key, preview) if preview is not None else failed.append(key))
             deferred: list[str] = []
             if missing:
                 fetching = ThreadPoolExecutor(max_workers=len(missing), thread_name_prefix="look-picture")
                 futures = {
-                    fetching.submit(contextvars.copy_context().run, self._fetched, view.qid, picture): picture.key
-                    for picture in missing
+                    fetching.submit(contextvars.copy_context().run, self._fetched, view.qid, picture): key
+                    for key, picture in missing
                 }
                 done, waiting = wait(futures, timeout=max(0.0, deadline - time.monotonic()))
                 # Not waited for: a fetch still under way finishes into the store.
@@ -668,7 +669,7 @@ class LookService:
                     preview = future.result()
                     (previews.__setitem__(futures[future], preview) if preview is not None else failed.append(futures[future]))
                 deferred = [futures[future] for future in waiting]
-            order = [picture.key for picture in wanted]
+            order = [key for key, _picture in wanted]
             return Inlined(
                 previews={key: previews[key] for key in order if key in previews},
                 deferred=tuple(key for key in order if key in deferred),

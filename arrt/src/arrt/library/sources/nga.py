@@ -433,7 +433,8 @@ class NgaCatalogue:
             for row in _rows(self._path(_OBJECTS)):
                 number = _number(row.get("objectid"))
                 entry = index.get(number) if number is not None else None
-                if entry is not None:
+                # `entry` is None when `number` is, so the second test only tells the checker so.
+                if entry is not None and number is not None:
                     index[number] = entry._replace(title=_text(row.get("title")), attribution=_text(row.get("attribution")))
         except (OSError, EOFError, csv.Error, UnicodeDecodeError) as exc:
             raise ImageSearchFailure(f"NGA's open data on disk could not be read: {exc}") from exc

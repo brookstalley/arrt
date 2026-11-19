@@ -135,7 +135,10 @@ class GetService:
                 work = self._registry.work(qid)
             except RegistryUnavailable as exc:
                 raise ServiceError(f"Wikidata could not be asked about {qid}, so nothing was started. Try again.") from exc
-            reason = SkipReason.NOT_FOUND if work is None else self._already_here(qid, work, twins)
+            if work is None:
+                skipped.append(Skipped(qid, SkipReason.NOT_FOUND))
+                continue
+            reason = self._already_here(qid, work, twins)
             if reason is not None:
                 skipped.append(Skipped(qid, reason))
                 continue

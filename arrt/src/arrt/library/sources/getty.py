@@ -195,7 +195,8 @@ class _Getty:
         known: dict[str, str] = {}
         for row in self._select(query, what="map Wikidata's Getty IDs to records"):
             urn, record = row.get("urn"), row.get("object")
-            if not isinstance(urn, str) or not _is(_OBJECT, record):
+            # `_is` is False for a non-str, so the `isinstance` repeats it for the checker.
+            if not isinstance(urn, str) or not isinstance(record, str) or not _is(_OBJECT, record):
                 raise ImageSearchFailure("The Getty's endpoint answered the IDs with something other than its records.")
             known.setdefault(urn.removeprefix(_SLUG_URN), record)
         return known
@@ -262,8 +263,8 @@ class _Getty:
         with self._http.stream("GET", url, headers=self._image_headers) as response:
             yield response
 
-    def _select(self, query: str, *, what: str) -> list[Mapping[str, str]]:
-        """The rows a SELECT answers, each variable to its value."""
+    def _select(self, query: str, *, what: str) -> list[Mapping[str, object]]:
+        """The rows a SELECT answers, each variable to its value, as the endpoint said it: a caller checks the type."""
         response = self._get(_SPARQL_URL, headers=self._sparql_headers, params={"query": query}, what=what)
         results = self._json(response, what=what).get("results")
         rows = results.get("bindings") if isinstance(results, Mapping) else None
