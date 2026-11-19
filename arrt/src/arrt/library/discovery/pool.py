@@ -11,6 +11,13 @@ Every source is asked at once. The order breaks a tie between two instances phas
 them. A source asked only after another failed would be the special case the
 pool exists to avoid.
 
+**A run waits for each source no longer than its deadline.** A source still
+asking when it passes is "could not be asked" for this work, and the run moves
+on without it, so one hung source does not hold every Get. A plugin's finder
+reaches the pool already bounded by its own deadline (`library/sources/loading.py`),
+which says what becomes of a call that outlives it; the pool's is a backstop a
+little longer than that, for any finder handed to it directly.
+
 **A source that could not be asked is reported, not folded into the answer.** An
 empty list from a source means it was asked and holds nothing; a failure means
 nothing is known about what it holds. The pool keeps the two apart all the way
@@ -21,12 +28,14 @@ because one server was down would tell a curator the painting is not out there.
 
 import contextvars
 import logging
+import queue
 import threading
+import time
 from collections import Counter
-from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Final
 
 from arrt.library.discovery.images import (
     Finder,
@@ -37,9 +46,17 @@ from arrt.library.discovery.images import (
     ImageSearchFailure,
     offers_images,
 )
+from arrt.library.sources.loading import FINDER_DEADLINE_SECONDS
 from arrt.library.sources.names import museum_name
 
 log = logging.getLogger(__name__)
+
+#: Seconds a run waits for one source before it calls that source "could not be
+#: asked" for the work. Past a plugin's own deadline by a margin, so a plugin's
+#: finder, which answers "could not be asked" at its deadline in its own words,
+#: is heard saying so before this cuts in. A backstop for a finder handed to the
+#: pool unwrapped, which nothing else bounds.
+RUN_DEADLINE_SECONDS: Final[float] = FINDER_DEADLINE_SECONDS + 5.0
 
 
 class NoSourceCanAnswer(ImageSearchFailure):
@@ -90,7 +107,8 @@ class SourceAnswer:
 
     `images` and `pages` are what it handed over before it answered or failed:
     a finder that yields some results and then raises has said those, and the
-    pool has always kept them.
+    pool keeps them. A plugin's finder hands them over through its containment
+    the same way (`loading._Said`), what it yielded before its deadline included.
     """
 
     provider: str
@@ -107,7 +125,7 @@ class SourceAnswer:
 class ImageSourcePool:
     """The image sources phase 2 asks, in order of preference."""
 
-    def __init__(self, sources: Sequence[Finder]) -> None:
+    def __init__(self, sources: Sequence[Finder], *, deadline_seconds: float = RUN_DEADLINE_SECONDS) -> None:
         if not sources:
             # An empty pool would answer every work with nothing, which reads as
             # "no source holds it". A deployment with no source has no pool at
@@ -127,6 +145,8 @@ class ImageSourcePool:
         #: that wakes a waiting look when a source's count falls to nothing.
         self._run_asks: Counter[str] = Counter()
         self._runs_done = threading.Condition()
+        #: How long a run waits for each source (`RUN_DEADLINE_SECONDS`).
+        self._deadline = deadline_seconds
 
     @property
     def providers(self) -> tuple[str, ...]:
@@ -154,46 +174,35 @@ class ImageSourcePool:
         here as `ImageSearchFailure` (`library/sources/loading.py`). A finder
         handed to the pool directly, as in most tests, still propagates.
         """
-        with ThreadPoolExecutor(max_workers=len(self._sources), thread_name_prefix="image-source") as workers:
-            # Each call runs in a copy of the caller's context, so what a source
-            # logs from its worker thread still carries the run it is working for.
-            pending = []
-            for source in self._sources:
-                # Counted here, before the worker starts, so a look asking in
-                # the gap between this call and the worker sees the run already.
-                with self._runs_done:
-                    self._run_asks[source.provider] += 1
-                pending.append(workers.submit(contextvars.copy_context().run, self._ask_for_a_run, source.provider, query))
-            images: list[FoundImage] = []
-            pages: dict[FoundPage, None] = {}
-            answered: list[str] = []
-            pages_only: list[str] = []
-            unreachable: list[str] = []
-            declined: list[str] = []
-            for future in pending:
-                answer = future.result()
-                images.extend(answer.images)
-                for page in answer.pages:
-                    pages[page] = None
-                if answer.outcome is AskOutcome.ANSWERED:
-                    # A finder of pages answering says nothing about whether an
-                    # image exists, so it is not a source that answered.
-                    (answered if answer.offers_images else pages_only).append(answer.provider)
-                elif answer.outcome is AskOutcome.DECLINED:
-                    # Not asked, in effect: this source has nothing to say about
-                    # works like this one, which is neither "holds none" nor "down".
-                    declined.append(answer.provider)
-                else:
-                    log.warning(
-                        "an image source could not be asked for a work: %s",
-                        answer.failure,
-                        extra={"event": "image_pool.unreachable", "provider": answer.provider, "work_title": query.title},
-                    )
-                    # Only a source of images leaves the work in doubt. A finder
-                    # of pages that could not be asked holds no image either way,
-                    # and counting it would keep a work waiting that every source
-                    # of images has answered for.
-                    (unreachable if answer.offers_images else pages_only).append(answer.provider)
+        images: list[FoundImage] = []
+        pages: dict[FoundPage, None] = {}
+        answered: list[str] = []
+        pages_only: list[str] = []
+        unreachable: list[str] = []
+        declined: list[str] = []
+        for answer in self._every_answer(query):
+            images.extend(answer.images)
+            for page in answer.pages:
+                pages[page] = None
+            if answer.outcome is AskOutcome.ANSWERED:
+                # A finder of pages answering says nothing about whether an
+                # image exists, so it is not a source that answered.
+                (answered if answer.offers_images else pages_only).append(answer.provider)
+            elif answer.outcome is AskOutcome.DECLINED:
+                # Not asked, in effect: this source has nothing to say about
+                # works like this one, which is neither "holds none" nor "down".
+                declined.append(answer.provider)
+            else:
+                log.warning(
+                    "an image source could not be asked for a work: %s",
+                    answer.failure,
+                    extra={"event": "image_pool.unreachable", "provider": answer.provider, "work_title": query.title},
+                )
+                # Only a source of images leaves the work in doubt. A finder
+                # of pages that could not be asked holds no image either way,
+                # and counting it would keep a work waiting that every source
+                # of images has answered for.
+                (unreachable if answer.offers_images else pages_only).append(answer.provider)
         if not answered:
             # No source of images answered. Nothing is known about the work, so
             # it is not recorded as held by nobody; it waits, as when every source
@@ -208,13 +217,69 @@ class ImageSourcePool:
             raise NoSourceCanAnswer(f"No image source can look this work up: {'; '.join(cannot)}.")
         return PoolAnswer(images=tuple(images), unreachable=tuple(unreachable), pages=tuple(pages))
 
+    def _every_answer(self, query: ImageQuery) -> list[SourceAnswer]:
+        """Every source's answer, in preference order, each waited for no longer than the run's deadline.
+
+        A source past it is "could not be asked" for this work, and is no longer
+        counted as asked by the run. What a source raised outside the interface
+        propagates, as `find_images` says.
+        """
+        # One daemon thread per source rather than an executor, because the run
+        # must not wait for a hung source's worker on its way out, and a daemon
+        # thread never holds the process open at exit either.
+        heard: queue.SimpleQueue[tuple[int, SourceAnswer | None, BaseException | None]] = queue.SimpleQueue()
+        releases: list[Callable[[], bool]] = []
+        for index, source in enumerate(self._sources):
+            # Counted here, before the worker starts, so a look asking in the gap
+            # between this call and the worker sees the run already.
+            releases.append(release := self._counted(source.provider))
+            # Each call runs in a copy of the caller's context, so what a source
+            # logs from its worker thread still carries the run it is working for.
+            threading.Thread(
+                target=contextvars.copy_context().run,
+                args=(self._ask_for_a_run, index, source.provider, query, release, heard),
+                name=f"image-source-{source.provider}",
+                daemon=True,
+            ).start()
+        settled: dict[int, tuple[SourceAnswer | None, BaseException | None]] = {}
+        ends = time.monotonic() + self._deadline
+        while len(settled) < len(self._sources) and (left := ends - time.monotonic()) > 0:
+            try:
+                index, said, raised = heard.get(timeout=left)
+            except queue.Empty:
+                break
+            settled[index] = (said, raised)
+        for index, release in enumerate(releases):
+            if index not in settled:
+                # Past its deadline: the run stops waiting, and stops counting it,
+                # so a look at this source is not left behind a call that may
+                # never end. The call runs on, and its answer is discarded.
+                release()
+        answers: list[SourceAnswer] = []
+        for index, source in enumerate(self._sources):
+            said, raised = settled.get(index, (None, None))
+            if raised is not None:
+                raise raised
+            answers.append(
+                said
+                or SourceAnswer(
+                    provider=source.provider,
+                    outcome=AskOutcome.UNREACHABLE,
+                    offers_images=offers_images(source),
+                    failure=f"{museum_name(source.provider)} did not answer within {self._deadline:g} seconds",
+                )
+            )
+        return answers
+
     def ask(self, provider: str, query: ImageQuery) -> SourceAnswer:
         """Ask one source about one work, and sort its answer as the pool sorts every answer.
 
         `find_images` is this, at every source at once, folded together; a look
         asks one source at a time with it. A source raising anything other than
         `ImageSearchFailure` (or `ImageQueryUnanswerable`) propagates, as it does
-        from `find_images`.
+        from `find_images`. Waited for as long as the source takes: a plugin's
+        finder is bounded by its own deadline, and a look asks one source at a
+        time on a thread of its own.
         """
         source = self._source(provider)
         images: list[FoundImage] = []
@@ -247,16 +312,54 @@ class ImageSourcePool:
         with self._runs_done:
             return self._runs_done.wait_for(lambda: self._run_asks[provider] == 0, timeout=timeout)
 
-    def _ask_for_a_run(self, provider: str, query: ImageQuery) -> SourceAnswer:
-        """`ask`, for a run, releasing the source to waiting looks however it ends."""
-        try:
-            return self.ask(provider, query)
-        finally:
+    def _counted(self, provider: str) -> Callable[[], bool]:
+        """Count one run's ask at a source, and the one way to stop counting it: whether that call stopped it.
+
+        Released once, by whichever comes first: the ask ending, or the run
+        giving up on it at its deadline. A late ask ending after the run gave up
+        releases nothing, so it cannot take a later run's ask off the count.
+        """
+        with self._runs_done:
+            self._run_asks[provider] += 1
+        released = False
+
+        def release() -> bool:
+            nonlocal released
             with self._runs_done:
+                if released:
+                    return False
+                released = True
                 self._run_asks[provider] -= 1
                 if self._run_asks[provider] <= 0:
                     del self._run_asks[provider]
                     self._runs_done.notify_all()
+                return True
+
+        return release
+
+    def _ask_for_a_run(
+        self,
+        index: int,
+        provider: str,
+        query: ImageQuery,
+        release: Callable[[], bool],
+        heard: queue.SimpleQueue[tuple[int, SourceAnswer | None, BaseException | None]],
+    ) -> None:
+        """`ask`, for a run, on a worker of its own: the answer or what it raised goes to `heard`, and the source is released."""
+        started = time.monotonic()
+        try:
+            heard.put((index, self.ask(provider, query), None))
+        except BaseException as exc:  # noqa: BLE001  # prawduct:allow prawduct/broad-except -- carried to the run's thread
+            heard.put((index, None, exc))
+        finally:
+            if not release():
+                # The run gave up on it at its deadline and has settled the work
+                # without it; what it said reaches nobody.
+                log.warning(
+                    "an image source answered %.0f seconds after it was asked, after the run stopped waiting; discarded",
+                    time.monotonic() - started,
+                    extra={"event": "image_pool.late", "provider": provider, "work_title": query.title},
+                )
 
     def fetch_preview(self, provider: str, url: str) -> bytes | None:
         """The preview bytes, from the source the instance was recorded under."""

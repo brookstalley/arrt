@@ -33,7 +33,9 @@ from arrt.library.sources.reading import Reader
 #: 1.3 added the IIIF parsers (`ImageService`, `CanvasImage`, `manifest_images`,
 #: `manifest_metadata`), which a plugin may use and none must.
 #: 1.4 added `SourcePlugin.museum`, the name a curator knows the source by.
-API_VERSION: Final[tuple[int, int]] = (1, 4)
+#: 1.5 added `SourcePlugin.api_minor`, so a plugin that needs a newer minor than
+#: this Arrt is refused at load by name rather than faulting on its first call.
+API_VERSION: Final[tuple[int, int]] = (1, 5)
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,3 +132,11 @@ class SourcePlugin:
     #: named by its id, as one that declares nothing is. Static, like `claims`:
     #: a plugin that declines is still named by it.
     museum: str | None = None
+    #: The interface minor this plugin needs (1.5): the newest capability it
+    #: reads. A plugin needing a newer minor than this Arrt provides is refused at
+    #: load, naming both versions, rather than loaded to fault on the first call
+    #: that reads a field this Arrt does not have. `0` claims nothing past 1.0.
+    #: Passing it to an Arrt older than 1.5 is a `TypeError` at import, so a
+    #: plugin that must load on one passes it only when `"api_minor" in
+    #: SourcePlugin.__dataclass_fields__`.
+    api_minor: int = 0
