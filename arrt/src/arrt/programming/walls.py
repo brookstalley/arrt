@@ -316,7 +316,7 @@ class Walls:
         )
         return wall
 
-    # -- writes: themes and membership ----------------------------------------
+    # -- writes: a wall's settings ---------------------------------------------
 
     def set_mat_mode(self, wall_id: str, mode: MatMode | str | None) -> Wall:
         """Choose how this wall's Player draws the mat, or with None leave it to the Player.

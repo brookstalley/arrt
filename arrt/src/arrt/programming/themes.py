@@ -142,7 +142,7 @@ class Themes:
     def get_listed_theme(self, theme_id: str) -> Theme:
         """A theme a curator can name: any theme but a hung selection.
 
-        A selection lives only as long as it hangs (`_retire_selection`), so a
+        A selection lives only as long as it hangs (`retire_selection`), so a
         Get that sent its works there, a default that pointed at it, a work
         added to it or a name given it would all be lost the day the wall
         changes. Each names a theme from a picker that never offers a

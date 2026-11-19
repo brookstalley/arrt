@@ -1,9 +1,30 @@
-"""What the wall shows — themes, what hangs where, and each wall's feed.
+"""What the wall shows: `DisplayService`, the facade every surface calls as `services.display`.
 
 The catalogue answers "what do we hold"; this answers "what is on the wall, in
 what order, and what should it do next". They are separated because they change
 for different reasons: a work's metadata changes when a curator corrects it, and
 a theme changes when a curator changes their mind about an evening.
+
+**`DisplayService` is a composition facade**: it builds one of each
+collaborator over one store, and each public method is a one-line delegation to
+the collaborator that holds the rule:
+
+- `FeedPublisher` (`feeds.py`): each wall's feed, built, staged, published, and
+  kept true to the Library. Every collaborator below publishes through this one
+  publisher, in its transaction, so one act has one transaction and one set of
+  feeds staged.
+- `Themes` (`themes.py`): themes and their membership, what hangs on each wall,
+  a newly accepted work's offer, and *Not this one again*.
+- `Walls` (`walls.py`): walls, their settings, and moving a wall on by hand.
+- `Scenes` (`scenes.py`): scenes, from draft to applied, released or run out.
+- `Reports` (`reports.py`): what each wall's Player reports about itself, and
+  what is answered from it (showings, size judgements).
+
+Each collaborator calls only those above it in that list. The facade itself
+keeps one rule, `on_work_changed`, because it composes the publisher's
+`reconcile` with the themes' `offer_destinations`. The types and constants the
+collaborators define are re-exported here (`__all__`), so no caller changed
+when they moved.
 
 **This service depends on the Library and never the reverse**, and only through
 `arrt.library.facade`. A theme is a grouping of works, so building one
@@ -11,15 +32,11 @@ requires asking about them; nothing about a work requires knowing which themes
 hold it. Works are held here as ids, and the facade says whether each can go on a
 wall. **The Library tells this service when a work changes**, and this service
 decides what that means for a wall: `on_work_changed` takes a work the Library
-now refuses off every published feed. Every rule about what a republish keeps —
-the slot on the wall now, or a fresh start — lives in `feeds.py`: this service
-composes its `FeedPublisher`, and every act here that changes a wall's feed
-publishes through it, in the publisher's transaction.
+now refuses off every published feed.
 
 Methods are synchronous, for the reason `catalogue.py` gives.
 """
 
-import logging
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -102,8 +119,6 @@ __all__ = [
     "feed_notice",
 ]
 
-log = logging.getLogger(__name__)
-
 
 @dataclass(frozen=True, slots=True)
 class DisplaySettings:
@@ -139,7 +154,7 @@ class DisplaySettings:
 
 
 class DisplayService:
-    """Read and write the themes, memberships, and feeds the walls run on."""
+    """Read and write the themes, memberships, walls, scenes and feeds the walls run on, through its collaborators."""
 
     def __init__(self, store: ProgrammingStore, library: LibraryFacade, settings: DisplaySettings) -> None:
         self._store = store
@@ -230,7 +245,7 @@ class DisplayService:
         """Forget a wall for good, freeing its screen and its label panels; its history stays."""
         return self._walls.delete_wall(wall_id)
 
-    # -- writes: themes and membership ----------------------------------------
+    # -- writes: a wall's settings ---------------------------------------------
 
     def set_mat_mode(self, wall_id: str, mode: MatMode | str | None) -> Wall:
         """Choose how this wall's Player draws the mat, or with None leave it to the Player."""
@@ -249,6 +264,8 @@ class DisplayService:
         return self._walls.set_playback(
             wall_id, rotation_interval_seconds=rotation_interval_seconds, shuffle=shuffle, tallest=tallest, widest=widest
         )
+
+    # -- writes: themes and membership ----------------------------------------
 
     def add_theme(self, *, name: str, description: str | None = None) -> Theme:
         """Record a theme and return it."""
@@ -354,16 +371,7 @@ class DisplayService:
         """Put this work on the wall now and carry on from there; return its id."""
         return self._walls.show_work_now(wall_id, artwork_id)
 
-    # -- scenes ---------------------------------------------------------------
-    #
-    # A scene is a work per wall, applied together over each wall's schedule
-    # (`player-contract.md` § Scenes). While a draft, each pin stages its work
-    # on its wall, so a Frame has its upload done before Apply and the walls
-    # switch together. Every act writes the store, then patches each wall it
-    # touched: the schedule is republished exactly as it stands, and the one
-    # feed writer derives the control layer (`FeedPublisher._publish_feed`). Expiry is
-    # observed, not scheduled: a Player returns to its schedule at `until` on
-    # its own, so the server keeps no timer.
+    # -- scenes (`scenes.py`) ------------------------------------------------
 
     def draft_scene(self) -> SceneView:
         """The scene being assembled: the one already started, else a new empty one."""
@@ -485,5 +493,3 @@ class DisplayService:
     def reconcile(self, work_ids: Iterable[str] | None = None, *, cause: str = "startup") -> Reconciliation:
         """Make every published feed agree with what the Library will show (`FeedPublisher.reconcile`)."""
         return self._feeds.reconcile(work_ids, cause=cause)
-
-    # -- internals ------------------------------------------------------------

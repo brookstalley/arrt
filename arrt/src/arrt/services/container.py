@@ -500,7 +500,7 @@ class Services:
             # read-only) must not keep the curation interface down: the wall
             # goes on showing its last manifest, which is where it would be with
             # the server stopped, and the interface is where a curator finds out
-            # why. The reconciliation is one act (`DisplayService._publishing`):
+            # why. The reconciliation is one act (`FeedPublisher.publishing`):
             # every feed it decided is written beside its file first, and a
             # write that fails there removes those and rolls the act back, so
             # no wall's feed has changed and the next start tries again.

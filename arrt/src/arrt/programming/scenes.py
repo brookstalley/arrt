@@ -315,7 +315,7 @@ class Scenes:
         `until`. The caller republishes the walls, or, for a preview run out,
         leaves them: their Players returned to the schedule on their own. The
         caller says it and records it in History once its transaction commits
-        (`_record_ended`), so a refusal that rolls the end back leaves no line
+        (`record_ended`), so a refusal that rolls the end back leaves no line
         claiming it.
         """
         ended = replace(scene, status=SceneStatus.ENDED, ended_at=at)
