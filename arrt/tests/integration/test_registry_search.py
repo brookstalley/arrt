@@ -182,7 +182,9 @@ class TestWithNoRegistryConfigured:
         found = _search(http, "dali")
 
         assert found["state"] == "not_configured"
-        assert "only your library is searched" in found["note"]
+        # In the household's words, naming no setting: the search results page
+        # shows it (the plan's DECISION; it named WIKIDATA_USER_AGENT until 2026-11-19).
+        assert found["note"] == "Wikidata is not configured on this server, so only your library is searched."
 
 
 def test_a_wide_search_asks_for_the_results_pages_longer_list_and_is_remembered_apart(http, registry):

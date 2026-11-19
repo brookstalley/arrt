@@ -116,8 +116,8 @@ class GetService:
         wanted = list(dict.fromkeys(checked_qid(qid) for qid in qids))
         if self._registry is None:
             raise ServiceError(
-                "A Get names its works by their Wikidata items, and this deployment has no registry "
-                "(WIKIDATA_USER_AGENT is unset). Nothing was started."
+                "A Get names its works by their Wikidata items, and Wikidata is not configured on this server. "
+                "Nothing was started."
             )
         held = self._store.circulating_ids_by_qid()
         being_got = self._discovery.items_being_got()

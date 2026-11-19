@@ -305,7 +305,8 @@ def test_a_refused_get_is_said_beside_get_and_keeps_the_ticks(ui):
     """The refusal sits after the Get it refused, naming the act, and the ticks
     and the button stay so that trying again is one press (`core/acting.js`)."""
     ui.serve(
-        "**/api/gets", (400, {"error": "A Get names its works by their Wikidata items, and this deployment has no registry."})
+        "**/api/gets",
+        (400, {"error": "A Get names its works by their Wikidata items, and Wikidata is not configured on this server."}),
     )
     ui.open(f"#artist/{BRUEGEL}")
     select_mode(ui)
@@ -318,7 +319,7 @@ def test_a_refused_get_is_said_beside_get_and_keeps_the_ticks(ui):
     get.click()
 
     assert ui.said_beside(get) == (
-        "Couldn't get 1 work: A Get names its works by their Wikidata items, and this deployment has no registry. "
+        "Couldn't get 1 work: A Get names its works by their Wikidata items, and Wikidata is not configured on this server. "
         "Nothing was changed."
     )
     assert box.is_checked()
