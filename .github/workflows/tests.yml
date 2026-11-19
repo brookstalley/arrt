@@ -122,7 +122,7 @@ jobs:
         run: |
           OUT="$RUNNER_TEMP/$OUT_DIR"
           cd arrt
-          uv run --frozen pytest tests/unit tests/integration tests/contract tests/eval tests/test_scaffold.py -q -o junit_suite_name=curation --junitxml "$OUT/fallback/curation.xml"
+          uv run --frozen pytest tests/unit tests/integration tests/contract tests/system tests/eval tests/test_scaffold.py -q -o junit_suite_name=curation --junitxml "$OUT/fallback/curation.xml"
       - name: "Fallback: the contract suite, here"
         if: ${{ !cancelled() && steps.pool.outputs.mode == 'fallback' }}
         run: |
