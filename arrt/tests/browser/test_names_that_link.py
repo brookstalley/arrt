@@ -8,12 +8,16 @@ reader (`#walls?wall=<id>`), a Player as Players with its row brought to them
 (`#clients?client=<id>`, the address Clients had before ruling 7 of 2026-10-27).
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 WINTER_QID = "Q1311"
 
@@ -74,37 +78,37 @@ def test_a_works_walls_and_theme_line_link_the_wall(ui, the_wall, hung):
     ui.open(f"#work/{work.id}")
     walls = links_named(ui, "#view", the_wall.name)
     # The Walls fact and the theme's "(on …)" each name it.
-    assert walls.count() == 2
-    for at in range(walls.count()):
-        assert walls.nth(at).get_attribute("href") == wall_address(the_wall)
+    expect(walls).to_have_count(2)
+    for at in range(2):
+        expect(walls.nth(at)).to_have_attribute("href", wall_address(the_wall))
 
 
 def test_a_works_topic_links_to_its_topic_page(ui, hung):
     work, _theme = hung
     ui.open(f"#work/{work.id}")
     topic = links_named(ui, "#view dl.facets", "winter")
-    assert topic.first.get_attribute("href").startswith(f"#topic/{WINTER_QID}")
-    # A value naming no Wikidata item stays text.
-    assert ui.page.locator("#view dl.facets a:text-is('oil on panel')").count() == 0
-    assert ui.page.locator("#view dl.facets :text-is('oil on panel')").count() == 1
+    expect(topic.first).to_have_attribute("href", re.compile("^" + re.escape(f"#topic/{WINTER_QID}")))
+    # A value naming no Wikidata item stays text. (It is there, as text, before it is said not to be a link.)
+    expect(ui.page.locator("#view dl.facets :text-is('oil on panel')")).to_have_count(1)
+    expect(ui.page.locator("#view dl.facets a:text-is('oil on panel')")).to_have_count(0)
 
 
 def test_a_theme_links_the_wall_it_hangs_on(ui, the_wall, hung):
     ui.open("#theme")
     walls = links_named(ui, "#view", the_wall.name)
-    assert walls.first.get_attribute("href") == wall_address(the_wall)
+    expect(walls.first).to_have_attribute("href", wall_address(the_wall))
 
 
 def test_history_links_the_wall_a_theme_was_hung_on(ui, the_wall, hung):
     ui.open("#history")
     walls = links_named(ui, "#view .history-events", the_wall.name)
-    assert walls.first.get_attribute("href") == wall_address(the_wall)
+    expect(walls.first).to_have_attribute("href", wall_address(the_wall))
 
 
 def test_a_walls_history_links_the_wall(ui, the_wall, hung):
     ui.open(f"#history?wall={the_wall.id}")
     walls = links_named(ui, "#view", f"{the_wall.name} on Walls")
-    assert walls.first.get_attribute("href") == wall_address(the_wall)
+    expect(walls.first).to_have_attribute("href", wall_address(the_wall))
 
 
 def test_players_links_the_walls_on_its_screens_and_captioned(ui, services, the_wall, hall):
@@ -112,16 +116,16 @@ def test_players_links_the_walls_on_its_screens_and_captioned(ui, services, the_
     ui.open("#clients")
     walls = links_named(ui, f"#view tr[data-player='{hall.id}']", the_wall.name)
     # On its screen, and captioned by its label panel: one link in each column.
-    assert walls.count() == 2
-    for at in range(walls.count()):
-        assert walls.nth(at).get_attribute("href") == wall_address(the_wall)
+    expect(walls).to_have_count(2)
+    for at in range(2):
+        expect(walls.nth(at)).to_have_attribute("href", wall_address(the_wall))
 
 
 def test_status_links_each_walls_reading_to_the_wall(ui, a_health_reading):
     ui.serve("**/api/health", a_health_reading())
     ui.open("#health")
     walls = links_named(ui, "#view .wall-reading h2", "The living room")
-    assert walls.first.get_attribute("href") == "#walls?wall=wall-1"
+    expect(walls.first).to_have_attribute("href", "#walls?wall=wall-1")
 
 
 def test_walls_links_the_player_that_shows_the_wall(ui, services, the_wall, hall):
@@ -130,9 +134,9 @@ def test_walls_links_the_player_that_shows_the_wall(ui, services, the_wall, hall
     open_wall_setup(ui, the_wall)
     clients = links_named(ui, "dialog.panel-dialog", hall.name)
     # The Player that shows it, and the Player whose label captions it.
-    assert clients.count() == 2
-    for at in range(clients.count()):
-        assert clients.nth(at).get_attribute("href") == client_address(hall)
+    expect(clients).to_have_count(2)
+    for at in range(2):
+        expect(clients.nth(at)).to_have_attribute("href", client_address(hall))
 
 
 # -- arriving at the one asked for ---------------------------------------------------------
@@ -160,10 +164,10 @@ def test_a_page_opened_without_one_asked_for_marks_none(ui, the_wall, hall):
     """The mark is the address's to set: a plain visit brings no card forward."""
     ui.open("#walls")
     ui.page.wait_for_selector(f"#view section[data-wall='{the_wall.id}']")
-    assert ui.page.locator("#view [data-arrive]").count() == 0
+    expect(ui.page.locator("#view [data-arrive]")).to_have_count(0)
     ui.open("#clients")
     ui.page.wait_for_selector(f"#view tr[data-player='{hall.id}']")
-    assert ui.page.locator("#view [data-arrive]").count() == 0
+    expect(ui.page.locator("#view [data-arrive]")).to_have_count(0)
 
 
 def test_a_fresh_load_of_a_players_address_scrolls_to_it_and_leaves_the_focus(ui, services):
@@ -175,7 +179,7 @@ def test_a_fresh_load_of_a_players_address_scrolls_to_it_and_leaves_the_focus(ui
     heading = ui.page.locator(f"#view tr[data-player='{last.id}']")
     ui.page.wait_for_function("() => window.scrollY > 0")
 
-    box = heading.bounding_box()
+    box = heading.bounding_box()  # one-shot: geometry, read once the page has scrolled
     # Scrolled to its top, within a sub-pixel of it.
     assert -2 <= box["y"] < 600
     assert ui.page.evaluate("() => document.activeElement === document.body")
@@ -202,7 +206,8 @@ def test_a_label_whose_player_cannot_be_named_is_said_in_words_not_an_empty_link
     line = ui.page.locator("dialog.panel-dialog .wall-labels")
     line.wait_for()
 
-    assert "a label on a Player whose name could not be read" in line.inner_text()
-    links = line.locator("a")
-    assert all(links.nth(at).inner_text().strip() for at in range(links.count())), "a link with no words names nothing"
-    assert line.locator(f"a[href='{client_address(hall)}']:text-is('{hall.name}')").count() == 1
+    expect(line).to_contain_text("a label on a Player whose name could not be read", use_inner_text=True)
+    # One link in the line, the named label's, and it has words: "every link has words" over
+    # a length that is known, as a pattern per link.
+    expect(line.locator("a"), "a link with no words names nothing").to_have_text([re.compile(r"\S")], use_inner_text=True)
+    expect(line.locator(f"a[href='{client_address(hall)}']:text-is('{hall.name}')")).to_have_count(1)
