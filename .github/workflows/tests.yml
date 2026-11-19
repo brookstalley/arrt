@@ -65,7 +65,8 @@ jobs:
         # Before the pool run, so a lint failure costs seconds, not a pool run. One command
         # a line: under `bash -e` a failure that is not the last command of an `a && b`
         # list does not end the step. `--only-group dev` installs ruff and black, not each
-        # project's runtime dependencies.
+        # project's runtime dependencies. mypy is the exception: it reads the types of what
+        # the code imports, so it runs in the project's own environment (`uv run --frozen`).
         run: |
           set -euo pipefail
           lint="uv run --frozen --only-group dev"
@@ -74,9 +75,11 @@ jobs:
           cd arrt
           $lint ruff check .
           $lint black --check .
+          uv run --frozen mypy
           cd ../contract
           $lint ruff check .
           $lint black --check .
+          uv run --frozen mypy
       - name: Install testament from the pool
         env:
           TESTAMENT_KEY: ${{ secrets.TESTAMENT_KEY }}

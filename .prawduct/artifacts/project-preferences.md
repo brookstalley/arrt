@@ -216,6 +216,12 @@ Developer preferences for how code is written in this project. Captured during d
   `uv run ruff check .` / `uv run black .` at the root, and the same three in `arrt/`
   and `contract/`.
   `CLAUDE.md` carries the table and is the authority.
+  **Type-check, added 2026-11-19** (the DECISION of `build-plan-audit-wave-2.md`, Chunk 09,
+  vetoable): `uv run mypy` in `arrt/` and `contract/`, a lint-tier step beside ruff and
+  black, in each project's dev group and in CI's lint step. The root is not type-checked.
+  `arrt/pyproject.toml`'s `[tool.mypy]` says what is checked and how strictly, and names
+  the modules not yet clean; `tests/preferences/test_type_gate.py` holds that list to
+  shrinking.
   _(This read "There is no test, lint, or format command wired up"; both departures were
   closed the same day. **Corrected 2026-08-03**: the root column had dropped `uv run`,
   contradicting `CLAUDE.md`, which is the authority README.md points at and which explains
