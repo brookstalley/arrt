@@ -573,8 +573,9 @@ def test_a_pool_run_with_every_suite_passes(tmp_path):
 
 
 def test_a_pool_record_that_excuses_a_suite_fails(tmp_path, capsys):
+    """Even with every suite in the report: the excuse itself is the defect, so the per-suite check cannot rescue it."""
     guard = _load()
-    report = _report(tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("contract", 2, 0)))
+    report = _report(tmp_path, _suites(("governance", 2, 0), ("curation", 2, 0), ("browser", 2, 0), ("contract", 2, 0)))
     decision = _decision(tmp_path, "pool", [_INSTALLED, _PASSED_RUN], not_run=_BROWSER_EXCUSED, verdict="passed")
 
     assert guard.main_with_decision(report, MANIFEST, decision) == 1
