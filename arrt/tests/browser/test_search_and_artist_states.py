@@ -118,12 +118,20 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
     assert ui.page.locator("#view .selection button.get-open").is_disabled()
 
 
-def test_a_folded_held_row_asks_for_the_picture_of_the_work_that_has_one_and_no_other(ui, hunters_held_by_title, service):
+def test_a_folded_held_row_asks_for_the_picture_of_the_work_that_has_one_and_no_other(
+    ui, pictures_load, hunters_held_by_title, service
+):
     """The row's picture is the server's `pictured_artwork_id`, never a guess.
 
     *The Hunters in the Snow* with no master asks for no thumbnail (one would be
     refused) and says *No picture*; given a master, the row asks for that work's
-    thumbnail and says nothing of its absence."""
+    thumbnail and says nothing of its absence.
+
+    The master has no file, so the server refuses its thumbnail, and a picture
+    that fails to load takes its frame with it (`workPicture` in
+    `core/registry.js`): the `<img>` asserted below lived only until the refusal
+    arrived, and the test passed only when it was read first. The thumbnail is
+    answered with a real image (`pictures_load`) so the frame stays."""
     _results(ui, "bruegel")
     row = _row(ui, "#view .results-list li", "The Hunters in the Snow")
     expect(row.locator(".work-pic-absent")).to_have_count(1)
