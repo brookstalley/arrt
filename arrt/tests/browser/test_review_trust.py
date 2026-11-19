@@ -8,8 +8,11 @@ Undo beside it before it is sent, because the server cannot take an acceptance
 back; leaving the page sends it rather than losing it.
 """
 
+import re
+
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card, a_verdict, an_instance, an_instance_listing
+from playwright.sync_api import expect
 
 from arrt.persistence.discovery_records import Verdict
 
@@ -61,19 +64,26 @@ def test_each_confirmation_is_said_and_none_reads_as_confirmed(ui):
         ],
     )
 
-    def badges(work_id):
-        return [" ".join(text.split()) for text in _card(ui, work_id).locator(".card-footer .badge").all_inner_texts()]
+    def footer(work_id):
+        # The card's badges are all the words its footer holds, so a claim about
+        # "no badge says it" is a claim about the footer's words.
+        return _card(ui, work_id).locator(".card-footer")
 
-    assert not any("onfirm" in badge or "Unchecked" in badge for badge in badges("found"))
-    assert "? Unchecked" in badges("unasked")
-    assert "? Not confirmed" in badges("invented")
-    assert "Not confirmed" not in " ".join(badges("unasked")), "unknown is not the model saying no"
-    # The sentence only where the model said no; unknown claims neither way.
-    assert _card(ui, "invented").locator(".note.not-confirmed").inner_text().startswith("No source the Get found")
-    assert _card(ui, "unasked").locator(".note.not-confirmed").count() == 0
-    assert _card(ui, "found").locator(".note.not-confirmed").count() == 0
+    def badge(work_id, words):
+        return footer(work_id).locator(".badge").filter(has_text=words)
+
     # Drawn in the order the server sorts them: the work that may not exist last.
-    assert ui.page.locator("li.card h2").all_inner_texts() == ["Found", "Unasked", "Invented"]
+    expect(ui.page.locator("li.card h2")).to_have_text(["Found", "Unasked", "Invented"], use_inner_text=True)
+    expect(badge("unasked", "Unchecked")).to_have_text("? Unchecked", use_inner_text=True)
+    expect(badge("invented", "Not confirmed")).to_have_text("? Not confirmed", use_inner_text=True)
+    expect(footer("found")).not_to_contain_text(re.compile(r"onfirm|Unchecked"), use_inner_text=True)
+    expect(footer("unasked"), "unknown is not the model saying no").not_to_contain_text("Not confirmed", use_inner_text=True)
+    # The sentence only where the model said no; unknown claims neither way.
+    expect(_card(ui, "invented").locator(".note.not-confirmed")).to_have_text(
+        re.compile(r"^No source the Get found"), use_inner_text=True
+    )
+    expect(_card(ui, "unasked").locator(".note.not-confirmed")).to_have_count(0)
+    expect(_card(ui, "found").locator(".note.not-confirmed")).to_have_count(0)
 
 
 # -- Markdown --------------------------------------------------------------------
@@ -87,16 +97,18 @@ def test_the_models_markdown_is_words_and_links_never_brackets_or_markup(ui):
     _review(ui, [a_card(a_candidate(rationale=note))])
 
     meta = _card(ui).locator(".card-meta")
-    assert meta.inner_text() == (
-        "I found it at the Met as Wheat Field with Cypresses; see this and code. <img src=x onerror=window.pwned=1>"
+    expect(meta).to_have_text(
+        "I found it at the Met as Wheat Field with Cypresses; see this and code. <img src=x onerror=window.pwned=1>",
+        use_inner_text=True,
     )
     links = meta.locator("a")
-    assert links.count() == 1, "only an http(s) address becomes a link"
-    assert (links.inner_text(), links.get_attribute("href")) == ("the Met", "https://www.metmuseum.org/art/1")
-    assert links.get_attribute("rel") == "noopener noreferrer"
-    assert meta.locator("strong").inner_text() == "Wheat Field"
-    assert meta.locator("em").inner_text() == "Cypresses"
-    assert meta.locator("img").count() == 0
+    expect(links, "only an http(s) address becomes a link").to_have_count(1)
+    expect(links).to_have_text("the Met", use_inner_text=True)
+    expect(links).to_have_attribute("href", "https://www.metmuseum.org/art/1")
+    expect(links).to_have_attribute("rel", "noopener noreferrer")
+    expect(meta.locator("strong")).to_have_text("Wheat Field", use_inner_text=True)
+    expect(meta.locator("em")).to_have_text("Cypresses", use_inner_text=True)
+    expect(meta.locator("img")).to_have_count(0)
     assert ui.page.evaluate("() => window.pwned") is None
 
 
@@ -111,8 +123,8 @@ def test_a_scans_why_this_one_is_words_and_links_too(ui):
     why = ui.page.locator("tr.alternate-detail dd").first
     why.wait_for()
 
-    assert why.inner_text() == "The largest scan, from Commons."
-    assert why.locator("a").get_attribute("href") == "https://commons.wikimedia.org/x"
+    expect(why).to_have_text("The largest scan, from Commons.", use_inner_text=True)
+    expect(why.locator("a")).to_have_attribute("href", "https://commons.wikimedia.org/x")
 
 
 # -- Undo ----------------------------------------------------------------------
@@ -125,14 +137,15 @@ def test_a_verdict_waits_with_undo_and_then_is_sent_once(ui):
     _card(ui).locator("button:text-is('Accept')").click()
 
     undo = _card(ui).locator("button:text-is('Undo')")
-    assert undo.is_visible()
+    expect(undo).to_be_visible()
+    expect(undo).to_be_focused()  # the state `ui.focused()` reads next, waited for rather than read once
     assert ui.focused() == "Undo", "the keyboard stands on Undo, not on a button that left the page"
     ui.page.wait_for_function("() => document.querySelector('.verdict-held [role=status]').textContent.length > 0")
-    assert _card(ui).locator(".verdict-held [role='status']").inner_text() == (
-        "Accepting The Persistence of Memory in a few seconds."
+    expect(_card(ui).locator(".verdict-held [role='status']")).to_have_text(
+        "Accepting The Persistence of Memory in a few seconds.", use_inner_text=True
     )
-    assert _card(ui).locator("button:text-is('Accept')").is_hidden()
-    ui.page.wait_for_timeout(1000)
+    expect(_card(ui).locator("button:text-is('Accept')")).to_be_hidden()
+    ui.page.wait_for_timeout(1000)  # sleep: nothing is sent while Undo can still take the verdict back, which no condition marks
     assert sent == [], "nothing is sent while Undo can still take it back"
 
     _card(ui).locator(".decided").wait_for(timeout=(HOLD_SECONDS + 5) * 1000)
@@ -149,11 +162,12 @@ def test_undo_sends_nothing_and_gives_the_controls_back(ui):
     _card(ui).locator("button:text-is('Undo')").click()
 
     reject = _card(ui).locator("button:text-is('Reject')")
-    assert reject.is_visible()
+    expect(reject).to_be_visible()
+    expect(reject).to_be_focused()  # the state `ui.focused()` reads next, waited for rather than read once
     assert ui.focused() == "Reject"
-    assert _card(ui).locator(".verdict-held").count() == 0
-    assert _card(ui).locator("input[type='text']").input_value() == "Wrong one", "the reason typed is kept"
-    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)
+    expect(_card(ui).locator(".verdict-held")).to_have_count(0)
+    expect(_card(ui).locator("input[type='text']"), "the reason typed is kept").to_have_value("Wrong one")
+    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)  # sleep: the hold runs out and sends nothing, which only its running out shows
     assert sent == [], "an undone verdict is never sent"
 
 
@@ -180,8 +194,8 @@ def test_a_held_verdict_that_fails_gives_the_controls_back_and_says_so_beside_th
     assert ui.said_beside(accept) == (
         "Couldn't accept The Persistence of Memory: That work was already decided. Nothing was changed."
     )
-    assert accept.is_visible()
-    assert _card(ui).locator(".verdict-held").count() == 0
+    expect(accept).to_be_visible()
+    expect(_card(ui).locator(".verdict-held")).to_have_count(0)
 
 
 def test_a_held_verdict_that_fails_after_leaving_is_said_on_the_page_left_for(ui):
@@ -202,13 +216,13 @@ def test_a_held_verdict_that_fails_after_leaving_is_said_on_the_page_left_for(ui
     # page has painted and settled.
     said = ui.page.locator("[role='alert']:visible", has_text="Couldn't accept The Persistence of Memory")
     said.first.wait_for(timeout=3000)
-    ui.page.wait_for_timeout(1000)
-    assert said.count() == 1
-    assert "the server failed while doing it: The catalogue is locked." in said.first.inner_text()
+    ui.page.wait_for_timeout(1000)  # sleep: the failure must outlast the next page's paint, which can land after it and has no sign of its own
+    expect(said).to_have_count(1)
+    expect(said.first).to_contain_text("the server failed while doing it: The catalogue is locked.", use_inner_text=True)
 
     elsewhere = ui.page.locator("#failures-elsewhere p")
     elsewhere.first.locator("button:text-is('Dismiss')").click()
-    assert ui.page.locator("#failures-elsewhere").count() == 0
+    expect(ui.page.locator("#failures-elsewhere")).to_have_count(0)
 
 
 def test_a_card_drawn_again_during_the_hold_shows_the_hold_and_its_undo_works(ui):
@@ -222,12 +236,12 @@ def test_a_card_drawn_again_during_the_hold_shows_the_hold_and_its_undo_works(ui
     )
     ui.page.wait_for_selector("li.card[data-work='work-1']:not([data-before])")
 
-    assert _card(ui).locator("button:text-is('Accept')").is_hidden()
-    assert _card(ui).locator(".verdict-countdown").inner_text().endswith(" s")
+    expect(_card(ui).locator(".verdict-countdown")).to_have_text(re.compile(r" s$"), use_inner_text=True)
+    expect(_card(ui).locator("button:text-is('Accept')")).to_be_hidden()
     _card(ui).locator("button:text-is('Undo')").click()
 
-    assert _card(ui).locator("button:text-is('Accept')").is_visible()
-    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)
+    expect(_card(ui).locator("button:text-is('Accept')")).to_be_visible()
+    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)  # sleep: the undone hold runs out and sends nothing, which only its running out shows
     assert sent == [], "the hold undone on the redrawn card is never sent"
 
 
@@ -243,9 +257,9 @@ def test_open_scans_take_the_cards_whole_width_not_its_column(ui):
     table = _card(ui).locator("table.scans")
     table.wait_for()
 
-    card = _card(ui).bounding_box()
-    body = _card(ui).locator(".card-body").bounding_box()
-    scans = _card(ui).locator(".scans-disclosure").bounding_box()
+    card = _card(ui).bounding_box()  # one-shot: geometry, measured once the scans table is open
+    body = _card(ui).locator(".card-body").bounding_box()  # one-shot: geometry, as above
+    scans = _card(ui).locator(".scans-disclosure").bounding_box()  # one-shot: geometry, as above
     assert scans["width"] > body["width"] * 1.4, "wider than the facts column it sits under"
     assert scans["width"] > card["width"] * 0.95, "the card's whole row"
     assert scans["y"] >= body["y"] + body["height"] - 1, "beneath the picture and the facts both"
