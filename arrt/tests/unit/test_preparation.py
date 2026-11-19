@@ -822,7 +822,7 @@ class TestOneWorkAtATime:
         def run(call):
             try:
                 call()
-            except BaseException as exc:  # noqa: BLE001 - reported to the test, which asserts there are none
+            except BaseException as exc:  # noqa: BLE001 -- reported to the test, which asserts there are none
                 failures.append(exc)
 
         threads = [threading.Thread(target=run, args=(call,)) for call in calls]

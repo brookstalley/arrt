@@ -2046,8 +2046,8 @@ class DisplayService:
                 for showing in showings.advance(latest, reported, wall_id=wall_id, at=at, playable=playable):
                     self._store.save_showing(showing)
         # A bulkhead, not a filter: the store translates only a refused row into
-        # `StorageError`, and a full disk or a held lock arrives as the driver's
-        # own error, which this layer may not name. Whatever fails here, the
+        # `StorageError` and a full disk or a held lock into `StorageFault`, and
+        # anything else arrives as whatever raised it. Whatever fails here, the
         # heartbeat's later steps still run, and one of them rolls the wall's
         # horizon forward.
         except Exception:  # prawduct:allow prawduct/broad-except -- the shown record never stops a heartbeat

@@ -90,8 +90,12 @@ DEPLOYMENT_FAULTS: Final[tuple[type[Exception], ...]] = (
 #: and MCP say the same sentence: a remedy written at each surface is three
 #: chances to drift, and the one that drifts is the one an operator reads.
 DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
+    # In the household's words, as the host's faults below are: the Work page and
+    # Activity › Queue show it, and whoever reads it there frees the disk. The
+    # reserve it falls short of is a setting, and a household page names none.
     NotEnoughSpace.__name__: (
-        "Free space on the art tree's disk, or lower MIN_FREE_BYTES if this deployment means to run closer to full."
+        "The disk the library is kept on is short of free space. Free some space on it: the queue tries again every "
+        "15 minutes and carries on by itself once there is room. No work is counted as failed meanwhile."
     ),
     DezoomifyUnavailable.__name__: (
         "This is a deployment problem rather than a bad source: install dezoomify-rs, or set DEZOOMIFY_PATH to "
@@ -117,7 +121,7 @@ DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
         "Have the disk checked: the queue tries again every 15 minutes and carries on by itself once it can write. "
         "No work is counted as failed meanwhile."
     ),
-    "OperationalError": (
+    "StorageFault": (
         "The library's database could not be written: something else has it locked, or the disk under it has a "
         "fault. Close anything else that has the library open, or restart Arrt: the queue tries again every 15 "
         "minutes and carries on by itself once it can write. No work is counted as failed meanwhile."

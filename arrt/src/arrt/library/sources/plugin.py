@@ -145,7 +145,7 @@ class SourcePlugin:
     #: Seconds the host waits for each kind of call into this plugin, where its
     #: default is too short (1.5): any of `"finder"` (`find_images`), `"reader"`
     #: (`read`), `"preview"` (`fetch_preview`) and `"browse"`, each above zero and
-    #: at most the host's ceiling of 900. A kind not named keeps the default: 60
+    #: at most the host's ceiling of 3,600. A kind not named keeps the default: 60
     #: for a finder or a reader, 30 for a preview, 120 for a browse. A call past
     #: its deadline is "could not be asked". Anything else declared here (another
     #: key, a value out of bounds) leaves the plugin out at load, named. Static,

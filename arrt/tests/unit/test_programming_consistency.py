@@ -156,6 +156,21 @@ def test_a_token_issued_between_a_renames_read_and_write_still_opens(services, s
     assert access.identify(issued[0].token).name == "The hall's Pi"
 
 
+def test_a_rename_between_a_token_issues_read_and_write_keeps_its_name(services, store, monkeypatch):
+    """The other way round: an issue read before a rename put the old name back with the new verifier."""
+    clients, access = services.clients, services.access
+    pi = clients.add_client(name="The Pi in the hall")
+    finished = _between_read_and_write(
+        monkeypatch, store, "get_client", lambda: clients.rename_client(pi.id, name="The hall's Pi")
+    )
+
+    issued = access.issue(pi.id)
+    finished()
+
+    assert store.get_client(pi.id).name == "The hall's Pi"
+    assert access.identify(issued.token).name == "The hall's Pi"
+
+
 # -- S3: a feed is written only with what decided it ---------------------------------------
 
 

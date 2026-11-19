@@ -31,7 +31,7 @@ none of them one work's fault, and retrying the work cannot fix any of them. So
 the pass stops, the queue remembers why, and it tries again every 15 minutes and
 on every wake. `acquire` journals the fault itself (`acquisition.deployment_fault`);
 the queue adds the pause. So does a fault of the host that surfaces mid-work, as an
-`OSError` for a full or read-only disk (`ENOSPC`, `EROFS`) or a `sqlite3.OperationalError`:
+`OSError` for a full or read-only disk (`ENOSPC`, `EROFS`) or the store's `StorageFault`:
 it would fail every work in turn, so it pauses the queue and counts against none.
 
 **What is stored answers five questions and no more** (`data-model.md` Q31 to
@@ -43,7 +43,6 @@ why the queue is paused live in memory; a restart re-derives both by trying.
 
 import errno
 import logging
-import sqlite3
 import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -57,6 +56,7 @@ from arrt.library.acquisition.preparation import PreparationResult
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, AcquisitionOutcome, AcquisitionResult, remedy_for
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.catalogue import CatalogueStore, WorkToAcquire
+from arrt.persistence.errors import StorageFault
 from arrt.persistence.records import ArtworkStatus, QueuedAcquisition
 from arrt.services.errors import ServiceError
 
@@ -723,10 +723,16 @@ _HOST_ERRNOS: Final[frozenset[int]] = frozenset({errno.ENOSPC, errno.EROFS})
 def _is_host_fault(exc: Exception) -> bool:
     """Whether `exc` would fail every work in turn, so it pauses the queue instead of counting against one.
 
-    A full or read-only disk, or a database that raises `OperationalError` (locked,
-    unable to open, disk I/O). Not every `OSError`: most are about one work's file.
+    A full or read-only disk, or a database the store reports as a `StorageFault`
+    (locked, unable to open, disk I/O). Not every `OSError`: most are about one
+    work's file.
+
+    A locked database is in the pause too, though it is usually brief: it is
+    the host's contention and no work's doing, so counting it would push the work
+    in hand an hour back and a step towards being given up, where the pause costs
+    the queue at most a quarter of an hour and ends on the next wake.
     """
-    if isinstance(exc, sqlite3.OperationalError):
+    if isinstance(exc, StorageFault):
         return True
     return isinstance(exc, OSError) and exc.errno in _HOST_ERRNOS
 
@@ -736,7 +742,7 @@ def _host_condition(exc: Exception) -> str:
 
     A disk's fault by its `errno` (`ENOSPC`, `EROFS`), not its type: `OSError`
     by name is also what `note_error` records for a surprise, which has no
-    remedy to give. A database's by its type, `OperationalError`.
+    remedy to give. A database's by its type, `StorageFault`.
     """
     if isinstance(exc, OSError) and exc.errno is not None:
         return errno.errorcode[exc.errno]

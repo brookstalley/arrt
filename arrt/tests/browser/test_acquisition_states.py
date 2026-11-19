@@ -17,6 +17,7 @@ import pytest
 from payloads import a_candidate, a_candidate_page, a_card
 
 from arrt.library.acquisition.queue import QueuePause
+from arrt.library.acquisition.service import remedy_for
 from arrt.persistence.records import AcquisitionMethod, QueuedAcquisition, RightsStatus, SourceClass
 
 pytest.importorskip(
@@ -123,7 +124,8 @@ def test_a_paused_queue_says_why_and_what_ends_it_on_the_work_page(ui, accepted,
     line = ui.page.inner_text(".acquisition-line")
     assert "paused" in line
     assert "Every fetch is paused: only 1.2 GB free; 2.0 GB required." in line
-    assert "MIN_FREE_BYTES" in line
+    assert "Free some space on it" in line
+    assert "MIN_FREE_BYTES" not in line, "the Work page is a household page, which names no setting"
 
 
 def test_a_pause_nothing_anticipated_points_at_the_journal_rather_than_a_remedy(ui, accepted, services):
@@ -296,7 +298,7 @@ def _listing(pause=None, works=(), failing=0, causes=0):
 
 
 def test_a_paused_queue_says_why_and_what_ends_it_above_the_works(ui):
-    remedy = "Free space on the art tree's disk, or lower MIN_FREE_BYTES if this deployment means to run closer to full."
+    remedy = remedy_for("NotEnoughSpace")
     ui.serve(
         "**/api/acquisitions",
         _listing(
@@ -329,7 +331,7 @@ def test_a_paused_queue_says_why_and_what_ends_it_above_the_works(ui):
 
     pause = ui.page.inner_text(".acquisition-pause")
     assert "Every fetch is paused: only 1.2 GB free" in pause
-    assert "MIN_FREE_BYTES" in pause
+    assert "Free some space on it" in pause
     panel = ui.page.inner_text(".acquisitions")
     assert panel.index("Every fetch is paused") < panel.index("Hunters in the Snow"), "the pause holds every row beneath it"
 
