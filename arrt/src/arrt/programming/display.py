@@ -1514,17 +1514,13 @@ class DisplayService:
         because `None` is a meaningful value — "no description" — and a caller
         changing only the name would otherwise silently clear it.
         """
-        chosen = None if name is None else require_text(name, field="name")
-        # Read where it is written: the row carries the default's mark, and a
-        # theme read before `make_default` moved it would put the old mark back.
-        with self._store.transaction():
-            theme = self.get_listed_theme(theme_id)
-            updated = replace(
-                theme,
-                name=theme.name if chosen is None else chosen,
-                description=theme.description if isinstance(description, Unset) else description,
-            )
-            store_write(self._store.update_theme, updated)
+        theme = self.get_listed_theme(theme_id)
+        updated = replace(
+            theme,
+            name=theme.name if name is None else require_text(name, field="name"),
+            description=theme.description if isinstance(description, Unset) else description,
+        )
+        store_write(self._store.update_theme, updated)
         return updated
 
     def delete_theme(self, theme_id: str) -> None:

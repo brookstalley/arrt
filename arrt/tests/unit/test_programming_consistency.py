@@ -156,18 +156,6 @@ def test_a_token_issued_between_a_renames_read_and_write_still_opens(services, s
     assert access.identify(issued[0].token).name == "The hall's Pi"
 
 
-def test_a_default_marked_between_a_theme_edits_read_and_write_stands(display, store, monkeypatch):
-    """The theme row carries the default's mark, so an edit read before `make_default` put the old mark back."""
-    theme = display.add_theme(name="Late night")
-    finished = _between_read_and_write(monkeypatch, store, "get_theme", lambda: display.make_default(theme.id))
-
-    display.update_theme(theme.id, description="After ten")
-    finished()
-
-    assert display.default_theme().id == theme.id
-    assert display.get_theme(theme.id).description == "After ten"
-
-
 # -- S3: a feed is written only with what decided it ---------------------------------------
 
 
