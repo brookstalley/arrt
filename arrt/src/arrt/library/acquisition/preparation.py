@@ -29,6 +29,9 @@ remembered to do it.
 """
 
 import logging
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
@@ -126,6 +129,35 @@ class PreparationService:
         #: default that silently drops spend looks exactly like working wiring,
         #: and the month total would omit every mat call without anything failing.
         self._spend = spend
+        #: One lock per work being prepared, and how many callers hold or await it,
+        #: so the entry goes when the last one leaves. `_guard` only protects this
+        #: table; it is never held while a work is being prepared.
+        self._guard = threading.Lock()
+        self._in_flight: dict[str, tuple[threading.Lock, int]] = {}
+
+    @contextmanager
+    def _one_at_a_time(self, artwork_id: str) -> Iterator[None]:
+        """Hold this work's lock: a second preparation of it waits, and another work's does not.
+
+        **Per work, because the queue's `prepare` and an MCP or HTTP `regenerate`
+        of the same work can otherwise run at once** (audit 2 S8): both stage the
+        master at one fixed name, so one's `replace` can move the other's
+        half-written file into place, and both would pay for the same mat. A lock
+        over every work would make a curator's remake wait behind the whole queue.
+        """
+        with self._guard:
+            lock, holders = self._in_flight.get(artwork_id, (threading.Lock(), 0))
+            self._in_flight[artwork_id] = (lock, holders + 1)
+        try:
+            with lock:
+                yield
+        finally:
+            with self._guard:
+                lock, holders = self._in_flight[artwork_id]
+                if holders == 1:
+                    del self._in_flight[artwork_id]
+                else:
+                    self._in_flight[artwork_id] = (lock, holders - 1)
 
     def prepare(self, artwork_id: str, *, force: bool = False) -> PreparationResult:
         """Make this work ready for the wall, doing only what is not already done.
@@ -143,7 +175,14 @@ class PreparationService:
         freshly acquired work asks the vision model, and `acquire()` does not
         prepare, so that first call is the normal case rather than an edge. The
         cost comes back on `cost_usd` and the caller reports it.
+
+        **One work is prepared by one caller at a time**; a second `prepare` of the
+        same work waits for the first and then finds it current.
         """
+        with self._one_at_a_time(artwork_id):
+            return self._prepare(artwork_id, force=force)
+
+    def _prepare(self, artwork_id: str, *, force: bool) -> PreparationResult:
         original = self._catalogue.get_original(artwork_id)
         if original is None:
             raise ServiceError(f"Artwork {artwork_id!r} has no acquired original to prepare; acquire it first.")
@@ -179,9 +218,17 @@ class PreparationService:
         Its own operation rather than a flag on `prepare`, because it is the one
         that spends money and the one that supersedes a judgement. The previous
         colour is kept — `record_mat_color` never overwrites — so a worse choice
-        is reversible.
+        is reversible. Under the work's lock, as `prepare` is: both ask the model.
         """
+        with self._one_at_a_time(artwork_id):
+            return self._choose_mat(artwork_id)
+
+    def _choose_mat(self, artwork_id: str) -> PreparationResult:
         choice = self._mat.choose(self._source_for_a_mat(artwork_id))
+        # Spend first: the call is billed whether or not the colour is accepted, and
+        # a refused write (a darker colour than the floor, a full disk) must not
+        # lose the cost the month's total is owed.
+        self._record_spend(artwork_id, choice)
         self._catalogue.record_mat_color(
             artwork_id=artwork_id,
             hex_rgb=choice.hex_rgb,
@@ -192,7 +239,6 @@ class PreparationService:
             reason=choice.reason or None,
             model_id=choice.model_id,
         )
-        self._record_spend(artwork_id, choice)
         # Nothing to redraw: the colour rides each wall's feed, which is
         # republished when the Library announces the change.
         return PreparationResult(
@@ -336,6 +382,9 @@ class PreparationService:
                 extra={"event": "preparation.mat_below_floor", "artwork_id": artwork_id, "hex_rgb": current.hex_rgb},
             )
         choice = self._mat.choose(source)
+        # Before the colour is written, so a refused write keeps the billed cost
+        # (and the queue's retry, which asks the model again, is a second row).
+        self._record_spend(artwork_id, choice)
         recorded = self._catalogue.record_mat_color(
             artwork_id=artwork_id,
             hex_rgb=choice.hex_rgb,
@@ -346,7 +395,6 @@ class PreparationService:
             reason=choice.reason or None,
             model_id=choice.model_id,
         )
-        self._record_spend(artwork_id, choice)
         return recorded, choice
 
     def _record_spend(self, artwork_id: str, choice: MatChoice) -> None:
