@@ -14,6 +14,7 @@ not what is under test here.
 """
 
 import json
+import re
 
 import pytest
 
@@ -24,6 +25,7 @@ pytest.importorskip(
 
 from fakes import FakeRegistry
 from payloads import a_run
+from playwright.sync_api import expect
 from scripted_model import ScriptedModel
 
 from arrt.library.registry import (
@@ -190,6 +192,27 @@ def works_answered(ui):
     ui.page.wait_for_selector(f"{WORKS} table, {WORKS} p.note, {WORKS} p.muted:not([aria-live])")
 
 
+def _whole(text):
+    """A pattern for a cell whose words are `text` and nothing else, set in any whitespace."""
+    return re.compile(rf"^\s*{re.escape(text)}\s*$")
+
+
+def work_row(ui, title):
+    """The row of *Representative works* whose title link says `title`.
+
+    By the link's whole words rather than the row's text, which holds the state
+    and the maker as well, so "The Harvesters" is not taken for a longer title.
+    A title that is not listed matches no row, and what is asserted of it fails.
+    """
+    link = ui.page.locator("td.work-title a.row-title", has_text=_whole(title))
+    return ui.page.locator(f"{WORKS} tbody tr").filter(has=link)
+
+
+def mark(ui, title):
+    """A work's state cell: the fifth, after Get, title, maker and year."""
+    return work_row(ui, title).locator("td").nth(4)
+
+
 def record_gets(ui) -> list[dict]:
     bodies: list[dict] = []
     answer = {
@@ -213,16 +236,17 @@ class TestTheIndex:
         ui.open("#topics")
         ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
-        headings = ui.page.locator("#view section h2").all_inner_texts()
-        assert headings == ["Periods", "Movements", "Subjects", "Media"]
-        periods = ui.page.locator("section[aria-labelledby='topics-period'] ul.topic-held li").all_inner_texts()
-        assert [" ".join(row.split()) for row in periods] == ["16th century · 2 works"]
-        subjects = ui.page.locator("section[aria-labelledby='topics-subject'] li").all_inner_texts()
-        assert [" ".join(row.split()) for row in subjects] == [
-            "Winter · 1 work"
-        ]  # a name on its own starts with a capital (`topicName`)
-        assert (
-            ui.page.locator("section[aria-labelledby='topics-movement'] p").inner_text() == "None of your works is in a movement."
+        expect(ui.page.locator("#view section h2")).to_have_text(
+            ["Periods", "Movements", "Subjects", "Media"], use_inner_text=True
+        )
+        expect(ui.page.locator("section[aria-labelledby='topics-period'] ul.topic-held li")).to_have_text(
+            ["16th century · 2 works"], use_inner_text=True
+        )
+        expect(ui.page.locator("section[aria-labelledby='topics-subject'] li")).to_have_text(
+            ["Winter · 1 work"], use_inner_text=True
+        )  # a name on its own starts with a capital (`topicName`)
+        expect(ui.page.locator("section[aria-labelledby='topics-movement'] p")).to_have_text(
+            "None of your works is in a movement.", use_inner_text=True
         )
 
     @staticmethod
@@ -259,8 +283,9 @@ class TestTheIndex:
         }""")
         assert heights["columned"] <= heights["single"] / 3
         # Each count stays beside its name.
-        first = ui.page.locator("section[aria-labelledby='topics-subject'] li").first.inner_text()
-        assert " ".join(first.split()) == "Subject number 00 · 1 work"
+        expect(ui.page.locator("section[aria-labelledby='topics-subject'] li").first).to_have_text(
+            "Subject number 00 · 1 work", use_inner_text=True
+        )
 
     def test_on_a_phone_a_kind_is_one_column(self, ui):
         self.thirty_subjects(ui)
@@ -280,7 +305,7 @@ class TestTheIndex:
 
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=SIXTEENTH)
         ui.page.wait_for_selector(f"{HELD} h2")
-        assert ui.page.locator("#view a", has_text="←").first.inner_text() == "← Topics"
+        expect(ui.page.locator("#view a", has_text="←").first).to_have_text("← Topics", use_inner_text=True)
 
     def test_the_sidebar_offers_topics_under_artworks_after_themes(self, ui, held):
         ui.open("#collection")
@@ -297,9 +322,10 @@ class TestTheIndex:
         ui.page.wait_for_selector("section[aria-labelledby='topic-search'] ul")
         assert "find=impressionism" in ui.page.evaluate("() => window.location.hash")
         # Not the top bar's `q`: its box would then claim the artworks were searched.
-        assert ui.page.input_value("#search") == ""
-        rows = [" ".join(t.split()) for t in ui.page.locator("section[aria-labelledby='topic-search'] li").all_inner_texts()]
-        assert rows == ["Impressionism — movement art movement", "Impressionism — movement music movement"]
+        expect(ui.page.locator("#search")).to_have_value("")
+        expect(ui.page.locator("section[aria-labelledby='topic-search'] li")).to_have_text(
+            ["Impressionism — movement art movement", "Impressionism — movement music movement"], use_inner_text=True
+        )
         ui.page.click("section[aria-labelledby='topic-search'] li:has-text('art movement') a")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
 
@@ -307,7 +333,9 @@ class TestTheIndex:
         ui.open("#topics?find=nothing")
 
         ui.page.wait_for_selector("section[aria-labelledby='topic-search'] p.muted:not([aria-live])")
-        assert "Wikidata has no period, movement, subject or medium called “nothing”." in ui.text()
+        expect(ui.view).to_contain_text(
+            "Wikidata has no period, movement, subject or medium called “nothing”.", use_inner_text=True
+        )
 
 
 # -- one topic ---------------------------------------------------------------------
@@ -325,51 +353,56 @@ class TestTheTopicPage:
             )
         open_topic(ui)
 
-        assert ui.page.locator(f"{HELD} h2").inner_text() == "In your library (2)"
-        assert sorted(ui.page.locator(f"{HELD} .card-title").all_inner_texts()) == sorted([hunters.title, corn.title])
-        assert ui.page.locator(f"{WORKS} [aria-live]").inner_text() == "Asking Wikidata…"
-        assert ui.page.locator(f"{ARTISTS} [aria-live]").inner_text() == "Asking Wikidata…"
+        expect(ui.page.locator(f"{HELD} h2")).to_have_text("In your library (2)", use_inner_text=True)
+        # The two as a set, since the order they are listed in is not the claim:
+        # two cards, and each title is one of them.
+        cards = ui.page.locator(f"{HELD} .card-title")
+        expect(cards).to_have_count(2)
+        for held_title in (hunters.title, corn.title):
+            expect(cards.filter(has_text=_whole(held_title))).to_have_count(1)
+        expect(ui.page.locator(f"{WORKS} [aria-live]")).to_have_text("Asking Wikidata…", use_inner_text=True)
+        expect(ui.page.locator(f"{ARTISTS} [aria-live]")).to_have_text("Asking Wikidata…", use_inner_text=True)
         # The head is Wikidata's too, and is not held back by the slow sections.
         ui.page.wait_for_selector("#view h1:text-is('16th century')")
-        assert ui.page.locator("#view dl.facts dd").inner_text() == "period"
+        expect(ui.page.locator("#view dl.facts dd")).to_have_text("period", use_inner_text=True)
 
+        # A poll on the list the handlers fill, which only this loop's pauses let Playwright's events reach.
         while len(waiting) < 2:
-            ui.page.wait_for_timeout(50)
+            ui.page.wait_for_timeout(50)  # sleep: pumps events until both routes arrive; the loop ends on that
         for route in waiting:
             route.continue_()
         works_answered(ui)
         ui.page.wait_for_selector(f"{ARTISTS} ul")
-        assert ui.page.locator(f"{WORKS} tbody tr").count() == 4
+        expect(ui.page.locator(f"{WORKS} tbody tr")).to_have_count(4)
 
     def test_a_periods_works_are_headed_with_its_years(self, ui, held):
         open_topic(ui)
         works_answered(ui)
 
-        assert ui.page.locator(f"{WORKS} h2").inner_text() == "Works from 1501–1600"
+        expect(ui.page.locator(f"{WORKS} h2")).to_have_text("Works from 1501–1600", use_inner_text=True)
 
     @pytest.mark.parametrize("qid", [WINTER, BAROQUE], ids=["a subject", "a movement that is also a period"])
     def test_works_found_by_anything_but_a_period_claim_no_years(self, ui, held, qid):
         open_topic(ui, qid)
         works_answered(ui)
 
-        assert ui.page.locator(f"{WORKS} h2").inner_text() == "Representative works"
+        expect(ui.page.locator(f"{WORKS} h2")).to_have_text("Representative works", use_inner_text=True)
 
     def test_each_work_carries_its_state_as_glyph_and_word(self, ui, held):
         open_topic(ui)
         works_answered(ui)
 
-        states = {
-            row.locator("td").nth(1).inner_text(): " ".join(row.locator("td").nth(4).inner_text().split())
-            for row in ui.page.locator(f"{WORKS} tbody tr").all()
-        }
-        assert states == {
+        # Exactly these four works, each with its state, whitespace-normalised as the join over `split()` was.
+        expect(ui.page.locator(f"{WORKS} tbody tr")).to_have_count(4)
+        for title, state in {
             "The Hunters in the Snow": "● Held",
             "The Harvesters": "◐ Not held · Image found",
             "Flammarion engraving": "○ No image known",
             f"No English title ({NAMELESS})": "○ No image known",
-        }
-        for glyph in ui.page.locator(f"{WORKS} .badge .glyph").all():
-            assert glyph.get_attribute("aria-hidden") == "true"
+        }.items():
+            expect(mark(ui, title)).to_have_text(state, use_inner_text=True)
+        # No glyph is read out: none lacks the attribute. The states above are the badges having painted.
+        expect(ui.page.locator(f"{WORKS} .badge .glyph:not([aria-hidden='true'])")).to_have_count(0)
 
     def test_on_a_phone_each_picture_shows_and_the_list_fits(self, ui, held, pictures_load):
         """The Topic page's list has a *By* column the Artist page's lacks, so it is the likeliest to run wide."""
@@ -378,7 +411,10 @@ class TestTheTopicPage:
         works_answered(ui)
 
         for style in ("held", "not-held"):
-            box = ui.page.locator(f"{WORKS} .work-pic-{style}").first.bounding_box()
+            expect(ui.page.locator(f"{WORKS} .work-pic-{style}").first, f"the {style} picture is not drawn").to_be_visible()
+            box = ui.page.locator(
+                f"{WORKS} .work-pic-{style}"
+            ).first.bounding_box()  # one-shot: geometry, measured once it is visible
             assert box is not None, f"the {style} picture is not drawn"
             assert min(box["width"], box["height"]) >= 48
         fits = ui.page.evaluate(
@@ -386,21 +422,16 @@ class TestTheTopicPage:
         )
         assert fits, "the list scrolls sideways"
         # Titles can break anywhere, so the table would squeeze them first; they keep a readable width.
-        assert ui.page.locator(f"{WORKS} td.work-title").first.bounding_box()["width"] >= 112
+        title_cell = ui.page.locator(f"{WORKS} td.work-title").first
+        expect(title_cell).to_be_visible()
+        assert title_cell.bounding_box()["width"] >= 112  # one-shot: geometry, measured once the cell is visible
         # Who made it folds under the title rather than being lost.
         flammarion = ui.page.locator(f"{WORKS} tbody tr", has_text="Flammarion engraving")
-        assert flammarion.locator(".by-under").inner_text() == "Unknown maker"
-        assert not flammarion.locator("td.by-col").is_visible()
+        expect(flammarion.locator(".by-under")).to_have_text("Unknown maker", use_inner_text=True)
+        expect(flammarion.locator("td.by-col")).to_be_hidden()
         harvesters = ui.page.locator(f"{WORKS} tbody tr", has_text="The Harvesters")
         harvesters.locator(".by-under a:text-is('Pieter Bruegel the Elder')").click()
         ui.page.wait_for_selector("#view h1:has-text('Pieter Bruegel the Elder')")
-
-    def _marks(self, ui):
-        # Keyed by the title's own button: on a phone the cell also holds the year.
-        return {
-            row.locator("td.work-title a.row-title").inner_text(): row.locator("td").nth(4)
-            for row in ui.page.locator(f"{WORKS} tbody tr").all()
-        }
 
     def test_held_wanted_and_not_held_each_draw_their_picture_in_their_own_style(self, ui, held, want_item, pictures_load):
         """The owner's ruling on #172: held and image found were told apart by a picture only one of them had.
@@ -412,19 +443,20 @@ class TestTheTopicPage:
         want_item(NAMELESS, "An untitled work")
         open_topic(ui)
         works_answered(ui)
-        marks = self._marks(ui)
 
-        hunters = marks["The Hunters in the Snow"]
-        assert hunters.locator(".work-pic-held img").get_attribute("src").startswith("/api/works/")
-        assert " ".join(hunters.inner_text().split()) == "● Held"
-        harvesters = marks["The Harvesters"]
-        assert harvesters.locator(".work-pic-not-held img").get_attribute("src").startswith("https://commons.wikimedia.org/")
-        nameless = marks[f"No English title ({NAMELESS})"]
-        assert " ".join(nameless.inner_text().split()) == "◑ Wanted"
-        assert nameless.locator(".work-pic").count() == 0
-        assert marks["Flammarion engraving"].locator(".work-pic").count() == 0
-        assert ui.page.locator(f"{WORKS} .work-pic-not-held").count() == 1
-        assert ui.page.locator(f"{WORKS} .work-pic-held").count() == 1
+        hunters = mark(ui, "The Hunters in the Snow")
+        expect(hunters.locator(".work-pic-held img")).to_have_attribute("src", re.compile(r"^/api/works/"))
+        expect(hunters).to_have_text("● Held", use_inner_text=True)
+        harvesters = mark(ui, "The Harvesters")
+        expect(harvesters.locator(".work-pic-not-held img")).to_have_attribute(
+            "src", re.compile(r"^https://commons\.wikimedia\.org/")
+        )
+        nameless = mark(ui, f"No English title ({NAMELESS})")
+        expect(nameless).to_have_text("◑ Wanted", use_inner_text=True)
+        expect(nameless.locator(".work-pic")).to_have_count(0)
+        expect(mark(ui, "Flammarion engraving").locator(".work-pic")).to_have_count(0)
+        expect(ui.page.locator(f"{WORKS} .work-pic-not-held")).to_have_count(1)
+        expect(ui.page.locator(f"{WORKS} .work-pic-held")).to_have_count(1)
 
     def test_a_not_held_preview_is_a_real_picture_marked_by_its_badge(self, ui, held, pictures_load):
         """Ruling 7: legible at a glance, whole, and not hatched over; the badge says not held.
@@ -434,19 +466,20 @@ class TestTheTopicPage:
         """
         open_topic(ui)
         works_answered(ui)
-        marks = self._marks(ui)
+        # The state is worded first, which is the badge having painted; the frames are measured after it.
+        expect(mark(ui, "The Harvesters")).to_contain_text("Image found", use_inner_text=True)
+        expect(mark(ui, "The Hunters in the Snow")).to_contain_text("Held", use_inner_text=True)
         style = (
             "(f) => { const img = f.querySelector('img'); const after = getComputedStyle(f, '::after');"
             " return { after: after.content, background: after.backgroundImage, fit: getComputedStyle(img).objectFit,"
             " edge: f.getBoundingClientRect().width }; }"
         )
-        found = marks["The Harvesters"].locator(".work-pic-not-held").evaluate(style)
+        found = mark(ui, "The Harvesters").locator(".work-pic-not-held").evaluate(style)
         assert found["after"] in ("none", "normal"), "the preview is still hatched"
         assert found["background"] == "none", "the preview is still hatched"
         assert found["fit"] == "contain", "the preview is cropped to a square"
         assert found["edge"] >= 64, "the preview is too small to judge before spending"
-        assert "Image found" in marks["The Harvesters"].inner_text()
-        held_pic = marks["The Hunters in the Snow"].locator(".work-pic-held").evaluate(style)
+        held_pic = mark(ui, "The Hunters in the Snow").locator(".work-pic-held").evaluate(style)
         assert held_pic["fit"] == "contain"
         assert held_pic["edge"] == found["edge"]
 
@@ -454,22 +487,22 @@ class TestTheTopicPage:
         want_item(HARVESTERS, "The Harvesters")
         open_topic(ui)
         works_answered(ui)
-        harvesters = self._marks(ui)["The Harvesters"]
+        harvesters = mark(ui, "The Harvesters")
 
-        assert " ".join(harvesters.inner_text().split()) == "◑ Wanted"
-        assert harvesters.locator(".work-pic-wanted img").count() == 1
-        assert harvesters.locator(".work-pic-not-held").count() == 0
+        expect(harvesters).to_have_text("◑ Wanted", use_inner_text=True)
+        expect(harvesters.locator(".work-pic-wanted img")).to_have_count(1)
+        expect(harvesters.locator(".work-pic-not-held")).to_have_count(0)
 
     def test_a_held_work_that_is_also_wanted_reads_held(self, ui, held, want_item, pictures_load):
         """A wanted work since acquired: the server reports both, and held wins on the page."""
         want_item(HUNTERS, "The Hunters in the Snow")
         open_topic(ui)
         works_answered(ui)
-        hunters = self._marks(ui)["The Hunters in the Snow"]
+        hunters = mark(ui, "The Hunters in the Snow")
 
-        assert " ".join(hunters.inner_text().split()) == "● Held"
-        assert hunters.locator(".work-pic-held").count() == 1
-        assert hunters.locator(".work-pic-wanted").count() == 0
+        expect(hunters).to_have_text("● Held", use_inner_text=True)
+        expect(hunters.locator(".work-pic-held")).to_have_count(1)
+        expect(hunters.locator(".work-pic-wanted")).to_have_count(0)
 
     @pytest.mark.parametrize("width", [1280, 390], ids=["desktop", "phone"])
     def test_with_every_picture_failing_the_states_still_read_apart(self, ui, held, want_item, width):
@@ -483,23 +516,21 @@ class TestTheTopicPage:
         # A picture that fails takes its frame with it: no broken-image icon in a styled box.
         ui.page.wait_for_function("(section) => document.querySelectorAll(`${section} .work-pic`).length === 0", arg=WORKS)
 
-        assert {title: " ".join(mark.inner_text().split()) for title, mark in self._marks(ui).items()} == {
+        expect(ui.page.locator(f"{WORKS} tbody tr")).to_have_count(4)
+        for title, state in {
             "The Hunters in the Snow": "● Held",
             "The Harvesters": "◐ Not held · Image found",
             "Flammarion engraving": "○ No image known",
             f"No English title ({NAMELESS})": "◑ Wanted",
-        }
+        }.items():
+            expect(mark(ui, title)).to_have_text(state, use_inner_text=True)
 
     def test_makers_are_named_and_an_unknown_one_is_said(self, ui, held):
         open_topic(ui)
         works_answered(ui)
 
-        makers = {
-            row.locator("td").nth(1).inner_text(): row.locator("td").nth(2).inner_text()
-            for row in ui.page.locator(f"{WORKS} tbody tr").all()
-        }
-        assert makers["Flammarion engraving"] == "Unknown maker"
-        assert makers[f"No English title ({NAMELESS})"] == "—"
+        expect(work_row(ui, "Flammarion engraving").locator("td").nth(2)).to_have_text("Unknown maker", use_inner_text=True)
+        expect(work_row(ui, f"No English title ({NAMELESS})").locator("td").nth(2)).to_have_text("—", use_inner_text=True)
         # The By column's own link: the row also carries a copy under the title, shown only on a phone.
         ui.page.click(f"{WORKS} tr:has-text('The Harvesters') td.by-col a:text-is('Pieter Bruegel the Elder')")
         ui.page.wait_for_selector("#view h1:has-text('Pieter Bruegel the Elder')")
@@ -508,27 +539,25 @@ class TestTheTopicPage:
         open_topic(ui)
         works_answered(ui)
 
-        boxes = {
-            row.locator("td").nth(1).inner_text(): row.locator("input[type='checkbox']").count()
-            for row in ui.page.locator(f"{WORKS} tbody tr").all()
-        }
-        assert boxes == {
-            "The Hunters in the Snow": 0,
-            "The Harvesters": 1,
-            "Flammarion engraving": 1,
-            f"No English title ({NAMELESS})": 1,
-        }
+        expect(ui.page.locator(f"{WORKS} tbody tr")).to_have_count(4)
+        for title in ("The Harvesters", "Flammarion engraving", f"No English title ({NAMELESS})"):
+            expect(work_row(ui, title).locator("input[type='checkbox']")).to_have_count(1)
+        # The held one, once the others show the boxes have been drawn, and its row is there.
+        expect(work_row(ui, "The Hunters in the Snow")).to_have_count(1)
+        expect(work_row(ui, "The Hunters in the Snow").locator("input[type='checkbox']")).to_have_count(0)
 
     def test_artists_are_listed_and_open_their_page(self, ui, held):
         bruegel, _hunters, _corn = held
         open_topic(ui)
         ui.page.wait_for_selector(f"{ARTISTS} ul")
 
-        rows = [" ".join(t.split()) for t in ui.page.locator(f"{ARTISTS} li").all_inner_texts()]
-        assert rows == [
-            "Pieter Bruegel the Elder 1525–1569 · 40 works with an image ● In your library",
-            "Rembrandt 1606–1669 · 1 work with an image ○ Not held",
-        ]
+        expect(ui.page.locator(f"{ARTISTS} li")).to_have_text(
+            [
+                "Pieter Bruegel the Elder 1525–1569 · 40 works with an image ● In your library",
+                "Rembrandt 1606–1669 · 1 work with an image ○ Not held",
+            ],
+            use_inner_text=True,
+        )
         ui.page.click(f"{ARTISTS} a:text-is('Pieter Bruegel the Elder')")
         ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#artist/${id}`)", arg=bruegel.id)
 
@@ -540,11 +569,11 @@ class TestTheTopicPage:
         escaped = ui.page.get_by_text('century <img src=x onerror="window.pwned=1">')
         escaped.wait_for()
 
-        assert escaped.count() == 1
+        expect(escaped).to_have_count(1)
         assert ui.page.evaluate("() => window.pwned") is None
         # Worded, with the item as the link's target (#359: no bare item on the page).
         link = ui.page.locator("#view a:text-is('On Wikidata')")
-        assert link.get_attribute("href") == f"https://www.wikidata.org/wiki/{SIXTEENTH}"
+        expect(link).to_have_attribute("href", f"https://www.wikidata.org/wiki/{SIXTEENTH}")
 
     def test_an_outage_leaves_the_library_half_standing(self, ui, held, registry):
         _bruegel, _hunters, _corn = held
@@ -553,17 +582,19 @@ class TestTheTopicPage:
         works_answered(ui)
         ui.page.wait_for_selector(f"{ARTISTS} p.note")
 
-        assert "could not be asked" in ui.page.locator(f"{WORKS} p.note").inner_text()
-        assert "could not be asked" in ui.page.locator(f"{ARTISTS} p.note").inner_text()
-        assert ui.page.locator(f"{HELD} .card-title").count() == 2
+        expect(ui.page.locator(f"{WORKS} p.note")).to_contain_text("could not be asked", use_inner_text=True)
+        expect(ui.page.locator(f"{ARTISTS} p.note")).to_contain_text("could not be asked", use_inner_text=True)
+        expect(ui.page.locator(f"{HELD} .card-title")).to_have_count(2)
 
     def test_a_topic_none_of_your_works_is_in_still_has_its_page_named_by_wikidata(self, ui, held):
         """The facets hold no name for it, so the head's name is Wikidata's, written in once it answers."""
         open_topic(ui, IMPRESSIONISM)
 
-        assert ui.page.locator(f"{HELD} p").inner_text() == "None of your works in circulation is in this topic."
+        expect(ui.page.locator(f"{HELD} p")).to_have_text(
+            "None of your works in circulation is in this topic.", use_inner_text=True
+        )
         ui.page.wait_for_selector("#view h1:text-is('Impressionism')")
-        assert ui.page.locator("#view dl.facts dd").inner_text() == "movement"
+        expect(ui.page.locator("#view dl.facts dd")).to_have_text("movement", use_inner_text=True)
 
     def test_an_address_that_is_not_a_qid_says_so(self, ui):
         ui.open("#topic/nonsense")
@@ -590,15 +621,16 @@ def test_get_from_a_topic_defaults_to_a_new_theme_named_after_it(ui, services, h
     ui.page.wait_for_selector("dialog .get-into option[value='new']", state="attached")
 
     picker = ui.page.locator("dialog").get_by_label("Add to", exact=True)
+    expect(picker).to_be_visible()
     assert picker.evaluate("node => node.selectedOptions[0].textContent") == "16th century (new theme)"
-    assert not ui.page.locator("dialog").get_by_label("New theme's name").is_visible()
+    expect(ui.page.locator("dialog").get_by_label("New theme's name")).to_be_hidden()
     ui.page.click("dialog button.get-confirm")
 
     ui.page.wait_for_selector(f"{BAR} .get-status a:text-is('Open the Get')")
     created = next(p.theme for p in services.display.survey_themes() if p.theme.name == "16th century")
     assert bodies == [{"qids": [HARVESTERS], "theme_id": created.id}]
-    assert (
-        " ".join(ui.page.locator(f"{BAR} .get-status").inner_text().split()) == "Getting 1 work into 16th century. Open the Get"
+    expect(ui.page.locator(f"{BAR} .get-status")).to_have_text(
+        "Getting 1 work into 16th century. Open the Get", use_inner_text=True
     )
 
 
@@ -629,11 +661,10 @@ def _type(ui, words):
     ui.page.wait_for_selector(f"{LISTBOX}:not([hidden]) [role='option']:text-is('All results for “{words}”')")
 
 
-def _options(ui, group):
+def _expect_options(ui, group, options):
+    """The listbox's `group` offers `options`, in order, whitespace-normalised."""
     listbox = ui.page.get_by_role("listbox", name="Suggestions")
-    return [
-        " ".join(t.split()) for t in listbox.get_by_role("group", name=group, exact=True).get_by_role("option").all_inner_texts()
-    ]
+    expect(listbox.get_by_role("group", name=group, exact=True).get_by_role("option")).to_have_text(options, use_inner_text=True)
 
 
 def _announced(ui):
@@ -647,15 +678,10 @@ def test_the_dropdown_has_a_topics_group_after_works(ui, service, held):
     _type(ui, "16th")
     _announced(ui)
 
-    assert _options(ui, "Held: topics") == ["16th century — period"]
+    _expect_options(ui, "Held: topics", ["16th century — period"])
     # Wikidata's 16th century is the library's, already shown, so not offered twice.
-    assert ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']").count() == 0
-    assert ui.page.locator(f"{LISTBOX} .search-suggestions-label").all_text_contents() == [
-        "Held: works",
-        "Held: topics",
-        "Ask",
-        "Search",
-    ]
+    expect(ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']")).to_have_count(0)
+    expect(ui.page.locator(f"{LISTBOX} .search-suggestions-label")).to_have_text(["Held: works", "Held: topics", "Ask", "Search"])
 
     ui.page.click(f"{LISTBOX} [role='option']:has-text('16th century — period')")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=SIXTEENTH)
@@ -665,12 +691,16 @@ def test_the_dropdown_offers_wikidatas_topics_with_their_descriptions(ui, held):
     _type(ui, "impressionism")
     _announced(ui)
 
-    assert _options(ui, "Not held: topics") == [
-        "Impressionism — movement · art movement",
-        "Impressionism — movement · music movement",
-    ]
-    labels = ui.page.locator(f"{LISTBOX} .search-suggestions-label").all_text_contents()
-    assert labels[-3:] == ["Not held: topics", "Ask", "Search"]
+    _expect_options(
+        ui,
+        "Not held: topics",
+        ["Impressionism — movement · art movement", "Impressionism — movement · music movement"],
+    )
+    # The last three of the group labels, whatever stands before them.
+    labels = ui.page.locator(f"{LISTBOX} .search-suggestions-label")
+    expect(labels.nth(-3)).to_have_text("Not held: topics")
+    expect(labels.nth(-2)).to_have_text("Ask")
+    expect(labels.nth(-1)).to_have_text("Search")
     ui.page.click(f"{LISTBOX} [role='option']:has-text('art movement')")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
 
@@ -680,8 +710,8 @@ def test_wikidatas_topic_the_library_is_in_is_held_though_its_name_differs(ui, h
     _type(ui, "cinquecento")
     _announced(ui)
 
-    assert _options(ui, "Held: topics") == ["16th century — period · Italian 1500s"]
-    assert ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']").count() == 0
+    _expect_options(ui, "Held: topics", ["16th century — period · Italian 1500s"])
+    expect(ui.page.locator(f"{LISTBOX} [aria-labelledby='suggestions-registry-topics']")).to_have_count(0)
 
 
 # -- the search results page ---------------------------------------------------------
@@ -697,17 +727,20 @@ def _results(ui, query):
     )
 
 
-def _result_rows(ui, half):
-    return [
-        " ".join(t.split()) for t in ui.page.locator(f"section[aria-labelledby='results-{half}-topics'] li").all_inner_texts()
-    ]
+def _expect_result_rows(ui, half, rows):
+    """The results' `half` topics list holds `rows`, in order, whitespace-normalised; no list is no rows."""
+    items = ui.page.locator(f"section[aria-labelledby='results-{half}-topics'] li")
+    if rows:
+        expect(items).to_have_text(rows, use_inner_text=True)
+    else:
+        expect(items).to_have_count(0)
 
 
 def test_the_results_page_lists_the_librarys_topic_under_held_once(ui, held):
     _results(ui, "16th")
 
-    assert _result_rows(ui, "held") == ["16th century — period"]
-    assert _result_rows(ui, "not-held") == []
+    _expect_result_rows(ui, "held", ["16th century — period"])
+    _expect_result_rows(ui, "not-held", [])
     ui.page.click("section[aria-labelledby='results-held-topics'] a:has-text('16th century')")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=SIXTEENTH)
 
@@ -715,11 +748,12 @@ def test_the_results_page_lists_the_librarys_topic_under_held_once(ui, held):
 def test_the_results_page_lists_wikidatas_topics_under_not_held(ui, held):
     _results(ui, "impressionism")
 
-    assert _result_rows(ui, "not-held") == [
-        "Impressionism — movement · art movement",
-        "Impressionism — movement · music movement",
-    ]
-    assert ui.page.locator("#view .results-none").inner_text() == "Nothing you hold matches."
+    _expect_result_rows(
+        ui,
+        "not-held",
+        ["Impressionism — movement · art movement", "Impressionism — movement · music movement"],
+    )
+    expect(ui.page.locator("#view .results-none")).to_have_text("Nothing you hold matches.", use_inner_text=True)
     ui.page.click("section[aria-labelledby='results-not-held-topics'] li:has-text('art movement') a")
     ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#topic/${qid}`", arg=IMPRESSIONISM)
 
@@ -727,9 +761,9 @@ def test_the_results_page_lists_wikidatas_topics_under_not_held(ui, held):
 def test_the_results_page_puts_a_topic_the_library_is_in_under_held(ui, held):
     _results(ui, "cinquecento")
 
-    assert _result_rows(ui, "held") == ["16th century — period · Italian 1500s"]
-    assert _result_rows(ui, "not-held") == []
-    assert ui.page.locator("#view .results-none").is_hidden()
+    _expect_result_rows(ui, "held", ["16th century — period · Italian 1500s"])
+    _expect_result_rows(ui, "not-held", [])
+    expect(ui.page.locator("#view .results-none")).to_be_hidden()
 
 
 # -- with no User-Agent ------------------------------------------------------------
@@ -744,10 +778,10 @@ class TestWithNoRegistryConfigured:
         ui.open("#topics")
         ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
-        note = ui.page.locator("#view p.note").first.inner_text()
-        assert "not set up" in note
-        assert "WIKIDATA_USER_AGENT" not in note
-        assert ui.page.locator("#view").get_by_label("Find a topic", exact=True).count() == 0
+        note = ui.page.locator("#view p.note").first
+        expect(note).to_contain_text("not set up", use_inner_text=True)
+        expect(note).not_to_contain_text("WIKIDATA_USER_AGENT", use_inner_text=True)
+        expect(ui.page.locator("#view").get_by_label("Find a topic", exact=True)).to_have_count(0)
 
     def test_a_topic_page_says_topics_need_it(self, ui):
         open_topic(ui)
@@ -757,9 +791,9 @@ class TestWithNoRegistryConfigured:
         # The head is the first panel, and says it in its own words, not a section's.
         head = ui.page.locator("#view .panel").first
         # No name to give it, so the route's own word, never the bare item (#359).
-        assert head.locator("h1").inner_text() == "Topic"
-        assert "not set up" in head.locator("p.note").inner_text()
-        assert "WIKIDATA_USER_AGENT" not in head.locator("p.note").inner_text()
+        expect(head.locator("h1")).to_have_text("Topic", use_inner_text=True)
+        expect(head.locator("p.note")).to_contain_text("not set up", use_inner_text=True)
+        expect(head.locator("p.note")).not_to_contain_text("WIKIDATA_USER_AGENT", use_inner_text=True)
         for where in (WORKS, ARTISTS):
-            assert "not set up" in ui.page.locator(f"{where} p.note").inner_text()
-            assert "WIKIDATA_USER_AGENT" not in ui.page.locator(f"{where} p.note").inner_text()
+            expect(ui.page.locator(f"{where} p.note")).to_contain_text("not set up", use_inner_text=True)
+            expect(ui.page.locator(f"{where} p.note")).not_to_contain_text("WIKIDATA_USER_AGENT", use_inner_text=True)
