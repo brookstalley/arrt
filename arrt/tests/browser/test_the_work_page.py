@@ -16,6 +16,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.persistence.records import MatMethod, RenditionKind
 
 
@@ -127,6 +129,30 @@ def test_hang_is_the_one_filled_act_and_archive_is_behind_more(ui, hangable):
     assert ui.page.locator("#view button:has-text('Archive')").count() == 0
     ui.page.click(MORE)
     assert ui.page.locator(".toolbar-menu [role='menuitem']").all_inner_texts() == ["Archive…", "Match on Wikidata…"]
+
+
+def test_a_work_with_no_picture_offers_hang_disabled_and_says_why(ui, service, hangable):
+    """Audit 6, finding 5: on a work with no picture *Hang…* was left out of the
+    toolbar, and nothing said why. It stays, disabled, with its reason under it
+    and tied to it for a screen reader. The pictured work beside it is the case
+    that keeps the reason from being said where Hang… can be pressed."""
+    bare = service.add_artwork(title="Untitled, unfetched", date_created="1950")
+
+    open_work(ui, bare)
+    hang = ui.page.locator(HANG)
+    expect(hang).to_have_count(1)
+    expect(hang).to_be_disabled()
+    reason = ui.page.locator(f"#{hang.get_attribute('aria-describedby')}")
+    expect(reason).to_have_text("No picture yet, so there is nothing to show on a wall.")
+    expect(reason).to_be_visible()
+    # Still the one filled act, and the toolbar's other acts are as on any work.
+    expect(ui.page.locator(".page-toolbar button.action:not(.quiet)")).to_have_text(["Hang…"])
+    expect(ui.page.locator(ADD)).to_be_enabled()
+
+    pictured = hangable("Automat")
+    open_work(ui, pictured)
+    expect(ui.page.locator(HANG)).to_be_enabled()
+    expect(ui.page.locator(".page-toolbar .act-caption")).to_have_count(0)
 
 
 def test_the_page_opens_with_its_title_a_line_of_facts_and_its_toolbar(ui, hangable, service):

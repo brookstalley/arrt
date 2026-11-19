@@ -34,6 +34,7 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
 
 #: The three headlines, so a test asserting one can assert the absence of the
 #: others by name rather than by an "empty" class every branch would share.
@@ -188,6 +189,44 @@ def test_choosing_a_view_writes_it_into_the_address(ui):
     ui.page.wait_for_selector("ul.grid.contact-sheet")
 
     assert "density=contact" in ui.page.url
+
+
+def test_every_posters_tile_shows_its_title_and_artist_beneath_it_on_a_phone(ui, service):
+    """Audit 6, finding 4: Posters, the default above a few hundred works, showed
+    a work's words only as an overlay on hover or focus, so on a phone, with no
+    hover, every tile was anonymous. The label is beneath the picture, on the
+    page's ground, untouched by any pointer (`design-direction.md` § Tiles).
+
+    Read from what is drawn: an overlay at opacity 0 is still "visible" to
+    Playwright, so the label's opacity and its place under the picture are what
+    is asserted, on every tile, with the pointer parked off the grid. A title too
+    long for its line is the case that keeps the label from growing its row."""
+    service.add_artwork(
+        title="A title far longer than any Posters tile is wide, so it has to be clipped to its line",
+        date_created="1900",
+    )
+    ui.page.set_viewport_size({"width": 390, "height": 844})
+    ui.open("#collection?density=contact")
+    tiles = ui.page.locator("ul.grid.contact-sheet li.tile")
+    expect(tiles.first).to_be_visible()
+    ui.page.mouse.move(0, 0)
+
+    count = tiles.count()
+    assert count >= 4, "the seeded works and the long title are all on the page"
+    for index in range(count):
+        tile = tiles.nth(index)
+        caption = tile.locator(".tile-caption")
+        expect(caption).to_have_css("opacity", "1")
+        expect(caption.locator(".tile-title")).not_to_have_text("")
+        expect(caption.locator(".tile-artist")).not_to_have_text("")
+        picture = tile.locator(".card-image").bounding_box()
+        label = caption.bounding_box()
+        assert picture is not None
+        assert label is not None
+        assert label["y"] >= picture["y"] + picture["height"] - 1, f"tile {index}'s label is over its picture"
+    # One row height for every tile, the long title's included.
+    heights = {round(box["height"]) for box in (tiles.nth(i).bounding_box() for i in range(count)) if box}
+    assert len(heights) == 1, f"Posters rows are not uniform: {sorted(heights)}"
 
 
 PROTOTYPE_SCALE = 2000
