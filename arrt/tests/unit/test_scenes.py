@@ -22,6 +22,7 @@ from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, SceneLifetime, SceneStatus
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming import display as display_module
+from arrt.programming import feeds as feeds_module
 from arrt.programming.display import PREVIEW_MINUTES
 from arrt.programming.manifest.v2 import read_published
 from arrt.services.errors import ServiceError
@@ -349,11 +350,17 @@ def test_applying_while_another_scene_is_live_ends_it(display, mastered, staged,
 # -- every writer carries the control layer --------------------------------------------
 
 
+def _programming_trees() -> list[ast.Module]:
+    """Every module of `programming/`, parsed: the feed's writer is in `feeds.py`, and a second could be anywhere beside it."""
+    modules = sorted(Path(feeds_module.__file__).parent.rglob("*.py"))
+    assert Path(feeds_module.__file__) in modules, "the package read is not the one the feed is built in"
+    return [ast.parse(path.read_text(encoding="utf-8")) for path in modules]
+
+
 def _callers_of(name: str) -> set[str]:
-    """The functions in `programming/display.py` that call `self.<name>`, derived from its source."""
-    tree = ast.parse(Path(display_module.__file__).read_text(encoding="utf-8"))
+    """The functions in `programming/` that call `self.<name>`, derived from its source."""
     found: set[str] = set()
-    for node in ast.walk(tree):
+    for node in (node for tree in _programming_trees() for node in ast.walk(tree)):
         if isinstance(node, ast.FunctionDef):
             for call in ast.walk(node):
                 if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and call.func.attr == name:
@@ -363,9 +370,9 @@ def _callers_of(name: str) -> set[str]:
 
 def test_one_function_writes_a_feed():
     """The control layer is added in `_publish_feed`; a second writer would be a path that could drop a live scene."""
-    tree = ast.parse(Path(display_module.__file__).read_text(encoding="utf-8"))
     spellers = {
         node.name
+        for tree in _programming_trees()
         for node in ast.walk(tree)
         if isinstance(node, ast.FunctionDef)
         for call in ast.walk(node)
@@ -424,7 +431,7 @@ def _mat_colour(display, hall, study, mastered, wall_settings, services):
 #: Each function that hands a schedule to `_publish_feed`, with the acts that reach it.
 WRITERS = {
     "_write_v2": [_sync, _step, _show_now, _pace, _roll, _withdraw, _beside],
-    "_patch_v2_works": [_mat_mode, _mat_colour],
+    "patch_v2_works": [_mat_mode, _mat_colour],
 }
 
 

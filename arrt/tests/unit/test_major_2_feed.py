@@ -23,6 +23,7 @@ from arrt.persistence.file import open_catalogue_file
 from arrt.persistence.records import MatMethod, RenditionKind, ThemeAssignment, ThemeMembership
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming import display as display_module
+from arrt.programming import feeds as feeds_module
 from arrt.programming.display import Unjudged
 from arrt.programming.manifest.builder import KeptOff
 from arrt.programming.manifest.v2 import read_published
@@ -519,7 +520,8 @@ def clock(monkeypatch):
         def now(cls, tz=None):
             return datetime.now(tz) + held.offset
 
-    monkeypatch.setattr(display_module, "datetime", Moved)
+    for module in (display_module, feeds_module):
+        monkeypatch.setattr(module, "datetime", Moved)
     return held
 
 
@@ -887,7 +889,7 @@ def test_a_neighbour_built_before_the_hall_is_not_written_when_the_hall_s_feed_i
     _age(wall_settings, study, by=timedelta(seconds=97))
     before = feed(study)
     hall_builds, writes = [], []
-    build, publish = display_module.build_schedule, display._publish_feed
+    build, publish = feeds_module.build_schedule, display._feeds._publish_feed
 
     def failing_build(**arguments):
         if arguments["wall_id"] == wall_id:
@@ -902,8 +904,8 @@ def test_a_neighbour_built_before_the_hall_is_not_written_when_the_hall_s_feed_i
             raise OSError("the hall's feed could not be written")
         return publish(wall, **arguments)
 
-    monkeypatch.setattr(display_module, "build_schedule", failing_build)
-    monkeypatch.setattr(display, "_publish_feed", failing_publish)
+    monkeypatch.setattr(feeds_module, "build_schedule", failing_build)
+    monkeypatch.setattr(display._feeds, "_publish_feed", failing_publish)
 
     with pytest.raises(OSError, match="hall's"):
         display.activate_theme(theme.id, wall_id=wall_id)
@@ -930,7 +932,7 @@ def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_eac
     display.activate_theme(theme.id, wall_id=study)
     display.activate_theme(theme.id, wall_id=wall_id)
     builds, writes = [], []
-    build, publish = display_module.build_schedule, display._publish_feed
+    build, publish = feeds_module.build_schedule, display._feeds._publish_feed
 
     def recording_build(**arguments):
         builds.append((arguments["wall_id"], dict(arguments["published"])))
@@ -940,8 +942,8 @@ def test_a_slower_neighbour_is_built_against_the_hall_s_first_slot_alone_and_eac
         writes.append(wall)
         return publish(wall, **arguments)
 
-    monkeypatch.setattr(display_module, "build_schedule", recording_build)
-    monkeypatch.setattr(display, "_publish_feed", recording_publish)
+    monkeypatch.setattr(feeds_module, "build_schedule", recording_build)
+    monkeypatch.setattr(display._feeds, "_publish_feed", recording_publish)
 
     display.show_work_now(wall_id, a.id)
 
@@ -1035,14 +1037,14 @@ def test_a_neighbour_that_cannot_be_rebuilt_leaves_the_act_done_and_says_why(
     display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
     before = feed(study).slots
     hall = theme_of(x, y, name="Hall's")
-    built = display.build_manifest
+    built = display._feeds.build_manifest
 
     def refusing(wall, theme_id=None):
         if wall == study:
             raise ServiceError("the study's theme cannot be read")
         return built(wall, theme_id)
 
-    monkeypatch.setattr(display, "build_manifest", refusing)
+    monkeypatch.setattr(display._feeds, "build_manifest", refusing)
     with caplog.at_level(logging.WARNING, logger="arrt.programming.display"):
         display.activate_theme(hall.id, wall_id=wall_id)
 
@@ -1061,14 +1063,14 @@ def test_a_slower_neighbour_that_cannot_be_rebuilt_keeps_its_schedule_and_the_ha
     display.activate_theme(theme_of(x, y, name="Study's").id, wall_id=study)
     before = feed(study).slots
     hall = theme_of(x, y, name="Hall's", interval=HOUR)
-    built = display.build_manifest
+    built = display._feeds.build_manifest
 
     def refusing(wall, theme_id=None):
         if wall == study:
             raise ServiceError("the study's theme cannot be read")
         return built(wall, theme_id)
 
-    monkeypatch.setattr(display, "build_manifest", refusing)
+    monkeypatch.setattr(display._feeds, "build_manifest", refusing)
     with caplog.at_level(logging.WARNING, logger="arrt.programming.display"):
         display.activate_theme(hall.id, wall_id=wall_id)
 

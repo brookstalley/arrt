@@ -88,7 +88,7 @@ from arrt.persistence.records import (
 )
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
-from arrt.programming import display as display_module
+from arrt.programming import feeds as feeds_module
 from arrt.programming.display import DisplayService, DisplaySettings
 from arrt.services.container import Services
 
@@ -1098,7 +1098,7 @@ def build_catalogue(tmp_path_factory):
 @pytest.fixture(autouse=True)
 def every_feed_keeps_the_contract(monkeypatch):
     """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`)."""
-    monkeypatch.setattr(display_module, "as_v2_document", feed_checked(display_module.as_v2_document))
+    monkeypatch.setattr(feeds_module, "as_v2_document", feed_checked(feeds_module.as_v2_document))
 
 
 @pytest.fixture(autouse=True)
