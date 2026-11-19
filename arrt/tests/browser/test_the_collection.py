@@ -15,6 +15,7 @@ reports the expected result of following a suggestion as a failed query.
 """
 
 import json
+import re
 
 import pytest
 from payloads import (
@@ -61,12 +62,12 @@ def test_a_collection_holding_nothing_at_all_invites_the_curator_into_discover(u
     ui.open("#collection")
     ui.page.wait_for_selector(".empty")
 
-    assert NOTHING_HELD in ui.text()
-    assert NOTHING_MATCHES not in ui.text()
-    assert "Nothing by" not in ui.text()
+    expect(ui.view).to_contain_text(NOTHING_HELD, use_inner_text=True)
+    expect(ui.view).not_to_contain_text(NOTHING_MATCHES, use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Nothing by", use_inner_text=True)
     # The invitation, not merely the statement: an empty state that names no next
     # move is a dead end with better wording.
-    assert ui.page.locator("a:has-text('Go to Ask')").count() == 1
+    expect(ui.page.locator("a:has-text('Go to Ask')")).to_have_count(1)
 
 
 def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
@@ -74,13 +75,13 @@ def test_a_filter_matching_nothing_names_the_filter_and_offers_a_way_out(ui):
     ui.open("#collection?q=aubergine")
     ui.page.wait_for_selector(".empty")
 
-    assert NOTHING_MATCHES in ui.text()
-    assert NOTHING_HELD not in ui.text()
-    assert "Nothing by" not in ui.text()
+    expect(ui.view).to_contain_text(NOTHING_MATCHES, use_inner_text=True)
+    expect(ui.view).not_to_contain_text(NOTHING_HELD, use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Nothing by", use_inner_text=True)
     # The filter itself, said back. "No results" without saying what was asked
     # for leaves a curator guessing which narrowing did it.
-    assert "the search “aubergine”" in ui.text()
-    assert ui.page.locator("a:has-text('Show everything')").count() == 1
+    expect(ui.view).to_contain_text("the search “aubergine”", use_inner_text=True)
+    expect(ui.page.locator("a:has-text('Show everything')")).to_have_count(1)
 
 
 def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
@@ -94,13 +95,13 @@ def test_filtering_to_one_artist_and_holding_none_says_so_as_a_normal_state(ui):
     ui.open("#collection?artist=Wassily%20Kandinsky")
     ui.page.wait_for_selector(".empty")
 
-    assert artist_headline("Wassily Kandinsky") in ui.text()
-    assert NOTHING_HELD not in ui.text()
-    assert NOTHING_MATCHES not in ui.text()
+    expect(ui.view).to_contain_text(artist_headline("Wassily Kandinsky"), use_inner_text=True)
+    expect(ui.view).not_to_contain_text(NOTHING_HELD, use_inner_text=True)
+    expect(ui.view).not_to_contain_text(NOTHING_MATCHES, use_inner_text=True)
     # Named as normal rather than broken, and the offer is the search that would
     # actually find some — the collection holds none, so searching the collection
     # is not it.
-    assert ui.page.locator("a:has-text('Ask for some')").count() == 1
+    expect(ui.page.locator("a:has-text('Ask for some')")).to_have_count(1)
 
 
 def test_an_artist_filter_with_a_search_beside_it_is_the_filter_empty(ui):
@@ -113,10 +114,10 @@ def test_an_artist_filter_with_a_search_beside_it_is_the_filter_empty(ui):
     ui.open("#collection?artist=Wassily%20Kandinsky&q=aubergine")
     ui.page.wait_for_selector(".empty")
 
-    assert NOTHING_MATCHES in ui.text()
-    assert artist_headline("Wassily Kandinsky") not in ui.text()
-    assert "the search “aubergine”" in ui.text()
-    assert "artist “Wassily Kandinsky”" in ui.text()
+    expect(ui.view).to_contain_text(NOTHING_MATCHES, use_inner_text=True)
+    expect(ui.view).not_to_contain_text(artist_headline("Wassily Kandinsky"), use_inner_text=True)
+    expect(ui.view).to_contain_text("the search “aubergine”", use_inner_text=True)
+    expect(ui.view).to_contain_text("artist “Wassily Kandinsky”", use_inner_text=True)
 
 
 # -- density ------------------------------------------------------------------
@@ -137,11 +138,11 @@ def test_the_default_at_the_prototype_scale_is_the_contact_sheet(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    assert ui.page.locator("ul.grid.contact-sheet").count() == 1
-    assert ui.page.locator("li.tile").count() == 1
+    expect(ui.page.locator("ul.grid.contact-sheet")).to_have_count(1)
+    expect(ui.page.locator("li.tile")).to_have_count(1)
     # The paired negative: the catalogue card's own body must not be there, or
     # "contact sheet" would be a class name over the same tile.
-    assert ui.page.locator("li.card").count() == 0
+    expect(ui.page.locator("li.card")).to_have_count(0)
 
 
 def test_the_default_at_a_small_collection_is_the_catalogue(ui):
@@ -153,8 +154,8 @@ def test_the_default_at_a_small_collection_is_the_catalogue(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid")
 
-    assert ui.page.locator("ul.grid.contact-sheet").count() == 0
-    assert ui.page.locator("li.card").count() == 3
+    expect(ui.page.locator("li.card")).to_have_count(3)
+    expect(ui.page.locator("ul.grid.contact-sheet")).to_have_count(0)
 
 
 def test_a_density_in_the_address_survives_a_reload_and_a_link(ui):
@@ -166,13 +167,13 @@ def test_a_density_in_the_address_survives_a_reload_and_a_link(ui):
     """
     ui.open("#collection?density=contact")
     ui.page.wait_for_selector("ul.grid")
-    assert ui.page.locator("ul.grid.contact-sheet").count() == 1
+    expect(ui.page.locator("ul.grid.contact-sheet")).to_have_count(1)
 
     ui.page.reload()
     ui.page.wait_for_selector("ul.grid")
 
-    assert ui.page.locator("ul.grid.contact-sheet").count() == 1
-    assert ui.page.locator("li.card").count() == 0
+    expect(ui.page.locator("ul.grid.contact-sheet")).to_have_count(1)
+    expect(ui.page.locator("li.card")).to_have_count(0)
 
 
 def test_choosing_a_view_writes_it_into_the_address(ui):
@@ -188,7 +189,7 @@ def test_choosing_a_view_writes_it_into_the_address(ui):
     ui.page.click("[role='menuitemradio']:has-text('Posters')")
     ui.page.wait_for_selector("ul.grid.contact-sheet")
 
-    assert "density=contact" in ui.page.url
+    expect(ui.page).to_have_url(re.compile("density=contact"))
 
 
 def test_every_posters_tile_shows_its_title_and_artist_beneath_it_on_a_phone(ui, service):
@@ -211,21 +212,25 @@ def test_every_posters_tile_shows_its_title_and_artist_beneath_it_on_a_phone(ui,
     expect(tiles.first).to_be_visible()
     ui.page.mouse.move(0, 0)
 
-    count = tiles.count()
-    assert count >= 4, "the seeded works and the long title are all on the page"
+    expect(tiles.nth(3), "the seeded works and the long title are all on the page").to_be_attached()
+    count = tiles.count()  # one-shot: how many tiles to walk, read once the four it must hold are drawn
     for index in range(count):
         tile = tiles.nth(index)
         caption = tile.locator(".tile-caption")
         expect(caption).to_have_css("opacity", "1")
         expect(caption.locator(".tile-title")).not_to_have_text("")
         expect(caption.locator(".tile-artist")).not_to_have_text("")
-        picture = tile.locator(".card-image").bounding_box()
-        label = caption.bounding_box()
+        picture = tile.locator(".card-image").bounding_box()  # one-shot: geometry, read once the caption is shown
+        label = caption.bounding_box()  # one-shot: geometry, read once the caption is shown
         assert picture is not None
         assert label is not None
         assert label["y"] >= picture["y"] + picture["height"] - 1, f"tile {index}'s label is over its picture"
     # One row height for every tile, the long title's included.
-    heights = {round(box["height"]) for box in (tiles.nth(i).bounding_box() for i in range(count)) if box}
+    heights = {
+        round(box["height"])
+        for box in (tiles.nth(i).bounding_box() for i in range(count))  # one-shot: geometry, read once every caption is shown
+        if box
+    }
     assert len(heights) == 1, f"Posters rows are not uniform: {sorted(heights)}"
 
 
@@ -259,18 +264,19 @@ def test_the_prototype_scale_opens_as_a_contact_sheet_and_stays_legible(ui, serv
     ui.page.wait_for_selector("ul.grid li.tile")
 
     # The default at this scale is the contact sheet — image only, uniform tiles.
-    assert ui.page.locator("ul.grid.contact-sheet").count() == 1
-    assert ui.page.locator("li.card").count() == 0
+    expect(ui.page.locator("ul.grid.contact-sheet")).to_have_count(1)
+    expect(ui.page.locator("li.card")).to_have_count(0)
     # In the facts line, in the empty state's words, since the heading became the
     # page's name (ruling 1 of 2026-10-27).
-    assert ui.page.inner_text("#view .page-facts") == f"{held:,} works"
-    # One page at first, so reaching the rest is something the screen has to do.
-    assert ui.page.locator("ul.grid li.tile").count() < held
+    expect(ui.page.locator("#view .page-facts")).to_have_text(f"{held:,} works", use_inner_text=True)
+    # One page at first, so reaching the rest is something the screen has to do:
+    # the last work's tile is not among those drawn.
+    expect(ui.page.locator("ul.grid li.tile").nth(held - 1)).to_have_count(0)
 
     ui.show_more()
 
-    assert ui.page.locator("ul.grid li.tile").count() == held
-    assert "not on this page" not in ui.text()
+    expect(ui.page.locator("ul.grid li.tile")).to_have_count(held)
+    expect(ui.view).not_to_contain_text("not on this page", use_inner_text=True)
     ids = ui.page.eval_on_selector_all("ul.grid li.tile", "nodes => nodes.map((n) => n.dataset.artwork)")
     assert len(set(ids)) == held, "a work was drawn twice, so another was never drawn"
 
@@ -309,9 +315,9 @@ def test_the_loading_state_does_not_guess_a_geometry_it_cannot_know(ui):
     ui.open("#collection")
     ui.page.wait_for_selector("#view h1")
 
-    assert "Loading the collection" in ui.text()
-    assert ui.page.locator("ul.grid-skeleton").count() == 0, "the placeholder guessed a geometry it could not know"
-    assert ui.page.locator("ul.grid").count() == 0
+    expect(ui.view).to_contain_text("Loading the collection", use_inner_text=True)
+    expect(ui.page.locator("ul.grid-skeleton"), "the placeholder guessed a geometry it could not know").to_have_count(0)
+    expect(ui.page.locator("ul.grid")).to_have_count(0)
 
     for route in held:
         route.abort()
@@ -346,25 +352,24 @@ def test_the_skeleton_stands_at_the_tile_geometry_the_grid_will_have(ui):
 
     ui.page.route("**/api/works?*", handler)
 
-    ui.open("#collection")
-    ui.page.wait_for_selector("ul.grid-skeleton > li")
-    # 2,000 works is above the threshold, so the placeholder is the contact sheet
-    # the grid will be — the density is read from the same total by the same
-    # function, which is what makes the two agree by construction.
-    assert ui.page.locator("ul.grid-skeleton.contact-sheet").count() == 1
-    # It says nothing to a screen reader: twelve empty tiles announced as list
-    # items is noise over the announcement that matters.
-    assert ui.page.get_attribute("ul.grid-skeleton", "aria-hidden") == "true"
+    # The paging loop has to ask for a second page before it can be released:
+    # waited on that request, armed before the page is opened.
+    with ui.page.expect_request(lambda request: "/api/works?" in request.url and "offset=1" in request.url):
+        ui.open("#collection")
+        ui.page.wait_for_selector("ul.grid-skeleton > li")
+        # 2,000 works is above the threshold, so the placeholder is the contact sheet
+        # the grid will be — the density is read from the same total by the same
+        # function, which is what makes the two agree by construction.
+        expect(ui.page.locator("ul.grid-skeleton.contact-sheet")).to_have_count(1)
+        # It says nothing to a screen reader: twelve empty tiles announced as list
+        # items is noise over the announcement that matters.
+        expect(ui.page.locator("ul.grid-skeleton")).to_have_attribute("aria-hidden", "true")
 
+    # Measured with the second page's request held, so the placeholder is still
+    # the one on screen; this call is also the turn on which the handler has
+    # been given that request.
     box = "n => { const r = n.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }"
     skeleton_tile = ui.page.eval_on_selector("ul.grid-skeleton > li", box)
-
-    # The paging loop has to have asked for a second page before it can be
-    # released; waiting on the condition rather than on a duration.
-    for _ in range(200):
-        if held:
-            break
-        ui.page.wait_for_timeout(50)
     assert held, "the paging loop never asked for a second page"
 
     for route in held:
@@ -443,13 +448,13 @@ def test_a_facet_option_that_would_select_nothing_is_disabled_and_still_counted(
     ui.page.wait_for_selector(".facet-option")
 
     rococo = ui.page.locator("button.facet-option", has_text="Rococo")
-    assert rococo.count() == 1, "a zero-count option was hidden rather than disabled"
-    assert rococo.is_disabled()
-    assert rococo.inner_text() == "Rococo (0)"
+    expect(rococo, "a zero-count option was hidden rather than disabled").to_have_count(1)
+    expect(rococo).to_be_disabled()
+    expect(rococo).to_have_text("Rococo (0)", use_inner_text=True)
 
     baroque = ui.page.locator("button.facet-option", has_text="Baroque")
-    assert baroque.is_enabled()
-    assert baroque.inner_text() == "Baroque (51)"
+    expect(baroque).to_be_enabled()
+    expect(baroque).to_have_text("Baroque (51)", use_inner_text=True)
 
 
 def test_choosing_a_facet_narrows_at_the_server_as_its_own_parameter(ui):
@@ -559,16 +564,16 @@ def test_a_theme_in_the_filter_rail_narrows_the_grid(ui, a_theme_holding_one_wor
     theme, _ = a_theme_holding_one_work
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
-    assert ui.page.locator("ul.grid li.card").count() == 3
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(3)
 
-    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
+    expect(theme_option(ui, theme)).to_have_text("Baroque (1)", use_inner_text=True)
     theme_option(ui, theme).click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     # In the facts line, in the empty state's words, since the heading became the
     # page's name (ruling 1 of 2026-10-27).
-    assert ui.page.inner_text("#view .page-facts") == "1 work · filtered by the theme “Baroque”"
-    assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
+    expect(ui.page.locator("#view .page-facts")).to_have_text("1 work · filtered by the theme “Baroque”", use_inner_text=True)
+    expect(theme_option(ui, theme)).to_have_attribute("aria-pressed", "true")
     # Pressing it again is how it is turned off.
     theme_option(ui, theme).click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 3")
@@ -591,27 +596,29 @@ def test_filtering_by_a_theme_and_changing_its_members_are_different_controls(ui
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.locator("input.tile-select:visible").count() == 0
-    assert ui.page.locator("#add-to-theme:visible").count() == 0
-    assert theme_option(ui, theme).get_attribute("aria-pressed") == "false"
-    assert ui.page.inner_text("button.select-toggle") == "Select"
+    # The grid is drawn whole, so a tick or a picker that is out of sight is out of sight on a drawn grid.
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(3)
+    expect(ui.page.locator("input.tile-select:visible")).to_have_count(0)
+    expect(ui.page.locator("#add-to-theme:visible")).to_have_count(0)
+    expect(theme_option(ui, theme)).to_have_attribute("aria-pressed", "false")
+    expect(ui.page.locator("button.select-toggle")).to_have_text("Select", use_inner_text=True)
 
     enter_select_mode(ui)
 
-    assert ui.page.inner_text("button.select-toggle") == "Stop selecting"
-    assert ui.page.locator("input.tile-select:visible").count() == 3
+    expect(ui.page.locator("button.select-toggle")).to_have_text("Stop selecting", use_inner_text=True)
+    expect(ui.page.locator("input.tile-select:visible")).to_have_count(3)
     # Nothing ticked, so Add can do nothing yet; and with no theme in the
     # filter there is no theme to remove from, so Remove is not drawn at all.
-    assert ui.page.locator("button.selection-remove").count() == 0
-    assert ui.page.is_disabled("button.selection-add")
+    expect(ui.page.locator("button.selection-remove")).to_have_count(0)
+    expect(ui.page.locator("button.selection-add")).to_be_disabled()
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
     # The theme is chosen in the dialog *Add to theme…* opens, since the acts
     # moved into the toolbar (ruling 1 of 2026-10-27), and the dialog's button
     # says the whole act: how many, and into what.
     ui.page.click("button.selection-add")
-    assert ui.page.inner_text("dialog label[for='add-to-theme']") == "Theme"
-    assert ui.page.inner_text("dialog button.add-confirm") == "Add 2 works to Baroque"
+    expect(ui.page.locator("dialog label[for='add-to-theme']")).to_have_text("Theme", use_inner_text=True)
+    expect(ui.page.locator("dialog button.add-confirm")).to_have_text("Add 2 works to Baroque", use_inner_text=True)
 
 
 def test_leaving_select_mode_hides_the_ticks_and_drops_them(ui, a_theme_holding_one_work):
@@ -624,11 +631,13 @@ def test_leaving_select_mode_hides_the_ticks_and_drops_them(ui, a_theme_holding_
 
     ui.page.click("button.select-toggle")
 
-    assert ui.page.locator("input.tile-select:visible").count() == 0
-    assert ui.page.locator(".selection").is_hidden()
+    # Out of the mode (its toggle says so) before what the mode showed is asked after.
+    expect(ui.page.locator("button.select-toggle")).to_have_text("Select", use_inner_text=True)
+    expect(ui.page.locator("input.tile-select:visible")).to_have_count(0)
+    expect(ui.page.locator(".selection")).to_be_hidden()
     enter_select_mode(ui)
-    assert ui.page.locator("input.tile-select:checked").count() == 0
-    assert "No works selected." in ui.page.inner_text(".selection-status")
+    expect(ui.page.locator(".selection-status")).to_contain_text("No works selected.", use_inner_text=True)
+    expect(ui.page.locator("input.tile-select:checked")).to_have_count(0)
 
 
 def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_service, a_theme_holding_one_work):
@@ -648,22 +657,24 @@ def test_a_theme_composes_with_a_facet_and_counts_like_one(ui, display, seeded_s
 
     ui.open("#collection?movement=Realism")
     ui.page.wait_for_selector("ul.grid li.card")
-    assert ui.page.locator("ul.grid li.card").count() == 2
-    assert theme_option(ui, elsewhere).inner_text() == "Elsewhere (0)"
-    assert theme_option(ui, elsewhere).is_disabled()
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(2)
+    expect(theme_option(ui, elsewhere)).to_have_text("Elsewhere (0)", use_inner_text=True)
+    expect(theme_option(ui, elsewhere)).to_be_disabled()
 
     theme_option(ui, theme).click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     # Both narrowings still in force and still shown as chosen.
-    assert ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism").count() == 1
-    assert theme_option(ui, theme).get_attribute("aria-pressed") == "true"
+    expect(ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism")).to_have_count(1)
+    expect(theme_option(ui, theme)).to_have_attribute("aria-pressed", "true")
     # In the facts line, in the empty state's words, since the heading became the
     # page's name (ruling 1 of 2026-10-27).
     # Both narrowings, since the line names each one; the heading named the theme alone.
-    assert ui.page.inner_text("#view .page-facts") == "1 work · filtered by the theme “Baroque”, and movement “Realism”"
+    expect(ui.page.locator("#view .page-facts")).to_have_text(
+        "1 work · filtered by the theme “Baroque”, and movement “Realism”", use_inner_text=True
+    )
     # A theme filtered here is in the Sort menu's order, so the menu is offered.
-    assert ui.page.locator(".page-toolbar button", has_text="Sort").count() == 1
+    expect(ui.page.locator(".page-toolbar button", has_text="Sort")).to_have_count(1)
 
 
 STALE_THEME = "The theme this address names is not in the catalogue"
@@ -681,11 +692,11 @@ def test_an_address_naming_a_deleted_theme_shows_the_works_and_says_so(ui, a_the
     ui.open("#collection?theme=no-such-theme")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.locator("ul.grid li.card").count() == 3
-    assert STALE_THEME in ui.text()
-    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
-    assert theme_option(ui, theme).get_attribute("aria-pressed") == "false"
-    assert ui.page.locator("#error:not([hidden])").count() == 0
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(3)
+    expect(ui.view).to_contain_text(STALE_THEME, use_inner_text=True)
+    expect(theme_option(ui, theme)).to_have_text("Baroque (1)", use_inner_text=True)
+    expect(theme_option(ui, theme)).to_have_attribute("aria-pressed", "false")
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
 def test_a_deleted_theme_beside_a_facet_keeps_the_facet(ui, seeded_service, a_theme_holding_one_work):
@@ -696,9 +707,9 @@ def test_a_deleted_theme_beside_a_facet_keeps_the_facet(ui, seeded_service, a_th
     ui.open("#collection?theme=no-such-theme&movement=Realism")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.locator("ul.grid li.card").count() == 1
-    assert STALE_THEME in ui.text()
-    assert ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism").count() == 1
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(1)
+    expect(ui.view).to_contain_text(STALE_THEME, use_inner_text=True)
+    expect(ui.page.locator("button.facet-option[aria-pressed='true']", has_text="Realism")).to_have_count(1)
 
 
 def test_a_theme_that_exists_draws_no_stale_theme_sentence(ui, a_theme_holding_one_work):
@@ -706,7 +717,7 @@ def test_a_theme_that_exists_draws_no_stale_theme_sentence(ui, a_theme_holding_o
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert STALE_THEME not in ui.text()
+    expect(ui.view).not_to_contain_text(STALE_THEME, use_inner_text=True)
 
 
 def test_adding_moves_the_rails_count_without_a_repaint(ui, display, a_theme_holding_one_work):
@@ -720,7 +731,7 @@ def test_adding_moves_the_rails_count_without_a_repaint(ui, display, a_theme_hol
     ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
-    assert theme_option(ui, theme).inner_text() == "Baroque (2)"
+    expect(theme_option(ui, theme)).to_have_text("Baroque (2)", use_inner_text=True)
 
 
 def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_theme_holding_one_work):
@@ -733,7 +744,7 @@ def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_th
 
     ui.page.check(f"li.card[data-artwork='{works[1].id}'] input.tile-select")
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
-    assert "2 selected." in ui.text()
+    expect(ui.view).to_contain_text("2 selected.", use_inner_text=True)
 
     ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", theme.id)
@@ -741,8 +752,8 @@ def test_membership_is_edited_from_the_grid_without_leaving_it(ui, display, a_th
     ui.page.wait_for_selector(".selection-status:has-text('Added 2 works to Baroque.')")
 
     # Still on the screen it started on, with the same works under it.
-    assert ui.page.url.endswith("#collection")
-    assert ui.page.locator("ul.grid li.card").count() == 3
+    expect(ui.page).to_have_url(re.compile(r"#collection$"))
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(3)
     # And the server really holds it, rather than the page having said so.
     assert len(display.theme_work_ids(theme.id)) == 3
 
@@ -776,17 +787,17 @@ def test_removing_from_a_theme_takes_the_tiles_out_and_says_what_is_left(ui, dis
 
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_selector("ul.grid li.card")
-    assert ui.page.locator("ul.grid li.card").count() == 2
+    expect(ui.page.locator("ul.grid li.card")).to_have_count(2)
     enter_select_mode(ui)
 
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
-    assert ui.page.inner_text("button.selection-remove") == "Remove 1 work from Baroque"
+    expect(ui.page.locator("button.selection-remove")).to_have_text("Remove 1 work from Baroque", use_inner_text=True)
     ui.page.click("button.selection-remove")
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
     # In the facts line, in the empty state's words, since the heading became the
     # page's name (ruling 1 of 2026-10-27).
-    assert ui.page.inner_text("#view .page-facts") == "1 work · filtered by the theme “Baroque”"
+    expect(ui.page.locator("#view .page-facts")).to_have_text("1 work · filtered by the theme “Baroque”", use_inner_text=True)
     # The rail is recounted by the server after the tile goes, so its count is
     # waited for: read at once, it races the recount and can see the old one.
     # A rail that never recounts still fails here, by timing out.
@@ -809,7 +820,7 @@ def test_removing_recounts_the_facets_so_none_leads_to_an_empty_grid(ui, display
     ui.open(f"#collection?theme={theme.id}")
     ui.page.wait_for_selector("ul.grid li.card")
     realism = ui.page.locator("button.facet-option", has_text="Realism")
-    assert realism.inner_text() == "Realism (1)"
+    expect(realism).to_have_text("Realism (1)", use_inner_text=True)
 
     enter_select_mode(ui)
     ui.page.check(f"li.card[data-artwork='{works[0].id}'] input.tile-select")
@@ -818,8 +829,8 @@ def test_removing_recounts_the_facets_so_none_leads_to_an_empty_grid(ui, display
         "() => [...document.querySelectorAll('button.facet-option')].some((b) => b.textContent === 'Realism (0)')"
     )
 
-    assert realism.is_disabled()
-    assert theme_option(ui, theme).inner_text() == "Baroque (1)"
+    expect(realism).to_be_disabled()
+    expect(theme_option(ui, theme)).to_have_text("Baroque (1)", use_inner_text=True)
 
 
 def test_a_refused_removal_keeps_its_own_reason_when_the_recount_fails_too(ui, display, a_theme_holding_one_work):
@@ -877,9 +888,9 @@ def test_a_collection_with_no_themes_offers_select_with_something_behind_it(ui, 
     ui.page.click("button.selection-add")
 
     picker = ui.page.locator("dialog #add-to-theme")
-    assert picker.locator("option").all_inner_texts() == ["New theme…"]
-    assert picker.input_value() == "new"
-    assert ui.page.locator("button.selection-archive").count() == 1
+    expect(picker.locator("option")).to_have_text(["New theme…"], use_inner_text=True)
+    expect(picker).to_have_value("new")
+    expect(ui.page.locator("button.selection-archive")).to_have_count(1)
 
 
 def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_holding_one_work):
@@ -898,11 +909,12 @@ def test_the_theme_being_shown_is_not_offered_as_somewhere_to_add(ui, a_theme_ho
     # The picker is in the dialog *Add to theme…* opens, which a tick enables;
     # Remove is in the toolbar behind it.
     ui.page.locator("input.tile-select").first.check()
-    assert ui.page.locator("button.selection-remove").count() == 1
+    expect(ui.page.locator("button.selection-remove")).to_have_count(1)
     ui.page.click("button.selection-add")
 
-    assert ui.page.locator(f"#add-to-theme option[value='{theme.id}']").count() == 0
-    assert ui.page.locator("#add-to-theme option").all_inner_texts() == ["New theme…"]
+    # The picker's options are drawn (the one it does offer is there) before the one it must not is asked after.
+    expect(ui.page.locator("#add-to-theme option")).to_have_text(["New theme…"], use_inner_text=True)
+    expect(ui.page.locator(f"#add-to-theme option[value='{theme.id}']")).to_have_count(0)
 
 
 def test_typing_the_shown_themes_name_joins_it_rather_than_making_another(ui, display, a_theme_holding_one_work):
@@ -943,7 +955,7 @@ def test_adding_a_work_the_theme_already_holds_is_not_an_error(ui, display, a_th
     ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque. 1 was already in it.')")
 
-    assert ui.page.locator("#error").is_hidden(), "a duplicate in the selection was reported as a failure"
+    expect(ui.page.locator("#error"), "a duplicate in the selection was reported as a failure").to_be_hidden()
     assert len(display.theme_work_ids(theme.id)) == 2
 
 
@@ -987,7 +999,7 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     ui.page.select_option("#add-to-theme", theme.id)
     # The live region holds one sentence, and before the click it is this one — so
     # the outcome waited for below is text only the refusal can have produced.
-    assert "2 selected." in ui.text()
+    expect(ui.view).to_contain_text("2 selected.", use_inner_text=True)
 
     ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 of 2 to Baroque.')")
@@ -995,8 +1007,9 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     # Read whole rather than by substring: how far the loop got and what pressing
     # Add again will do are one sentence, and a client that dropped the second
     # half would leave the curator to guess whether retrying repeats the work.
-    assert ui.page.inner_text(".selection-status") == (
-        "Added 1 of 2 to Baroque. The rest are still selected, so pressing Add again retries only those."
+    expect(ui.page.locator(".selection-status")).to_have_text(
+        "Added 1 of 2 to Baroque. The rest are still selected, so pressing Add again retries only those.",
+        use_inner_text=True,
     )
 
     # Why it stopped is the server's sentence, not one composed here: the failure
@@ -1010,16 +1023,16 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
 
     # Exactly the work that did not go, and only it. Clearing the selection and
     # leaving it whole both satisfy "something is ticked"; neither is this.
-    assert ui.page.locator("input.tile-select:checked").count() == 1
-    assert ui.page.locator(f"li.card[data-artwork='{works[2].id}'] input.tile-select").is_checked()
+    expect(ui.page.locator("input.tile-select:checked")).to_have_count(1)
+    expect(ui.page.locator(f"li.card[data-artwork='{works[2].id}'] input.tile-select")).to_be_checked()
     assert writes == [works[1].id, works[2].id]
     assert set(display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
     # The rail's count moved by the one that landed, not by the two asked for and
     # not by none: the stale count its handler exists to refuse.
-    assert theme_option(ui, theme).inner_text() == "Baroque (2)"
+    expect(theme_option(ui, theme)).to_have_text("Baroque (2)", use_inner_text=True)
 
     # The retry is pressing the same button, so it has to still be pressable.
-    assert ui.page.is_enabled("dialog button.add-confirm")
+    expect(ui.page.locator("dialog button.add-confirm")).to_be_enabled()
     ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Baroque.')")
 
@@ -1029,10 +1042,10 @@ def test_a_refusal_partway_through_leaves_exactly_the_works_that_did_not_go(ui, 
     # front of the loop and say so, and " 1 was already in it." is the only trace
     # of a selection that was never reduced.
     assert writes == [works[1].id, works[2].id, works[2].id]
-    assert ui.page.inner_text(".selection-status") == "Added 1 work to Baroque."
-    assert ui.page.locator("input.tile-select:checked").count() == 0
+    expect(ui.page.locator(".selection-status")).to_have_text("Added 1 work to Baroque.", use_inner_text=True)
+    expect(ui.page.locator("input.tile-select:checked")).to_have_count(0)
     assert set(display.theme_work_ids(theme.id)) == {work.id for work in works}
-    assert theme_option(ui, theme).inner_text() == "Baroque (3)"
+    expect(theme_option(ui, theme)).to_have_text("Baroque (3)", use_inner_text=True)
 
 
 def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_theme_holding_one_work):
@@ -1046,11 +1059,13 @@ def test_removing_a_theme_s_last_member_leaves_a_sentence_not_a_blank(ui, a_them
     ui.page.click("button.selection-remove")
     ui.page.wait_for_selector(".empty")
 
-    assert NOTHING_MATCHES in ui.text()
-    assert "the theme \u201cBaroque\u201d" in ui.text()
+    expect(ui.view).to_contain_text(NOTHING_MATCHES, use_inner_text=True)
+    expect(ui.view).to_contain_text("the theme \u201cBaroque\u201d", use_inner_text=True)
     # In the facts line since the heading became the page's name (ruling 1 of
     # 2026-10-27); the count still follows the removal.
-    assert ui.page.inner_text("#view .page-facts") == "0 works \u00b7 filtered by the theme \u201cBaroque\u201d"
+    expect(ui.page.locator("#view .page-facts")).to_have_text(
+        "0 works \u00b7 filtered by the theme \u201cBaroque\u201d", use_inner_text=True
+    )
 
 
 def test_a_repaint_that_is_not_a_navigation_does_not_move_focus(ui):
