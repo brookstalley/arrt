@@ -20,6 +20,7 @@ pytest.importorskip(
 )
 
 from payloads import a_facet_group, a_facet_option, a_listing, a_run
+from playwright.sync_api import expect
 
 from arrt.http.models import RunListOut
 
@@ -119,7 +120,7 @@ def test_to_review_s_action_is_on_screen_on_a_phone(ui):
     ui.page.wait_for_selector("#view a.row-link")
 
     for review in ui.page.locator("#view a.row-link").all():
-        box = review.bounding_box()
+        box = review.bounding_box()  # one-shot: geometry, once the rows are drawn
         assert box["x"] >= 0
         assert box["x"] + box["width"] <= PHONE["width"], "Review is past the screen's edge"
     assert sideways(ui) <= 0
@@ -137,7 +138,7 @@ def test_on_a_phone_an_activity_row_is_a_card_and_the_whole_card_opens_it(ui):
     headings = row.locator("td").evaluate_all("(tds) => tds.map((td) => getComputedStyle(td, '::before').content)")
     assert '"Asked for"' in headings, f"a cell lost the heading that says what it is: {headings}"
     # A point on the card well away from the link itself lands on the link.
-    box = row.bounding_box()
+    box = row.bounding_box()  # one-shot: geometry, once the row is drawn
     hit = ui.page.evaluate(
         "([x, y]) => { const n = document.elementFromPoint(x, y);"
         " return n && n.closest('a') ? n.closest('a').className : null; }",
@@ -168,7 +169,7 @@ def test_the_top_bar_is_one_row_on_a_phone(ui):
     )
     assert len(tops) >= 3, "the bar lost one of its parts rather than fitting them"
     assert max(tops) - min(tops) <= 8, f"the top bar wraps onto more than one row: {tops}"
-    assert ui.page.locator("#status").is_visible(), "the indicator was pushed off rather than fitted"
+    expect(ui.page.locator("#status"), "the indicator was pushed off rather than fitted").to_be_visible()
 
 
 # -- the keyboard ------------------------------------------------------------------
@@ -239,7 +240,8 @@ def test_an_overview_card_is_one_tab_stop_to_its_work(ui, work_with_an_image):
     to_the_work = [href for href in stops if href and work.id in href]
     assert len(to_the_work) == 1, f"the card reaches its work by {len(to_the_work)} Tab stops"
     # Still a way in for a pointer: the picture opens the work.
-    assert card.locator("a.card-image").get_attribute("href") == card.locator(".card-title a").get_attribute("href")
+    title_link = card.locator(".card-title a").get_attribute("href")  # one-shot: the address the picture must share
+    expect(card.locator("a.card-image")).to_have_attribute("href", title_link)
 
 
 def test_two_works_sharing_a_title_have_different_names(ui, service, seeded_service):
@@ -320,8 +322,8 @@ def test_a_review_note_field_is_named_for_its_work(ui):
     ui.serve("**/api/runs/search-1/candidates*", a_candidate_page(cards))
     ui.open("#review/search-1")
     ui.page.wait_for_selector("#reason-work-1")
-    names = [ui.page.get_by_label(f"Why (optional), for {title}").count() for title in ("Nighthawks", "Automat")]
-    assert names == [1, 1]
+    for title in ("Nighthawks", "Automat"):
+        expect(ui.page.get_by_label(f"Why (optional), for {title}")).to_have_count(1)
     # What is seen is unchanged: the title is in a visually hidden part of the label.
     assert ui.page.locator("label[for='reason-work-1']").evaluate("(l) => l.firstChild.textContent") == "Why (optional)"
 
@@ -333,8 +335,8 @@ def test_a_table_wider_than_its_box_takes_the_keyboard(ui, a_health_reading):
     ui.open("#to_review")
     box = ui.page.locator("#view .table-scroll").first
     box.wait_for()
-    assert box.get_attribute("tabindex") is None, "a table that fits became a stop on nothing"
+    expect(box, "a table that fits became a stop on nothing").not_to_have_attribute("tabindex")
     ui.page.evaluate("() => { document.querySelector('#view .table-scroll table').style.minWidth = '3000px'; }")
     ui.page.wait_for_function("() => document.querySelector('#view .table-scroll').getAttribute('tabindex') === '0'")
-    assert box.get_attribute("role") == "region"
-    assert box.get_attribute("aria-label") == "Every Get with works waiting for your verdict, newest first."
+    expect(box).to_have_attribute("role", "region")
+    expect(box).to_have_attribute("aria-label", "Every Get with works waiting for your verdict, newest first.")

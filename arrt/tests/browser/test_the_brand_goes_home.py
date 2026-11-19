@@ -17,6 +17,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
@@ -47,10 +49,11 @@ def test_the_name_is_a_link_to_the_home_page(ui, seeded_service):
     ui.page.wait_for_selector("#view h1")
 
     brand = ui.page.locator(BRAND)
-    assert brand.inner_text() == "Arrt"
-    assert brand.get_attribute("href") == f"#{HOME}"
+    expect(brand).to_have_text("Arrt", use_inner_text=True)
+    expect(brand).to_have_attribute("href", f"#{HOME}")
     # Still not a heading: each screen's own heading is the page's one h1.
-    assert ui.page.locator(".topbar h1").count() == 0
+    # (After the brand itself is read, so the bar has been painted.)
+    expect(ui.page.locator(".topbar h1")).to_have_count(0)
 
 
 @pytest.mark.parametrize("route", list(ROUTES.values()), ids=list(ROUTES))
@@ -73,7 +76,7 @@ def test_pressed_on_a_filtered_artworks_it_clears_the_filter(ui, seeded_service)
     case only the click handler's `go` can answer: the filter must go."""
     ui.open(f"#{HOME}?q=Nighthawks&sort=title")
     ui.page.wait_for_selector("ul.grid li.card")
-    filtered = ui.page.locator("ul.grid li.card").count()
+    filtered = ui.page.locator("ul.grid li.card").count()  # one-shot: the size the cleared grid must exceed
 
     ui.page.click(BRAND)
 
@@ -111,7 +114,7 @@ def test_on_a_phone_the_name_is_still_the_way_home(ui, seeded_service):
     ui.open("#walls")
     ui.page.wait_for_selector("#view h1")
 
-    assert ui.page.locator(BRAND).is_visible()
+    expect(ui.page.locator(BRAND)).to_be_visible()
     ui.page.click(BRAND)
     ui.page.wait_for_function("(home) => window.location.hash === home", arg=f"#{HOME}")
 
@@ -124,10 +127,10 @@ def test_pressed_on_the_home_page_itself_it_arrives_afresh(ui, seeded_service):
     ui.page.wait_for_selector("ul.grid li.card")
     ui.page.click("#view button.select-toggle")
     ui.page.locator("ul.grid li.card input.tile-select").first.check()
-    assert ui.page.inner_text("#view button.select-toggle") == "Stop selecting"
+    expect(ui.page.locator("#view button.select-toggle")).to_have_text("Stop selecting", use_inner_text=True)
 
     ui.page.click(BRAND)
 
     ui.page.wait_for_function("() => document.querySelector('#view button.select-toggle')?.textContent === 'Select'")
-    assert ui.page.locator("ul.grid li.card input.tile-select:checked").count() == 0
+    expect(ui.page.locator("ul.grid li.card input.tile-select:checked")).to_have_count(0)
     assert ui.page.evaluate("() => location.hash") == f"#{HOME}"

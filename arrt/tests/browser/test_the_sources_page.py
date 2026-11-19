@@ -6,6 +6,8 @@ declined plugin beside the loaded ones, and says an unknown in words rather than
 leaving a blank, is not expressible as JSON.
 """
 
+import re
+
 import pytest
 
 from arrt.http.models import SourcePluginOut, SourcesOut
@@ -14,6 +16,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 
 def a_listing(sources, interface_version="1.1"):
@@ -48,18 +52,21 @@ def test_every_installed_plugin_is_listed_in_order_with_its_package_and_version(
     entries = panels(ui)
 
     # Each by the museum's name, and one this client has no name for by its own id.
-    assert entries.locator("h2").all_inner_texts() == ["Wikimedia Commons", "Art Institute of Chicago", "moma", "Wikidata"]
-    assert "Plugin\nartic" in entries.nth(1).inner_text()
+    expect(entries.locator("h2")).to_have_text(
+        ["Wikimedia Commons", "Art Institute of Chicago", "moma", "Wikidata"], use_inner_text=True
+    )
+    # The label and its value stand on two lines: a pattern, which sees the line break a string would fold away.
+    expect(entries.nth(1)).to_contain_text(re.compile("Plugin\nartic"), use_inner_text=True)
     moma = entries.nth(2)
-    assert "arrt-sources 0.4.1" in moma.inner_text()
-    assert "Finds images of a work; reads the addresses it claims." in moma.inner_text()
-    assert "3 of 4" in moma.inner_text()
+    expect(moma).to_contain_text("arrt-sources 0.4.1", use_inner_text=True)
+    expect(moma).to_contain_text("Finds images of a work; reads the addresses it claims.", use_inner_text=True)
+    expect(moma).to_contain_text("3 of 4", use_inner_text=True)
     artic = entries.nth(1)
     # Declined is said with its reason, and a plugin that did not load says it provides nothing.
-    assert "ARTIC_USER_AGENT is unset" in artic.inner_text()
-    assert "Nothing here, because it did not load." in artic.inner_text()
-    assert "Finds pages about a work, for other plugins to read." in entries.nth(3).inner_text()
-    assert "This Arrt provides plugin interface 1.1." in ui.page.locator("main").inner_text()
+    expect(artic).to_contain_text("ARTIC_USER_AGENT is unset", use_inner_text=True)
+    expect(artic).to_contain_text("Nothing here, because it did not load.", use_inner_text=True)
+    expect(entries.nth(3)).to_contain_text("Finds pages about a work, for other plugins to read.", use_inner_text=True)
+    expect(ui.page.locator("main")).to_contain_text("This Arrt provides plugin interface 1.1.", use_inner_text=True)
 
 
 def test_what_could_not_be_read_is_said_in_words(ui, a_source_reading):
@@ -82,12 +89,12 @@ def test_what_could_not_be_read_is_said_in_words(ui, a_source_reading):
 
     # What this checks shows only in debug (ruling 1 of 2026-10-11).
     ui.open("?debug#sources")
-    gone, future = panels(ui).nth(0).inner_text(), panels(ui).nth(1).inner_text()
+    gone, future = panels(ui).nth(0), panels(ui).nth(1)
 
-    assert "Not known: no installed package names this plugin alone." in gone
-    assert "Not known: it failed before saying which interface it was written for." in gone
-    assert "Written for interface 2; this Arrt provides 1." in future
-    assert "Written for interface 1, which this Arrt provides." not in future
+    expect(gone).to_contain_text("Not known: no installed package names this plugin alone.", use_inner_text=True)
+    expect(gone).to_contain_text("Not known: it failed before saying which interface it was written for.", use_inner_text=True)
+    expect(future).to_contain_text("Written for interface 2; this Arrt provides 1.", use_inner_text=True)
+    expect(future).not_to_contain_text("Written for interface 1, which this Arrt provides.", use_inner_text=True)
 
 
 def test_a_plugins_text_is_shown_as_text(ui, a_source_reading):
@@ -110,10 +117,10 @@ def test_a_plugins_text_is_shown_as_text(ui, a_source_reading):
     ui.open("?debug#sources")
     entry = panels(ui).nth(0)
 
-    assert entry.locator("h2").inner_text() == "<img src=x onerror=window.__ran=1>"
-    assert "<i>pkg</i> 0.3.0" in entry.inner_text()
+    expect(entry.locator("h2")).to_have_text("<img src=x onerror=window.__ran=1>", use_inner_text=True)
+    expect(entry).to_contain_text("<i>pkg</i> 0.3.0", use_inner_text=True)
     assert ui.page.evaluate("window.__ran") is None
-    assert entry.locator("img, b, i").count() == 0
+    expect(entry.locator("img, b, i")).to_have_count(0)
 
 
 def test_no_plugin_installed_is_said(ui):
@@ -122,7 +129,7 @@ def test_no_plugin_installed_is_said(ui):
     ui.open("#sources")
     ui.page.wait_for_selector("h1:has-text('Sources')")
 
-    assert "No source plugin is installed" in ui.page.locator("main").inner_text()
+    expect(ui.page.locator("main")).to_contain_text("No source plugin is installed", use_inner_text=True)
 
 
 def test_the_page_is_under_settings_after_players(ui):
@@ -131,8 +138,9 @@ def test_the_page_is_under_settings_after_players(ui):
     ui.open("#sources")
     ui.page.wait_for_selector("h1:has-text('Sources')")
 
-    links = ui.page.locator("nav a").all_inner_texts()
-    assert links.index("Sources") == links.index("Players") + 1
+    # The listing is a list of items: the one after Players' is Sources'.
+    expect(ui.page.locator("nav a[data-view='clients']")).to_have_text("Players", use_inner_text=True)
+    expect(ui.page.locator("nav ul.pages li:has(a[data-view='clients']) + li a")).to_have_text("Sources", use_inner_text=True)
 
 
 def test_a_plugin_that_names_its_museum_is_called_by_it_on_every_page(ui, a_source_reading, service):
@@ -152,10 +160,11 @@ def test_a_plugin_that_names_its_museum_is_called_by_it_on_every_page(ui, a_sour
     )
 
     ui.open("#sources")
-    assert panels(ui).locator("h2").all_inner_texts() == ["The Museum of Modern Art"]
+    expect(panels(ui).locator("h2")).to_have_text(["The Museum of Modern Art"], use_inner_text=True)
 
     ui.open(f"#work/{work.id}")
     obtained = ui.page.locator(".panel", has=ui.page.locator("h2:text-is('Where it can be obtained')"))
     obtained.wait_for()
-    assert "The Museum of Modern Art" in obtained.inner_text()
-    assert "moma\n" not in obtained.inner_text()
+    expect(obtained).to_contain_text("The Museum of Modern Art", use_inner_text=True)
+    # The id on a line of its own is the plugin's name shown raw: a pattern, which sees the line break.
+    expect(obtained).not_to_contain_text(re.compile("moma\n"), use_inner_text=True)

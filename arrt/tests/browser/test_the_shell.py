@@ -17,6 +17,7 @@ pytest.importorskip(
 )
 
 from PIL import Image
+from playwright.sync_api import expect
 
 
 def test_the_sidebar_edge_reaches_the_bottom_of_a_page_longer_than_the_window(ui):
@@ -43,8 +44,8 @@ def test_the_sidebar_edge_reaches_the_bottom_of_a_page_longer_than_the_window(ui
 def test_the_magnifier_is_the_search_button_and_says_so(ui):
     ui.open("#collection")
     button = ui.page.locator("#search-form").get_by_role("button", name="Search")
-    assert button.count() == 1
-    assert button.is_visible()
+    expect(button).to_have_count(1)
+    expect(button).to_be_visible()
     ui.page.fill("#search", "chicago")
     button.click()
     ui.page.wait_for_url("**#search*")
@@ -64,10 +65,9 @@ def test_a_search_pressed_while_the_client_starts_is_still_a_search(ui):
         held.append(route)
 
     ui.page.route("**/api/sources", hold)
-    ui.page.goto(f"{ui.base_url}/#collection")
     # The client is running once it has asked for the sources.
-    while not held:
-        ui.page.wait_for_timeout(50)
+    with ui.page.expect_request("**/api/sources"):
+        ui.page.goto(f"{ui.base_url}/#collection")
     ui.page.fill("#search", "chicago")
     ui.page.locator("#search-form").get_by_role("button", name="Search").click()
     for route in held:

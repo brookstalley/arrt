@@ -6,6 +6,8 @@ one line saying what it holds. Taste is headed "Taste", and its help names every
 control that records a judgment, by the words that control carries.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
@@ -14,6 +16,7 @@ pytest.importorskip(
 )
 
 from payloads import a_taste, an_affinity
+from playwright.sync_api import expect
 
 #: The pages, in the order the index and the sidebar list them.
 #: Players kept its address, `#clients`, when ruling 7 of 2026-10-27 renamed it.
@@ -30,8 +33,8 @@ def test_the_sidebars_settings_opens_the_index(ui):
     assert ui.page.evaluate("() => window.location.hash") == "#settings"
     # The section's link is the page's own, so it is the one marked current.
     current = ui.page.locator("nav.sidebar [aria-current='page']")
-    assert current.count() == 1
-    assert current.get_attribute("data-view") == "settings"
+    expect(current).to_have_count(1)
+    expect(current).to_have_attribute("data-view", "settings")
 
 
 def test_the_index_lists_each_page_as_a_link_with_what_it_holds(ui):
@@ -40,15 +43,16 @@ def test_the_index_lists_each_page_as_a_link_with_what_it_holds(ui):
     ui.page.wait_for_selector("ul.settings-index")
 
     rows = ui.page.locator("ul.settings-index > li")
-    assert rows.count() == len(PAGES)
+    expect(rows).to_have_count(len(PAGES))
     for index, (view, label) in enumerate(PAGES):
         row = rows.nth(index)
         anchor = row.locator("a")
-        assert anchor.count() == 1
-        assert anchor.inner_text() == label
-        assert anchor.get_attribute("href") == f"#{view}"
-        assert row.locator("p").inner_text().strip()
-    assert ui.page.locator("ul.settings-index button").count() == 0
+        expect(anchor).to_have_count(1)
+        expect(anchor).to_have_text(label, use_inner_text=True)
+        expect(anchor).to_have_attribute("href", f"#{view}")
+        # Its one line of what the page holds: some words, not a blank.
+        expect(row.locator("p")).to_have_text(re.compile(r"\S"), use_inner_text=True)
+    expect(ui.page.locator("ul.settings-index button")).to_have_count(0)
 
 
 def test_following_a_row_opens_its_page(ui):
@@ -64,7 +68,7 @@ def test_taste_is_headed_taste(ui):
     ui.open("#taste")
     ui.page.wait_for_selector(".affinity")
 
-    assert ui.page.inner_text("#view h1") == "Taste"
+    expect(ui.page.locator("#view h1")).to_have_text("Taste", use_inner_text=True)
 
 
 #: Every control that records a judgment, in its own words, with where it is.
@@ -86,13 +90,16 @@ def test_the_help_names_every_way_taste_is_recorded(ui, held):
     ui.open("#taste")
     ui.page.wait_for_selector(".affinity" if held else ".empty")
 
-    named = ui.page.locator(".taste-help em").all_inner_texts()
+    # A way is named when an emphasis in the help says exactly those words:
+    # `:text-is` is whole-text and case-sensitive, as membership of the list of
+    # the emphases' texts was ("More like this" is not "more like this").
     for words in WAYS:
-        assert words in named, f"the help does not name {words!r}: {named}"
+        named = ui.page.locator(f".taste-help em:text-is('{words}')").first
+        expect(named, f"the help does not name {words!r}").to_be_attached()
     # Ask's cards stopped offering it on 2026-10-09; a help naming it sends the
     # curator looking for a control that is not there.
-    assert "tell me more" not in named
-    help_text = ui.page.inner_text(".taste-help")
-    assert "artist's page" in help_text
-    assert "Ask offers" in help_text
-    assert "assistant" in help_text
+    expect(ui.page.locator(".taste-help em:text-is('tell me more')")).to_have_count(0)
+    help_text = ui.page.locator(".taste-help")
+    expect(help_text).to_contain_text("artist's page", use_inner_text=True)
+    expect(help_text).to_contain_text("Ask offers", use_inner_text=True)
+    expect(help_text).to_contain_text("assistant", use_inner_text=True)

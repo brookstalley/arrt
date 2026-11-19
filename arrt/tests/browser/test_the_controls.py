@@ -17,6 +17,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
@@ -122,7 +124,7 @@ def test_an_artist_page_spaces_its_wikidata_line_and_reactions_alike(ui, service
     assert not flush, flush
     step = ui.page.evaluate(MEASURE, "var(--space-4)")
     reactions = ui.page.locator("#view .page-toolbar:has(button:text-is('More like this'))")
-    assert reactions.locator("button:text-is('Not this')").count() == 1
+    expect(reactions.locator("button:text-is('Not this')")).to_have_count(1)
     gap = reactions.evaluate(
         "(bar) => bar.getBoundingClientRect().top - bar.previousElementSibling.getBoundingClientRect().bottom"
     )
@@ -172,15 +174,17 @@ def test_ask_has_one_filled_act_and_no_other_way_in(ui):
     """
     _settled(ui, "discover")
     filled = ui.page.locator("#view .panel .action.primary")
-    assert filled.count() == 1
-    assert filled.inner_text().strip() == "Ask"
-    assert ui.page.locator("#intent").count() == 0
-    assert ui.page.locator("#view button:text-is('Get')").count() == 0
-    assert ui.page.locator("#view button:text-is('Talk it through first')").count() == 0
+    expect(filled).to_have_count(1)
+    expect(filled).to_have_text("Ask", use_inner_text=True)
+    expect(ui.page.locator("#intent")).to_have_count(0)
+    expect(ui.page.locator("#view button:text-is('Get')")).to_have_count(0)
+    expect(ui.page.locator("#view button:text-is('Talk it through first')")).to_have_count(0)
 
 
 def test_ask_does_not_link_taste(ui):
     """Taste lives under Settings; Ask is for asking (owner, 2026-10-08)."""
     _settled(ui, "discover")
-    assert ui.page.locator("#view a[href='#taste']").count() == 0
-    assert "thinks you like" not in ui.page.inner_text("#view")
+    # Ask's own act is drawn, so the absences below are of a painted screen.
+    expect(ui.page.locator("#view .panel .action.primary")).to_be_visible()
+    expect(ui.page.locator("#view a[href='#taste']")).to_have_count(0)
+    expect(ui.view).not_to_contain_text("thinks you like", use_inner_text=True)
