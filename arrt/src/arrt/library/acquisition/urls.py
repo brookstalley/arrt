@@ -25,7 +25,7 @@ raises the cost of the rest, not that it is a proof.
 import ipaddress
 import socket
 from collections.abc import Callable, Sequence
-from typing import Final
+from typing import Final, cast
 from urllib.parse import urlsplit
 
 #: The only schemes a source may be fetched over. `file` is absent for the reason
@@ -68,7 +68,11 @@ def system_resolver(host: str) -> Sequence[str]:
         # characters) fails in the IDNA encoding before any lookup. It cannot be
         # fetched, which is a refusal, not a fault in the process.
         raise UrlRefused(f"{host!r} is not a name that can be looked up: {exc}") from exc
-    return [info[4][0] for info in infos]
+    # `getaddrinfo` types the address as `str | int` because a sockaddr is a tuple
+    # of mixed fields. The first field of an AF_INET or AF_INET6 sockaddr (the only
+    # families a TCP lookup yields here) is the address as a string
+    # (https://docs.python.org/3/library/socket.html#socket-families).
+    return [cast("str", info[4][0]) for info in infos]
 
 
 def check_fetchable(url: str, *, resolve: Resolver = system_resolver) -> str:

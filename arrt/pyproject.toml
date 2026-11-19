@@ -363,8 +363,6 @@ module = [
     "arrt.ask.agent",
     "arrt.ask.cards",
     "arrt.http.api",
-    "arrt.library.acquisition.mat",
-    "arrt.library.acquisition.urls",
     "arrt.library.discovery.pool",
     "arrt.library.registry.wikidata",
     "arrt.library.services.watches",
