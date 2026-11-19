@@ -1,0 +1,540 @@
+{
+  "_about": "Every fixture, the schema it is judged against, whether that schema accepts it, and, for invalid manifests, whether a Player must refuse it. A Player may be more tolerant than the schema, which states the writer's obligations; player_must_refuse lists the rules the reader enforces. Filenames name the one rule an invalid fixture breaks. An invalid fixture breaks either the schema or one of the semantic rules in player-contract.md \u00a7 Major 2; 'breaks' says which. For major 2, a Player refuses what it acts on (shape it reads, instants, the semantic rules) and never a presentation setting, which it ignores where it cannot honour it (player-contract.md \u00a7 Presentation settings).",
+  "fixtures": [
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/connected-not-a-boolean.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/identity-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/kind-unknown.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-connected-not-a-boolean.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-kind-unknown.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-missing-size.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-name-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-output-not-an-object.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/label-outputs-not-a-list.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-missing-screen.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/output-name-empty.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/screen-not-a-pair.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/frame-and-hdmi.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/frame-with-identity-and-a-panel.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/no-outputs-and-an-unknown-key.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/panels-and-no-display.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client-heartbeat.v1/valid/two-connectors-one-unplugged.json",
+      "schema": "schemas/client-heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/invalid/label-missing-wall-id.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/labels-not-a-list.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-display-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-missing-output.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/wall-output-empty.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/invalid/walls-not-a-list.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/client.v1/valid/a-label-and-no-walls.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/no-walls-yet.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/two-walls-on-two-outputs.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/unknown-key.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/client.v1/valid/walls-on-displays-and-labels-mapped.json",
+      "schema": "schemas/client.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/backend-unknown.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-in-use-naming-a-work.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-since-without-offset.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/display-state-unknown.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/has-label-surface-null.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/label-mode-panel.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/manifest-schema-not-major-minor.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/media-kind-unknown.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/media-kinds-empty.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/no-label-modes.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/timestamp-instead-of-reported-at.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/invalid/video-max-frame-without-video.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/as-built.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/framebuffer-with-overlay.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/fresh-start-no-panel.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-1-with-schema.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-2-with-capabilities.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-4-no-screen.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-5-plays-video-up-to-720p.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-5-still-images-only.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-dark.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-in-use.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-showing-a-picture-this-wall-did-not-put-there.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/heartbeat.v1/valid/minor-3-showing-art.json",
+      "schema": "schemas/heartbeat.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/invalid/in-use-naming-a-work.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/label-missing-title.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/schema-major-2.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/since-without-offset.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/state-unknown.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/invalid/wall-name-missing.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": false,
+      "breaks": "schema"
+    },
+    {
+      "path": "fixtures/label.v1/valid/showing-art.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/silent-holding-the-last-caption.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/silent-never-reported.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/unassigned.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/label.v1/valid/unknown-minor-and-key.json",
+      "schema": "schemas/label.v1.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/fact-not-a-label-key.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/fade-negative.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/horizon-not-whole-days.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/horizon-of-no-length.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/label-mode-unknown.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/major-1.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/mat-color-not-hex.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/mat-mode-unknown.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/media-missing-dimensions.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/scene-ends-before-it-starts.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/scene-names-a-work-not-in-works.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-ends-before-it-starts.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-missing-until.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-names-a-work-not-in-works.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-outside-the-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slot-starts-before-the-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/slots-overlap.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/staging-names-a-work-not-in-works.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "semantics",
+      "player_must_refuse": true
+    },
+    {
+      "path": "fixtures/manifest.v2/invalid/work-label-missing-title.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": false,
+      "breaks": "schema",
+      "player_must_refuse": false
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/a-day-with-dark-hours.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/across-a-clock-change.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/caption-wall-week-horizon.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/empty-feed.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/channel-feed.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/overlay-wall-every-setting.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/scene-hold.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/scene-preview.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    },
+    {
+      "path": "fixtures/manifest.v2/valid/staging-a-scene.json",
+      "schema": "schemas/manifest.v2.schema.json",
+      "valid": true
+    }
+  ]
+}

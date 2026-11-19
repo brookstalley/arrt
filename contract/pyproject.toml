@@ -4,7 +4,7 @@ name = "arrt-contract"
 # fixture is a minor here; a manifest major is a major here. A Player pins this
 # number, so the version is how anyone can read which contract a Player was
 # built against. `player-contract.md` § Versioning says what moves it.
-version = "1.1.0"
+version = "1.2.0"
 description = "The contract between Arrt and every Arrt Player: schemas, fixtures, conformance vectors, routes, and the rules a schema cannot state."
 # The Player's floor, which is the lower of the two consumers'.
 requires-python = ">=3.12"
@@ -22,6 +22,11 @@ dev = [
     "pytest>=8",
     "ruff>=0.6",
     "black>=24",
+    # The package's own source checks clean under `--strict` (`[tool.mypy]`
+    # below), so what it hands a consumer is typed as it says.
+    "mypy>=1.13",
+    # jsonschema ships no types of its own; `referencing` does.
+    "types-jsonschema",
 ]
 
 [build-system]
@@ -43,6 +48,11 @@ packages = ["src/arrt_contract"]
 "vectors" = "arrt_contract/vectors"
 "routes.json" = "arrt_contract/routes.json"
 "timing.json" = "arrt_contract/timing.json"
+"transport.json" = "arrt_contract/transport.json"
+"vocabulary.json" = "arrt_contract/vocabulary.json"
+# The frozen copies of each released minor, so a consumer can hold itself to
+# what an older Player or server was tested against (`released()`).
+"released" = "arrt_contract/released"
 # The specification travels with the files it specifies, because the schemas
 # alone do not carry the rules a schema cannot state. `player-contract.md` here
 # is a symlink to the artifact, so there is one text.
@@ -56,6 +66,13 @@ packages = ["src/arrt_contract"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# The source is checked strict; the tests are not type-checked. Run as
+# `cd contract && uv run mypy`.
+[tool.mypy]
+files = ["src"]
+strict = true
+python_version = "3.12"
 
 [tool.black]
 target-version = ["py312"]
