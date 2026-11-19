@@ -653,7 +653,7 @@ def test_the_tokeniser_builds_only_i_and_b(ui, service, markup, tags, text):
 
 # -- the wall label's layout -----------------------------------------------------
 
-RECORD = ["Master image", "Where it can be obtained", "What has been rendered", "Mat colour"]
+RECORD = ["Picture", "Where it can be obtained", "What has been rendered", "Mat colour"]
 
 
 def _layout(ui):

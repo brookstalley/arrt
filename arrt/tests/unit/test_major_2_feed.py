@@ -210,7 +210,7 @@ def test_showing_a_work_with_no_master_is_refused_and_leaves_the_feed_alone(
     before = feed(wall_id)
     plain = ready_work("Plain", master=False)
 
-    with pytest.raises(ServiceError, match="no presentation master has been made"):
+    with pytest.raises(ServiceError, match="its copy for the walls has not been made"):
         display.show_work_now(wall_id, plain.id)
 
     assert feed(wall_id).slots == before.slots

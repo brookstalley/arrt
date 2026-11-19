@@ -79,9 +79,9 @@ _DETAIL: Final[dict[SeedNote, str]] = {
     SeedNote.BIRTH_YEAR_ABSENT: "No birth year is known, so its label will carry no artist dates.",
     SeedNote.MEDIUM_ABSENT: "No medium is recorded, so its label will not say what the work is made of.",
     SeedNote.DIMENSIONS_ABSENT: "No physical dimensions are recorded; it still reaches the wall, but its label omits the size.",
-    SeedNote.ORIGINAL_FILE_ABSENT: "Its master image is not in the tree at {path}, so it has nothing to show.",
+    SeedNote.ORIGINAL_FILE_ABSENT: "Its picture is not in the tree at {path}, so it has nothing to show.",
     SeedNote.ORIGINAL_UNREADABLE: (
-        "Its master image at {path} could not be read as a JPEG; a zero-length or truncated file reads this way."
+        "Its picture at {path} could not be read as a JPEG; a zero-length or truncated file reads this way."
     ),
     SeedNote.MAT_BELOW_FLOOR: (
         "Its 2024 mat {colour} is darker than the floor of L* 15, so it was not carried; preparing the work chooses a new one."

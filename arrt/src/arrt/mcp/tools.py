@@ -223,7 +223,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     items="string",
                     description=(
                         f"Only works whose size on the wall is in one of these bands: {', '.join(FIT_BANDS)} "
-                        "(unknown: no master yet). The result's fits counts each band."
+                        "(unknown: no picture yet). The result's fits counts each band."
                     ),
                 ),
                 Param(
@@ -312,7 +312,7 @@ ART_CATALOGUE: Final = ToolRecord(
             # Changed 2026-10-02 from fetching in the call to queueing: a breaking
             # description change by `api-contract.md` § Versioning, announced
             # with the plan that made it (`build-plan-after-review.md` Chunk 02).
-            description="Queue the work's master image to be fetched again, first in line, and return at once.",
+            description="Queue the work's picture to be fetched again, first in line, and return at once.",
             example="art_catalogue(action='retry_acquisition', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _SOURCE_ID),
             tips=(
@@ -395,7 +395,10 @@ ART_CATALOGUE: Final = ToolRecord(
         ),
         Action(
             name="regenerate",
-            description="Make a work's presentation master from the image it holds, and give it a mat colour if it has none.",
+            description=(
+                "Make a work's presentation master (its copy for the walls) from the picture it holds, "
+                "and give it a mat colour if it has none."
+            ),
             example="art_catalogue(action='regenerate', artwork_id='<an artwork_id from action=list>')",
             params=(_ARTWORK_ID, _FORCE),
             tips=(
@@ -405,7 +408,7 @@ ART_CATALOGUE: Final = ToolRecord(
                     "answer reports cost_usd, so a call that spent nothing says so."
                 ),
                 (
-                    "Ordinarily it does only what is needed: a work whose master is already current is reported "
+                    "Ordinarily it does only what is needed: a work whose presentation master is already current is reported "
                     "unchanged rather than made again. Each wall's Player draws the mat itself."
                 ),
                 "Use force=true after clearing the masters directory.",
@@ -1869,8 +1872,8 @@ ART_DISPLAY: Final = ToolRecord(
             tips=(
                 (
                     "Any work that could not reach the wall is refused rather than shown — archived, "
-                    "missing its acquired master image, its mat colour or its presentation master (the picture "
-                    "each wall's Player is sent), carrying a presentation master made from an earlier acquisition, "
+                    "missing its picture, its mat colour or its copy for the walls (the presentation master each "
+                    "wall's Player is sent), carrying a copy for the walls made from an earlier acquisition, "
                     "or naming no work the catalogue holds. The "
                     "refusal names which, in the same words "
                     "art_display(action='sync') uses for an excluded work."
