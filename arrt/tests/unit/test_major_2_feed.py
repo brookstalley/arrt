@@ -24,6 +24,7 @@ from arrt.persistence.records import MatMethod, RenditionKind, ThemeAssignment, 
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.programming import display as display_module
 from arrt.programming import feeds as feeds_module
+from arrt.programming import scenes as scenes_module
 from arrt.programming import themes as themes_module
 from arrt.programming import walls as walls_module
 from arrt.programming.display import Unjudged
@@ -522,7 +523,7 @@ def clock(monkeypatch):
         def now(cls, tz=None):
             return datetime.now(tz) + held.offset
 
-    for module in (display_module, feeds_module, themes_module, walls_module):
+    for module in (display_module, feeds_module, themes_module, walls_module, scenes_module):
         monkeypatch.setattr(module, "datetime", Moved)
     return held
 
