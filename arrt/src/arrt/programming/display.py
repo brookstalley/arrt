@@ -1070,9 +1070,11 @@ class DisplayService:
         the two-step alternative exists only as an artefact of how the operations
         decompose.
 
-        The switch costs **zero television writes**: the whole library stays on
-        the TV and rotation is driven from here, so this is a file rewrite rather
-        than minutes of upload churn.
+        **Here, the switch is a file rewrite**: the server writes the wall's feed
+        and nothing else. What it costs at the wall is the Player's: it reads the
+        feed on its next poll and fetches, or for a Frame uploads to the
+        television, any work of the new theme it does not hold, which can take a
+        while. Nothing here writes to a television.
 
         It returns the build, not the theme, because the theme alone cannot say
         how much of itself reached the wall — and a switch that silently put up
