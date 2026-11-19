@@ -8,6 +8,7 @@ registry is a fake installed where the entry point builds Wikidata's; the work
 waiting is proposed through the real discovery store.
 """
 
+import re
 from dataclasses import replace
 
 import pytest
@@ -87,6 +88,20 @@ def _results(ui, query):
     )
 
 
+def _begins(words):
+    """A pattern for text that begins with `words`, in whatever whitespace the page lays them out in.
+
+    A string is compared folded to single spaces, but `startswith` is a pattern, and a pattern
+    is matched against the raw text (`docs/testing.md`, hazard 2): so each gap is any whitespace.
+    """
+    return re.compile("^" + r"\s+".join(re.escape(word) for word in words.split()))
+
+
+def _review_address(run_id):
+    """A link's address up to its query, which carries only where the page was opened from."""
+    return re.compile("^" + re.escape(f"#review/{run_id}") + r"(\?|$)")
+
+
 def _row(ui, scope, title):
     """The row whose title is `title`; a link's address is read up to its query,
     which carries only where the page was opened from."""
@@ -100,22 +115,21 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
     _results(ui, "bruegel")
 
     rows = ui.page.locator("#view .results-list li:has(.row-title:text-is('The Hunters in the Snow'))")
-    assert rows.count() == 1, "the library's row and Wikidata's are one work"
+    expect(rows, "the library's row and Wikidata's are one work").to_have_count(1)
     # Under *Held*, the group's heading is the only "Held", and this work, held
     # with no master yet, says so in its picture's place (audit 6, finding 14;
     # until 2026-11-19 the row ended "● Held" and said nothing of its picture).
-    text = " ".join(rows.inner_text().split())
-    assert text.startswith("No picture The Hunters in the Snow"), text
-    assert "Held" not in text, text
+    expect(rows).to_have_text(_begins("No picture The Hunters in the Snow"), use_inner_text=True)
+    expect(rows).not_to_contain_text("Held", use_inner_text=True)
     # A held work is never offered a Get. Its tick, since #317, is the held
     # half's, to add to a theme or archive: ticked, it lights those and leaves
     # Get dark. (This line asserted no tick at all until then, which was the
     # gap #317 closed, not the contract.)
-    assert rows.locator("input[type='checkbox']").count() == 1
+    expect(rows.locator("input[type='checkbox']")).to_have_count(1)
     ui.page.click("#view button.select-toggle")
     rows.locator("input[type='checkbox']").check()
-    assert ui.page.locator("#view .selection button.selection-archive").is_enabled()
-    assert ui.page.locator("#view .selection button.get-open").is_disabled()
+    expect(ui.page.locator("#view .selection button.selection-archive")).to_be_enabled()
+    expect(ui.page.locator("#view .selection button.get-open")).to_be_disabled()
 
 
 def test_a_folded_held_row_asks_for_the_picture_of_the_work_that_has_one_and_no_other(
@@ -171,19 +185,21 @@ def test_a_work_in_review_says_so_links_to_the_review_and_offers_no_get(ui, harv
 
     row = _row(ui, "#view .results-list li", "The Harvesters")
     mark = row.locator(".state-mark")
-    assert " ".join(mark.inner_text().split()) == "◔ Waiting for review"
-    assert mark.get_attribute("href").split("?")[0] == f"#review/{harvesters_waiting.discovery_run_id}"
-    assert row.locator("input[type='checkbox']").count() == 0, "a work waiting for review offers no Get"
+    expect(mark).to_have_text("◔ Waiting for review", use_inner_text=True)
+    expect(mark).to_have_attribute("href", _review_address(harvesters_waiting.discovery_run_id))
+    # Anchored by the mark above, which only a drawn row has.
+    expect(row.locator("input[type='checkbox']"), "a work waiting for review offers no Get").to_have_count(0)
     # The row beside it, neither held nor waiting, is still got from here.
-    assert _row(ui, "#view .results-list li", "The Corn Harvest").locator("input[type='checkbox']").count() == 1
-    assert "Waiting for review" not in _row(ui, "#view .results-list li", "The Corn Harvest").inner_text()
+    corn = _row(ui, "#view .results-list li", "The Corn Harvest")
+    expect(corn.locator("input[type='checkbox']")).to_have_count(1)
+    expect(corn).not_to_contain_text("Waiting for review", use_inner_text=True)
 
 
 def test_an_artist_a_run_proposed_a_work_of_reads_waiting_for_review(ui, harvesters_waiting):
     _results(ui, "bruegel")
 
     artist = ui.page.locator(f"section[aria-labelledby='results-not-held-artists'] li:has-text('{BRUEGEL_NAME}')")
-    assert artist.locator(".state-mark").get_attribute("href").split("?")[0] == f"#review/{harvesters_waiting.discovery_run_id}"
+    expect(artist.locator(".state-mark")).to_have_attribute("href", _review_address(harvesters_waiting.discovery_run_id))
 
 
 def test_the_mark_opens_the_review(ui, harvesters_waiting):
@@ -200,8 +216,8 @@ def test_a_suggestion_says_waiting_for_review_and_holds_no_control(ui, harvester
     option = ui.page.locator("[role='option']:has-text('The Harvesters')")
     option.wait_for()
 
-    assert "Waiting for review" in option.inner_text()
-    assert option.locator("a, button, input").count() == 0, "a control inside an option is what ARIA forbids"
+    expect(option).to_contain_text("Waiting for review", use_inner_text=True)
+    expect(option.locator("a, button, input"), "a control inside an option is what ARIA forbids").to_have_count(0)
 
 
 # -- the Artist page -----------------------------------------------------------------
@@ -215,12 +231,13 @@ def test_the_artist_page_shows_a_work_in_review_without_a_get(ui, harvesters_wai
     table.locator("tr:has-text('The Corn Harvest') input[type='checkbox']").wait_for()
 
     harvesters = table.locator("tr:has-text('The Harvesters')")
-    assert harvesters.locator("input[type='checkbox']").count() == 0
+    # The rows are drawn, with their ticks, as the wait above saw (the Corn Harvest's is there).
+    expect(harvesters.locator("input[type='checkbox']")).to_have_count(0)
     mark = harvesters.locator(".state-mark")
-    assert " ".join(mark.inner_text().split()) == "◔ Waiting for review"
-    assert mark.get_attribute("href").split("?")[0] == f"#review/{harvesters_waiting.discovery_run_id}"
-    assert table.locator("tr:has-text('The Hunters in the Snow')").count() == 1, "held, and listed once"
-    assert table.locator("tr:has-text('The Hunters in the Snow') input[type='checkbox']").count() == 0
+    expect(mark).to_have_text("◔ Waiting for review", use_inner_text=True)
+    expect(mark).to_have_attribute("href", _review_address(harvesters_waiting.discovery_run_id))
+    expect(table.locator("tr:has-text('The Hunters in the Snow')"), "held, and listed once").to_have_count(1)
+    expect(table.locator("tr:has-text('The Hunters in the Snow') input[type='checkbox']")).to_have_count(0)
 
 
 def test_get_shows_it_is_free_before_it_is_pressed(ui):
@@ -235,10 +252,10 @@ def test_get_shows_it_is_free_before_it_is_pressed(ui):
     get = ui.page.locator("dialog button.get-confirm")
     get.wait_for()
 
-    assert " ".join(ui.page.inner_text("dialog .badge-tier").split()) == "Cost: Free"
-    assert ui.page.locator("#view .get-control .badge-tier").count() == 0, "the tier is said once, in the dialog"
-    tier = ui.page.locator("dialog .badge-tier").bounding_box()
-    field = ui.page.locator("dialog .get-into").bounding_box()
+    expect(ui.page.locator("dialog .badge-tier")).to_have_text("Cost: Free", use_inner_text=True)
+    expect(ui.page.locator("#view .get-control .badge-tier"), "the tier is said once, in the dialog").to_have_count(0)
+    tier = ui.page.locator("dialog .badge-tier").bounding_box()  # one-shot: geometry, read once the dialog's tier is said
+    field = ui.page.locator("dialog .get-into").bounding_box()  # one-shot: geometry, read once the dialog's tier is said
     assert tier is not None
     assert field is not None
     assert tier["x"] == field["x"], "the tier starts its line, under Add to, rather than centred"
