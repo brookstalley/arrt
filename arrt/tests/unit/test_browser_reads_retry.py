@@ -90,7 +90,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_names_that_link.py": (23, 0),
     "test_no_machine_dates.py": (2, 1),
     "test_one_selection_model.py": (45, 0),
-    "test_pages_for_what_is_not_held.py": (32, 0),
     "test_pictures_where_a_person_decides.py": (11, 0),
     "test_review_folds.py": (21, 0),
     "test_review_trust.py": (32, 4),

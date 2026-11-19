@@ -9,6 +9,8 @@ fake installed where the entry point builds Wikidata's.
 arrive as words.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
@@ -17,6 +19,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     RegistryArtist,
@@ -94,16 +97,10 @@ def rothko(services, service):
     return artist, work
 
 
-def _hash(ui):
-    return ui.page.evaluate("() => window.location.hash")
-
-
 def _fact(ui, term):
-    """The value beside `term` in the page's facts, or None when the page states no such fact."""
+    """The value beside `term` in the page's facts: a page that states no such fact has none, and an assertion on it waits."""
     terms = ui.page.locator("#view dl.facts dt", has_text=term)
-    if terms.count() == 0:
-        return None
-    return terms.first.locator("xpath=following-sibling::dd[1]").inner_text()
+    return terms.first.locator("xpath=following-sibling::dd[1]")
 
 
 class TestAWorkNotHeld:
@@ -113,16 +110,16 @@ class TestAWorkNotHeld:
 
         # Who, when and in what are the line of facts under the title, as on a
         # held work's page (ruling 8 of 2026-10-27); who holds it, in the facts below.
-        line = ui.page.locator("#view .work-facts").inner_text()
-        assert "Pieter Brueghel the Elder" in line
-        assert "1565" in line
-        assert "oil paint, panel" in line
-        assert _fact(ui, "Held by") == "Kunsthistorisches Museum (GG_1838)"
-        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Not held · Image found"
+        line = ui.page.locator("#view .work-facts")
+        expect(line).to_contain_text("Pieter Brueghel the Elder", use_inner_text=True)
+        expect(line).to_contain_text("1565", use_inner_text=True)
+        expect(line).to_contain_text("oil paint, panel", use_inner_text=True)
+        expect(_fact(ui, "Held by")).to_have_text("Kunsthistorisches Museum (GG_1838)", use_inner_text=True)
+        expect(ui.page.locator("#view .card-footer")).to_have_text("◐ Not held · Image found", use_inner_text=True)
         image = ui.page.locator("#view img.detail-image")
-        assert image.get_attribute("src") == f"{COMMONS}?width=1200"
-        assert image.get_attribute("referrerpolicy") == "no-referrer"
-        assert ui.page.locator(f"#view a[href='https://www.wikidata.org/wiki/{HUNTERS}']").count() == 1
+        expect(image).to_have_attribute("src", f"{COMMONS}?width=1200")
+        expect(image).to_have_attribute("referrerpolicy", "no-referrer")
+        expect(ui.page.locator(f"#view a[href='https://www.wikidata.org/wiki/{HUNTERS}']")).to_have_count(1)
 
     def test_get_this_work_is_the_toolbars_act_with_its_cost_on_its_line(self, ui):
         """The same head as a held work's (ruling 8 of 2026-10-27): Get this work in
@@ -147,32 +144,38 @@ class TestAWorkNotHeld:
         ui.page.wait_for_selector("#view .picture-size")
 
         # Size in the line of facts, as a museum label gives it (ruling 8).
-        assert ui.page.locator("#view .work-facts").inner_text().endswith("· 117 × 162 cm (46.1 × 63.8 in)")
+        expect(ui.page.locator("#view .work-facts")).to_have_text(
+            re.compile(re.escape("· 117 × 162 cm (46.1 × 63.8 in)") + "$"), use_inner_text=True
+        )
         size = ui.page.locator("#view .picture-size")
         # Meeting the minimum is not news, so no badge follows the pixels.
-        assert " ".join(size.inner_text().split()) == "6,000 × 4,400 px"
-        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◐ Not held · Image found"
+        expect(size).to_have_text("6,000 × 4,400 px", use_inner_text=True)
+        expect(ui.page.locator("#view .card-footer")).to_have_text("◐ Not held · Image found", use_inner_text=True)
 
     def test_a_picture_too_small_for_the_wall_says_so(self, ui):
         ui.open("#work/Q10")
         ui.page.wait_for_selector("#view .picture-size")
 
-        assert " ".join(ui.page.locator("#view .picture-size").inner_text().split()) == "300 × 200 px ▲ below minimum"
-        assert " cm" not in ui.page.locator("#view .work-facts").inner_text()
+        expect(ui.page.locator("#view .picture-size")).to_have_text("300 × 200 px ▲ below minimum", use_inner_text=True)
+        # The facts are drawn with the size line, which has just shown: a pattern, so the leading space is kept.
+        expect(ui.page.locator("#view .work-facts")).not_to_contain_text(re.compile(" cm"), use_inner_text=True)
 
     def test_with_one_dimension_and_no_picture_size_it_says_only_what_it_knows(self, ui):
         ui.open("#work/Q9")
         ui.page.wait_for_selector("#view h1:text-is('Half measured')")
 
-        assert ui.page.locator("#view .work-facts").inner_text().endswith("117 cm high (46.1 in)")
-        assert ui.page.locator("#view .picture-size").count() == 0
+        expect(ui.page.locator("#view .work-facts")).to_have_text(
+            re.compile(re.escape("117 cm high (46.1 in)") + "$"), use_inner_text=True
+        )
+        # The size line is drawn from the same answer as the facts above, which are in.
+        expect(ui.page.locator("#view .picture-size")).to_have_count(0)
 
     def test_it_says_whose_picture_this_is_and_what_get_asks(self, ui):
         """The picture is Wikidata's choice, not necessarily what a Get will bring back."""
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("#view button:text-is('Get this work')")
 
-        assert ui.page.locator("#view p.muted", has_text="Wikidata").filter(has_text="every image source").count() == 1
+        expect(ui.page.locator("#view p.muted", has_text="Wikidata").filter(has_text="every image source")).to_have_count(1)
 
     def test_it_offers_get_rather_than_a_museum_search(self, ui):
         """Ruling 3 replaced the seeded museum search with Get; `test_getting.py` drives it."""
@@ -180,15 +183,17 @@ class TestAWorkNotHeld:
         ui.page.wait_for_selector("#view button:text-is('Get this work')")
 
         # Neither the old wording nor today's for a search in words: this page gets.
-        assert ui.page.locator("#view button:has-text('Search museums'), #view :is(a, button):has-text('Ask about')").count() == 0
+        expect(
+            ui.page.locator("#view button:has-text('Search museums'), #view :is(a, button):has-text('Ask about')")
+        ).to_have_count(0)
 
     def test_the_rest_of_their_work_follows_without_this_one(self, ui):
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("section[aria-labelledby='more-by'] table")
 
-        assert ui.page.locator("#more-by").inner_text() == "More by Pieter Brueghel the Elder"
-        titles = ui.page.locator("section[aria-labelledby='more-by'] tbody td:first-child").all_inner_texts()
-        assert titles == ["The Harvesters"]
+        expect(ui.page.locator("#more-by")).to_have_text("More by Pieter Brueghel the Elder", use_inner_text=True)
+        titles = ui.page.locator("section[aria-labelledby='more-by'] tbody td:first-child")
+        expect(titles).to_have_text(["The Harvesters"], use_inner_text=True)
 
         ui.page.click("section[aria-labelledby='more-by'] a:has-text('The Harvesters')")
         ui.page.wait_for_function("(qid) => window.location.hash.split('?')[0] === `#work/${qid}`", arg=HARVESTERS)
@@ -199,16 +204,16 @@ class TestAWorkNotHeld:
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("section[aria-labelledby='more-by'] table")
 
-        assert " ".join(ui.page.locator("#view .card-footer").inner_text().split()) == "◑ Wanted"
+        expect(ui.page.locator("#view .card-footer")).to_have_text("◑ Wanted", use_inner_text=True)
         row = ui.page.locator("section[aria-labelledby='more-by'] tbody tr", has_text="The Harvesters")
-        assert " ".join(row.locator(".state-mark").inner_text().split()) == "◑ Wanted"
+        expect(row.locator(".state-mark")).to_have_text("◑ Wanted", use_inner_text=True)
 
     def test_its_unheld_artist_opens_their_page_here(self, ui):
         ui.open(f"#work/{HUNTERS}")
         ui.page.click("#view .work-facts a:has-text('Pieter Brueghel the Elder')")
 
         ui.page.wait_for_selector("#view h1:text-is('Pieter Brueghel the Elder')")
-        assert _hash(ui).split("?")[0] == f"#artist/{BRUEGEL}"
+        expect(ui.page).to_have_url(re.compile(re.escape(f"#artist/{BRUEGEL}") + r"(\?[^#]*)?$"))
 
     def test_a_held_artist_opens_the_library_page(self, ui, rothko):
         artist, _work = rothko
@@ -221,23 +226,23 @@ class TestAWorkNotHeld:
         ui.open("#work/Q7")
         ui.page.wait_for_selector("#view h1")
 
-        assert "<img" in ui.page.locator("#view h1").inner_text()
-        assert ui.page.locator("#view h1 img").count() == 0
+        expect(ui.page.locator("#view h1")).to_contain_text("<img", use_inner_text=True)
+        expect(ui.page.locator("#view h1 img")).to_have_count(0)
         assert ui.page.evaluate("() => window.pwned") is None
-        assert ui.page.locator("#view .card-footer").inner_text().strip().endswith("Not held")
+        expect(ui.page.locator("#view .card-footer")).to_have_text(re.compile(r"Not held\s*$"), use_inner_text=True)
 
     def test_an_item_wikidata_does_not_have_says_so(self, ui):
         ui.open("#work/Q999999")
         ui.page.wait_for_selector("#view h1:text-is('Wikidata has no such work')")
 
-        assert "Q999999" in ui.page.locator("#view p.note").inner_text()
+        expect(ui.page.locator("#view p.note")).to_contain_text("Q999999", use_inner_text=True)
 
     def test_an_outage_says_so(self, ui, registry):
         registry.failing = True
         ui.open(f"#work/{HUNTERS}")
         ui.page.wait_for_selector("#view p.note")
 
-        assert "could not be asked" in ui.page.locator("#view p.note").inner_text()
+        expect(ui.page.locator("#view p.note")).to_contain_text("could not be asked", use_inner_text=True)
 
 
 class TestAWorkHeld:
@@ -264,12 +269,12 @@ class TestAnArtistNotHeld:
         ui.page.wait_for_selector("#view h1:text-is('Pieter Brueghel the Elder')")
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
 
-        assert "1525–1569" in ui.page.locator("#view dl.facts").inner_text()
-        assert ui.page.locator("#view p.note:has-text('Nothing of theirs is in your library.')").count() == 1
-        assert "Flemish painter" in ui.page.locator("#view").inner_text()
+        expect(ui.page.locator("#view dl.facts")).to_contain_text("1525–1569", use_inner_text=True)
+        expect(ui.page.locator("#view p.note:has-text('Nothing of theirs is in your library.')")).to_have_count(1)
+        expect(ui.view).to_contain_text("Flemish painter", use_inner_text=True)
         # The second column: the first is the Get tick box.
-        titles = ui.page.locator("section[aria-labelledby='their-work'] tbody td:nth-child(2)").all_inner_texts()
-        assert titles == ["The Hunters in the Snow", "The Harvesters"]
+        titles = ui.page.locator("section[aria-labelledby='their-work'] tbody td:nth-child(2)")
+        expect(titles).to_have_text(["The Hunters in the Snow", "The Harvesters"], use_inner_text=True)
 
     def test_it_says_where_held_work_is_filed_rather_than_that_none_is_held(self, ui, services, service):
         """A library work Wikidata lists under this artist, filed under a library artist with no item."""
@@ -279,8 +284,10 @@ class TestAnArtistNotHeld:
         ui.open(f"#artist/{BRUEGEL}")
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] table")
 
-        assert ui.page.locator("#view p.note").first.inner_text().startswith("Some of their work is in your library")
-        assert ui.page.locator("#view p.note:has-text('Nothing of theirs')").count() == 0
+        expect(ui.page.locator("#view p.note").first).to_have_text(
+            re.compile("^" + re.escape("Some of their work is in your library")), use_inner_text=True
+        )
+        expect(ui.page.locator("#view p.note:has-text('Nothing of theirs')")).to_have_count(0)
 
     def test_a_held_artists_qid_is_replaced_by_their_library_page(self, ui, rothko):
         artist, _work = rothko
@@ -294,4 +301,6 @@ class TestAnArtistNotHeld:
         ui.open(f"#artist/{BRUEGEL}")
         ui.page.wait_for_selector("section[aria-labelledby='their-work'] p.note")
 
-        assert "could not be asked" in ui.page.locator("section[aria-labelledby='their-work'] p.note").inner_text()
+        expect(ui.page.locator("section[aria-labelledby='their-work'] p.note")).to_contain_text(
+            "could not be asked", use_inner_text=True
+        )
