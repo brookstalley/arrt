@@ -532,9 +532,8 @@ listed below so it can be disputed.
   toggle beside the acts it brings in. The owner's page rules of 2026-10-27,
   which put View, Sort, Filters and Select on the right (`design-direction.md`
   § Component Patterns, "How a page reads"), came later and win; the pages were
-  brought to them on 2026-11-19, `build-plan-audit-wave-1.md`. A Topic's page
-  and a theme's page keep *Select* beside their acts until they adopt
-  `toolbar({ selection })`.)* Other list pages have none yet, because they have
+  brought to them on 2026-11-19, `build-plan-audit-wave-1.md`, and a Topic's
+  page and a theme's page after them, through `toolbar({ selection })`.)* Other list pages have none yet, because they have
   no actions or views to put in one.
 - **Two clean-up facets in the rail** *(2026-10-08,
   `build-plan-lists-settings-and-scale.md` Chunk 06, #288)*: *Size*, the

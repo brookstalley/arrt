@@ -16,8 +16,9 @@ from collections.abc import Callable
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from typing import Protocol
 
-from arrt.persistence.backup import take_pre_migration_snapshot
+from arrt.persistence.backup import finish_migration, take_pre_migration_snapshot
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.migrations import (
     DEFAULT_WALL_NAME,
@@ -66,10 +67,12 @@ def open_catalogue_file(
     store touches it, to `snapshot_directory` (`BACKUP_DIR` when the deployment
     sets one) or beside the catalogue otherwise: the rollback across a migration
     is a restore of that copy (`operational-spec.md` § Routine Operations). A
-    file on the current shape, and a new one, take no copy. A copy that cannot be
+    file on the current shape, and a new one, take no copy, and nor does a start
+    after one whose migrations failed: its copy is of the file before any of
+    them ran. A copy that cannot be
     written raises `SnapshotFailed` with the file untouched, so no column goes
-    without one; the default is beside the catalogue so that every caller,
-    the seed and identify commands included, gets the copy without asking.
+    without one. An entry point that holds the deployment's settings opens the
+    file through `open_configured_catalogue`, which names the directory for it.
     """
     take_pre_migration_snapshot(
         Path(path),
@@ -94,5 +97,32 @@ def open_catalogue_file(
             # After the walls take their final shape: this writes onto columns
             # the widening step has just added to `walls`.
             carry_rotation_to_walls,
+            # Last: the copy taken for these migrations stands until they have
+            # all run, and the next upgrade that drops something takes its own.
+            finish_migration,
         ),
     )
+
+
+class CatalogueSettings(Protocol):
+    """What a deployment says about its catalogue: `config.Settings` has these, read from the environment."""
+
+    @property
+    def catalogue_path(self) -> Path: ...
+
+    @property
+    def wall_name(self) -> str: ...
+
+    @property
+    def backup_dir(self) -> Path | None: ...
+
+
+def open_configured_catalogue(settings: CatalogueSettings) -> SqliteDurableStore:
+    """Open the deployment's catalogue as the server does, the copy before a migration going to `BACKUP_DIR`.
+
+    Every entry point that can open the file can be the first open after an
+    upgrade, and so the one that migrates it: the server, and the seed and
+    identify commands. Each opens it here, so none can put the copy anywhere
+    but where `operational-spec.md` § Backup and Restore sends the operator for it.
+    """
+    return open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name, snapshot_directory=settings.backup_dir)

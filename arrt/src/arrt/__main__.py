@@ -29,7 +29,7 @@ from arrt.library.services.thumbnails import ThumbnailSettings
 from arrt.library.sources import SourceContext
 from arrt.library.sources.loading import SourceRoster, environment_of, load_sources
 from arrt.persistence.backup import BACKUP_RECEIPT_FILENAME, CatalogueBackup
-from arrt.persistence.file import open_catalogue_file
+from arrt.persistence.file import open_configured_catalogue
 from arrt.persistence.kept import KeptAnswers
 from arrt.persistence.sqlite import SqliteCatalogue
 from arrt.persistence.sqlite_discovery import SqliteDiscovery
@@ -317,9 +317,7 @@ def main(argv: Sequence[str] = ()) -> None:
     # A migration that would drop anything copies the file first, into the
     # backup directory when there is one, so the copy sits beside the
     # generations a restore is taken from (beside the catalogue otherwise).
-    catalogue_file = open_catalogue_file(
-        settings.catalogue_path, wall_name=settings.wall_name, snapshot_directory=settings.backup_dir
-    )
+    catalogue_file = open_configured_catalogue(settings)
     # After `prepare`, so a mistyped root refuses before anything is written to it.
     kept = KeptAnswers(settings.kept_answers_path)
     try:

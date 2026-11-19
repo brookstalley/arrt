@@ -70,10 +70,10 @@ import { ago, clockTime, inWords, readable } from "../core/dates.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
-import { counted } from "../core/counting.js";
+import { counted, listed } from "../core/counting.js";
 import { DEBUG } from "../core/debug.js";
 import { openPanel } from "../core/editing.js";
-import { hangTheme } from "../core/hanging.js";
+import { hangTheme, shownByAPlayer } from "../core/hanging.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { el, emptyState, fill, guard, render } from "../core/render.js";
 import { screenName, screenState, STALE_AFTER_SECONDS, wallScreenParts } from "../core/outputs.js";
@@ -258,7 +258,7 @@ function assignmentProblem(wall, edit, shownBy) {
         ? el("p", {
             class: "muted wall-waiting",
             text:
-              `${listedWords(waiting.map((client) => client.name))} ${one ? "has" : "have"} not reported yet. ` +
+              `${listed(waiting.map((client) => client.name))} ${one ? "has" : "have"} not reported yet. ` +
               `${one ? "Its screens" : "Their screens"} can be chosen here once ${one ? "it is running with its token and reports" : "they are running with their tokens and report"}.`,
           })
         : null,
@@ -273,12 +273,6 @@ function assignmentProblem(wall, edit, shownBy) {
 function waitingPlayers(shownBy) {
   if (!shownBy || !shownBy.byId) return [];
   return [...shownBy.byId.values()].filter((client) => client.token_issued_at && client.heartbeat && client.heartbeat.absent);
-}
-
-/* "a", "a and b", "a, b and c". */
-function listedWords(names) {
-  if (names.length < 2) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /* Every client by its id, or why they could not be read.
@@ -364,8 +358,8 @@ async function heartbeats() {
  * well because its observation could not be found is precisely the failure this
  * product exists to refuse. */
 function readings(health) {
-  const listed = Array.isArray(health.walls) ? health.walls : [];
-  return new Map(listed.map((reading) => [reading.wall_id, reading.heartbeat]));
+  const rows = Array.isArray(health.walls) ? health.walls : [];
+  return new Map(rows.map((reading) => [reading.wall_id, reading.heartbeat]));
 }
 
 /* The work a wall's display state names, or null where it names none: the
@@ -520,7 +514,7 @@ const BADGES = {
 function stateBadge(wall, now, live) {
   const entry = live ? live.walls.find((each) => each.wall_id === wall.wall_id) : null;
   if (entry && entry.reached) return badge("putForward", "Scene", "wall-badge-scene");
-  const stateName = now && now.shown ? now.shown.state : wall.client_id ? null : "unassigned";
+  const stateName = now && now.shown ? now.shown.state : shownByAPlayer(wall) ? null : "unassigned";
   if (!stateName) return null;
   const [glyph, word] = BADGES[stateName] || BADGES.unreachable;
   return badge(glyph, word, `wall-badge-${stateName}`);
@@ -1130,8 +1124,7 @@ function emptyTheme(wall, manifest) {
  * nothing is added here. When none of the theme reaches the wall either, that
  * sentence leads this one in the same notice rather than stacking a second. */
 function notReported(wall, beat, shownBy, dark) {
-  const unassigned = !wall.client_id || (wall.display_state && wall.display_state.state === "unassigned");
-  if (unassigned) return dark ? [summaryLine(dark)] : [];
+  if (!shownByAPlayer(wall)) return dark ? [summaryLine(dark)] : [];
   const player = shownBy && shownBy.byId ? shownBy.byId.get(wall.client_id) : null;
   return [
     el("p", { class: `note wall-unreported${dark ? " wall-dark" : ""}` }, [
@@ -1546,7 +1539,7 @@ function unsavedLine(edit) {
     const names = edit.tracked.filter((section) => section.dirty()).map((section) => section.name);
     line.hidden = !names.length;
     line.textContent = names.length
-      ? `Not set yet: ${listedWords(names)}. Close leaves ${names.length === 1 ? "it" : "them"} as ${names.length === 1 ? "it was" : "they were"}.`
+      ? `Not set yet: ${listed(names)}. Close leaves ${names.length === 1 ? "it" : "them"} as ${names.length === 1 ? "it was" : "they were"}.`
       : "";
   };
   dialog.addEventListener("input", edit.settle);

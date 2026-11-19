@@ -224,6 +224,28 @@ class TestGenerating:
         first.unlink()
         assert thumbnails.thumbnail(artwork.id).is_file()
 
+    def test_an_empty_cache_file_is_rebuilt_even_though_its_row_is_current(self, thumbnails, work):
+        """A thumbnail is written unsynced, and an empty file is what a power cut can leave of one."""
+        artwork = work()
+        first = thumbnails.thumbnail(artwork.id)
+        first.write_bytes(b"")
+
+        assert thumbnails.thumbnail(artwork.id).stat().st_size > 0
+
+    def test_a_thumbnail_is_written_without_syncing(self, thumbnails, work, monkeypatch):
+        """Two fsyncs per tile on a NAS fill a grid slowly; a thumbnail is made again whenever it is missing."""
+        from arrt import atomic
+
+        artwork = work()  # the master is written here, before syncs are counted
+        synced: list[int] = []
+        real = atomic.os.fsync
+        monkeypatch.setattr(atomic.os, "fsync", lambda descriptor: synced.append(descriptor) or real(descriptor))
+
+        thumbnails.thumbnail(artwork.id)
+        thumbnails.thumbnail(artwork.id, large=True)
+
+        assert synced == []
+
     def test_a_file_that_is_not_an_image_is_reported_rather_than_raised_as_a_fault(self, thumbnails, service, settings, work):
         artwork = work()
         (settings.art_root / f"raw/{artwork.id}.jpg").write_bytes(b"this is not a picture")
@@ -254,19 +276,35 @@ class TestGenerating:
         anything — there is nothing on disk yet to strand. What remains is the
         disk write itself, which is what this now fails.
 
-        **It fails where the shared writer meets the disk**: the bytes are in the
-        staging file and the sync refuses them, which is where a full disk on a
-        network mount says so. The staging file is on disk at that moment, so
-        only the writer's own cleanup can leave the cache empty.
+        **It fails where the shared writer meets the disk**: the staging file
+        is created and the write into it is refused, as a full disk refuses it.
+        (A thumbnail is written unsynced, so the sync this once failed at no
+        longer runs.) The staging file is on disk at that moment, so only the
+        writer's own cleanup can leave the cache empty.
         """
         artwork = work()
         staged_when_refused = []
+        create = atomic._create_staging
 
-        def refuse(descriptor):
-            staged_when_refused.extend(path for path in _leftovers(settings) if path.name.startswith("."))
-            raise OSError(errno.ENOSPC, "no space left on device")
+        class Full:
+            def __init__(self, handle):
+                self._handle = handle
 
-        monkeypatch.setattr(atomic.os, "fsync", refuse)
+            def write(self, _data):
+                staged_when_refused.extend(path for path in _leftovers(settings) if path.name.startswith("."))
+                raise OSError(errno.ENOSPC, "no space left on device")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                self._handle.close()
+
+        def refusing(destination, token):
+            path, handle = create(destination, token)
+            return path, Full(handle)
+
+        monkeypatch.setattr(atomic, "_create_staging", refusing)
         with pytest.raises(ThumbnailUnavailable, match="could not be read"):
             thumbnails.thumbnail(artwork.id)
 

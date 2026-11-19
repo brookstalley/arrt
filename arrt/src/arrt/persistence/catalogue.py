@@ -163,6 +163,14 @@ class CatalogueStore(Protocol):
         """
         ...
 
+    def in_transaction(self) -> bool:
+        """Whether a `transaction()` block is open on the calling thread.
+
+        What a service keeping state for one act reads to know the act is its
+        own (`services.store.ActState`).
+        """
+        ...
+
     def after_commit(self, callback: Callable[[], None]) -> None:
         """Run `callback` once the writes made so far are committed, and not before.
 

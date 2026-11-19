@@ -643,6 +643,13 @@ class ClientService:
             client.name,
             output,
             holder.name,
+            extra={
+                "event": "client.display_moved",
+                "display": display.identity,
+                "from_client": holder.name,
+                "to_client": client.name,
+                "output": output,
+            },
         )
 
     def _first_report(self, client: Client, output: str, kind: str, identity: str, here: Display | None) -> None:

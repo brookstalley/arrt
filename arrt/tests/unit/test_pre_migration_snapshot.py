@@ -21,6 +21,7 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -231,7 +232,17 @@ def _drops_by_mark(connection):
     return tuple(row[0] for row in connection.execute("SELECT name FROM marker"))
 
 
+def _migrated(path):
+    """What an open whose migrations all ran leaves: the mark its copy put on the file is gone."""
+    connection = migrations.open_existing(path)
+    try:
+        backup.finish_migration(connection)
+    finally:
+        connection.close()
+
+
 def test_the_newest_copies_are_kept_and_older_ones_go(tmp_path):
+    """Five upgrades, each migrated before the next, each with a copy of its own; the oldest two go."""
     path = tmp_path / "catalogue.sqlite"
     marks = ["a", "b", "c", "d", "e"]
     for minute, mark in enumerate(marks):
@@ -239,6 +250,7 @@ def test_the_newest_copies_are_kept_and_older_ones_go(tmp_path):
         take_pre_migration_snapshot(
             path, directory=tmp_path / "s", would_drop=_drops_by_mark, now=START + timedelta(minutes=minute)
         )
+        _migrated(path)
 
     kept = _snapshots(tmp_path / "s")
     assert len(kept) == SNAPSHOTS_KEPT
@@ -250,10 +262,9 @@ def test_a_migration_failing_on_every_start_never_pushes_out_the_copy_from_befor
     """The crash loop the copy exists for: the first start drops what it can, then fails, and so does every start after.
 
     The first copy is the only one holding the wall tokens, which the first
-    start dropped before the next migration failed. Every later start would
-    drop the same thing, so its copy replaces the previous later one rather
-    than adding a copy; two starts and six (more than the copies kept) both
-    leave the first one in place.
+    start dropped before the next migration failed. A later start finds the file
+    already begun, so it takes no copy of its own; two starts and six (more than
+    the copies kept) both leave the first copy, and only that one.
     """
     path = tmp_path / "catalogue.sqlite"
     clock = Clock()
@@ -275,8 +286,105 @@ def test_a_migration_failing_on_every_start_never_pushes_out_the_copy_from_befor
 
     copies = _snapshots(tmp_path)
     assert "token_verifier" not in _columns(path, "walls"), "the first start did not drop the tokens"
-    assert len(copies) == min(starts, 2)
+    assert len(copies) == 1
     assert _query(copies[0], "SELECT DISTINCT token_verifier FROM walls") == [("v-71c",)]
+
+
+def _dump(path):
+    """Everything the file holds, schema and rows, as statements: two files that read alike dump alike."""
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        return list(connection.iterdump())
+    finally:
+        connection.close()
+
+
+def _tokens_on_a_narrower_wall(path, clock):
+    """A file the store widens before its first drop: wall tokens to drop, and the aspect columns it adds back."""
+    _with_retired_columns(path, clock, "walls", ("token_verifier", "token_issued_at"), "v-3e0")
+    connection = sqlite3.connect(path)
+    connection.execute("ALTER TABLE walls DROP COLUMN min_aspect_ratio")
+    connection.execute("ALTER TABLE walls DROP COLUMN max_aspect_ratio")
+    connection.commit()
+    connection.close()
+    return path
+
+
+#: Two catalogues whose first drop fails, each changed by the open before that
+#: drop: the single-wall file gains every table and column of the current
+#: schema, and the other gains the two columns it lacks.
+FIRST_DROP_FAILS = {
+    "single-wall": lambda path, clock: _single_wall_file(path, "Late night"),
+    "wall-tokens": _tokens_on_a_narrower_wall,
+}
+
+
+@pytest.mark.parametrize("starts", [3, 5])
+@pytest.mark.parametrize("shape", FIRST_DROP_FAILS, ids=list(FIRST_DROP_FAILS))
+def test_a_first_drop_failing_on_every_start_keeps_the_copy_of_the_file_as_it_was(tmp_path, monkeypatch, shape, starts):
+    """Every start widens the file and then fails at its first drop, so only the first start's copy is of the old file.
+
+    The documented case: an interpreter whose SQLite cannot drop a column.
+    Every start finds the same drops, and every start after the first finds the
+    file already widened, so a copy taken then would hand the previous release
+    a file it never wrote. Each start reads a different clock, so each would
+    name a copy of its own.
+    """
+    path = tmp_path / "catalogue.sqlite"
+    clock = Clock()
+    FIRST_DROP_FAILS[shape](path, clock)
+    as_it_was = _dump(path)
+    monkeypatch.setattr(migrations, "_DROP_COLUMN_SINCE", (999,))
+
+    for start in range(starts):
+        clock.at += timedelta(hours=start)
+        with pytest.raises(RuntimeError, match="to drop a column"):
+            _open(path, clock)
+
+    assert _dump(path) != as_it_was, "no start changed the file before its first drop, so this checks nothing"
+    (copy,) = _snapshots(tmp_path)
+    assert _dump(copy) == as_it_was
+
+
+def test_once_the_migration_runs_the_next_upgrade_that_drops_something_takes_a_copy_of_its_own(tmp_path, monkeypatch):
+    """The mark the first copy leaves goes with the last migration, so it never stands in for a later upgrade's copy."""
+    path = _single_wall_file(tmp_path / "catalogue.sqlite", "Late night")
+    clock = Clock()
+    monkeypatch.setattr(migrations, "_DROP_COLUMN_SINCE", (999,))
+    with pytest.raises(RuntimeError, match="to drop a column"):
+        _open(path, clock)
+    monkeypatch.undo()
+
+    _open(path, clock)  # this interpreter can drop a column: the migration runs, and takes no second copy
+    assert len(_snapshots(tmp_path)) == 1
+    assert _query(path, "PRAGMA user_version") == [(0,)]
+
+    # The next release drops something again: its copy is of the file as this one left it.
+    connection = sqlite3.connect(path)
+    connection.execute('ALTER TABLE walls ADD COLUMN "token_verifier" TEXT')
+    connection.execute("UPDATE walls SET token_verifier = 'v-next'")
+    connection.commit()
+    connection.close()
+    _open(path, clock)
+
+    first, second = _snapshots(tmp_path)
+    assert "is_active" in _columns(first, "themes")
+    assert _query(second, "SELECT DISTINCT token_verifier FROM walls") == [("v-next",)]
+    assert "token_verifier" not in _columns(path, "walls")
+
+
+def test_a_start_killed_before_the_mark_went_leaves_it_for_the_next_start_to_remove(tmp_path):
+    """Every migration ran but the mark stayed: the next start finds nothing to drop and removes it."""
+    path = tmp_path / "catalogue.sqlite"
+    _open(path, Clock())
+    connection = sqlite3.connect(path)
+    connection.execute(f"PRAGMA user_version = {backup.MIGRATION_BEGUN}")
+    connection.commit()
+    connection.close()
+
+    assert take_pre_migration_snapshot(path, directory=tmp_path, would_drop=migrations.pending_drops, now=START) is None
+
+    assert _query(path, "PRAGMA user_version") == [(0,)]
 
 
 def test_two_opens_in_one_second_keep_the_first_copy(tmp_path):
@@ -370,3 +478,48 @@ def test_the_copy_s_name_is_outside_the_generations_glob(tmp_path):
 
     (copy,) = _snapshots(tmp_path)
     assert not fnmatch.fnmatch(copy.name, backup._GENERATION_GLOB)
+
+
+def test_an_open_that_copies_sweeps_what_a_killed_copy_left_staged(tmp_path):
+    """An open killed mid-copy leaves the half copy under a name of its own; the next open's copy clears it once stale."""
+    path = _single_wall_file(tmp_path / "catalogue.sqlite", "Late night")
+    backups = tmp_path / "backups"
+    backups.mkdir()
+    staged = atomic.staging_path(backups / "pre-migration-20261118T090000Z.sqlite")
+    staged.write_bytes(b"half a catalogue")
+    two_days_ago = time.time() - 2 * 86400  # the sweep reads the wall clock, as an mtime is stamped by it
+    os.utime(staged, (two_days_ago, two_days_ago))
+
+    _open(path, Clock(), snapshot_directory=backups)
+
+    assert not staged.exists()
+    assert len(_snapshots(backups)) == 1
+
+
+def test_an_older_copy_that_cannot_be_removed_stops_nothing(tmp_path, monkeypatch, caplog):
+    """The new copy is written and checked by then, so the open goes on, and says which copy stayed."""
+    path = tmp_path / "catalogue.sqlite"
+    for minute, mark in enumerate(["a", "b", "c"]):
+        _marked(path, mark)
+        take_pre_migration_snapshot(path, directory=tmp_path, would_drop=_drops_by_mark, now=START + timedelta(minutes=minute))
+        _migrated(path)
+    oldest = _snapshots(tmp_path)[0]
+    real_unlink = type(oldest).unlink
+
+    def refuse(self, missing_ok=False):
+        if self == oldest:
+            raise PermissionError(13, "Permission denied")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(type(oldest), "unlink", refuse)
+    _marked(path, "d")
+
+    with caplog.at_level("WARNING", logger="arrt.persistence.backup"):
+        taken = take_pre_migration_snapshot(path, directory=tmp_path, would_drop=_drops_by_mark, now=START + timedelta(minutes=9))
+
+    assert taken is not None
+    assert taken.exists()
+    assert oldest.exists()
+    assert [record.path for record in caplog.records if getattr(record, "event", None) == "catalogue.snapshot_prune_failed"] == [
+        str(oldest)
+    ]

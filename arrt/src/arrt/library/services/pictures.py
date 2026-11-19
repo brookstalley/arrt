@@ -419,7 +419,10 @@ class PictureStore:
         The name carries the store's token and ends `.tmp`, which is what
         `clean` sweeps; a reader sees the old file or the new one, never a half.
         """
-        atomic.write_bytes(destination, data, token=self._staging_token())
+        # Not synced: a tier that is missing or empty is not kept (`_present`),
+        # so the next ask fetches it again, and that is all a power cut can
+        # leave of an unsynced one.
+        atomic.write_bytes(destination, data, token=self._staging_token(), durable=False)
 
     @contextmanager
     def _held(self, key: str) -> Iterator[None]:

@@ -45,10 +45,10 @@ def theme_of(display):
 
 @pytest.fixture
 def published(display, wall_settings, wall_id):
-    """Hang a theme on the wall, sync it, and return the document written to disk."""
+    """Hang a theme on the wall, which publishes it, and return the document written to disk."""
 
     def _publish(theme) -> dict:
-        display.sync(wall_id, theme.id)
+        display.activate_theme(theme.id, wall_id=wall_id)
         return json.loads(wall_settings.manifest_v2_path(wall_id).read_text(encoding="utf-8"))
 
     return _publish
@@ -132,7 +132,7 @@ def test_a_master_with_no_file_is_left_off_the_feed_and_named(service, display, 
     )
     (wall_settings.art_root / master.relative_path).unlink()
 
-    build = display.sync(wall_id, theme_of(work, kept).id)
+    build = display.activate_theme(theme_of(work, kept).id, wall_id=wall_id)
     document = _read(wall_settings, wall_id)
 
     assert set(document["works"]) == {kept.id}

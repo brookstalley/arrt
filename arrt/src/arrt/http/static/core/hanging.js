@@ -22,6 +22,7 @@
 import { attempt, reportElsewhere } from "./acting.js";
 import { api } from "./api.js";
 import { confirmAct } from "./confirm.js";
+import { listed } from "./counting.js";
 
 /* Whether a Player shows `wall` now: the server's display state, which says
  * `unassigned` for a wall no Player shows (none chosen, or a display two
@@ -32,10 +33,9 @@ export function shownByAPlayer(wall) {
   return Boolean(wall.client_id);
 }
 
-/* "a", "a and b", "a, b and c". */
-function listedNames(walls) {
-  const words = walls.map((wall) => wall.name);
-  return words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+/* The walls' names, for `listed`. */
+function names(walls) {
+  return walls.map((wall) => wall.name);
 }
 
 /* Who sees these walls change, said only of what is true: everyone in the
@@ -47,9 +47,9 @@ export function whoSees(walls) {
   const seen = walls.filter(shownByAPlayer);
   const unseen = walls.filter((wall) => !shownByAPlayer(wall));
   return [
-    seen.length ? `Everyone in the house sees ${listedNames(seen)} change.` : null,
+    seen.length ? `Everyone in the house sees ${listed(names(seen))} change.` : null,
     unseen.length
-      ? `No Player shows ${listedNames(unseen)} yet, so nothing shows ${unseen.length === 1 ? "it" : "them"} until one does.`
+      ? `No Player shows ${listed(names(unseen))} yet, so nothing shows ${unseen.length === 1 ? "it" : "them"} until one does.`
       : null,
   ]
     .filter(Boolean)
@@ -102,8 +102,6 @@ export async function hangOnWalls({ control, themeId, themeName, hangOn, takeDow
     }
   });
   if (!previewed) return false;
-  const names = (walls) => walls.map((wall) => wall.name);
-  const listed = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
   const sentences = [...previews];
   if (takeDownFrom.length) {
     sentences.push(

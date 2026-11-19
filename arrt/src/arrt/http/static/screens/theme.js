@@ -208,8 +208,9 @@ const hangingBadge = (walls) =>
 
 /* One theme, addressed by `#theme/<id>`, built to the page rules (ruling 9 of
  * 2026-10-27): the way back, its name, one line of facts, and a toolbar whose
- * acts are *Hang…* (the filled one), *Edit…*, *Add works* and *Select*, with the
- * acts on a selection after it. Then its description, and its works in order.
+ * acts are *Hang…* (the filled one), *Edit…* and *Add works*, with the acts on a
+ * selection after them and *Select* last on the right. Then its description,
+ * and its works in order.
  *
  * **A theme that is not in the listing is an ordinary state, not an error.** The
  * address outlives the theme — a bookmark, a link in a note, an agent's message
@@ -272,13 +273,13 @@ async function oneTheme(themeId, generation) {
         editOpener(theme),
         // Adding is done where the works are, with their pictures and filters
         // beside them (the owner's ruling of 2026-10-29, `ia-proposal.md`).
-        link({ view: "collection" }, { class: "action quiet page-act", text: "Add works" }),
-        // *Select* and the acts on what is selected, where every list puts them
-        // (`core/selecting.js`): a phone hides the toolbar's right side while
-        // selecting, which would take *Stop selecting* with it.
-        selection.toggle,
-        selection.bar,
+        link({ view: "collection" }, { class: "action quiet", text: "Add works" }),
       ],
+      // *Select* last on the right and the acts on what is selected after the
+      // page's own, where every list puts them (`core/toolbar.js`); it also
+      // marks the page's own acts `page-act`, which a phone steps aside while
+      // selecting.
+      selection,
     }),
     theme.description ? el("p", { class: "theme-description", text: theme.description }) : null,
     list,

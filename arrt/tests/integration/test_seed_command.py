@@ -8,6 +8,7 @@ only ever proven by running the command.
 """
 
 import json
+import sqlite3
 
 import pytest
 
@@ -147,3 +148,21 @@ class TestWhatItPrints:
         lines = render(SeedReport(records_read=41, works=[]), art_root=tmp_path)
         assert "Read 41 record(s)" in lines[0]
         assert "41 record(s) collapsed" in lines[1]
+
+
+def test_the_copy_before_a_migration_goes_to_the_backup_directory(index, tmp_path, monkeypatch):
+    """Run as the first open after an upgrade, the command copies the file where the server would."""
+    catalogue = tmp_path / "art" / "catalogue.sqlite"
+    open_catalogue_file(catalogue).close()
+    connection = sqlite3.connect(catalogue)
+    # A column a migration drops, so this open is one that copies the file first.
+    connection.execute('ALTER TABLE walls ADD COLUMN "token_verifier" TEXT')
+    connection.commit()
+    connection.close()
+    backups = tmp_path / "backups"
+    monkeypatch.setenv("BACKUP_DIR", str(backups))
+
+    assert main([str(index)]) == 0
+
+    assert len(list(backups.glob("pre-migration-*Z.sqlite"))) == 1
+    assert list(catalogue.parent.glob("pre-migration-*")) == []

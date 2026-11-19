@@ -110,6 +110,26 @@ def test_the_bytes_are_synced_before_the_rename_and_the_directory_after(tmp_path
     assert events == ["sync file", "rename", "sync directory"]
 
 
+def test_a_file_made_again_when_missing_is_staged_and_renamed_but_never_synced(tmp_path, monkeypatch):
+    destination = tmp_path / "file.bin"
+    destination.write_bytes(b"what readers have now")
+    events = []
+    real_replace = Path.replace
+
+    def replace(self, target):
+        events.append(("rename", self.name != target.name))
+        return real_replace(self, target)
+
+    monkeypatch.setattr(atomic.os, "fsync", lambda descriptor: events.append("sync"))
+    monkeypatch.setattr(Path, "replace", replace)
+
+    atomic.write_bytes(destination, b"cached", durable=False)
+
+    assert events == [("rename", True)], "not renamed from a name of its own, or synced"
+    assert destination.read_bytes() == b"cached"
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["file.bin"]
+
+
 def test_each_attempt_stages_under_a_name_of_its_own(tmp_path):
     destination = tmp_path / "file.bin"
 
@@ -226,6 +246,19 @@ def test_a_writer_whose_disk_refuses_the_new_file_keeps_the_old_one_and_strands_
     assert [path.name for path in destination.parent.iterdir() if path.name.startswith(f".{destination.name}.")] == []
 
 
+@pytest.mark.parametrize("writer", [_write_manifest, _write_master, _write_receipt], ids=["manifest", "master", "receipt"])
+def test_a_file_that_cannot_be_made_again_is_synced_with_its_rename(tmp_path, monkeypatch, writer):
+    destination, write = writer(tmp_path, 1)
+    synced = []
+    real = os.fsync
+    monkeypatch.setattr(atomic.os, "fsync", lambda descriptor: synced.append(_opened_path(descriptor)) or real(descriptor))
+
+    write()
+
+    assert any(Path(name).name.startswith(f".{destination.name}.") for name in synced), "the file was not synced"
+    assert any(Path(name) == destination.parent.resolve() for name in synced), "the rename was not synced"
+
+
 def test_the_manifest_s_text_is_what_was_serialised(tmp_path):
     """The manifest writes text through a binary handle; the bytes must still be its JSON, whole."""
     destination = tmp_path / "theme-manifest.v2.json"
@@ -234,3 +267,53 @@ def test_the_manifest_s_text_is_what_was_serialised(tmp_path):
 
     assert json.loads(destination.read_text(encoding="utf-8")) == {"title": "Nuit étoilée", "entries": [1, 2]}
     assert destination.read_text(encoding="utf-8").endswith("}\n")
+
+
+# -- the mode a written file has ---------------------------------------------------
+
+
+def _write_plain(tmp_path):
+    destination = tmp_path / "file.bin"
+    atomic.write_bytes(destination, b"bytes")
+    return destination
+
+
+def _write_with_token(tmp_path):
+    destination = tmp_path / "picture.jpg"
+    atomic.write_bytes(destination, b"bytes", token="t-1")
+    return destination
+
+
+def _stage_then_promote(tmp_path):
+    destination = tmp_path / "raw" / "original.jpg"
+    with atomic.staged(destination) as (path, handle):
+        handle.write(b"bytes")
+    atomic.promote(path, destination)
+    return destination
+
+
+def _master(tmp_path):
+    destination = tmp_path / "presentation" / "w.jpg"
+    make_master(_jpeg(tmp_path / "source" / "original.jpg", (300, 200)), destination=destination)
+    return destination
+
+
+@pytest.mark.parametrize("umask", [0o022, 0o027], ids=["022", "027"])
+@pytest.mark.parametrize(
+    "write",
+    [_write_plain, _write_with_token, _stage_then_promote, _master],
+    ids=["write_bytes", "write_bytes with a token", "staged then promoted", "master"],
+)
+def test_a_written_file_has_the_mode_the_process_umask_gives_it(tmp_path, write, umask):
+    """As `open` gives any file: a backup job or a share under another user reads what this writes.
+
+    Two umasks, so a writer that fixed one mode (`mkstemp`'s `0o600`, or a
+    hard-coded `0o644`) fails one of them.
+    """
+    previous = os.umask(umask)
+    try:
+        destination = write(tmp_path)
+    finally:
+        os.umask(previous)
+
+    assert destination.stat().st_mode & 0o777 == 0o666 & ~umask

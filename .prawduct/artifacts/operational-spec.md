@@ -653,9 +653,12 @@ that will actually get run rather than skipped.
 >   as the previous release left it, taken before the store widens it. A file
 >   already on the current shape, or a new one, takes no copy. **The three
 >   newest copies are kept, outside the generations' count**, so no number of
->   starts prunes them; a copy that would drop exactly what the newest one
->   would replaces it, so a migration failing on every start rewrites one copy
->   rather than pushing out the one from before the upgrade. A copy that
+>   starts prunes them. **One copy is taken per migration, however many starts
+>   it takes**: the copy marks the catalogue (`PRAGMA user_version`) until every
+>   migration has run, and a start that finds the mark takes no copy, since the
+>   file is no longer as the previous release left it. A migration failing on
+>   every start therefore leaves the copy from before the upgrade the newest
+>   one. A copy that
 >   cannot be written (a full disk, a read-only directory) **stops the start**
 >   with a message naming the directory and the remedy, and the catalogue is
 >   left exactly as it was; nothing is dropped without its copy. The journal

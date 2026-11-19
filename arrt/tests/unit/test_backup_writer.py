@@ -8,8 +8,10 @@ catalogue; nothing here is mocked except the one fault each failure test needs.
 """
 
 import json
+import os
 import sqlite3
 import threading
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -342,3 +344,34 @@ def test_a_snapshot_beside_the_generations_is_never_counted_or_pruned_by_them(tm
 
     assert result.kept == 1
     assert snapshot.exists()
+
+
+def _left_by_a_killed_copy(directory, name, *, hours_old):
+    """A staged copy as a pass or an open killed mid-`VACUUM INTO` leaves it, `hours_old` by its mtime."""
+    from arrt import atomic
+
+    directory.mkdir(parents=True, exist_ok=True)
+    staged = atomic.staging_path(directory / name)
+    staged.write_bytes(b"half a catalogue")
+    stamp = time.time() - hours_old * 3600
+    os.utime(staged, (stamp, stamp))
+    return staged
+
+
+@pytest.mark.parametrize("hours_old", [25, 24 * 30], ids=["a day old", "a month old"])
+def test_a_pass_sweeps_what_a_killed_copy_left_staged_and_only_that(job, tmp_path, hours_old):
+    """Each staged copy has a name of its own, so nothing else would ever claim one; a fresh one may be in progress."""
+    backups = tmp_path / "backups"
+    stale_generation = _left_by_a_killed_copy(backups, "catalogue-20261001T120000Z.sqlite", hours_old=hours_old)
+    stale_snapshot = _left_by_a_killed_copy(backups, "pre-migration-20261001T120000Z.sqlite", hours_old=hours_old)
+    in_progress = _left_by_a_killed_copy(backups, "catalogue-20261002T115959Z.sqlite", hours_old=1)
+    someone_elses = backups / ".notes.sqlite.x.tmp"
+    someone_elses.write_bytes(b"not ours")
+    os.utime(someone_elses, (0, 0))
+
+    job.run()
+
+    assert not stale_generation.exists()
+    assert not stale_snapshot.exists()
+    assert in_progress.exists()
+    assert someone_elses.exists()

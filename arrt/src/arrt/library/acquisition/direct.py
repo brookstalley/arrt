@@ -94,8 +94,14 @@ def direct_fetch(
                 digest.update(chunk)
                 handle.write(chunk)
     except OSError as exc:
-        # Covers both ends: a disk that cannot be written and a transport that
-        # raises while streaming. Both mean no image, and the message says which.
+        if exc.errno in atomic.DISK_FAULT_ERRNOS:
+            # A full or read-only disk is no fault of this work's: it would fail
+            # every fetch behind it the same way, so it goes to the queue, which
+            # pauses on it rather than counting it against each work in turn.
+            raise
+        # Otherwise either end: a file that could not be written here, or a
+        # transport that raised while streaming. Both mean no image, and the
+        # message says which.
         return DirectResult(path=None, byte_size=0, content_hash=None, detail=f"the fetch failed: {exc}")
     except Exception as exc:  # prawduct:allow prawduct/broad-except -- a source fault must not end the run
         # The transport seam is free to raise anything — an httpx URL error is

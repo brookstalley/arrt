@@ -732,6 +732,35 @@ class TestThePause:
         assert (result.paused, result.acquired) == (None, 2)
         assert queue.state_of([first, second]) == {}
 
+    def test_a_statement_the_code_got_wrong_mid_fetch_counts_against_the_work_and_does_not_pause(
+        self, queue, work, fetcher, quiet_catalogue_file
+    ):
+        """The driver's `OperationalError` for a column the file lacks is a defect, so it surfaces as one.
+
+        Raised by the real store, as a migration that left a column behind
+        would: the queue counts it against the work in hand, as any surprise,
+        and fetches the next, rather than pausing on it as if the disk were full.
+        """
+        first, second = work("One"), work("Two")
+        acquire = fetcher.acquire
+
+        def wrong(artwork_id, *, source_id=None):
+            if artwork_id == first:
+                quiet_catalogue_file.select_rows("SELECT no_such_column FROM artworks")
+            return acquire(artwork_id, source_id=source_id)
+
+        fetcher.acquire = wrong
+        try:
+            result = queue.run()
+        finally:
+            fetcher.acquire = acquire
+
+        assert result.paused is None
+        assert (result.failed, result.acquired) == (1, 1)
+        assert queue.state_of([first])[first].failures == 1
+        assert "no such column" in queue.state_of([first])[first].detail
+        assert queue.state_of([second]) == {}, "the work behind it was not fetched"
+
     def test_a_fault_of_the_host_raised_while_preparing_pauses_too(self, queue, work, preparer, store):
         artwork_id = work()
 

@@ -1013,7 +1013,9 @@ read by display.
   between the planes. *(Since 2026-11-19 the one writer is `arrt/atomic.py`, which
   every file the server writes this way uses: a staging name no other writer
   holds, the file synced before the rename and the directory after it, and the
-  staging file removed on any failure. The feeds one act decides are staged first
+  staging file removed on any failure. A file the server makes again when it is
+  missing or empty, a thumbnail or a kept picture's tier, is staged and renamed
+  the same way but not synced. The feeds one act decides are staged first
   and renamed as the last step of the transaction that decided them, so a feed
   changes only with what recorded it: `DisplayService._publishing`.)*
 - **Contents:** a schema version, the active theme's identity, the **rotation

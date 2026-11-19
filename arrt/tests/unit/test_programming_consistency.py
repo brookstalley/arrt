@@ -141,6 +141,9 @@ def test_a_merge_names_both_players_at_warning(services, wall_id, moved_frame, c
 
     said = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
     assert any("moved from client 'The old Pi' to client 'The new Pi'" in message for message in said), said
+    # And by its event, so a journal query finds the move as well as a text search.
+    (moved,) = [record for record in caplog.records if getattr(record, "event", None) == "client.display_moved"]
+    assert (moved.from_client, moved.to_client) == ("The old Pi", "The new Pi")
 
 
 def test_a_token_issued_between_a_renames_read_and_write_still_opens(services, store, monkeypatch):
@@ -260,6 +263,52 @@ def test_a_feed_is_never_published_inside_a_transaction_it_does_not_own(display,
         display.activate_theme(theme.id, wall_id=wall_id)
 
     assert not wall_settings.manifest_v2_path(wall_id).exists()
+
+
+def test_the_refusal_asks_the_store_and_does_not_lean_on_when_callbacks_run(
+    display, store, ready_work, wall_id, wall_settings, monkeypatch
+):
+    """A store of Programming's own may run `after_commit` callbacks at once; the refusal still holds.
+
+    The store says whether a transaction is open on this thread
+    (`in_transaction`), so nothing here infers it from a side effect a later
+    store need not have.
+    """
+    theme = display.add_theme(name="Late night")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
+    monkeypatch.setattr(store, "after_commit", lambda callback: callback())
+
+    with pytest.raises(RuntimeError, match="never inside another"), store.transaction():
+        display.activate_theme(theme.id, wall_id=wall_id)
+
+    assert not wall_settings.manifest_v2_path(wall_id).exists()
+
+
+def test_a_feed_one_act_has_decided_is_not_read_by_a_request_on_another_thread(
+    display, store, ready_work, wall_id, wall_settings
+):
+    """Mid-act, another thread reads the feed as published, as a Player would: none yet, since the act has not written it."""
+    theme = display.add_theme(name="Late night")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
+    seen: list[object] = []
+    real = display._write_staged
+
+    def look_from_elsewhere(staged):
+        assert staged, "the act decided no feed, so there is nothing for another thread to see"
+        other = threading.Thread(target=lambda: seen.append(display._published(wall_id)))
+        other.start()
+        other.join()
+        seen.append(display._published(wall_id))
+        real(staged)
+
+    display._write_staged = look_from_elsewhere
+    display.activate_theme(theme.id, wall_id=wall_id)
+
+    elsewhere, inside = seen
+    assert elsewhere is None
+    assert inside is not None
+    assert inside.playlist_id == theme.id
+    assert wall_settings.manifest_v2_path(wall_id).exists()
 
 
 def test_a_feed_is_never_written_outside_an_act(display, ready_work, wall_id):

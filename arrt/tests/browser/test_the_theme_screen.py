@@ -34,6 +34,7 @@ pytest.importorskip(
 )
 
 from payloads import a_catalogue_work, a_theme_detail
+from playwright.sync_api import expect
 
 #: Titles chosen so curated order and alphabetical order agree at the start —
 #: which is what lets a moved row be told from an unmoved one by reading.
@@ -324,6 +325,70 @@ class TestTheMembershipControl:
         ui.page.wait_for_function("() => document.querySelectorAll('tbody tr').length === 1")
 
         assert _count(ui) == "1 work"
+
+
+class TestTheToolbarHasTheListsLayout:
+    """A theme's page draws its toolbar as every list does: its own acts on the
+    left, the acts on a selection after them, *Select* last on the right.
+
+    It handed the toolbar *Select* and its bar as two more acts until it moved
+    to `toolbar({ selection })`, which stood *Select* among the acts on the left
+    and left the page's own acts in the sticky toolbar of a phone."""
+
+    @staticmethod
+    def _sides(ui):
+        bar = ui.page.locator("#view .page-toolbar")
+        return bar.locator(".page-toolbar-actions"), bar.locator(".page-toolbar-controls")
+
+    def test_select_is_last_on_the_right_and_the_acts_it_brings_follow_the_pages_own(self, ui, winter):
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+        left, right = self._sides(ui)
+
+        expect(left.locator(":scope > :visible")).to_have_text(["Hang…", "Edit…", "Add works"])
+        expect(right.locator(":scope > :visible")).to_have_text(["Select"])
+        expect(right.locator("button.select-toggle")).to_have_attribute("data-control", "select")
+        expect(left.locator("button.select-toggle")).to_have_count(0)
+        expect(ui.page.locator("#view .page-toolbar")).to_have_css("position", "static")
+
+        ui.page.click("#view button.select-toggle")
+
+        expect(right.locator(":scope > :visible")).to_have_text(["Stop selecting"])
+        expect(left.locator(":scope > .selection")).to_be_visible()
+        expect(left.locator(":scope > :last-child")).to_have_class("selection")
+        expect(left.locator(":scope > .selection button.selection-remove")).to_be_visible()
+        expect(ui.page.locator("#view .page-toolbar")).to_have_css("position", "sticky")
+
+        ui.page.click("#view button.select-toggle")
+
+        expect(right.locator(":scope > :visible")).to_have_text(["Select"])
+        expect(ui.page.locator("#view .page-toolbar")).to_have_css("position", "static")
+
+    @pytest.mark.parametrize(("width", "hidden_while_selecting"), [(390, True), (1280, False)])
+    def test_on_a_phone_the_pages_own_acts_step_aside_and_stop_selecting_stays(self, ui, winter, width, hidden_while_selecting):
+        ui.page.set_viewport_size({"width": width, "height": 800})
+        ui.open(f"#theme/{winter.id}")
+        _painted(ui)
+        left, right = self._sides(ui)
+        own = left.locator(".page-act")
+        # Every act the page itself offers is marked, so none is left in the
+        # sticky toolbar of a phone: Hang…, Edit… and Add works.
+        expect(own).to_have_count(3)
+
+        ui.page.click("#view button.select-toggle")
+
+        for act in own.all():
+            if hidden_while_selecting:
+                expect(act).to_be_hidden()
+            else:
+                expect(act).to_be_visible()
+        expect(right.locator(":scope > :visible")).to_have_text(["Stop selecting"])
+        expect(left.locator(".selection button.select-all")).to_be_visible()
+
+        ui.page.click("#view button.select-toggle")
+
+        for act in own.all():
+            expect(act).to_be_visible()
 
 
 class TestRenaming:

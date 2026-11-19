@@ -355,8 +355,9 @@ export function selectionMode({ held = null, notHeld = null, onToggle = () => {}
 
   // In the toolbar, after the toggle that shows it: the acts on what is selected
   // take the toolbar's left side (`design-direction.md` § Component Patterns,
-  // "How a page reads"). A page puts it there with `toolbar({ actions:
-  // [selection.toggle, selection.bar] })`, and the toolbar sticks while it shows.
+  // "How a page reads"). A page puts it there with `toolbar({ selection })`,
+  // which also stands the toggle on the right, and the toolbar sticks while it
+  // shows.
   const bar = el("div", { class: "selection", role: "region", "aria-label": "Selection", hidden: true }, [
     el("div", { class: "selection-group" }, [announcement, selectAll]),
     heldGroup,

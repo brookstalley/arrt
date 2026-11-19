@@ -97,20 +97,62 @@ from arrt.persistence.errors import StorageError, StorageFault, StoreMisuseError
 log = logging.getLogger(__name__)
 
 
+#: SQLite's primary result codes that say the file cannot be used, whatever was
+#: asked of it: permission refused, another connection holding it (busy, locked,
+#: or the locking protocol failing), a read-only, failing, full or corrupt file,
+#: one that cannot be opened, and one that is not a database. Everything else
+#: the driver raises, `SQLITE_ERROR` above all ("no such table", "no such
+#: column", a syntax error), is about the statement, so it is this code's fault
+#: and stays what it is.
+_HOST_FAULT_CODES: Final[frozenset[int]] = frozenset(
+    {
+        sqlite3.SQLITE_PERM,
+        sqlite3.SQLITE_BUSY,
+        sqlite3.SQLITE_LOCKED,
+        sqlite3.SQLITE_READONLY,
+        sqlite3.SQLITE_IOERR,
+        sqlite3.SQLITE_CORRUPT,
+        sqlite3.SQLITE_FULL,
+        sqlite3.SQLITE_CANTOPEN,
+        sqlite3.SQLITE_PROTOCOL,
+        sqlite3.SQLITE_NOTADB,
+    }
+)
+
+#: An extended result code carries its primary code in the low byte
+#: (`SQLITE_IOERR_WRITE` is `SQLITE_IOERR | (3 << 8)`).
+_PRIMARY_CODE_MASK: Final[int] = 0xFF
+
+
+def _is_host_fault(exc: sqlite3.Error) -> bool:
+    """Whether the driver's error says the file cannot be used, read from its result code, never its text.
+
+    An error with no code was not raised by SQLite, and is not called a fault of
+    the host on the strength of its words.
+    """
+    code = getattr(exc, "sqlite_errorcode", None)
+    return code is not None and code & _PRIMARY_CODE_MASK in _HOST_FAULT_CODES
+
+
 @contextmanager
 def _host_faults() -> Iterator[None]:
-    """Raise the driver's `OperationalError` as the persistence layer's `StorageFault`.
+    """Raise the driver's error as the persistence layer's `StorageFault` when the file itself cannot be used.
 
-    The driver raises `OperationalError` when the file itself cannot be used (a
-    lock another process holds, a file that cannot be opened, a full, read-only
-    or failing disk), and a layer above that must react to that fault may not
-    import the driver to recognise it. Every statement this store runs once it
-    is open goes through here; a constraint the file refuses is an
-    `IntegrityError`, which `_write` translates into a `StorageError` instead.
+    A lock another process holds, a file that cannot be opened, a full,
+    read-only, failing or corrupt disk (`_HOST_FAULT_CODES`): a layer above that
+    must react to that fault may not import the driver to recognise it. Every
+    statement this store runs once it is open goes through here. Anything else
+    the driver raises passes through as it is, so a statement naming a table or
+    a column the file does not have surfaces as the defect it is rather than
+    pausing the acquisition queue as if the disk were at fault. A constraint the
+    file refuses is an `IntegrityError`, which `_write` translates into a
+    `StorageError` before it reaches here.
     """
     try:
         yield
-    except sqlite3.OperationalError as exc:
+    except sqlite3.DatabaseError as exc:
+        if not _is_host_fault(exc):
+            raise
         raise StorageFault(str(exc)) from exc
 
 
@@ -237,6 +279,9 @@ class SqliteDurableStore:
         #: How many `transaction()` blocks are open. Non-zero means a write must
         #: leave committing to the outermost one.
         self._depth = 0
+        #: The thread whose outermost `transaction()` is open, for
+        #: `in_transaction`; None while none is.
+        self._owner: int | None = None
         #: Callbacks waiting for the outermost `transaction()` to commit. Emptied
         #: when it does, and discarded when it rolls back.
         self._after_commit: list[Callable[[], None]] = []
@@ -296,6 +341,7 @@ class SqliteDurableStore:
                     self._depth -= 1
                 return
             self._depth = 1
+            self._owner = threading.get_ident()
             try:
                 yield
             except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; rollback must run on any exit
@@ -305,22 +351,43 @@ class SqliteDurableStore:
                 # the body just as surely as an error does, and leaving half a
                 # rule applied is the one outcome this block exists to prevent.
                 self._after_commit.clear()
-                with _host_faults():
+                try:
                     self._connection.rollback()
+                except sqlite3.Error as failed:
+                    # The body's exception is the one the caller must see: a
+                    # refusal stays a refusal even when the rollback after it
+                    # fails, and the fault that failed the body stays that
+                    # fault. The rollback's own failure is the journal's.
+                    log.exception(
+                        "a transaction's rollback failed too",
+                        extra={"event": "store.rollback_failed", "detail": str(failed)},
+                    )
                 raise
             else:
                 try:
                     self._commit()
-                except StorageFault:
+                except BaseException:  # prawduct:allow prawduct/broad-except -- cleanup-and-reraise; no callback after it
                     self._after_commit.clear()
                     raise
                 committed, self._after_commit = self._after_commit, []
             finally:
                 self._depth = 0
+                self._owner = None
         # Outside the lock, so a callback that opens a transaction of its own
         # waits its turn like any other caller rather than joining this one.
         for callback in committed:
             callback()
+
+    def in_transaction(self) -> bool:
+        """Whether a `transaction()` block is open on the calling thread.
+
+        For a service that keeps state for the length of one act
+        (`services.store.ActState`) or refuses to open one inside another. Asked
+        without the lock, so a thread outside one never waits on the thread
+        inside: the lock lets one thread at a time open a block, and only that
+        one is answered yes.
+        """
+        return self._owner == threading.get_ident()
 
     def after_commit(self, callback: Callable[[], None]) -> None:
         """Run `callback` once the writes made so far are committed, and not before.
@@ -720,7 +787,7 @@ class SqliteDurableStore:
                 rowcount = int(self._connection.execute(statement, values).rowcount)
             except sqlite3.OperationalError:
                 # The same implicit transaction as below, for the same reason;
-                # `_host_faults` then raises it as a `StorageFault`.
+                # `_host_faults` then raises it as a `StorageFault` if it is the host's.
                 if not self._depth:
                     self._connection.rollback()
                 raise
@@ -754,9 +821,11 @@ class SqliteDurableStore:
         """
         try:
             self._connection.commit()
-        except sqlite3.OperationalError as exc:
+        except sqlite3.DatabaseError as exc:
             # The commit's fault is the one worth raising; a rollback that also
             # fails leaves the connection no worse than the commit did.
-            with contextlib.suppress(sqlite3.OperationalError):
+            with contextlib.suppress(sqlite3.DatabaseError):
                 self._connection.rollback()
+            if not _is_host_fault(exc):
+                raise
             raise StorageFault(str(exc)) from exc

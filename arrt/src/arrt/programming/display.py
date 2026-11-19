@@ -19,7 +19,6 @@ Methods are synchronous, for the reason `catalogue.py` gives.
 
 import json
 import logging
-import threading
 import uuid
 from collections import Counter
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
@@ -78,7 +77,7 @@ from arrt.programming.schedule import build as build_schedule
 from arrt.programming.store import ProgrammingStore
 from arrt.services.errors import ServiceError
 from arrt.services.fields import require_member, require_text
-from arrt.services.store import store_write
+from arrt.services.store import ActState, store_write
 
 log = logging.getLogger(__name__)
 
@@ -446,11 +445,9 @@ class DisplayService:
         self._settings = settings
         self._placements = Placements(store, settings.art_root)
         #: The feeds the open publishing transaction has decided, by wall, written
-        #: as its last step (`_publishing`). None while none is open.
-        self._staged: dict[str, dict[str, Any]] | None = None
-        #: The thread that opened it, the only one that reads `_staged`: any
-        #: other reads the published file, which is what Players have.
-        self._staging_thread: int | None = None
+        #: as its last step (`_publishing`). Seen only by the act that opened it:
+        #: any other reads the published file, which is what Players have.
+        self._staged: ActState[dict[str, dict[str, Any]]] = ActState(store)
 
     # -- the feeds' transaction -----------------------------------------------
 
@@ -484,29 +481,19 @@ class DisplayService:
         inside another kind of transaction is refused by name, since its feeds
         would be written before that transaction decided anything.
         """
-        if self._staging_thread == threading.get_ident():
+        if self._staged.current() is not None:
             with self._store.transaction():
                 yield
             return
-        if not self._outside_a_transaction():
+        if self._store.in_transaction():
             raise RuntimeError("A feed is published from a transaction of its own (`_publishing`), never inside another.")
-        with self._store.transaction():
-            self._staged, self._staging_thread = {}, threading.get_ident()
-            try:
-                yield
-                self._write_staged(self._staged)
-            finally:
-                self._staged, self._staging_thread = None, None
-
-    def _outside_a_transaction(self) -> bool:
-        """Whether no store transaction is open: `after_commit` runs a callback at once exactly then."""
-        ran: list[bool] = []
-        self._store.after_commit(lambda: ran.append(True))
-        return bool(ran)
+        with self._staged.opened({}) as staged:
+            yield
+            self._write_staged(staged)
 
     def _published(self, wall_id: str) -> Published | None:
         """The wall's feed as this act has decided it, else as published: what every build reads back."""
-        staged = self._staged if self._staging_thread == threading.get_ident() else None
+        staged = self._staged.current()
         if staged is not None and wall_id in staged:
             # Through JSON, so it reads exactly as the file it will be.
             return published_from(json.loads(json.dumps(staged[wall_id])), where=f"the feed staged for wall {wall_id}")
@@ -1098,7 +1085,7 @@ class DisplayService:
                 self._store.set_assignment,
                 ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=datetime.now(UTC)),
             )
-            build = self.sync(wall_id, theme_id)
+            build = self.sync(wall_id)
             self._retire_selection(replaced)
         self._record_hang(build)
         return build
@@ -1147,7 +1134,7 @@ class DisplayService:
                     ThemeMembership(theme_id=theme_id, artwork_id=artwork_id, added_at=now, position=position),
                 )
             store_write(self._store.set_assignment, ThemeAssignment(wall_id=wall_id, theme_id=theme_id, assigned_at=now))
-            build = self.sync(wall_id, theme_id)
+            build = self.sync(wall_id)
             self._retire_selection(replaced)
         self._record_hang(build)
         return build
@@ -1955,8 +1942,16 @@ class DisplayService:
             shuffle=shuffle,
         )
 
-    def sync(self, wall_id: str, theme_id: str | None = None) -> ManifestBuild:
-        """Rebuild the wall's feed and publish it.
+    def sync(self, wall_id: str) -> ManifestBuild:
+        """Rebuild the wall's feed from what is hung on it, and publish it.
+
+        **What is hung, and nothing else.** It takes no theme: a feed of a theme
+        the catalogue does not record as hung would put on the wall what the
+        catalogue says is not there, with nothing to show the two disagree.
+        Hanging is `activate_theme` or `hang_selection`, each of which records
+        the hang and then publishes through here in the same transaction, so
+        what this reads is the hang it has just written. What a theme would put
+        on a wall, without writing, is `build_manifest`.
 
         Returns what it wrote **and what it left out**. A caller that only
         reports the entry count is describing a theme that may be silently
@@ -1977,7 +1972,7 @@ class DisplayService:
         # rewriting it between the build and the write would otherwise be
         # overwritten by a document built before it.
         with self._publishing():
-            build = self.build_manifest(wall_id, theme_id)
+            build = self.build_manifest(wall_id)
             self._sync_v2(build)
         _log_published(build)
         return build
@@ -2289,7 +2284,8 @@ class DisplayService:
         bad file cannot stop the server starting. A work joining the wall's theme
         is such a publish, as a hang is.
         """
-        if self._staged is not None and self._staging_thread == threading.get_ident() and wall_id in self._staged:
+        staged = self._staged.current()
+        if staged is not None and wall_id in staged:
             return False
         return not self._settings.manifest_v2_path(wall_id).exists()
 
@@ -2773,9 +2769,10 @@ class DisplayService:
             scene=control.scene,
             staging=control.staging,
         )
-        if self._staged is None or self._staging_thread != threading.get_ident():
+        staged = self._staged.current()
+        if staged is None:
             raise RuntimeError(f"Wall {wall_id}'s feed was published outside `_publishing`, where nothing would write it.")
-        self._staged[wall_id] = as_v2_document(feed)
+        staged[wall_id] = as_v2_document(feed)
 
     def _control_layer(self, wall_id: str) -> _Control:
         """The scene this wall shows now and the works a draft stages on it, with their entries.

@@ -21,7 +21,7 @@ import pytest
 from PIL import Image
 
 from arrt.library.acquisition.master import MASTER_RULE
-from arrt.library.acquisition.mat import MatChoice, MatEngine
+from arrt.library.acquisition.mat import MAT_PRESETS, MatChoice, MatEngine
 from arrt.library.acquisition.preparation import (
     PreparationOutcome,
     PreparationService,
@@ -780,9 +780,9 @@ class TestARefusedMatWriteKeepsWhatTheCallCost:
 class TestOneWorkAtATime:
     """`prepare` and `regenerate` of one work must not overlap, and two works must not wait for each other.
 
-    The master is staged at one fixed name per work, so two writers of one work
-    can move each other's half-written file into place (audit 2 S8). The master
-    maker is wrapped to record who is inside it; nothing else is replaced.
+    Two preparations of one work would ask the model for one mat and pay twice,
+    and make one master twice. The master maker is wrapped to record who is
+    inside it; nothing else is replaced.
     """
 
     @staticmethod
@@ -893,6 +893,63 @@ class TestOneWorkAtATime:
 
         assert overlapped == [False], "a remake staged the master while a mat choice of the same work was in progress"
         assert prep._in_flight == {}, "a finished preparation left its lock in the table"
+
+    @pytest.mark.parametrize("asking", ["prepare", "choose_mat"])
+    @pytest.mark.parametrize("curator", ["set_mat", "set_mat_preset", "derive_mat"])
+    def test_a_mat_a_person_chooses_while_the_model_is_asked_stands(
+        self, service, discovery, settings, prep_settings, asking, curator
+    ):
+        """The model answers after the curator has decided, and the curator's mat is the one in force.
+
+        Forced: the model's answer is held until the curator's act has returned,
+        so the act cannot have waited for the model, and the model's answer is
+        the later write.
+        """
+        import threading
+
+        work, _ = _work_with_original(service, settings, colour=(200, 180, 150))
+        engine = _spending_engine("#d8cfc0", Decimal("0.0002"))
+        prep = PreparationService(service, engine, prep_settings, spend=discovery)
+        if asking == "choose_mat":
+            prep.set_mat(work.id, "#e0e0e0")
+        asked, answer = threading.Event(), threading.Event()
+        real_choose = engine.choose
+
+        def held_choose(image_path):
+            asked.set()
+            assert answer.wait(10), "the curator's act never let the model answer"
+            return real_choose(image_path)
+
+        engine.choose = held_choose
+        results = []
+        model = threading.Thread(target=lambda: results.append(getattr(prep, asking)(work.id)))
+        model.start()
+        assert asked.wait(10)
+        act = {
+            "set_mat": lambda: prep.set_mat(work.id, "#f4efe6"),
+            "set_mat_preset": lambda: prep.set_mat_preset(work.id, MAT_PRESETS[0].key),
+            "derive_mat": lambda: prep.derive_mat(work.id),
+        }[curator]
+        chosen = act()
+        answer.set()
+        model.join(10)
+
+        current = service.current_mat_color(work.id)
+        assert (current.hex_rgb, current.method) == (chosen.mat_hex, MatMethod(chosen.mat_method))
+        assert current.method is not MatMethod.VISION_MODEL
+        (result,) = results
+        assert result.mat_hex == chosen.mat_hex
+        assert result.cost_usd == Decimal("0.0002"), "the model's call was billed and must still be counted"
+        assert prep._deciding == {}
+
+    def test_the_model_s_mat_is_recorded_when_nobody_chose_one_meanwhile(self, service, discovery, settings, prep_settings):
+        work, _ = _work_with_original(service, settings)
+        prep = PreparationService(service, _spending_engine("#d8cfc0", Decimal("0.0002")), prep_settings, spend=discovery)
+
+        prep.set_mat(work.id, "#e0e0e0")
+        result = prep.choose_mat(work.id)
+
+        assert (result.mat_hex, service.current_mat_color(work.id).method) == ("#d8cfc0", MatMethod.VISION_MODEL)
 
     def test_a_refused_preparation_releases_the_work(self, prep, service):
         work = service.add_artwork(title="No image")

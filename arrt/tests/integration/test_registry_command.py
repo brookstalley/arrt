@@ -6,6 +6,8 @@ registry is a fake, installed where the command would build the real one, so
 nothing here reaches Wikidata.
 """
 
+import sqlite3
+
 import pytest
 
 from arrt.identify import __main__ as command
@@ -94,3 +96,21 @@ def test_an_outage_is_reported_as_one_rather_than_as_nothing_found(catalogue_pat
 
     assert command.main([]) == 1
     assert "HTTP 503" in capsys.readouterr().err
+
+
+def test_the_copy_before_a_migration_goes_to_the_backup_directory(catalogue_path, tmp_path, monkeypatch):
+    """Run as the first open after an upgrade, the command copies the file where the server would."""
+    connection = sqlite3.connect(catalogue_path)
+    # A column a migration drops, so this open is one that copies the file first.
+    connection.execute('ALTER TABLE walls ADD COLUMN "token_verifier" TEXT')
+    connection.commit()
+    connection.close()
+    backups = tmp_path / "backups"
+    monkeypatch.setenv("BACKUP_DIR", str(backups))
+    monkeypatch.setenv("WIKIDATA_USER_AGENT", "arrt-test (+https://example.org)")
+    monkeypatch.setattr(command, "WikidataRegistry", FakeWikidata)
+
+    assert command.main([]) == 0
+
+    assert len(list(backups.glob("pre-migration-*Z.sqlite"))) == 1
+    assert list(catalogue_path.parent.glob("pre-migration-*")) == []

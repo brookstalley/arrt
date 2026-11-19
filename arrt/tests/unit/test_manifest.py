@@ -316,7 +316,7 @@ def test_the_written_feed_is_json_a_player_can_parse(display, ready_work, theme_
     work = ready_work()
     theme = theme_of(work)
 
-    display.sync(wall_id, theme.id)
+    display.activate_theme(theme.id, wall_id=wall_id)
 
     document = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())
     assert document["schema"]["major"] == SCHEMA_MAJOR
@@ -324,12 +324,36 @@ def test_the_written_feed_is_json_a_player_can_parse(display, ready_work, theme_
     assert list(document["works"]) == [work.id]
 
 
+def test_sync_publishes_what_is_hung_and_cannot_be_handed_another_theme(
+    display, store, ready_work, theme_of, wall_settings, wall_id
+):
+    """A feed of a theme the catalogue does not record as hung would show the wall something it says is not there.
+
+    So the service takes no theme to publish, whatever surface calls it, and a
+    republish puts up the hung theme again.
+    """
+    hung = theme_of(ready_work("Nighthawks"), name="Hung")
+    other = theme_of(ready_work("Chop Suey"), name="Not hung")
+    display.activate_theme(hung.id, wall_id=wall_id)
+    path = wall_settings.manifest_v2_path(wall_id)
+    before = path.read_bytes()
+
+    with pytest.raises(TypeError):
+        display.sync(wall_id, other.id)
+
+    assert path.read_bytes() == before
+    assert store.get_assignment(wall_id).theme_id == hung.id
+    build = display.sync(wall_id)
+    assert build.theme.id == hung.id
+    assert json.loads(path.read_text())["playlist"]["name"] == "Hung"
+
+
 def test_the_feed_does_not_carry_the_exclusions(display, ready_work, theme_of, wall_settings, wall_id):
     """They are curation's report about its own catalogue, not something a Player can use."""
     shown = ready_work("Nighthawks")
     theme = theme_of(shown, ready_work("Chop Suey", original=False))
 
-    build = display.sync(wall_id, theme.id)
+    build = display.activate_theme(theme.id, wall_id=wall_id)
 
     assert len(build.exclusions) == 1
     document = json.loads(wall_settings.manifest_v2_path(wall_id).read_text())

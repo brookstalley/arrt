@@ -25,7 +25,6 @@ without an event loop.
 
 import hashlib
 import logging
-import threading
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -67,7 +66,7 @@ from arrt.persistence.records import (
 )
 from arrt.services.errors import ServiceError
 from arrt.services.fields import description_markup, relative_path, require_member, require_text
-from arrt.services.store import store_write
+from arrt.services.store import ActState, store_write
 
 log = logging.getLogger(__name__)
 
@@ -246,11 +245,9 @@ class CatalogueService:
         #: without a content hash and serves none.
         self._art_root = art_root
         #: The works a bulk act has changed so far, by how, announced together
-        #: when its transaction commits (`_announcing_together`); None while no
-        #: bulk act is open.
-        self._gathered: dict[WorkChange, list[str]] | None = None
-        #: The thread that opened it, the only one whose announcements it gathers.
-        self._gathering_thread: int | None = None
+        #: when its transaction commits (`_announcing_together`). Seen only by
+        #: the act that opened it.
+        self._gathered: ActState[dict[WorkChange, list[str]]] = ActState(store)
 
     def subscribe(self, handler: WorkChangedHandler) -> None:
         """Be told, after each commit, which works changed and how."""
@@ -261,8 +258,9 @@ class CatalogueService:
 
         Inside a bulk act, gathered into the one announcement the act makes.
         """
-        if self._gathered is not None and self._gathering_thread == threading.get_ident():
-            self._gathered.setdefault(change, []).append(artwork_id)
+        gathered = self._gathered.current()
+        if gathered is not None:
+            gathered.setdefault(change, []).append(artwork_id)
             return
         event = WorkChanged(change=change, work_ids=(artwork_id,))
         self._store.after_commit(lambda: self._events.publish(event))
@@ -277,18 +275,14 @@ class CatalogueService:
         rollback discards the gathered works with the change they describe.
         Nesting joins the outer act.
         """
-        if self._gathering_thread == threading.get_ident():
+        if self._gathered.current() is not None:
             yield
             return
-        with self._store.transaction():
-            self._gathered, self._gathering_thread = {}, threading.get_ident()
-            try:
-                yield
-                for change, work_ids in self._gathered.items():
-                    event = WorkChanged(change=change, work_ids=tuple(dict.fromkeys(work_ids)))
-                    self._store.after_commit(lambda event=event: self._events.publish(event))
-            finally:
-                self._gathered, self._gathering_thread = None, None
+        with self._gathered.opened({}) as gathered:
+            yield
+            for change, work_ids in gathered.items():
+                event = WorkChanged(change=change, work_ids=tuple(dict.fromkeys(work_ids)))
+                self._store.after_commit(lambda event=event: self._events.publish(event))
 
     # -- reads: works ---------------------------------------------------------
 

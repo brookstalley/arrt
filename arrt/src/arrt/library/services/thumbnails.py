@@ -206,8 +206,9 @@ class ThumbnailService:
         # cached file is wrong: a fresh row can point at a file someone deleted,
         # or at another path than this product's (a row written before the
         # products had their own directories), and a present file can predate
-        # the master it claims to depict.
-        if held is not None and not held.stale and recorded_here and cached.is_file():
+        # the master it claims to depict. An empty one is what a power cut can
+        # leave of a thumbnail, which is written unsynced (`_write`).
+        if held is not None and not held.stale and recorded_here and _made(cached):
             return cached
 
         self._write(source.path, cached, max_edge=max_edge, quality=quality)
@@ -244,8 +245,18 @@ class ThumbnailService:
         # fault over the whole grid.
         try:
             frame = encode_downscaled(source, max_edge=max_edge, quality=quality)
-            atomic.write_bytes(destination, frame.data)
+            # Not synced: a thumbnail is made again whenever it is missing or
+            # empty, which is all a power cut can leave of an unsynced one.
+            atomic.write_bytes(destination, frame.data, durable=False)
         except Image.DecompressionBombError as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} is too large to open safely: {exc}") from exc
         except UNDECODABLE as exc:
             raise ThumbnailUnavailable(f"The image at {source.name} could not be read: {exc}") from exc
+
+
+def _made(path: Path) -> bool:
+    """Whether a thumbnail is on disk with something in it."""
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False

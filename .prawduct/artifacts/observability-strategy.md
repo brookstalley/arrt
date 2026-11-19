@@ -550,6 +550,11 @@ The Player's journal events for a client and an HDMI wall:
 | `screen.draw_failed` / `screen.draw_recovered` | WARNING / INFO | The output refused a picture, said once per episode. The commonest cause is a service user outside group `video` |
 | `screen.refresh_failed` / `screen.refresh_recovered` | WARNING / INFO | The same, for the redraw tried on every poll |
 
+On the server, a display that one Player reports while another held it
+moves to the reporter with its walls, and the server logs `client.display_moved`
+at WARNING, naming the display, both Players and the output, so a move nobody
+made can be found by its event as well as its words.
+
 **A Player that has stopped leaves the text console on an HDMI screen**: the
 kernel gives the screen back when the process lets go of the display card. On
 the wall, that is how an outage looks, and Settings › Players shows the Player
@@ -583,9 +588,11 @@ and when the next pass falls due); a backup directory that cannot be listed cann
 vouch for a recent one, so the pass runs and says why at WARNING
 (`backup.unlisted`). Before a migration that drops a column or a table, the server
 copies the catalogue (`operational-spec.md` § Backup and Restore): INFO
-`catalogue.snapshot_taken` names the copy, what the migration would drop, the copy
-it replaced and the ones pruned; INFO `catalogue.snapshot_kept` that a copy taken in
-the same second stands; and ERROR `catalogue.snapshot_failed` that the copy could
+`catalogue.snapshot_taken` names the copy, what the migration would drop and the
+copies pruned; INFO `catalogue.snapshot_kept` that an earlier copy stands, taken in
+the same second or before the migrations a failed start left unfinished; WARNING
+`catalogue.snapshot_prune_failed` that an older copy could not be removed, which
+stops nothing; and ERROR `catalogue.snapshot_failed` that the copy could
 not be written, which stops the start with the catalogue as it was. The receipt
 and the panel's age are the generations' alone: a copy before a migration is not a
 backup and does not move the age.
@@ -894,6 +901,7 @@ signal exists:
 | **The panel captions the wrong work, or stops captioning** | `label.drawn` at INFO per draw, carrying `work_id` and `tv_content_id`. **The only positive label signal, and it exists because every other one is an exception** — `label.failed`, `label.truncated` and `label.recovered` all fire on something going wrong, so before 2026-08-13 a panel captioning correctly all day emitted nothing whatsoever and was indistinguishable in the journal from one that stopped at boot. Its *absence* over a rotation is what says the label stopped following the wall. **A picture no manifest can name is `label.blanked`, not a success and not a failure**: somebody choosing an art-store image with the remote gets a deliberately blank panel, and a success event there would answer *why is the label empty* by naming a work that is not on the wall. It carries the content id because there is no `work_id` on that path to carry |
 | Backup silently stopped succeeding | **`backup-status.json` stops advancing; the panel shows its age.** The receipt is written only on success, so a failing job goes stale rather than reporting fresh. Nothing has ever written one is itself an observation the panel states plainly |
 | Manifest references a missing file | WARNING per work, and the work is skipped — the run continues |
+| A transaction's rollback fails after its body failed | `store.rollback_failed` at ERROR, with the rollback's traceback and its `detail`. The caller still receives the body's own error (a refusal stays a refusal, and a fault stays that fault), so this line is the only trace of the second failure (`persistence/durable.py`) |
 | **The TV takes selections and displays none of them** | `rotation.wall_unchanged` at WARNING **once**, carrying the id that was accepted and the set's own `art_mode` — then `rotation.wall_recovered` at INFO when the wall starts changing again. **The pairing is the design**, because the condition lasts as long as somebody leaves the panel off: a line per rotation would be a hundred a night saying the one thing that has not changed, and journald rate-limits by dropping the ERRORs this plane's only failure channel carries. The art-mode flag is read on this path for the operator's sake — it is the answer to *why is the wall not changing*, and it costs one call on a rotation that has already failed. It is read **separately, before every selection**, for a different purpose: the plane may not touch a television somebody is watching, and that gate asks whether it may act at all rather than why it did not. **The absence of `rotation.selected` is not itself the signal**: nothing distinguishes a wall that stopped changing from a daemon that stopped running, which is what this line exists to say |
 | Manifest major version unrecognised | ERROR, previous manifest retained. *(2026-09-30: the same over HTTP, from wave 2. Wave 4's major-2 bump, when compositing moves to the Player, is the planned occasion for it, so the ERROR is how an un-upgraded Player announces itself. See `re-architecture.md`.)* |
 | *Planned, 2026-09-30:* the server is unreachable from a Player | The Player keeps rendering from its cache (`nonfunctional-requirements.md` § Direction, amended). It logs the failed poll once per episode rather than per poll, the same pairing `rotation.wall_unchanged` uses. The panel shows the heartbeat's age, which grows only if the POST also fails. It becomes a real fault when the manifest names media the cache does not hold, and the heartbeat's cache report exists to say that. Built in wave 2 |

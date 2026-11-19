@@ -36,7 +36,7 @@ import { attempt } from "../core/acting.js";
 import { api } from "../core/api.js";
 import { absentImage, facts, fitBadge, noPicture, pixelSize, statusBadge, table } from "../core/badges.js";
 import { confirmAct } from "../core/confirm.js";
-import { counted } from "../core/counting.js";
+import { counted, listed } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { FETCH_WORDS, museumName, RIGHTS_WORDS } from "../core/providers.js";
@@ -1230,7 +1230,7 @@ async function wallsShowing(artworkId) {
  * *different* themes, so it cannot say "that theme". */
 function wallConsequence(names) {
   if (!names.length) return "";
-  const walls = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const walls = listed(names);
   const showing = names.length === 1 ? "is showing" : "are showing";
   const losing = names.length === 1 ? "loses" : "lose";
   // Now, not at the next hang: Programming takes an archived work off every

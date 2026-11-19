@@ -14,7 +14,7 @@ plugin that only ever answers "could not be asked" now says so on Status, but ne
 nor the record exists. The findings it leaves for the second wave, and the ones held for the
 owner, are in the plan and its ledger.
 
-## What an operator must know
+### What an operator must know
 
 - **A migration that drops data now copies the catalogue first, and refuses to proceed if it
   cannot.** Before any migration that drops a column or a table acts, the server copies the
@@ -42,7 +42,7 @@ owner, are in the plan and its ledger.
   told they failed. A write outside a transaction that fails is rolled back the same way.
   The acquisition queue pauses on a `StorageFault` as it does on a full disk.
 
-## What else changed for someone running the server
+### What else changed for someone running the server
 
 - **MCP.** `art_display` gains `preview` (`wall_id`, `theme_id` optional), the read-only twin of
   `GET /api/manifest`: what a theme would put on a wall, nothing written. `sync` takes
@@ -116,7 +116,7 @@ owner, are in the plan and its ledger.
   every tracked text file and knows tailnet, IPv6 local, `.lan`/`.local` and account-at-machine login shapes.
   The pins and the new `image.yml` filter have not run on GitHub's runners yet.
 
-## Not done, and why
+### Not done, and why
 
 - `Published.on_the_wall` has callers; the audit's "dead" was wrong, and it stays.
 - A work whose only museum page is gone never settles, because the host cannot tell "every

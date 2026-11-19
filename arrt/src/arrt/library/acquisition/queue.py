@@ -50,6 +50,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Final, Protocol
 
+from arrt import atomic
 from arrt.library.acquisition.master import MASTER_RULE
 from arrt.library.acquisition.mat import MAT_LIGHTNESS_FLOOR, below_the_floor
 from arrt.library.acquisition.preparation import PreparationResult
@@ -715,9 +716,10 @@ class AcquisitionQueue:
 
 
 #: The `errno`s of an `OSError` that is the host's rather than a work's: the disk
-#: is full, or has been remounted read-only. Anything else an `OSError` says (a
-#: missing file, a refused permission) is about the path of one work.
-_HOST_ERRNOS: Final[frozenset[int]] = frozenset({errno.ENOSPC, errno.EROFS})
+#: is full, or has been remounted read-only (`atomic.DISK_FAULT_ERRNOS`, the set
+#: the writers let through for this). Anything else an `OSError` says (a missing
+#: file, a refused permission) is about the path of one work.
+_HOST_ERRNOS: Final[frozenset[int]] = atomic.DISK_FAULT_ERRNOS
 
 
 def _is_host_fault(exc: Exception) -> bool:

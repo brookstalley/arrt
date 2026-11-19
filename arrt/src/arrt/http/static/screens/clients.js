@@ -38,7 +38,7 @@ import { api } from "../core/api.js";
 import { facts } from "../core/badges.js";
 import { GLYPHS } from "../core/glyphs.js";
 import { confirmAct } from "../core/confirm.js";
-import { agree, counted } from "../core/counting.js";
+import { agree, counted, listed } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { openPanel } from "../core/editing.js";
 import { isStale, screenCell, screenName } from "../core/outputs.js";
@@ -530,8 +530,3 @@ async function remove(player) {
   await refresh();
 }
 
-/* "Study", "Study and Hall", "Study, Hall and Landing". */
-function listed(names) {
-  if (names.length < 2) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}

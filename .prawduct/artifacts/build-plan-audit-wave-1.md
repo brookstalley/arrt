@@ -198,7 +198,7 @@ security and operations.
 ## Shared seams this wave
 
 - `arrt/src/arrt/__main__.py`: 02 edits only `_registry`; 04 edits only the
-  `open_catalogue_file(...)` call and the `CatalogueBackup(...)` arguments. No
+  catalogue-opening call (`open_configured_catalogue`, since the boundary review) and the `CatalogueBackup(...)` arguments. No
   one else edits it.
 - `arrt/src/arrt/programming/manifest/builder.py`: 04 re-implements
   `write_atomically` over the shared helper, keeping its name and signature. No
@@ -231,9 +231,9 @@ planned and this section is the later word.
 - [DECISION: chunk 03's acceptance 5 (delete `Published.on_the_wall` and `Published.after`) is not done | its premise was false: `Published.on_the_wall` has 17 callers in tests, and `after` is called by `_restart`. The audit read "no caller in `src`" as "dead" | user can veto/override]
 - [DECISION: a bulk act is announced as one event naming every work the commit changed (`WorkChanged.work_ids`), where the plan allowed the display subscriber to coalesce instead | the event stays remote-shaped (a list is what a webhook would carry), and delivering the ids one commit changed together means one reconcile per bulk act with no window to tune in the subscriber. The builder's choice, recorded as the plan asked | user can veto/override]
 - [DECISION: a Watch's "due" reads the newest run carrying the Watch's id, keyed on the Watch's own note naming another run, where the plan allowed the start and its note to commit together | the run row is written when the run starts and the note is a second write that can fail, so the run is the record of the attempt; keying on the note naming another run leaves a Watch whose notes are in order reading exactly as it did. The builder's choice, recorded as the plan asked | user can veto/override]
-- [DECISION: a copy before a migration that would drop exactly what the newest copy would replaces that copy instead of adding to the three kept, and staging debris older than a day is swept | "the three newest are kept" would let a migration that fails on every start push the copy from before the upgrade out, which is the failure the copy exists to prevent; a fresh staging name per attempt leaves a killed writer's file behind, which nothing else would claim | user can veto/override]
+- [DECISION: one copy is taken per migration, of the catalogue as it stood before the migration touched it: the first copy marks the catalogue (`PRAGMA user_version`), the mark is cleared when the last migration step completes, and a start that finds the mark takes no second copy; staging debris older than a day is swept, in the art tree and in the backup directory | the earlier rule (a copy that would drop the same things replaces the newest) let a crash loop on the first dropping step replace the untouched copy with a copy of a half-migrated file, which the boundary review found; the copy the rollback instructions point at must be the untouched one | user can veto/override]
 - [DECISION: the copy before a migration opens the catalogue read-write, though it only reads | a process killed mid-transaction leaves a hot journal that a read-only open cannot read ("attempt to write a readonly database", measured on SQLite 3.53.1), and the same read-only open in `file_had_table` failed on every start after such a kill, so the server would not start at all. This was the first of two defects the chunk found and fixed; the second was that its own first writer could delete another write's staging file, caught by a test before commit | user can veto/override]
-- [DECISION: every `sqlite3.OperationalError` (raised by the store as `StorageFault` since 2026-11-19) met in the middle of one work, a locked database included, pauses the acquisition queue for fifteen minutes and counts against no work, as a full or read-only disk (`ENOSPC`, `EROFS`) does | each fails every work in turn, so counting them gave every work up in about four days; treating "database is locked" as the host's fault is broader than the disk faults the plan was thinking of, and is accepted because a locked database blocks every work the same way | user can veto/override]
+- [DECISION: a fault of the host met in the middle of one work pauses the acquisition queue for fifteen minutes and leaves the work's failure count alone: a full or read-only disk (by errno), and the store's `StorageFault`, which the durable store raises only for SQLite's host and contention result codes (busy, locked, read-only, I/O, full, cannot open, corrupt, not a database, permission, protocol); any other driver error, a missing column or a syntax error among them, propagates as itself | contention and a failing disk are never the work's fault, and counting them would set each work back towards being given up; a programming error classified as a host fault would pause the queue with a "restart" remedy instead of surfacing, which the boundary review found | user can veto/override]
 - [DECISION: a disk fault's pause is named by its error code (`ENOSPC`, `EROFS`), not by the exception's type | `remedy_for("OSError")` must stay None, because `OSError` by name is also what a surprise records, and a surprise has no remedy to give; two of the chunk's assertions changed to match | user can veto/override]
 - [DECISION: the Edit wall dialog keeps one commit per section, every one quiet, with *Show it there* the one filled act and *Close* naming the sections left unset, where the plan allowed one *Save* over every section | each section is its own write on its own route, and the server can refuse one or keep one with a notice the curator has to read where it was made, which one Save would have to report as several partial outcomes at once. The builder's choice, recorded as the plan asked | user can veto/override]
 - [DECISION: on the list screens' toolbar *Select* is last on the right, after View, Sort and the filters' toggle, and its acts are on the left | `design-direction.md` § Component Patterns, "How a page reads", records it from the owner's page rules of 2026-10-27, and this plan said so. An older passage of `information-architecture.md` (2026-10-08) put the toggle beside its acts; it is corrected with a dated note, and the owner is asked to confirm, since no entry in `owner-rulings.md` states where Select stands. A Topic's page and a theme's page keep the old layout until they adopt the shared toolbar | user can veto/override]
@@ -484,7 +484,7 @@ planned and this section is the later word.
   `arrt/src/arrt/programming/manifest/builder.py` (`write_atomically` only),
   `arrt/src/arrt/persistence/backup.py`, `arrt/src/arrt/persistence/file.py`,
   `arrt/src/arrt/persistence/durable.py`, `arrt/src/arrt/persistence/migrations.py`,
-  `arrt/src/arrt/__main__.py` (the `open_catalogue_file(...)` call and the
+  `arrt/src/arrt/__main__.py` (the catalogue-opening call (`open_configured_catalogue`, since the boundary review) and the
   `CatalogueBackup(...)` arguments only), `.prawduct/artifacts/operational-spec.md`
   (§ Backup and Restore and § Routine Operations' rollback sentence only),
   `arrt/tests/unit/test_backup_writer.py`, `arrt/tests/unit/test_master.py`,
@@ -820,13 +820,13 @@ planned and this section is the later word.
 - **Type:** code
 - **Closes:** audit-8 F3, F6 (the inventory half), F7, F8, F9, F10 (the
   inventory sentence and the body cap), F11, F12; audit-6 finding 1 (critical);
-  audit-1 M9's `deploy/curation.service`; audit-2 M6's `arrt/src/arrt/app.py` description;
+  audit-1 M9's the retired unit deploy/curation.service (deleted by this chunk); audit-2 M6's `arrt/src/arrt/app.py` description;
   audit-4 finding 15's `deploy/README.md` half.
 - **Owns:** `arrt/src/arrt/logs.py`, `arrt/src/arrt/http/hosts.py`,
   `arrt/src/arrt/http/pages.py`, `arrt/src/arrt/http/player.py` (the body cap
   only), `arrt/src/arrt/app.py` (its description string only),
   `arrt/tools/ux_walk.py`, `deploy/nas/compose.example.yaml`, `deploy/README.md`
-  (all but the `.github/workflows/image.yml` paragraph, which is 10's), `deploy/curation.service`
+  (all but the `.github/workflows/image.yml` paragraph, which is 10's), the retired unit deploy/curation.service (deleted by this chunk)
   (retired), `tests/test_repo_hygiene.py` (the unit's guards only),
   `tests/preferences/test_citations_resolve.py` (its tracked-file fixture only),
   `.prawduct/artifacts/security-model.md`, `.prawduct/artifacts/player-contract.md`
@@ -854,7 +854,7 @@ planned and this section is the later word.
   - **The published port (F12).** The compose example binds the port to the
     proxy's network or loopback, and `deploy/README.md` says the boundary is
     every network that can route to the published port.
-  - **Retire `deploy/curation.service`** (the plan's DECISION), its README
+  - **Retire the retired unit deploy/curation.service (deleted by this chunk)** (the plan's DECISION), its README
     section, and the `LIVE_UNITS` guards in `tests/test_repo_hygiene.py`; the
     citation test's fixture names another tracked file.
   - **`deploy/README.md` § A private source plugin (audit-4 15)** shows the

@@ -5,6 +5,7 @@ that sits above them — which source is used, when a refusal is data about a so
 rather than a fault, and what the catalogue holds afterwards.
 """
 
+import errno
 import logging
 import stat
 from contextlib import contextmanager
@@ -265,6 +266,29 @@ class TestFailuresAreRecordedNotRaised:
         _acquisition(service, acq_settings, _serves(b"not a JPEG" * 10)).acquire(work.id)
 
         assert list((acq_settings.originals_path).glob("*")) == []
+
+
+class TestTheDiskFillingMidFetch:
+    def test_a_disk_that_fills_during_a_direct_fetch_reaches_the_caller_and_records_nothing(
+        self, service, acq_settings, monkeypatch
+    ):
+        """The queue pauses on it and counts it against no work, so the work's source must not be marked failed either."""
+        from arrt import atomic
+
+        work, source = _work_with_source(service)
+
+        def full(destination, token):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(atomic, "_create_staging", full)
+        acquisition = _acquisition(service, acq_settings, _serves(_jpeg_bytes()))
+
+        with pytest.raises(OSError, match="No space left") as raised:
+            acquisition.acquire(work.id)
+
+        assert raised.value.errno == errno.ENOSPC
+        refreshed = next(s for s in service.list_sources(work.id) if s.id == source.id)
+        assert refreshed.last_fetch_status is not FetchStatus.FAILED
 
 
 class TestTheFreeSpaceGuard:

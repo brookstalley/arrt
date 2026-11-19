@@ -22,6 +22,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     CommonsFile,
@@ -222,10 +223,10 @@ def toolbar_position(ui) -> str:
 
 #: The lists drawn with the shared toolbar's named `selection` (`core/toolbar.js`):
 #: *Select* is the last control on the right, and the acts on what it selects
-#: stand on the left. Topics still hands the toolbar its toggle and bar as acts,
-#: so both stand on its left; it adopts `toolbar({ selection })` in wave 2
-#: (chunk 07's report, audit wave 1), and moves to this list when it does.
-SELECT_ON_THE_RIGHT = ["artworks", "artist", "search"]
+#: stand on the left. A Topic's page is among them: it handed the toolbar its
+#: toggle and bar as acts and so kept *Select* on the left, until it moved to
+#: `toolbar({ selection })` with the others.
+SELECT_ON_THE_RIGHT = ["artworks", "artist", "search", "topic"]
 
 
 @pytest.mark.parametrize("a_list", SELECT_ON_THE_RIGHT, indirect=True)
@@ -270,32 +271,30 @@ def test_the_acts_on_a_selection_take_the_toolbar_s_left_side(ui, a_list):
 
 
 @pytest.mark.parametrize("a_list", ["topic"], indirect=True)
-def test_on_topics_the_toggle_and_its_acts_still_take_the_left_side(ui, a_list):
-    """The assertion above as it stood until 2026-11-19, kept for the one list
-    that has not moved: Topics hands the toolbar *Select* and its bar as acts
-    (`screens/topics.js`), so both stand on the left, the toggle first. Wave 2
-    moves Topics to `toolbar({ selection })`, and this case into the test above."""
+@pytest.mark.parametrize("width", [390, 1280])
+def test_on_a_topic_the_toolbar_has_one_layout_with_the_other_lists(ui, a_list, width):
+    """A Topic's page has no acts of its own and none of View, Sort or the
+    filters: *Select* is its toolbar's one control, so what is held to here is
+    that it stands on the right, alone, and that *Stop selecting* stays through
+    the phone's stepping aside, as on every list.
+
+    The order of the left side is the shared test above, which Topics is now
+    one of; this is the half it cannot say, because on a phone nothing else on
+    a Topic's toolbar is left to step aside."""
+    ui.page.set_viewport_size({"width": width, "height": 800})
     address, acts = a_list
     open_list(ui, address)
     left = ui.page.locator("#view .page-toolbar-actions").first
+    right = ui.page.locator("#view .page-toolbar-controls").first
 
-    assert left.locator(":scope > :visible").count() == 1
-    assert left.locator(":scope > :visible").first.inner_text() == "Select"
-    assert toolbar_position(ui) == "static"
+    expect(right.locator(":scope > :visible")).to_have_text(["Select"])
+    expect(left.locator(":scope > :visible")).to_have_count(0)
 
     ui.page.click("#view button.select-toggle")
 
+    expect(right.locator(":scope > :visible")).to_have_text(["Stop selecting"])
     for act in acts:
-        assert left.locator(f".selection {act}").is_visible(), f"{act} is not in the toolbar"
-    assert left.evaluate("(side) => [...side.children].map((child) => child.className)")[:2] == [
-        "action quiet select-toggle",
-        "selection",
-    ]
-    assert toolbar_position(ui) == "sticky"
-
-    ui.page.click("#view button.select-toggle")
-
-    assert toolbar_position(ui) == "static"
+        expect(left.locator(f".selection {act}")).to_be_visible()
 
 
 def test_the_acts_stay_in_reach_at_the_end_of_a_long_list(ui, studies):

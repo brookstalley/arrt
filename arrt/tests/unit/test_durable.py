@@ -10,7 +10,9 @@ which is how a duplicate id and a missing parent could have swapped messages
 without a single test noticing.
 """
 
+import logging
 import sqlite3
+import threading
 
 import pytest
 
@@ -723,6 +725,95 @@ def test_a_commit_another_process_holds_off_is_a_fault_of_the_host_and_keeps_not
     finally:
         reader.close()
         store.close()
+
+
+@pytest.mark.parametrize(
+    ("statement", "words"),
+    [
+        ('SELECT * FROM "nothing_by_this_name"', "no such table"),
+        ('SELECT no_such_column FROM "things"', "no such column"),
+        ('SELEC * FROM "things"', "syntax error"),
+    ],
+    ids=["no such table", "no such column", "syntax"],
+)
+def test_a_statement_this_code_got_wrong_is_its_own_error_not_a_fault_of_the_host(store, statement, words):
+    """The driver raises `OperationalError` for these too; read by its result code, they are a defect, not the disk.
+
+    Taken for a fault of the host, a migration that left a column behind would
+    pause the acquisition queue every fifteen minutes with a remedy about
+    locks and disks, and never be counted as the error it is.
+    """
+    with pytest.raises(sqlite3.OperationalError, match=words) as raised:
+        store.select_rows(statement)
+
+    assert not isinstance(raised.value, StorageFault)
+    assert raised.value.sqlite_errorcode == sqlite3.SQLITE_ERROR
+
+
+def test_whether_a_transaction_is_open_is_answered_for_the_calling_thread(store):
+    """Yes inside a block and its nested blocks, to the thread that opened it; no outside, after, and to any other."""
+    answers: dict[str, bool] = {"before": store.in_transaction()}
+    with store.transaction():
+        answers["inside"] = store.in_transaction()
+        with store.transaction():
+            answers["nested"] = store.in_transaction()
+        answers["after the nested one"] = store.in_transaction()
+        other = threading.Thread(target=lambda: answers.__setitem__("another thread", store.in_transaction()))
+        other.start()
+        other.join(timeout=5)
+    answers["after"] = store.in_transaction()
+    with pytest.raises(_Refused), store.transaction():
+        raise _Refused("rolled back")
+    answers["after a rollback"] = store.in_transaction()
+
+    assert answers == {
+        "before": False,
+        "inside": True,
+        "nested": True,
+        "after the nested one": True,
+        "another thread": False,
+        "after": False,
+        "after a rollback": False,
+    }
+
+
+class _RollbackFails:
+    """The store's connection, except that a rollback fails as a failing disk would make it."""
+
+    def __init__(self, real):
+        self._real = real
+
+    def rollback(self):
+        raise sqlite3.OperationalError("disk I/O error")
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+class _Refused(Exception):
+    """A body's refusal of the request, which the caller is owed whatever the rollback does."""
+
+
+@pytest.mark.parametrize(
+    "error",
+    [_Refused("That name is taken"), StorageFault("database or disk is full")],
+    ids=["a refusal", "a fault of the statement"],
+)
+def test_a_rollback_that_fails_leaves_the_body_s_own_error_to_reach_the_caller(store, caplog, error):
+    store._connection = _RollbackFails(store._connection)
+
+    def body():
+        with store.transaction():
+            _thing(store, "t1", "First")
+            raise error
+
+    with caplog.at_level(logging.ERROR, logger="arrt.persistence.durable"), pytest.raises(type(error)) as raised:
+        body()
+
+    assert raised.value is error
+    assert [record.detail for record in caplog.records if getattr(record, "event", None) == "store.rollback_failed"] == [
+        "disk I/O error"
+    ]
 
 
 # -- ordering additions --------------------------------------------------------

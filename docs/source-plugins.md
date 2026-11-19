@@ -276,6 +276,21 @@ deadline is how long your plugin can hold every Get when it is slow. A look
 waits behind a run asking your plugin, and asks it again once the run is done
 or has given up.
 
+**Your calls may arrive on any thread, and several at once.** Each call runs on
+a thread started for it, which is how Arrt can stop waiting for it, so no two
+calls are promised the same thread, nor the thread that called `create()`; and
+a run, a look and a browse can call your plugin at the same moment, a late call
+still running beside them. So hold nothing that works only on the thread that
+made it: no `sqlite3` connection made with its default `check_same_thread`, no
+synchronous Playwright browser, page or context, no `threading.local` you expect
+to find filled on the next call, nothing an event loop owns. Make such a thing
+on the thread that uses it, inside the call (and close it there), or give it a
+thread of its own that your calls hand work to and wait on, bounded. Whatever
+your calls share (a cache, a pace, a file) is guarded by a lock of your own. An
+`httpx.Client` is safe to share across threads, which is how the built-in
+plugins hold theirs; NGA's open-data copy, the one other thing a built-in keeps
+between calls, sits behind its own lock.
+
 ## What Arrt does for you, and what it does not
 
 **Arrt does:**

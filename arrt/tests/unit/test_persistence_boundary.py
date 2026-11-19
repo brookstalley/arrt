@@ -31,9 +31,10 @@ _MAY_IMPORT_SQLITE = {
     # the persistence package, the line this guard draws.
     "arrt.persistence.kept",
     # The catalogue's backup: `VACUUM INTO` a generation, then `PRAGMA
-    # integrity_check` on the copy before it is named. Both are operations on the
-    # file as a file, which the record contract exists not to know about, on a
-    # connection of its own that never writes the catalogue. Inside the
+    # integrity_check` on the copy before it is named, and the mark a copy before
+    # a migration leaves in the catalogue's `user_version`. All are operations on
+    # the file as a file, which the record contract exists not to know about, on
+    # connections of its own that write the catalogue only that mark. Inside the
     # persistence package, the line this guard draws.
     "arrt.persistence.backup",
 }
