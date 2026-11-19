@@ -11,12 +11,16 @@ page was a wall of buttons with no art and no links:
 Ruling 2 of 2026-10-11 settled that a theme is never shuffled.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 PHONE = {"width": 390, "height": 844}
 
@@ -35,6 +39,11 @@ def evening(services, service, work_with_an_image):
     return theme, hopper, (pictured, automat, office), outside
 
 
+#: A heading that is the word Size and nothing else, in any case: the whole
+#: cell, which `has_text` (raw text content, a substring) cannot say.
+SIZE_HEADING = re.compile(r"^\s*size\s*$", re.IGNORECASE)
+
+
 def open_theme(ui, theme):
     ui.open(f"#theme/{theme.id}")
     ui.page.wait_for_selector("tbody tr")
@@ -45,15 +54,16 @@ def test_every_member_row_shows_a_picture_and_links_its_work_and_artist(ui, even
     open_theme(ui, theme)
 
     rows = ui.page.locator("tbody tr")
-    assert rows.count() == 3
+    expect(rows).to_have_count(3)
     for at, work in enumerate((pictured, automat, office)):
         row = rows.nth(at)
-        assert row.locator(f"a[href^='#work/{work.id}']").inner_text() == work.title
-        assert row.locator(".member-picture img, .member-picture .card-image-absent").count() == 1
-    assert rows.nth(0).locator(".member-picture img").count() == 1
+        expect(row.locator(f"a[href^='#work/{work.id}']")).to_have_text(work.title, use_inner_text=True)
+        expect(row.locator(".member-picture img, .member-picture .card-image-absent")).to_have_count(1)
+    expect(rows.nth(0).locator(".member-picture img")).to_have_count(1)
     for at in (1, 2):
-        assert rows.nth(at).locator(f"a[href^='#artist/{hopper.id}']").inner_text() == "Edward Hopper"
-        assert rows.nth(at).locator(".member-picture .card-image-absent").inner_text().strip() == "No picture"
+        expect(rows.nth(at).locator(f"a[href^='#artist/{hopper.id}']")).to_have_text("Edward Hopper", use_inner_text=True)
+        # Trimmed and normalised, as the strip was.
+        expect(rows.nth(at).locator(".member-picture .card-image-absent")).to_have_text("No picture", use_inner_text=True)
     ui.page.wait_for_load_state("networkidle")
     assert ui.requests_matching(f"/api/works/{automat.id}/thumbnail") == []
 
@@ -77,23 +87,29 @@ def test_works_are_added_from_artworks_and_the_page_has_no_picker(ui, evening):
     theme, *_ = evening
     open_theme(ui, theme)
 
-    assert ui.page.locator("#view select").count() == 0
-    assert ui.page.locator("#view button:text-is('Add')").count() == 0
+    # The toolbar's own link first: it is what proves the page has painted its
+    # acts, so the two absences below are about a page that is there.
     add = ui.page.locator("#view .page-toolbar").get_by_role("link", name="Add works")
-    assert add.get_attribute("href") == "#collection"
+    expect(add).to_have_attribute("href", "#collection")
+    expect(ui.page.locator("#view select")).to_have_count(0)
+    expect(ui.page.locator("#view button:text-is('Add')")).to_have_count(0)
 
 
 def test_nothing_on_the_page_speaks_of_shuffle(ui, evening):
     theme, *_ = evening
     open_theme(ui, theme)
-    assert "shuffl" not in ui.page.locator("#view").inner_text().lower()
+    # Anchored on the three members the page is about: a page not yet painted
+    # has no word of shuffling either.
+    expect(ui.page.locator("tbody tr")).to_have_count(3)
+    expect(ui.page.locator("#view")).not_to_contain_text("shuffl", use_inner_text=True, ignore_case=True)
 
 
 def test_the_size_column_is_there_only_when_it_has_something_to_say(ui, evening, services, work_with_an_image):
     theme, *_ = evening
     open_theme(ui, theme)
-    headings = [heading.lower() for heading in ui.page.locator("thead th").all_inner_texts()]
-    assert "size" in headings, "two works with no size known have something to say"
+    expect(ui.page.locator("thead th"), "two works with no size known have something to say").to_contain_text(
+        [SIZE_HEADING], use_inner_text=True
+    )
 
     large = work_with_an_image(title="Large enough", width=8000, height=6000)
     plenty = services.display.add_theme(name="Plenty")
@@ -102,8 +118,9 @@ def test_the_size_column_is_there_only_when_it_has_something_to_say(ui, evening,
     # Waited on by its own row: the address changes only its hash, so the table
     # of the theme before stays on screen until this one paints.
     ui.page.wait_for_selector("tbody td[data-label='Title']:has-text('Large enough')")
-    headings = [heading.lower() for heading in ui.page.locator("thead th").all_inner_texts()]
-    assert "size" not in headings, "a column empty on every row is a heading over nothing"
+    expect(ui.page.locator("thead th"), "a column empty on every row is a heading over nothing").not_to_contain_text(
+        [SIZE_HEADING], use_inner_text=True
+    )
 
 
 def test_on_a_phone_every_act_is_reachable_without_a_sideways_scroll(ui, evening):
@@ -161,12 +178,14 @@ def test_on_a_phone_the_pages_own_acts_step_out_while_selecting(ui, evening):
     open_theme(ui, theme)
     toolbar = ui.page.locator("#view .page-toolbar")
     hang = toolbar.locator("button", has_text="Hang…")
-    assert hang.is_visible()
+    expect(hang).to_be_visible()
 
     toolbar.locator("button.select-toggle").click()
-    assert hang.is_hidden()
-    assert toolbar.get_by_role("link", name="Add works").is_hidden()
-    assert toolbar.locator("button.selection-remove").is_visible()
+    # The selection's own act first: it is the toolbar in selecting mode, so the
+    # two that step out are absent from that toolbar and not from one unpainted.
+    expect(toolbar.locator("button.selection-remove")).to_be_visible()
+    expect(hang).to_be_hidden()
+    expect(toolbar.get_by_role("link", name="Add works")).to_be_hidden()
 
     toolbar.locator("button.select-toggle").click()
-    assert hang.is_visible()
+    expect(hang).to_be_visible()
