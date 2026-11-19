@@ -69,10 +69,11 @@ class UnplayableReason(StrEnum):
 
 
 #: Where the Library serves a master, by the hash of its bytes. The Library's,
-#: because the manifest names Library-served media: after a split this is
-#: rewritten to name the Library's host and no Player changes, since each one
-#: resolves the URL against the manifest's own. `contract/routes.json` holds the
-#: same template, and the HTTP route is mounted from it.
+#: because the manifest names Library-served media. Today this server serves
+#: it, and admits any client's token to it (`http/player.py`,
+#: `_admitted_to_media`); a Player resolves the URL against the manifest's own.
+#: `contract/routes.json` holds the same template, and the HTTP route is
+#: mounted from it.
 MEDIA_PATH_TEMPLATE: Final[str] = "/media/sha256-{sha256}"
 
 #: The content types the contract allows, by file suffix. A master in any other
