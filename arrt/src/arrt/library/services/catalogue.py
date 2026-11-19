@@ -30,6 +30,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Final
 
@@ -282,7 +283,7 @@ class CatalogueService:
             yield
             for change, work_ids in gathered.items():
                 event = WorkChanged(change=change, work_ids=tuple(dict.fromkeys(work_ids)))
-                self._store.after_commit(lambda event=event: self._events.publish(event))
+                self._store.after_commit(partial(self._events.publish, event))
 
     # -- reads: works ---------------------------------------------------------
 

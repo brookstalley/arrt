@@ -201,9 +201,11 @@ def kept_preview(path: Path) -> RenderedPreview | None:
     try:
         data = path.read_bytes()
     except OSError as exc:
-        return _no_inline(path, f"it could not be read: {exc}")
+        _no_inline(path, f"it could not be read: {exc}")
+        return None
     if not data.startswith(_JPEG_START):
-        return _no_inline(path, "it is not a JPEG, which is all the picture store writes")
+        _no_inline(path, "it is not a JPEG, which is all the picture store writes")
+        return None
     return RenderedPreview(data=data, media_type=PREVIEW_MEDIA_TYPE)
 
 
@@ -221,13 +223,15 @@ def _rendered(path: Path, *, max_edge: int, quality: int) -> EncodedFrame | None
         # Pillow's own guard against a decompression bomb. Caught by name rather
         # than swept up with the rest, because a file engineered to exhaust
         # memory is worth a different log line from one that is merely corrupt.
-        return _no_inline(path, f"it is too large to open safely: {exc}")
+        _no_inline(path, f"it is too large to open safely: {exc}")
+        return None
     except UNDECODABLE as exc:
         # A truncated file, a file that is not an image, or a mode `convert`
         # refuses (`imaging.UNDECODABLE` says which raises what). Reported, not
         # raised: one bad file must not cost a curator the other thirty-nine
         # works in the listing.
-        return _no_inline(path, f"it could not be read: {exc}")
+        _no_inline(path, f"it could not be read: {exc}")
+        return None
 
 
 def _no_inline(path: Path, why: str) -> None:
