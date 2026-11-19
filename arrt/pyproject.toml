@@ -363,7 +363,6 @@ module = [
     "arrt.ask.agent",
     "arrt.ask.cards",
     "arrt.http.api",
-    "arrt.library.sources.loading",
     "arrt.mcp.bindings",
     "arrt.programming.clients",
     "arrt.programming.display",
