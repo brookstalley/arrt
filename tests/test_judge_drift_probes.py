@@ -159,6 +159,15 @@ def test_a_run_in_which_nothing_ran_fails_even_though_every_probe_is_listed(tmp_
     assert any("nothing ran" in each for each in failures)
 
 
+def test_an_expected_failure_is_neither_red_nor_a_skip_and_does_not_stale_a_row(tmp_path, tests_root):
+    """pytest writes an xfail as `<skipped>`; it ran, so it must not read as 'did not run' or as green."""
+    report = _report(tmp_path, (ARTIC_CLASS, GOOD, "passed"), (ARTIC_CLASS, BAD, "xfail"))
+
+    failures, excused, passed = _judge(tmp_path, tests_root, report, [_row()], exit_code="0")
+
+    assert failures == [] and excused == [] and passed == 1
+
+
 def test_a_report_with_no_test_in_it_fails(tmp_path, tests_root):
     report = _report(tmp_path)
 
