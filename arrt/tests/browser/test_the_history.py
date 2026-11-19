@@ -17,6 +17,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.persistence.records import EventKind
 
 #: A Get started from Ask, as `discovery.py`'s `_record_started` writes it.
@@ -33,8 +35,14 @@ def open_history(ui, fragment="#history"):
     ui.page.wait_for_selector("#view h1")
 
 
-def rows(ui) -> list[str]:
-    return ui.page.locator("ol.history-events li").all_inner_texts()
+def rows(ui):
+    """Each event, as the row it is drawn in."""
+    return ui.page.locator("ol.history-events li")
+
+
+def sentences(ui):
+    """Each event's sentence: the part of its row after the time, which is the row's own `span`."""
+    return ui.page.locator("ol.history-events li > span")
 
 
 def test_each_act_reads_as_a_sentence_newest_first(ui, services, work_with_an_image, the_wall):
@@ -51,21 +59,20 @@ def test_each_act_reads_as_a_sentence_newest_first(ui, services, work_with_an_im
     open_history(ui)
     ui.page.wait_for_selector("ol.history-events li")
 
-    sentences = [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)]
-    assert sentences == [
-        "Let Nighthawks back on the walls",
-        f"Kept Nighthawks off every wall (from {the_wall.name})",
-        f"Hung Winter on {the_wall.name}",
-        "Restored Nighthawks",
-        "Archived Nighthawks",
-    ]
+    expect(sentences(ui)).to_have_text(
+        [
+            "Let Nighthawks back on the walls",
+            f"Kept Nighthawks off every wall (from {the_wall.name})",
+            f"Hung Winter on {the_wall.name}",
+            "Restored Nighthawks",
+            "Archived Nighthawks",
+        ],
+        use_inner_text=True,
+    )
     # The title the walls' events do not carry is the work's own, read from the
     # library, and it opens the work.
-    assert (
-        ui.page.locator("ol.history-events li")
-        .first.get_by_role("link", name="Nighthawks")
-        .get_attribute("href")
-        .startswith(f"#work/{work.id}")
+    expect(rows(ui).first.get_by_role("link", name="Nighthawks")).to_have_attribute(
+        "href", re.compile("^" + re.escape(f"#work/{work.id}"))
     )
 
 
@@ -78,17 +85,17 @@ def test_a_date_is_said_as_a_readable_date_and_how_long_ago(ui, services, work_w
     stamp = ui.page.locator("ol.history-events li time").first
     stamp.wait_for()
 
-    said = stamp.inner_text()
-    assert str(datetime.now(UTC).year) in said
+    expect(stamp).to_contain_text(str(datetime.now(UTC).year), use_inner_text=True)
     # Seconds ago, and recent: the event was written a moment before the page
     # opened. Not "at most 3 seconds", which a loaded parallel run exceeded; the
-    # contract is the readable age, and a minute bounds "a moment" without timing.
-    age = re.search(r"\((\d+) seconds? ago\)$", said)
-    assert age, f"no age in seconds is said: {said!r}"
-    assert int(age.group(1)) < 60
+    # contract is the readable age, and a minute bounds "a moment" without timing:
+    # an age of one digit, or of two that begin 1 to 5, in seconds.
+    expect(stamp, "no age in seconds under a minute is said").to_have_text(
+        re.compile(r"\((?:\d|[1-5]\d) seconds? ago\)$"), use_inner_text=True
+    )
     # The machine instant is in the attribute, never in what is read.
-    assert stamp.get_attribute("datetime").startswith(str(datetime.now(UTC).year))
-    assert "T" not in said
+    expect(stamp).to_have_attribute("datetime", re.compile("^" + re.escape(str(datetime.now(UTC).year))))
+    expect(stamp).not_to_contain_text("T", use_inner_text=True)
 
 
 def test_a_get_reads_as_what_was_asked_and_how_it_ended(ui, services):
@@ -100,11 +107,10 @@ def test_a_get_reads_as_what_was_asked_and_how_it_ended(ui, services):
     open_history(ui)
     ui.page.wait_for_selector("ol.history-events li")
 
-    text = ui.text()
-    assert "Asked for “Quiet interiors”" in text
-    assert "A Get stopped at the spending cap" in text
+    expect(ui.view).to_contain_text("Asked for “Quiet interiors”", use_inner_text=True)
+    expect(ui.view).to_contain_text("A Get stopped at the spending cap", use_inner_text=True)
     # The raw status is not what a curator reads.
-    assert "halted_by_budget" not in text
+    expect(ui.view).not_to_contain_text("halted_by_budget", use_inner_text=True)
 
 
 def test_a_get_opened_from_history_returns_to_history(ui, services):
@@ -112,7 +118,7 @@ def test_a_get_opened_from_history_returns_to_history(ui, services):
     services.catalogue.record_event(EventKind.GET_STARTED, run_id="run-1", detail=ASKED)
     open_history(ui)
     link = ui.page.get_by_role("link", name="“Quiet interiors”")
-    assert link.get_attribute("href") == "#get/run-1?from=history"
+    expect(link).to_have_attribute("href", "#get/run-1?from=history")
 
 
 def test_the_kinds_filter_by_link_and_say_which_is_shown(ui, services, work_with_an_image, the_wall):
@@ -124,15 +130,15 @@ def test_the_kinds_filter_by_link_and_say_which_is_shown(ui, services, work_with
 
     open_history(ui)
     ui.page.wait_for_selector("ol.history-events li")
-    assert len(rows(ui)) == 2
+    expect(rows(ui)).to_have_count(2)
 
     walls = ui.page.locator("ul.history-kinds").get_by_role("link", name="Walls")
-    assert walls.get_attribute("href") == "#history?kind=walls"
+    expect(walls).to_have_attribute("href", "#history?kind=walls")
     walls.click()
     ui.page.wait_for_function("() => document.querySelectorAll('ol.history-events li').length === 1")
 
-    assert rows(ui)[0].endswith(f"Hung Winter on {the_wall.name}")
-    assert ui.page.locator("ul.history-kinds a[aria-current='page']").inner_text() == "Walls"
+    expect(rows(ui)).to_have_text(re.compile(re.escape(f"Hung Winter on {the_wall.name}") + "$"), use_inner_text=True)
+    expect(ui.page.locator("ul.history-kinds a[aria-current='page']")).to_have_text("Walls", use_inner_text=True)
     # The request named the walls' kinds and only those.
     asked = [url for url in ui.requests_matching("/api/history") if "kind=" in url][-1]
     assert "kind=wall.hung" in asked
@@ -144,16 +150,16 @@ def test_a_kind_with_nothing_yet_says_so_rather_than_showing_everything(ui, serv
     open_history(ui, "#history?kind=verdicts")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing of this kind has happened yet." in ui.text()
-    assert "Nighthawks" not in ui.text()
+    expect(ui.view).to_contain_text("Nothing of this kind has happened yet.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Nighthawks", use_inner_text=True)
 
 
 def test_an_empty_history_says_what_it_records(ui):
     open_history(ui)
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing has happened yet." in ui.text()
-    assert "nothing from before the history began is" in ui.text()
+    expect(ui.view).to_contain_text("Nothing has happened yet.", use_inner_text=True)
+    expect(ui.view).to_contain_text("nothing from before the history began is", use_inner_text=True)
 
 
 def test_one_walls_history_holds_only_that_wall(ui, services, the_wall):
@@ -167,9 +173,9 @@ def test_one_walls_history_holds_only_that_wall(ui, services, the_wall):
     open_history(ui, f"#history?wall={study.id}")
     ui.page.wait_for_selector("ol.history-events li")
 
-    assert ui.page.locator("#view h1").inner_text() == "History of Study"
-    assert [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)] == ["Hung Summer on Study"]
-    assert ui.page.get_by_role("link", name="Every wall's history").get_attribute("href") == "#history"
+    expect(ui.page.locator("#view h1")).to_have_text("History of Study", use_inner_text=True)
+    expect(sentences(ui)).to_have_text(["Hung Summer on Study"], use_inner_text=True)
+    expect(ui.page.get_by_role("link", name="Every wall's history")).to_have_attribute("href", "#history")
 
 
 def test_paging_is_by_link_and_says_where_it_is(ui, services):
@@ -178,15 +184,15 @@ def test_paging_is_by_link_and_says_where_it_is(ui, services):
 
     open_history(ui)
     ui.page.wait_for_selector("ol.history-events li")
-    assert len(rows(ui)) == 50
-    assert "1–50 of 55" in ui.text()
+    expect(rows(ui)).to_have_count(50)
+    expect(ui.view).to_contain_text("1–50 of 55", use_inner_text=True)
     older = ui.page.get_by_role("link", name="Older")
-    assert older.get_attribute("href") == "#history?offset=50"
+    expect(older).to_have_attribute("href", "#history?offset=50")
     older.click()
     ui.page.wait_for_selector("text=51–55 of 55")
-    assert len(rows(ui)) == 5
-    assert ui.page.get_by_role("link", name="Newer").count() == 1
-    assert ui.page.get_by_role("link", name="Older").count() == 0
+    expect(rows(ui)).to_have_count(5)
+    expect(ui.page.get_by_role("link", name="Newer")).to_have_count(1)
+    expect(ui.page.get_by_role("link", name="Older")).to_have_count(0)
 
 
 def test_a_selection_hung_reads_as_a_selection_not_its_made_up_name(ui, services, work_with_an_image, the_wall):
@@ -196,8 +202,10 @@ def test_a_selection_hung_reads_as_a_selection_not_its_made_up_name(ui, services
     open_history(ui)
     ui.page.wait_for_selector("ol.history-events li")
 
-    assert rows(ui)[0].endswith(f"Hung a selection of 1 work on {the_wall.name}")
-    assert "Selection for" not in ui.text()
+    expect(rows(ui).first).to_have_text(
+        re.compile(re.escape(f"Hung a selection of 1 work on {the_wall.name}") + "$"), use_inner_text=True
+    )
+    expect(ui.view).not_to_contain_text("Selection for", use_inner_text=True)
 
 
 def test_a_get_of_chosen_works_says_how_many(ui, services):
@@ -206,9 +214,9 @@ def test_a_get_of_chosen_works_says_how_many(ui, services):
     ui.open("#history")
     stamp = ui.page.locator("ol.history-events li time").first
     stamp.wait_for()
-    occurred = datetime.fromisoformat(stamp.get_attribute("datetime"))
+    occurred = datetime.fromisoformat(stamp.get_attribute("datetime"))  # one-shot: the instant to compare with the clock
     assert datetime.now(UTC) - occurred < timedelta(minutes=1)
-    assert "Started a Get for 2 works" in ui.text()
+    expect(ui.view).to_contain_text("Started a Get for 2 works", use_inner_text=True)
 
 
 @pytest.mark.parametrize(
@@ -234,9 +242,12 @@ def test_a_scene_reads_as_applied_and_ended_on_its_wall(ui, services, ready_work
     open_history(ui, "#history?kind=walls")
     ui.page.wait_for_selector("ol.history-events li")
 
-    sentences = [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)]
-    assert f"{ending} the scene showing Golconda on {the_wall.name}" in sentences
-    assert f"Showed Golconda on {the_wall.name} in a scene, held until released" in sentences
+    # Each is one of the sentences, whole: a row's span whose words are those and no others.
+    for said in (
+        f"{ending} the scene showing Golconda on {the_wall.name}",
+        f"Showed Golconda on {the_wall.name} in a scene, held until released",
+    ):
+        expect(sentences(ui).filter(has_text=re.compile("^" + re.escape(said) + "$")).first, said).to_be_attached()
 
 
 def test_a_preview_that_ran_out_says_when_it_ended(ui, services, ready_work, the_wall, store):
@@ -260,9 +271,12 @@ def test_a_preview_that_ran_out_says_when_it_ended(ui, services, ready_work, the
     open_history(ui, "#history?kind=walls")
     ui.page.wait_for_selector("ol.history-events li")
 
-    sentences = [row.split("\t")[-1].split("\n")[-1] for row in rows(ui)]
-    (said,) = [sentence for sentence in sentences if "ran out at" in sentence]
-    assert said.startswith("Time ran out at ")
-    assert said.endswith(f" on the scene showing Golconda on {the_wall.name}")
+    # The one sentence that says a time ran out.
+    said = sentences(ui).filter(has_text=re.compile("ran out at"))
+    expect(said).to_have_count(1)
+    expect(said).to_have_text(re.compile("^" + re.escape("Time ran out at ")), use_inner_text=True)
+    expect(said).to_have_text(
+        re.compile(re.escape(f" on the scene showing Golconda on {the_wall.name}") + "$"), use_inner_text=True
+    )
     # The instant it ran out, in March, not today's date of noticing, in either order the locale writes it.
-    assert "4 Mar 2026" in said or "Mar 4, 2026" in said
+    expect(said).to_contain_text(re.compile("4 Mar 2026|Mar 4, 2026"), use_inner_text=True)
