@@ -893,6 +893,7 @@ def _registry_search(services: Services, arguments: Mapping[str, Any]) -> dict[s
                 "image": work.image,
                 "creator": None if work.creator is None else _creator_fields(work.creator, found.held_artists),
                 "held_artwork_ids": list(found.held_works.get(work.qid, ())),
+                "pictured_artwork_id": found.pictured_works.get(work.qid),
                 "wanted": work.qid in found.wanted_works,
                 "in_review": _in_review_fields(found.waiting_works.get(work.qid)),
             }

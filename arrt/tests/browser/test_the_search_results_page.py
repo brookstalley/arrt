@@ -247,7 +247,11 @@ def test_a_held_match_the_librarys_rows_do_not_show_is_under_held(ui, matched):
     _results(ui, "dali")
     _answered(ui)
 
-    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí"]
+    # Held with no master, so it says *No picture* in its picture's place, as the
+    # library's own rows do (audit 6 finding 14). Until 2026-11-19 a row folded
+    # in from Wikidata's results asked for a thumbnail the server refuses, and
+    # the picture's frame went with the failed load, leaving the title alone.
+    assert _rows(ui, "held", "works") == ["No picture The Persistence of Memory — Salvador Dalí"]
     assert "The Persistence of Memory" not in " ".join(_rows(ui, "not-held", "works"))
     ui.page.click("section[aria-labelledby='results-held-works'] a:has-text('The Persistence of Memory')")
     ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
