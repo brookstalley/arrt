@@ -6,6 +6,7 @@ as the app's lifespan does on its thread. What a Watch finds is said to be a
 Watch's on its Get, and an overdue Watch reaches the status indicator and Status.
 """
 
+import re
 from decimal import Decimal
 
 import httpx
@@ -19,6 +20,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 WORDS = "new abstract expressionist paintings in museum collections"
 
 
@@ -29,7 +32,7 @@ def panel_of(ui, watch_id: str):
 def test_a_watch_written_here_is_listed_with_its_sentence_and_its_controls(ui, services):
     ui.open("#watches")
     ui.page.wait_for_selector(".new-watch")
-    assert ui.page.locator(".page-facts").inner_text() == "No Watches yet."
+    expect(ui.page.locator(".page-facts")).to_have_text("No Watches yet.", use_inner_text=True)
 
     ui.page.locator("#new-watch-words").fill(WORDS)
     ui.page.locator("#new-watch-cadence").select_option("weekly")
@@ -39,10 +42,10 @@ def test_a_watch_written_here_is_listed_with_its_sentence_and_its_controls(ui, s
     [watch] = services.watches.list()
     assert (watch.intent_text, watch.cadence, watch.created_by) == (WORDS, "weekly", InitiatedBy.WEB_UI)
     panel = panel_of(ui, watch.id)
-    assert panel.locator("h2").inner_text() == WORDS
-    assert panel.locator(".watch-standing").inner_text() == "Not run yet: it runs at the next pass."
-    assert panel.locator(f"#watch-{watch.id}-cadence").input_value() == "weekly"
-    assert ui.page.locator(".page-facts").inner_text() == "1 Watch, 1 on."
+    expect(panel.locator("h2")).to_have_text(WORDS, use_inner_text=True)
+    expect(panel.locator(".watch-standing")).to_have_text("Not run yet: it runs at the next pass.", use_inner_text=True)
+    expect(panel.locator(f"#watch-{watch.id}-cadence")).to_have_value("weekly")
+    expect(ui.page.locator(".page-facts")).to_have_text("1 Watch, 1 on.", use_inner_text=True)
 
 
 def test_a_watch_s_words_are_described_as_asked_of_ask_and_never_of_discover(ui):
@@ -50,9 +53,8 @@ def test_a_watch_s_words_are_described_as_asked_of_ask_and_never_of_discover(ui)
     ui.open("#watches")
     ui.page.wait_for_selector(".new-watch")
 
-    text = ui.page.inner_text("#view")
-    assert "as you would put it to Ask" in text
-    assert "Discover" not in text
+    expect(ui.view).to_contain_text("as you would put it to Ask", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Discover", use_inner_text=True)
 
 
 def test_a_watch_refused_while_unattended_work_is_off_says_so_and_points_to_general(ui, services):
@@ -62,10 +64,12 @@ def test_a_watch_refused_while_unattended_work_is_off_says_so_and_points_to_gene
     ui.open("#watches")
     ui.page.wait_for_selector("section.watch")
 
-    assert panel_of(ui, watch.id).locator(".watch-standing").inner_text() == (
-        "Not run: unattended work is off in Settings › General."
+    expect(panel_of(ui, watch.id).locator(".watch-standing")).to_have_text(
+        "Not run: unattended work is off in Settings › General.", use_inner_text=True
     )
-    assert ui.page.locator(".unattended-standing").inner_text() == "Unattended work is off, so nothing runs with nobody watching."
+    expect(ui.page.locator(".unattended-standing")).to_have_text(
+        "Unattended work is off, so nothing runs with nobody watching.", use_inner_text=True
+    )
     ui.page.locator(".watches-standing a").click()
     ui.page.wait_for_selector("#setting-unattended_work")
 
@@ -86,7 +90,7 @@ def test_switching_a_watch_off_applies_at_once_and_a_refused_cap_returns_to_what
     cap.press("Enter")
     said = ui.said_beside(cap)
     assert "cannot be more than it; got $3.00" in said, "the allowance is $0.00, so any cap is refused, in the server's words"
-    assert cap.input_value() == ""
+    expect(cap).to_have_value("")
     assert services.watches.get(watch.id).monthly_cap_usd is None
 
 
@@ -97,8 +101,10 @@ def test_removing_a_watch_asks_first_and_a_no_keeps_it(ui, services):
 
     panel_of(ui, watch.id).locator("button", has_text="Remove…").click()
     dialog = ui.page.locator("dialog.confirm")
-    assert f"Remove the Watch “{WORDS}”?" in dialog.inner_text()
+    expect(dialog).to_contain_text(f"Remove the Watch “{WORDS}”?", use_inner_text=True)
     dialog.locator("button", has_text="Cancel").click()
+    # The No was received, so the Watch's still being there is a Watch kept and not a removal yet to come.
+    expect(dialog).to_be_hidden()
     assert [kept.id for kept in services.watches.list()] == [watch.id]
 
     panel_of(ui, watch.id).locator("button", has_text="Remove…").click()
@@ -125,20 +131,22 @@ class TestWithAModelKey:
         ui.page.wait_for_selector("section.watch")
         panel_of(ui, watch.id).locator(".watch-last-run a").click()
         ui.page.wait_for_selector(".found-by-watch")
-        assert ui.page.locator("h1").inner_text() == WORDS
-        assert ui.page.locator(".found-by-watch").inner_text().startswith("Found by one of your Watches, with nobody watching.")
+        expect(ui.page.locator("h1")).to_have_text(WORDS, use_inner_text=True)
+        expect(ui.page.locator(".found-by-watch")).to_have_text(
+            re.compile("^" + re.escape("Found by one of your Watches, with nobody watching.")), use_inner_text=True
+        )
 
         ui.open(f"#review/{run_id}")
         ui.page.wait_for_selector(".found-by-watch")
 
         ui.open("#queue")
         ui.page.wait_for_selector("h1")
-        assert "Get from a Watch" in ui.page.locator("#view").inner_text()
+        expect(ui.view).to_contain_text("Get from a Watch", use_inner_text=True)
 
         ui.open(f"#get/{asked.id}")
         ui.page.wait_for_selector("h1")
-        assert ui.page.locator("h1").inner_text() == "something a person asked"
-        assert ui.page.locator(".found-by-watch").count() == 0
+        expect(ui.page.locator("h1")).to_have_text("something a person asked", use_inner_text=True)
+        expect(ui.page.locator(".found-by-watch")).to_have_count(0)
 
 
 def an_overdue_reading(health: dict) -> dict:
@@ -155,7 +163,9 @@ def test_an_overdue_watch_is_named_on_the_status_indicator_and_on_status(ui, ser
 
     ui.open("#health")
     ui.page.wait_for_selector(".watches-reading")
-    assert ui.page.locator(".watches-reading .fault").inner_text().startswith(f"“{WORDS}” is overdue")
+    expect(ui.page.locator(".watches-reading .fault")).to_have_text(
+        re.compile("^" + re.escape(f"“{WORDS}” is overdue")), use_inner_text=True
+    )
 
 
 def test_with_nothing_overdue_the_indicator_says_nothing_of_watches(ui, services):
