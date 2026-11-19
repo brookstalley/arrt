@@ -761,6 +761,37 @@ def declared_names(text: str) -> set[str]:
     return set(_DECLARED.findall(text))
 
 
+#: What a list of names to blank must hold to be `.env.example` at all: the paid key
+#: this isolation exists for, and the three settings the walk sets itself.
+MUST_DECLARE: frozenset[str] = frozenset({"OPENROUTER_API_KEY", "ART_ROOT", "CURATION_HOST", "CURATION_PORT"})
+
+
+def names_to_blank(example: Path | None = None) -> set[str]:
+    """The names a synthetic server starts with blank, read from `example`; refused by name when it cannot be.
+
+    **No quiet "nothing to blank".** The file is the repository root's, outside this
+    project, so a copy of `arrt/` alone (an image, a packaging) does not carry it. A
+    missing, unreadable or unrecognisable file would otherwise start the server with
+    nothing blanked and the `.env` stub as its only lock, so each refuses, naming the
+    file and what it lacked.
+    """
+    example = ENV_EXAMPLE if example is None else example
+    try:
+        text = example.read_text(encoding="utf-8")
+    except OSError as e:
+        raise RuntimeError(
+            f"the synthetic server's isolation reads the names to blank from {example}, which could not be read ({e}); "
+            "run from a whole checkout of the repository, or copy its root .env.example there"
+        ) from e
+    names = declared_names(text)
+    missing = sorted(MUST_DECLARE - names)
+    if missing:
+        raise RuntimeError(
+            f"{example} does not declare {missing}, so it is not the list of names the synthetic server must start blank"
+        )
+    return names
+
+
 def synthetic_environment(parent: Mapping[str, str], *, art_root: Path, port: int, declared: Iterable[str]) -> dict[str, str]:
     """What a synthetic server starts with: the allowlist, the walk's own three settings, every other declared name blank.
 
@@ -797,6 +828,7 @@ def synthetic_command(module: str = "arrt") -> list[str]:
 
 def boot_synthetic(size: int) -> tuple[subprocess.Popen, str, Path]:
     """Seed a scratch ART_ROOT with the suite's large corpus and start the real entry point on it."""
+    declared = names_to_blank()  # first, so a refusal seeds nothing and leaves no scratch library behind
     sys.path.insert(0, str(_CURATION / "src"))
     sys.path.insert(0, str(_CURATION / "tests"))  # the suite conftest's own imports (`fakes`, `fault_guard`)
     from arrt.config import CATALOGUE_FILENAME
@@ -814,9 +846,7 @@ def boot_synthetic(size: int) -> tuple[subprocess.Popen, str, Path]:
     catalogue_file, _service, _works = _open_seeded_catalogue(root / CATALOGUE_FILENAME, size=size, seed=20260812)
     catalogue_file.close()
     port = _free_port()
-    environment = synthetic_environment(
-        os.environ, art_root=root, port=port, declared=declared_names(ENV_EXAMPLE.read_text(encoding="utf-8"))
-    )
+    environment = synthetic_environment(os.environ, art_root=root, port=port, declared=declared)
     server = subprocess.Popen(synthetic_command(), cwd=_CURATION, env=environment)  # noqa: S603 -- our own interpreter
     base_url = f"http://127.0.0.1:{port}"
     deadline = time.monotonic() + 60

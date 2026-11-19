@@ -34,13 +34,9 @@ SET_BY_THE_WALK = {"ART_ROOT", "CURATION_HOST", "CURATION_PORT"}
 STRANGERS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "TV_TOKEN", "TESTAMENT_KEY")
 
 
-def _declared() -> list[str]:
-    if not ux_walk.ENV_EXAMPLE.is_file():
-        return []
-    return sorted(ux_walk.declared_names(ux_walk.ENV_EXAMPLE.read_text(encoding="utf-8")))
-
-
-DECLARED = _declared()
+#: Read as the harness reads it, so a missing or foreign file is refused by name at
+#: collection rather than parametrising every case below over nothing.
+DECLARED = sorted(ux_walk.names_to_blank())
 
 
 def _the_server_is_given(parent: dict[str, str]) -> dict[str, str]:
@@ -97,6 +93,40 @@ def test_the_walks_own_settings_win_over_the_parents():
     assert environment["ART_ROOT"] == "/scratch/art"
     assert environment["CURATION_PORT"] == "4321"
     assert environment["CURATION_HOST"] == "127.0.0.1"
+
+
+# -- The list of names itself: refused by name, never read as "nothing to blank" ---
+
+
+def test_a_missing_example_is_refused_by_name(tmp_path):
+    absent = tmp_path / ".env.example"
+
+    with pytest.raises(RuntimeError, match="could not be read") as refused:
+        ux_walk.names_to_blank(absent)
+
+    assert str(absent) in str(refused.value)
+
+
+@pytest.mark.parametrize("text", ["", "# nothing here\n", "ART_ROOT=\nCURATION_HOST=\nCURATION_PORT=\n"])
+def test_an_example_without_the_paid_key_is_refused_by_name(tmp_path, text):
+    example = tmp_path / ".env.example"
+    example.write_text(text, encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="OPENROUTER_API_KEY"):
+        ux_walk.names_to_blank(example)
+
+
+def test_the_boot_refuses_before_it_seeds_anything_when_the_example_is_missing(tmp_path, monkeypatch):
+    """Through the caller: without the list the server is never started and no scratch library is made."""
+    monkeypatch.setattr(ux_walk, "ENV_EXAMPLE", tmp_path / "absent" / ".env.example")
+    made = []
+    monkeypatch.setattr(ux_walk.tempfile, "mkdtemp", lambda *a, **k: made.append(a) or str(tmp_path / "made"))
+    monkeypatch.setattr(ux_walk.subprocess, "Popen", lambda *a, **k: pytest.fail("the server was started"))
+
+    with pytest.raises(RuntimeError, match="absent"):
+        ux_walk.boot_synthetic(1)
+
+    assert made == []
 
 
 def test_the_declared_names_are_read_from_commented_lines_too():

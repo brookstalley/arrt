@@ -99,8 +99,9 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: arrt
-          # The test stage reads `contract/`, the player-contract artifact and
-          # the 2024 index from the repository root (the Dockerfile says why).
+          # The test stage reads `contract/`, the player-contract artifact, the
+          # 2024 index and `.env.example` from the repository root (the Dockerfile
+          # says why).
           build-contexts: repo=.
           target: test-report
           platforms: linux/amd64
