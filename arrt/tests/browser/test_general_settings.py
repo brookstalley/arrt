@@ -15,10 +15,10 @@ from arrt.library.dimensions import Units
 from arrt.library.discovery.openrouter import KeyStatus
 from arrt.library.services.settings import LABEL_UNITS
 
-pytest.importorskip(
+expect = pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
-)
+).expect
 
 PICKER = "#setting-label_units"
 
@@ -195,3 +195,23 @@ def test_an_allowance_that_is_not_an_amount_is_refused_beside_the_field_which_pu
     assert said.endswith("Nothing was changed.")
     assert allowance.input_value() == "0.00"
     assert str(services.unattended.standing().allowance_usd) == "0.00"
+
+
+def test_on_a_phone_each_label_stands_over_its_field_and_a_dollar_sign_stays_beside_its_input(ui):
+    """Beside each other the fields were about 210px wide and the "$" sat above its input (audit-6 finding 18)."""
+    ui.page.set_viewport_size({"width": 390, "height": 844})
+    ui.open("#general")
+    allowance = ui.page.locator("#setting-unattended_allowance_usd")
+    expect(allowance).to_be_visible()
+
+    label = ui.page.locator("label[for='setting-unattended_allowance_usd']").bounding_box()
+    field = allowance.bounding_box()
+    sign = ui.page.locator(".money-field > span[aria-hidden]").first.bounding_box()
+    unit = ui.page.locator(PICKER).bounding_box()
+
+    assert label["y"] + label["height"] <= field["y"], "the label is beside its field, not over it"
+    assert abs((sign["y"] + sign["height"] / 2) - (field["y"] + field["height"] / 2)) < 4, "the $ is not on its input's line"
+    assert sign["x"] + sign["width"] <= field["x"], "the $ is not before its input"
+    assert unit["x"] < 40, "the picker is indented under a label column"
+    column = ui.page.locator("dd[data-setting='unattended_allowance_usd']").bounding_box()
+    assert column["width"] > 300, f"the value column is {column['width']:.0f}px wide"
