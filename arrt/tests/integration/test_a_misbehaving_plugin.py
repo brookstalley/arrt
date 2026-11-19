@@ -58,7 +58,9 @@ from arrt.library.sources.loading import (
 )
 
 FIXTURE: Final = Path(__file__).resolve().parents[1] / "fixtures" / "plugins" / "misbehaving"
-PROJECT: Final = tomllib.loads((FIXTURE / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+#: The distribution's metadata, in pyproject's `[project]` shape, in a file not
+#: named `pyproject.toml`: a fixture is not one of the repository's projects.
+PROJECT: Final = tomllib.loads((FIXTURE / "distribution.toml").read_text(encoding="utf-8"))["project"]
 DISTRIBUTION: Final = PROJECT["name"]
 PACKAGE: Final = "arrt_misbehaving"
 
@@ -159,7 +161,7 @@ class _Take:
 
 
 def install(site: Path) -> None:
-    """Lay the fixture distribution out in `site` as an installer does: its package, and a `.dist-info` from its pyproject."""
+    """Lay the fixture distribution out in `site` as an installer does: its package, and a `.dist-info` from its metadata file."""
     shutil.copytree(FIXTURE / PACKAGE, site / PACKAGE, ignore=shutil.ignore_patterns("__pycache__"))
     info = site / f"{DISTRIBUTION.replace('-', '_')}-{PROJECT['version']}.dist-info"
     info.mkdir()

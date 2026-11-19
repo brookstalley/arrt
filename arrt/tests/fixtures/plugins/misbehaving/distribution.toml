@@ -5,6 +5,11 @@
 # on the path, so the loader finds these entry points the way it finds any
 # installed plugin's.
 #
+# Not named `pyproject.toml`: a tracked one makes a directory one of the
+# repository's projects (`tests/repository.py`, `projects()`), which every
+# root scan then walks, and a fixture is not a project. The `[project]` table
+# keeps pyproject's shape, so it reads as the metadata a build would carry.
+#
 # Four plugins in one distribution, because a deadline is declared on the
 # `SourcePlugin` itself, at import, and one plugin cannot declare two:
 #   misbehaving  the plugin the test steers, call by call (`arrt_misbehaving.CONTROL`)
