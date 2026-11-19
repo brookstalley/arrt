@@ -172,10 +172,10 @@ class WatchService:
         # Read by its value, never constructed from it: a cadence a later release
         # stored must not make this Watch, the pass or the health reading
         # unreadable. Such a Watch follows the household's default meanwhile.
-        own = Cadence._value2member_map_.get(watch.cadence) if watch.cadence is not None else None
+        own = next((cadence for cadence in Cadence if cadence.value == watch.cadence), None)
         if own is None:
             return self._settings.value(UNATTENDED_CADENCE)
-        return Cadence(own)
+        return own
 
     def effective_cap(self, watch: Watch) -> Decimal:
         """What this Watch may spend this month: its cap, never more than the allowance, or the allowance."""
@@ -237,13 +237,15 @@ class WatchService:
 
     def record_started(self, watch_id: str, run_id: str) -> None:
         """A pass started a run of this Watch. Not a household edit, so `updated_*` stay."""
-        self._record(watch_id, last_run_id=run_id, last_refusal=None)
+        self._record(watch_id, lambda watch: replace(watch, last_run_id=run_id, last_refusal=None))
 
     def record_refused(self, watch_id: str, refusal: WatchRefusal) -> None:
         """A pass found this Watch due and did not start it, for `refusal`."""
-        self._record(watch_id, last_refusal=str(refusal))
+        self._record(watch_id, lambda watch: replace(watch, last_refusal=str(refusal)))
 
-    def _record(self, watch_id: str, **fields: str | None) -> None:
+    def _record(self, watch_id: str, change: Callable[[Watch], Watch]) -> None:
+        # `change` names the fields it sets, so each is checked against `Watch`'s
+        # own type; a `**fields: str | None` let any name and any text through.
         # Read and written in one transaction, so a household's edit landing in
         # the same moment is neither lost nor overwritten by stale fields.
         with self._store.transaction():
@@ -253,7 +255,7 @@ class WatchService:
                 # nothing to record against, and a run already started keeps its
                 # `watch_id` as history.
                 return
-            store_write(self._store.update_watch, replace(current, last_attempt_at=self._now(), **fields))
+            store_write(self._store.update_watch, replace(change(current), last_attempt_at=self._now()))
 
     # -- writes ---------------------------------------------------------------
 

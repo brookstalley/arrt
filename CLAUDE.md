@@ -35,6 +35,7 @@ Three independent projects, three suites.
 |---|---|---|---|
 | Test | `uv run pytest tests` | `cd arrt && uv run pytest` | `cd contract && uv run pytest` |
 | Lint | `uv run ruff check .` | `cd arrt && uv run ruff check .` | `cd contract && uv run ruff check .` |
+| Type-check | — (not type-checked) | `cd arrt && uv run mypy` | `cd contract && uv run mypy` |
 | Format | `uv run black .` | `cd arrt && uv run black .` | `cd contract && uv run black .` |
 
 **Run the suites through testament** (`AGENTS.md` § Running tests): `testament

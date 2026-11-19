@@ -6,6 +6,7 @@ entities: a candidate work and a catalogued work both refuse an empty title, and
 they refuse it in the same words.
 """
 
+import contextlib
 import re
 from enum import StrEnum
 from html import escape
@@ -54,11 +55,13 @@ def require_member[E: StrEnum](value: object, *, enum: type[E], field: str) -> E
     value started as text — so the string form has to work — but an unknown one
     has to fail here rather than reach a column as a value nothing can read back.
     """
-    try:
-        return enum(value)
-    except ValueError as exc:
-        valid = ", ".join(sorted(member.value for member in enum))
-        raise ServiceError(f"Unknown {field} {value!r}. Valid values are: {valid}.") from exc
+    # A member is a `str`, so one test admits both forms; anything else (a number,
+    # None, a list from JSON) is unknown in the same words, as `enum()` refused it.
+    if isinstance(value, str):
+        with contextlib.suppress(ValueError):
+            return enum(value)
+    valid = ", ".join(sorted(member.value for member in enum))
+    raise ServiceError(f"Unknown {field} {value!r}. Valid values are: {valid}.")
 
 
 def relative_path(value: str, *, field: str) -> str:

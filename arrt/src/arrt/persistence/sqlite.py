@@ -1106,11 +1106,11 @@ class SqliteCatalogue(TableAdapter):
             for theme in self._list("themes", {"is_default": 1}, _BY_NAME, _theme):
                 if theme.id != theme_id:
                     self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 0}, subject=f"theme {theme.id!r}")
-            theme = self.get_theme(theme_id)
-            if theme is None:
+            chosen = self.get_theme(theme_id)
+            if chosen is None:
                 reason = "it is not stored."
                 raise StorageError(f"Could not mark theme {theme_id!r} the default: {reason}", reason=reason)
-            self._update("themes", BY_ID, {**_theme_row(theme), "is_default": 1}, subject=f"theme {theme_id!r}")
+            self._update("themes", BY_ID, {**_theme_row(chosen), "is_default": 1}, subject=f"theme {theme_id!r}")
 
     def record_offer(self, artwork_id: str, offered_at: datetime) -> None:
         self._add(

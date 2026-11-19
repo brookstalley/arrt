@@ -939,8 +939,10 @@ class BackupReading:
         and the panel does not know which this deployment is — so it reports the
         age and the reader decides, exactly as it does for the heartbeat.
         """
-        if self.absent:
-            return f"No backup has been recorded at {self.path}; nothing has written one yet."
+        # A receipt read without a problem always has an age (`observations.observe`),
+        # so the problem is asked first and a missing age is the absent receipt.
         if self.problem is not None:
             return f"The backup record at {self.path} could not be read: {self.problem}"
+        if self.age_seconds is None:
+            return f"No backup has been recorded at {self.path}; nothing has written one yet."
         return f"The catalogue was last backed up {observations.ago(self.age_seconds)}."
