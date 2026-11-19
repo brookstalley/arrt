@@ -12,9 +12,10 @@ makes the delete protection work, in development and in every test. Nothing but
 a reader of the schema notices, and the rule was held until now by reviewers
 alone.
 
-**What it reads.** The two schema strings the file is created from
+**What it reads.** The three schema strings the file is created from
 (`CATALOGUE_SCHEMA` in `persistence/sqlite.py`, `DISCOVERY_SCHEMA` in
-`persistence/sqlite_discovery.py`, joined as `persistence/file.py` joins them),
+`persistence/sqlite_discovery.py`, and the file's own `OPENED_SCHEMA` in
+`persistence/file.py`, joined as `file.py` joins them),
 read out of those modules' syntax trees so that this guard never imports `arrt`.
 They are run into an in-memory SQLite, and `PRAGMA foreign_key_list` is asked of
 every table. The result is what the file would carry, including a column added by
@@ -27,7 +28,7 @@ that guessed would call a new Programming table Library and see nothing wrong.
 **What it cannot see.** A reference with no `REFERENCES` clause: a Programming
 table that stores a Library id as text and joins on it in SQL crosses the seam
 without a foreign key (`migrations.py`'s `mark_the_default_theme` is the one such
-statement). A table created outside those two strings, or in a second file
+statement). A table created outside those three strings, or in a second file
 (`persistence/kept.py`'s). And the ownership of a table is this file's own
 judgment, written here by hand, not read from anywhere.
 """
@@ -41,8 +42,8 @@ import pytest
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 PERSISTENCE = REPOSITORY_ROOT / "arrt" / "src" / "arrt" / "persistence"
 
-#: The two strings the catalogue file is created from, in the order `file.py` joins them.
-SCHEMAS = (("sqlite.py", "CATALOGUE_SCHEMA"), ("sqlite_discovery.py", "DISCOVERY_SCHEMA"))
+#: The three strings the catalogue file is created from, in the order `file.py` joins them.
+SCHEMAS = (("sqlite.py", "CATALOGUE_SCHEMA"), ("sqlite_discovery.py", "DISCOVERY_SCHEMA"), ("file.py", "OPENED_SCHEMA"))
 
 LIBRARY = "library"
 PROGRAMMING = "programming"
@@ -71,6 +72,8 @@ OWNER: dict[str, str] = {
     "resolve_run_works": LIBRARY,
     "sightings": LIBRARY,
     "run_citations": LIBRARY,
+    # Library: the file's own record of which release last opened it (`file.py`)
+    "catalogue_opened": LIBRARY,
     # Programming
     "themes": PROGRAMMING,
     "theme_memberships": PROGRAMMING,
