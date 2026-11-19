@@ -102,7 +102,9 @@ class _Rows:
         kept = {column: value for column, value in values.items() if column in self.columns[table]}
         names = ", ".join(f'"{column}"' for column in kept)
         marks = ", ".join("?" for _ in kept)
-        self.connection.execute(f'INSERT INTO "{table}" ({names}) VALUES ({marks})', tuple(kept.values()))  # noqa: S608
+        # The table and its columns are names this file's own schema holds (checked above); the values are bound.
+        statement = f'INSERT INTO "{table}" ({names}) VALUES ({marks})'  # noqa: S608 -- names from the schema
+        self.connection.execute(statement, tuple(kept.values()))
 
 
 def seed(path: Path) -> None:
@@ -129,7 +131,8 @@ def seed(path: Path) -> None:
     connection.execute("UPDATE walls SET id = 'wall-main', created_at = ? WHERE id = ?", (SEEDED_AT, seeded_wall[0]))
     for table, names in rows.columns.items():
         if table != "walls" and "wall_id" in names:
-            connection.execute(f'UPDATE "{table}" SET wall_id = ? WHERE wall_id = ?', ("wall-main", seeded_wall[0]))  # noqa: S608
+            statement = f'UPDATE "{table}" SET wall_id = ? WHERE wall_id = ?'  # noqa: S608 -- a name from sqlite_master
+            connection.execute(statement, ("wall-main", seeded_wall[0]))
     connection.commit()
     connection.execute("PRAGMA foreign_keys = ON")
     for part in (_library, _programming, _players, _discovery, _conversations, _later):
@@ -435,7 +438,10 @@ def _dump(path: Path) -> str:
 def _extract(repository: Path, tag: str, into: Path) -> Path:
     """The tag's `arrt/src`, from git, into `into`; returns the directory to put on `PYTHONPATH`."""
     archive = subprocess.run(  # noqa: S603 -- git, with a tag from RELEASES
-        ["git", "archive", tag, "arrt/src"], cwd=repository, capture_output=True, check=True  # noqa: S607
+        ["git", "archive", tag, "arrt/src"],  # noqa: S607 -- a developer's tool: the git on their PATH
+        cwd=repository,
+        capture_output=True,
+        check=True,
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
         tar.extractall(into, filter="data")
