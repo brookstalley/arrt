@@ -2,26 +2,28 @@
 
 @AGENTS.md
 
-## Change of direction — 2026-09-30 (read before anything else)
+## Two products, one contract (read before anything else)
 
 **The product is two: Arrt, this repository, a server holding the Library and
-Programming; and Arrt Player, the player at each wall, which lives in
-[brookstalley/arrt-player](https://github.com/brookstalley/arrt-player).** The
-target, the waves and the open questions are in
-`.prawduct/artifacts/re-architecture.md`. The contract between the two is
-`player-contract.md` and `contract/`, which Arrt owns and Arrt Player pins by
-tag. A field a Player needs is a change to that package here. Rules for working
-here meanwhile:
+Programming, which runs as a container on the operator's NAS; and Arrt Player,
+the player at each wall, which lives in
+[brookstalley/arrt-player](https://github.com/brookstalley/arrt-player) and pulls
+from the server over HTTP with its client's token.** The contract between the two
+is `player-contract.md` and `contract/`, which Arrt owns and Arrt Player pins by
+tag. A field a Player needs is a change to that package here. How the system is
+built is `.prawduct/artifacts/architecture.md`; what is still open is
+`.prawduct/artifacts/re-architecture.md` § Order of work and § Open questions.
+Rules for working here:
 
-- **The as-built artifacts are still true of the code.** Where one carries a
-  dated `Direction changed 2026-09-30` note, `re-architecture.md` wins for the
-  target and the older text wins for what runs today, until its wave lands.
-- **Several norms are `in-transition`**, each with an interim rule. Read
-  `architecture.md` § Direction before touching the manifest, the routes a
-  Player calls, or the theme and wall tables.
-- **Each wave has its own plan, which names its branch.** What comes next is
-  `re-architecture.md` § Order of work, and the plan whose `branch:` you are on
-  is the one in force. Branch from `develop`.
+- **The artifacts describe what is built.** A dated `Direction changed
+  2026-09-30` note whose wave has landed is history, and the text beside it
+  says what runs. Where an artifact and the code disagree, the code is what
+  runs and the artifact is a defect: fix it or say so.
+- **Read `architecture.md` § Direction before touching the manifest, the routes a
+  Player calls, or the theme and wall tables.** Its norms bind those, and the
+  Library/Programming seam's norm is `in-transition`, with an interim rule.
+- **Each piece of work has its own plan, which names its branch.** The plan whose
+  `branch:` you are on is the one in force. Branch from `develop`.
 - **This repo is public.** The operator's NAS deployment is recorded in their
   private homelab repo. Don't put network addresses, hostnames or usernames here.
 

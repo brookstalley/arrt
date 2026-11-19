@@ -622,12 +622,12 @@ API consumers. Three consequences that are easy to miss:
 
 ## Platform
 
-> **Direction changed 2026-09-30.** What follows is the **current** platform,
-> still live. Target: the server (curation plus Programming) runs as one
-> container on the operator's NAS (x86_64), and Players run at the walls:
-> Raspberry Pis for the Frame and e-ink, and possibly a Mac or a Pi with HDMI for
-> an LCD. See `re-architecture.md` § Deployment target and `architecture.md` §
-> Overview & Topology.
+> **Direction changed 2026-09-30, built 2026-10-02.** The server (the Library
+> plus Programming) runs as one container on the operator's NAS (x86_64), and
+> each wall's Player, Arrt Player in its own repository, runs on its own host
+> and pulls from the server over HTTP on the LAN. `architecture.md` § Overview &
+> Topology is the platform as built. What follows is the platform until
+> 2026-10-02, two planes on one Raspberry Pi, kept as the record of that day.
 
 Two processes, **one machine**.
 

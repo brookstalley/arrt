@@ -9,7 +9,7 @@ depends_on:
   - artifact: data-model
   - artifact: nonfunctional-requirements
 last_validated: null
-status: direction ratified 2026-10-08, nothing built against it yet
+status: direction ratified 2026-10-08; steps 1 to 3 of § What changes, in order are built (displays as server records, major 2 as a feed with per-major URLs, layered settings and mat modes, the repository split); steps 4 to 6 (a macOS Player, a tvOS Player, public channels) are not
 ---
 
 # Feeds and players: one Player core, many platforms, private walls and public channels
@@ -22,9 +22,18 @@ channels, and how Player logic is reused across platforms. Amends
 `nonfunctional-requirements.md` § The mat is geometric; each carries a dated
 pointer here. -->
 
-**Read this before wave 4 builds major 2.** Major 2 is still a draft
-(`player-contract.md` § Major 2), and this note changes its shape. That is the
-cheapest moment to change it.
+**What is built.** Steps 1 to 3 of § What changes, in order: each display is a
+server record naming at most one client, the one that drives it (`displays`,
+`arrt/src/arrt/persistence/sqlite.py`);
+major 2 is a feed, the only major served, at its own URL
+(`/walls/{wall_id}/manifest/v2`), carrying the widened `settings` (label mode,
+mat mode, overlay timing, fades, text scale, which facts show:
+`contract/schemas/manifest.v2.schema.json`); the layout and schedule rules are
+conformance vectors in `contract/vectors/`; and Arrt Player lives in its own
+repository. **Not built:** the first non-Pi Player (step 4), the tvOS Player
+(step 5) and publishing public channels (step 6): no code here publishes a
+channel or its index. *(Written 2026-10-08 as "Read this before wave 4 builds
+major 2", when major 2 was still a draft.)*
 
 ## The owner's direction
 
