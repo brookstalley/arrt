@@ -288,6 +288,10 @@ def decline(ui, leave):
     else:
         ui.page.click("dialog.confirm .confirm-actions button:has-text('Cancel')")
     ui.page.wait_for_selector("dialog.confirm", state="detached")
+    # A No that was ignored is a request in flight by now: once the page has
+    # been quiet, what the tests read afterwards is a Player that was kept and
+    # not one whose removal or new token has yet to arrive.
+    ui.page.wait_for_load_state("networkidle")
 
 
 @pytest.mark.parametrize("leave", ["Cancel", "Escape"])
@@ -577,6 +581,8 @@ def test_leaving_add_player_adds_nothing(ui, services, leave):
     else:
         dialog.get_by_role("button", name="Cancel").click()
     dialog.wait_for(state="detached")
+    # Left, not submitted: a request sent anyway would be in flight by now.
+    ui.page.wait_for_load_state("networkidle")
 
     assert services.clients.list_clients() == []
     assert ui.page.evaluate("() => document.activeElement.textContent") == "Add Player…"
@@ -593,6 +599,8 @@ def test_leaving_edit_changes_nothing(ui, services, hall, leave):
     else:
         dialog.get_by_role("button", name="Close").click()
     dialog.wait_for(state="detached")
+    # Left, not submitted: a request sent anyway would be in flight by now.
+    ui.page.wait_for_load_state("networkidle")
 
     assert services.clients.get_client(hall.id).name == "Hall Pi"
     assert services.clients.get_client(hall.id).token_issued_at == token.issued_at

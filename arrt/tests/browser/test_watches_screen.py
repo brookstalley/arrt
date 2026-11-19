@@ -103,8 +103,12 @@ def test_removing_a_watch_asks_first_and_a_no_keeps_it(ui, services):
     dialog = ui.page.locator("dialog.confirm")
     expect(dialog).to_contain_text(f"Remove the Watch “{WORDS}”?", use_inner_text=True)
     dialog.locator("button", has_text="Cancel").click()
-    # The No was received, so the Watch's still being there is a Watch kept and not a removal yet to come.
+    # The No was received. A removal that went ahead anyway is a request in
+    # flight, which the page's own refresh follows: once the page has been
+    # quiet, the Watch's still being there is a Watch kept and not a removal
+    # yet to come.
     expect(dialog).to_be_hidden()
+    ui.page.wait_for_load_state("networkidle")
     assert [kept.id for kept in services.watches.list()] == [watch.id]
 
     panel_of(ui, watch.id).locator("button", has_text="Remove…").click()
