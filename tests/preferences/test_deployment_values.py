@@ -210,6 +210,10 @@ _EXAMPLES: dict[str, frozenset[str]] = {
     "arrt/tests/unit/test_smk_source.py": frozenset({"10.0.0.1"}),
     "arrt/tests/unit/test_yale_source.py": frozenset({"10.0.0.1"}),
     "arrt/tests/unit/test_dispatch_faults.py": frozenset({"/Users/someone"}),
+    # A client's address in an access line the quiet-polls filter is tested on.
+    "arrt/tests/unit/test_logs.py": frozenset({"10.0.0.5"}),
+    # The HOME a synthetic walk's server is shown to inherit.
+    "arrt/tests/unit/test_ux_walk_isolation.py": frozenset({"/home/walker"}),
     # The build plan that asked for this guard quotes the planted values it is accepted by.
     ".prawduct/artifacts/build-plan-audit-wave-1.md": frozenset(
         {"100.101.1.2", "fd12::1", "nas.lan", "pi@frame.local", "user@host", "frame.local"}
