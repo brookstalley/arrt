@@ -8,11 +8,15 @@ have.
 """
 
 import json
+import os
 import stat
+import time
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
+from arrt import atomic
 from arrt.library.acquisition.dezoomify import (
     DezoomifyUnavailable,
     TileOutcome,
@@ -208,8 +212,8 @@ class TestClassification:
 
         def refuses(self, *args, **kwargs):
             # The staged name, not the destination: the binary writes to
-            # `<stem>.partial<suffix>` and it is the staged file that is discarded.
-            if self.name == "work.partial.jpg":
+            # `.<stem>.<token>.partial<suffix>` and it is the staged file that is discarded.
+            if self.name.startswith(".work.") and self.name.endswith(".partial.jpg"):
                 raise PermissionError("read-only file system")
             return real_unlink(self, *args, **kwargs)
 
@@ -299,8 +303,29 @@ class TestDestination:
         destination = tmp_path / "out" / "work.jpg"
         result = _run(tmp_path, _fake_binary(tmp_path, SAVES_IMAGE), destination=destination)
 
-        assert result.path.name == "work.partial.jpg"
+        assert result.path.parent == destination.parent
+        assert result.path.name.startswith(".work.")
+        assert result.path.name.endswith(".partial.jpg")
         assert result.path.suffix == destination.suffix
+
+    def test_two_fetches_of_one_work_never_stage_at_one_name(self, tmp_path):
+        """Two attempts at the same work at once must not hand the binary one path.
+
+        The binary refuses a path that exists, so a shared name would fail the
+        second attempt; and the first attempt's promotion would move whatever the
+        second had written. Each attempt's name is its own, and neither run
+        leaves the other's file in question.
+        """
+        destination = tmp_path / "out" / "work.jpg"
+        script = _fake_binary(tmp_path, SAVES_IMAGE)
+
+        first = _run(tmp_path, script, destination=destination)
+        second = _run(tmp_path, script, destination=destination)
+
+        assert first.outcome is second.outcome is TileOutcome.COMPLETE
+        assert first.path != second.path
+        assert first.path.exists()
+        assert second.path.exists()
 
     def test_the_destination_is_never_touched(self, tmp_path):
         # A held image stands at the destination. Nothing here may remove it or
@@ -350,6 +375,26 @@ class TestDestination:
         assert result.outcome is TileOutcome.COMPLETE
         assert result.byte_size == 100
         assert result.path.read_bytes() != b"debris from an interrupted attempt"
+
+    @pytest.mark.parametrize("age", [timedelta(hours=1), timedelta(days=3)])
+    def test_debris_from_a_killed_attempt_is_swept_once_stale_and_never_sooner(self, tmp_path, age):
+        """Each attempt stages under a fresh name, so nothing would ever claim a killed one's file.
+
+        The next attempt removes it once it is older than any attempt runs, and
+        leaves a younger one, which may be another attempt still at work. Two
+        ages, either side of the line, so neither half passes by the other's
+        accident.
+        """
+        destination = tmp_path / "out" / "work.jpg"
+        script = _fake_binary(tmp_path, SAVES_IMAGE)
+        debris = _run(tmp_path, script, destination=destination).path
+        aged = time.time() - age.total_seconds()
+        os.utime(debris, (aged, aged))
+
+        result = _run(tmp_path, script, destination=destination)
+
+        assert result.outcome is TileOutcome.COMPLETE
+        assert debris.exists() is (age < atomic.STALE_STAGING_AFTER)
 
 
 class TestDeploymentFailures:

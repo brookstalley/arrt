@@ -159,8 +159,8 @@ class SurveyService:
 
         Artworks' *Size* facet counts and filters by this, so it is the same
         verdict a card shows — the quality profile's — reached in one read of
-        the masters' sizes rather
-        than one per work. A work with no master is `NO_SIZE_KNOWN`, its own
+        the originals' sizes rather than one per work. A work with no original
+        image is `NO_SIZE_KNOWN`, its own
         band rather than left out, so the bands' counts add up to the works.
         """
         sizes = self._catalogue.original_sizes(artwork_ids)

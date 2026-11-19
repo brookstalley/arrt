@@ -314,7 +314,12 @@ def main(argv: Sequence[str] = ()) -> None:
     # One connection behind both halves of the model: acceptance promotes a
     # candidate's image instances into a work's sources, and that has to commit
     # once or not at all.
-    catalogue_file = open_catalogue_file(settings.catalogue_path, wall_name=settings.wall_name)
+    # A migration that would drop anything copies the file first, into the
+    # backup directory when there is one, so the copy sits beside the
+    # generations a restore is taken from (beside the catalogue otherwise).
+    catalogue_file = open_catalogue_file(
+        settings.catalogue_path, wall_name=settings.wall_name, snapshot_directory=settings.backup_dir
+    )
     # After `prepare`, so a mistyped root refuses before anything is written to it.
     kept = KeptAnswers(settings.kept_answers_path)
     try:

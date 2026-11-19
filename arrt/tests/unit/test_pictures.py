@@ -8,6 +8,7 @@ answered with one picture, a small source refused a large ask, a bomb written to
 disk, a half-written file served, and anything deleted.
 """
 
+import errno
 import logging
 import pathlib
 import threading
@@ -18,6 +19,7 @@ import pytest
 from fakes import counted_tokens
 from PIL import Image
 
+from arrt import atomic
 from arrt.library.services.pictures import (
     TIERS,
     PictureRefused,
@@ -386,13 +388,16 @@ def test_an_unreadable_store_degrades_the_card_rather_than_failing_the_run(art_r
 
 
 def test_bytes_that_cannot_be_written_degrade_the_card_rather_than_failing_the_run(art_root, monkeypatch, caplog):
-    def explode(self, _data):
-        raise OSError("no space left on device")
+    # Where the shared writer meets the disk: the bytes are staged and the sync
+    # refuses them, as a full disk does on a network mount.
+    def explode(_descriptor):
+        raise OSError(errno.ENOSPC, "no space left on device")
 
-    monkeypatch.setattr("pathlib.Path.write_bytes", explode)
+    monkeypatch.setattr(atomic.os, "fsync", explode)
 
     with caplog.at_level(logging.INFO):
         assert a_store(art_root, CountingSource()).keep("artic", URL, PREVIEW_URL) is None
+    assert every_file(art_root) == set(), "a refused write left its staging file behind"
 
     (line,) = [record for record in caplog.records if getattr(record, "event", "").startswith("picture.")]
     assert (line.event, line.levelno) == ("picture.unwritable", logging.WARNING)

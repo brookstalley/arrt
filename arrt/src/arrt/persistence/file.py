@@ -17,6 +17,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 
+from arrt.persistence.backup import take_pre_migration_snapshot
 from arrt.persistence.durable import SqliteDurableStore
 from arrt.persistence.migrations import (
     DEFAULT_WALL_NAME,
@@ -24,6 +25,7 @@ from arrt.persistence.migrations import (
     establish_the_wall,
     file_had_table,
     mark_the_default_theme,
+    pending_drops,
     random_id,
     rename_awaiting_to_wanted,
     retire_conversations,
@@ -43,6 +45,7 @@ def open_catalogue_file(
     wall_name: str = DEFAULT_WALL_NAME,
     now: Callable[[], datetime] = system_now,
     new_id: Callable[[], str] = random_id,
+    snapshot_directory: Path | None = None,
 ) -> SqliteDurableStore:
     """Open the catalogue file, creating whatever tables it does not yet have.
 
@@ -58,7 +61,22 @@ def open_catalogue_file(
 
     `now` and `new_id` are what the migrations stamp and name the rows they
     write with: the system clock and a random UUID unless a caller passes its own.
+
+    **A file a migration would drop something from is copied first**, before the
+    store touches it, to `snapshot_directory` (`BACKUP_DIR` when the deployment
+    sets one) or beside the catalogue otherwise: the rollback across a migration
+    is a restore of that copy (`operational-spec.md` § Routine Operations). A
+    file on the current shape, and a new one, take no copy. A copy that cannot be
+    written raises `SnapshotFailed` with the file untouched, so no column goes
+    without one; the default is beside the catalogue so that every caller,
+    the seed and identify commands included, gets the copy without asking.
     """
+    take_pre_migration_snapshot(
+        Path(path),
+        directory=snapshot_directory if snapshot_directory is not None else Path(path).parent,
+        would_drop=pending_drops,
+        now=now(),
+    )
     return SqliteDurableStore(
         path,
         CATALOGUE_SCHEMA + DISCOVERY_SCHEMA,

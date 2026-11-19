@@ -13,12 +13,20 @@ applied, or may never have seen it; every step is guarded by what the file
 actually holds rather than by a version number the file would have to be trusted
 to keep. The order is chosen so that any prefix of it leaves a file the next open
 finishes correctly: rows are carried before anything that held them is dropped.
+
+**A migration that takes something away says so first, without taking it.**
+Each one that drops a column or a table decides whether it will act by asking a
+function of its own what it would drop, and `pending_drops` asks all of them.
+That is what the open asks before it lets any migration run, so a copy of the
+file is taken before anything is lost (`backup.take_pre_migration_snapshot`),
+and only then. The question is each migration's own guard rather than a second
+opinion beside it, so the two cannot disagree about whether it will act.
 """
 
 import logging
 import sqlite3
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -167,17 +175,26 @@ def _drop_what_the_wall_replaced(connection: sqlite3.Connection) -> None:
     rather than by each other: this runs on every open and does nothing to a file
     that has already had it.
     """
-    if _has_column(connection, "themes", "is_active"):
+    leftovers = _wall_replaced_leftovers(connection)
+    if "themes.is_active" in leftovers:
         _require_drop_column()
         # The index has to go first — SQLite refuses to drop a column an index
         # names, and this one is over exactly that column.
         connection.execute("DROP INDEX IF EXISTS themes_one_active")
         connection.execute("ALTER TABLE themes DROP COLUMN is_active")
         log.info("Dropped themes.is_active and its partial index; hanging is now a row on theme_assignments.")
-    if _has_table(connection, "directive"):
+    if "table directive" in leftovers:
         connection.execute("DROP TABLE directive")
         log.info("Dropped the singleton directive table, which no wall reads.")
     connection.commit()
+
+
+def _wall_replaced_leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """What `_drop_what_the_wall_replaced` would take from this file: the single-wall column and table."""
+    return (
+        *(("themes.is_active",) if _has_column(connection, "themes", "is_active") else ()),
+        *(("table directive",) if _has_table(connection, "directive") else ()),
+    )
 
 
 def _require_drop_column(*, predates: str = "per-wall hanging") -> None:
@@ -277,7 +294,7 @@ def retire_wall_tokens(connection: sqlite3.Connection) -> None:
     Guarded by the file: a column already gone is skipped, so a second open, or
     one after an interrupted first, does what is left and nothing more.
     """
-    retired = [column for column in _RETIRED_WALL_TOKEN_COLUMNS if _has_column(connection, "walls", column)]
+    retired = _present(connection, "walls", _RETIRED_WALL_TOKEN_COLUMNS)
     if not retired:
         return
     _require_drop_column(predates="client tokens")
@@ -312,7 +329,7 @@ def walls_name_displays(
     open: the rows are carried and committed before the columns that held them
     are dropped, and a wall that already names a display is not carried again.
     """
-    present = [column for column in _WALL_PLACEMENT_COLUMNS if _has_column(connection, "walls", column)]
+    present = _present(connection, "walls", _WALL_PLACEMENT_COLUMNS)
     if not present:
         return
     # Both or neither, except after an open interrupted between the two drops
@@ -376,7 +393,7 @@ def retire_conversations(connection: sqlite3.Connection) -> None:
     open: the citing columns go before the tables they point at, and each step is
     skipped where it is already done.
     """
-    citing = [(table, column, index) for table, column, index in _TURN_CITATIONS if _has_column(connection, table, column)]
+    citing = _turn_citations(connection)
     if citing:
         _require_drop_column(predates="the retirement of stored conversations")
     for table, column, index in citing:
@@ -385,11 +402,28 @@ def retire_conversations(connection: sqlite3.Connection) -> None:
         connection.execute(f'ALTER TABLE "{table}" DROP COLUMN "{column}"')
         log.info("Dropped %s.%s: conversations are no longer stored, so there is no turn to cite.", table, column)
     connection.commit()
-    for table in ("conversation_turns", "conversations"):
-        if _has_table(connection, table):
-            connection.execute(f'DROP TABLE "{table}"')
-            log.info("Dropped table %s: Ask's threads are not stored.", table)
+    for table in _conversation_tables(connection):
+        connection.execute(f'DROP TABLE "{table}"')
+        log.info("Dropped table %s: Ask's threads are not stored.", table)
     connection.commit()
+
+
+def _turn_citations(connection: sqlite3.Connection) -> list[tuple[str, str, str]]:
+    """The turn-citing columns this file still has, each with the index over it."""
+    return [(table, column, index) for table, column, index in _TURN_CITATIONS if _has_column(connection, table, column)]
+
+
+def _conversation_tables(connection: sqlite3.Connection) -> list[str]:
+    """The stored-conversation tables this file still has, the citing one first."""
+    return [table for table in ("conversation_turns", "conversations") if _has_table(connection, table)]
+
+
+def _conversation_leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """What `retire_conversations` would take from this file."""
+    return (
+        *(f"{table}.{column}" for table, column, _ in _turn_citations(connection)),
+        *(f"table {table}" for table in _conversation_tables(connection)),
+    )
 
 
 def retire_directives(connection: sqlite3.Connection) -> None:
@@ -404,12 +438,17 @@ def retire_directives(connection: sqlite3.Connection) -> None:
 
     Guarded by the file: a file without the table, or a fresh one, is left alone.
     """
-    if not _has_table(connection, "directives"):
+    if not _directive_leftovers(connection):
         return
     # Its index over the pin goes with it: SQLite drops a table's indexes with the table.
     connection.execute("DROP TABLE directives")
     log.info("Dropped table directives: show now and next republish the wall's schedule instead.")
     connection.commit()
+
+
+def _directive_leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """What `retire_directives` would take from this file."""
+    return ("table directives",) if _has_table(connection, "directives") else ()
 
 
 def retire_television_canvases(connection: sqlite3.Connection) -> None:
@@ -433,7 +472,7 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
     `deploy/README.md` names it as safe to delete. The line says how many rows
     went, 0 included, so the operator has one line to look for either way.
     """
-    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
+    if not _canvas_leftovers(connection):
         return
     gone = connection.execute("DELETE FROM renditions WHERE kind IN ('tv_display', 'wall_preview')").rowcount
     connection.commit()
@@ -445,6 +484,13 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
         "ART_ROOT/ready/ can be deleted.",
         gone,
     )
+
+
+def _canvas_leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """What `retire_television_canvases` would take from this file: the column, and the rows with it."""
+    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
+        return ()
+    return ("renditions.mat_hex", "the television canvases and wall previews in renditions")
 
 
 #: The theme's two playing settings, which became the wall's: the order is the
@@ -468,7 +514,7 @@ def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
     dropped, and a wall that already has a value of its own keeps it, so a
     carry repeated after an interrupted drop changes nothing.
     """
-    present = [column for column in _THEME_ROTATION_COLUMNS if _has_column(connection, "themes", column)]
+    present = _present(connection, "themes", _THEME_ROTATION_COLUMNS)
     if not present:
         return
     # Both or neither, except after an open interrupted between the two drops
@@ -510,19 +556,75 @@ def carry_rotation_to_walls(connection: sqlite3.Connection) -> None:
     log.info("Dropped themes.rotation_interval_seconds and themes.shuffle; they are the wall's now.")
 
 
+def _present(connection: sqlite3.Connection, table: str, columns: tuple[str, ...]) -> list[str]:
+    """Which of `columns` this file's `table` still has, in the order given."""
+    return [column for column in columns if _has_column(connection, table, column)]
+
+
+def _columns_left(table: str, columns: tuple[str, ...]) -> Callable[[sqlite3.Connection], tuple[str, ...]]:
+    """What a migration that drops `columns` from `table` would take from a file."""
+
+    def leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
+        return tuple(f"{table}.{column}" for column in _present(connection, table, columns))
+
+    return leftovers
+
+
+#: Every function here that drops a column or a table, and the question it asks
+#: itself first: what it would drop from this file. Keyed by the function that
+#: runs the `DROP`, which is what `test_pre_migration_snapshot.py` checks every
+#: such function in this module against, so a new drop without a question fails
+#: there by name rather than going unsnapshotted.
+WOULD_DROP: Final[Mapping[Callable[..., None], Callable[[sqlite3.Connection], tuple[str, ...]]]] = {
+    _drop_what_the_wall_replaced: _wall_replaced_leftovers,
+    retire_wall_tokens: _columns_left("walls", _RETIRED_WALL_TOKEN_COLUMNS),
+    walls_name_displays: _columns_left("walls", _WALL_PLACEMENT_COLUMNS),
+    retire_conversations: _conversation_leftovers,
+    retire_directives: _directive_leftovers,
+    retire_television_canvases: _canvas_leftovers,
+    carry_rotation_to_walls: _columns_left("themes", _THEME_ROTATION_COLUMNS),
+}
+
+
+def pending_drops(connection: sqlite3.Connection) -> tuple[str, ...]:
+    """Everything the migrations would take from this file if it were opened now. Takes nothing.
+
+    Empty for a file already on the current shape and for a new one, which is
+    the open that takes no copy.
+    """
+    return tuple(dropped for would_drop in WOULD_DROP.values() for dropped in would_drop(connection))
+
+
 def file_had_table(path: Path | str, table: str) -> bool:
     """Whether the file holds `table` before this open's schema creates it.
 
     Asked before the store opens, because the schema creates every table it
-    names: afterwards a new file and an emptied one look alike. Read-only, so a
-    path that does not exist yet is not created by asking.
+    names: afterwards a new file and an emptied one look alike. A path that does
+    not exist yet is answered without opening it, so asking never creates one.
     """
     if not Path(path).exists():
         return False
-    # Resolved, because `as_uri` refuses a relative path, and `ART_ROOT` may be one.
-    connection = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+    connection = open_existing(path)
     try:
         found = connection.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)).fetchone()
     finally:
         connection.close()
     return found is not None
+
+
+def open_existing(path: Path | str) -> sqlite3.Connection:
+    """A connection to a catalogue file that exists, for asking it something before the store opens it.
+
+    **Read-write, though nothing here writes, and that is measured.** A process
+    killed inside a transaction leaves a hot rollback journal beside the file,
+    and the next reader has to roll it back before it can read anything. A
+    `mode=ro` connection cannot, and refuses every read with "attempt to write a
+    readonly database" (measured on SQLite 3.53.1 with a journal left by a
+    killed writer): a server asking that way would refuse to start after every
+    such crash, and every restart would ask again. Rolling the journal back
+    returns the file to its last commit, which is what the store's own open
+    would do first anyway.
+    """
+    connection = sqlite3.connect(str(path))
+    connection.row_factory = sqlite3.Row
+    return connection
