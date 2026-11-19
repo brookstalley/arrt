@@ -609,7 +609,9 @@ def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, serv
     services.display.set_playback(the_wall.id, widest="1:1")
     open_walls(ui)
 
-    warning = card(ui, the_wall).locator(".wall-dark")
+    # The summary's own words: with its Player not yet reporting, the card says
+    # that in the same notice, after it (audit 2026-11-19, finding 6).
+    warning = card(ui, the_wall).locator(".wall-dark .wall-dark-summary")
     assert warning.inner_text().endswith("2 are outside this wall's shapes, so the wall is dark.")
     # The works it cannot show open from the card's foot (the page rules of
     # 2026-10-27); they were a table in the setup disclosure.
