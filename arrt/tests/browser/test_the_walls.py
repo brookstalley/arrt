@@ -17,6 +17,7 @@ the state every deployment with no display attached is actually in.
 """
 
 import json
+import re
 from datetime import UTC, datetime
 
 import pytest
@@ -56,15 +57,28 @@ REASONS = {
 }
 
 
-def _reasons_named(ui):
-    """Which of the four the screen is currently giving, by name.
+def _expect_reasons_named(ui, *named):
+    """The screen gives exactly these of the four reasons, by name.
 
     Asserted as a whole set rather than by looking for one phrase, because the
     defect this file is written against is a branch that answers for a state it
     was not asked about — which no test of its own state can see.
+
+    Each named reason is waited for first, then each of the others is asserted
+    absent: the absences stand after the positives, which is what shows the
+    screen has painted. A phrase is a regular expression, matched against the
+    raw `innerText` as the `in` it replaces was.
     """
-    text = ui.text()
-    return sorted(name for name, phrases in REASONS.items() if any(phrase in text for phrase in phrases))
+    view = ui.view
+    for name in named:
+        expect(view).to_contain_text(_said(name), use_inner_text=True)
+    for name in (each for each in REASONS if each not in named):
+        expect(view).not_to_contain_text(_said(name), use_inner_text=True)
+
+
+def _said(name):
+    """Any of the phrases that reason states."""
+    return re.compile("|".join(re.escape(phrase) for phrase in REASONS[name]))
 
 
 @pytest.fixture
@@ -166,14 +180,14 @@ def test_a_wall_with_no_theme_names_that_wall_and_carries_the_control_that_fixes
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["no theme hung"]
-    assert f"Nothing is hanging on {the_wall.name}." in ui.text()
+    _expect_reasons_named(ui, "no theme hung")
+    expect(ui.view).to_contain_text(f"Nothing is hanging on {the_wall.name}.", use_inner_text=True)
     # The control is the Hanging fact itself (ruling 3 of 2026-10-27: a fact that
     # can be changed is its own control), named for this wall in its label.
     # There is no separate Hang button to press after choosing.
-    assert ui.page.locator("label", has_text=f"Hanging on {the_wall.name}").count() == 1
-    assert ui.page.locator(f"select#hang-{the_wall.id}").count() == 1
-    assert ui.page.locator("button", has_text="Hang on").count() == 0
+    expect(ui.page.locator("label", has_text=f"Hanging on {the_wall.name}")).to_have_count(1)
+    expect(ui.page.locator(f"select#hang-{the_wall.id}")).to_have_count(1)
+    expect(ui.page.locator("button", has_text="Hang on")).to_have_count(0)
 
 
 def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, the_wall):
@@ -186,12 +200,12 @@ def test_a_wall_with_no_theme_and_no_theme_to_hang_offers_the_step_before(ui, th
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert "No theme has been created yet" in ui.text()
-    assert ui.page.locator("a", has_text="Create a theme").count() == 1
-    assert ui.page.locator("select").count() == 0
+    expect(ui.view).to_contain_text("No theme has been created yet", use_inner_text=True)
+    expect(ui.page.locator("a", has_text="Create a theme")).to_have_count(1)
+    expect(ui.page.locator("select")).to_have_count(0)
     # Nor does the reason point at a picker that is not there.
-    assert f"Nothing is hanging on {the_wall.name}." in ui.text()
-    assert "Choose a theme under Hanging" not in ui.text()
+    expect(ui.view).to_contain_text(f"Nothing is hanging on {the_wall.name}.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Choose a theme under Hanging", use_inner_text=True)
 
 
 # -- reason two: an empty theme -----------------------------------------------
@@ -224,9 +238,9 @@ def test_an_empty_theme_says_the_theme_is_empty_and_offers_to_fill_it(ui, servic
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["an empty theme"]
-    assert f"{a_theme.name} holds no works yet, so nothing is on {the_wall.name}." in ui.text()
-    assert ui.page.locator("a", has_text=f"Add works to {a_theme.name}").count() == 1
+    _expect_reasons_named(ui, "an empty theme")
+    expect(ui.view).to_contain_text(f"{a_theme.name} holds no works yet, so nothing is on {the_wall.name}.", use_inner_text=True)
+    expect(ui.page.locator("a", has_text=f"Add works to {a_theme.name}")).to_have_count(1)
 
 
 def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, services, a_theme, the_wall):
@@ -251,9 +265,9 @@ def test_the_empty_themes_control_lands_on_that_theme_rather_than_the_list(ui, s
     # arriving from a wall is the case `?from=` exists for — without it the back
     # link would send a curator to the grid from a screen they reached by asking
     # about a wall.
-    assert ui.page.evaluate("() => window.location.hash") == f"#theme/{a_theme.id}?from=walls"
-    assert ui.page.locator("a:has-text('← Walls')").count() == 1
-    assert ui.page.locator("text=Winter").count() == 0
+    expect(ui.page).to_have_url(re.compile(re.escape(f"#theme/{a_theme.id}?from=walls") + "$"))
+    expect(ui.page.locator("a:has-text('← Walls')")).to_have_count(1)
+    expect(ui.page.locator("text=Winter")).to_have_count(0)
 
 
 def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_theme, the_wall):
@@ -275,15 +289,17 @@ def test_an_empty_theme_still_states_the_walls_standing_facts(ui, services, a_th
     ui.page.get_by_role("button", name=f"Edit {the_wall.name}…").click()
     # It opens once it has read the wall, which it does when pressed.
     ui.page.locator("dialog.panel-dialog").wait_for()
-    assert ui.page.locator("dialog.panel-dialog .panel h3").all_text_contents() == [
-        "Name",
-        "Where it shows",
-        "Label panel",
-        "How it rotates",
-        "Shapes it shows",
-        "Mat",
-        "Delete",
-    ]
+    expect(ui.page.locator("dialog.panel-dialog .panel h3")).to_have_text(
+        [
+            "Name",
+            "Where it shows",
+            "Label panel",
+            "How it rotates",
+            "Shapes it shows",
+            "Mat",
+            "Delete",
+        ]
+    )
 
 
 # -- reason three: its Player silent ------------------------------------------
@@ -301,12 +317,12 @@ def test_a_wall_whose_player_has_never_reported_says_so_and_points_at_status(ui,
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["its Player silent"]
-    assert f"Hall Pi has not reported for {a_shown_wall.name} yet" in ui.text()
+    _expect_reasons_named(ui, "its Player silent")
+    expect(ui.view).to_contain_text(f"Hall Pi has not reported for {a_shown_wall.name} yet", use_inner_text=True)
     status = ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_shown_wall.name}'s reading")
-    assert status.inner_text() == "Status"
-    assert status.get_attribute("href") == "#health"
-    assert ui.page.locator("a", has_text="Open the reading").count() == 0
+    expect(status).to_have_text("Status", use_inner_text=True)
+    expect(status).to_have_attribute("href", "#health")
+    expect(ui.page.locator("a", has_text="Open the reading")).to_have_count(0)
 
 
 def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, a_shown_wall, a_health_reading, a_wall_reading):
@@ -324,9 +340,13 @@ def test_a_report_that_cannot_be_read_is_the_same_reason_in_different_words(ui, 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["its Player silent"]
-    assert f"{a_shown_wall.name}'s last report cannot be read: the file is not JSON." in ui.text()
-    assert ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_shown_wall.name}'s reading").count() == 1
+    _expect_reasons_named(ui, "its Player silent")
+    expect(ui.view).to_contain_text(
+        f"{a_shown_wall.name}'s last report cannot be read: the file is not JSON.", use_inner_text=True
+    )
+    expect(ui.page.locator("section.wall").get_by_role("link", name=f"Status, for {a_shown_wall.name}'s reading")).to_have_count(
+        1
+    )
 
 
 def test_a_reading_that_says_nothing_about_this_wall_is_never_read_as_well(ui, a_shown_wall, a_health_reading):
@@ -340,8 +360,8 @@ def test_a_reading_that_says_nothing_about_this_wall_is_never_read_as_well(ui, a
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["its Player silent"]
-    assert f"The status reading says nothing about {a_shown_wall.name}" in ui.text()
+    _expect_reasons_named(ui, "its Player silent")
+    expect(ui.view).to_contain_text(f"The status reading says nothing about {a_shown_wall.name}", use_inner_text=True)
 
 
 def test_a_wall_no_player_shows_says_so_once_and_not_twice(ui, a_hung_wall):
@@ -355,10 +375,12 @@ def test_a_wall_no_player_shows_says_so_once_and_not_twice(ui, a_hung_wall):
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     card = ui.page.locator("section.wall")
-    assert card.locator("p.wall-problem").inner_text().startswith("No Player shows this wall.")
-    assert _reasons_named(ui) == []
-    assert card.locator("p.note").count() == 0
-    assert card.get_by_role("link", name="Status", exact=False).count() == 0
+    # The sentence first: it shows the card has painted, so the absences after it
+    # are not met by a card still on its way.
+    expect(card.locator("p.wall-problem")).to_have_text(re.compile(r"^No Player shows this wall\."), use_inner_text=True)
+    _expect_reasons_named(ui)
+    expect(card.locator("p.note")).to_have_count(0)
+    expect(card.get_by_role("link", name="Status", exact=False)).to_have_count(0)
 
 
 def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, an_all_excluded_theme, the_wall):
@@ -376,10 +398,14 @@ def test_a_dark_wall_whose_player_has_not_reported_is_one_notice(ui, services, a
 
     card = ui.page.locator("section.wall")
     notices = card.locator("p.note")
-    assert notices.count() == 1
-    words = notices.inner_text()
-    assert words.index("so the wall is dark.") < words.index(f"Hall Pi has not reported for {the_wall.name} yet")
-    assert card.locator(".wall-dark-summary").inner_text().endswith("so the wall is dark.")
+    expect(notices).to_have_count(1)
+    # The dark sentence, then the silent one, in the one notice: an order, so a
+    # pattern with the first before the second (the dot of "dark." escaped).
+    dark_first = re.escape("so the wall is dark.") + r"[\s\S]*" + re.escape(f"Hall Pi has not reported for {the_wall.name} yet")
+    expect(notices).to_have_text(re.compile(dark_first), use_inner_text=True)
+    expect(card.locator(".wall-dark-summary")).to_have_text(
+        re.compile(re.escape("so the wall is dark.") + "$"), use_inner_text=True
+    )
 
 
 def test_a_dark_wall_no_player_shows_keeps_its_dark_notice(ui, services, an_all_excluded_theme, the_wall):
@@ -389,9 +415,11 @@ def test_a_dark_wall_no_player_shows_keeps_its_dark_notice(ui, services, an_all_
     ui.page.wait_for_selector("section.wall .wall-controls")
 
     card = ui.page.locator("section.wall")
-    assert card.locator("p.note").count() == 1
-    assert card.locator(".wall-dark-summary").inner_text().endswith("so the wall is dark.")
-    assert "has not reported" not in card.inner_text()
+    expect(card.locator("p.note")).to_have_count(1)
+    expect(card.locator(".wall-dark-summary")).to_have_text(
+        re.compile(re.escape("so the wall is dark.") + "$"), use_inner_text=True
+    )
+    expect(card).not_to_contain_text("has not reported", use_inner_text=True)
 
 
 def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
@@ -407,7 +435,10 @@ def test_a_wall_that_has_reported_shows_the_pictures_and_names_no_reason_at_all(
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert _reasons_named(ui) == []
+    # The Skip button first: only a card that has read what is on the wall offers
+    # it, so the four absences are not met by a card still on its way.
+    expect(_skip(ui, a_hung_wall.name)).to_have_count(1)
+    _expect_reasons_named(ui)
 
 
 # -- reason four: a reading this screen could not reach ------------------------
@@ -425,10 +456,10 @@ def test_a_health_reading_that_never_arrives_says_which_side_did_answer(ui, a_hu
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["a reading out of reach"]
-    assert f"{a_hung_wall.name} was read, and what its Player reports was not" in ui.text()
-    assert "the heartbeat directory could not be opened" in ui.text()
-    assert ui.page.locator("button", has_text="Ask again").count() == 1
+    _expect_reasons_named(ui, "a reading out of reach")
+    expect(ui.view).to_contain_text(f"{a_hung_wall.name} was read, and what its Player reports was not", use_inner_text=True)
+    expect(ui.view).to_contain_text("the heartbeat directory could not be opened", use_inner_text=True)
+    expect(ui.page.locator("button", has_text="Ask again")).to_have_count(1)
 
 
 def test_a_manifest_that_cannot_be_built_names_the_wall_it_was_asked_about(ui, a_hung_wall):
@@ -443,10 +474,10 @@ def test_a_manifest_that_cannot_be_built_names_the_wall_it_was_asked_about(ui, a
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert _reasons_named(ui) == ["a reading out of reach"]
-    assert f"The server could not work out what {a_hung_wall.name} should show" in ui.text()
-    assert "the theme could not be evaluated" in ui.text()
-    assert "whatever its Player reports." in ui.text()
+    _expect_reasons_named(ui, "a reading out of reach")
+    expect(ui.view).to_contain_text(f"The server could not work out what {a_hung_wall.name} should show", use_inner_text=True)
+    expect(ui.view).to_contain_text("the theme could not be evaluated", use_inner_text=True)
+    expect(ui.view).to_contain_text("whatever its Player reports.", use_inner_text=True)
 
 
 def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(ui):
@@ -456,10 +487,10 @@ def test_a_wall_list_that_never_arrives_says_nothing_can_be_said_about_any_wall(
     ui.open("#walls")
     ui.page.wait_for_selector("h1")
 
-    assert _reasons_named(ui) == ["a reading out of reach"]
-    assert "The walls could not be read" in ui.text()
-    assert "the catalogue is locked" in ui.text()
-    assert ui.page.locator("button", has_text="Ask again").count() == 1
+    _expect_reasons_named(ui, "a reading out of reach")
+    expect(ui.view).to_contain_text("The walls could not be read", use_inner_text=True)
+    expect(ui.view).to_contain_text("the catalogue is locked", use_inner_text=True)
+    expect(ui.page.locator("button", has_text="Ask again")).to_have_count(1)
 
 
 # -- hanging, and the question asked first -------------------------------------
@@ -484,12 +515,14 @@ def test_hanging_from_this_screen_asks_a_question_that_names_the_wall(ui, servic
     ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
     ui.page.wait_for_selector("dialog.confirm[open]")
 
-    assert ui.page.inner_text("dialog.confirm .confirm-title") == f"Hang {a_full_theme.name} on {the_wall.name}?"
-    consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
+    expect(ui.page.locator("dialog.confirm .confirm-title")).to_have_text(
+        f"Hang {a_full_theme.name} on {the_wall.name}?", use_inner_text=True
+    )
+    consequence = ui.page.locator("dialog.confirm .confirm-consequence")
     # The build's own summary, evaluated by the server without writing anything,
     # rather than a sentence this screen composed about what it expects.
-    assert "All 1 work in this theme is on the wall." in consequence
-    assert f"Everyone in the house sees {the_wall.name} change." in consequence
+    expect(consequence).to_contain_text("All 1 work in this theme is on the wall.", use_inner_text=True)
+    expect(consequence).to_contain_text(f"Everyone in the house sees {the_wall.name} change.", use_inner_text=True)
 
 
 def test_hanging_on_a_wall_no_player_shows_promises_no_one_sees_it(ui, a_full_theme, the_wall):
@@ -500,7 +533,7 @@ def test_hanging_on_a_wall_no_player_shows_promises_no_one_sees_it(ui, a_full_th
     ui.page.select_option(f"select#hang-{the_wall.id}", a_full_theme.id)
     consequence = ui.page.locator("dialog.confirm[open] .confirm-consequence")
     expect(consequence).to_contain_text(f"No Player shows {the_wall.name} yet, so nothing shows it until one does.")
-    assert "Everyone in the house" not in consequence.inner_text()
+    expect(consequence).not_to_contain_text("Everyone in the house", use_inner_text=True)
 
 
 def test_declining_the_question_leaves_the_wall_exactly_as_it_was(ui, services, a_full_theme, the_wall):
@@ -516,9 +549,9 @@ def test_declining_the_question_leaves_the_wall_exactly_as_it_was(ui, services, 
     ui.page.wait_for_selector("dialog.confirm", state="detached")
 
     assert services.display.hanging_on(the_wall.id) is None
-    assert _reasons_named(ui) == ["no theme hung"]
+    _expect_reasons_named(ui, "no theme hung")
     # The picker is put back, so it does not claim a theme the wall does not hang.
-    assert ui.page.input_value(f"select#hang-{the_wall.id}") == ""
+    expect(ui.page.locator(f"select#hang-{the_wall.id}")).to_have_value("")
 
 
 def test_confirming_hangs_it_and_the_wall_repaints_from_what_was_published(ui, services, a_full_theme, the_wall):
@@ -542,10 +575,10 @@ def test_confirming_hangs_it_and_the_wall_repaints_from_what_was_published(ui, s
     # has: the picker's own value is set the moment it is chosen, before the
     # question is even answered, so it cannot tell a repaint from a choice.
     ui.page.wait_for_selector("section.wall .wall-hanging dt:text-is('Changes')")
-    assert ui.page.input_value(f"select#hang-{the_wall.id}") == a_full_theme.id
+    expect(ui.page.locator(f"select#hang-{the_wall.id}")).to_have_value(a_full_theme.id)
 
     assert services.display.hanging_on(the_wall.id).id == a_full_theme.id
-    assert ui.page.locator("section.wall button.wall-kept").count() == 0
+    expect(ui.page.locator("section.wall button.wall-kept")).to_have_count(0)
 
 
 # -- skip ----------------------------------------------------------------------
@@ -577,18 +610,23 @@ def test_skip_names_that_wall_and_steps_only_that_wall(ui, services, a_hung_wall
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
     skip = _skip(ui, a_hung_wall.name)
-    assert skip.inner_text() == "Skip"
+    expect(skip).to_have_text("Skip", use_inner_text=True)
     skip.click()
-    ui.page.wait_for_selector(f".wall-said:has-text('Skipped. {a_hung_wall.name} shows its next work')")
+    card = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}']")
+    # Asserted rather than waited for, and on the whole card first, so a red
+    # prints everything the card says, a failure beside Skip included (#442).
+    expect(card).to_contain_text("Skipped.", use_inner_text=True)
+    expect(card.locator(".wall-said")).to_contain_text(f"Skipped. {a_hung_wall.name} shows its next work", use_inner_text=True)
 
     assert services.display.published_manifest_v2(a_hung_wall.id) != before
     assert services.display.published_manifest_v2(study.id) is None
     # The wall with nothing on it is not offered a skip at all: it has no
     # schedule to move on through.
-    assert _skip(ui, "Study").count() == 0
-    whole = ui.page.locator("#view").text_content()
-    assert "Move " not in whole
-    assert "Directive sequence" not in whole
+    expect(_skip(ui, "Study")).to_have_count(0)
+    # textContent, as it was read: a hidden word counts too. A pattern, because
+    # a string would be trimmed and "Move " is the word and the space after it.
+    expect(ui.view).not_to_contain_text(re.compile("Move "))
+    expect(ui.view).not_to_contain_text("Directive sequence")
 
 
 def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
@@ -607,14 +645,17 @@ def test_a_wall_whose_theme_is_entirely_excluded_is_not_offered_a_skip(
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert _reasons_named(ui) == []
+    # The card's foot first: it shows the card has read what the wall cannot show,
+    # so the four absences are not met by a card still on its way.
+    expect(ui.page.locator("section.wall button.wall-kept")).to_be_visible()
+    _expect_reasons_named(ui)
     # The panel that does answer it, naming the work and what it is missing,
     # opened from the card's foot (the page rules of 2026-10-27 put the works a
     # wall cannot show there, as a count that opens the list).
     ui.page.click("section.wall button.wall-kept")
     panel = ui.page.locator("dialog.panel-dialog")
-    assert "No mat colour has been chosen" in panel.inner_text()
-    assert _skip(ui, the_wall.name).count() == 0
+    expect(panel).to_contain_text("No mat colour has been chosen", use_inner_text=True)
+    expect(_skip(ui, the_wall.name)).to_have_count(0)
 
 
 def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_hung_wall, a_health_reading, a_wall_reading):
@@ -624,7 +665,7 @@ def test_a_wall_with_a_work_on_it_is_offered_the_skip(ui, a_hung_wall, a_health_
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert _skip(ui, a_hung_wall.name).count() == 1
+    expect(_skip(ui, a_hung_wall.name)).to_have_count(1)
 
 
 def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui, a_shown_wall):
@@ -632,8 +673,8 @@ def test_a_wall_its_player_has_not_reported_for_is_not_offered_a_skip_either(ui,
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert _reasons_named(ui) == ["its Player silent"]
-    assert _skip(ui, a_shown_wall.name).count() == 0
+    _expect_reasons_named(ui, "its Player silent")
+    expect(_skip(ui, a_shown_wall.name)).to_have_count(0)
 
 
 def test_the_card_lists_no_theme_inventory(ui, a_hung_wall, a_health_reading, a_wall_reading):
@@ -642,8 +683,13 @@ def test_the_card_lists_no_theme_inventory(ui, a_hung_wall, a_health_reading, a_
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert "Showing (" not in ui.page.locator("#view").text_content().replace("Not showing (", "")
-    assert ui.page.locator("ul.hanging").count() == 0
+    # The Skip button first: only a card that has read what is on the wall offers
+    # it, so the absences after it are not met by a card still on its way.
+    expect(_skip(ui, a_hung_wall.name)).to_have_count(1)
+    # textContent, as it was read. The read took "Not showing (" out first, but
+    # that is lower-case "showing (", which the capital-S pattern never matched.
+    expect(ui.view).not_to_contain_text(re.compile(r"Showing \("))
+    expect(ui.page.locator("ul.hanging")).to_have_count(0)
 
 
 def _reads(services, wall, majors):
@@ -666,8 +712,8 @@ def test_a_wall_whose_player_cannot_read_the_feed_says_so_on_its_card(ui, servic
     notice = ui.page.locator(f"section.wall[data-wall='{a_hung_wall.id}'] .wall-feed")
     notice.wait_for()
 
-    assert "can't read this server's feed" in notice.inner_text()
-    assert "Update Arrt Player" in notice.inner_text()
+    expect(notice).to_contain_text("can't read this server's feed", use_inner_text=True)
+    expect(notice).to_contain_text("Update Arrt Player", use_inner_text=True)
 
 
 def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, a_hung_wall):
@@ -676,8 +722,12 @@ def test_a_wall_whose_player_reads_the_feed_says_nothing_about_it(ui, services, 
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert ui.page.locator(".wall-feed").count() == 0
-    assert "can't read this server's feed" not in ui.page.locator("#view").text_content()
+    # The card's own controls first: they are painted with the card, after its
+    # heartbeat and feed are read, so the absences are not met by a card on its way.
+    expect(ui.page.locator("section.wall .wall-controls")).to_be_visible()
+    expect(ui.page.locator(".wall-feed")).to_have_count(0)
+    # textContent, as it was read: a hidden notice counts too.
+    expect(ui.view).not_to_contain_text("can't read this server's feed")
 
 
 # -- one wall is the degenerate case of many -----------------------------------
@@ -693,11 +743,11 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall")
 
-    assert ui.page.locator("section.wall").count() == 1
-    assert ui.page.locator("h2.wall-title").all_inner_texts() == [the_wall.name]
+    expect(ui.page.locator("section.wall")).to_have_count(1)
+    expect(ui.page.locator("h2.wall-title")).to_have_text([the_wall.name], use_inner_text=True)
     # The control naming its own wall is the Hanging picker's label (ruling 3 of
     # 2026-10-27; it was a "Hang on …" button).
-    assert ui.page.locator("label", has_text="Hanging on ").all_text_contents() == [f"Hanging on {the_wall.name}"]
+    expect(ui.page.locator("label", has_text="Hanging on ")).to_have_text([f"Hanging on {the_wall.name}"])
 
     services.display.add_wall(name="Study")
     # Reloaded rather than navigated to: the address is already `#walls`, and a
@@ -706,12 +756,14 @@ def test_one_wall_reads_as_a_single_wall_home_and_two_add_a_section(ui, services
     ui.page.reload()
     ui.page.wait_for_selector("section.wall")
 
-    assert ui.page.locator("section.wall").count() == 2
-    assert ui.page.locator("h2.wall-title").all_inner_texts() == ["Study", the_wall.name]
-    assert sorted(ui.page.locator("label", has_text="Hanging on ").all_text_contents()) == [
-        "Hanging on Study",
-        f"Hanging on {the_wall.name}",
-    ]
+    expect(ui.page.locator("section.wall")).to_have_count(2)
+    expect(ui.page.locator("h2.wall-title")).to_have_text(["Study", the_wall.name], use_inner_text=True)
+    # The two labels, in either order (the read sorted them): two of them, and one
+    # for each wall, which together are the sorted pair.
+    labels = ui.page.locator("label", has_text="Hanging on ")
+    expect(labels).to_have_count(2)
+    expect(labels.filter(has_text=f"Hanging on {the_wall.name}")).to_have_text([f"Hanging on {the_wall.name}"])
+    expect(labels.filter(has_text="Hanging on Study")).to_have_text(["Hanging on Study"])
 
 
 def test_each_walls_controls_belong_to_that_walls_own_section(ui, services, a_theme, the_wall):
@@ -729,8 +781,8 @@ def test_each_walls_controls_belong_to_that_walls_own_section(ui, services, a_th
     study = ui.page.locator("section.wall", has_text="Study")
     # The Hanging picker and its label, inside Study's own card (ruling 3 of
     # 2026-10-27 made the picker the control; it was a picker and a Hang button).
-    assert study.locator("label", has_text="Hanging on ").all_text_contents() == ["Hanging on Study"]
-    assert study.locator("select.fact-picker").count() == 1
+    expect(study.locator("label", has_text="Hanging on ")).to_have_text(["Hanging on Study"])
+    expect(study.locator("select.fact-picker")).to_have_count(1)
 
 
 # -- the focus rule ------------------------------------------------------------
@@ -758,7 +810,9 @@ def test_nothing_takes_the_focus_off_this_screens_decision(ui, a_theme, the_wall
     ui.page.wait_for_selector("section.wall")
 
     ui.page.focus(f"select#hang-{the_wall.id}")
-    ui.page.wait_for_timeout(POLL_MS * 2 + POLL_MS // 2)
+    ui.page.wait_for_timeout(
+        POLL_MS * 2 + POLL_MS // 2
+    )  # sleep: the claim is that nothing repaints or takes the focus across two polls
 
     assert ui.focused() == f"hang-{the_wall.id}"
     # Not decoration: if the screen had fetched nothing at all this would pass
@@ -801,26 +855,28 @@ def test_the_walls_screen_issues_no_wall_token_and_says_which_client_shows_each_
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert ui.page.locator("section.wall").count() == 2
-    assert ui.page.locator(".player-token").count() == 0
-    assert ui.page.locator("button", has_text="Player token").count() == 0
-    assert "Player token" not in ui.text()
-    assert "WALL_TOKEN" not in ui.text()
-    assert "is not built yet" not in ui.text()
+    expect(ui.page.locator("section.wall")).to_have_count(2)
+    expect(ui.page.locator(".player-token")).to_have_count(0)
+    expect(ui.page.locator("button", has_text="Player token")).to_have_count(0)
+    expect(ui.view).not_to_contain_text("Player token", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("WALL_TOKEN", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("is not built yet", use_inner_text=True)
     # Which client shows each wall is in that wall's Edit… dialog since ruling 4
     # of 2026-10-27, not on the cards; the card says it only when it is a
     # problem, here the study, which no Player shows.
-    assert ui.page.locator("#view p.wall-client").count() == 0
-    assert _client_line(ui, the_wall.name).count() == 1
+    expect(ui.page.locator("#view p.wall-client")).to_have_count(0)
+    expect(_client_line(ui, the_wall.name)).to_have_count(1)
     study_card = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{study.name}')"))
-    assert study_card.locator(".wall-problem").count() == 1
-    assert study.name in ui.text()
+    expect(study_card.locator(".wall-problem")).to_have_count(1)
+    expect(ui.view).to_contain_text(study.name, use_inner_text=True)
 
 
 def _client_line(ui, wall_name):
     """The wall's Where-it-shows line, in its Edit… dialog (ruling 4 of 2026-10-27
     moved it off the card). One dialog is open at a time, so any other closes first."""
-    if ui.page.locator("dialog.panel-dialog[open]").count():
+    if ui.page.locator(
+        "dialog.panel-dialog[open]"
+    ).count():  # one-shot: close an earlier line's dialog only if the test left one open
         ui.page.keyboard.press("Escape")
         ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
     section = ui.page.locator("section.wall", has=ui.page.locator(f"h2.wall-title:has-text('{wall_name}')"))
@@ -868,16 +924,16 @@ def test_an_assigned_wall_says_which_client_shows_it_and_on_which_output(ui, ser
     ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi on hdmi-a-1"
+    expect(_client_line(ui, the_wall.name)).to_have_text("Shown by Hall Pi on hdmi-a-1", use_inner_text=True)
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
-    assert _client_line(ui, the_wall.name).inner_text() == "Shown by Hall Pi"
+    expect(_client_line(ui, the_wall.name)).to_have_text("Shown by Hall Pi", use_inner_text=True)
     # The other wall's line is its own: an assignment painted under every wall
     # would read correctly with one wall and be wrong with two.
     # A wall with no Player says so on its card (the page rules of 2026-10-27); its
     # Edit… dialog's Player picker reads None rather than repeating the sentence.
     study = ui.page.locator("section.wall", has=ui.page.locator("h2.wall-title:has-text('Study')"))
-    assert study.locator(".wall-problem").inner_text().startswith("No Player shows this wall.")
+    expect(study.locator(".wall-problem")).to_have_text(re.compile(r"^No Player shows this wall\."), use_inner_text=True)
 
 
 def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui, services, settings, the_wall):
@@ -894,12 +950,14 @@ def test_a_wall_on_an_output_with_no_screen_detected_is_not_said_to_be_shown(ui,
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    dark = _client_line(ui, the_wall.name).inner_text()
-    assert dark == "Assigned to Hall Pi, where no screen is detected (off or unplugged)"
-    assert "Shown" not in dark
+    # The dark wall's line is asserted whole before the Study's line is opened:
+    # the line is the one dialog's, and opening the other closes this one.
+    dark = _client_line(ui, the_wall.name)
+    expect(dark).to_have_text("Assigned to Hall Pi, where no screen is detected (off or unplugged)", use_inner_text=True)
+    expect(dark).not_to_contain_text("Shown", use_inner_text=True)
     # Told apart by what each output reports, not by its name, which the line
     # leaves out without `?debug`.
-    assert _client_line(ui, "Study").inner_text() == "Shown by Hall Pi"
+    expect(_client_line(ui, "Study")).to_have_text("Shown by Hall Pi", use_inner_text=True)
 
 
 @pytest.mark.parametrize(
@@ -928,10 +986,10 @@ def test_a_screen_the_client_has_not_reported_on_is_neither_shown_nor_dark(ui, s
     ui.open("#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    line = _client_line(ui, the_wall.name).inner_text()
-    assert line == f"Assigned to Hall Pi. {words}"
-    assert "Shown" not in line
-    assert "no screen is detected" not in line
+    line = _client_line(ui, the_wall.name)
+    expect(line).to_have_text(f"Assigned to Hall Pi. {words}", use_inner_text=True)
+    expect(line).not_to_contain_text("Shown", use_inner_text=True)
+    expect(line).not_to_contain_text("no screen is detected", use_inner_text=True)
 
 
 def test_an_unassigned_wall_says_no_player_shows_it_and_opens_where_one_is_chosen(ui, services, the_wall):
@@ -944,15 +1002,17 @@ def test_an_unassigned_wall_says_no_player_shows_it_and_opens_where_one_is_chose
     # Edit…, where a Player is chosen since ruling 7 of 2026-10-27 took that
     # off Settings › Players, which it linked to until then.
     line = ui.page.locator("section.wall p.wall-problem")
-    assert line.inner_text() == "No Player shows this wall. Choose its Player…"
-    assert line.get_by_role("link").count() == 0
+    expect(line).to_have_text("No Player shows this wall. Choose its Player…", use_inner_text=True)
+    expect(line.get_by_role("link")).to_have_count(0)
     line.get_by_role("button", name=f"Choose the Player for {the_wall.name}…").click()
 
     dialog = ui.page.locator("dialog.panel-dialog[open]")
     dialog.wait_for()
-    assert dialog.locator(".confirm-title").inner_text() == f"Edit {the_wall.name}"
+    expect(dialog.locator(".confirm-title")).to_have_text(f"Edit {the_wall.name}", use_inner_text=True)
     picker = dialog.get_by_label(f"Player for {the_wall.name}", exact=True)
-    assert hall.name in picker.locator("option").all_inner_texts()
+    # One option whose whole text is the Player's name, in whatever place in the
+    # list: a subsequence of one, which is how a list holds an item.
+    expect(picker.locator("option")).to_contain_text([re.compile("^" + re.escape(hall.name) + "$")], use_inner_text=True)
 
 
 def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_wall(ui, services, the_wall):
@@ -968,9 +1028,12 @@ def test_a_client_listing_that_never_arrives_still_says_which_output_shows_the_w
     ui.open("?debug#walls")
     ui.page.wait_for_selector("section.wall .wall-controls")
 
-    line = _client_line(ui, the_wall.name).inner_text()
+    line = _client_line(ui, the_wall.name)
     # The listing carries the client's report as well as its name, so without it
     # whether a screen is there is unknown too, and "Shown" would claim it.
-    assert line == "Assigned to hdmi-a-1 of a Player whose name and report could not be read — the Player listing is down"
-    assert ui.page.locator("#error").is_hidden()
-    assert "Nothing is hanging on" in ui.text()
+    expect(line).to_have_text(
+        "Assigned to hdmi-a-1 of a Player whose name and report could not be read — the Player listing is down",
+        use_inner_text=True,
+    )
+    expect(ui.page.locator("#error")).to_be_hidden()
+    expect(ui.view).to_contain_text("Nothing is hanging on", use_inner_text=True)

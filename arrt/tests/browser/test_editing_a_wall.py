@@ -70,7 +70,7 @@ def test_renaming_from_the_dialog_renames_the_wall_and_repaints_the_card(ui, ser
 
     ui.page.locator("h2.wall-title:text-is('The hall')").wait_for()
     assert services.display.get_wall(the_wall.id).name == "The hall"
-    assert ui.page.locator("dialog.panel-dialog").count() == 0
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
 
 
 def test_a_taken_name_is_refused_beside_the_field_and_nothing_changes(ui, services, the_wall):
@@ -81,19 +81,19 @@ def test_a_taken_name_is_refused_beside_the_field_and_nothing_changes(ui, servic
 
     failure = dialog.locator(".act-failure")
     failure.wait_for()
-    assert "Another wall is already called 'Study'." in failure.inner_text()
+    expect(failure).to_contain_text("Another wall is already called 'Study'.", use_inner_text=True)
     assert services.display.get_wall(the_wall.id).name == the_wall.name
 
 
 def test_where_it_shows_puts_the_wall_on_a_players_screen_and_none_takes_it_off(ui, services, the_wall, hall):
     dialog = open_edit(ui, the_wall.name)
     player = dialog.get_by_label(f"Player for {the_wall.name}", exact=True)
-    assert player.input_value() == ""
+    expect(player).to_have_value("")
     player.select_option(hall.id)
     screen = dialog.get_by_label("Screen", exact=True)
     # In a person's words (`information-architecture.md` § Vocabulary), the port
     # the value the server is sent.
-    assert screen.locator("option").all_inner_texts() == ["HDMI 1", "HDMI 2 · nothing connected"]
+    expect(screen.locator("option")).to_have_text(["HDMI 1", "HDMI 2 · nothing connected"], use_inner_text=True)
     # Not the first screen offered, so a picker that sent its default would fail.
     screen.select_option("hdmi-a-2")
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
@@ -105,8 +105,8 @@ def test_where_it_shows_puts_the_wall_on_a_players_screen_and_none_takes_it_off(
     card(ui, the_wall.name).locator(".wall-problem").wait_for(state="detached")
 
     dialog = open_edit(ui, the_wall.name)
-    assert dialog.get_by_label(f"Player for {the_wall.name}", exact=True).input_value() == hall.id
-    assert dialog.get_by_label("Screen", exact=True).input_value() == "hdmi-a-2"
+    expect(dialog.get_by_label(f"Player for {the_wall.name}", exact=True)).to_have_value(hall.id)
+    expect(dialog.get_by_label("Screen", exact=True)).to_have_value("hdmi-a-2")
     dialog.get_by_label(f"Player for {the_wall.name}", exact=True).select_option("")
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
     ui.page.locator("dialog.panel-dialog").wait_for(state="detached")
@@ -114,7 +114,7 @@ def test_where_it_shows_puts_the_wall_on_a_players_screen_and_none_takes_it_off(
     assert walls_read(ui)[the_wall.id]["client_id"] is None
     problem = card(ui, the_wall.name).locator(".wall-problem")
     problem.wait_for()
-    assert problem.inner_text().startswith("No Player shows this wall.")
+    expect(problem).to_have_text(re.compile(r"^No Player shows this wall\."), use_inner_text=True)
 
 
 FRAME = {
@@ -144,14 +144,16 @@ def test_a_placement_the_server_cannot_confirm_is_said_in_the_dialog_which_stays
     dialog.get_by_label(f"Player for {the_wall.name}", exact=True).select_option(hall.id)
     screens = dialog.get_by_label("Screen", exact=True)
     # A Frame is named by its kind on Walls too, never by its port (§ Vocabulary).
-    assert "Samsung Frame" in screens.locator("option").all_inner_texts()
+    # One option whose whole text is that, wherever it stands in the list: a
+    # subsequence of one, which is how a list holds an item.
+    expect(screens.locator("option")).to_contain_text([re.compile("^Samsung Frame$")], use_inner_text=True)
     screens.select_option("frame")
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
 
     notice = dialog.locator(".wall-notice:not([hidden])")
     notice.wait_for()
-    assert "Hall Pi and Study Mac both report" in notice.inner_text()
-    assert dialog.is_visible()
+    expect(notice).to_contain_text("Hall Pi and Study Mac both report", use_inner_text=True)
+    expect(dialog).to_be_visible()
     # Kept: the wall's record names the Player and the Frame, though neither
     # Player shows it while both report that display.
     assert walls_read(ui)[the_wall.id]["output"] == "frame"
@@ -168,7 +170,7 @@ def test_a_placement_the_server_confirms_says_nothing_and_closes(ui, services, t
     dialog.get_by_label("Screen", exact=True).select_option("hdmi-a-1")
     dialog.get_by_role("button", name=f"Show {the_wall.name} there").click()
     dialog.wait_for(state="detached")
-    assert ui.page.locator(".wall-notice:not([hidden])").count() == 0
+    expect(ui.page.locator(".wall-notice:not([hidden])")).to_have_count(0)
 
 
 def test_a_screen_showing_another_wall_is_named_and_a_second_wall_is_refused_beside_the_act(ui, services, the_wall, hall):
@@ -182,7 +184,9 @@ def test_a_screen_showing_another_wall_is_named_and_a_second_wall_is_refused_bes
     dialog = open_edit(ui, study.name)
     dialog.get_by_label(f"Player for {study.name}", exact=True).select_option(hall.id)
     screen = dialog.get_by_label("Screen", exact=True)
-    assert screen.locator("option").all_inner_texts() == [f"HDMI 1 · shows {the_wall.name}", "HDMI 2 · nothing connected"]
+    expect(screen.locator("option")).to_have_text(
+        [f"HDMI 1 · shows {the_wall.name}", "HDMI 2 · nothing connected"], use_inner_text=True
+    )
     screen.select_option("hdmi-a-1")
     show = dialog.get_by_role("button", name=f"Show {study.name} there")
     show.click()
@@ -193,7 +197,13 @@ def test_a_screen_showing_another_wall_is_named_and_a_second_wall_is_refused_bes
     # The wall's own screen is not called taken in its own dialog.
     ui.page.keyboard.press("Escape")
     dialog = open_edit(ui, the_wall.name)
-    assert "shows" not in " ".join(dialog.get_by_label("Screen", exact=True).locator("option").all_inner_texts())
+    options = dialog.get_by_label("Screen", exact=True).locator("option")
+    # Its own screen is offered, plain: that is what shows the list has been drawn,
+    # so that no option says "shows" is not met by an empty list. The filter is
+    # `has_text` (a case-insensitive substring of the raw text), which only chooses
+    # the options to count; the claim is that none of them is one.
+    expect(options.first).to_have_text(re.compile(r"^HDMI 1"), use_inner_text=True)
+    expect(options.filter(has_text="shows")).to_have_count(0)
 
 
 def test_a_label_panel_is_added_from_the_dialog_and_stopped_there(ui, services, settings, the_wall, hall):
@@ -233,11 +243,12 @@ def test_a_label_panel_the_report_does_not_list_is_kept_and_said_in_the_dialog(u
 
     notice = dialog.locator(".wall-notice:not([hidden])")
     notice.wait_for()
-    assert notice.inner_text() == (
+    expect(notice).to_have_text(
         "Hall Pi last reported these label outputs: none. 'epd-0' is not among them, "
-        "so nothing captions this wall there until the Player has a label output by that name."
+        "so nothing captions this wall there until the Player has a label output by that name.",
+        use_inner_text=True,
     )
-    assert "client" not in notice.inner_text()
+    expect(notice).not_to_contain_text("client", use_inner_text=True)
     [label] = walls_read(ui)[the_wall.id]["labels"]
     assert label["output"] == "epd-0"
 
@@ -251,15 +262,18 @@ def test_a_label_panel_captioning_another_wall_is_not_offered(ui, services, the_
     services.clients.remove_label(the_wall.id, label_id=freed.label.id)
 
     dialog = open_edit(ui, the_wall.name)
-    offered = dialog.get_by_label(f"Caption {the_wall.name} with", exact=True).locator("option").all_inner_texts()
-    assert offered == ["label panel epd-1 on Hall Pi"]
+    offered = dialog.get_by_label(f"Caption {the_wall.name} with", exact=True).locator("option")
+    expect(offered).to_have_text(["label panel epd-1 on Hall Pi"], use_inner_text=True)
 
 
 def test_a_rotation_set_in_the_dialog_is_on_the_card_once_it_closes(ui, services, the_wall, a_theme_to_hang):
     services.display.activate_theme(a_theme_to_hang.id, wall_id=the_wall.id)
     dialog = open_edit(ui, the_wall.name)
     changes = card(ui, the_wall.name).locator(".wall-hanging dt:text-is('Changes') + dd")
-    before = changes.inner_text()
+    # What the card said before is asserted before the act, rather than read and
+    # compared after it: the card is there (it says something), and not yet "7 minutes".
+    expect(changes).to_be_visible()
+    expect(changes).not_to_contain_text("7 minutes", use_inner_text=True)
     dialog.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).fill("7")
     dialog.get_by_role("button", name=f"Set the rotation on {the_wall.name}").click()
     dialog.locator(".wall-said", has_text="Rotation on").wait_for()
@@ -269,7 +283,6 @@ def test_a_rotation_set_in_the_dialog_is_on_the_card_once_it_closes(ui, services
 
     assert services.display.get_wall(the_wall.id).rotation_interval_seconds == 7 * 60
     card(ui, the_wall.name).locator(".wall-hanging dt:text-is('Changes') + dd", has_text="7 minutes").wait_for()
-    assert "7 minutes" not in before
 
 
 def test_close_and_cancel_change_nothing(ui, services, the_wall, hall):
@@ -341,7 +354,9 @@ def test_close_names_the_sections_it_would_leave_unset(ui, services, the_wall, h
     dialog.get_by_label("Name", exact=True).fill("The hall")
     expect(unsaved).to_have_text("Not set yet: Name and Mat. Close leaves them as they were.")
     close = dialog.get_by_role("button", name="Close")
-    expect(close).to_have_attribute("aria-describedby", unsaved.get_attribute("id"))
+    expect(close).to_have_attribute(
+        "aria-describedby", unsaved.get_attribute("id")
+    )  # one-shot: the id the line must be described by
 
     dialog.get_by_role("button", name=f"Set the mat on {the_wall.name}").click()
     expect(unsaved).to_have_text("Not set yet: Name. Close leaves it as it was.")
@@ -407,7 +422,7 @@ def test_adding_a_wall_with_a_taken_name_is_refused_in_the_dialog(ui, services, 
 
     failure = dialog.locator(".act-failure")
     failure.wait_for()
-    assert f"Another wall is already called '{the_wall.name}'." in failure.inner_text()
+    expect(failure).to_contain_text(f"Another wall is already called '{the_wall.name}'.", use_inner_text=True)
     assert len(services.display.survey_walls()) == 1
 
 
@@ -442,7 +457,9 @@ def holding(ui, pattern):
         for _ in range(500):  # 500 waits of 10 ms, plus each round trip: at least five seconds
             if held:
                 return
-            ui.page.wait_for_timeout(10)
+            ui.page.wait_for_timeout(
+                10
+            )  # sleep: paces a poll of `held`, which only fills while Playwright runs the route handler
         raise AssertionError(f"no {pattern} request was held")
 
     def stop():
@@ -469,7 +486,7 @@ def test_a_second_press_while_the_read_is_out_opens_one_dialog(ui, the_wall):
 
     ui.page.locator("dialog.panel-dialog").wait_for()
     assert len(held) == 1
-    assert ui.page.locator("dialog.panel-dialog").count() == 1
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(1)
 
 
 def test_a_read_that_returns_after_leaving_walls_opens_nothing_on_the_next_page(ui, the_wall):
@@ -486,7 +503,10 @@ def test_a_read_that_returns_after_leaving_walls_opens_nothing_on_the_next_page(
     # handler has nothing left to wait on.
     ui.page.wait_for_load_state("networkidle")
 
-    assert ui.page.locator("dialog.panel-dialog").count() == 0
+    # Still on Players once the late read has been answered: the page this read
+    # came back to, which is the one it must not open a dialog on.
+    expect(ui.page.locator("#view h1")).to_have_text("Players", use_inner_text=True)
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
 
 
 def test_a_feed_that_cannot_be_read_is_said_in_the_dialog(ui, services, the_wall, a_theme_to_hang):
@@ -500,10 +520,13 @@ def test_a_feed_that_cannot_be_read_is_said_in_the_dialog(ui, services, the_wall
     dialog = ui.page.locator("dialog.panel-dialog")
     dialog.wait_for()
 
-    assert dialog.locator(".panel h3").all_text_contents() == ["Name", "Where it shows", "Label panel", "Delete"]
-    said = dialog.locator(".wall-feed-unread").inner_text()
-    assert said.startswith("Its rotation, shapes and mat cannot be set here: the wall's feed could not be read")
-    assert "the feed is unreadable" in said
+    expect(dialog.locator(".panel h3")).to_have_text(["Name", "Where it shows", "Label panel", "Delete"])
+    said = dialog.locator(".wall-feed-unread")
+    expect(said).to_have_text(
+        re.compile("^" + re.escape("Its rotation, shapes and mat cannot be set here: the wall's feed could not be read")),
+        use_inner_text=True,
+    )
+    expect(said).to_contain_text("the feed is unreadable", use_inner_text=True)
 
 
 def test_a_wall_gone_since_the_page_painted_is_said_beside_its_edit_and_opens_nothing(ui, services, the_wall):
@@ -520,8 +543,8 @@ def test_a_wall_gone_since_the_page_painted_is_said_beside_its_edit_and_opens_no
 
     said = card(ui, "Study").get_by_text("Couldn't open Study's settings")
     said.wait_for()
-    assert "it is no longer recorded; reload the page" in said.inner_text()
-    assert ui.page.locator("dialog.panel-dialog").count() == 0
+    expect(said).to_contain_text("it is no longer recorded; reload the page", use_inner_text=True)
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
 
 
 def test_choose_its_player_and_edit_pressed_together_open_one_dialog(ui, the_wall):
@@ -534,7 +557,7 @@ def test_choose_its_player_and_edit_pressed_together_open_one_dialog(ui, the_wal
 
     ui.page.locator("dialog.panel-dialog").wait_for()
     assert len(held) == 1
-    assert ui.page.locator("dialog.panel-dialog").count() == 1
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(1)
 
 
 def test_a_read_that_returns_after_leaving_and_coming_back_opens_nothing(ui, the_wall):
@@ -551,7 +574,10 @@ def test_a_read_that_returns_after_leaving_and_coming_back_opens_nothing(ui, the
         release()
     ui.page.wait_for_load_state("networkidle")
 
-    assert ui.page.locator("dialog.panel-dialog").count() == 0
+    # Walls painted again once the late read has been answered: the page this read
+    # came back to, which is the one it must not open a dialog on.
+    expect(ui.page.locator("section.wall .wall-title")).to_have_text(the_wall.name, use_inner_text=True)
+    expect(ui.page.locator("dialog.panel-dialog")).to_have_count(0)
 
 
 # -- Delete… -------------------------------------------------------------------
@@ -578,16 +604,22 @@ def test_delete_names_what_goes_and_what_stays_and_the_wall_is_gone(ui, services
     services.clients.add_label(study.id, client_id=hall.id, output="epd-0")
 
     dialog = open_edit(ui, "Study")
-    assert dialog.locator(".panel h3").all_text_contents()[-1] == "Delete"
+    expect(dialog.locator(".panel h3").last).to_have_text("Delete")
     dialog.get_by_role("button", name="Delete Study…").click()
     confirm = _confirm(ui)
 
-    assert confirm.locator(".confirm-title").inner_text() == "Delete Study?"
-    assert confirm.locator(".confirm-consequence").inner_text() == (
+    # Read at the moment the question stands: the claim is that the Edit… dialog is
+    # already closed when it is asked, and a retrying count would pass a dialog
+    # that closed a moment after.
+    assert (
+        ui.page.locator("dialog.panel-dialog").count() == 0
+    ), "asked with the Edit… dialog closed"  # one-shot: simultaneity, closed as the question opens
+    expect(confirm.locator(".confirm-title")).to_have_text("Delete Study?", use_inner_text=True)
+    expect(confirm.locator(".confirm-consequence")).to_have_text(
         "It hangs Winter, which stays in your themes. Hall Pi stops showing it. "
-        "Its label panel stops captioning. Its history stays. The wall cannot be brought back."
+        "Its label panel stops captioning. Its history stays. The wall cannot be brought back.",
+        use_inner_text=True,
     )
-    assert ui.page.locator("dialog.panel-dialog").count() == 0, "asked with the Edit… dialog closed"
     confirm.get_by_role("button", name="Delete Study").click()
     card(ui, "Study").wait_for(state="detached")
 
@@ -595,7 +627,7 @@ def test_delete_names_what_goes_and_what_stays_and_the_wall_is_gone(ui, services
     assert services.display.get_theme(a_theme_to_hang.id).name == "Winter"
     players = ui.page.evaluate("() => fetch('/api/clients').then((r) => r.json())")["clients"]
     assert [label["wall_id"] for label in players[0]["label_outputs"]] == [None], "the panel stays, captioning nothing"
-    assert card(ui, the_wall.name).count() == 1
+    expect(card(ui, the_wall.name)).to_have_count(1)
 
 
 def test_cancel_deletes_nothing(ui, services, the_wall):
@@ -603,7 +635,9 @@ def test_cancel_deletes_nothing(ui, services, the_wall):
     dialog = open_edit(ui, "Study")
     dialog.get_by_role("button", name="Delete Study…").click()
     confirm = _confirm(ui)
-    assert confirm.locator(".confirm-consequence").inner_text() == "Its history stays. The wall cannot be brought back."
+    expect(confirm.locator(".confirm-consequence")).to_have_text(
+        "Its history stays. The wall cannot be brought back.", use_inner_text=True
+    )
     confirm.get_by_role("button", name="Cancel").click()
     confirm.wait_for(state="detached")
 
@@ -617,10 +651,12 @@ def test_the_last_wall_deleted_leaves_a_page_that_offers_add_wall_and_it_works(u
 
     empty = ui.page.locator("#view .empty")
     empty.wait_for()
-    assert [line for line in empty.inner_text().split("\n") if line] == [
-        "No wall is recorded, so there is nowhere to hang anything.",
-        "Add a wall to give art a place to hang.",
-    ]
+    # Its two sentences and nothing else: each on a line of its own, with only
+    # blank lines around and between them (the read dropped the empty lines).
+    sentences = ["No wall is recorded, so there is nowhere to hang anything.", "Add a wall to give art a place to hang."]
+    expect(empty).to_have_text(
+        re.compile(r"^\n*" + r"\n+".join(re.escape(line) for line in sentences) + r"\n*$"), use_inner_text=True
+    )
     assert walls_read(ui) == {}
 
     ui.page.get_by_role("button", name="Add wall…").click()
@@ -644,9 +680,10 @@ def test_delete_says_a_selection_goes_and_counts_label_panels(ui, services, the_
     dialog = open_edit(ui, "Study")
     dialog.get_by_role("button", name="Delete Study…").click()
 
-    assert _confirm(ui).locator(".confirm-consequence").inner_text() == (
+    expect(_confirm(ui).locator(".confirm-consequence")).to_have_text(
         "It hangs a selection, which goes once no wall hangs it. Its 2 label panels stop captioning. "
-        "Its history stays. The wall cannot be brought back."
+        "Its history stays. The wall cannot be brought back.",
+        use_inner_text=True,
     )
 
 
@@ -660,6 +697,6 @@ def test_delete_names_no_player_it_could_not_read(ui, services, the_wall, hall):
     dialog = open_edit(ui, the_wall.name)
     dialog.get_by_role("button", name=f"Delete {the_wall.name}…").click()
 
-    assert _confirm(ui).locator(".confirm-consequence").inner_text() == (
-        "Its Player stops showing it. Its history stays. The wall cannot be brought back."
+    expect(_confirm(ui).locator(".confirm-consequence")).to_have_text(
+        "Its Player stops showing it. Its history stays. The wall cannot be brought back.", use_inner_text=True
     )

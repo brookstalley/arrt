@@ -17,6 +17,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 
 @pytest.fixture
 def two_walls(services, ready_work, wall_id):
@@ -59,39 +61,41 @@ def test_two_walls_are_picked_applied_together_and_released(ui, two_walls, servi
 
     _pick(ui, "The wall", "Persistence", "Persistence")
     _pick(ui, "Study", "Golconda", "Golconda")
-    assert "Preparing the walls" in ui.page.locator(BUILDER).inner_text()
+    expect(ui.page.locator(BUILDER)).to_contain_text("Preparing the walls", use_inner_text=True)
 
     ui.page.get_by_role("button", name="Apply the scene").click()
     dialog = ui.page.locator("dialog.confirm[open]")
     dialog.wait_for()
-    assert "Persistence on The wall" in dialog.inner_text()
-    assert "Golconda on Study" in dialog.inner_text()
-    assert "for 20 minutes" in dialog.inner_text()
+    expect(dialog).to_contain_text("Persistence on The wall", use_inner_text=True)
+    expect(dialog).to_contain_text("Golconda on Study", use_inner_text=True)
+    expect(dialog).to_contain_text("for 20 minutes", use_inner_text=True)
     dialog.get_by_role("button", name="Apply").click()
 
     ui.page.locator("section.scene .scene-span").wait_for()
-    section = ui.page.locator("section.scene").inner_text()
-    assert "Scene until " in section
-    assert "Persistence on The wall" in section
-    assert "Golconda on Study" in section
-    assert "The wall has not shown it yet" in section
+    section = ui.page.locator("section.scene")
+    # Each as a pattern or a string of its own: "Scene until " ends in a space,
+    # which a string would trim, so it is a pattern, matched against the raw text.
+    expect(section).to_contain_text(re.compile("Scene until "), use_inner_text=True)
+    expect(section).to_contain_text("Persistence on The wall", use_inner_text=True)
+    expect(section).to_contain_text("Golconda on Study", use_inner_text=True)
+    expect(section).to_contain_text("The wall has not shown it yet", use_inner_text=True)
     live = services.display.live_scene()
     assert {pin.wall_id: pin.work_id for pin in live.pins} == {walls["The wall"]: persistence.id, walls["Study"]: golconda.id}
     # Each wall's card says the scene is up there, beside Skip.
     card = ui.page.locator(f"section.wall[data-wall='{walls['Study']}'] .wall-scene")
-    assert "A scene shows Golconda here until " in card.inner_text()
+    expect(card).to_contain_text(re.compile("A scene shows Golconda here until "), use_inner_text=True)
 
     release = ui.page.get_by_role("button", name=re.compile(r"^Release the scene on "))
     # Both walls, in the order their cards are in.
-    assert release.get_attribute("aria-label") == "Release the scene on Study and The wall"
+    expect(release).to_have_attribute("aria-label", "Release the scene on Study and The wall")
     release.click()
     ui.page.locator("section.scene .scene-span").wait_for(state="detached")
     assert services.display.live_scene() is None
-    assert ui.page.locator(".wall-scene").count() == 0
+    expect(ui.page.locator(".wall-scene")).to_have_count(0)
     # The line above the cards is gone, and the dialog starts afresh.
-    assert ui.page.locator("section.scene").is_hidden()
+    expect(ui.page.locator("section.scene")).to_be_hidden()
     _open_scene(ui)
-    assert ui.page.locator(f"{BUILDER} .scene-pick").all_inner_texts() == ["Nothing picked.", "Nothing picked."]
+    expect(ui.page.locator(f"{BUILDER} .scene-pick")).to_have_text(["Nothing picked.", "Nothing picked."], use_inner_text=True)
 
 
 def test_hold_asks_naming_each_wall_and_has_no_end(ui, two_walls, services):
@@ -102,11 +106,11 @@ def test_hold_asks_naming_each_wall_and_has_no_end(ui, two_walls, services):
     ui.page.get_by_role("button", name="Hold the scene until released").click()
     dialog = ui.page.locator("dialog.confirm[open]")
     dialog.wait_for()
-    assert "Golconda on Study, until you release it." in dialog.inner_text()
+    expect(dialog).to_contain_text("Golconda on Study, until you release it.", use_inner_text=True)
     dialog.get_by_role("button", name="Hold").click()
 
     ui.page.locator("section.scene .scene-span").wait_for()
-    assert ui.page.locator("section.scene .scene-span").inner_text() == "Scene, held until released"
+    expect(ui.page.locator("section.scene .scene-span")).to_have_text("Scene, held until released", use_inner_text=True)
     assert services.display.live_scene().scene.until is None
 
 
@@ -124,9 +128,10 @@ def test_a_refused_pick_says_why_beside_that_wall_and_keeps_the_other(ui, two_wa
 
     failure = row.locator(".act-failure")
     failure.wait_for()
-    assert "cannot be shown on the wall" in failure.inner_text()
+    expect(failure).to_contain_text("cannot be shown on the wall", use_inner_text=True)
     assert {pin.wall_id: pin.work_id for pin in services.display.scene_draft().pins} == {walls["Study"]: golconda.id}
-    assert "Golconda" in ui.page.locator(f"{BUILDER} .scene-wall:has(.scene-wall-name:text-is('Study')) .scene-pick").inner_text()
+    study_pick = ui.page.locator(f"{BUILDER} .scene-wall:has(.scene-wall-name:text-is('Study')) .scene-pick")
+    expect(study_pick).to_contain_text("Golconda", use_inner_text=True)
 
 
 def test_a_wall_somebody_is_watching_television_on_says_it_is_waiting(ui, two_walls, services):
@@ -153,7 +158,9 @@ def test_a_wall_somebody_is_watching_television_on_says_it_is_waiting(ui, two_wa
     ui.open("#walls")
     ui.page.locator("section.scene .scene-span").wait_for()
 
-    assert "The wall is waiting for the television to be free." in ui.page.locator("section.scene").inner_text()
+    expect(ui.page.locator("section.scene")).to_contain_text(
+        "The wall is waiting for the television to be free.", use_inner_text=True
+    )
 
 
 def test_discard_forgets_the_picks(ui, two_walls, services):
@@ -194,8 +201,13 @@ def test_a_wall_added_after_the_page_painted_is_offered_in_scene(ui, two_walls, 
 
     _open_scene(ui)
 
-    names = ui.page.locator(f"{BUILDER} .scene-wall-name").all_inner_texts()
-    assert sorted(names) == ["Landing", "Study", "The wall"]
+    # Three names, in whatever order the dialog lists them (the read sorted them):
+    # each of the three is the whole text of one. The filter is a pattern on the
+    # raw text, which a name element holds plainly.
+    names = ui.page.locator(f"{BUILDER} .scene-wall-name")
+    expect(names).to_have_count(3)
+    for name in ("Landing", "Study", "The wall"):
+        expect(names.filter(has_text=re.compile("^" + re.escape(name) + "$"))).to_have_count(1)
 
 
 def test_a_wall_whose_work_was_kept_off_says_it_cannot_show_it(ui, two_walls, services):
@@ -210,11 +222,15 @@ def test_a_wall_whose_work_was_kept_off_says_it_cannot_show_it(ui, two_walls, se
     ui.open("#walls")
     ui.page.locator("section.scene .scene-span").wait_for()
 
-    line = ui.page.locator(f"section.scene li[data-wall='{walls['The wall']}']").inner_text()
-    assert "The wall cannot show it, so it shows its schedule. It is kept off every wall." in line
-    # Its card has no scene to speak of; the study's still does.
-    assert ui.page.locator(f"section.wall[data-wall='{walls['The wall']}'] .wall-scene").count() == 0
-    assert ui.page.locator(f"section.wall[data-wall='{walls['Study']}'] .wall-scene").count() == 1
+    line = ui.page.locator(f"section.scene li[data-wall='{walls['The wall']}']")
+    expect(line).to_contain_text(
+        "The wall cannot show it, so it shows its schedule. It is kept off every wall.", use_inner_text=True
+    )
+    # Its card has no scene to speak of; the study's still does. The study's first:
+    # it is what shows the cards have painted, so the absence after it is not met
+    # by cards still on their way.
+    expect(ui.page.locator(f"section.wall[data-wall='{walls['Study']}'] .wall-scene")).to_have_count(1)
+    expect(ui.page.locator(f"section.wall[data-wall='{walls['The wall']}'] .wall-scene")).to_have_count(0)
 
 
 def test_a_wall_the_scene_reached_says_scene_in_its_badge_and_one_not_reached_does_not(ui, two_walls, services):
@@ -244,11 +260,11 @@ def test_a_wall_the_scene_reached_says_scene_in_its_badge_and_one_not_reached_do
     ui.page.locator("section.scene .scene-span").wait_for()
 
     reached = ui.page.locator(f"section.wall[data-wall='{walls['The wall']}'] .wall-badge")
-    assert reached.inner_text().strip().endswith("Scene")
-    assert "wall-badge-scene" in reached.get_attribute("class")
-    assert ui.page.locator(f"section.wall[data-wall='{walls['Study']}'] .wall-badge-scene").count() == 0
+    expect(reached).to_have_text(re.compile(r"Scene\s*$"), use_inner_text=True)
+    expect(reached).to_have_attribute("class", re.compile(re.escape("wall-badge-scene")))
+    expect(ui.page.locator(f"section.wall[data-wall='{walls['Study']}'] .wall-badge-scene")).to_have_count(0)
 
     display.release_scene(draft.id)
     ui.page.reload()
     ui.page.wait_for_selector("section.wall .wall-controls")
-    assert ui.page.locator(".wall-badge-scene").count() == 0
+    expect(ui.page.locator(".wall-badge-scene")).to_have_count(0)

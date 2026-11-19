@@ -94,7 +94,9 @@ def test_a_wall_is_set_up_in_the_order_the_screens_give_it(ui, services, setting
     """
     ui.page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=server_url)
     field = add_player(ui, "Hall Pi")
-    token = field.input_value()
+    # The token is in the field once it shows: it is what the clipboard must then hold.
+    expect(field).to_have_value(re.compile(r"\S"))
+    token = field.input_value()  # one-shot: the token the copy button must put on the clipboard
 
     # Behind the dialog, already: the list holds the Player, waiting (finding 15).
     expect(ui.page.locator("#view .page-facts")).to_have_text("1 Player · waiting for it to report")
@@ -124,7 +126,9 @@ def test_a_wall_is_set_up_in_the_order_the_screens_give_it(ui, services, setting
         "Hall Pi has not reported yet. It must be running with its token, from its own settings page; "
         "its screens appear here once it reports, usually within a minute of starting."
     )
-    expect(show).to_have_attribute("aria-describedby", why.get_attribute("id"))
+    expect(show).to_have_attribute(
+        "aria-describedby", why.get_attribute("id")
+    )  # one-shot: the id the reason must be described by
 
     # The Player starts and reports: the open dialog sees it.
     report(settings, hall)
@@ -220,7 +224,10 @@ def test_copy_works_where_the_clipboard_api_is_absent(ui, services):
 
     ui.page.get_by_role("button", name="Copy Hall Pi's token").click()
     expect(ui.page.locator(".token-copied")).to_have_text("Copied.")
-    assert ui.page.evaluate("() => window.__copied") == [field.input_value()]
+    expect(field).to_have_value(re.compile(r"\S"))
+    assert ui.page.evaluate("() => window.__copied") == [
+        field.input_value()
+    ]  # one-shot: the token the fallback must have selected and copied
 
 
 def test_a_browser_that_will_not_copy_says_so_and_leaves_the_token_selected(ui, services):
@@ -395,11 +402,11 @@ def test_the_backup_records_file_is_named_only_with_debug(ui, a_health_reading):
         ui.serve("**/api/health", reading)
         ui.open("#health")
         expect(ui.page.locator("#view h2:text-is('Backup')")).to_be_visible()
-        assert "/srv/arrt-scratch-9f2/backup-receipt.json" not in ui.page.locator("#view").inner_text()
+        expect(ui.view).not_to_contain_text("/srv/arrt-scratch-9f2/backup-receipt.json", use_inner_text=True)
 
         ui.open("?debug#health")
         expect(ui.page.locator("#view h2:text-is('Backup')")).to_be_visible()
-        assert "/srv/arrt-scratch-9f2/backup-receipt.json" in ui.page.locator("#view").inner_text()
+        expect(ui.view).to_contain_text("/srv/arrt-scratch-9f2/backup-receipt.json", use_inner_text=True)
 
 
 def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
@@ -411,7 +418,11 @@ def test_status_says_the_picture_counts_age_once(ui, a_health_reading):
 
     panel = ui.page.locator(".pictures-reading")
     expect(panel).to_contain_text("counted 226 seconds ago")
-    assert len(re.findall(r"\bcounted\b", panel.inner_text(), flags=re.IGNORECASE)) == 1
+    # Said once: a pattern holding exactly one "counted" and no character that
+    # begins another (a lookahead at each step), over the panel's whole text.
+    counted = r"\bcounted\b"
+    other_text = rf"(?:(?!{counted})[\s\S])*"
+    expect(panel).to_have_text(re.compile(f"^{other_text}{counted}{other_text}$", re.IGNORECASE), use_inner_text=True)
 
 
 # -- hanging, before and after a Player shows the wall ------------------------------
