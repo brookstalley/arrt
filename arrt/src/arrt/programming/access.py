@@ -103,12 +103,15 @@ class PlayerAccess:
         one. That is the point of a rotation, and it is why the issue time is kept
         and shown.
         """
-        client = self._store.get_client(client_id)
-        if client is None:
-            raise ServiceError(f"No client with id {client_id!r} is recorded.")
         token = secrets.token_urlsafe(32)
         issued_at = datetime.now(UTC)
-        store_write(self._store.update_client, replace(client, token_verifier=verifier_of(token), token_issued_at=issued_at))
+        # Read where it is written: the whole row goes back, and a client read
+        # before a rename landed would put the old name back with the new token.
+        with self._store.transaction():
+            client = self._store.get_client(client_id)
+            if client is None:
+                raise ServiceError(f"No client with id {client_id!r} is recorded.")
+            store_write(self._store.update_client, replace(client, token_verifier=verifier_of(token), token_issued_at=issued_at))
         log.info("Issued a new token for client %r; any earlier one no longer works.", client.name)
         return IssuedToken(client_id=client.id, token=token, issued_at=issued_at)
 
