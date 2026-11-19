@@ -8,7 +8,6 @@ installed where the entry point builds Wikidata's; its makers' answer is held
 back by an event, so the page is seen between the two answers.
 """
 
-import re
 import threading
 
 import pytest
@@ -104,8 +103,11 @@ def test_a_held_century_is_listed_once_with_its_count(ui, service, services):
     # Whitespace-normalised, as the join over `split()` was.
     expect(ui.page.locator(f"{PERIODS} ul.topic-held li")).to_have_text(["16th century · 1 work"], use_inner_text=True)
     expect(ui.page.locator(f"{PERIODS} h3")).to_have_text("Other centuries", use_inner_text=True)
-    # No offered item is the century itself: an item whose whole text is it.
-    expect(ui.page.locator(f"{PERIODS} ul.topic-offered li", has_text=re.compile(r"^16th century$"))).to_have_count(0)
+    # No offered item is the century itself. A set of the items' words, read
+    # once the heading over them has painted: `has_text` would match their raw
+    # text content, which is not the words a person reads.
+    offered = ui.page.locator(f"{PERIODS} ul.topic-offered li").all_inner_texts()  # one-shot: a set, read after its heading
+    assert "16th century" not in offered
     expect(ui.page.locator("#view a", has_text="16th century")).to_have_count(1)
 
 

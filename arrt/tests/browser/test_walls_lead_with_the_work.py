@@ -395,6 +395,9 @@ def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, 
     # worded once: the page rules of 2026-10-27). It read "Not assigned to a
     # screen" in the lead as well, and the work it last reported is not led with.
     expect(lead).to_be_hidden()
+    # Hidden by its attribute, not merely by being empty: an empty element is
+    # "hidden" to Playwright, so the line above alone passed with `hidden` gone.
+    expect(lead).to_have_attribute("hidden", "")
     expect(card(ui, the_wall).locator("figure")).to_have_count(0)
     expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_text(re.compile(r"No Player\s*$"), use_inner_text=True)
     expect(card(ui, the_wall)).not_to_contain_text("Not assigned to a screen", use_inner_text=True)

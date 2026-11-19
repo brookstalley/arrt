@@ -204,6 +204,15 @@ asserted against it).
    claim is that one moment held all of them together, a person must think.
 9. **Time.** `expect` gives up after the suite's 30 seconds, where the read
    gave up never. Do not add `timeout=` to make a converted test faster.
+10. **`has_text` is not `innerText`.** `locator(sel, has_text=…)` and
+    `filter(has_text=…)` match the raw text content: a pattern there sees
+    hidden words and unnormalised whitespace (`re.compile(r"^16th century$")`
+    does not find `<li>  16th   century </li>`). Wrong: turning
+    `s not in loc.all_inner_texts()` into a `has_text` pattern with
+    `to_have_count(0)`, which passes on an item whose words are `s`. Right:
+    keep the set read, after its anchor, with `# one-shot:` (a membership
+    claim has no retrying form). A `has_text` *string* is a case-insensitive
+    substring and is fine for choosing a row to assert on.
 
 #### Where there is no mechanical form
 

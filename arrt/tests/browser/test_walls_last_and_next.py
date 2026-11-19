@@ -281,6 +281,9 @@ def test_a_wall_no_screen_shows_leads_with_that_and_not_with_what_it_showed(ui, 
     lead.wait_for(state="attached")
     expect(lead).to_have_attribute("data-state", "unassigned")
     expect(lead).to_be_hidden()
+    # Hidden by its attribute, not merely by being empty: an empty element is
+    # "hidden" to Playwright, so the line above alone passed with `hidden` gone.
+    expect(lead).to_have_attribute("hidden", "")
     expect(lead.locator("figure")).to_have_count(0)
     expect(card(ui, the_wall).locator("figure")).to_have_count(0)
 
