@@ -10,10 +10,13 @@ which is how a duplicate id and a missing parent could have swapped messages
 without a single test noticing.
 """
 
+import sqlite3
+
 import pytest
 
 from arrt.persistence.catalogue import StorageError, StoreMisuseError
 from arrt.persistence.durable import OrderBy, SqliteDurableStore
+from arrt.persistence.errors import StorageFault
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS makers (
@@ -636,6 +639,90 @@ def test_a_rolled_back_transaction_never_reached_the_file(tmp_path):
         assert reopened.scan("things") == []
     finally:
         reopened.close()
+
+
+# -- a fault of the host --------------------------------------------------------
+#
+# A file the driver cannot use arrives as the store's `StorageFault`, so a layer
+# above that must tell it from a refusal (the acquisition queue pauses on it) can
+# do so without importing the driver. Each test makes the real driver raise.
+
+
+def _no_waiting(store):
+    """Make the store's connection give up on a lock at once rather than after five seconds."""
+    store._connection.execute("PRAGMA busy_timeout = 0")
+
+
+def test_a_write_the_file_refuses_is_a_fault_of_the_host_not_a_refusal(store):
+    store._connection.execute("PRAGMA query_only = ON")
+
+    with pytest.raises(StorageFault, match="readonly") as raised:
+        _thing(store, "t1", "First")
+
+    assert not isinstance(raised.value, StorageError), "a host fault would be shown as a refusal of the request"
+    assert isinstance(raised.value.__cause__, sqlite3.OperationalError)
+    # The failed write left no transaction open to hold the file's write lock,
+    # and once the file can be written, a write is kept.
+    assert store._connection.in_transaction is False
+    store._connection.execute("PRAGMA query_only = OFF")
+    _thing(store, "t2", "Second")
+    assert [row["id"] for row in store.scan("things")] == ["t2"]
+
+
+@pytest.mark.parametrize(
+    "read",
+    [
+        lambda store: store.fetch_one("things", {"id": "t1"}),
+        lambda store: store.scan("things"),
+        lambda store: store.select_page("things", order_by=[OrderBy("id")]),
+        lambda store: store.select_rows('SELECT * FROM "things"'),
+    ],
+    ids=["fetch_one", "scan", "select_page", "select_rows"],
+)
+def test_a_read_of_a_file_another_process_has_locked_is_a_fault_of_the_host(tmp_path, read):
+    path = tmp_path / "store.sqlite"
+    store = SqliteDurableStore(path, _SCHEMA)
+    _no_waiting(store)
+    other = sqlite3.connect(path, isolation_level=None)
+    try:
+        other.execute("BEGIN EXCLUSIVE")
+
+        with pytest.raises(StorageFault, match="locked"):
+            read(store)
+    finally:
+        other.close()
+        store.close()
+
+
+def _in_a_transaction(store):
+    with store.transaction():
+        _thing(store, "t1", "First")
+
+
+@pytest.mark.parametrize(
+    "write", [_in_a_transaction, lambda store: _thing(store, "t1", "First")], ids=["transaction", "single_write"]
+)
+def test_a_commit_another_process_holds_off_is_a_fault_of_the_host_and_keeps_nothing(tmp_path, write):
+    """A refused commit is rolled back: its caller was told it failed, so nothing may read it back or publish it later."""
+    path = tmp_path / "store.sqlite"
+    store = SqliteDurableStore(path, _SCHEMA)
+    _no_waiting(store)
+    reader = sqlite3.connect(path, isolation_level=None)
+    try:
+        # A reader mid-read holds a shared lock, which a commit cannot pass.
+        reader.execute("BEGIN")
+        reader.execute('SELECT * FROM "things"').fetchall()
+
+        with pytest.raises(StorageFault, match="locked"):
+            write(store)
+
+        reader.execute("COMMIT")
+        assert store.scan("things") == []
+        _thing(store, "t2", "Second")
+        assert [row["id"] for row in store.scan("things")] == ["t2"]
+    finally:
+        reader.close()
+        store.close()
 
 
 # -- ordering additions --------------------------------------------------------

@@ -82,6 +82,7 @@ whole body, which is what lets the one connection carry a multi-statement group
 without another thread writing into the middle of it.
 """
 
+import contextlib
 import logging
 import sqlite3
 import threading
@@ -91,9 +92,27 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Literal, get_args
 
-from arrt.persistence.errors import StorageError, StoreMisuseError
+from arrt.persistence.errors import StorageError, StorageFault, StoreMisuseError
 
 log = logging.getLogger(__name__)
+
+
+@contextmanager
+def _host_faults() -> Iterator[None]:
+    """Raise the driver's `OperationalError` as the persistence layer's `StorageFault`.
+
+    The driver raises `OperationalError` when the file itself cannot be used (a
+    lock another process holds, a file that cannot be opened, a full, read-only
+    or failing disk), and a layer above that must react to that fault may not
+    import the driver to recognise it. Every statement this store runs once it
+    is open goes through here; a constraint the file refuses is an
+    `IntegrityError`, which `_write` translates into a `StorageError` instead.
+    """
+    try:
+        yield
+    except sqlite3.OperationalError as exc:
+        raise StorageFault(str(exc)) from exc
+
 
 #: How `upsert` resolves a row that is already present. `raise` is a plain insert
 #: and is what a catalogue addition wants — re-adding a work is a mistake, not an
@@ -286,10 +305,15 @@ class SqliteDurableStore:
                 # the body just as surely as an error does, and leaving half a
                 # rule applied is the one outcome this block exists to prevent.
                 self._after_commit.clear()
-                self._connection.rollback()
+                with _host_faults():
+                    self._connection.rollback()
                 raise
             else:
-                self._connection.commit()
+                try:
+                    self._commit()
+                except StorageFault:
+                    self._after_commit.clear()
+                    raise
                 committed, self._after_commit = self._after_commit, []
             finally:
                 self._depth = 0
@@ -327,7 +351,7 @@ class SqliteDurableStore:
     def fetch_one(self, table: str, pk: Mapping[str, Any]) -> dict[str, Any] | None:
         """Return the row whose primary key equals `pk`, or None on a miss."""
         where, values = self._equality(table, pk, as_key=True)
-        with self._lock:
+        with self._lock, _host_faults():
             row = self._connection.execute(
                 f'SELECT * FROM "{table}" WHERE {where}', values  # noqa: S608 -- names checked by _validate
             ).fetchone()
@@ -377,7 +401,7 @@ class SqliteDurableStore:
         """
         where, values = self._equality(table, filters or {}, as_key=False)
         clause = "" if not where else f" WHERE {where}"
-        with self._lock:
+        with self._lock, _host_faults():
             rows = self._connection.execute(
                 f'SELECT * FROM "{table}"{clause}', values  # noqa: S608 -- names checked by _validate
             ).fetchall()
@@ -414,7 +438,7 @@ class SqliteDurableStore:
             window, page_values = " LIMIT -1 OFFSET ?", (*values, offset)
         else:
             window, page_values = " LIMIT ? OFFSET ?", (*values, limit, offset)
-        with self._lock:
+        with self._lock, _host_faults():
             total = self._connection.execute(
                 f'SELECT COUNT(*) FROM "{table}"{clause}', values  # noqa: S608 -- names checked by _validate
             ).fetchone()[0]
@@ -475,7 +499,7 @@ class SqliteDurableStore:
         through it would leave an implicit transaction open for the next commit to
         publish. `SELECT` only.
         """
-        with self._lock:
+        with self._lock, _host_faults():
             rows = self._connection.execute(statement, tuple(values)).fetchall()
         return [dict(row) for row in rows]
 
@@ -691,9 +715,15 @@ class SqliteDurableStore:
         rows, and rolling back here would discard writes the caller made before
         this one and still believes in.
         """
-        with self._lock:
+        with self._lock, _host_faults():
             try:
                 rowcount = int(self._connection.execute(statement, values).rowcount)
+            except sqlite3.OperationalError:
+                # The same implicit transaction as below, for the same reason;
+                # `_host_faults` then raises it as a `StorageFault`.
+                if not self._depth:
+                    self._connection.rollback()
+                raise
             except sqlite3.IntegrityError as exc:
                 if not self._depth:
                     # A failed statement writes nothing, but sqlite3 has already
@@ -711,5 +741,22 @@ class SqliteDurableStore:
                 log.warning("Refused a write to %s: %s", table, exc)
                 raise StorageError(reason, reason=reason) from exc
             if not self._depth:
-                self._connection.commit()
+                self._commit()
             return rowcount
+
+    def _commit(self) -> None:
+        """Commit, or on a commit the file refuses, roll back and raise `StorageFault`.
+
+        A commit that fails (another process holds the file, the disk is full)
+        leaves the driver's transaction open. Left so, the writes in it would be
+        read back as if kept and published by the next commit that succeeds,
+        though their caller was told they failed.
+        """
+        try:
+            self._connection.commit()
+        except sqlite3.OperationalError as exc:
+            # The commit's fault is the one worth raising; a rollback that also
+            # fails leaves the connection no worse than the commit did.
+            with contextlib.suppress(sqlite3.OperationalError):
+                self._connection.rollback()
+            raise StorageFault(str(exc)) from exc

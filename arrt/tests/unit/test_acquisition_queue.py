@@ -45,6 +45,7 @@ from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.events import WorkChange
 from arrt.library.readiness import PlayableWork
 from arrt.persistence.discovery_records import Verdict
+from arrt.persistence.errors import StorageFault
 from arrt.persistence.records import (
     AcquisitionMethod,
     FetchStatus,
@@ -662,9 +663,9 @@ class TestThePause:
         [
             (OSError(errno.ENOSPC, "No space left on device"), "ENOSPC"),
             (OSError(errno.EROFS, "Read-only file system"), "EROFS"),
-            (sqlite3.OperationalError("database is locked"), "OperationalError"),
+            (StorageFault("database is locked"), "StorageFault"),
         ],
-        ids=["ENOSPC", "EROFS", "OperationalError"],
+        ids=["ENOSPC", "EROFS", "StorageFault"],
     )
     def test_a_fault_of_the_host_raised_mid_fetch_pauses_and_counts_against_no_work(
         self, queue, work, fetcher, store, fault, condition
@@ -692,6 +693,44 @@ class TestThePause:
         # The host recovers: the same work is fetched on the next pass, still counted nowhere.
         result = queue.run()
         assert (result.paused, result.acquired) == (None, 2)
+
+    def test_a_database_that_refuses_to_write_mid_fetch_pauses_through_the_real_store(
+        self, queue, work, fetcher, store, quiet_catalogue_file
+    ):
+        """The driver's own fault, raised by the real store, reaches the queue as one it pauses on.
+
+        The parametrised test above raises the fault by hand; this one makes the
+        catalogue's own connection refuse a write while the fetch records its
+        original, so what arrives is whatever the store makes of the driver's
+        `OperationalError`. Were the store to let the driver's type through, the
+        queue (which may not import the driver) would count it against the work.
+        """
+        first, second = work("One"), work("Two")
+        connection = quiet_catalogue_file._connection
+        acquire = fetcher.acquire
+
+        def refused(artwork_id, *, source_id=None):
+            connection.execute("PRAGMA query_only = ON")
+            return acquire(artwork_id, source_id=source_id)
+
+        fetcher.acquire = refused
+        try:
+            result = queue.run()
+        finally:
+            connection.execute("PRAGMA query_only = OFF")
+            fetcher.acquire = acquire
+
+        assert result.paused is not None
+        assert result.paused.condition == "StorageFault"
+        assert "readonly" in result.paused.detail
+        assert result.paused.remedy is not None
+        assert (result.failed, result.gave_up) == (0, 0)
+        assert [artwork_id for artwork_id, _ in fetcher.calls] == [first]
+        assert queue.state_of([first])[first].failures == 0
+
+        result = queue.run()
+        assert (result.paused, result.acquired) == (None, 2)
+        assert queue.state_of([first, second]) == {}
 
     def test_a_fault_of_the_host_raised_while_preparing_pauses_too(self, queue, work, preparer, store):
         artwork_id = work()

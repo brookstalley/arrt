@@ -44,6 +44,7 @@ from arrt.persistence.discovery_records import (
     RunStatus,
     WorkProvenance,
 )
+from arrt.persistence.errors import StorageFault
 
 
 def test_a_complete_page_gets_no_notice(seeded_service):
@@ -390,8 +391,8 @@ _REMEDY_FOR = {
 
 #: The names the queue's pauses on a fault of the host carry, derived from the
 #: queue's own set of host `errno`s, so a disk fault added there without a
-#: remedy fails the test below. A database fault is `OperationalError`.
-_HOST_CONDITIONS = (*sorted(errno.errorcode[number] for number in _HOST_ERRNOS), "OperationalError")
+#: remedy fails the test below. A database fault is the store's `StorageFault`.
+_HOST_CONDITIONS = (*sorted(errno.errorcode[number] for number in _HOST_ERRNOS), StorageFault.__name__)
 
 
 def test_every_raise_rather_than_record_condition_has_a_remedy_of_its_own():

@@ -117,7 +117,7 @@ DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
         "Have the disk checked: the queue tries again every 15 minutes and carries on by itself once it can write. "
         "No work is counted as failed meanwhile."
     ),
-    "OperationalError": (
+    "StorageFault": (
         "The library's database could not be written: something else has it locked, or the disk under it has a "
         "fault. Close anything else that has the library open, or restart Arrt: the queue tries again every 15 "
         "minutes and carries on by itself once it can write. No work is counted as failed meanwhile."
