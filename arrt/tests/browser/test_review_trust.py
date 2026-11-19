@@ -145,7 +145,8 @@ def test_a_verdict_waits_with_undo_and_then_is_sent_once(ui):
         "Accepting The Persistence of Memory in a few seconds.", use_inner_text=True
     )
     expect(_card(ui).locator("button:text-is('Accept')")).to_be_hidden()
-    ui.page.wait_for_timeout(1000)  # sleep: nothing is sent while Undo can still take the verdict back, which no condition marks
+    # Nothing is sent while Undo can still take the verdict back, which no condition marks.
+    ui.page.wait_for_timeout(1000)  # sleep: part of the hold, with Undo still offered
     assert sent == [], "nothing is sent while Undo can still take it back"
 
     _card(ui).locator(".decided").wait_for(timeout=(HOLD_SECONDS + 5) * 1000)
@@ -167,7 +168,8 @@ def test_undo_sends_nothing_and_gives_the_controls_back(ui):
     assert ui.focused() == "Reject"
     expect(_card(ui).locator(".verdict-held")).to_have_count(0)
     expect(_card(ui).locator("input[type='text']"), "the reason typed is kept").to_have_value("Wrong one")
-    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)  # sleep: the hold runs out and sends nothing, which only its running out shows
+    # The hold runs out and sends nothing: only its running out shows that.
+    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)  # sleep: the hold's own length, undone
     assert sent == [], "an undone verdict is never sent"
 
 
@@ -216,7 +218,9 @@ def test_a_held_verdict_that_fails_after_leaving_is_said_on_the_page_left_for(ui
     # page has painted and settled.
     said = ui.page.locator("[role='alert']:visible", has_text="Couldn't accept The Persistence of Memory")
     said.first.wait_for(timeout=3000)
-    ui.page.wait_for_timeout(1000)  # sleep: the failure must outlast the next page's paint, which can land after it and has no sign of its own
+    # The failure must outlast the next page's paint, which can land after it
+    # and has no sign of its own to wait for.
+    ui.page.wait_for_timeout(1000)  # sleep: the next page's paint has no sign of its own
     expect(said).to_have_count(1)
     expect(said.first).to_contain_text("the server failed while doing it: The catalogue is locked.", use_inner_text=True)
 
@@ -241,7 +245,8 @@ def test_a_card_drawn_again_during_the_hold_shows_the_hold_and_its_undo_works(ui
     _card(ui).locator("button:text-is('Undo')").click()
 
     expect(_card(ui).locator("button:text-is('Accept')")).to_be_visible()
-    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)  # sleep: the undone hold runs out and sends nothing, which only its running out shows
+    # The undone hold runs out and sends nothing: only its running out shows that.
+    ui.page.wait_for_timeout((HOLD_SECONDS + 1) * 1000)  # sleep: the hold's own length, undone
     assert sent == [], "the hold undone on the redrawn card is never sent"
 
 

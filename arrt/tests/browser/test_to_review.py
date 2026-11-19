@@ -17,8 +17,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
-from playwright.sync_api import expect
 from payloads import a_candidate, a_candidate_page, a_card, a_run, a_verdict, an_instance_listing
+from playwright.sync_api import expect
 
 from arrt.http.models import RunListOut
 
