@@ -94,7 +94,7 @@ that argument about the art tree without noticing it applied twice.
 
 **The checkout's path was a requirement nobody had written down.** This section
 said the account owns "the checkout the units execute from" and never said where
-it was; both unit files said `/home/tvpi/source/samsung-frame-art-loader`, which
+it was; both unit files said `/home/<user>/source/samsung-frame-art-loader`, which
 is not a location anyone chose so much as the path the 2024 card happened to
 have. It surfaced at the cutover as a hard blocker rather than a preference: the
 only checkout on the machine sat at `/home/<login>/source/…` under a home

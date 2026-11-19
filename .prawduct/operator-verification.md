@@ -2873,7 +2873,7 @@ with the below-floor work pictured and marked `is_on_offer: false`.
 > `tests/test_repo_hygiene.py`, which is the durable form of this check.
 
 **Not visual — this needs the Pi, and it is quick.** The unit now declares
-`EnvironmentFile=/home/tvpi/source/samsung-frame-art-loader/.env` un-prefixed and
+`EnvironmentFile=/home/<user>/source/samsung-frame-art-loader/.env` un-prefixed and
 sets `StartLimitIntervalSec=0` / `RestartSec=10`. Everything about that was
 established by reading systemd's documentation; whether *this* unit on *this*
 machine starts under it has not been observed, and the un-prefixed directive is

@@ -2796,7 +2796,7 @@ suppresses it and leaves the verdict where it was.
    constraint makes it impossible to record one as valid.
 6. **All stored paths are relative to `ART_ROOT`.** No absolute paths in any
    record. This is what makes the catalogue portable between planes and machines,
-   and it is the fix for `/home/tvpi/art` having been hardcoded in `config.py`.
+   and it is the fix for `/home/<user>/art` having been hardcoded in `config.py`.
 7. **Suppression has two scopes and they never share a key.**
    a. A `rejected` **CandidateWork**'s `work_dedup_key` suppresses that *work* from
       future proposals, unless the curator explicitly reconsiders it.
