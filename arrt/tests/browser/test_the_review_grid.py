@@ -11,6 +11,8 @@ never load are as broken as alternates loaded thirty at a time, and a card that
 repaints the whole grid loses the curator their scroll position on every verdict.
 """
 
+import re
+
 import pytest
 from payloads import (
     a_candidate,
@@ -25,6 +27,7 @@ from payloads import (
     an_instance,
     an_instance_listing,
 )
+from playwright.sync_api import expect
 
 from arrt.persistence.discovery_records import ResolutionStatus, RunStatus, Verdict, WorkProvenance
 
@@ -74,9 +77,11 @@ def test_the_scans_disclosure_does_not_promise_scans_the_curator_has_already_see
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    summary = grid.page.locator("li.card summary").first.inner_text()
-    assert summary == "Scans (1)", summary
-    assert "other" not in summary.lower(), f"the summary promises scans beyond the one pictured: {summary!r}"
+    summary = grid.page.locator("li.card summary").first
+    expect(summary).to_have_text("Scans (1)", use_inner_text=True)
+    expect(summary, "the summary promises scans beyond the one pictured").not_to_contain_text(
+        "other", use_inner_text=True, ignore_case=True
+    )
 
 
 # -- the alternates are fetched when opened, not with the grid ---------------
@@ -139,14 +144,15 @@ def test_opening_the_alternates_shows_what_a_curator_chooses_between(grid):
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
 
-    rows = [" ".join(row.split()) for row in grid.page.locator("tr.alternate").all_inner_texts()]
-    assert "3,840 × 2,604 px" in rows[0], rows[0]
-    assert "minimum" not in rows[0], rows[0]
-    assert "on offer" in rows[0], rows[0]
-    assert "1,100 × 856 px" in rows[1], rows[1]
-    assert "below minimum" in rows[1], rows[1]
-    assert "on offer" not in rows[1], rows[1]
-    assert "″" not in grid.text()
+    rows = grid.page.locator("tr.alternate")
+    expect(rows).to_have_count(2)
+    expect(rows.nth(0)).to_contain_text("3,840 × 2,604 px", use_inner_text=True)
+    expect(rows.nth(0)).to_contain_text("on offer", use_inner_text=True)
+    expect(rows.nth(0)).not_to_contain_text("minimum", use_inner_text=True)
+    expect(rows.nth(1)).to_contain_text("1,100 × 856 px", use_inner_text=True)
+    expect(rows.nth(1)).to_contain_text("below minimum", use_inner_text=True)
+    expect(rows.nth(1)).not_to_contain_text("on offer", use_inner_text=True)
+    expect(grid.view).not_to_contain_text("″", use_inner_text=True)
 
 
 def test_turning_a_scan_down_leaves_the_alternates_open(grid):
@@ -179,7 +185,7 @@ def test_turning_a_scan_down_leaves_the_alternates_open(grid):
     # asserted as well as the open attribute: a disclosure carried open whose
     # listener never fires again shows "Loading the other scans…" for ever, which
     # is open and empty and looks exactly like a request that never came back.
-    assert grid.page.locator("details[open]").count() == 1
+    expect(grid.page.locator("details[open]")).to_have_count(1)
     grid.page.wait_for_selector("details[open] tr.alternate")
 
 
@@ -193,7 +199,7 @@ def test_the_alternates_of_an_untouched_card_start_closed(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert grid.page.locator("details[open]").count() == 0
+    expect(grid.page.locator("details[open]")).to_have_count(0)
 
 
 def test_an_alternate_s_buttons_name_the_work_rather_than_its_id(grid):
@@ -219,6 +225,7 @@ def test_an_alternate_s_buttons_name_the_work_rather_than_its_id(grid):
     # `button.action`, the scan's two actions: each row's picture is a button
     # too now, the one that enlarges it, and its own name is asserted where the
     # enlarging is.
+    expect(grid.page.locator("tr.alternate button.action")).to_have_count(3)  # the buttons the labels below are read from
     labels = grid.page.locator("tr.alternate button.action").evaluate_all("nodes => nodes.map(n => n.getAttribute('aria-label'))")
     assert len(labels) == 3, f"expected both actions on the choosable scan and one on the selected one: {labels}"
     for label in labels:
@@ -257,7 +264,7 @@ def test_a_verdict_repaints_only_the_card_it_was_recorded_on(grid):
     # The same DOM node, not an equal one: a whole-grid repaint replaces every
     # element, so identity is what tells "left alone" from "rebuilt identically".
     assert handle.evaluate("node => node.isConnected") is True
-    assert grid.page.locator("li.card").count() == 2
+    expect(grid.page.locator("li.card")).to_have_count(2)
 
 
 def test_the_card_a_verdict_was_recorded_on_does_change(grid):
@@ -270,7 +277,7 @@ def test_the_card_a_verdict_was_recorded_on_does_change(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=a_candidate(verdict=Verdict.ACCEPTED.value)).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "accepted" not in grid.text()
+    expect(grid.view).not_to_contain_text("accepted", use_inner_text=True)
 
     grid.page.click("button:has-text('Accept')")
 
@@ -302,7 +309,7 @@ def test_a_newly_minted_artist_notice_survives_the_repaint(grid):
     grid.page.click("button:has-text('Accept')")
     grid.page.wait_for_selector(".badge:has-text('accepted')")
 
-    assert "may be the same painter" in grid.text()
+    expect(grid.view).to_contain_text("may be the same painter", use_inner_text=True)
 
 
 def test_an_acceptance_with_nothing_to_say_says_nothing(grid):
@@ -315,7 +322,7 @@ def test_an_acceptance_with_nothing_to_say_says_nothing(grid):
     grid.page.click("button:has-text('Accept')")
     grid.page.wait_for_selector(".badge:has-text('accepted')")
 
-    assert "may be the same painter" not in grid.text()
+    expect(grid.view).not_to_contain_text("may be the same painter", use_inner_text=True)
 
 
 # -- a decided card says what was decided --------------------------------------
@@ -325,13 +332,12 @@ def test_an_acceptance_with_nothing_to_say_says_nothing(grid):
 # Accept read as though the click had not taken (the owner, 2026-10-06).
 
 
-def _controls(grid, work_id="work-1"):
+def _expect_controls(grid, *, why, accept, reject, work_id="work-1"):
+    """The card's Why field, Accept and Reject, each as many as `why`, `accept` and `reject` say."""
     card = grid.page.locator(f"li.card[data-work='{work_id}']")
-    return {
-        "why": card.locator("input[id^='reason-']").count(),
-        "accept": card.locator("button:text-is('Accept'), button:text-is('Accept anyway')").count(),
-        "reject": card.locator("button:text-is('Reject')").count(),
-    }
+    expect(card.locator("input[id^='reason-']"), "the Why field").to_have_count(why)
+    expect(card.locator("button:text-is('Accept'), button:text-is('Accept anyway')"), "Accept").to_have_count(accept)
+    expect(card.locator("button:text-is('Reject')"), "Reject").to_have_count(reject)
 
 
 def test_an_accepted_card_says_so_in_place_of_its_controls(grid):
@@ -341,13 +347,13 @@ def test_an_accepted_card_says_so_in_place_of_its_controls(grid):
     grid.serve("**/api/works/art-1", {"acquisition": None, "original": {"width": 4000, "height": 3000}})
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert _controls(grid) == {"why": 1, "accept": 1, "reject": 1}
+    _expect_controls(grid, why=1, accept=1, reject=1)
 
     grid.page.click("button:has-text('Accept')")
     grid.page.wait_for_selector("li.card .decided")
 
-    assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
-    assert grid.page.locator("li.card .decided p").inner_text() == "Accepted. It is in your library."
+    _expect_controls(grid, why=0, accept=0, reject=0)
+    expect(grid.page.locator("li.card .decided p")).to_have_text("Accepted. It is in your library.", use_inner_text=True)
     grid.page.click("li.card .decided a:text-is('Open it in Artworks')")
     grid.page.wait_for_function("() => window.location.hash.startsWith('#work/art-1')")
 
@@ -361,9 +367,9 @@ def test_a_rejected_card_says_so_in_place_of_its_controls(grid):
     grid.page.click("button:text-is('Reject')")
     grid.page.wait_for_selector("li.card .decided")
 
-    assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
-    assert grid.page.locator("li.card .decided p").inner_text() == "Rejected. It will not be proposed again."
-    assert grid.page.locator("li.card .decided button").count() == 0
+    _expect_controls(grid, why=0, accept=0, reject=0)
+    expect(grid.page.locator("li.card .decided p")).to_have_text("Rejected. It will not be proposed again.", use_inner_text=True)
+    expect(grid.page.locator("li.card .decided button")).to_have_count(0)
 
 
 def test_a_decided_works_scans_offer_nothing_to_choose(grid):
@@ -383,8 +389,8 @@ def test_a_decided_works_scans_offer_nothing_to_choose(grid):
     grid.page.click("li.review-card summary")
     grid.page.wait_for_selector("tr.alternate")
 
-    assert grid.page.locator("tr.alternate .scan-actions button").count() == 0
-    assert _controls(grid) == {"why": 0, "accept": 0, "reject": 0}
+    expect(grid.page.locator("tr.alternate .scan-actions button")).to_have_count(0)
+    _expect_controls(grid, why=0, accept=0, reject=0)
 
 
 @pytest.mark.parametrize(("verdict", "shown"), [(Verdict.PENDING, True), (Verdict.ACCEPTED, False)])
@@ -402,10 +408,17 @@ def test_a_decided_card_drops_the_notices_that_invite_a_verdict(grid, verdict, s
     grid.open_folds()
     grid.page.wait_for_selector("li.card")
 
-    text = grid.page.locator("li.card").inner_text()
-    assert ("Already in your library" in text) is shown
-    assert ("No scan is on offer for this work" in text) is shown
-    assert grid.page.locator("li.card .decided").count() == (0 if shown else 1)
+    card_text = grid.page.locator("li.card")
+    decided = grid.page.locator("li.card .decided")
+    if shown:
+        expect(card_text).to_contain_text("Already in your library", use_inner_text=True)
+        expect(card_text).to_contain_text("No scan is on offer for this work", use_inner_text=True)
+        expect(decided).to_have_count(0)
+    else:
+        # The decided line first: it is what the card has once the notices are gone.
+        expect(decided).to_have_count(1)
+        expect(card_text).not_to_contain_text("Already in your library", use_inner_text=True)
+        expect(card_text).not_to_contain_text("No scan is on offer for this work", use_inner_text=True)
 
 
 def test_a_wanted_card_still_offers_forget(grid):
@@ -416,8 +429,8 @@ def test_a_wanted_card_still_offers_forget(grid):
     grid.open_folds()
     grid.page.wait_for_selector("li.card")
 
-    assert grid.page.locator("li.card button:text-is('Forget')").count() == 1
-    assert grid.page.locator("li.card .decided").count() == 0
+    expect(grid.page.locator("li.card button:text-is('Forget')")).to_have_count(1)
+    expect(grid.page.locator("li.card .decided")).to_have_count(0)
 
 
 # -- a picture that is shown but is not on offer ------------------------------
@@ -437,7 +450,7 @@ def test_a_work_with_no_scan_on_offer_says_accepting_will_be_refused(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert "No scan is on offer for this work" in grid.text()
+    expect(grid.view).to_contain_text("No scan is on offer for this work", use_inner_text=True)
 
 
 def test_a_work_standing_on_a_scan_says_nothing_of_the_kind(grid):
@@ -445,7 +458,7 @@ def test_a_work_standing_on_a_scan_says_nothing_of_the_kind(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert "No scan is on offer" not in grid.text()
+    expect(grid.view).not_to_contain_text("No scan is on offer", use_inner_text=True)
 
 
 # -- the re-search --------------------------------------------------------
@@ -456,7 +469,7 @@ def test_nothing_offers_a_re_search_when_no_work_is_wanted(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert "Get these again" not in grid.text()
+    expect(grid.view).not_to_contain_text("Get these again", use_inner_text=True)
 
 
 def test_a_wanted_work_is_offered_a_re_search(grid):
@@ -472,12 +485,11 @@ def test_a_wanted_work_is_offered_a_re_search(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    shown = grid.text()
-    assert "1 work is wanted." in shown
-    assert "Nothing is looking for a scan" in shown
+    expect(grid.view).to_contain_text("1 work is wanted.", use_inner_text=True)
+    expect(grid.view).to_contain_text("Nothing is looking for a scan", use_inner_text=True)
     # Says what it costs, which is nothing: phase 2 asks open museum and
     # Commons APIs (`phase2_estimate_usd`). It said "it spends" until 2026-10-02.
-    assert "it costs nothing" in shown
+    expect(grid.view).to_contain_text("it costs nothing", use_inner_text=True)
 
 
 def test_the_re_search_asks_only_for_the_works_that_are_waiting(grid):
@@ -537,16 +549,15 @@ def test_the_offer_to_re_search_appears_when_a_scan_is_turned_down(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=wanting).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "Get these again" not in grid.text()
+    expect(grid.view).not_to_contain_text("Get these again", use_inner_text=True)
 
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
     grid.page.click("button:has-text('Turn it down')")
     grid.page.wait_for_selector(".badge-wanted:has-text('wanted')")
 
-    shown = grid.text()
-    assert "1 work is wanted." in shown
-    assert "Get these again" in shown
+    expect(grid.view).to_contain_text("1 work is wanted.", use_inner_text=True)
+    expect(grid.view).to_contain_text("Get these again", use_inner_text=True)
 
 
 def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
@@ -576,14 +587,14 @@ def test_the_re_search_covers_a_work_turned_down_after_the_page_loaded(grid):
 
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "1 work is wanted." in grid.text()
+    expect(grid.view).to_contain_text("1 work is wanted.", use_inner_text=True)
 
     grid.page.click("li.card[data-work='work-1'] summary")
     grid.page.wait_for_selector("tr.alternate")
     grid.page.click("li.card[data-work='work-1'] button:has-text('Turn it down')")
     grid.page.wait_for_selector("li.card[data-work='work-1'] .badge-wanted:has-text('wanted')")
 
-    assert "2 works are wanted." in grid.text()
+    expect(grid.view).to_contain_text("2 works are wanted.", use_inner_text=True)
 
     grid.page.click("button:has-text('Get these again')")
     grid.page.wait_for_url("**/#get/resolve-run")
@@ -614,15 +625,15 @@ def test_the_offer_is_announced_to_a_curator_who_cannot_see_it_appear(grid):
     grid.page.wait_for_selector("li.card")
 
     region = grid.page.locator("[role='status']")
-    assert region.count() == 1, "the live region must already exist, empty, before anything is put in it"
-    assert region.inner_text().strip() == ""
+    expect(region, "the live region must already exist, empty, before anything is put in it").to_have_count(1)
+    expect(region).to_have_text("", use_inner_text=True)
 
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
     grid.page.click("button:has-text('Turn it down')")
     grid.page.wait_for_selector(".badge-wanted:has-text('wanted')")
 
-    assert "is wanted." in region.inner_text()
+    expect(region).to_contain_text("is wanted.", use_inner_text=True)
 
 
 def test_the_offer_is_not_re_announced_when_no_verdict_moved(grid):
@@ -661,7 +672,7 @@ def test_the_offer_is_not_re_announced_when_no_verdict_moved(grid):
     grid.page.wait_for_selector("li.card[data-work='other'] .badge:has-text('accepted')")
 
     assert handle.evaluate("node => node.isConnected") is True, "the offer was rebuilt though nothing it describes changed"
-    assert "1 work is wanted." in grid.text()
+    expect(grid.view).to_contain_text("1 work is wanted.", use_inner_text=True)
 
 
 def test_the_offer_withdraws_when_the_last_waiting_work_is_settled(grid):
@@ -681,12 +692,12 @@ def test_the_offer_withdraws_when_the_last_waiting_work_is_settled(grid):
     grid.serve("**/api/candidates/work-1", a_card(work=a_candidate(verdict=Verdict.ACCEPTED.value)).model_dump(mode="json"))
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
-    assert "Get these again" in grid.text()
+    expect(grid.view).to_contain_text("Get these again", use_inner_text=True)
 
     grid.page.click("button:has-text('Accept')")
     grid.page.wait_for_selector(".badge:has-text('accepted')")
 
-    assert "Get these again" not in grid.text()
+    expect(grid.view).not_to_contain_text("Get these again", use_inner_text=True)
 
 
 # -- paging through the run's works -------------------------------------------
@@ -711,9 +722,9 @@ def test_the_grid_pages_through_to_the_end(ui):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("li.card").count() == 2
-    assert "First" in ui.text()
-    assert "Second" in ui.text()
+    expect(ui.page.locator("li.card")).to_have_count(2)
+    expect(ui.view).to_contain_text("First", use_inner_text=True)
+    expect(ui.view).to_contain_text("Second", use_inner_text=True)
 
 
 def test_a_page_that_says_there_is_more_and_carries_nothing_is_not_asked_again(ui):
@@ -751,7 +762,7 @@ def test_a_listing_that_keeps_insisting_there_is_more_still_terminates(ui):
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert "more are held and are not on this page" in ui.text()
+    expect(ui.view).to_contain_text("more are held and are not on this page", use_inner_text=True)
 
 
 # -- the verdict, in words ----------------------------------------------------
@@ -783,11 +794,12 @@ def test_every_decided_verdict_reaches_the_page_as_words_and_a_glyph(grid, verdi
     grid.page.wait_for_selector("li.card")
 
     badge = grid.page.locator(f"li.card span.badge-{verdict.value}")
-    assert badge.count() == 1, f"the {verdict.value} verdict has no badge of its own on the card"
-    words = badge.inner_text().strip()
-    assert words, f"{verdict.value} reached the page with no words"
-    assert "_" not in words, f"the raw token {verdict.value!r} reached the page"
-    assert badge.locator("span.glyph").inner_text().strip(), f"{verdict.value} reached the page with no glyph"
+    expect(badge, f"the {verdict.value} verdict has no badge of its own on the card").to_have_count(1)
+    expect(badge, f"{verdict.value} reached the page with no words").to_have_text(re.compile(r"\S"), use_inner_text=True)
+    expect(badge, f"the raw token {verdict.value!r} reached the page").not_to_contain_text("_", use_inner_text=True)
+    expect(badge.locator("span.glyph"), f"{verdict.value} reached the page with no glyph").to_have_text(
+        re.compile(r"\S"), use_inner_text=True
+    )
 
 
 def test_an_undecided_work_carries_no_verdict_badge(grid):
@@ -800,7 +812,7 @@ def test_an_undecided_work_carries_no_verdict_badge(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert "pending" not in grid.text()
+    expect(grid.view).not_to_contain_text("pending", use_inner_text=True)
 
 
 # -- a picture that will not load ---------------------------------------------
@@ -820,7 +832,7 @@ def test_a_picture_that_fails_to_load_says_so_rather_than_leaving_a_blank(ui):
     ui.page.wait_for_selector("li.card")
 
     ui.page.wait_for_selector(".card-image-absent")
-    assert "could not be loaded" in ui.text()
+    expect(ui.view).to_contain_text("could not be loaded", use_inner_text=True)
 
 
 def test_a_picture_that_is_not_kept_is_named_rather_than_requested(ui):
@@ -859,8 +871,8 @@ def test_a_picture_that_is_not_kept_is_named_rather_than_requested(ui):
     ui.page.wait_for_selector("li.card")
 
     assert ui.requests_matching("/api/candidate-images/") == []
-    assert "No local copy of this image is kept" in ui.text()
-    assert "could not be loaded" not in ui.text()
+    expect(ui.view).to_contain_text("No local copy of this image is kept", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("could not be loaded", use_inner_text=True)
 
 
 def test_a_work_the_run_found_nothing_for_says_so_without_asking_for_a_picture(ui):
@@ -889,11 +901,11 @@ def test_a_work_the_run_found_nothing_for_says_so_without_asking_for_a_picture(u
     ui.page.wait_for_selector("li.card")
 
     assert ui.requests_matching("/api/candidate-images/") == []
-    assert "No scan was found for this work." in ui.text()
+    expect(ui.view).to_contain_text("No scan was found for this work.", use_inner_text=True)
     # Chunk 21's point, still standing at the far end of the pipe.
-    assert "not_held" not in ui.text()
+    expect(ui.view).not_to_contain_text("not_held", use_inner_text=True)
     # In words, and not "not held", which elsewhere says the library lacks a work.
-    assert "in no collection" in ui.text()
+    expect(ui.view).to_contain_text("in no collection", use_inner_text=True)
 
 
 def test_a_work_whose_every_scan_was_turned_down_is_not_told_nothing_was_found(ui):
@@ -928,24 +940,27 @@ def test_a_work_whose_every_scan_was_turned_down_is_not_told_nothing_was_found(u
     ui.open(f"#review/{RUN_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert "You have turned down everything that was found for it." in ui.text()
-    assert "No scan was found for this work." not in ui.text()
+    expect(ui.view).to_contain_text("You have turned down everything that was found for it.", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("No scan was found for this work.", use_inner_text=True)
     # The third disagreeing part, now settled. `resolution_status` describes what
     # the RUN found and rejecting an image deliberately does not rewrite it — so
     # the column was right and "has an image" was the wrong tense for it. The
     # badge and the sentence now say compatible things about the same card.
-    assert "the Get found an image" in ui.text()
-    assert "has an image" not in ui.text(), (
+    expect(ui.view).to_contain_text("the Get found an image", use_inner_text=True)
+    expect(
+        ui.view,
         "a present-tense badge beside 'you have turned down everything that was found for it' "
-        "is the contradiction this card had three of"
-    )
+        "is the contradiction this card had three of",
+    ).not_to_contain_text("has an image", use_inner_text=True)
     # **No way back is offered, because there is none.** An earlier version of
     # this fix told the curator to "restore one from the scans below"; every row
     # there renders its controls as null once rejected, no restore endpoint
     # exists, and `select_image` refuses a rejected instance on purpose so that a
     # rejection survives the next re-search. Asserted as an absence because a
     # sentence promising an impossible action is the defect this test guards.
-    assert "estore" not in ui.text(), "the card offers a way back that the product does not have"
+    expect(ui.view, "the card offers a way back that the product does not have").not_to_contain_text(
+        "estore", use_inner_text=True
+    )
 
 
 # -- getting there and back ---------------------------------------------------
@@ -969,7 +984,7 @@ def test_the_run_view_offers_the_way_into_the_grid(ui):
     ui.page.click("a:has-text('Review these works')")
 
     ui.page.wait_for_selector("li.card")
-    assert ui.page.url.endswith(f"#review/{RUN_ID}")
+    expect(ui.page).to_have_url(re.compile(re.escape(f"#review/{RUN_ID}") + "$"))
 
 
 def test_a_run_holding_no_works_offers_no_way_into_an_empty_grid(ui):
@@ -984,7 +999,7 @@ def test_a_run_holding_no_works_offers_no_way_into_an_empty_grid(ui):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view p.note")
 
-    assert "Review these works" not in ui.text()
+    expect(ui.view).not_to_contain_text("Review these works", use_inner_text=True)
 
 
 # -- the collection's offers say why they are there, once per query ------------
@@ -1035,9 +1050,10 @@ def test_the_offer_does_not_deny_the_works_the_same_page_shows_the_run_naming(gr
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    shown = grid.text()
-    assert "found no image for 1 work it named by this artist" in shown
-    assert "could not confirm a work for" not in shown, "the page still denies work it is showing"
+    expect(grid.view).to_contain_text("found no image for 1 work it named by this artist", use_inner_text=True)
+    expect(grid.view, "the page still denies work it is showing").not_to_contain_text(
+        "could not confirm a work for", use_inner_text=True
+    )
 
 
 def test_the_offer_says_its_query_once_rather_than_on_every_card(grid):
@@ -1055,8 +1071,10 @@ def test_the_offer_says_its_query_once_rather_than_on_every_card(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert grid.page.locator("li.card").count() == 4
-    assert grid.text().count("The collection holds") == 1, "the query's fact is repeated per card"
+    expect(grid.page.locator("li.card")).to_have_count(4)
+    # Said once: the page's words hold the phrase exactly one time.
+    exactly_once = re.compile(r"^(?:(?!The collection holds).)*The collection holds(?:(?!The collection holds).)*$", re.DOTALL)
+    expect(grid.view, "the query's fact is repeated per card").to_have_text(exactly_once, use_inner_text=True)
 
 
 def test_the_offer_reconciles_what_the_collection_holds_with_what_one_run_shows(grid):
@@ -1075,8 +1093,10 @@ def test_the_offer_reconciles_what_the_collection_holds_with_what_one_run_shows(
     grid.page.wait_for_selector("li.card")
 
     group = grid.page.locator("section.offer-group")
-    assert group.count() == 1
-    assert "The collection holds 25 works by them; these 3 are what this Get offered." in group.inner_text()
+    expect(group).to_have_count(1)
+    expect(group).to_contain_text(
+        "The collection holds 25 works by them; these 3 are what this Get offered.", use_inner_text=True
+    )
 
 
 def test_the_offer_reconciliation_agrees_over_a_single_offered_work(grid):
@@ -1091,9 +1111,9 @@ def test_the_offer_reconciliation_agrees_over_a_single_offered_work(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    said = grid.page.locator("section.offer-group").inner_text()
-    assert "this 1 is what this Get offered" in said
-    assert "these 1 are" not in said
+    said = grid.page.locator("section.offer-group")
+    expect(said).to_contain_text("this 1 is what this Get offered", use_inner_text=True)
+    expect(said).not_to_contain_text("these 1 are", use_inner_text=True)
 
 
 def test_a_card_truncated_by_one_scan_says_so_in_the_singular(grid):
@@ -1109,9 +1129,8 @@ def test_a_card_truncated_by_one_scan_says_so_in_the_singular(grid):
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
 
-    said = grid.text()
-    assert "This work holds 2 scans; 1 already turned down is not shown" in said
-    assert "1 already turned down are not shown" not in said
+    expect(grid.view).to_contain_text("This work holds 2 scans; 1 already turned down is not shown", use_inner_text=True)
+    expect(grid.view).not_to_contain_text("1 already turned down are not shown", use_inner_text=True)
 
 
 def test_a_card_withholding_one_choosable_scan_says_so_in_the_singular(grid):
@@ -1138,9 +1157,10 @@ def test_a_card_withholding_one_choosable_scan_says_so_in_the_singular(grid):
     grid.page.click("summary")
     grid.page.wait_for_selector("tr.alternate")
 
-    said = grid.text()
-    assert "This work holds 13 scans and 1 is not shown, including some you could still choose" in said
-    assert "and 1 are not shown" not in said
+    expect(grid.view).to_contain_text(
+        "This work holds 13 scans and 1 is not shown, including some you could still choose", use_inner_text=True
+    )
+    expect(grid.view).not_to_contain_text("and 1 are not shown", use_inner_text=True)
 
 
 def test_an_offer_that_is_the_whole_of_what_is_held_claims_no_cap(grid):
@@ -1156,9 +1176,10 @@ def test_an_offer_that_is_the_whole_of_what_is_held_claims_no_cap(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    shown = grid.text()
-    assert "These are all 1 work the collection holds by them." in shown
-    assert "what this Get offered" not in shown, "a subset was described where every held work is present"
+    expect(grid.view).to_contain_text("These are all 1 work the collection holds by them.", use_inner_text=True)
+    expect(grid.view, "a subset was described where every held work is present").not_to_contain_text(
+        "what this Get offered", use_inner_text=True
+    )
 
 
 def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
@@ -1189,8 +1210,8 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
     # card's artist line. The attribute is the only unambiguous handle.
     dali = grid.page.locator("section.offer-group[data-offer-artist='Salvador Dalí']")
     kelly = grid.page.locator("section.offer-group[data-offer-artist='Ellsworth Kelly']")
-    assert dali.count() == 1
-    assert kelly.count() == 1
+    expect(dali).to_have_count(1)
+    expect(kelly).to_have_count(1)
 
     # The visible heading, not only the attribute. Rescoping these assertions to
     # `data-offer-artist` removed the last assertion on rendered heading text —
@@ -1200,14 +1221,18 @@ def test_two_queries_are_two_groups_rather_than_one_run_of_cards(grid):
     # `h2:not(.card-title)` because a card's own title is an h2 too — the group
     # heading and the works it heads are the same rank in the markup, which is
     # worth its own look and is recorded as such rather than changed in passing.
-    assert "Offered by the collection — Salvador Dalí" in dali.locator("h2:not(.card-title)").inner_text()
-    assert "Offered by the collection — Ellsworth Kelly" in kelly.locator("h2:not(.card-title)").inner_text()
+    expect(dali.locator("h2:not(.card-title)")).to_contain_text("Offered by the collection — Salvador Dalí", use_inner_text=True)
+    expect(kelly.locator("h2:not(.card-title)")).to_contain_text(
+        "Offered by the collection — Ellsworth Kelly", use_inner_text=True
+    )
 
-    assert "holds 25 works" in dali.inner_text()
-    assert "holds 400 works" not in dali.inner_text(), "one query's holdings total sits above another's works"
-    assert "holds 400 works" in kelly.inner_text()
-    assert dali.locator("li.card[data-work='dali-1']").count() == 1
-    assert kelly.locator("li.card[data-work='kelly-1']").count() == 1
+    expect(dali).to_contain_text("holds 25 works", use_inner_text=True)
+    expect(kelly).to_contain_text("holds 400 works", use_inner_text=True)
+    expect(dali, "one query's holdings total sits above another's works").not_to_contain_text(
+        "holds 400 works", use_inner_text=True
+    )
+    expect(dali.locator("li.card[data-work='dali-1']")).to_have_count(1)
+    expect(kelly.locator("li.card[data-work='kelly-1']")).to_have_count(1)
 
 
 def test_an_offer_whose_query_was_never_recorded_still_reaches_the_page(grid):
@@ -1236,10 +1261,11 @@ def test_an_offer_whose_query_was_never_recorded_still_reaches_the_page(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    assert grid.page.locator("li.card[data-work='orphan']").count() == 1
-    shown = grid.text()
-    assert "The collection offered 1 work it holds by them." in shown
-    assert "The collection holds" not in shown, "a total was invented for a group that recorded none"
+    expect(grid.page.locator("li.card[data-work='orphan']")).to_have_count(1)
+    expect(grid.view).to_contain_text("The collection offered 1 work it holds by them.", use_inner_text=True)
+    expect(grid.view, "a total was invented for a group that recorded none").not_to_contain_text(
+        "The collection holds", use_inner_text=True
+    )
 
 
 def test_the_offer_counts_only_the_named_works_that_found_no_image(grid):
@@ -1271,9 +1297,10 @@ def test_the_offer_counts_only_the_named_works_that_found_no_image(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    shown = grid.text()
-    assert "found no image for 1 work it named by this artist" in shown
-    assert "2 works it named" not in shown, "a work the run did find an image for was counted as a failure"
+    expect(grid.view).to_contain_text("found no image for 1 work it named by this artist", use_inner_text=True)
+    expect(grid.view, "a work the run did find an image for was counted as a failure").not_to_contain_text(
+        "2 works it named", use_inner_text=True
+    )
 
 
 def test_an_offer_with_nothing_named_beside_it_claims_no_failed_works(grid):
@@ -1290,9 +1317,12 @@ def test_an_offer_with_nothing_named_beside_it_claims_no_failed_works(grid):
     grid.open(f"#review/{RUN_ID}")
     grid.page.wait_for_selector("li.card")
 
-    shown = grid.text()
-    assert "found no image for" not in shown, "a failure clause was printed for works that are not there"
-    assert "The collection holds 25 works by them;" in shown, "the holdings clause must still stand alone"
+    expect(grid.view, "the holdings clause must still stand alone").to_contain_text(
+        "The collection holds 25 works by them;", use_inner_text=True
+    )
+    expect(grid.view, "a failure clause was printed for works that are not there").not_to_contain_text(
+        "found no image for", use_inner_text=True
+    )
 
 
 def test_the_group_heading_rule_does_not_reach_the_cards_inside_the_group(grid):
@@ -1356,14 +1386,14 @@ def test_a_work_already_in_the_library_says_so_and_leads_with_opening_it(ui):
 
     held_card = ui.page.locator("li.card", has_text="Nighthawks")
     fresh_card = ui.page.locator("li.card", has_text="Automat")
-    assert "Already in your library" in held_card.inner_text()
+    expect(held_card).to_contain_text("Already in your library", use_inner_text=True)
     # Open is the primary act and plain Accept is gone; Accept survives only as
     # the quiet "anyway", because title and artist can collide ("Untitled").
-    assert held_card.locator("button[aria-label='Accept Nighthawks']").count() == 0
-    assert held_card.locator("button.quiet[aria-label='Accept Nighthawks anyway, as a second artwork']").count() == 1
-    assert "Already in your library" not in fresh_card.inner_text()
-    assert fresh_card.locator("button[aria-label='Accept Automat']").count() == 1
-    assert fresh_card.locator("button:has-text('Accept anyway')").count() == 0
+    expect(held_card.locator("button.quiet[aria-label='Accept Nighthawks anyway, as a second artwork']")).to_have_count(1)
+    expect(held_card.locator("button[aria-label='Accept Nighthawks']")).to_have_count(0)
+    expect(fresh_card.locator("button[aria-label='Accept Automat']")).to_have_count(1)
+    expect(fresh_card).not_to_contain_text("Already in your library", use_inner_text=True)
+    expect(fresh_card.locator("button:has-text('Accept anyway')")).to_have_count(0)
 
     held_card.locator("a:has-text('Open it in Artworks')").click()
     ui.page.wait_for_function("() => window.location.hash.startsWith('#work/artwork-held')")
@@ -1434,9 +1464,9 @@ def test_each_provenance_is_drawn_as_itself(grid, provenance, glyph, word, style
     grid.page.wait_for_selector("li.card")
 
     badge = grid.page.locator("li.card .badge", has_text=word).first
-    assert badge.inner_text().replace("\n", " ").strip() == f"{glyph} {word}"
-    classes = badge.get_attribute("class").split()
+    expect(badge).to_have_text(f"{glyph} {word}", use_inner_text=True)
     if styled is None:
-        assert classes == ["badge"], classes
+        # Its class attribute is the plain badge and nothing else.
+        expect(badge).to_have_attribute("class", re.compile(r"^\s*badge\s*$"))
     else:
-        assert styled in classes, classes
+        expect(badge).to_have_attribute("class", re.compile(rf"(^|\s){re.escape(styled)}(\s|$)"))
