@@ -18,6 +18,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import RegistryCreator, RegistryPerson, RegistryWorkMatch
 
@@ -25,6 +26,12 @@ DALI = "Q5577"
 PERSISTENCE = "Q25729"
 GIRAFFE = "Q1062364"
 COMMONS = "https://commons.wikimedia.org/wiki/Special:FilePath/G.jpg"
+
+#: The seeded Persistence of Memory, which has no master: under *Held*, said
+#: once by the heading and never again on the row (audit 6, finding 14), and
+#: its picture's place saying it has none, as its own page does. Until
+#: 2026-11-19 the row ended "● Held" and said nothing of the picture.
+HELD_WITHOUT_A_PICTURE = ["No picture The Persistence of Memory — Salvador Dalí"]
 
 
 def _dali_works():
@@ -138,7 +145,7 @@ def test_held_then_not_held_marked_only_where_the_group_does_not_say_and_nothing
 
     assert ui.page.locator("#view h2").all_inner_texts() == ["Held", "Not held"]
     assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
-    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
+    assert _rows(ui, "held", "works") == HELD_WITHOUT_A_PICTURE
     assert _rows(ui, "not-held", "artists") == [
         "Gala Dalí 1894–1982",
         "Ana María Dalí 1908–1989",
@@ -166,6 +173,31 @@ def test_held_then_not_held_marked_only_where_the_group_does_not_say_and_nothing
     # The switch that narrowed the page is gone: the groups are the narrowing.
     assert ui.page.locator("#view [role='group'][aria-label='Show']").count() == 0
     assert ui.page.locator("#view button[aria-pressed]").count() == 0
+
+
+def test_held_is_said_once_by_its_group_and_a_held_row_says_whether_it_has_a_picture(ui, service, work_with_an_image):
+    """Audit 6, finding 14. Two held works the words find, one with its master on
+    disk and one without: the Held group's heading is the only "Held" in it, and
+    only the work with nothing to show says *No picture*, in its picture's place.
+    The pictured one is the case that keeps the placeholder from being drawn on
+    every row; the other is the case that keeps it from being drawn on none."""
+    work_with_an_image("Study in Blue")
+    service.add_artwork(title="Study in Grey", date_created="1901")
+
+    _results(ui, "study")
+    _answered(ui)
+
+    held = _group(ui, "held")
+    pictured = held.locator("li:has(.row-title:text-is('Study in Blue'))")
+    bare = held.locator("li:has(.row-title:text-is('Study in Grey'))")
+    expect(pictured.locator(".work-pic-held img")).to_have_count(1)
+    expect(bare.locator(".work-pic .no-picture")).to_have_text("No picture")
+    expect(pictured.locator(".no-picture")).to_have_count(0)
+    # "Held" once in the group: its heading (the kinds' unseen prefixes aside).
+    expect(held.locator(".results-list")).not_to_contain_text("Held")
+    expect(held.locator(".badge-held")).to_have_count(0)
+    # The page's count, in its line of facts above the toolbar, as on every list.
+    expect(ui.page.locator("#view .page-facts")).to_have_text("2 held: 2 works")
 
 
 def test_nothing_held_is_one_line_and_wikidatas_works_are_under_not_held(ui, matched):
@@ -198,7 +230,7 @@ def test_a_query_matching_only_held_things_shows_nothing_twice_and_says_so(ui, m
     _answered(ui)
 
     assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
-    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
+    assert _rows(ui, "held", "works") == HELD_WITHOUT_A_PICTURE
     assert _group(ui, "not-held").locator("li").count() == 0
     assert _note(ui).inner_text() == "Wikidata has nothing more."
     # Wikidata found something, all of it held: no Ask, which is for finding nothing.
@@ -215,7 +247,7 @@ def test_a_held_match_the_librarys_rows_do_not_show_is_under_held(ui, matched):
     _results(ui, "dali")
     _answered(ui)
 
-    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
+    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí"]
     assert "The Persistence of Memory" not in " ".join(_rows(ui, "not-held", "works"))
     ui.page.click("section[aria-labelledby='results-held-works'] a:has-text('The Persistence of Memory')")
     ui.page.wait_for_function("(id) => window.location.hash.startsWith(`#work/${id}`)", arg=work.id)
@@ -268,7 +300,7 @@ def test_an_outage_leaves_the_held_group_and_says_so(ui, matched, registry):
     assert _note(ui).inner_text() == "Wikidata could not be searched just now."
     # Said in the Not held group, where Wikidata's rows would be.
     assert _group(ui, "not-held").locator("p[aria-live]").count() == 1
-    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
+    assert _rows(ui, "held", "works") == HELD_WITHOUT_A_PICTURE
     assert _rows(ui, "held", "artists") == ["Salvador Dalí 1904–1989"]
     assert _group(ui, "not-held").locator("li").count() == 0
 
@@ -351,7 +383,7 @@ def test_a_failed_topic_listing_leaves_the_held_artists_and_works_standing(ui, m
     _answered(ui)
 
     assert ui.page.locator("#error").is_hidden()
-    assert _rows(ui, "held", "works") == ["The Persistence of Memory — Salvador Dalí ● Held"]
+    assert _rows(ui, "held", "works") == HELD_WITHOUT_A_PICTURE
     assert _group(ui, "held").locator(".results-topics-failed").inner_text() == "Your topics could not be listed just now."
 
 

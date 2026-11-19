@@ -822,6 +822,10 @@ h1 {
   border: none;
   padding: 0;
   cursor: pointer;
+  /* A picture that is a link draws "No picture" in its place as plain words,
+     as one that is not a link does: one placeholder, one treatment (audit 6,
+     finding 23, where Artworks underlined it and an artist's page did not). */
+  text-decoration: none;
   /* The image is taken out of flow rather than sized at 100%. A replaced child
      at `height: 100%` of a box whose own height comes from `aspect-ratio` is
      circular, and the browser resolves it by letting the content win — which
@@ -1121,8 +1125,31 @@ h1 {
   cursor: not-allowed;
 }
 
-/* The *arr page toolbar (`core/toolbar.js`): actions left, View, Sort and
-   Filter right. It wraps rather than overflowing, actions first. */
+/* A detail page's way back (`backLink`, `core/router.js`): a breadcrumb link
+   above the page's name, never a button (`design-direction.md` § How a page
+   reads; ruling 1 of 2026-10-27). Small and muted, so it reads as where the
+   page sits rather than as an act; underlined on hover as a link is. Its
+   padding gives a finger a target taller than its words (WCAG 2.5.8's 24px). */
+.back-link {
+  display: inline-block;
+  padding-block: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--text-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+p.breadcrumb {
+  margin: 0 0 var(--space-1);
+}
+
+/* The *arr page toolbar (`core/toolbar.js`): acts left; View, Sort, Filters
+   and Select right. It wraps rather than overflowing, acts first. */
 .page-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1269,9 +1296,10 @@ h1 {
 /* On a phone the acts alone wrap to three rows, and View, Sort and the filters
    took two more, a third of the screen held over the works. They go while
    *Select* is on: each repaints the list, which drops the selection, so none is
-   a thing to press mid-selection. *Stop selecting* brings them back. */
+   a thing to press mid-selection. *Stop selecting*, which stands with them on
+   the right (`core/toolbar.js`), stays, and brings them back. */
 @media (max-width: 40rem) {
-  .page-toolbar.selecting .page-toolbar-controls {
+  .page-toolbar.selecting .page-toolbar-controls > :not([data-control="select"]) {
     display: none;
   }
 }
@@ -1392,9 +1420,11 @@ h1 {
   cursor: pointer;
 }
 
-/* The contact sheet: image only, uniform tiles, the words behind hover AND
-   focus. A keyboard has no hover, so `:focus-within` is the rule and not a
-   refinement of it. */
+/* The contact sheet (Posters): uniform square pictures, each with its title
+   and artist beneath on the page's ground, as an artist's poster has its name
+   (`design-direction.md` § Tiles). The words were an overlay shown on hover
+   and focus until 2026-11-19, which a phone, having no hover, never showed
+   (audit 6, finding 4). */
 
 /* Library › Artists' posters: narrower than a work's card, since a card here
    is a name and a picture rather than a work to judge — two to a row on a
@@ -1410,22 +1440,24 @@ h1 {
   gap: var(--space-3);
 }
 
+/* Not boxed: the picture sits on its `--surface-2` mat, and the label on the
+   page's ground under it. */
 .tile {
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
 }
 
 .tile .card-image {
   /* Square and uniform, with the work letterboxed inside it: cropping an artwork
      to fill a tile is the one thing an art tool must not do. */
   aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
 }
 
-/* The archived mark does not hide with the caption. A badge is not metadata
-   about the work, it is a mark on an exception — a work out of circulation that
-   looks identical to one on the wall until you point at it is exactly the
-   silence the badge was written to end. */
+/* The archived mark sits over the picture, not in the label: a badge is not
+   metadata about the work, it is a mark on an exception — a work out of
+   circulation that looks identical to one on the wall is exactly the silence
+   the badge was written to end. */
 .tile-status {
   position: absolute;
   top: var(--space-2);
@@ -1433,27 +1465,42 @@ h1 {
   z-index: 1;
 }
 
+/* One line of title and one of artist, clamped, and the label reserves both
+   lines whatever its words, so every row of Posters is one height
+   (`design-direction.md` § Tiles: uniform rows, a label at least its longest
+   shape). */
 .tile-caption {
-  position: absolute;
-  inset: auto 0 0;
+  --tile-caption-line: 1.4;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: var(--space-2);
-  background: var(--scrim);
-  color: var(--scrim-text);
-  font-size: var(--text-xs);
-  opacity: 0;
-  transition: opacity 120ms ease;
+  padding-top: var(--space-2);
+  min-height: calc(var(--space-2) + 2 * var(--tile-caption-line) * var(--text-sm) + 2px);
+  box-sizing: border-box;
+  font-size: var(--text-sm);
+  line-height: var(--tile-caption-line);
 }
 
-.tile:hover .tile-caption,
-.tile:focus-within .tile-caption {
-  opacity: 1;
+.tile-title,
+.tile-artist {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tile-title {
   font-family: var(--font-label);
+  color: var(--text-strong);
+  text-decoration: none;
+}
+
+.tile-title:hover {
+  text-decoration: underline;
+}
+
+.tile-artist {
+  color: var(--text-muted);
 }
 
 /* The loading state's job is to not move: the placeholders are the real tiles
@@ -3426,6 +3473,16 @@ section.offered + section.offered {
 .results-list .work-pic {
   width: 4.5rem;
   height: 4.5rem;
+}
+
+/* A held work with no picture yet says so in its picture's place, on the
+   picture's own mat, as a tile does (`noPicture`, `core/badges.js`). */
+.results-list .work-pic-absent {
+  background: var(--surface-2);
+}
+
+.results-list .work-pic-absent .card-image-absent {
+  padding: var(--space-1);
 }
 
 /* -- keyboard and phone ------------------------------------------------------
