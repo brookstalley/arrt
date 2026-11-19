@@ -293,3 +293,105 @@ def test_no_character_httpx_leaves_unencoded_shields_a_key(part):
             leaked.append(character)
 
     assert leaked == []
+
+
+# -- A Player's successful polls write no access line --------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _leave_the_access_logger_as_found():
+    """`configure` attaches a filter to `uvicorn.access`; a test that calls it must not leave that on for the next."""
+    access = logging.getLogger("uvicorn.access")
+    before = list(access.filters)
+    try:
+        yield
+    finally:
+        access.filters = before
+
+
+def _access_record(target: str, status: int, method: str = "GET") -> logging.LogRecord:
+    """A record shaped as uvicorn's h11 and httptools protocols write one."""
+    return logging.LogRecord(
+        "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("10.0.0.5:51234", method, target, "1.1", status), None
+    )
+
+
+def _kept(target: str, status: int, method: str = "GET") -> bool:
+    return logs.QuietPlayerPolls().filter(_access_record(target, status, method))
+
+
+PLAYER_POLLS = [
+    "/client",
+    "/walls/wall-1/manifest/v2",
+    "/walls/wall-1/manifest/v2?cache=1",
+    "/labels/label-1",
+    "/media/sha256-" + "0" * 64,
+]
+
+
+@pytest.mark.parametrize("target", PLAYER_POLLS)
+@pytest.mark.parametrize("status", [200, 204, 304])
+def test_a_successful_player_poll_writes_no_access_line(target, status):
+    assert not _kept(target, status)
+
+
+@pytest.mark.parametrize("target", ["/client/heartbeat", "/walls/wall-1/heartbeat"])
+def test_a_successful_heartbeat_writes_no_access_line(target):
+    assert not _kept(target, 204, method="POST")
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 413, 500])
+@pytest.mark.parametrize("target", PLAYER_POLLS)
+def test_a_refused_or_failed_player_request_keeps_its_line(target, status):
+    assert _kept(target, status)
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/",
+        "/api/health",
+        "/api/walls",
+        "/mcp/",
+        "/static/app.js",
+        "/healthz",
+        "/clients",
+        "/walls",
+        "/walls/wall-1",
+        "/clientele",
+    ],
+)
+def test_a_request_to_any_other_route_keeps_its_line_even_when_it_succeeded(target):
+    """The prefixes and near misses of the Player's routes, so a pattern loosened to a prefix fails here."""
+    assert _kept(target, 200)
+
+
+@pytest.mark.parametrize("args", [(), ("only",), ("a", "b", "c", "d", "e"), ("a", "GET", "/client", "1.1", "200")])
+def test_a_record_it_does_not_understand_is_kept(args):
+    record = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, "msg", args, None)
+
+    assert logs.QuietPlayerPolls().filter(record)
+
+
+def test_the_filters_templates_are_exactly_the_routes_the_player_router_mounts():
+    """The templates are a copy, because this module may not import the HTTP surface; this is what keeps the copy true."""
+    from arrt.http import player
+
+    mounted = {route.path for route in player.router.routes}
+
+    assert set(logs.PLAYER_ROUTE_TEMPLATES) == mounted
+
+
+def test_configure_installs_the_filter_once_on_the_access_logger():
+    root = logging.getLogger()
+    before, before_level = list(root.handlers), root.level
+    try:
+        logs.configure()
+        logs.configure()
+        access = logging.getLogger("uvicorn.access")
+        installed = [f for f in access.filters if isinstance(f, logs.QuietPlayerPolls)]
+    finally:
+        root.handlers = before
+        root.setLevel(before_level)
+
+    assert len(installed) == 1
