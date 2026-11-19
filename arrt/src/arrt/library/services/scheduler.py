@@ -137,8 +137,9 @@ class WatchJob:
             self._watches.record_started(watch_id, run.id)
         except ServiceError:
             # The run is started and will spend; only the note of it failed. Said
-            # with the run's id, because the next pass, not seeing it, will start
-            # this Watch again.
+            # with the run's id so the log names the run. The next pass does not
+            # start the Watch again: `WatchService.standing` reads the latest run
+            # carrying the Watch's id, so the run itself is the record of the attempt.
             log.exception(
                 "watch %s started run %s and could not record it",
                 watch_id,

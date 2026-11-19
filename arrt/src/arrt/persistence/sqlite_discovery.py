@@ -416,6 +416,10 @@ class SqliteDiscovery(TableAdapter):
             filters["kind"] = str(kind)
         return self._list("discovery_runs", filters or None, _BY_START, _run)
 
+    def latest_run_of_watch(self, watch_id: str) -> DiscoveryRun | None:
+        rows, _ = self._store.select_page("discovery_runs", order_by=_BY_START, filters={"watch_id": watch_id}, limit=1)
+        return _run(rows[0]) if rows else None
+
     # -- candidate works ------------------------------------------------------
 
     def add_candidate_work(self, work: CandidateWork) -> None:

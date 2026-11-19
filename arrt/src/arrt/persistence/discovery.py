@@ -72,6 +72,14 @@ class DiscoveryStore(Protocol):
         """Return matching runs newest first, which is the order they are read in."""
         ...
 
+    def latest_run_of_watch(self, watch_id: str) -> DiscoveryRun | None:
+        """Return the newest run carrying this `watch_id`, or None if the Watch never started one.
+
+        Read from the run rows themselves, because the run is written when it
+        starts and the Watch's own note of it is a second write that can fail.
+        """
+        ...
+
     # -- candidate works ------------------------------------------------------
 
     def add_candidate_work(self, work: CandidateWork) -> None:
