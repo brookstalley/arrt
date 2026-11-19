@@ -35,9 +35,21 @@ one `xfail`, and the job went red naming a "dependency not provisioned" that was
 a documented order-sensitivity in artist identity. Nothing was broken; the guard
 was reading the wrong number.
 
-Usage: assert_tests_ran.py <junit-xml-path> [--suites-from <testament manifest>]
+**A run on the pool, or a fallback without the browser suite.** `tests.yml` passes
+`--decision`, the record `pool_or_fallback.py` wrote of where the suites ran. On the
+pool, the report the run wrote must hold every suite the manifest declares, as
+before. In a fallback, the record must earn it (its attempts end where only the
+pool's own trouble could, `fallback_is_earned`), and then each suite the fallback
+runs must have run something in its own report, and only the suites the manifest
+says need a labelled runner may be missing. A pool record that excuses any suite,
+or a fallback record whose excused suites are not exactly those, fails: "browser not
+run" is a property of an earned fallback, never a flag a normal run can carry.
+
+Usage: assert_tests_ran.py <junit-xml-path> [--suites-from <testament manifest> [--decision <decision.json>]]
 """
 
+import importlib.util
+import json
 import re
 import sys
 import tomllib
@@ -149,11 +161,72 @@ def main(path: Path, required_suites: list[str] | None = None) -> int:
     return 0
 
 
+def _decider():
+    """`pool_or_fallback.py`, beside this file, which owns what a fallback is."""
+    spec = importlib.util.spec_from_file_location("pool_or_fallback", Path(__file__).with_name("pool_or_fallback.py"))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("pool_or_fallback", module)
+    spec.loader.exec_module(module)
+    return module
+
+
+def main_with_decision(path: Path, manifest: Path, decision_path: Path) -> int:
+    """Check the run `decision_path` records: on the pool, `path` with every suite; in a fallback, each suite's own report."""
+    decider = _decider()
+    try:
+        decision = decider.Decision.from_json(json.loads(decision_path.read_text(encoding="utf-8")))
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        print(f"::error::{decider.NO_RECORD} ({decision_path}: {e})")
+        return 1
+    suites = suites_in(manifest)
+    if decision.mode == "none":
+        print(f"::error::{decider.HEADLINES['none']} {decision.why}")
+        return 1
+    if decision.mode == "pool":
+        if decision.not_run or decision.reports:
+            print(
+                f"::error::the record says the pool ran, yet excuses {sorted(decision.not_run)} and names fallback reports "
+                f"{sorted(decision.reports)}: a run on the pool must hold every suite"
+            )
+            return 1
+        print(HEADLINES_POOL)
+        return main(path, suites)
+    if decision.mode != "fallback":
+        print(f"::error::the record's mode is {decision.mode!r}, which is none of pool, fallback and none")
+        return 1
+    if not decider.fallback_is_earned(decision.attempts):
+        print(
+            "::error::the record claims a fallback that its attempts do not earn; a fallback follows only a pool that "
+            "could not answer, never a verdict: " + "; ".join(decider._attempt_line(a) for a in decision.attempts)
+        )
+        return 1
+    reports, not_run = decider.fallback_plan(tomllib.loads(manifest.read_text(encoding="utf-8")))
+    if decision.reports != reports or sorted(decision.not_run) != sorted(not_run):
+        print(
+            f"::error::the fallback ran {sorted(decision.reports)} and excused {sorted(decision.not_run)}, but the manifest "
+            f"asks it to run {sorted(reports)} and excuses only {sorted(not_run)}"
+        )
+        return 1
+    print(decider.HEADLINES["fallback"])
+    worst = 0
+    for suite, report in reports.items():
+        print(f"{suite}, on GitHub's runner:")
+        worst = max(worst, main(decision_path.parent / report, [suite]))
+    for suite, why in not_run.items():
+        print(f"::warning::the {suite} suite did not run: {why}")
+    return worst
+
+
+HEADLINES_POOL = "Ran on the pool: every suite the manifest declares must be in the report."
+
+
 if __name__ == "__main__":
-    # `assert_tests_ran.py <report> [--suites-from <testament manifest>]`
+    # `assert_tests_ran.py <report> [--suites-from <testament manifest> [--decision <decision.json>]]`
     if len(sys.argv) == 2:
         raise SystemExit(main(Path(sys.argv[1])))
     if len(sys.argv) == 4 and sys.argv[2] == "--suites-from":
         raise SystemExit(main(Path(sys.argv[1]), suites_in(Path(sys.argv[3]))))
+    if len(sys.argv) == 6 and sys.argv[2] == "--suites-from" and sys.argv[4] == "--decision":
+        raise SystemExit(main_with_decision(Path(sys.argv[1]), Path(sys.argv[3]), Path(sys.argv[5])))
     print(__doc__)
     raise SystemExit(2)
