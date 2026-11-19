@@ -328,6 +328,19 @@ def test_a_file_left_with_a_hot_journal_by_a_killed_writer_still_opens(tmp_path,
     assert len(_snapshots(tmp_path)) == (1 if older else 0)
 
 
+@pytest.mark.uncacheable("runs a child process that is killed inside a transaction, which is what leaves the journal")
+def test_asking_a_file_with_a_hot_journal_whether_it_had_a_table_answers(tmp_path):
+    """The open asks this after the copy has rolled the journal back; asked first, it must not refuse either."""
+    path = tmp_path / "catalogue.sqlite"
+    _single_wall_file(path, "Late night")
+    child = [sys.executable, "-c", _KILLED_MID_WRITE, str(path)]
+    subprocess.run(child, check=True)  # noqa: S603 -- this interpreter, running the fixed script above
+    assert path.with_name(path.name + "-journal").exists(), "the child committed or cleaned up, so no journal was left"
+
+    assert migrations.file_had_table(path, "themes") is True
+    assert migrations.file_had_table(path, "ballast") is False
+
+
 def _runs_a_drop(function) -> bool:
     source = inspect.getsource(function)
     return "DROP TABLE" in source or "DROP COLUMN" in source
