@@ -481,7 +481,10 @@ async def test_deleting_the_last_theme_leaves_the_wall_showing_what_it_had(serve
     turning the art off.
     """
     theme_id = await _a_theme(server_url)
-    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    # Hung, then taken down: a sync no longer takes a theme, so the theme gets its
+    # feed by being hung, and deletable by being taken down (which leaves the feed).
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    await call(server_url, "art_theme", action="unhang", wall_id=wall)
     before = wall_settings.manifest_v2_path(wall).read_text()
 
     _payload, errored = await call(server_url, "art_theme", action="delete", theme_id=theme_id)
@@ -565,7 +568,10 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
     for artwork_id in works.values():
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=artwork_id)
 
-    payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    # Hung first: `sync` republishes what is hanging and takes no theme of its own.
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+
+    payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall)
 
     assert errored is False
     assert payload["on_the_wall"] == []
@@ -580,8 +586,9 @@ async def test_sync_names_every_work_that_will_not_be_on_the_wall(server_url, wa
 
 async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, wall):
     theme_id = await _a_theme(server_url)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
 
-    payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall)
 
     assert errored is False
     assert payload["on_the_wall"] == []
@@ -598,16 +605,20 @@ async def test_an_empty_theme_syncs_and_says_so_rather_than_failing(server_url, 
 async def test_sync_reports_the_pace_the_wall_will_run_at(server_url, wall):
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_display", action="set_playback", wall_id=wall, rotation_interval_seconds=931, shuffle="in_order")
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
 
-    payload, _ = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    payload, _ = await call(server_url, "art_display", action="sync", wall_id=wall)
 
     assert payload["rotation"] == {"interval_seconds": 931, "shuffle": False}
 
 
 async def test_sync_writes_the_feed_a_player_reads(server_url, wall_settings, wall):
     theme_id = await _a_theme(server_url)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+    # Taken from under the wall, so what is read back is what the sync wrote.
+    wall_settings.manifest_v2_path(wall).unlink()
 
-    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    await call(server_url, "art_display", action="sync", wall_id=wall)
 
     document = json.loads(wall_settings.manifest_v2_path(wall).read_text())
     assert document["playlist"]["id"] == theme_id
@@ -654,7 +665,7 @@ async def test_show_now_reaches_the_feed(server_url, wall_settings, ready_work, 
     """The one hop that makes it real: it has to be in the feed the Player polls."""
     theme_id = await _a_theme(server_url)
     await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=ready_work("Chop Suey").id)
-    await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
     work = ready_work("Automat")
 
     await call(server_url, "art_display", action="show_now", wall_id=wall, artwork_id=work.id)
@@ -676,7 +687,9 @@ async def test_a_theme_with_nothing_missing_says_so_in_full(server_url, service,
         work = ready_work(title)
         await call(server_url, "art_theme", action="add", theme_id=theme_id, artwork_id=work.id)
 
-    payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall, theme_id=theme_id)
+    await call(server_url, "art_theme", action="activate", theme_id=theme_id, wall_id=wall)
+
+    payload, errored = await call(server_url, "art_display", action="sync", wall_id=wall)
 
     assert errored is False
     assert payload["not_on_the_wall"] == []

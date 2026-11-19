@@ -432,6 +432,7 @@ _ACTS_ON_ONE_WALL = {
     ("art_theme", "unhang"),
     ("art_theme", "hang_selection"),
     ("art_theme", "not_again"),
+    ("art_display", "preview"),
     ("art_display", "sync"),
     ("art_display", "show_now"),
     ("art_display", "next"),
