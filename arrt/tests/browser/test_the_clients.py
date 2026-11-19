@@ -209,10 +209,13 @@ def test_adding_a_player_shows_its_token_once_with_what_to_do_with_it(ui, servic
     note = ui.page.locator(".token-once").inner_text()
     assert "the only time it is shown" in note
     # In the Player's own settings page's words, not the environment variables
-    # behind them (audit 2026-11-19, F6): its fields are *Server › Address* and
-    # *Client token*.
-    assert "put this token in Client token" in note
-    assert f"this server's address in Server › Address, as that Player reaches it — from this browser, {server_url}." in note
+    # behind them (audit 2026-11-19, F6): its fields are *Token* and *Server
+    # address* (the Player renamed them from *Client token* and *Server ›
+    # Address* in its own audit wave; the old names would send nobody anywhere).
+    assert "put this token in Token, and" in note
+    assert f"this server's address in Server address, as that Player reaches it — from this browser, {server_url}." in note
+    assert "Client token" not in note
+    assert "Server › Address" not in note
     assert "CLIENT_TOKEN" not in note
     assert "SERVER_URL" not in note
     # One dialog, the token's: the add's own closed as it issued.

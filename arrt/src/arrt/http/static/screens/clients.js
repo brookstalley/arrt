@@ -352,8 +352,9 @@ async function copyFrom(field) {
  * In a read-only field rather than as text, so it is selected whole and copied
  * whole; focused and selected as the dialog opens, with *Copy* beside it. What
  * to do with it is said in the Player's own words: its settings page has
- * *Server › Address* and *Client token* (audit 2026-11-19, F6), so those are
- * the names given, not the environment variables behind them. The address a
+ * *Token* and *Server address* (audit 2026-11-19, F6; the Player's names since
+ * its own audit-wave-1 chunk 07), so those are the names given, not the
+ * environment variables behind them. The address a
  * Player needs is the one this browser reached the server at, which is said as
  * such: a Player on another network may reach it by another name. Then what
  * happens next, so the household knows what this page is waiting for. */
@@ -382,8 +383,8 @@ function tokenOnce(player, token, lead) {
         el("div", { class: "row token-row" }, [el("div", { class: "field" }, [el("label", { for: "player-token", text: `Token for ${player.name}` }), field]), copy, copied]),
         el("p", {
           text:
-            `On ${player.name}'s own settings page, put this token in Client token, and this server's address in ` +
-            `Server › Address, as that Player reaches it — from this browser, ${window.location.origin}. Then save there.`,
+            `On ${player.name}'s own settings page, put this token in Token, and this server's address in ` +
+            `Server address, as that Player reaches it — from this browser, ${window.location.origin}. Then save there.`,
         }),
         el("p", {
           text:
