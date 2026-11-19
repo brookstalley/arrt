@@ -272,15 +272,18 @@ def test_the_wanted_section_shows_its_count_once_something_is_wanted(ui, wanted)
     assert ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])").is_visible()
 
 
-def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_names_the_controls_that_add_one(ui):
+def test_with_nothing_wanted_the_section_is_shown_uncounted_and_the_page_says_what_wanted_is(ui):
     open_wanted(ui)
     ui.page.wait_for_selector("#view .empty")
 
     empty = ui.page.inner_text("#view .empty")
     assert "Nothing is wanted." in empty
-    # The controls that really put a work here, by the words they carry.
-    assert "press Want on its review card" in empty
-    assert "Turn it down" in empty
+    # What Wanted holds, not the clicks that fill it (audit-6 finding 21: the
+    # sentence used to give a click path through a review card).
+    assert "Wanted holds the works you want and have no acceptable scan of" in empty
+    assert "a Get found no scan for" in empty
+    assert "press Want" not in empty
+    assert "Scans, then" not in empty
     section = ui.page.locator("#sidebar li.section:has([data-count-slot='wanted'])")
     assert section.is_visible()
     assert ui.page.inner_text("[data-count-slot='wanted']") == "", "a zero says nothing a curator acts on"
@@ -464,7 +467,7 @@ def test_search_all_starts_one_re_search_per_search_the_works_came_from_then_ope
 def test_with_wikidata_off_the_picker_says_why_and_still_searches_without_an_item(ui, wanted):
     """The only way to search again for a work with no item, on a deployment with no WIKIDATA_USER_AGENT."""
     nothing, _ = wanted
-    note = "Matching a work to Wikidata needs WIKIDATA_USER_AGENT, which this deployment has not set."
+    note = "Wikidata is not set up on this server, so a work cannot be matched to one of its items."
     ui.serve(
         f"**/api/candidates/{nothing.id}/wikidata-matches",
         {"work_id": nothing.id, "title": nothing.proposed_title, "state": "not_configured", "note": note, "matches": []},
