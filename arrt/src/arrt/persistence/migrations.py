@@ -471,8 +471,23 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
     and removing a directory of the operator's files is the operator's act;
     `deploy/README.md` names it as safe to delete. The line says how many rows
     went, 0 included, so the operator has one line to look for either way.
+
+    **A file from before `mat_hex` still has canvases** (v0.1.0's: the column
+    arrived in v0.2.0, the `tv_display` rows long before). Opened by today's code
+    without a release between, it has no column to key the pass on, and its
+    canvas rows name a kind `RenditionKind` no longer has, so reading the work's
+    renditions failed (`tests/system/test_migration_chain.py`, found 2026-11-19).
+    Such a file loses its `tv_display` rows, and only those: it never held a
+    `wall_preview`, the kind came later, and a preview on a file without the
+    column is one this code drew from a master. Keyed on the rows, so a second
+    open finds none.
     """
     if not _canvas_leftovers(connection):
+        return
+    if not _has_column(connection, "renditions", "mat_hex"):
+        gone = connection.execute("DELETE FROM renditions WHERE kind = 'tv_display'").rowcount
+        connection.commit()
+        log.info("Forgot %d television canvases from before renditions.mat_hex; ART_ROOT/ready/ can be deleted.", gone)
         return
     gone = connection.execute("DELETE FROM renditions WHERE kind IN ('tv_display', 'wall_preview')").rowcount
     connection.commit()
@@ -487,10 +502,17 @@ def retire_television_canvases(connection: sqlite3.Connection) -> None:
 
 
 def _canvas_leftovers(connection: sqlite3.Connection) -> tuple[str, ...]:
-    """What `retire_television_canvases` would take from this file: the column, and the rows with it."""
-    if not _has_table(connection, "renditions") or not _has_column(connection, "renditions", "mat_hex"):
+    """What `retire_television_canvases` would take from this file: the column, and the rows with it.
+
+    Or, on a file from before the column, its canvas rows alone.
+    """
+    if not _has_table(connection, "renditions"):
         return ()
-    return ("renditions.mat_hex", "the television canvases and wall previews in renditions")
+    if _has_column(connection, "renditions", "mat_hex"):
+        return ("renditions.mat_hex", "the television canvases and wall previews in renditions")
+    if connection.execute("SELECT 1 FROM renditions WHERE kind = 'tv_display' LIMIT 1").fetchone() is not None:
+        return ("the television canvases in renditions",)
+    return ()
 
 
 #: The theme's two playing settings, which became the wall's: the order is the

@@ -622,7 +622,75 @@ that will actually get run rather than skipped.
 > library: the backup at start wrote its generation and receipt (the panel read
 > "last backed up 2 seconds ago"); the restored server answered 404 for the
 > wall's manifest until the theme was re-hung, then served 40 works, all 40 with
-> media.
+> media. *(Superseded 2026-11-19: no re-hang is needed today, and the restore
+> has a step this omitted. See the next note.)*
+
+> **The restore, as `arrt/tests/system/test_restore.py` runs it (2026-11-19,
+> `build-plan-audit-wave-2.md` Chunk 06).** The test starts `python -m arrt` as
+> a process over a seeded art root, lets its start-up pass write a generation,
+> changes the household after it (a theme added, another hung), stops the
+> server, restores, starts it again, and reads the works, the themes, each
+> wall's hang and each wall's feed back over HTTP, as the wall's Player fetches
+> it. It restores to two places: the same art root, over a catalogue a writer
+> killed mid-transaction left with a hot journal; and a new art root given only
+> the image tree. The steps (`restore` in that file is these, as code):
+>
+> 1. **Stop the server.**
+> 2. **Remove what SQLite keeps beside the catalogue:** `catalogue.sqlite-journal`,
+>    and a `-wal` and `-shm` if anything left them. *This step is new, and it is
+>    the one that matters.* A server killed mid-write leaves a hot journal, and
+>    the next open plays it into whatever file is then at the catalogue's path:
+>    measured on SQLite 3.53.1, a generation copied in beside one opens as the
+>    dead server's last commit, with `PRAGMA integrity_check` saying `ok`, so the
+>    restore is silently undone (`test_a_restore_that_leaves_the_stale_journal_is_silently_undone`).
+> 3. **Copy the newest `catalogue-*Z.sqlite` from `BACKUP_DIR` in beside the
+>    catalogue, then rename it over `catalogue.sqlite`**, so the path holds the
+>    old file or the whole generation, never half of one.
+> 4. **On a new machine, restore the image tree** (`raw/`, `presentation/`,
+>    `thumbs/`) from the art root's own snapshot. No feed file is needed.
+> 5. **Start the server. Nothing needs re-hanging:** at every start
+>    `services.reconcile()` publishes each wall's hung theme where the wall has
+>    no feed on disk, and replaces a feed of another theme than the one hung, so
+>    both a new art root and a stale feed left beside the restored catalogue are
+>    answered with the restored hang's feed before the first request. Its
+>    start-up backup is skipped while the newest generation is younger than
+>    `BACKUP_INTERVAL_SECONDS`, so the generation restored from is not pruned.
+>
+> The exercise into a scratch art root is the same steps with `ART_ROOT` the
+> scratch directory and `BACKUP_DIR` emptied, as in the block above. **Not
+> measured:** a feed left beside the restored catalogue that names the theme
+> hung but a work the generation does not hold (a work added after the backup);
+> start-up `reconcile` asks the Library about every work a feed carries, and
+> what it answers for an id it has never held is not exercised here. **A
+> generation is refused by an older release** if the release that took it was
+> newer (`catalogue_opened`, below): restore with the release that took it, or
+> newer.
+
+> **The catalogue records which release last opened it (2026-11-19,
+> `build-plan-audit-wave-2.md` Chunk 06).** One row in the file's
+> `catalogue_opened` table (`data-model.md` § CatalogueOpened): the release, the
+> instant, and whether that open finished its migrations, written false before
+> the first migration and true after the last. So before a rollback the operator
+> can read which release last opened the file and when (`sqlite3 catalogue.sqlite
+> 'SELECT * FROM catalogue_opened'`), and after a failed upgrade whether its
+> migrations finished. **A release meeting a file a newer release opened refuses
+> to start**, before it copies, widens or records anything, with a message naming
+> both releases and the rollback (journal: ERROR `catalogue.newer_release_refused`);
+> a release it cannot read counts as newer. **The guard protects a downgrade only
+> to a release that carries it.** Measured once, 2026-11-19: v0.11.0's own code
+> (`git archive v0.11.0`), opening a v0.1.0 catalogue today's code had migrated
+> and recorded as opened by 0.12.0, opened it without a word, read its four works
+> and two walls, and left the row as it was. So a rollback to v0.11.0 or older is
+> still the restore of the copy taken before the migration (§ Routine Operations,
+> Rollback), never a checkout alone. **`PRAGMA user_version` is not this record**:
+> it marks a migration in progress, from its copy until its last step.
+
+> **Each generation says how long its copy took (2026-11-19).** `backup.completed`
+> carries `copy_seconds`, the monotonic time `VACUUM INTO` took. The copy holds a
+> SHARED lock the server's commits wait on, so this is the figure that would
+> reopen the decision to stay on the rollback journal rather than WAL
+> (`build-plan-audit-wave-2.md`, Goals): a copy measured long enough that commits
+> wait on it.
 
 > **A crash loop no longer takes the generations with it, and a destructive
 > migration is copied first (2026-11-19,
