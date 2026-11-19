@@ -5,11 +5,20 @@ we've already built, build a strong IA story for the app."** It is derived from
 `user-scenarios.md` and from measurements, and it looks at the built screens only
 in § Against what is built. **The owner ruled on all of its decisions on
 2026-10-01** (§ Rulings), and the body below is revised to match.
-`information-architecture.md` is not yet amended; that is the next step.
+
+> **Status, 2026-11-19: this is the record of a proposal, most of which is built.**
+> `information-architecture.md` was amended from it, and its tables carry every
+> ruling below that has been built; **where the two differ, the tables win**, and
+> this file says, section by section, what superseded it (a *Superseded* note
+> under the heading). The rulings tables are the owner's words and stay as ruled.
+> Two names changed by the owner's rulings of 2026-11-19: a person reads **theme**,
+> never *playlist* (the one `playlist` the contract carries keeps its name), and the
+> household's holdings are **the Library** while the screen that lists them is
+> **Artworks**; the section the map below draws as *Library* is built as *Artworks*.
 
 ## The story
 
-**Arrt is a record collection for paintings, with the walls as its rooms.**
+**Arrt is a music library for paintings, with the walls as its rooms.**
 
 - **The artist is the centre**, as in a music library. Of the six scenarios about
   finding something (S1–S5, S11), four are phrased by artist: S1's "the Dalí", S3,
@@ -28,7 +37,7 @@ artist page lists every album the artist made, each marked complete, missing or
 unmonitored. It decides that by comparing the tracks held against the album's
 total (read from Lidarr's source, `frontend/src/Artist/Details/AlbumRow.js`,
 2026-10-01). Paintings are organised the way music is: by creator, with a
-catalogue the world keeps and a collection the owner keeps.
+registry the world keeps and a Library the owner keeps.
 
 ## Principles
 
@@ -75,18 +84,18 @@ became a destination on every Get, `build-plan-topics-and-destinations.md`
 address, whether held or not, so a link never breaks when a work arrives. Where a
 registry knows the thing, its registry ID is the identity (Wikidata QID, Getty
 ULAN for artists). Otherwise the identity is the holding museum's object ID, and
-for held works the catalogue's own. This depends on `user-scenarios.md` open
+for held works the Library's own. This depends on `user-scenarios.md` open
 question 4.
 
 ## Objects
 
 | Object | What it is | Music equivalent | Where its data comes from |
 |---|---|---|---|
-| **Artist** | A person or workshop with a body of work | Artist | Library; Wikidata and ULAN for life, movement and the catalogue of works |
+| **Artist** | A person or workshop with a body of work | Artist | Library; Wikidata and ULAN for life, movement and the list of works |
 | **Work** | One artwork, independent of any image of it | Album | Library; Wikidata, the holding museum |
 | **Image** | One instance of a work: a source, a size, a route | A specific release or rip | Museum APIs, Commons, tile assembly |
 | **Topic** | A period, movement, subject or medium | Genre, decade | Wikidata (movement, inception, depicts), facets on held works |
-| **Theme** | A curated, ordered set of held works | Playlist | Library only |
+| **Theme** | A curated, ordered set of held works | A named list of tracks | Programming; its members are works the Library holds *(the first draft said "Library only", and the owner's seam ruling of 2026-09-30 put themes in Programming, `re-architecture.md` § Seam 1)* |
 | **Wall** | A display, and what it shows over time | Room or speaker | Programming |
 | **Get** | One acquisition: works chosen, cost, progress, candidates to judge | A download in the queue | Discovery runs |
 | **Taste** | What the curator has said they like and dislike | Likes, "not interested" | Affinities |
@@ -116,12 +125,11 @@ candidates carry real sizes.
 ┌──────────────────┬───────────────────────────────────────────────┐
 │ Arrt             │ [ Search artists, works, topics…            ] │
 ├──────────────────┼───────────────────────────────────────────────┤
-│ ▣ Library (home) │                                               │
-│     Artists      │                                               │
-│     Works        │                                               │
+│ ▣ Artworks (home)│                                               │
+│     Ask          │                                               │
 │     Themes       │                                               │
 │     Topics       │                                               │
-│     Ask          │                                               │
+│     Artists      │                                               │
 │ ▢ Walls          │                                               │
 │ ↻ Activity    ③  │                                               │
 │     To review    │                                               │
@@ -135,6 +143,16 @@ candidates carry real sizes.
 └──────────────────┴───────────────────────────────────────────────┘
 ```
 
+> **Superseded (built, `information-architecture.md` § The *arr layout).** The
+> section the first draft of this map called *Library*, with a *Works* page, is
+> **Artworks**, its own home page (ruling 2 of 2026-11-19: *the Library* is what the
+> household holds, *Artworks* the screen). Its pages are listed in the order built:
+> Ask, Themes, Topics, Artists. **Wanted** is always shown, with its count when
+> something is wanted (ruling 5 of 2026-10-07), and is a section of its own, not
+> under Activity. **Settings** holds Players, Sources, Watches, General and Taste,
+> under an index page; the first draft's Taste alone, and its dropping of Sources
+> (below), did not hold.
+
 Sub-pages show only under the current section, as in the *arr apps. Activity's
 badge counts works waiting for review, the one queue that needs the curator.
 Wanted appears once something is in it.
@@ -147,7 +165,7 @@ app has keep the *arr name, so the page this proposal first called *Getting* is
 record already lives in System › Status, and *Sources*, because no scenario needs
 it. *(Builder's call, 2026-10-01; the owner can overrule it.)*
 
-**Home is Library** (ruling 1). The owner chose it over Now Showing, the
+**Home is the Library's screen, Artworks** (ruling 1; the map's *Library*). The owner chose it over Now Showing, the
 builder's recommendation, which was argued from assumed weekly frequencies for
 S1 and S6. The choice is evidence that browsing and acquiring is what Arrt is
 opened for most, and that the walls scenarios are rarer than
@@ -163,6 +181,11 @@ how long that lasts ("until changed" or "until Friday, then back to *Modern*");
 and the next three works.
 
 *(Amended by Rulings (2026-10-27): the card below is the 2026-10-01 design, and rulings 2–6 of that day change it.)*
+> **Superseded** by Rulings (2026-10-27) and `information-architecture.md`'s Walls row,
+> which are what is built: *Not this one again* is **Remove…**, *Change* is the theme's
+> name as the picker (*Hanging*), a wall's configuration is its *Edit…* dialog, and a
+> scene is a dialog. The 2026-10-01 text follows as it was.
+
 The controls on each card are **Skip**, **Not this one again**, and **Change**.
 *Not this one again* asks one question, *from this theme* or *from every wall*,
 because S8 says "nothing else changed" and those are two different changes.
@@ -174,7 +197,7 @@ from what) and its configuration open from its card.
 
 - **Header:** name, life dates, movements, a short note from the registry, and a
   taste control (*More like this*, *Not for me*).
-- **In your library (n):** the held works, as in Library › Works filtered to the
+- **In your library (n):** the held works, as in Artworks filtered to the
   artist. Hang and add to a theme apply to a selection.
 - **Their work:** every work the registry knows, each with its state and a
   preview where one was found. Sorted by renown, with fame measured by how many
@@ -238,7 +261,11 @@ direction it settles on becomes a **Get**, in place (the seam ruling in
 
 ### Theme
 
-A playlist: held works in an order. **Hang…** takes walls (and, from wave 4, a
+> **Superseded in part.** The theme page is built to Rulings (2026-10-27), rule 9: an
+> index of themes, and a page that acts on a selection, with one *Hang…* dialog that
+> ticks the walls hanging it. The destination and the default theme below stand as built.
+
+A theme: held works in an order. **Hang…** takes walls (and, from wave 4, a
 duration).
 
 **The default theme is the everyday rotation, and it is an ordinary theme.**
@@ -266,8 +293,11 @@ named another destination, which they join instead (built 2026-10-02).
 **To review** is the inbox: candidates from Gets, grouped by Get, judged with
 explicit controls (the no-gesture ruling stands). **Queue** shows Gets in
 progress, with spend so far. **History** lists finished Gets. **Wanted** holds
-works marked Want (no image known, or a Get that found nothing). It is where a
-future Watch would land, like Lidarr's Wanted › Missing.
+works marked Want (no image known, or a Get that found nothing). *(Superseded: a
+Watch does not land here. Its Missing tab was withdrawn on 2026-11-09, because a Watch's
+request is open-ended and has no list of works it lacks; a Watch is a page under
+Settings, and what it finds goes to To review, `information-architecture.md` § Open
+questions.)*
 
 ## The scenarios, walked
 
@@ -280,18 +310,22 @@ future Watch would land, like Lidarr's Wanted › Missing.
 | S4b Get a copy | Work → **Get** | At Get |
 | S5 Who's like…? | Artist → Similar artists; or Ask | No, until Get |
 | S6 What's on the wall? | Walls | No |
-| S7 Make a theme and hang it | Library › Works → select → add to theme → Theme → **Hang…** | No |
-| S8 Tired of this one | Walls → card → **Not this one again** → this theme or every wall | No |
-| S9 Clean-up | Library › Works filtered by low resolution or never hung; Activity › To review | No |
+| S7 Make a theme and hang it | Artworks → select → add to theme → Theme → **Hang…** | No |
+| S8 Tired of this one | Walls → card → **Remove…** *(first drafted as "Not this one again", renamed 2026-10-27)* → this theme or every wall | No |
+| S9 Clean-up | Artworks filtered by low resolution or never hung; Activity › To review | No |
 | S10 Is it working? | The status indicator in the top bar → System › Status | No |
 | S11 Rothko, knowing nothing | Search `rothko` → Artist: 2 held, then their work with previews and states → select → **Get** | At Get |
-| S12 16th century for two days | Library › Topics → 16th century → representative works → **Get** into *16th century* (the destination defaults to the topic's name) → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
+| S12 16th century for two days | Artworks › Topics → 16th century → representative works → **Get** into *16th century* (the destination defaults to the topic's name) → its theme → **Hang…** on each wall → when done, hang the default theme again. The works stay in their theme, out of the rotation. From wave 4: **Hang… on all walls until Sunday**, and the walls return by themselves | At Get |
 | Delaunays | Search → Robert Delaunay → Similar artists (each with how much has an image) → *More like this* records taste → Ask for more | No, until Get |
 
 S11 and S12, the two scenarios the built IA failed in `user-scenarios.md`
 § Tested, become one search and one topic page.
 
 ## Against what is built
+
+*A snapshot of 2026-10-01, kept as written: nearly every row's proposal is built, in
+the names `information-architecture.md` gives it (the first draft's* Library *section
+is* Artworks*).*
 
 | Built (as of 2026-10-01) | Proposal | Change |
 |---|---|---|
@@ -354,7 +388,7 @@ builder's; the choice is the owner's.
 | 5a | When an excursion ends | **Nothing beyond a theme**: its works form a theme and are not in the default theme. The builder's options (archive, keep, ask, delete) were all declined as overcomplicated. |
 | 5b | Excursions and taste | **Acceptances do not count; explicit reactions during one do.** |
 | 6 | Hanging for a duration | **Wait for wave 4's schedule.** Neither the end time nor the one-act "all walls" control is built before it. |
-| 7 | Registry IDs | **Store them** where one exists (Wikidata QIDs for works and artists), and keep the catalogue's own identity where none does. |
+| 7 | Registry IDs | **Store them** where one exists (Wikidata QIDs for works and artists), and keep the Library's own identity where none does. |
 | 8 | A default theme | **Yes: "There should be a default 'all works' theme."** A work accepted from an ordinary Get joins it; one accepted from an excursion Get does not. Raised by ruling 5a, ruled the same day. |
 | 9 | The sidebar | **Fit the norm**: no new top-level sections. Topics and Ask under Library, Walls in its slot. The builder's map had added Explore and Now Showing, which the norm allows only by an *arr precedent or an owner ruling; offered both, the owner chose the norm. |
 
@@ -457,7 +491,7 @@ so the build keeps the rule. *(Builder's call, 2026-10-27.)*
 Hang. Planning the Work page found nothing for it to open: no route changes a work's title,
 date, medium, description or artist, and ruling 8 itself places the two things a work can
 change elsewhere (the mat in its facts, the Wikidata match behind ⋯). Asked whether to leave
-it out, build editing of a work's catalogue fields, or put the mat and the match inside it,
+it out, build editing of a work's fields, or put the mat and the match inside it,
 the owner chose to leave it out until a work has a setting. Editing a work's fields is on the
 backlog (#396); `build-plan-ui-pass-work-artworks.md` builds the page without it.
 
