@@ -19,6 +19,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 #: Every column, left to right, by the class the client gives it.
 COLUMNS = ["source", "state", "offered", "chosen", "only-here", "median", "faults", "last-fault"]
 #: Never dropped.
@@ -83,7 +85,7 @@ def test_each_source_is_one_row_with_its_state_in_words_and_what_it_has_given(ui
     assert rows[0]["last-fault"] == "12 seconds ago: KeyError: 'x'"
     assert rows[1]["last-fault"] == "—"
     # One table, not a box per source: the old per-source sentences are gone.
-    assert ui.page.locator("ul.source-readings").count() == 0
+    expect(ui.page.locator("ul.source-readings")).to_have_count(0)
 
 
 @pytest.mark.parametrize("wide_fonts", [False, True], ids=["fonts-as-they-are", "fonts-spaced-wider"])
@@ -142,11 +144,11 @@ def test_counts_that_cannot_be_read_are_said_and_the_states_still_shown(ui, a_he
     ui.open("#health")
     ui.page.wait_for_selector(".source-table tbody tr")
 
-    assert "The counts could not be read" in ui.text()
+    expect(ui.view).to_contain_text("The counts could not be read", use_inner_text=True)
     row = _rows(ui)[0]
     assert row["state"] == "Loaded"
     assert row["offered"] == row["chosen"] == "—"
-    assert ui.page.locator("#error:not([hidden])").count() == 0
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
 def test_status_says_nothing_of_a_television_or_its_geometry(ui):
@@ -155,7 +157,6 @@ def test_status_says_nothing_of_a_television_or_its_geometry(ui):
     ui.page.wait_for_selector("#view h1:text-is('Status')")
     ui.page.wait_for_load_state("networkidle")
 
-    text = ui.text().lower()
-    assert "television" not in text
-    assert "geometry" not in text
-    assert "artwork box" not in text
+    expect(ui.view).not_to_contain_text("television", use_inner_text=True, ignore_case=True)
+    expect(ui.view).not_to_contain_text("geometry", use_inner_text=True, ignore_case=True)
+    expect(ui.view).not_to_contain_text("artwork box", use_inner_text=True, ignore_case=True)
