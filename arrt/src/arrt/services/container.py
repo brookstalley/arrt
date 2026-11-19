@@ -110,7 +110,7 @@ class OneCatalogueFile(CatalogueStore, ProgrammingStore, Protocol):
 
 @dataclass(frozen=True, slots=True)
 class Services:
-    """Every service the curation plane offers, assembled over one open file."""
+    """Every service the server offers, assembled over one open file."""
 
     catalogue: CatalogueService
     #: The Library as Programming reaches it. Held here so that a test or a
@@ -317,7 +317,7 @@ class Services:
         library.subscribe(display_service.on_work_changed)
         thumbnail_service = ThumbnailService(catalogue_service, thumbnails)
         topic_service = TopicService(catalogue, registry, kept=kept, wanted=discovery_service)
-        # The sweep's thread is the one Wikidata thread the plane runs; it warms
+        # The sweep's thread is the one Wikidata thread the server runs; it warms
         # what Library › Topics offers after each pass, rather than a second one.
         topic_sweep = TopicSweep(catalogue, catalogue_service, registry, warm=topic_service.warm_offered)
         # The Library's own announcement, heard by the Library's own sweep: an
@@ -335,7 +335,7 @@ class Services:
             catalogue_service,
             acquisition or _default_acquisition(thumbnails.art_root),
             # Defaults to a transport that refuses rather than to a live one.
-            # A plane assembled without wiring one has a wiring mistake, and
+            # A server assembled without wiring one has a wiring mistake, and
             # a real client here would let that mistake reach a museum from a
             # test suite instead of failing where it was made.
             open_stream=open_stream or no_transport,
@@ -403,8 +403,8 @@ class Services:
             # the picture store is above, and for the same reason. It is
             # not a `DisplaySettings` field beside the art root the heartbeats are
             # named from: that settings object carries what the *walls'*
-            # operations need, and the backup is this plane's own business rather
-            # than the display plane's.
+            # operations need, and the backup is the server's own business rather
+            # than a wall's.
             health=HealthService(
                 display_service,
                 backup_receipt_path=thumbnails.art_root / BACKUP_RECEIPT_FILENAME,
@@ -455,7 +455,7 @@ class Services:
         )
 
     def reconcile(self) -> None:
-        """Repair whatever the file on disk may predate. Run once, as the plane starts.
+        """Repair whatever the file on disk may predate. Run once, as the server starts.
 
         A catalogue file outlives any single version of this code, so a rule
         added after a file was written has to be brought to that file rather than
@@ -499,10 +499,11 @@ class Services:
             # A manifest that cannot be rewritten (a full disk, a directory gone
             # read-only) must not keep the curation interface down: the wall
             # goes on showing its last manifest, which is where it would be with
-            # this plane stopped, and the interface is where a curator finds out
-            # why. Nothing is half-applied, because the reconciliation runs in
-            # one transaction that the failure rolled back, and the next start
-            # tries again.
+            # the server stopped, and the interface is where a curator finds out
+            # why. The reconciliation is one act (`DisplayService._publishing`):
+            # every feed it decided is written beside its file first, and a
+            # write that fails there removes those and rolls the act back, so
+            # no wall's feed has changed and the next start tries again.
             log.exception("Could not reconcile the walls' manifests against the Library at startup; serving anyway.")
 
 
@@ -529,7 +530,7 @@ def _default_acquisition(art_root: Path) -> AcquisitionSettings:
 def _default_mat_engine() -> MatEngine:
     """A mat engine for a caller that wired no model client.
 
-    **No client is a real deployment, not a stub.** A plane with no
+    **No client is a real deployment, not a stub.** A server with no
     `OPENROUTER_API_KEY` serves its whole catalogue and pays for nothing; works
     acquired there get dominant-colour mats recorded as such. So the default is
     that deployment rather than something that would fail if used.

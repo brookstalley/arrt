@@ -15,6 +15,7 @@ from arrt.library.events import LibraryEvents, WorkChange, WorkChanged
 from arrt.library.services.catalogue import CatalogueService
 from arrt.persistence.catalogue import CatalogueStore
 from arrt.persistence.records import FetchStatus, MatMethod, RenditionKind
+from arrt.services.errors import ServiceError
 
 
 @pytest.fixture
@@ -91,7 +92,7 @@ def test_every_kind_of_change_has_an_operation_that_announces_it():
 def test_each_operation_announces_its_change(service, ready_work, heard, operation, make, change):
     work_id = make(service, ready_work)
 
-    assert heard[-1] == WorkChanged(change=change, work_id=work_id)
+    assert heard[-1] == WorkChanged(change=change, work_ids=(work_id,))
 
 
 def test_an_announcement_waits_for_the_outermost_commit(service, store, heard):
@@ -100,7 +101,7 @@ def test_an_announcement_waits_for_the_outermost_commit(service, store, heard):
         work = service.add_artwork(title="Nighthawks")
         assert heard == [], "announced inside a transaction that could still roll back"
 
-    assert heard == [WorkChanged(change=WorkChange.ACCEPTED, work_id=work.id)]
+    assert heard == [WorkChanged(change=WorkChange.ACCEPTED, work_ids=(work.id,))]
 
 
 def test_a_change_that_rolls_back_is_never_announced(service, store, heard):
@@ -128,7 +129,7 @@ def test_a_failing_subscriber_fails_neither_the_change_nor_the_subscribers_after
         work = service.add_artwork(title="Nighthawks")
 
     assert service.get_artwork(work.id).artwork.title == "Nighthawks"
-    assert after == [WorkChanged(change=WorkChange.ACCEPTED, work_id=work.id)]
+    assert after == [WorkChanged(change=WorkChange.ACCEPTED, work_ids=(work.id,))]
     assert [record.levelno for record in caplog.records] == [logging.ERROR]
     assert work.id in caplog.records[0].getMessage()
 
@@ -144,9 +145,43 @@ def test_publishing_calls_subscribers_in_the_order_they_subscribed():
     events.subscribe(lambda _: order.append("first"))
     events.subscribe(lambda _: order.append("second"))
 
-    events.publish(WorkChanged(change=WorkChange.ARCHIVED, work_id="w"))
+    events.publish(WorkChanged(change=WorkChange.ARCHIVED, work_ids=("w",)))
 
     assert order == ["first", "second"]
+
+
+# -- one act, one announcement ---------------------------------------------------------
+
+
+def test_a_bulk_archive_is_one_announcement_naming_every_work_it_archived(service, ready_work, heard):
+    """Audit-2 S4: fifty announcements of one made Programming rebuild every wall fifty times, on the request."""
+    first, already, second = ready_work(title="Nighthawks"), ready_work(title="Automat"), ready_work(title="Chop Suey")
+    service.archive_artwork(already.id)
+    heard.clear()
+
+    archived = service.archive_artworks([second.id, already.id, first.id, second.id])
+
+    assert archived == [second.id, first.id]
+    assert heard == [WorkChanged(change=WorkChange.ARCHIVED, work_ids=(second.id, first.id))]
+
+
+def test_a_bulk_archive_refused_part_way_announces_nothing(service, ready_work, heard):
+    """An id the catalogue does not hold refuses the whole act, and the works gathered before it go unsaid."""
+    work = ready_work()
+    heard.clear()
+
+    with pytest.raises(ServiceError):
+        service.archive_artworks([work.id, "no-such-work"])
+
+    assert heard == []
+    # The next act on this thread announces on its own, not into what the refused one gathered.
+    service.archive_artwork(work.id)
+    assert heard == [WorkChanged(change=WorkChange.ARCHIVED, work_ids=(work.id,))]
+
+
+def test_an_announcement_names_at_least_one_work():
+    with pytest.raises(ValueError, match="names at least one work"):
+        WorkChanged(change=WorkChange.ARCHIVED, work_ids=())
 
 
 def test_the_librarys_store_contract_names_no_programming_table():
