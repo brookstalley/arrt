@@ -13,6 +13,7 @@ and act on the wrong works at a large one.
 """
 
 import json
+import re
 
 import pytest
 
@@ -155,35 +156,36 @@ def test_every_list_offers_the_same_select_controls(ui, a_list):
     open_list(ui, address)
 
     toggle = ui.page.locator("#view button.select-toggle")
-    assert toggle.inner_text() == "Select"
+    expect(toggle).to_have_text("Select", use_inner_text=True)
     # Ticks exist and none shows: a list with no ticks at all would pass the second half alone.
-    assert ticks(ui).count() > 0
-    assert ticks(ui).locator("visible=true").count() == 0
-    assert ui.page.locator("#view .selection").is_hidden()
+    expect(ticks(ui).first).to_be_attached()
+    expect(ticks(ui).locator("visible=true")).to_have_count(0)
+    expect(ui.page.locator("#view .selection")).to_be_hidden()
 
     toggle.click()
 
-    assert toggle.inner_text() == "Stop selecting"
+    expect(toggle).to_have_text("Stop selecting", use_inner_text=True)
     bar = ui.page.locator("#view .selection")
-    assert bar.is_visible()
-    assert bar.locator(".selection-status").inner_text() == "No works selected."
+    expect(bar).to_be_visible()
+    expect(bar.locator(".selection-status")).to_have_text("No works selected.", use_inner_text=True)
     for act in acts:
-        assert bar.locator(act).is_visible(), f"the bar does not offer {act}"
-        assert bar.locator(act).is_disabled(), f"{act} is live with nothing ticked"
-    shown = ticks(ui).locator("visible=true").count()
-    assert shown > 0
+        expect(bar.locator(act), f"the bar does not offer {act}").to_be_visible()
+        expect(bar.locator(act), f"{act} is live with nothing ticked").to_be_disabled()
+    expect(ticks(ui).locator("visible=true").first).to_be_attached()
+    # The mode shows every tick in one turn, and the bar is drawn, so this is every one of them.
+    shown = ticks(ui).locator("visible=true").count()  # one-shot: the count Select all must report, read once the ticks show
 
     bar.locator("button.select-all").click()
 
-    assert bar.locator(".selection-status").inner_text() == f"{shown} selected."
+    expect(bar.locator(".selection-status")).to_have_text(f"{shown} selected.", use_inner_text=True)
     assert ticks(ui).locator("visible=true").evaluate_all("boxes => boxes.every((box) => box.checked)")
-    assert bar.locator("button.select-all").inner_text() == "Select none"
+    expect(bar.locator("button.select-all")).to_have_text("Select none", use_inner_text=True)
     for act in acts:
-        assert bar.locator(act).is_enabled()
+        expect(bar.locator(act)).to_be_enabled()
 
     toggle.click()
 
-    assert toggle.inner_text() == "Select"
+    expect(toggle).to_have_text("Select", use_inner_text=True)
     assert ticks(ui).evaluate_all("boxes => boxes.every((box) => !box.checked)"), "leaving the mode kept the ticks"
 
 
@@ -198,23 +200,28 @@ def test_both_halves_acts_fit_the_toolbar_in_two_rows(ui, a_list):
     address, _ = a_list
     open_list(ui, address)
     ui.page.click("#view button.select-toggle")
+    # Select mode is on, with both halves' acts drawn in the toolbar, before it is measured.
+    expect(ui.page.locator("#view button.get-open")).to_be_visible()
+    expect(ui.page.locator("#view button.select-all")).to_be_visible()
 
-    bar = ui.page.locator("#view .page-toolbar").first.bounding_box()
-    row = ui.page.locator("#view button.select-toggle").bounding_box()
+    bar = ui.page.locator("#view .page-toolbar").first.bounding_box()  # one-shot: geometry, read once the mode's acts are drawn
+    row = ui.page.locator("#view button.select-toggle").bounding_box()  # one-shot: geometry, read once the mode's acts are drawn
     assert bar is not None
     assert row is not None
     assert bar["height"] < 3 * row["height"], f"the toolbar is {bar['height']}px tall with rows of {row['height']}px"
     # *Get…* stands on the line the held half's acts do: the shared spacing for
     # a row of acts set it a step below them once it was among them.
-    get = ui.page.locator("#view button.get-open").bounding_box()
-    select_all = ui.page.locator("#view button.select-all").bounding_box()
+    get = ui.page.locator("#view button.get-open").bounding_box()  # one-shot: geometry, read once the mode's acts are drawn
+    select_all = ui.page.locator(
+        "#view button.select-all"
+    ).bounding_box()  # one-shot: geometry, read once the mode's acts are drawn
     assert get is not None
     assert select_all is not None
     assert get["y"] == select_all["y"]
     # Both openers are quiet: neither commits, and two filled acts side by side
     # would break one filled act per region (`design-direction.md` § Buttons).
     for opener in ("button.selection-add", "button.get-open"):
-        assert "quiet" in ui.page.locator(f"#view {opener}").get_attribute("class").split(), opener
+        expect(ui.page.locator(f"#view {opener}"), opener).to_have_class(re.compile(r"(^|\s)quiet(\s|$)"))
 
 
 def toolbar_position(ui) -> str:
@@ -249,24 +256,26 @@ def test_the_acts_on_a_selection_take_the_toolbar_s_left_side(ui, a_list):
     left = ui.page.locator("#view .page-toolbar-actions").first
     right = ui.page.locator("#view .page-toolbar-controls").first
 
-    assert right.locator(":scope > :visible").last.inner_text() == "Select"
-    assert right.locator(":scope > :visible").last.get_attribute("data-control") == "select"
-    assert left.locator("button.select-toggle").count() == 0
-    assert left.locator(".selection").is_hidden()
+    expect(right.locator(":scope > :visible").last).to_have_text("Select", use_inner_text=True)
+    expect(right.locator(":scope > :visible").last).to_have_attribute("data-control", "select")
+    expect(left.locator("button.select-toggle")).to_have_count(0)
+    expect(left.locator(".selection")).to_be_hidden()
     assert toolbar_position(ui) == "static"
 
     ui.page.click("#view button.select-toggle")
 
     for act in acts:
-        assert left.locator(f".selection {act}").is_visible(), f"{act} is not in the toolbar's left side"
+        expect(left.locator(f".selection {act}"), f"{act} is not in the toolbar's left side").to_be_visible()
     # The acts on the selection follow the page's own acts, last on the left;
     # the toggle stays last on the right, saying how to leave.
     assert left.evaluate("(side) => [...side.children].map((child) => child.className)")[-1] == "selection"
-    assert right.locator(":scope > :visible").last.inner_text() == "Stop selecting"
+    expect(right.locator(":scope > :visible").last).to_have_text("Stop selecting", use_inner_text=True)
     assert toolbar_position(ui) == "sticky"
 
     ui.page.click("#view button.select-toggle")
 
+    # Out of the mode before the position is read.
+    expect(right.locator(":scope > :visible").last).to_have_text("Select", use_inner_text=True)
     assert toolbar_position(ui) == "static"
 
 
@@ -308,10 +317,12 @@ def test_the_acts_stay_in_reach_at_the_end_of_a_long_list(ui, studies):
     ui.page.mouse.wheel(0, 4000)
     ui.page.wait_for_function("() => window.scrollY > 600")
 
-    box = ui.page.locator("#view .page-toolbar").first.bounding_box()
+    box = ui.page.locator(
+        "#view .page-toolbar"
+    ).first.bounding_box()  # one-shot: geometry, read once the page has scrolled past 600px
     assert box is not None
     assert 0 <= box["y"] < 5, f"the toolbar scrolled away: {box}"
-    assert ui.page.locator("button.selection-add").is_visible()
+    expect(ui.page.locator("button.selection-add")).to_be_visible()
 
 
 @pytest.mark.parametrize(("width", "hidden_while_selecting"), [(390, True), (1280, False)])
@@ -332,15 +343,21 @@ def test_on_a_phone_view_and_sort_step_aside_while_selecting(ui, seeded_service,
     toggle = controls.locator('[data-control="select"]')
 
     for control in stepping_aside:
-        assert control.is_visible()
+        expect(control).to_be_visible()
     ui.page.click("button.select-toggle")
+    # The mode is on before the controls are asked about it: where they stay
+    # (1280) they are visible before and after, and only this says the press landed.
+    expect(toggle).to_have_text("Stop selecting", use_inner_text=True)
     for control in stepping_aside:
-        assert control.is_hidden() is hidden_while_selecting
-    assert toggle.is_visible()
-    assert toggle.inner_text() == "Stop selecting"
+        if hidden_while_selecting:
+            expect(control).to_be_hidden()
+        else:
+            expect(control).to_be_visible()
+    expect(toggle).to_be_visible()
     toggle.click()
+    expect(toggle).to_have_text("Select", use_inner_text=True)
     for control in stepping_aside:
-        assert control.is_visible()
+        expect(control).to_be_visible()
 
 
 def tab_stops(ui, presses=120) -> list[str]:
@@ -387,23 +404,23 @@ def test_a_theme_is_made_from_a_selection_without_leaving_artworks(ui, services,
     ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", "new")
     ui.page.fill("#add-to-theme-name", "Night pieces")
-    assert ui.page.inner_text("dialog button.add-confirm") == "Add 2 works to Night pieces"
+    expect(ui.page.locator("dialog button.add-confirm")).to_have_text("Add 2 works to Night pieces", use_inner_text=True)
     ui.page.click("dialog button.add-confirm")
     ui.page.wait_for_selector(".selection-status:has-text('Added 2 works to Night pieces.')")
 
-    assert ui.page.url.endswith("#collection")
+    expect(ui.page).to_have_url(re.compile(r"#collection$"))
     theme = next(t for t in services.display.list_themes() if t.name == "Night pieces")
     assert set(services.display.theme_work_ids(theme.id)) == {works[0].id, works[1].id}
     # The dialog closed on the add, and the keyboard is on the sentence saying so.
     # Closed, not gone: `core/editing.js` removes a closed dialog in its `close`
     # event, a task later, so counting `dialog` raced that removal.
-    assert ui.page.locator("dialog[open]").count() == 0
+    expect(ui.page.locator("dialog[open]")).to_have_count(0)
     assert ui.page.evaluate("() => document.activeElement.classList.contains('selection-status')")
     # Made once and then chosen, so a second add joins it rather than making another.
     ui.page.check(f"li.card[data-artwork='{works[2].id}'] input.tile-select")
     ui.page.click("button.selection-add")
-    assert ui.page.input_value("#add-to-theme") == theme.id
-    assert ui.page.locator("#add-to-theme-name").is_hidden()
+    expect(ui.page.locator("#add-to-theme")).to_have_value(theme.id)
+    expect(ui.page.locator("#add-to-theme-name")).to_be_hidden()
 
 
 @pytest.mark.parametrize("leave", ["Escape", "Cancel"])
@@ -427,7 +444,7 @@ def test_leaving_the_add_dialog_adds_nothing_and_returns_to_add(ui, services, se
     ui.page.wait_for_selector("dialog", state="detached")
     assert services.display.theme_work_ids(theme.id) == []
     assert ui.page.evaluate("() => document.activeElement.classList.contains('selection-add')")
-    assert ui.page.inner_text(".selection-status") == "1 selected."
+    expect(ui.page.locator(".selection-status")).to_have_text("1 selected.", use_inner_text=True)
 
 
 def test_a_typed_name_that_is_already_a_theme_joins_it(ui, services, seeded_service):
@@ -468,11 +485,11 @@ def test_select_all_on_a_filter_larger_than_one_page_adds_every_match(ui, servic
     ui.page.click("button.select-toggle")
 
     ui.page.click(".selection button.select-all")
-    assert ui.page.inner_text(".selection-status") == f"{PAST_ONE_PAGE} selected."
+    expect(ui.page.locator(".selection-status")).to_have_text(f"{PAST_ONE_PAGE} selected.", use_inner_text=True)
     # One unticked after Select all is left out, by id, beside the filter.
     unticked = studies[0]
     ui.page.uncheck(f"[data-artwork='{unticked}'] input.tile-select")
-    assert ui.page.inner_text(".selection-status") == f"{PAST_ONE_PAGE - 1} selected."
+    expect(ui.page.locator(".selection-status")).to_have_text(f"{PAST_ONE_PAGE - 1} selected.", use_inner_text=True)
     ui.page.click("button.selection-add")
     ui.page.select_option("#add-to-theme", theme.id)
     ui.page.click("dialog button.add-confirm")
@@ -489,7 +506,7 @@ def test_select_all_then_archive_archives_every_match(ui, seeded_service, studie
     ui.page.click(".selection button.select-all")
     # It asks first, so its name ends in "…" (the page rules: an act that opens
     # a dialog), and it counts what it will archive.
-    assert ui.page.inner_text("button.selection-archive") == f"Archive {PAST_ONE_PAGE} works…"
+    expect(ui.page.locator("button.selection-archive")).to_have_text(f"Archive {PAST_ONE_PAGE} works…", use_inner_text=True)
 
     ui.page.click("button.selection-archive")
     ui.page.click("dialog.confirm button:has-text('Archive')")
@@ -500,7 +517,10 @@ def test_select_all_then_archive_archives_every_match(ui, seeded_service, studie
     # The search left the seeded works out, and so did the archive.
     assert seeded_service.list_artworks(q="nighthawks").entries[0].artwork.status is ArtworkStatus.ACCEPTED
     # The tiles say so where they stand, without a repaint.
-    assert ui.page.locator("ul.grid li.card .badge-archived").count() == ui.page.locator("ul.grid li.card").count()
+    # Every tile that stands carries the badge: none is without one. The
+    # grid is there, so a count of none is a count over a drawn grid.
+    expect(ui.page.locator("ul.grid li.card").first).to_be_attached()
+    expect(ui.page.locator("ul.grid li.card:not(:has(.badge-archived))")).to_have_count(0)
 
 
 def test_archiving_asks_first_and_a_no_changes_nothing(ui, seeded_service):
@@ -515,7 +535,7 @@ def test_archiving_asks_first_and_a_no_changes_nothing(ui, seeded_service):
     ui.page.click("dialog.confirm button:has-text('Cancel')")
 
     assert seeded_service.get_artwork(work.id).artwork.status is ArtworkStatus.ACCEPTED
-    assert ui.page.locator(f"li.card[data-artwork='{work.id}'] input.tile-select").is_checked()
+    expect(ui.page.locator(f"li.card[data-artwork='{work.id}'] input.tile-select")).to_be_checked()
 
 
 # -- held works on Search and a Topic (#317) ------------------------------------
@@ -556,7 +576,7 @@ def test_a_held_work_is_added_to_a_theme_from_here(ui, services, held_on):
     ui.page.wait_for_selector(".selection-status:has-text('Added 1 work to Somewhere.')")
 
     assert services.display.theme_work_ids(theme.id) == [work.id]
-    assert ui.page.url.endswith(address)
+    expect(ui.page).to_have_url(re.compile(re.escape(address) + "$"))
 
 
 @pytest.mark.parametrize("held_on", list(HELD_ON), indirect=True)
@@ -585,9 +605,9 @@ def test_a_held_work_is_archived_from_here(ui, seeded_service, held_on):
 
     assert seeded_service.get_artwork(work.id).artwork.status is ArtworkStatus.ARCHIVED
     # Out of circulation, so off the held list, without a repaint.
-    assert ui.page.locator(f"#view [data-artwork='{work.id}']").count() == 0
+    expect(ui.page.locator(f"#view [data-artwork='{work.id}']")).to_have_count(0)
     # Only the held work: the works Wikidata lists are still there to get.
-    assert ui.page.locator("#view .get-control").count() == 1
+    expect(ui.page.locator("#view .get-control")).to_have_count(1)
 
 
 def test_a_topic_whose_works_wikidata_cannot_list_still_selects_its_held_works(

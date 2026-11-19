@@ -18,6 +18,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, Showing, SourceClass
 
 
@@ -68,8 +70,9 @@ def option(ui, text):
     return ui.page.locator("aside.rails button.facet-option", has_text=text)
 
 
-def cards(ui):
-    return sorted(ui.page.locator("ul.grid li.card .card-title").all_inner_texts())
+def card_titles(ui):
+    """The grid's card titles, for `expect(...).to_have_text([...], use_inner_text=True)`."""
+    return ui.page.locator("ul.grid li.card .card-title")
 
 
 def test_size_offers_each_band_with_its_count(ui, sized):
@@ -77,11 +80,14 @@ def test_size_offers_each_band_with_its_count(ui, sized):
     ui.page.wait_for_selector("ul.grid li.card")
 
     group = ui.page.locator("aside.rails .rail", has=ui.page.locator("h2:text-is('Size')"))
-    assert group.locator("button.facet-option").all_inner_texts() == [
-        "Meets minimum (1)",
-        "Below minimum (1)",
-        "No size known (3)",
-    ]
+    expect(group.locator("button.facet-option")).to_have_text(
+        [
+            "Meets minimum (1)",
+            "Below minimum (1)",
+            "No size known (3)",
+        ],
+        use_inner_text=True,
+    )
 
 
 def test_choosing_a_band_narrows_at_the_server_and_is_in_the_address(ui, sized):
@@ -91,23 +97,27 @@ def test_choosing_a_band_narrows_at_the_server_and_is_in_the_address(ui, sized):
     option(ui, "Below minimum").click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert cards(ui) == ["A tiny scan"]
+    expect(card_titles(ui)).to_have_text(["A tiny scan"], use_inner_text=True)
     assert "fit=below_minimum" in ui.page.evaluate("() => window.location.hash")
-    assert option(ui, "Below minimum").get_attribute("aria-pressed") == "true"
+    expect(option(ui, "Below minimum")).to_have_attribute("aria-pressed", "true")
     assert any("fit=below_minimum" in url for url in ui.requests_matching("/api/works?"))
 
 
 def test_not_on_any_wall_leaves_out_what_a_wall_plays(ui, hung):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
-    assert option(ui, "Not on any wall").inner_text() == "Not on any wall (4)"
+    expect(option(ui, "Not on any wall")).to_have_text("Not on any wall (4)", use_inner_text=True)
 
     option(ui, "Not on any wall").click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 4")
 
-    assert "A large scan" not in cards(ui)
+    # A membership claim has no retrying form; the grid is read once it holds
+    # the four cards the filter leaves.
+    assert (
+        "A large scan" not in card_titles(ui).all_inner_texts()
+    )  # one-shot: absence from a set, after the grid holds its four cards
     assert "wall=none" in ui.page.evaluate("() => window.location.hash")
-    assert option(ui, "Not on any wall").get_attribute("aria-pressed") == "true"
+    expect(option(ui, "Not on any wall")).to_have_attribute("aria-pressed", "true")
 
 
 def test_not_on_any_wall_is_not_offered_before_anything_hangs(ui, sized):
@@ -115,25 +125,28 @@ def test_not_on_any_wall_is_not_offered_before_anything_hangs(ui, sized):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert option(ui, "Not on any wall").count() == 0
+    # The rail is drawn (its Size options are there), so a missing option is
+    # missing from a drawn rail.
+    expect(option(ui, "Meets minimum")).to_be_visible()
+    expect(option(ui, "Not on any wall")).to_have_count(0)
 
 
 def test_a_clean_up_filter_that_empties_the_grid_is_named(ui, hung):
     ui.open("#collection?wall=none&fit=meets_minimum")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "Nothing held matches this filter." in ui.text()
-    assert "size “Meets minimum”, and not on any wall" in ui.text()
+    expect(ui.view).to_contain_text("Nothing held matches this filter.", use_inner_text=True)
+    expect(ui.view).to_contain_text("size “Meets minimum”, and not on any wall", use_inner_text=True)
     # Still undoable from the rail, since the chosen options stay offered.
-    assert option(ui, "Meets minimum").get_attribute("aria-pressed") == "true"
+    expect(option(ui, "Meets minimum")).to_have_attribute("aria-pressed", "true")
 
 
 def test_hidden_rails_still_say_a_clean_up_filter_is_narrowing(ui, hung):
     ui.open("#collection?wall=none&filters=hidden")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert ui.page.locator(".filters-hidden-note").count() == 1
-    assert ui.page.locator(".page-toolbar-controls button", has_text="Show filters").count() == 1
+    expect(ui.page.locator(".filters-hidden-note")).to_have_count(1)
+    expect(ui.page.locator(".page-toolbar-controls button", has_text="Show filters")).to_have_count(1)
 
 
 # -- Last shown (#316) ----------------------------------------------------------------
@@ -169,12 +182,15 @@ def test_last_shown_offers_each_period_with_its_count(ui, shown_once):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert _last_shown(ui).locator("button.facet-option").all_inner_texts() == [
-        "Never shown (1)",
-        "Not in the last month (4)",
-        "Not in 3 months (3)",
-        "Not in a year (2)",
-    ]
+    expect(_last_shown(ui).locator("button.facet-option")).to_have_text(
+        [
+            "Never shown (1)",
+            "Not in the last month (4)",
+            "Not in 3 months (3)",
+            "Not in a year (2)",
+        ],
+        use_inner_text=True,
+    )
 
 
 def test_choosing_never_shown_narrows_at_the_server_and_is_in_the_address(ui, shown_once):
@@ -184,10 +200,14 @@ def test_choosing_never_shown_narrows_at_the_server_and_is_in_the_address(ui, sh
     option(ui, "Never shown").click()
     ui.page.wait_for_function("() => document.querySelectorAll('ul.grid li.card').length === 1")
 
-    assert "A large scan" not in cards(ui)
+    # A membership claim has no retrying form; the grid is read once it holds
+    # the one card the filter leaves.
+    assert (
+        "A large scan" not in card_titles(ui).all_inner_texts()
+    )  # one-shot: absence from a set, after the grid holds its one card
     assert "shown=never" in ui.page.evaluate("() => window.location.hash")
-    assert option(ui, "Never shown").get_attribute("aria-pressed") == "true"
-    assert option(ui, "Not in a year").get_attribute("aria-pressed") == "false"
+    expect(option(ui, "Never shown")).to_have_attribute("aria-pressed", "true")
+    expect(option(ui, "Not in a year")).to_have_attribute("aria-pressed", "false")
     assert any("shown=never" in url for url in ui.requests_matching("/api/works?"))
 
 
@@ -206,15 +226,18 @@ def test_last_shown_is_not_offered_before_any_wall_has_shown_anything(ui, sized)
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert _last_shown(ui).count() == 0
+    # The rail is drawn (its Size options are there), so a missing group is
+    # missing from a drawn rail.
+    expect(option(ui, "Meets minimum")).to_be_visible()
+    expect(_last_shown(ui)).to_have_count(0)
 
 
 def test_a_last_shown_filter_that_empties_the_grid_is_named(ui, shown_once):
     ui.open("#collection?shown=never&fit=meets_minimum")
     ui.page.wait_for_selector("#view .empty")
 
-    assert "size “Meets minimum”, and never shown" in ui.text()
-    assert option(ui, "Never shown").get_attribute("aria-pressed") == "true"
+    expect(ui.view).to_contain_text("size “Meets minimum”, and never shown", use_inner_text=True)
+    expect(option(ui, "Never shown")).to_have_attribute("aria-pressed", "true")
 
 
 def test_select_all_under_last_shown_sends_it_and_reaches_only_its_works(ui, services, shown_once):
@@ -253,7 +276,7 @@ def test_each_period_narrows_the_grid_to_its_count(ui, shown_once, label, value,
     ui.page.wait_for_function(f"() => document.querySelectorAll('ul.grid li.card').length === {count}")
 
     assert f"shown={value}" in ui.page.evaluate("() => window.location.hash")
-    assert option(ui, label).get_attribute("aria-pressed") == "true"
+    expect(option(ui, label)).to_have_attribute("aria-pressed", "true")
 
 
 def test_the_period_counts_move_with_a_search(ui, shown_once):
@@ -261,9 +284,12 @@ def test_the_period_counts_move_with_a_search(ui, shown_once):
     ui.open("#collection?q=tiny")
     ui.page.wait_for_selector("ul.grid li.card")
 
-    assert _last_shown(ui).locator("button.facet-option").all_inner_texts() == [
-        "Never shown (0)",
-        "Not in the last month (1)",
-        "Not in 3 months (0)",
-        "Not in a year (0)",
-    ]
+    expect(_last_shown(ui).locator("button.facet-option")).to_have_text(
+        [
+            "Never shown (0)",
+            "Not in the last month (1)",
+            "Not in 3 months (0)",
+            "Not in a year (0)",
+        ],
+        use_inner_text=True,
+    )
