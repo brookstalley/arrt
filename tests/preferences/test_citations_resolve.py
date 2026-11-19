@@ -173,7 +173,7 @@ def test_every_file_a_live_record_cites_is_in_this_tree(record: str, tracked: li
     )
 
 
-TRACKED_FIXTURE = [".prawduct/artifacts/kept-findings.md", "deploy/curation.service", "docs/testing.md"]
+TRACKED_FIXTURE = [".prawduct/artifacts/kept-findings.md", "deploy/nas/compose.example.yaml", "docs/testing.md"]
 
 
 @pytest.mark.parametrize(
@@ -188,7 +188,7 @@ TRACKED_FIXTURE = [".prawduct/artifacts/kept-findings.md", "deploy/curation.serv
         ("[x](gone-findings.md)", ["1: gone-findings.md"]),
         ("`arrt-player:deploy/display.service` and `arrt-player:.prawduct/artifacts/gone-findings.md`", []),
         ("https://github.com/o/arrt-player/blob/develop/deploy/README.md", []),
-        ("`kept-findings.md`, `.prawduct/artifacts/kept-findings.md`, `deploy/curation.service`", []),
+        ("`kept-findings.md`, `.prawduct/artifacts/kept-findings.md`, `deploy/nas/compose.example.yaml`", []),
         ("the `*-api-findings.md` documents", []),
         ("  - artifact: kept-findings", []),
         ("`docs/` and `deploy/`", []),
