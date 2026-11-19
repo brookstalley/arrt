@@ -13,7 +13,7 @@ as a work, an artist or a topic is what a curator is shown.
 import re
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, TypeIs
 
 _QID = re.compile(r"\bQ[1-9][0-9]*\b")
 
@@ -120,7 +120,7 @@ def _registry_item(node: Mapping[str, Any]) -> Item | None:
     return None
 
 
-def _is_qid(value: object) -> bool:
+def _is_qid(value: object) -> TypeIs[str]:
     return isinstance(value, str) and _QID.fullmatch(value) is not None
 
 

@@ -111,6 +111,8 @@ class HeartbeatReading:
             return f"No heartbeat file exists at {self.path}; this wall's Player has not reported yet."
         if self.problem is not None:
             return f"The heartbeat file at {self.path} could not be read: {self.problem}"
+        # Neither absent nor unreadable: `observations.observe` aged the document it read.
+        assert self.age_seconds is not None  # noqa: S101 -- a document read with no problem carries its age
         return f"This wall's Player last reported {observations.ago(self.age_seconds)}."
 
 

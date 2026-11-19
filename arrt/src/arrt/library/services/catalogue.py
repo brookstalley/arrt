@@ -297,7 +297,7 @@ class CatalogueService:
         offset: int = 0,
         sort: str | None = None,
         artist_id: str | None = None,
-        within: Sequence[str] | None = None,
+        within: Sequence[str] | frozenset[str] | None = None,
     ) -> ArtworkListing:
         """Page through the catalogue, narrowed by text and by facet.
 

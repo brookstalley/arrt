@@ -122,6 +122,8 @@ def describe_wall_status(readings: Sequence[WallHeartbeat]) -> str:
     # The least recent, because a summary quoting the freshest would read as an
     # all-clear bought from whichever wall happened to report last.
     oldest = max(readings, key=lambda seen: seen.heartbeat.age_seconds or 0.0)
+    # No wall is silent here, so `observations.observe` aged the document each one read.
+    assert oldest.heartbeat.age_seconds is not None  # noqa: S101 -- a reading neither absent nor unreadable carries its age
     aged = observations.ago(oldest.heartbeat.age_seconds)
     if len(readings) == 1:
         return f"{oldest.wall.name!r} last reported {aged}."

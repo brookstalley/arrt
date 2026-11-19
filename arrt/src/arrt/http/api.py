@@ -431,7 +431,12 @@ def _selected_ids(services: Services, selection: WorkSelection) -> Sequence[str]
     """The works a selection means, by id, with the ones it leaves out taken away."""
     if (selection.artwork_ids is None) == (selection.filter is None):
         raise ServiceError("Name the works either by their ids or by a filter, and not both.")
-    named = selection.artwork_ids if selection.artwork_ids is not None else _filtered_ids(services, selection.filter)
+    named: Sequence[str]
+    if selection.artwork_ids is not None:
+        named = selection.artwork_ids
+    else:
+        assert selection.filter is not None  # noqa: S101 -- the check above refused ids and filter both unset
+        named = _filtered_ids(services, selection.filter)
     leaving = set(selection.except_ids)
     return [artwork_id for artwork_id in dict.fromkeys(named) if artwork_id not in leaving]
 
@@ -1236,6 +1241,7 @@ def set_work_mat(request: Request, artwork_id: str, body: SetWorkMat) -> WorkMat
     if body.derive:
         services.preparation.derive_mat(artwork_id)
     else:
+        assert body.preset is not None  # noqa: S101 -- not deriving, and the check above refused no preset beside no derive
         services.preparation.set_mat_preset(artwork_id, body.preset)
     return _work_mat(services, artwork_id)
 

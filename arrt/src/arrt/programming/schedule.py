@@ -213,7 +213,14 @@ def build(
         return Schedule(horizon_from, horizon_until, tuple(slots), tuple(clashes))
     while cursor < horizon_until:
         until = min(cursor + length, horizon_until)
-        work_id = order.take(lambda candidate, s=cursor, u=until: not busy.clashes(candidate, s, u))
+
+        # The slot's bounds are bound as defaults, now: the loop moves both on. A `def`
+        # rather than a lambda only so the defaults can be annotated, which mypy
+        # cannot infer for a lambda that takes more than the one argument `take` passes.
+        def fits(candidate: str, s: datetime = cursor, u: datetime = until) -> bool:
+            return not busy.clashes(candidate, s, u)
+
+        work_id = order.take(fits)
         slots.append(Slot(work_id, cursor, until))
         clashes.extend(busy.clashes(work_id, cursor, until))
         cursor = until

@@ -564,9 +564,9 @@ class ClientService:
         problem = client_heartbeat.problem_with(document)
         if problem is not None:
             raise ServiceError(f"That is not a client heartbeat this server can read: {problem}")
-        write_atomically(self._heartbeat_path(client_id), document)
         # A dict by now: `problem_with` refuses anything else.
         report = cast("dict[str, Any]", document)
+        write_atomically(self._heartbeat_path(client_id), report)
         with self._store.transaction():
             for output in report["outputs"]:
                 self._reconcile_display(client, output["name"], output["kind"], output.get("identity"))
