@@ -237,7 +237,7 @@ class WikidataRegistry:
             listed = " ".join(f"wd:{qid}" for qid in batch)
             rows = self._select(f"SELECT ?item ?creator WHERE {{ VALUES ?item {{ {listed} }} ?item wdt:P170 ?creator . }}")
             for row in rows:
-                creator = _qid(row, "creator", required=False)
+                creator = _optional_qid(row, "creator")
                 item = _qid(row, "item")
                 # As in `works_by_identifier`: an item not asked about is not a key.
                 if creator is not None and item in asked:
@@ -267,7 +267,7 @@ class WikidataRegistry:
         return [
             RegistryPerson(
                 qid=_qid(row, "item"),
-                label=_value(row, "itemLabel"),
+                label=RegistryText(_value(row, "itemLabel")),
                 born=_integer(row, "bornYear"),
                 died=_integer(row, "diedYear"),
             )
@@ -318,19 +318,21 @@ class WikidataRegistry:
         person = named[0] if named else {}
         return RegistryArtist(
             qid=item,
-            name=person["itemLabel"]["value"] if "itemLabel" in person else None,
+            name=RegistryText(person["itemLabel"]["value"]) if "itemLabel" in person else None,
             born=_integer(person, "bornYear"),
             died=_integer(person, "diedYear"),
-            description=first["description"]["value"] if "description" in first else None,
+            description=RegistryText(first["description"]["value"]) if "description" in first else None,
             # The label service answers a movement with no readable name with its
             # QID, which reads as a name; one with no name is left out instead.
             movements=tuple(
-                name for name in first.get("movements", {}).get("value", "").split(_SEPARATOR) if name and not QID.match(name)
+                RegistryText(name)
+                for name in first.get("movements", {}).get("value", "").split(_SEPARATOR)
+                if name and not QID.match(name)
             ),
             works=tuple(
                 RegistryWorkEntry(
                     qid=_qid(row, "work"),
-                    title=_value(row, "workLabel"),
+                    title=RegistryText(_value(row, "workLabel")),
                     sitelinks=_integer(row, "links") or 0,
                     year=_integer(row, "year"),
                     image=_commons_file(row.get("img", {}).get("value")),
@@ -339,7 +341,9 @@ class WikidataRegistry:
             ),
             works_total=(_integer(total[0], "n") or 0) if total else 0,
             holdings=tuple(
-                RegistryHolding(qid=_qid(row, "collection"), name=_value(row, "collectionLabel"), works=_integer(row, "n") or 0)
+                RegistryHolding(
+                    qid=_qid(row, "collection"), name=RegistryText(_value(row, "collectionLabel")), works=_integer(row, "n") or 0
+                )
                 for row in held_by
             ),
         )
@@ -373,14 +377,14 @@ class WikidataRegistry:
         years: set[int] = set()
         images: set[CommonsFile] = set()
         for row in rows:
-            creator = _qid(row, "creator", required=False)
+            creator = _optional_qid(row, "creator")
             if creator is not None:
                 creators.setdefault(creator, RegistryText(_value(row, "creatorLabel")))
-            collection = _qid(row, "collection", required=False)
+            collection = _optional_qid(row, "collection")
             if collection is not None:
                 collections.setdefault(collection, RegistryText(_value(row, "collectionLabel")))
             if "inventory" in row:
-                numbers.add((_value(row, "inventory"), _qid(row, "inventoryAt", required=False)))
+                numbers.add((_value(row, "inventory"), _optional_qid(row, "inventoryAt")))
             if "mediumLabel" in row:
                 media.add(RegistryText(_value(row, "mediumLabel")))
             year = _integer(row, "year")
@@ -477,7 +481,7 @@ class WikidataRegistry:
             # here does: it prefers `en` to `mul`, where a label filter accepting
             # both handed SAMPLE whichever it met first ("Pieter Bruegel" one
             # time, "Pieter Brueghel the Elder" the next).
-            maker = _qid(row, "creator", required=False)
+            maker = _optional_qid(row, "creator")
             found.append(
                 RegistryWorkMatch(
                     qid=_qid(row, "item"),
@@ -576,7 +580,7 @@ class WikidataRegistry:
         unknown: set[ItemId] = set()
         for row in made:
             work = _qid(row, "work")
-            maker = _qid(row, "maker", required=False)
+            maker = _optional_qid(row, "maker")
             if maker is None:
                 # "Somebody, unknown": a blank node, whose URL is nobody's name.
                 unknown.add(work)
@@ -754,7 +758,7 @@ class WikidataRegistry:
         names: dict[ItemId, set[RegistryText]] = {}
         for row in rows:
             # An unknown creator is a blank node, not an item: it has no names to compare.
-            creator = _qid(row, "creator", required=False)
+            creator = _optional_qid(row, "creator")
             name = row.get("name", {}).get("value")
             if creator is not None and isinstance(name, str) and name.strip():
                 names.setdefault(creator, set()).add(RegistryText(name))
@@ -790,9 +794,10 @@ class WikidataRegistry:
 
         `timeout` overrides the client's for this one question; none keeps it.
         """
-        extra = {} if timeout is None else {"timeout": httpx.Timeout(timeout, connect=10.0)}
+        # `USE_CLIENT_DEFAULT` is the argument's own default: the client's timeout.
+        per_call = httpx.USE_CLIENT_DEFAULT if timeout is None else httpx.Timeout(timeout, connect=10.0)
         try:
-            response = self._http.post(SPARQL_ENDPOINT, data={"query": query}, headers=self._headers, **extra)
+            response = self._http.post(SPARQL_ENDPOINT, data={"query": query}, headers=self._headers, timeout=per_call)
         except httpx.HTTPError as exc:
             raise RegistryUnavailable(f"Wikidata could not be reached: {exc}") from exc
         if response.status_code != httpx.codes.OK:
@@ -826,7 +831,7 @@ def _topic(item: ItemId, rows: Sequence[Mapping[str, Any]]) -> RegistryTopic:
     starts: set[int] = set()
     ends: set[int] = set()
     for row in rows:
-        root = _qid(row, "root", required=False)
+        root = _optional_qid(row, "root")
         if root is not None:
             (instance_of if row.get("via", {}).get("value") == "P31" else subclass_of).add(root)
         start, end = _integer(row, "start"), _integer(row, "end")
@@ -864,7 +869,7 @@ def _said_no(row: Mapping[str, Any], name: str) -> bool:
 
 def _is_work(row: Mapping[str, Any]) -> bool:
     """Whether a row of a topic's facts says it is an instance of visual artwork: a work, not a topic."""
-    return row.get("via", {}).get("value") == "P31" and _qid(row, "root", required=False) == _VISUAL_ARTWORK
+    return row.get("via", {}).get("value") == "P31" and _optional_qid(row, "root") == _VISUAL_ARTWORK
 
 
 #: Binds `?work` to a work of visual art: an instance of one of the ten classes.
@@ -938,7 +943,7 @@ def _collect(
             # As in `works_by_identifier`: an item not asked about is not a key.
             continue
         for name, kind in routes.items():
-            topic = _qid(row, name, required=False)
+            topic = _optional_qid(row, name)
             # An unknown value ("depicts: somebody") is no topic.
             if topic is not None:
                 into.setdefault(item, set()).add(
@@ -973,10 +978,10 @@ def _literal(text: str) -> str:
     return f'"{escaped}"'
 
 
-def _require_qid(qid: str) -> str:
+def _require_qid(qid: str) -> ItemId:
     if not QID.match(qid):
         raise ValueError(f"{qid!r} is not a Wikidata item id.")
-    return qid
+    return ItemId(qid)
 
 
 def _value(row: Mapping[str, Any], name: str) -> str:
@@ -986,16 +991,24 @@ def _value(row: Mapping[str, Any], name: str) -> str:
         raise RegistryUnavailable(f"A Wikidata result had no {name!r}.") from exc
 
 
-def _qid(row: Mapping[str, Any], name: str, *, required: bool = True) -> ItemId | None:
-    """The QID at the end of an entity URI, or None for a value that is not an item (an unknown creator)."""
-    if not required and name not in row:
-        return None
-    candidate = _value(row, name).rsplit("/", 1)[-1]
+def _qid(row: Mapping[str, Any], name: str) -> ItemId:
+    """The QID at the end of an entity URI; a row without one is the service's mistake, and raises."""
+    candidate = _entity(row, name)
     if QID.match(candidate):
         return ItemId(candidate)
-    if required:
-        raise RegistryUnavailable(f"A Wikidata result's {name!r} was not an item: {candidate!r}.")
-    return None
+    raise RegistryUnavailable(f"A Wikidata result's {name!r} was not an item: {candidate!r}.")
+
+
+def _optional_qid(row: Mapping[str, Any], name: str) -> ItemId | None:
+    """The QID at the end of an entity URI, or None for an absent value or one that is not an item (an unknown creator)."""
+    if name not in row:
+        return None
+    candidate = _entity(row, name)
+    return ItemId(candidate) if QID.match(candidate) else None
+
+
+def _entity(row: Mapping[str, Any], name: str) -> str:
+    return _value(row, name).rsplit("/", 1)[-1]
 
 
 def _work_page(url: str) -> WorkPage | None:

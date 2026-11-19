@@ -310,7 +310,10 @@ class ImageSourcePool:
         offers = offers_images(source)
         try:
             for found in source.find_images(query):
-                (pages if isinstance(found, FoundPage) else images).append(found)
+                if isinstance(found, FoundPage):
+                    pages.append(found)
+                else:
+                    images.append(found)
         except ImageQueryUnanswerable:
             outcome, failure = AskOutcome.DECLINED, None
         except ImageSearchFailure as exc:
