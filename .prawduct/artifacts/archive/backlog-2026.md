@@ -1,3 +1,12 @@
+# Backlog, 2026 (archived)
+
+> **Archived 2026-11-19.** This file was the structured backlog until the cutover of
+> 2026-07-19, when the live backlog became GitHub Issues (`backlog_service_repo` in
+> `project-state.yaml`). It was kept in place as frozen history and moved here by
+> `build-plan-audit-wave-2.md`, so nothing in `.prawduct/` still looks like a backlog the
+> tooling should read. It is a record of its day, not scanned for citations
+> (`tests/preferences/test_citations_resolve.py`).
+
 # Backlog — Samsung Frame Art Loader
 
 > ## ⚠ SEVEN ITEMS WERE FILED HERE AFTER THIS FILE WAS FROZEN (found 2026-07-27)
