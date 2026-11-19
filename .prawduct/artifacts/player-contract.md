@@ -179,7 +179,7 @@ of walls, each on one of its outputs. It learns its walls from the server.
   not assigned to that client, or one the server does not hold, is `403`.
   `/media/...` accepts any client's valid token, whatever walls it drives.
 - **A request body over 256 KiB is refused with `413`**, on every Player route that
-  takes one, before it is parsed, and nothing is recorded (2026-11-19, audit-8 F10).
+  takes one, before it is parsed, and nothing is recorded (2026-11-19).
   A heartbeat is a few kilobytes, so the limit is ten times anything valid. It is a
   limit of this server's, `http/player.py` `BODY_LIMIT_BYTES`, and not a rule of
   any schema: a Player is never asked to know it, `contract/` carries no such number,
