@@ -471,7 +471,7 @@ def test_a_declaration_for_one_kind_of_call_leaves_the_others_at_their_defaults(
 @pytest.mark.parametrize(
     ("declared", "said"),
     [
-        ({"finder": 901}, "its finder deadline of 901 seconds is past this Arrt's ceiling of 900"),
+        ({"finder": 3601}, "its finder deadline of 3601 seconds is past this Arrt's ceiling of 3600"),
         ({"reader": 0}, "its reader deadline of 0 is not a number of seconds above zero"),
         ({"browse": -5}, "its browse deadline of -5 is not a number of seconds above zero"),
         ({"finder": float("inf")}, "its finder deadline of inf is not a number of seconds above zero"),
@@ -497,10 +497,21 @@ def _never_called(_context):
 
 
 def test_a_declaration_at_the_ceiling_loads():
-    assert DEADLINE_CEILING_SECONDS == 900
+    assert DEADLINE_CEILING_SECONDS == 3600
     clock = SimulatedTime()
-    roster = load_slow(clock, slow_plugin(clock, takes=900, deadlines={"finder": 900, "reader": 900.0}))
+    roster = load_slow(clock, slow_plugin(clock, takes=3600, deadlines={"finder": 3600, "reader": 3600.0}))
 
+    assert len(list(roster.finders[0].find_images(QUERY))) == 1
+
+
+@pytest.mark.parametrize("seconds", [1012, 2044], ids=["one_page", "one_holder_behind_a_crawl_delay"])
+def test_the_browser_plugins_honest_worst_case_loads_and_is_waited_for(seconds):
+    """The private browser plugins' bounds allow these at worst; a ceiling below them would refuse the plugin at load."""
+    clock = SimulatedTime()
+    roster = load_slow(clock, slow_plugin(clock, takes=seconds, deadlines={"finder": seconds, "reader": seconds}))
+
+    (slow,) = roster.observe()
+    assert slow.state is not PluginState.FAILED, slow.reason
     assert len(list(roster.finders[0].find_images(QUERY))) == 1
 
 

@@ -104,12 +104,14 @@ PREVIEW_DEADLINE_SECONDS: Final[float] = 30.0
 #: one call, so it is given longer than one work's search.
 BROWSE_DEADLINE_SECONDS: Final[float] = 120.0
 #: The longest deadline a plugin may declare for one call (`SourcePlugin.deadlines`).
-#: One page read through the private plugins' browser was measured at 77-100 s,
-#: and its own bounds allow 480 s at worst, its wait for the one browser included;
-#: the slowest-paced site waits up to 490 s for its turn. Fifteen minutes covers
-#: those with room. It is also how long one slow source can hold a Get, because a
-#: run waits for every source, so it is not set higher than the worst case needs.
-DEADLINE_CEILING_SECONDS: Final[float] = 900.0
+#: A sanity bound on in-process code the owner installed and already trusts, not a
+#: security boundary: it catches a declaration that is a slip (a day, not a
+#: minute), and refuses nothing an honest worst case needs. The private browser
+#: plugins' own bounds allow 1,012 s for one page and 2,044 s for one holder read
+#: behind a crawl delay; an hour covers those with room. It is also how long one
+#: slow source can hold a Get, because a run waits for every source, so a plugin
+#: declares its own worst case rather than this.
+DEADLINE_CEILING_SECONDS: Final[float] = 3600.0
 #: The kinds of call a plugin may declare a deadline for, each a field of `Deadlines`.
 DEADLINE_KINDS: Final[tuple[str, ...]] = ("finder", "reader", "preview", "browse")
 

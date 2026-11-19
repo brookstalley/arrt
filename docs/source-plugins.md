@@ -254,11 +254,11 @@ panel beside its faults, and the work is asked again later. It is not a fault.
 **A plugin that needs longer says so**, with `deadlines`: a mapping from any of
 `"finder"`, `"reader"`, `"preview"` and `"browse"` to seconds. A kind you do not
 name keeps its default. Each value is a number of seconds above zero and at most
-Arrt's ceiling, 900 seconds; anything else (more than 900, zero or less, not
+Arrt's ceiling, 3,600 seconds; anything else (more than 3,600, zero or less, not
 finite, not a number, or a kind not in that list) leaves the plugin out at
 startup, named with the reason. Declare the time your own bounds allow a call at
 its worst, because Arrt cuts it off at what you declare: a browser plugin whose
-page may take 480 seconds, queue included, declares at least that.
+page may take 1,012 seconds, queue included, declares at least that.
 
 **Arrt cannot stop your call; it stops waiting for it.** Python cannot stop a
 thread, so the call goes on running, on a daemon thread of its own. When it
