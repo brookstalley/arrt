@@ -422,22 +422,20 @@ class _Said:
 
 
 class _Heard:
-    """What a finder has yielded so far, each checked, and closed when its caller stops listening."""
+    """What a finder has yielded so far, each checked: added to by the call's thread, read by its caller's."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._found: list[FoundImage | FoundPage] = []
-        self._closed = False
 
     def add(self, found: FoundImage | FoundPage) -> None:
         with self._lock:
-            if not self._closed:
-                self._found.append(found)
+            self._found.append(found)
 
-    def close(self) -> tuple[FoundImage | FoundPage, ...]:
-        """Everything heard, and nothing after: what a call yields past its deadline reaches nobody."""
+    def so_far(self) -> tuple[FoundImage | FoundPage, ...]:
+        """Everything heard until now. Taken once, when the caller answers, so what a call
+        yields past its deadline lands after the copy and reaches nobody."""
         with self._lock:
-            self._closed = True
             return tuple(self._found)
 
 
@@ -615,13 +613,12 @@ class _ContainedFinder:
         except Exception as exc:  # prawduct:allow prawduct/broad-except -- a plugin fault must not fail a run
             # Nothing it said is kept: a plugin answering outside its interface
             # has said nothing that can be trusted.
-            heard.close()
             self._tally.fault(self._plugin, "find_images", exc)
             raise ImageSearchFailure(f"the {museum_name(self._plugin)} plugin faulted: {type(exc).__name__}") from exc
         else:
             self._tally.answered(self._plugin)
-            return heard.close()
-        said = heard.close()
+            return heard.so_far()
+        said = heard.so_far()
         if not said:
             raise failure
         return _Said(said, failure)
