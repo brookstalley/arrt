@@ -246,6 +246,47 @@ def test_a_pass_not_told_when_starts_and_completes_by_the_job_s_clock(tmp_path, 
     )
 
 
+@pytest.mark.parametrize("seconds", [0.0, 2.5])
+def test_backup_completed_says_how_long_the_copy_took_by_the_injected_monotonic_clock(tmp_path, catalogue, caplog, seconds):
+    """The figure the WAL decision's third trigger reads: the copy alone, from before the generation exists to after.
+
+    The injected clock notes, at each reading, whether the generation is on
+    disk yet, so a timing that began after the copy or ended before it fails
+    here rather than reading as a short copy.
+    """
+    directory = tmp_path / "backups"
+    readings: list[bool] = []
+
+    def monotonic() -> float:
+        readings.append(any(directory.glob("catalogue-*Z.sqlite")))
+        return 1000.0 + (seconds if len(readings) > 1 else 0.0)
+
+    job = CatalogueBackup(
+        catalogue_path=catalogue,
+        directory=directory,
+        receipt_path=catalogue.parent / BACKUP_RECEIPT_FILENAME,
+        keep=2,
+        clock=Clock(NOON),
+        monotonic=monotonic,
+    )
+
+    with caplog.at_level("INFO", logger="arrt.persistence.backup"):
+        result = job.run()
+
+    (completed,) = [record for record in caplog.records if getattr(record, "event", None) == "backup.completed"]
+    assert readings == [False, True]
+    assert completed.copy_seconds == result.copy_seconds == seconds
+    assert isinstance(completed.copy_seconds, float)
+
+
+def test_by_default_the_copy_is_timed_by_the_real_monotonic_clock(job, caplog):
+    with caplog.at_level("INFO", logger="arrt.persistence.backup"):
+        result = job.run()
+
+    assert isinstance(result.copy_seconds, float)
+    assert 0.0 <= result.copy_seconds < 60.0
+
+
 # -- the start-up pass after an upgrade ----------------------------------------------
 
 DAY = 24 * 60 * 60
