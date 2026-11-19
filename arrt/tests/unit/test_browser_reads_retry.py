@@ -77,7 +77,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_acquisition_states.py": (40, 0),
     "test_activity.py": (14, 0),
     "test_archiving_a_work.py": (35, 0),
-    "test_asking.py": (50, 2),
     "test_clean_up_facets.py": (19, 0),
     "test_component_rules.py": (7, 0),
     "test_copy_says_it_once.py": (21, 0),
