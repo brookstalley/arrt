@@ -606,7 +606,7 @@ class AcquisitionQueue:
                     # in about four days. Paused instead, as `NotEnoughSpace` is
                     # before a fetch, with the work still first in line and its
                     # failure count as it was.
-                    pause = QueuePause(condition=type(exc).__name__, detail=str(exc) or repr(exc), since=self._clock())
+                    pause = QueuePause(condition=_host_condition(exc), detail=str(exc) or repr(exc), since=self._clock())
                     log.exception(
                         "acquiring %s hit a fault of the host's, so the queue pauses and the work is not counted: %s",
                         artwork_id,
@@ -729,6 +729,18 @@ def _is_host_fault(exc: Exception) -> bool:
     if isinstance(exc, sqlite3.OperationalError):
         return True
     return isinstance(exc, OSError) and exc.errno in _HOST_ERRNOS
+
+
+def _host_condition(exc: Exception) -> str:
+    """The name a host fault's pause carries, which is how `DEPLOYMENT_REMEDIES` finds its remedy.
+
+    A disk's fault by its `errno` (`ENOSPC`, `EROFS`), not its type: `OSError`
+    by name is also what `note_error` records for a surprise, which has no
+    remedy to give. A database's by its type, `OperationalError`.
+    """
+    if isinstance(exc, OSError) and exc.errno is not None:
+        return errno.errorcode[exc.errno]
+    return type(exc).__name__
 
 
 #: What a failed work's cause is when its row recorded none, which no path

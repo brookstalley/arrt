@@ -11,13 +11,15 @@ scattering its tests into a file that disclaims it is how that boundary stops
 being legible.
 """
 
+import errno
+import re
 from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
 
 from arrt.library.acquisition.dezoomify import DezoomifyUnavailable
-from arrt.library.acquisition.queue import AcquisitionPhase, AcquisitionState
+from arrt.library.acquisition.queue import _HOST_ERRNOS, AcquisitionPhase, AcquisitionState
 from arrt.library.acquisition.service import DEPLOYMENT_FAULTS, DEPLOYMENT_REMEDIES, SourcePluginUnavailable, remedy_for
 from arrt.library.acquisition.space import NotEnoughSpace
 from arrt.library.services.catalogue import MAX_LIST_LIMIT
@@ -386,6 +388,11 @@ _REMEDY_FOR = {
     SourcePluginUnavailable: "ARTIC_USER_AGENT",
 }
 
+#: The names the queue's pauses on a fault of the host carry, derived from the
+#: queue's own set of host `errno`s, so a disk fault added there without a
+#: remedy fails the test below. A database fault is `OperationalError`.
+_HOST_CONDITIONS = (*sorted(errno.errorcode[number] for number in _HOST_ERRNOS), "OperationalError")
+
 
 def test_every_raise_rather_than_record_condition_has_a_remedy_of_its_own():
     """`service.py` says a new raise-rather-record condition needs a remedy; this asserts it.
@@ -395,7 +402,20 @@ def test_every_raise_rather_than_record_condition_has_a_remedy_of_its_own():
     show a detail with no remedy beside it.
     """
     assert set(_REMEDY_FOR) == set(DEPLOYMENT_FAULTS), "a condition was added or removed without its operator remedy"
-    assert set(DEPLOYMENT_REMEDIES) == {condition.__name__ for condition in DEPLOYMENT_FAULTS}
+    assert set(DEPLOYMENT_REMEDIES) == {condition.__name__ for condition in DEPLOYMENT_FAULTS} | set(_HOST_CONDITIONS)
+
+
+@pytest.mark.parametrize("condition", _HOST_CONDITIONS)
+def test_each_pause_on_the_hosts_fault_has_a_remedy_in_the_households_words(condition):
+    """The queue pauses on a full or read-only disk and on a database fault; each says what to do, naming no setting.
+
+    Whoever reads these looks after the disk, not the configuration, so no
+    environment variable is named (an upper-case word with an underscore).
+    """
+    remedy = remedy_for(condition)
+
+    assert remedy is not None, "the pause would be shown with nothing to say about what ends it"
+    assert not re.search(r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b", remedy), remedy
 
 
 @pytest.mark.parametrize("condition", DEPLOYMENT_FAULTS, ids=lambda c: c.__name__)

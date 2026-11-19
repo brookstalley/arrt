@@ -658,15 +658,17 @@ class TestThePause:
         assert queue.state_of([artwork_id])[artwork_id].failures == 0
 
     @pytest.mark.parametrize(
-        "fault",
+        ("fault", "condition"),
         [
-            OSError(errno.ENOSPC, "No space left on device"),
-            OSError(errno.EROFS, "Read-only file system"),
-            sqlite3.OperationalError("database is locked"),
+            (OSError(errno.ENOSPC, "No space left on device"), "ENOSPC"),
+            (OSError(errno.EROFS, "Read-only file system"), "EROFS"),
+            (sqlite3.OperationalError("database is locked"), "OperationalError"),
         ],
         ids=["ENOSPC", "EROFS", "OperationalError"],
     )
-    def test_a_fault_of_the_host_raised_mid_fetch_pauses_and_counts_against_no_work(self, queue, work, fetcher, store, fault):
+    def test_a_fault_of_the_host_raised_mid_fetch_pauses_and_counts_against_no_work(
+        self, queue, work, fetcher, store, fault, condition
+    ):
         """A full disk met mid-fetch fails every work in turn; it must not count against each until all are given up."""
         first, second = work("One"), work("Two")
         fetcher.answers = [fault]
@@ -674,7 +676,10 @@ class TestThePause:
         result = queue.run()
 
         assert result.paused is not None
-        assert result.paused.condition == type(fault).__name__
+        # A disk's fault is named by its errno, so its pause finds its remedy
+        # (`DEPLOYMENT_REMEDIES`); `OSError` by name is a surprise's, which has none.
+        assert result.paused.condition == condition
+        assert result.paused.remedy is not None
         assert (result.failed, result.gave_up) == (0, 0)
         # The pass stopped on it: the second work was not tried against the same disk.
         assert [artwork_id for artwork_id, _ in fetcher.calls] == [first]
@@ -699,7 +704,8 @@ class TestThePause:
         result = queue.run()
 
         assert result.paused is not None
-        assert result.paused.condition == "OSError"
+        assert result.paused.condition == "ENOSPC"
+        assert result.paused.remedy is not None
         row = store.get_queued_acquisition(artwork_id)
         assert row is None or row.failures == 0
 

@@ -102,6 +102,26 @@ DEPLOYMENT_REMEDIES: Final[Mapping[str, str]] = {
         "Status lists it. For the Art Institute that is ARTIC_USER_AGENT in .env, a string naming this deployment "
         "and a contact address. Every source that plugin reads is affected, and no source is at fault."
     ),
+    # The host's faults the acquisition queue pauses on when one surfaces
+    # mid-work (`queue._is_host_fault`), keyed by the name its pause carries: the
+    # `errno` for a disk, since an `OSError` by its type name is any surprise
+    # (`note_error` pauses on those, and they have no remedy to invent). Said in
+    # the household's words: whoever reads these looks after the disk, not the
+    # configuration.
+    "ENOSPC": (
+        "The disk the library is kept on is full. Free some space on it: the queue tries again every 15 minutes "
+        "and carries on by itself once there is room. No work is counted as failed meanwhile."
+    ),
+    "EROFS": (
+        "The disk the library is kept on can no longer be written to, which usually means the disk has a fault. "
+        "Have the disk checked: the queue tries again every 15 minutes and carries on by itself once it can write. "
+        "No work is counted as failed meanwhile."
+    ),
+    "OperationalError": (
+        "The library's database could not be written: something else has it locked, or the disk under it has a "
+        "fault. Close anything else that has the library open, or restart Arrt: the queue tries again every 15 "
+        "minutes and carries on by itself once it can write. No work is counted as failed meanwhile."
+    ),
 }
 
 
