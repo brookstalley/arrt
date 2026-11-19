@@ -98,7 +98,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_search_and_artist_states.py": (22, 0),
     "test_setting_up_a_wall.py": (6, 0),
     "test_shared_rules_and_phone.py": (4, 0),
-    "test_similar_artists_and_identity.py": (23, 1),
     "test_spend.py": (7, 0),
     "test_taste_and_reactions.py": (18, 0),
     "test_the_artist_page.py": (51, 0),
