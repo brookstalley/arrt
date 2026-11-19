@@ -16,17 +16,16 @@ quality** (the entire point of the product is how something looks from across a
 room). Those get depth. Throughput and concurrency get a sentence each, because
 that is what they are worth here.
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** The product becomes
-> a **server** (Library plus Programming, on the operator's NAS) and **players**
-> (one per wall, which may be a Samsung Frame, an LCD or a monitor, with an
-> optional e-ink label or a caption in the mat). The requirements below were
-> written for one Pi, one TV and a shared directory, and they remain true of what
-> is built and running. The dated notes in this file mark where the *target*
-> moves and in which wave. What does not move: the spend ceiling norm, the cost
-> ceiling, the output-quality bar, "the television belongs to whoever is using
-> it", and the principle that availability is really about detection. The
-> "one household, one curator" load assumptions also hold. "One TV" does not:
-> the target is several walls, each with its own player.
+> **Landed (waves 2 to 5, `re-architecture.md`).** The product is a **server**
+> (Library plus Programming, on the operator's NAS) and **Players** (one per wall,
+> which may be a Samsung Frame, an LCD or a monitor, with an optional e-ink label or,
+> in wave 6+, a caption in the mat). The requirements below were written for one Pi,
+> one TV and a shared directory; the dated notes in this file mark where each
+> moved. What did not move: the spend ceiling norm, the cost ceiling, the
+> output-quality bar, "the television belongs to whoever is using it", and the
+> principle that availability is really about detection. The "one household, one
+> curator" load assumptions also hold. "One TV" does not: there are several walls,
+> each with its own Player.
 
 ## Direction
 
@@ -183,17 +182,14 @@ latency numbers in the product, and they are inherited, not chosen.
 | Image preparation on the Pi | unbudgeted, but it stays on the Pi | **Corrected 2026-07-20**, hours after this table was written. It said "moved off entirely"; the operator then decided both planes run on the Pi. Measured: largest corpus work is 49 MP (~148 MB loaded), and the colour work downsizes to 2048² first (~100 MB), against 8 GB. Comfortable. The exposure is a true 1–2 gigapixel scan — see `architecture.md` § Scaling Model |
 | Composing a wall image on the Player (wave 4) from a presentation master capped at 7680 px | ≤ 5 s and ≤ 1 GB per composition, on a Pi 4 | `[ASSUMPTION: 5 s, 1 GB | LOW impact | user can correct]` — it runs once per work and geometry, ahead of the work's slot, so it is a background cost rather than a wait. **Measured 2026-10-04** on the wall's Pi 4 (8 GB, idle display daemon, one core under `nice`, no throttling), with the server's `compose()` called unchanged on 3840×2160 output: 7680 masters 1.3–2.9 s at 200–795 MB, real 47–49 MP originals 2.7–3.2 s at about 650 MB, and every real master ≤ 0.9 s for a 1920×1200 screen. Decode and resize are almost all of it. Not measured: the caption set into the mat, and a busy daemon |
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** Image preparation
-> leaves the Pi in wave 3, when the server moves to the NAS. That covers
-> acquisition, tiling and mat-colour analysis, and from wave 4 the presentation
-> master, which does not exist before then. In wave 4
-> the Pi takes on a **new** preparation cost: compositing the mat around a
-> presentation master (long edge capped at about 8K, to be measured) at its own
-> screen's geometry, and, in caption mode, setting the label into the mat. It
-> runs on the Player at every new work or geometry change, not once upstream.
-> **Measured and budgeted 2026-10-04** in the table above; the caption in the mat
-> is not yet measured. The label timings above carry over unchanged, and apply to a caption
-> in the mat as well as to the e-ink panel.
+> **Landed (waves 3 and 4, `re-architecture.md`).** Image preparation (acquisition,
+> tiling, mat-colour analysis and the presentation master) runs on the server, not
+> the Pi. The Pi took on a **new** cost: compositing the mat around a presentation
+> master (long edge capped at about 8K) at its own screen's geometry, at every new
+> work or geometry change, **measured and budgeted 2026-10-04** in the table above.
+> Setting a caption into the mat is not yet measured (Player work, wave 6+). The
+> label timings above carry over unchanged, and apply to a caption in the mat as
+> well as to the e-ink panel.
 
 ## Scalability and Capacity
 
@@ -253,17 +249,16 @@ planes are co-located on the Pi** (`project-state.yaml`). Decided on availabilit
 and always-on-ness, as this section argued — not on disk. Left phrased as open
 here until 2026-07-20.
 
-> **Direction changed 2026-09-30. See `re-architecture.md` § Deployment target.**
-> The server (curation) moves to the operator's NAS in wave 3, which reverses the
-> co-location closed above. The reasoning in this paragraph still holds: storage
-> did not force the move, and nothing here needed it to. The move follows from the
-> product becoming a server with players at several walls. A server shared by
-> walls belongs on the always-on box that already hosts the household's other
-> library software, not on one wall's Pi. A side effect is that the catalogue and
-> the art tree leave consumer flash, which retires the SD-card risks named
-> elsewhere in this artifact. The **Player** gets a new, smaller storage figure:
-> a local cache of the presentation masters for its own wall's playlist, sized by
-> the playlist, not by the corpus.
+> **Landed (wave 3, `re-architecture.md` § Deployment target).** The server
+> (curation) runs on the operator's NAS, which reverses the co-location closed
+> above. The reasoning in this paragraph still holds: storage did not force the
+> move, and nothing here needed it to. It followed from the product becoming a
+> server with Players at several walls, which belongs on the always-on box that
+> hosts the household's other library software. A side effect is that the
+> catalogue and the art tree left consumer flash, which retires the SD-card risks
+> named elsewhere in this artifact. The **Player** has a new, smaller storage
+> figure: a local cache of the presentation masters for its own wall's theme, sized
+> by the theme, not by the corpus.
 
 **The one thing that could break this estimate** is gigapixel sourcing. Google
 Arts & Culture scans fetched via dezoomify can reach 1–2 gigapixels — roughly 100×
@@ -283,18 +278,17 @@ largest single work in flight rather than by the corpus.
 | Display | Continuous. Recovers without human action | The TV is not advancing through the active theme, **or** the label disagrees with the artwork |
 | Curation | On-demand. No uptime target | The web UI or MCP surface does not answer. Invisible to the household by definition |
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** In the target the
-> rows become **Player** (one per wall, continuous, with the same definition of
-> down) and **server** (on-demand for curation). The server now carries one
-> duty it did not have: serving each wall's manifest, media and heartbeat
-> endpoint. Its downtime stays invisible to the household *only because* the
-> Player renders from its local cache. A server outage longer than the cache's
-> coverage (a newly hung playlist whose media never arrived) is the new way this
+> **Landed (waves 3 and 6).** The rows are **Player** (one per wall, continuous,
+> with the same definition of down) and **server** (on-demand for curation). The
+> server carries one duty it did not have: serving each wall's manifest, media and
+> heartbeat endpoint. Its downtime stays invisible to the household *only because*
+> the Player renders from its local cache. A server outage longer than the cache's
+> coverage (a newly hung theme whose media never arrived) is the new way this
 > table's "down looks like up" shows itself, and the heartbeat has to be able to
-> say so. Standing searches (Watches) and upgrade jobs also make the server
-> unattended in a way it was not. It still has no uptime target, but a scheduled
-> job that silently stops running is a detection problem for
-> `observability-strategy.md`, the same shape as the topic sweep.
+> say so. Standing searches (Watches, built 2026-11-09) make the server unattended
+> in a way it was not. It still has no uptime target, but a scheduled job that
+> silently stops running is a detection problem for `observability-strategy.md`,
+> the same shape as the topic sweep.
 
 **The failure mode that matters is that display-plane "down" looks exactly like
 "up".** A stalled loader leaves the TV in art mode holding the last selected work
@@ -544,24 +538,20 @@ curator every judgement they have already made. So:
   here from the 2024 layout; it is retired from the prospective `ART_ROOT`
   contract — labels render on the display plane. See `boundary-patterns.md`.)
 
-> **Direction changed 2026-09-30. See `re-architecture.md`.** The priority is
-> unchanged: the curatorial layer is the irreplaceable asset, and images are
-> not. What moves:
-> - **Where it lives.** The catalogue moves to NAS storage in wave 3.
-> - **How many files it is.** Wave 3 splits the store, before it moves, into a Library file and a
->   Programming file, with no foreign keys between them. Both hold curatorial
->   judgement: the Library holds verdicts, suppression, mat colours, facets and
->   taste; Programming holds playlists, hanging, directive counters (until wave
->   4g) and programming tags. Both must be backed up, and a restore must restore them as
->   a pair or say what it does about a Programming reference to a work the
->   restored Library does not hold.
-> - **The Player's cache and its TV bindings.** These are device state, and a
->   Player rebuilds them by pulling again. They are not backed up.
-> - **The server's composed renders.** They disappear in wave 4 when compositing
->   moves to the Player. The presentation master is derived from the Original and
->   is reproducible, so it stays out of backup like `ready/` today.
->   *(Wave 4g, 2026-10-10: the composed renders are gone, and the masters under
->   `presentation/` stay out of backup on the same reasoning.)*
+> **Landed (waves 3 and 4g, `re-architecture.md`).** The priority is unchanged: the
+> curatorial layer is the irreplaceable asset, and images are not.
+> - **Where it lives.** The catalogue is on NAS storage.
+> - **How many files it is: one.** The store was planned to split into a Library file
+>   and a Programming file with no foreign keys between them. That is **not built**
+>   (#216), and it is not a requirement now (the owner, ruling 9 of 2026-11-19). One
+>   catalogue file holds the Library's judgement (verdicts, suppression, mat colours,
+>   facets, taste) and Programming's (themes, hanging, walls, showings), and is backed
+>   up as one, which is what a restore restores.
+> - **The Player's cache and its TV bindings** are device state, which a Player
+>   rebuilds by pulling again. They are not backed up.
+> - **The server's composed renders are gone** (wave 4g): compositing moved to the
+>   Player. The masters under `presentation/` are derived from the Original and
+>   reproducible, so they stay out of backup.
 
 ## Cost Constraints
 
@@ -1242,40 +1232,24 @@ they are arithmetic demonstrations, and re-cutting them would lose the check tha
 the numbers reproduce. Panel dimensions therefore join
 `ART_ROOT` as configuration both planes must agree on (`operational-spec.md`).
 
-> **Direction changed 2026-09-30. See `re-architecture.md` § Compositing moves to
-> the Player.** The physical-units rule, the bottom weighting, the arithmetic
-> below and the "never upscale" rule are all unchanged. What changes is **who
-> holds the geometry**.
+> **Landed (waves 4b and 4g, `re-architecture.md` § Compositing moves to the
+> Player).** The physical-units rule, the bottom weighting, the arithmetic below and
+> the "never upscale" rule are unchanged. What changed is **who holds the
+> geometry**: panel dimensions, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT` are
+> **Player** configuration only (wave 4g, 2026-10-10: the server reads none of
+> them, the Player reads all of them under the same names, and its compositor is
+> the only one), so "configuration both planes must agree on" is gone. The worked
+> examples remain the specification the Player's compositor must reproduce.
 >
-> In wave 4, panel dimensions, `MAT_WIDTH_INCHES` and `MAT_BOTTOM_WEIGHT` become
-> **Player** configuration only, and the server stops knowing any screen's size.
-> "Configuration both planes must agree on" goes away: there is one owner.
-> The worked examples remain the specification the Player's compositor must
-> reproduce.
->
-> *(Wave 4g, 2026-10-10: done. The server reads no `TV_PANEL_*`,
-> `MAT_WIDTH_INCHES` or `MAT_BOTTOM_WEIGHT`; the Player reads all of them under
-> the same names, and its compositor is the only one.)*
->
-> **The floor was the open problem this move created, and it is settled.** Today
-> the below-floor exclusion in automatic instance selection (`library/services/selection.py`)
-> reads the artwork box from server settings. After wave 4 the Library has no box
-> to read. Later on 2026-09-30 the floor became a **Library quality profile** in
-> pixels, independent of any device, with a minimum that selection and the review
-> card judge against and an upgrade cutoff (`re-architecture.md` § Compositing
-> moves to the Player). Per-wall adequacy is Programming's comparison against the
-> geometry each Player reports. The wave-4 plan states the profile's numbers and
-> must land it in the same change that removes the panel settings. Losing the
+> **The floor**, which this move put at risk, is settled: the below-floor exclusion
+> in automatic instance selection (`library/services/selection.py`) and the review
+> card judge against the **Library's quality profile**, a minimum in pixels
+> independent of any device, with no cutoff (`upgrades.md` ruling 1; built
+> 2026-10-08 in wave 4b, ahead of the change that removed the panel settings, so no
+> gap opened, `build-plan-wave-4b-master-quality.md`). Per-wall adequacy is
+> Programming's comparison against the geometry each Player reports. Losing the
 > floor silently would let a below-floor scan be auto-selected, the exact silent
 > acceptance this section forbids.
->
-> **Built 2026-10-08 in wave 4b, ahead of the change that removes the panel
-> settings (4g), not in it.** The sentence above exists so that no gap opens
-> between the box leaving and the profile arriving, and landing the profile
-> first leaves none; the departure is recorded as a decision in
-> `build-plan-wave-4b-master-quality.md`. The profile has a minimum and no
-> cutoff (`upgrades.md` ruling 1). From then the box is read only to compose
-> the canvas.
 
 Everything else follows arithmetically:
 

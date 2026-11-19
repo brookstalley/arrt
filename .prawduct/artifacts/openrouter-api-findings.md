@@ -5,13 +5,12 @@ fake built against assumed shapes encodes the assumptions rather than testing
 them. Everything below is **measured**, not recalled or read from documentation,
 except where a line says otherwise.
 
-> **Direction changed 2026-09-30 — see `re-architecture.md` § Deployment
-> target.** § "The client is first-party, behind a seam" counts the install
-> landing on the Pi as one reason. From wave 3 the server, which holds this
-> client, runs as a container on the NAS. The decision stands on its other two
-> reasons: everything routes through one provider, and the eval harness's model
-> and the engine's model are unrelated roles. The Pi-install weight no longer
-> applies to it.
+> **Landed (wave 3, `re-architecture.md` § Deployment target).** The server, which
+> holds this client, runs as a container on the NAS, so § "The client is
+> first-party, behind a seam" no longer counts the install landing on the Pi as a
+> reason. The decision stands on its other two: everything routes through one
+> provider, and the eval harness's model and the engine's model are unrelated
+> roles.
 
 > **Tool calling, measured 2026-10-08:** how the cheap models do as an agent
 > on the product's tools, with steps and cost per reply, is
