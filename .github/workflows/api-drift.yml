@@ -11,6 +11,19 @@
 # the cron. An issue survives an unread inbox and lands where the remedial work is
 # already tracked. One open issue per contract; repeat failures comment on it.
 #
+# KNOWN-BLOCKED PROBES. `.github/known-blocked.json` lists the probes that are red
+# for a cause nobody has yet established, each with its issue, an expiry no more than
+# 60 days out, and what the record says. The two free jobs end in
+# `judge_drift_probes.py`, which fails the job for a probe that is red and not listed,
+# for a listed probe that has turned green (delete its row), for a row that is
+# refused or expired, and for a run in which nothing ran; it does not fail the job
+# for a listed probe that is red, and says in the job's summary which and until when.
+# That is the owner's ruling of 2026-11-19: an alarm that was red for seven weeks on
+# every run could not show a real drift, so the probes known to be red are marked and
+# a new red shows again. The OpenRouter job is not covered, on purpose: its probes
+# are skipped for want of a key (#150), which is a job that verified nothing, not a
+# probe that is red, and a row excuses only the latter.
+#
 # The *absence* of a run is a different fault and has a different mechanism —
 # `drift-freshness.yml`, which measures how long since each tier
 # last succeeded. A schedule that stops firing leaves nothing here to fail.
@@ -104,16 +117,35 @@ jobs:
           version: "0.11.32"
           enable-cache: true
       - name: Run the museum probes
+        id: probes
         working-directory: arrt
         # -n0 is REQUIRED, not tidiness. `-n auto` is in addopts for the default
         # suite, and a `-m` on the command line overrides the marker expression
         # while leaving the parallelism in place — so without this we would fire
         # concurrent requests at a public museum API and read a rate-limit as a
         # contract change.
-        run: uv run pytest tests/live -m live_museum -n0 -v --junitxml=results.xml
+        #
+        # The step records pytest's exit and succeeds, and the next step decides
+        # whether the job fails: a red probe listed in `.github/known-blocked.json`
+        # must not fail it, and pytest cannot tell a listed red from an unlisted one.
+        run: |
+          set +e
+          uv run pytest tests/live -m live_museum -n0 -v --junitxml=results.xml
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
       - name: Fail if nothing actually ran
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
+      - name: Fail on any probe that is red and not known-blocked
+        # `always()`: a probe step that never ran leaves no report, and that is the
+        # finding, not a reason to say nothing.
+        if: always()
+        env:
+          PYTEST_EXIT: ${{ steps.probes.outputs.exit_code }}
+        run: >-
+          python3 .github/scripts/judge_drift_probes.py arrt/results.xml
+          --pytest-exit "$PYTEST_EXIT"
+          --contract "Museum APIs (free)"
+          --verdict "$RUNNER_TEMP/drift-verdict.json"
       - name: Say so where a human will see it
         # Scheduled runs only. A hand-dispatched run already has somebody
         # watching its output — that is what dispatching it means — and filing an
@@ -126,6 +158,7 @@ jobs:
           python3 .github/scripts/report_drift_failure.py
           "Museum APIs (free)"
           "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          --verdict "$RUNNER_TEMP/drift-verdict.json"
 
   binary:
     name: "dezoomify-rs (free)"
@@ -158,11 +191,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Run the binary probes
+        id: probes
         working-directory: arrt
-        run: uv run pytest tests/live -m live_binary -n0 -v --junitxml=results.xml
+        # Records pytest's exit and succeeds; the judge below decides, as in the
+        # museum job.
+        run: |
+          set +e
+          uv run pytest tests/live -m live_binary -n0 -v --junitxml=results.xml
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
       - name: Fail if nothing actually ran
         if: always()
         run: python3 .github/scripts/assert_tests_ran.py arrt/results.xml
+      - name: Fail on any probe that is red and not known-blocked
+        if: always()
+        env:
+          PYTEST_EXIT: ${{ steps.probes.outputs.exit_code }}
+        run: >-
+          python3 .github/scripts/judge_drift_probes.py arrt/results.xml
+          --pytest-exit "$PYTEST_EXIT"
+          --contract "dezoomify-rs (free)"
+          --verdict "$RUNNER_TEMP/drift-verdict.json"
       - name: Say so where a human will see it
         if: failure() && github.event_name == 'schedule'
         env:
@@ -171,6 +219,7 @@ jobs:
           python3 .github/scripts/report_drift_failure.py
           "dezoomify-rs (free)"
           "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          --verdict "$RUNNER_TEMP/drift-verdict.json"
 
   openrouter:
     name: "OpenRouter (spends money)"
