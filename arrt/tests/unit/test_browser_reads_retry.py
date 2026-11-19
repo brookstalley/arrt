@@ -123,7 +123,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_the_sidebar.py": (73, 0),
     "test_the_sources_page.py": (19, 0),
     "test_the_status_sources_table.py": (4, 0),
-    "test_the_theme_page_shows_its_art.py": (17, 0),
     "test_the_theme_screen.py": (66, 1),
     "test_the_themes_index.py": (33, 2),
     "test_the_toolbar.py": (21, 0),
