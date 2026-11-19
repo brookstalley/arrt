@@ -22,7 +22,7 @@ from datetime import datetime
 
 import pytest
 
-from arrt_contract import root, schema, semantic_errors, validator
+from arrt_contract import root, schema, semantic_errors, specification, validator
 
 CONTRACT = root()
 MAT = json.loads((CONTRACT / "vectors" / "mat-geometry.json").read_text(encoding="utf-8"))
@@ -112,6 +112,27 @@ def test_each_mat_vector_keeps_the_work_inside_its_mat_and_the_screen(vector):
     # No upscaling, ever.
     assert work["width"] <= vector["input"]["work"]["width_px"]
     assert work["height"] <= vector["input"]["work"]["height_px"]
+
+
+def test_a_player_that_knows_no_density_is_drawn_at_the_default_bottom_weight():
+    """The vectors with no density stand for a Player at its defaults, which is what the server judges size against.
+
+    So they carry `defaults.bottom_weight`, and a consumer that holds its constant
+    to those vectors (the browser's `core/mat.js`) is held to the default too.
+    """
+    no_density = [vector["input"] for vector in MAT["vectors"] if vector["input"]["pixels_per_inch"] is None]
+
+    assert no_density
+    assert {given["bottom_weight"] for given in no_density} == {MAT["defaults"]["bottom_weight"]}
+
+
+def test_the_default_bottom_weight_is_the_one_the_specification_states():
+    """The number and the prose that states it, held together so neither moves alone."""
+    weight = MAT["defaults"]["bottom_weight"]
+
+    assert isinstance(weight, float)
+    assert weight > 1
+    assert f"**{weight} by default** (`defaults.bottom_weight`" in specification().read_text(encoding="utf-8")
 
 
 def test_the_mat_vectors_cover_every_mode_the_schema_names_with_and_without_a_density():

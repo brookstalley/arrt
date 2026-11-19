@@ -1,11 +1,17 @@
-"""Too small for a wall: the box agrees with the contract's layout, and the line falls at half of it."""
+"""Too small for a wall: the box agrees with the contract's layout, and the line falls at half of it.
+
+The mat's two numbers are the contract's (`contract/vectors/mat-geometry.json`):
+`relative_width` and `defaults.bottom_weight`. `adequacy.py` quotes both, so each
+quote is held to its owner here, and the box is shown to be drawn with them.
+"""
 
 import json
 
 import pytest
 from arrt_contract import root
 
-from arrt.programming.adequacy import RELATIVE_MAT_WIDTH, box, too_small
+from arrt.programming import adequacy
+from arrt.programming.adequacy import BOTTOM_WEIGHT, RELATIVE_MAT_WIDTH, box, too_small
 
 VECTORS = json.loads((root() / "vectors" / "mat-geometry.json").read_text())
 
@@ -20,6 +26,23 @@ def _no_density_vectors():
 
 def test_the_mat_width_is_the_contracts():
     assert VECTORS["relative_width"] == RELATIVE_MAT_WIDTH
+
+
+def test_the_bottom_weight_is_the_contracts_default():
+    assert VECTORS["defaults"]["bottom_weight"] == BOTTOM_WEIGHT
+
+
+def test_the_box_is_drawn_with_the_bottom_weight(monkeypatch):
+    """Through `box`, with a weight that is not the default, so a box that ignored the constant would fail here.
+
+    1080p: the side margin is 65 px; at 1.15 the bottom is 75 and the box 1790 x 940,
+    at 2.0 the bottom is 130 and the box 1790 x 885.
+    """
+    assert box((1920, 1080)) == (1790, 940)
+
+    monkeypatch.setattr(adequacy, "BOTTOM_WEIGHT", 2.0)
+
+    assert box((1920, 1080)) == (1790, 885)
 
 
 @pytest.mark.parametrize("vector", _no_density_vectors(), ids=lambda vector: vector["name"])

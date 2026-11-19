@@ -1,6 +1,9 @@
 {
-  "_about": "The mat rule (player-contract.md § Layout) as conformance vectors: a screen, its pixel density or null when the Player cannot know it, a mat mode, the presentation master's size, and the Player's mat width and bottom weight; the outcome is the work's rectangle and the mat's (null for none), in screen pixels from the top left. Rounding is half up. A Player may differ from these by one pixel, because image libraries round a fitted size differently. The proportional vectors with a density are what the server's compositor has drawn since wave 2, and its suite holds it to them.",
+  "_about": "The mat rule (player-contract.md § Layout) as conformance vectors: a screen, its pixel density or null when the Player cannot know it, a mat mode, the presentation master's size, and the Player's mat width and bottom weight; the outcome is the work's rectangle and the mat's (null for none), in screen pixels from the top left. Rounding is half up. A Player may differ from these by one pixel, because image libraries round a fitted size differently. relative_width is the mat a Player with no density draws, as a share of the screen's shorter side. defaults holds what a Player uses when its own configuration sets nothing, which is also what the server judges a work's size against, since it does not know a Player's own settings: bottom_weight, the bottom margin as a multiple of the side margin (since contract 1.2.0). What holds code to these vectors today: the reference statement in this package's tests/test_vectors.py; in Arrt, arrt/src/arrt/programming/adequacy.py (the box a work is judged too small against, arrt/tests/unit/test_adequacy.py) and arrt/src/arrt/http/static/core/mat.js (the browser's drawing of a wall, arrt/tests/browser/test_the_mat.py); in Arrt Player, its compose module (tests/test_compose.py). Arrt's own compositor, which drew the proportional vectors with a density from wave 2, retired with manifest major 1 in wave 4g.",
   "relative_width": 0.06,
+  "defaults": {
+    "bottom_weight": 1.15
+  },
   "vectors": [
     {
       "name": "50-inch Frame, proportional, landscape master",
