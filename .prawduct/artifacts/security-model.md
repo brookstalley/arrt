@@ -192,6 +192,35 @@ server by DNS rebinding (`api-contract.md` § Security has the decision). It
 is not authentication: anything on the LAN that calls the server by an allowed
 name or an address is still the curator.
 
+**Two holes in that guard were found by the audit of 2026-11-19 and are closed.**
+- **A cross-site `GET` carries no `Origin`** (F7). A page elsewhere could start a
+  look (`GET /api/registry/works/{qid}/look`), which asks every image source and
+  keeps what it fetches under `ART_ROOT/pictures/`, a directory with no ceiling by
+  norm. It could not read the answer; it could cost museum traffic from the house
+  and slow disk growth, with no spend. `/api` and `/mcp` now refuse a request
+  whose `Sec-Fetch-Site` is `cross-site` (`403`). Every current browser sends
+  that header; an MCP client, `curl` and a Player send none and are not refused
+  for it, which is the reason the absent header passes. A request from a browser
+  too old to send it is still unguarded for a `GET`, and that residue is
+  accepted. `same-site`, another port on the same host, is not refused by this
+  rule: where it sends an `Origin` the one above judges it, and a no-cors `GET`
+  from there, which sends none, is the same residue.
+- **The interface could be framed** (F8). A hostile page could show it inside its
+  own and aim a disguised click at a paid or wall-changing button, each of which
+  is a same-origin request once framed. Every HTML response now carries
+  `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+  A reverse proxy that serves the interface inside another page would need to
+  say otherwise at the proxy.
+
+**What "the LAN" is, as deployed** (F12). The house's reverse proxy is the way in,
+not the boundary: the server answers any IP address as its own name, so the
+boundary is **every network that can route to the port it is published on**. A
+compose file that publishes the port on every interface of the NAS makes the
+guest and IoT networks, and any VPN that reaches the NAS, the curator. The
+compose example now publishes it to one address (the proxy's, or loopback)
+(`deploy/README.md`), and the operator's real file is the place that holds. What
+this repository can check is the example; it cannot check the house's file.
+
 **`initiated_by` is provenance, not authorisation.** Every surface has identical
 authority. An agent-initiated run and a UI-initiated run are subject to the same
 gates, because branching authority on the caller would reintroduce exactly the
@@ -206,7 +235,9 @@ parity split MCP exists to prevent.
 | OpenRouter API key | curation plane | **Real money.** Bounded by the per-key credit limit, which is the same control that bounds a runaway agent |
 | Samsung TV pairing token | display plane | LAN-scoped. Lets a LAN-present attacker drive the TV |
 | Museum API keys, if any | curation plane | Negligible; the ARTIC API is free and public |
-| Client token, one per client *(replaced the per-wall token 2026-10-02, `clients.md`)* | the installed Player (the client) on its host, in its environment file; the server keeps only its SHA-256 (`clients.token_verifier`) | LAN-scoped. Lets someone on the LAN read the manifests and renders of the walls assigned to that client, read which walls those are and on which outputs (`GET /client`), and forge those walls' heartbeats and the client's own. It cannot change what hangs anywhere or which client shows which wall, and it opens no wall assigned to another client. Rotated by issuing again (`POST /api/clients/{client_id}/token`), which stops the old one at once; removing the client stops it too |
+| Client token, one per client *(replaced the per-wall token 2026-10-02, `clients.md`)* | the installed Player (the client) on its host, in its environment file; the server keeps only its SHA-256 (`clients.token_verifier`) | LAN-scoped. Lets someone on the LAN read the manifests and renders of the walls assigned to that client, read which walls those are and on which outputs (`GET /client`), and forge those walls' heartbeats and the client's own. It cannot change what hangs anywhere and it opens no wall assigned to another client. **It can move another client's display, with that display's walls, to itself**: a heartbeat that names a display's identity moves it to the reporting client when the client it belongs to has not reported for three minutes (`programming/clients.py` `_reconcile_display`), which is the feature that lets a Frame move between Players (`clients.md`), kept automatic by the audit plan's decision of 2026-11-19. The move is logged at WARNING naming both Players. Until the owner's Player reports again its requests for those walls are refused (`403`), and it goes on rotating its cache. The reach is art and not a credential, so it is accepted. A client heartbeat's body is capped at 256 KiB, and the number of outputs one may report is not capped (audit-8 F10, the part not closed). Rotated by issuing again (`POST /api/clients/{client_id}/token`), which stops the old one at once; removing the client stops it too |
+| `TESTAMENT_KEY`, a CI secret (GitHub Actions) | the repository's `tests.yml` workflow, given to the steps that fetch the testament wheel from the house's console and send the worktree to the house's test pool | **Runs code on the test pool.** The pool is inferred to sit on the house's LAN, where the whole boundary is "anyone here is the curator" (audit-8 F6). Not given to a pull request from a fork. The actions that run before it in the same job are pinned by tag today (the audit plan's chunk 10 pins them by commit); a hijacked tag could capture it |
+| `OPENROUTER_API_KEY`, a CI secret (`api-drift.yml`) | the paid drift probe workflow | **Real money, on a key that is not the server's.** `nonfunctional-requirements.md` states one $20 ceiling on all LLM and search spend. **Whether this key sits under that ceiling or beside it is unknown**, and the provider console is where it is found: recorded for the owner to answer, not assumed either way |
 
 The display plane holds no credential except the TV pairing token and, once it
 pulls over HTTP, its own client token, and the curation plane holds no
@@ -347,7 +378,8 @@ ones labelled as weak**:
 honest summary: the realistic worst case is a poisoned page steering candidate
 selection, burning budget, or getting an unwanted image onto the wall until
 someone looks. **Annoying and visible, not a breach.** There is no tenancy to
-cross, no payment surface to abuse, and no credential the agent can reach — and
+cross, no payment surface to abuse, and no credential the agent can reach that
+opens more than a wall's art (§ The credential trigger fired, below) — and
 **nothing an injected page can reach reads the curator's words back out to
 anyone else** (§ The curator's own words, below). It said "no PII to exfiltrate"
 until 2026-08-12; the conclusion is unchanged and the premise is narrower.
@@ -380,6 +412,36 @@ must be re-derived rather than extended:
 >
 > **Fired and re-derived 2026-11-09:** § The unattended trigger fired, below.
 > Auto-accept is not offered (the owner, 2026-11-09).
+
+### The credential trigger fired — re-derived 2026-11-19
+
+The third trigger above, "any credential becoming reachable from a tool", fired
+without this section being re-derived. `art_display(action='issue_client_token')`
+is on MCP (`mcp/bindings.py`): it mints a Player's token and returns it, once, into
+the agent's context and so into its provider's transcript. The audit of
+2026-11-19 (F9) found it. **Decided 2026-11-19 in the audit's plan (`build-plan-audit-wave-1.md`, vetoable by the owner):
+the action stays on MCP**, because taking it off would remove the only agent path
+to re-pair a Player, for a credential whose reach is a wall's art.
+
+- **Who has it.** A full MCP client. Not Ask: `ASK_SCOPE` names no `art_display` action
+  (`ask/prompt.py`), so a page an Ask reads cannot ask for it. An agent that
+  reads a poisoned page and also holds the full MCP surface can.
+- **What it opens.** A client token reads the manifests and renders of the walls
+  assigned to that client, the client document, and forges those walls' and the
+  client's heartbeats (§ Credentials and Secrets › Inventory). It opens no
+  catalogue, no spend, no setting, no other credential, and no television: the
+  TV's token never leaves the Player.
+- **What minting costs the house.** Minting a client's token revokes the one the
+  real Player holds, so that Player is refused (`401`) until it is given the new
+  one. It keeps rotating its cache. An injected agent can therefore take a wall
+  off its feed, and cannot repoint or blank it.
+- **What the token is worth to whoever reads the transcript.** What the household's
+  provider already holds of the household's art, and a read of the walls' feed
+  from the LAN, which any LAN client has by the model above. It is weak as
+  prevention and is labelled as such.
+- **What would change this.** A token that opens anything beyond the walls assigned
+  to its client, or a tool that reads a token back after it was issued (the server
+  keeps only a verifier, and a test holds that, `test_the_token_is_stored_only_as_a_verifier`).
 
 ### The fetch trigger fired — re-derived 2026-08-03
 
@@ -570,6 +632,17 @@ nothing reaches a wall.**
 can write a verdict, which includes auto-accept and also an agent run unattended
 with catalogue tools; any prompt that is told unreviewed finds; or an allowance
 that is no longer bounded by the monthly budget.
+
+**A path this section's table did not name, found by the audit of 2026-11-19
+(F11).** An Ask can write taste: `art_taste` `set` is in `ASK_SCOPE`, and
+`TasteService.brief` is quoted into every phase-1 prompt, a Watch's included. A web
+page an Ask reads can therefore plant a standing instruction, up to 160 characters
+per judgment and 200 judgments, that the next unattended run reads. It is known
+and accepted (§ The curator's own words) and bounded, since phase 1 holds no
+tools, results go only to review, and the write is visible in the thread and
+countable. It contradicts the claim that a Watch's prompt is told only what the
+household said, which is why it is named here: **what would change this includes
+anything Ask can write that a later unattended prompt quotes.**
 
 ## Content Appropriateness
 
