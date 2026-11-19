@@ -12,6 +12,8 @@ Each test below holds one of those answers, and the geometry ones are measured
 at the width the owner saw it, 1280 px.
 """
 
+import re
+
 import pytest
 from payloads import (
     a_candidate,
@@ -25,6 +27,7 @@ from payloads import (
     an_instance,
     an_instance_listing,
 )
+from playwright.sync_api import expect
 
 pytest.importorskip(
     "playwright.sync_api",
@@ -98,10 +101,10 @@ def test_a_get_s_page_is_where_its_works_are_judged(ui):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
 
-    assert ui.page.locator("li.card button:text-is('Reject')").count() == 1
-    assert "Review these works" not in ui.text()
+    expect(ui.page.locator("li.card button:text-is('Reject')")).to_have_count(1)
+    expect(ui.view).not_to_contain_text("Review these works", use_inner_text=True)
     # The cards stand where the work table stood, rather than beside it.
-    assert ui.page.locator("#view table").count() == 0
+    expect(ui.page.locator("#view table")).to_have_count(0)
 
 
 def test_a_verdict_on_the_get_s_page_is_recorded_there(ui):
@@ -128,11 +131,11 @@ def test_a_discovery_run_s_page_is_unchanged(ui):
     ui.open(f"#get/{RUN_ID}")
     ui.page.wait_for_selector("#view table")
 
-    assert ui.page.locator("a:text-is('Review these works')").count() == 1
-    assert ui.page.locator("li.card").count() == 0
+    expect(ui.page.locator("a:text-is('Review these works')")).to_have_count(1)
+    expect(ui.page.locator("li.card")).to_have_count(0)
     # Its cards are read since 2026-10-08, but only for each row's picture and
     # the museum that offered it: the page still draws a table, never cards.
-    assert ui.page.locator("#view section.asked-for table").count() == 1
+    expect(ui.page.locator("#view section.asked-for table")).to_have_count(1)
 
 
 def test_review_still_answers_for_a_get(ui):
@@ -141,7 +144,7 @@ def test_review_still_answers_for_a_get(ui):
     ui.open(f"#review/{GET_ID}")
 
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
-    assert ui.page.locator("#view a:text-is('← Get')").count() == 1
+    expect(ui.page.locator("#view a:text-is('← Get')")).to_have_count(1)
 
 
 def test_a_work_opened_from_a_get_s_card_returns_to_the_get(ui):
@@ -167,7 +170,7 @@ def test_a_get_s_page_that_cannot_read_its_cards_says_so_and_keeps_the_rest(ui):
     ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("text=This Get's works could not be read")
-    assert "This Get finished" in ui.text()
+    expect(ui.view).to_contain_text("This Get finished", use_inner_text=True)
 
 
 def test_a_card_for_a_work_not_yet_looked_up_does_not_say_nothing_was_found(ui):
@@ -179,8 +182,9 @@ def test_a_card_for_a_work_not_yet_looked_up_does_not_say_nothing_was_found(ui):
     ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("li.card .card-image-absent")
-    said = ui.page.locator("li.card .card-image-absent").inner_text()
-    assert said == "This work has not been looked up, so there is no scan to show yet."
+    expect(ui.page.locator("li.card .card-image-absent")).to_have_text(
+        "This work has not been looked up, so there is no scan to show yet.", use_inner_text=True
+    )
 
 
 # -- the card is wide ----------------------------------------------------------------
@@ -192,12 +196,12 @@ def test_one_card_is_wider_than_half_the_page_at_desktop_width(ui):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    card = ui.page.locator("li.card").bounding_box()
-    content = ui.page.locator("#view").bounding_box()
+    card = ui.page.locator("li.card").bounding_box()  # one-shot: geometry, measured once the card is drawn
+    content = ui.page.locator("#view").bounding_box()  # one-shot: geometry, as above
     assert card["width"] > content["width"] / 2, (card["width"], content["width"])
     # The picture on the left and the facts on its right, not above them.
-    picture = ui.page.locator("li.card > .card-image").bounding_box()
-    body = ui.page.locator("li.card > .card-body").bounding_box()
+    picture = ui.page.locator("li.card > .card-image").bounding_box()  # one-shot: geometry, as above
+    body = ui.page.locator("li.card > .card-body").bounding_box()  # one-shot: geometry, as above
     assert body["x"] >= picture["x"] + picture["width"] - 1
     assert abs(body["y"] - picture["y"]) < 2
 
@@ -211,8 +215,8 @@ def test_on_a_phone_the_card_is_one_column(ui):
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
-    picture = ui.page.locator("li.card > .card-image").bounding_box()
-    body = ui.page.locator("li.card > .card-body").bounding_box()
+    picture = ui.page.locator("li.card > .card-image").bounding_box()  # one-shot: geometry, measured once the scans are open
+    body = ui.page.locator("li.card > .card-body").bounding_box()  # one-shot: geometry, as above
     assert body["y"] >= picture["y"] + picture["height"] - 1
     assert ui.page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth") <= 0
 
@@ -251,27 +255,22 @@ def test_scans_are_a_table_one_row_a_scan(ui):
     ui.page.click("li.card summary")
     ui.page.wait_for_selector("tr.alternate")
 
-    headers = ui.page.locator("table.scans thead th").all_inner_texts()
-    assert [h.strip().lower() for h in headers] == [
-        "scan",
-        "resolution",
-        "source",
-        "rights",
-        "confidence",
-        "chosen",
-        "actions",
-    ]
-    rows = [" ".join(row.split()) for row in ui.page.locator("tr.alternate").all_inner_texts()]
-    assert len(rows) == 2
-    assert "3,840 × 2,604 px" in rows[0], rows[0]
-    assert "Art Institute of Chicago" in rows[0], rows[0]
-    assert "Public domain" in rows[0], rows[0]
-    assert "on offer" in rows[0], rows[0]
-    assert "1,600 × 1,085 px" in rows[1], rows[1]
-    assert "Wikimedia Commons" in rows[1], rows[1]
-    assert "Use this one" in rows[1], rows[1]
+    # Each header whole, in any case (the read lower-cased them).
+    expect(ui.page.locator("table.scans thead th")).to_have_text(
+        [
+            re.compile(rf"^\s*{header}\s*$", re.IGNORECASE)
+            for header in ["scan", "resolution", "source", "rights", "confidence", "chosen", "actions"]
+        ],
+        use_inner_text=True,
+    )
+    rows = ui.page.locator("tr.alternate")
+    expect(rows).to_have_count(2)
+    for fact in ["3,840 × 2,604 px", "Art Institute of Chicago", "Public domain", "on offer"]:
+        expect(rows.nth(0)).to_contain_text(fact, use_inner_text=True)
+    for fact in ["1,600 × 1,085 px", "Wikimedia Commons", "Use this one"]:
+        expect(rows.nth(1)).to_contain_text(fact, use_inner_text=True)
     # What does not compare down a column is still there, under its scan.
-    assert RATIONALE in ui.text()
+    expect(ui.view).to_contain_text(RATIONALE, use_inner_text=True)
 
 
 def test_scans_start_collapsed(ui):
@@ -279,7 +278,7 @@ def test_scans_start_collapsed(ui):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("li.card details[open]").count() == 0
+    expect(ui.page.locator("li.card details[open]")).to_have_count(0)
     assert ui.requests_matching("/api/candidates/work-1/images") == []
 
 
@@ -294,12 +293,12 @@ def test_no_label_in_the_scans_wraps_onto_two_lines_at_desktop_width(ui):
     # it is a name that wraps within a bounded column by design, since museums'
     # names run to "The Metropolitan Museum of Art"; the overflow check below
     # is what holds it.
-    assert ui.page.locator("table.scans td.scan-fact").count() >= 8, "the measurement found no cells to measure"
-    assert ui.page.locator("table.scans td.scan-source").count() >= 2
+    expect(ui.page.locator("table.scans td.scan-fact").nth(7), "the measurement found no cells to measure").to_be_attached()
+    expect(ui.page.locator("table.scans td.scan-source").nth(1)).to_be_attached()
     assert ui.page.evaluate(WRAPPED_LABELS) == []
     # The table fits the card at this width rather than escaping sideways.
-    table = ui.page.locator("table.scans").bounding_box()
-    card = ui.page.locator("li.card").bounding_box()
+    table = ui.page.locator("table.scans").bounding_box()  # one-shot: geometry, measured once the cells are drawn
+    card = ui.page.locator("li.card").bounding_box()  # one-shot: geometry, as above
     assert table["x"] + table["width"] <= card["x"] + card["width"] + 1
     # Nor does it scroll sideways inside the card. The edge check above has the
     # card's padding as slack, and a table already scrolling within its box
@@ -319,13 +318,15 @@ def test_the_card_states_the_scan_s_pixels_above_the_fold(ui):
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card .card-resolution")
 
-    assert ui.page.locator("li.card .card-resolution").inner_text() == "3,840 × 2,604 px"
-    resolution = ui.page.locator("li.card .card-resolution").bounding_box()
+    expect(ui.page.locator("li.card .card-resolution")).to_have_text("3,840 × 2,604 px", use_inner_text=True)
+    resolution = ui.page.locator(
+        "li.card .card-resolution"
+    ).bounding_box()  # one-shot: geometry, measured once its words are drawn
     assert resolution["y"] + resolution["height"] <= 900, "the pixels are below the fold"
-    assert "″" not in ui.text()
-    assert "would show at" not in ui.text()
+    expect(ui.view).not_to_contain_text("″", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("would show at", use_inner_text=True)
     # The scan meets the minimum, which is not news, so it carries no size badge.
-    assert ui.page.locator("li.card .badge-below_minimum").count() == 0
+    expect(ui.page.locator("li.card .badge-below_minimum")).to_have_count(0)
 
 
 def test_a_scan_whose_size_nobody_recorded_says_so_rather_than_inventing_one(ui):
@@ -334,8 +335,8 @@ def test_a_scan_whose_size_nobody_recorded_says_so_rather_than_inventing_one(ui)
     ui.open(f"#get/{GET_ID}")
     ui.page.wait_for_selector("li.card")
 
-    assert ui.page.locator("li.card .card-resolution").count() == 0
-    assert "size unrecorded" in ui.text()
+    expect(ui.view).to_contain_text("size unrecorded", use_inner_text=True)
+    expect(ui.page.locator("li.card .card-resolution")).to_have_count(0)
 
 
 def _held_work_with_a_fit(work_with_an_image, services):
@@ -357,10 +358,12 @@ def test_no_screen_that_draws_a_fit_badge_says_inches(ui, services, work_with_an
     ui.open(fragment)
     ui.page.wait_for_selector(f"#view :is({FIT_BADGE})")
 
-    badge = ui.page.locator(f"#view :is({FIT_BADGE})").first.inner_text()
-    assert badge.split()[-2:] == ["below", "minimum"], badge
-    assert "″" not in ui.text()
-    assert "would show at" not in ui.text()
+    # Its last two words, whatever comes before them.
+    expect(ui.page.locator(f"#view :is({FIT_BADGE})").first).to_have_text(
+        re.compile(r"(^|\s)below\s+minimum\s*$"), use_inner_text=True
+    )
+    expect(ui.view).not_to_contain_text("″", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("would show at", use_inner_text=True)
 
 
 # -- clicking a picture enlarges it in place ------------------------------------------
@@ -377,7 +380,7 @@ def test_clicking_the_picture_enlarges_it_without_leaving_the_page(ui):
 
     ui.page.wait_for_selector("dialog.enlarged[open] img")
     assert ui.page.url == before
-    assert ui.page.locator("dialog.enlarged img").get_attribute("alt") == "The Magpie, by Claude Monet"
+    expect(ui.page.locator("dialog.enlarged img")).to_have_attribute("alt", "The Magpie, by Claude Monet")
 
 
 @pytest.mark.parametrize("closed_by", ["escape", "button", "outside"])
@@ -401,6 +404,8 @@ def test_the_enlarged_picture_closes_and_gives_focus_back(ui, closed_by):
 
     ui.page.wait_for_selector("dialog.enlarged", state="detached")
     assert ui.page.url == before
+    # The state the read below is about, waited for: focus returns as the dialog goes.
+    expect(ui.page.locator("li.card > button.card-image")).to_be_focused()
     assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == "Enlarge the picture of The Magpie"
 
 
@@ -413,8 +418,9 @@ def test_a_click_on_the_enlarged_picture_itself_does_not_close_it(ui):
 
     ui.page.click("dialog.enlarged img")
 
-    ui.page.wait_for_timeout(200)
-    assert ui.page.locator("dialog.enlarged[open]").count() == 1
+    # A click that closed the dialog would do it at once; nothing marks a click having had no effect.
+    ui.page.wait_for_timeout(200)  # sleep: a click's effect, absent, has no sign
+    expect(ui.page.locator("dialog.enlarged[open]")).to_have_count(1)
 
 
 def test_a_scan_in_the_table_enlarges_too(ui):
@@ -427,8 +433,9 @@ def test_a_scan_in_the_table_enlarges_too(ui):
         ui.page.locator("tr.alternate").nth(1).locator("button.card-image").click()
 
     ui.page.wait_for_selector("dialog.enlarged[open]")
-    label = ui.page.locator("tr.alternate").nth(1).locator("button.card-image").get_attribute("aria-label")
-    assert label == "Enlarge this scan of The Magpie"
+    expect(ui.page.locator("tr.alternate").nth(1).locator("button.card-image")).to_have_attribute(
+        "aria-label", "Enlarge this scan of The Magpie"
+    )
 
 
 def test_a_scan_enlarged_from_the_table_is_named_for_the_picture_not_the_button(ui):
@@ -442,11 +449,12 @@ def test_a_scan_enlarged_from_the_table_is_named_for_the_picture_not_the_button(
     ui.page.wait_for_selector("dialog.enlarged[open] img")
 
     named = "The Magpie, by Claude Monet — the scan from Wikimedia Commons, 1,600 × 1,085 px"
-    assert ui.page.locator("dialog.enlarged").get_attribute("aria-label") == named
-    assert ui.page.locator("dialog.enlarged img").get_attribute("alt") == named
+    expect(ui.page.locator("dialog.enlarged")).to_have_attribute("aria-label", named)
+    expect(ui.page.locator("dialog.enlarged img")).to_have_attribute("alt", named)
     # The button keeps its own name: it is the control, not the picture.
-    label = ui.page.locator("tr.alternate").nth(1).locator("button.card-image").get_attribute("aria-label")
-    assert label == "Enlarge this scan of The Magpie"
+    expect(ui.page.locator("tr.alternate").nth(1).locator("button.card-image")).to_have_attribute(
+        "aria-label", "Enlarge this scan of The Magpie"
+    )
 
 
 def test_the_card_s_own_picture_enlarged_is_named_for_the_work(ui):
@@ -456,8 +464,8 @@ def test_the_card_s_own_picture_enlarged_is_named_for_the_work(ui):
     ui.page.click("li.card > button.card-image")
     ui.page.wait_for_selector("dialog.enlarged[open] img")
 
-    assert ui.page.locator("dialog.enlarged").get_attribute("aria-label") == "The Magpie, by Claude Monet"
-    assert ui.page.locator("dialog.enlarged img").get_attribute("alt") == "The Magpie, by Claude Monet"
+    expect(ui.page.locator("dialog.enlarged")).to_have_attribute("aria-label", "The Magpie, by Claude Monet")
+    expect(ui.page.locator("dialog.enlarged img")).to_have_attribute("alt", "The Magpie, by Claude Monet")
 
 
 # -- a card listing that failed says how to try again ---------------------------------
@@ -472,8 +480,9 @@ def test_a_finished_get_whose_cards_could_not_be_read_says_to_reload(ui):
     ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("text=This Get's works could not be read")
-    said = ui.page.locator(".get-review p.note").inner_text()
-    assert said.endswith("Reload the page to try again."), said
+    expect(ui.page.locator(".get-review p.note")).to_have_text(
+        re.compile(re.escape("Reload the page to try again.") + "$"), use_inner_text=True
+    )
 
 
 def test_a_running_get_whose_cards_could_not_be_read_asks_again_by_itself(ui):
@@ -486,7 +495,7 @@ def test_a_running_get_whose_cards_could_not_be_read_asks_again_by_itself(ui):
     ui.open(f"#get/{GET_ID}")
 
     ui.page.wait_for_selector("text=This Get's works could not be read")
-    assert "Reload" not in ui.page.locator(".get-review p.note").inner_text()
+    expect(ui.page.locator(".get-review p.note")).not_to_contain_text("Reload", use_inner_text=True)
     # And the claim the missing sentence rests on: the next look reads them.
     ui.page.wait_for_selector("li.card button:text-is('Accept')")
 
@@ -533,8 +542,10 @@ def test_a_running_get_s_redraw_keeps_the_why_the_open_scans_and_the_focus(ui):
 
     haystacks_found()
 
-    assert ui.page.input_value("#reason-work-1") == WHY
-    assert ui.page.locator("li.card[data-work='work-1'] details[open] tr.alternate").count() == 2
+    expect(ui.page.locator("#reason-work-1")).to_have_value(WHY)
+    expect(ui.page.locator("li.card[data-work='work-1'] details[open] tr.alternate")).to_have_count(2)
+    # Read at the redraw, not waited for: the claim is that the focus was never
+    # lost, and `haystacks_found` waits for the new card, drawn in the same turn.
     assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == "Use this scan for The Magpie"
     assert ui.page.evaluate("() => document.activeElement.isConnected")
     # Kept rather than rebuilt and refilled: the scans were not asked for again.
@@ -558,7 +569,7 @@ def test_a_card_kept_across_a_redraw_still_reaches_the_offer_to_look_again(ui):
     ui.page.click("li.card[data-work='work-1'] tr.alternate >> nth=0 >> button:text-is('Turn it down')")
 
     ui.page.wait_for_selector("#view h2:text-is('Wanted')")
-    assert "1 work is wanted." in ui.text()
+    expect(ui.view).to_contain_text("1 work is wanted.", use_inner_text=True)
 
 
 def test_a_get_s_page_opened_again_is_built_afresh(ui):
@@ -578,5 +589,5 @@ def test_a_get_s_page_opened_again_is_built_afresh(ui):
     ui.page.click("#view a:has-text('← Get')")
     ui.page.wait_for_selector("li.card summary")
 
-    assert ui.page.input_value("#reason-work-1") == ""
-    assert ui.page.locator("li.card details[open]").count() == 0
+    expect(ui.page.locator("#reason-work-1")).to_have_value("")
+    expect(ui.page.locator("li.card details[open]")).to_have_count(0)
