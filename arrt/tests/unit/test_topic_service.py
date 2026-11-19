@@ -259,7 +259,9 @@ def test_with_no_user_agent_every_section_says_topics_need_one(section):
     )
 
     assert (view.state, view.note) == (TopicState.NOT_CONFIGURED, TOPICS_NOT_CONFIGURED_NOTE)
-    assert "WIKIDATA_USER_AGENT" in view.note
+    # The household's words: the setting is the operator's, named on Sources and Status.
+    assert "WIKIDATA_USER_AGENT" not in view.note
+    assert "not set up" in view.note
 
 
 def test_a_search_is_passed_through_and_an_empty_one_asks_nothing():

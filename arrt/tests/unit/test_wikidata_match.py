@@ -76,7 +76,8 @@ def test_without_a_registry_the_picker_says_matching_needs_one(discovery, propos
     found = service_over(discovery, None).matches(work.id)
 
     assert found.state is WorkMatchState.NOT_CONFIGURED
-    assert "WIKIDATA_USER_AGENT" in found.note
+    assert "WIKIDATA_USER_AGENT" not in found.note
+    assert "not set up" in found.note
     assert found.matches == ()
 
 

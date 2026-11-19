@@ -247,7 +247,8 @@ class TestWithNoUserAgent:
         ):
             answer = http.get(path).raise_for_status().json()
             assert answer["state"] == "not_configured", path
-            assert "WIKIDATA_USER_AGENT" in answer["note"], path
+            assert "not set up" in answer["note"], path
+            assert "WIKIDATA_USER_AGENT" not in answer["note"], path
 
 
 class TestTheToolSurface:

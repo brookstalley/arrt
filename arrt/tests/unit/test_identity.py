@@ -267,9 +267,10 @@ class TestTheCuratorsWord:
         with pytest.raises(ServiceError, match="not a Wikidata item id"):
             service.set_work_identity(work.id, "https://www.wikidata.org/wiki/Q160149")
 
-    def test_matching_without_a_registry_says_how_to_configure_one(self, store):
-        with pytest.raises(ServiceError, match="WIKIDATA_USER_AGENT"):
+    def test_matching_without_a_registry_says_wikidata_is_not_set_up_and_names_no_setting(self, store):
+        with pytest.raises(ServiceError, match="not set up") as refused:
             IdentityService(store, None).match()
+        assert "WIKIDATA_USER_AGENT" not in str(refused.value)
 
 
 def test_two_artists_written_with_one_item_before_the_rule_resolve_to_the_first_by_name(store, service):
