@@ -29,13 +29,22 @@ against what the API now returns, and only a human knows whether that happened.
 Auto-closing on the next green run would retire the issue at exactly the moment
 the evidence stopped being visible. The operator closes it, having done the work.
 
-Usage: report_drift_failure.py <contract-name> <run-url>
+**A comment never calls an excused probe "still failing".** The probe jobs
+read `.github/known-blocked.json` (`judge_drift_probes.py`) and succeed when their only
+red probes are listed, so a failure reported here is by construction something *else*:
+a probe that is red and not listed, a listed one that turned green, a row that expired,
+or a run that verified nothing. When the judge left a verdict file, the comment names
+those, and lists the excused probes as "known-blocked until {date}" beside them, so
+the issue's history says which probes moved and which were already accounted for.
+
+Usage: report_drift_failure.py <contract-name> <run-url> [--verdict <judge's json>]
 Requires `gh` on PATH and a token with `issues: write`.
 """
 
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 #: Applied to every issue this script opens, so the dedup search is a label query
 #: rather than a title match against the whole backlog. A human filing a related
@@ -89,7 +98,42 @@ def body_for(contract: str, run_url: str) -> str:
     )
 
 
-def main(contract: str, run_url: str, gh=_gh) -> int:
+def read_verdict(path: str | None) -> dict | None:
+    """The judge's verdict, or None when it left none (it never ran, or the file is unreadable)."""
+    if not path:
+        return None
+    try:
+        verdict = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return verdict if isinstance(verdict, dict) else None
+
+
+def verdict_section(verdict: dict | None) -> str:
+    """What failed this run, and which red probes were excused, as markdown; "" with no verdict."""
+    if not verdict:
+        return ""
+    lines = []
+    if verdict.get("failures"):
+        lines.append("Not excused, and what failed this job:")
+        lines += [f"- {each}" for each in verdict["failures"]]
+    elif verdict.get("excused"):
+        lines.append("The judge named no failing probe, so read the run: the job failed for a reason outside the probes.")
+    if verdict.get("excused"):
+        lines.append("")
+        lines.append("Known-blocked, and not what failed this run:")
+        lines += [f"- `{row['test']}` (#{row['issue']}): known-blocked until {row['expires']}" for row in verdict["excused"]]
+    return "\n".join(lines)
+
+
+def comment_for(run_url: str, verdict: dict | None) -> str:
+    section = verdict_section(verdict)
+    if not section:
+        return f"Still failing, as of {run_url}"
+    return f"Failing, as of {run_url}\n\n{section}"
+
+
+def main(contract: str, run_url: str, gh=_gh, verdict: dict | None = None) -> int:
     # The label has to exist before either call below can use it, and nothing
     # creates it: `gh issue create --label api-drift` on a repository that has
     # never had one exits non-zero, so the very first real drift failure would
@@ -105,16 +149,24 @@ def main(contract: str, run_url: str, gh=_gh) -> int:
     existing = choose(found, contract)
 
     if existing is None:
-        gh("issue", "create", "--title", title_for(contract), "--body", body_for(contract, run_url), "--label", LABEL)
+        body = body_for(contract, run_url)
+        if section := verdict_section(verdict):
+            body += f"\n\n{section}"
+        gh("issue", "create", "--title", title_for(contract), "--body", body, "--label", LABEL)
         print(f"opened a new issue for {contract}")
     else:
-        gh("issue", "comment", str(existing), "--body", f"Still failing, as of {run_url}")
+        gh("issue", "comment", str(existing), "--body", comment_for(run_url, verdict))
         print(f"commented on #{existing} — {contract} was already reported")
     return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    args = sys.argv[1:]
+    verdict_path = None
+    if len(args) == 4 and args[2] == "--verdict":
+        verdict_path = args[3]
+        args = args[:2]
+    if len(args) != 2:
         print(__doc__)
         raise SystemExit(2)
-    raise SystemExit(main(sys.argv[1], sys.argv[2]))
+    raise SystemExit(main(args[0], args[1], verdict=read_verdict(verdict_path)))

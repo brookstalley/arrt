@@ -52,5 +52,9 @@ jobs:
             echo "$run" | jq -c --argjson jobs "$jobs" '. + {jobs: $jobs}'
           done | jq -s '.' > drift-runs.json
           cat drift-runs.json
-      - name: Fail if a tier has gone quiet
-        run: python3 .github/scripts/check_drift_freshness.py < drift-runs.json
+      - name: Fail if a tier has gone quiet, or a known-blocked row has expired
+        # A run whose only red probes are listed in `.github/known-blocked.json`
+        # ends green (`judge_drift_probes.py`), so such a tier counts fresh here by
+        # its own conclusion. What this adds is the file itself: an expired or
+        # refused row fails by name, on a day no probe job runs to say so.
+        run: python3 .github/scripts/check_drift_freshness.py --blocked .github/known-blocked.json < drift-runs.json
