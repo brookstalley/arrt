@@ -34,6 +34,13 @@ export const EXAMPLES = [
   "Winter landscapes from the 1500s",
 ];
 
+/* What Ask says, once, when the server has no key to answer with: the page's
+ * box and its act are disabled beside it, so nothing can be asked and refused.
+ * The server's refusal of a send (`503`) is this same sentence, so a page left
+ * open across a restart ends here too, never at "the server failed". */
+export const ASK_UNAVAILABLE =
+  "Ask needs an OpenRouter key, which the person who runs this server adds; until then nothing can be asked.";
+
 /* The open thread's id, kept while the app is open. */
 let openThread = null;
 
@@ -98,7 +105,22 @@ export async function askPanel({ term = "" } = {}) {
   // to start over from.
   restart.hidden = !current.turns.length;
 
+  /* Ask cannot answer here: the box and the act wait, and the one sentence says
+   * why. Idempotent, so a refusal after the page was drawn as available
+   * (the server restarted without its key) lands on the same page as one drawn
+   * without a key. */
+  function unavailable() {
+    words.disabled = true;
+    send.disabled = true;
+    words.setAttribute("aria-describedby", "ask-unavailable");
+    if (!panel.querySelector("#ask-unavailable")) {
+      words.closest(".field").before(el("p", { class: "muted", id: "ask-unavailable", text: ASK_UNAVAILABLE }));
+    }
+    if (examples) examples.remove();
+  }
+
   async function ask() {
+    if (send.disabled) return;
     const said = words.value.trim();
     if (!said) {
       words.focus();
@@ -116,11 +138,22 @@ export async function askPanel({ term = "" } = {}) {
         method: "POST",
         body: JSON.stringify({ words: said }),
       });
+    let refused = false;
     try {
       await attempt(send, "ask", async () => {
         try {
           await sendTo();
         } catch (failure) {
+          if (failure.status === 503) {
+            // The server has no key: a refusal made before anything was spent,
+            // said once as the page's own sentence and not as a fault.
+            refused = true;
+            view.node.remove();
+            words.value = said;
+            restart.hidden = !turns.children.length;
+            unavailable();
+            return;
+          }
           // The server forgot the thread (it restarted, or let the thread go):
           // what it held is gone either way, so the words go to a new one.
           if (failure.status !== 404) throw failure;
@@ -129,8 +162,8 @@ export async function askPanel({ term = "" } = {}) {
         }
       });
     } finally {
-      send.disabled = false;
-      status.textContent = view.summary();
+      send.disabled = refused;
+      status.textContent = refused ? ASK_UNAVAILABLE : view.summary();
     }
   }
   send.addEventListener("click", ask);
@@ -142,9 +175,6 @@ export async function askPanel({ term = "" } = {}) {
     }
   });
 
-  const unavailable = current.available
-    ? null
-    : el("p", { class: "muted", text: "Ask needs an OpenRouter key on the server (OPENROUTER_API_KEY) to answer." });
   // A reply still running when the page opens (the curator left mid-reply and
   // came back): the server refuses a second send until it ends, so the button
   // waits too, and the page fills in when the reply is done.
@@ -155,7 +185,6 @@ export async function askPanel({ term = "" } = {}) {
   const panel = el("div", { class: "panel ask" }, [
     turns,
     waiting,
-    unavailable,
     examples,
     el("div", { class: "field" }, [el("label", { for: "ask-words", text: "What are you looking for?" }), words]),
     el("div", { class: "row" }, [
@@ -166,6 +195,7 @@ export async function askPanel({ term = "" } = {}) {
     ]),
     status,
   ]);
+  if (!current.available) unavailable();
   if (current.replying) {
     send.disabled = true;
     untilReplied(current.thread_id, panel);

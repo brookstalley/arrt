@@ -79,7 +79,7 @@ async def reply(request: Request, thread_id: str, said: Said) -> StreamingRespon
     if thread is None:
         return _refused(404, "That thread has gone; threads are forgotten when the server restarts.")
     if not ask.available:
-        return _refused(503, "Ask needs OPENROUTER_API_KEY to answer; nothing was spent.")
+        return _refused(503, "Ask needs an OpenRouter key to answer, and this server has none; nothing was spent.")
     if thread.replying:
         return _refused(409, "Ask is still answering the last thing you said.")
     return StreamingResponse(ask.reply(thread, said.words.strip()), media_type=NDJSON)
