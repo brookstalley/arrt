@@ -59,6 +59,23 @@ verification`). `.github/workflows/tests.yml` runs it on testament's pool on
 every pull request. Without the group the modules skip with the command
 that fixes it, so a default `uv sync` is unaffected.
 
+**When the pool cannot answer, CI falls back, and the browser suite is what it
+gives up.** `tests.yml` hands the pool run to `.github/scripts/pool_or_fallback.py`.
+If the console will not serve the client (no connection, a 5xx, a 408 or 429) or
+`testament run` ends `verdict: unavailable` (exit 75), it retries with backoff for
+up to ten minutes, then runs the governance, curation and contract suites on
+GitHub's runner with uv, by the commands in CLAUDE.md, after the lint the job
+always runs there. The browser suite needs Chrome, which only the pool's runners
+carry, so it does not run, and the job summary opens "The pool was unavailable;
+ran here, on GitHub's runner, without the browser suite". A green check is
+"every suite" only when the summary opens "Ran on the pool". After a fallback,
+run the browser suite on the pool before merging. The trade: an outage of the pool
+no longer blocks every merge (ruling 4 of 2026-11-19), and GitHub's minutes are
+spent on suites only during one (the 2026-11-18 ruling). A `failed` verdict is a
+result and never falls back, nor does a refused key or a wheel that fails its
+digest: those end "Nothing ran." `assert_tests_ran.py --decision` re-checks the
+record, and `tests/test_ci_fallback.py` holds the decision and the workflow's shape.
+
 **`-n0` matters here.** These tests time real two-second poll intervals, and
 `-n auto` — which a command-line `-m` leaves in place — turns those windows into
 flakes when workers contend for cores.
