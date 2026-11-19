@@ -19,6 +19,8 @@ said something about walls would be indistinguishable from one that had never
 looked.
 """
 
+import re
+
 import pytest
 
 # At import time, not in a fixture. A marker deselection still *collects* this
@@ -28,6 +30,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 
 @pytest.fixture
@@ -89,12 +93,14 @@ def test_the_act_reads_archive_and_is_behind_more(ui, service):
     work = service.add_artwork(title="Chop Suey")
     open_work(ui, work)
 
-    assert ui.page.locator("#view button", has_text="Archive").count() == 0
+    # The toolbar is drawn (its ⋯ is there), so a missing button is missing from a drawn page.
+    expect(ui.page.locator(MORE)).to_be_visible()
+    expect(ui.page.locator("#view button", has_text="Archive")).to_have_count(0)
     ui.page.click(MORE)
     item = ui.page.locator(".toolbar-menu [role='menuitem']", has_text="Archive")
-    assert item.count() == 1
-    assert item.inner_text() == "Archive…"
-    assert "danger" not in (item.get_attribute("class") or "")
+    expect(item).to_have_count(1)
+    expect(item).to_have_text("Archive…", use_inner_text=True)
+    expect(item).not_to_have_attribute("class", re.compile("danger"))
 
 
 @pytest.mark.parametrize("word", ["Remove", "Delete"])
@@ -103,9 +109,13 @@ def test_no_control_on_this_screen_offers_to_get_rid_of_the_work(ui, service, wo
     work = service.add_artwork(title="Chop Suey")
     open_work(ui, work)
 
-    assert ui.page.locator("#view button", has_text=word).count() == 0
+    expect(ui.page.locator(MORE)).to_be_visible()
+    expect(ui.page.locator("#view button", has_text=word)).to_have_count(0)
     ui.page.click(MORE)
-    assert ui.page.locator(".toolbar-menu [role='menuitem']", has_text=word).count() == 0
+    # The menu is open and holds the act this screen does offer, so a missing
+    # word is missing from a drawn menu.
+    expect(ui.page.locator(".toolbar-menu [role='menuitem']", has_text="Archive")).to_have_count(1)
+    expect(ui.page.locator(".toolbar-menu [role='menuitem']", has_text=word)).to_have_count(0)
 
 
 def test_an_archived_work_offers_the_way_back(ui, service):
@@ -121,9 +131,9 @@ def test_an_archived_work_offers_the_way_back(ui, service):
     open_work(ui, work)
 
     control = ui.page.locator("#view button", has_text="Restore")
-    assert control.count() == 1
-    assert control.inner_text() == "Restore"
-    assert control.get_attribute("class") == "action"
+    expect(control).to_have_count(1)
+    expect(control).to_have_text("Restore", use_inner_text=True)
+    expect(control).to_have_attribute("class", "action")
 
 
 # -- the wall consequence ------------------------------------------------------
@@ -137,8 +147,8 @@ def test_the_confirmation_names_the_wall_that_is_showing_the_work(ui, ready_work
     open_work(ui, work)
     ask(ui, "Archive")
 
-    assert ui.page.inner_text(".confirm-title") == "Archive Nighthawks?"
-    assert wall.name in ui.page.inner_text(".confirm-consequence")
+    expect(ui.page.locator(".confirm-title")).to_have_text("Archive Nighthawks?", use_inner_text=True)
+    expect(ui.page.locator(".confirm-consequence")).to_contain_text(wall.name, use_inner_text=True)
 
 
 def test_the_confirmation_says_the_room_loses_it_now(ui, ready_work, hang):
@@ -157,10 +167,10 @@ def test_the_confirmation_says_the_room_loses_it_now(ui, ready_work, hang):
     open_work(ui, work)
     ask(ui, "Archive")
 
-    consequence = ui.page.inner_text(".confirm-consequence")
-    assert "loses it now" in consequence
-    assert "next time" not in consequence
-    assert "Re-hanging" not in consequence
+    consequence = ui.page.locator(".confirm-consequence")
+    expect(consequence).to_contain_text("loses it now", use_inner_text=True)
+    expect(consequence).not_to_contain_text("next time", use_inner_text=True)
+    expect(consequence).not_to_contain_text("Re-hanging", use_inner_text=True)
 
 
 def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):
@@ -176,9 +186,9 @@ def test_a_work_hanging_in_two_rooms_names_both(ui, ready_work, hang):
     open_work(ui, work)
     ask(ui, "Archive")
 
-    consequence = ui.page.inner_text(".confirm-consequence")
-    assert first.name in consequence
-    assert second.name in consequence
+    consequence = ui.page.locator(".confirm-consequence")
+    expect(consequence).to_contain_text(first.name, use_inner_text=True)
+    expect(consequence).to_contain_text(second.name, use_inner_text=True)
 
 
 def test_a_work_no_wall_is_showing_gets_no_sentence_about_walls(ui, ready_work, hang):
@@ -197,8 +207,8 @@ def test_a_work_no_wall_is_showing_gets_no_sentence_about_walls(ui, ready_work, 
     open_work(ui, work)
     ask(ui, "Archive")
 
-    assert ui.page.inner_text(".confirm-title") == "Archive Chop Suey?"
-    assert ui.page.locator(".confirm-consequence").count() == 0
+    expect(ui.page.locator(".confirm-title")).to_have_text("Archive Chop Suey?", use_inner_text=True)
+    expect(ui.page.locator(".confirm-consequence")).to_have_count(0)
 
 
 def test_a_work_in_a_hung_theme_that_the_wall_cannot_show_is_not_a_consequence(ui, ready_work, hang):
@@ -216,7 +226,9 @@ def test_a_work_in_a_hung_theme_that_the_wall_cannot_show_is_not_a_consequence(u
     open_work(ui, work)
     ask(ui, "Archive")
 
-    assert ui.page.locator(".confirm-consequence").count() == 0
+    # The question is drawn and titled, so a missing sentence is missing from a drawn question.
+    expect(ui.page.locator(".confirm-title")).to_have_text("Archive Nighthawks?", use_inner_text=True)
+    expect(ui.page.locator(".confirm-consequence")).to_have_count(0)
 
 
 def test_a_room_with_nothing_hanging_is_not_asked_and_does_not_break_the_question(ui, ready_work, hang, services):
@@ -234,10 +246,10 @@ def test_a_room_with_nothing_hanging_is_not_asked_and_does_not_break_the_questio
     open_work(ui, work)
     ask(ui, "Archive")
 
-    consequence = ui.page.inner_text(".confirm-consequence")
-    assert wall.name in consequence
-    assert "The empty room" not in consequence
-    assert ui.page.locator("#error:not([hidden])").count() == 0
+    consequence = ui.page.locator(".confirm-consequence")
+    expect(consequence).to_contain_text(wall.name, use_inner_text=True)
+    expect(consequence).not_to_contain_text("The empty room", use_inner_text=True)
+    expect(ui.page.locator("#error:not([hidden])")).to_have_count(0)
 
 
 # -- the act -------------------------------------------------------------------
@@ -259,7 +271,8 @@ def test_declining_the_question_leaves_the_work_where_it_was(ui, ready_work, han
 
     assert service.get_artwork(work.id).artwork.status == "accepted"
     # Archive… stays behind ⋯, and the keyboard is back on ⋯ (ruling 8).
-    assert ui.page.locator("#view button", has_text="Restore").count() == 0
+    expect(ui.page.locator(MORE)).to_be_visible()
+    expect(ui.page.locator("#view button", has_text="Restore")).to_have_count(0)
     assert ui.page.evaluate("() => document.activeElement.getAttribute('aria-label')") == "More acts on Nighthawks"
 
 
@@ -281,7 +294,7 @@ def test_confirming_archives_the_work_and_the_screen_becomes_its_own_undo(ui, re
 
     assert service.get_artwork(work.id).artwork.status == "archived"
     assert ui.focused() == "Restore"
-    assert ui.page.locator(".badge", has_text="archived").count() == 1
+    expect(ui.page.locator(".badge", has_text="archived")).to_have_count(1)
 
 
 def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work, service):
@@ -292,9 +305,10 @@ def test_restoring_says_which_act_it_is_and_what_the_wall_will_do(ui, ready_work
     open_work(ui, work)
     ask(ui, "Restore")
 
-    assert ui.page.inner_text(".confirm-title") == "Restore Nighthawks?"
-    consequence = ui.page.inner_text(".confirm-consequence")
-    assert consequence == "It goes back into the rotation of every wall hanging a theme that holds it."
+    expect(ui.page.locator(".confirm-title")).to_have_text("Restore Nighthawks?", use_inner_text=True)
+    expect(ui.page.locator(".confirm-consequence")).to_have_text(
+        "It goes back into the rotation of every wall hanging a theme that holds it.", use_inner_text=True
+    )
 
     ui.page.click(".confirm-actions button:has-text('Restore')")
     ui.page.wait_for_selector(".page-toolbar button:text-is('Restore')", state="detached")
@@ -363,12 +377,12 @@ def test_only_the_sourced_facet_is_marked_and_the_default_is_a_footnote(ui, serv
 
     movement = ui.page.locator(".facets dt:has-text('Movement') + dd")
     subject = ui.page.locator(".facets dt:has-text('Subject') + dd")
-    assert movement.locator(".sourced").count() == 1
-    assert subject.locator(".sourced").count() == 0
+    expect(movement.locator(".sourced")).to_have_count(1)
+    expect(subject.locator(".sourced")).to_have_count(0)
     # The word, for the reader who cannot see a tick, and the tick hidden from
     # them so the mark is announced once rather than as "check mark sourced".
-    assert "sourced" in movement.text_content()
-    assert movement.locator(".tick").get_attribute("aria-hidden") == "true"
+    expect(movement).to_contain_text("sourced")
+    expect(movement.locator(".tick")).to_have_attribute("aria-hidden", "true")
 
 
 def test_the_footnote_sits_below_the_facts_it_qualifies(ui, service):
@@ -383,9 +397,11 @@ def test_the_footnote_sits_below_the_facts_it_qualifies(ui, service):
     open_work(ui, work)
 
     panel = ui.page.locator(".panel", has=ui.page.locator("dl.facets"))
-    text = panel.inner_text()
-    assert "inferred unless it carries ✓" in text
-    assert text.index("20th c.") < text.index("inferred unless it carries ✓")
+    footnote = "inferred unless it carries ✓"
+    expect(panel).to_contain_text(footnote, use_inner_text=True)
+    # The value comes before the first place the footnote is said: a prefix
+    # free of the footnote, then the value.
+    expect(panel).to_contain_text(re.compile(rf"^(?:(?!{re.escape(footnote)})[\s\S])*?20th c\."), use_inner_text=True)
 
 
 def test_a_work_with_no_facets_gets_no_footnote_about_them(ui, service):
@@ -394,8 +410,11 @@ def test_a_work_with_no_facets_gets_no_footnote_about_them(ui, service):
 
     open_work(ui, work)
 
-    assert ui.page.locator("dl.facets").count() == 0
-    assert "inferred unless" not in ui.text()
+    # The work is loaded (its own title heads the page), so a missing list is
+    # missing from a drawn page.
+    expect(ui.page.locator("#view h1")).to_have_text("Chop Suey", use_inner_text=True)
+    expect(ui.page.locator("dl.facets")).to_have_count(0)
+    expect(ui.view).not_to_contain_text("inferred unless", use_inner_text=True)
 
 
 # -- the fact stated once ------------------------------------------------------
@@ -413,8 +432,8 @@ def test_the_status_is_stated_by_the_badge_and_not_again_as_a_row(ui, service):
 
     open_work(ui, work)
 
-    assert ui.page.locator(".badge", has_text="archived").count() == 1
-    assert ui.page.locator("dl.facts dt", has_text="Status").count() == 0
+    expect(ui.page.locator(".badge", has_text="archived")).to_have_count(1)
+    expect(ui.page.locator("dl.facts dt", has_text="Status")).to_have_count(0)
 
 
 def test_the_mat_shows_its_colour_and_nothing_else(ui, ready_work):
@@ -432,7 +451,7 @@ def test_the_mat_shows_its_colour_and_nothing_else(ui, ready_work):
     open_work(ui, work, debug=True)
 
     swatch = ui.page.locator(".mat .mat-swatch")
-    assert swatch.count() == 1
-    assert "#27285b" in ui.page.inner_text(".mat")
-    assert "vision_model" not in ui.text()
-    assert ui.page.locator("table caption", has_text="Superseded").count() == 0
+    expect(swatch).to_have_count(1)
+    expect(ui.page.locator(".mat")).to_contain_text("#27285b", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("vision_model", use_inner_text=True)
+    expect(ui.page.locator("table caption", has_text="Superseded")).to_have_count(0)
