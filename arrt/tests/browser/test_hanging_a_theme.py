@@ -12,6 +12,7 @@ the only executed coverage the per-wall controls have.
 """
 
 import json
+import re
 
 import pytest
 
@@ -22,6 +23,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 
 @pytest.fixture
@@ -40,12 +43,15 @@ def _open_hang(ui, theme):
     return dialog
 
 
-def _walls_offered(dialog):
-    """Each wall the dialog offers, by its label, and whether it is ticked."""
-    return {
-        dialog.locator(f"label[for='{box.get_attribute('id')}']").inner_text(): box.is_checked()
-        for box in dialog.locator("input[type='checkbox']").all()
-    }
+def expect_walls_offered(dialog, offered):
+    """The dialog offers exactly these walls, by their labels, each ticked or not.
+
+    It read every box's label and state once into a dict and compared it; now
+    the count of boxes and each named box's state are asserted, each retried.
+    """
+    expect(dialog.locator("input[type='checkbox']")).to_have_count(len(offered))
+    for name, ticked in offered.items():
+        expect(dialog.get_by_label(name, exact=True)).to_be_checked(checked=ticked)
 
 
 def test_the_control_names_the_wall_it_would_hang_on(ui, a_theme):
@@ -57,7 +63,7 @@ def test_the_control_names_the_wall_it_would_hang_on(ui, a_theme):
     """
     dialog = _open_hang(ui, a_theme)
 
-    assert _walls_offered(dialog) == {"The wall": False}
+    expect_walls_offered(dialog, {"The wall": False})
 
 
 def test_a_second_wall_becomes_a_second_choice_rather_than_a_different_screen(ui, a_theme, services):
@@ -70,7 +76,7 @@ def test_a_second_wall_becomes_a_second_choice_rather_than_a_different_screen(ui
 
     dialog = _open_hang(ui, a_theme)
 
-    assert _walls_offered(dialog) == {"Study": False, "The wall": False}
+    expect_walls_offered(dialog, {"Study": False, "The wall": False})
 
 
 def test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour(ui, a_theme, services):
@@ -94,11 +100,11 @@ def test_hanging_reports_back_by_naming_the_wall_rather_than_a_colour(ui, a_them
     facts = ui.page.locator("#view .theme-facts")
     ui.page.wait_for_selector("#view .theme-facts a:text-is('Study')")
 
-    assert "Hanging on Study" in facts.inner_text()
-    assert facts.get_by_role("link", name="Study").count() == 1
-    assert "The wall" not in facts.inner_text()
+    expect(facts).to_contain_text("Hanging on Study", use_inner_text=True)
+    expect(facts.get_by_role("link", name="Study")).to_have_count(1)
+    expect(facts).not_to_contain_text("The wall", use_inner_text=True)
     dialog = _open_hang(ui, a_theme)
-    assert _walls_offered(dialog) == {"Study": True, "The wall": False}
+    expect_walls_offered(dialog, {"Study": True, "The wall": False})
 
 
 def test_a_hung_theme_can_be_taken_down_from_the_wall_it_is_on(ui, a_theme, services):
@@ -115,9 +121,11 @@ def test_a_hung_theme_can_be_taken_down_from_the_wall_it_is_on(ui, a_theme, serv
     dialog.locator(f"label:text-is('{wall.name}')").click()
     dialog.get_by_role("button", name="Hang", exact=True).click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    assert ui.page.inner_text("dialog.confirm .confirm-title") == f"Take Late night down from {wall.name}?"
-    assert "goes on showing what it shows until something else is hung there" in ui.page.inner_text(
-        "dialog.confirm .confirm-consequence"
+    expect(ui.page.locator("dialog.confirm .confirm-title").first).to_have_text(
+        f"Take Late night down from {wall.name}?", use_inner_text=True
+    )
+    expect(ui.page.locator("dialog.confirm .confirm-consequence").first).to_contain_text(
+        "goes on showing what it shows until something else is hung there", use_inner_text=True
     )
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Take down')")
     ui.page.wait_for_function("() => !document.querySelector('#view .theme-facts').textContent.includes('Hanging on')")
@@ -154,14 +162,14 @@ def test_one_hang_puts_it_up_on_one_wall_and_takes_it_down_from_another(ui, a_th
     dialog.locator(f"label:text-is('{the_wall.name}')").click()
     dialog.get_by_role("button", name="Hang", exact=True).click()
     ui.page.wait_for_selector("dialog.confirm[open]")
-    assert (
-        ui.page.inner_text("dialog.confirm .confirm-title") == f"Hang Late night on Study and take it down from {the_wall.name}?"
+    expect(ui.page.locator("dialog.confirm .confirm-title").first).to_have_text(
+        f"Hang Late night on Study and take it down from {the_wall.name}?", use_inner_text=True
     )
-    consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
-    assert consequence.startswith("Study: ")
-    assert f"Everyone in the house sees Study and {the_wall.name} change." in consequence
-    assert "No Player shows" not in consequence
-    assert "Landing" not in consequence
+    consequence = ui.page.locator("dialog.confirm .confirm-consequence").first
+    expect(consequence).to_have_text(re.compile(r"^Study: "), use_inner_text=True)
+    expect(consequence).to_contain_text(f"Everyone in the house sees Study and {the_wall.name} change.", use_inner_text=True)
+    expect(consequence).not_to_contain_text("No Player shows", use_inner_text=True)
+    expect(consequence).not_to_contain_text("Landing", use_inner_text=True)
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
     ui.page.wait_for_selector("#view .theme-facts a:text-is('Study')")
 
@@ -189,9 +197,11 @@ def test_leaving_hang_as_it_was_or_closing_it_sends_nothing(ui, a_theme, service
         dialog.locator(f"label:text-is('{wall.name}')").click()
         dialog.get_by_role("button", name="Cancel").click()
     dialog.wait_for(state="detached")
-    ui.page.wait_for_timeout(300)
+    # Nothing is the claim: no question and no request, which no condition
+    # can be waited on for. The time the client would take to send one.
+    ui.page.wait_for_timeout(300)  # sleep: proves no confirmation opens and nothing is sent
 
-    assert ui.page.locator("dialog.confirm").count() == 0
+    expect(ui.page.locator("dialog.confirm")).to_have_count(0)
     assert ui.requests_matching("/api/manifest") == []
     assert services.display.hanging_on(wall.id) is None
 
@@ -205,12 +215,12 @@ def test_a_wall_with_nothing_hanging_says_so_instead_of_showing_an_empty_manifes
     ui.open("#walls")
     ui.page.wait_for_selector("h1")
 
-    assert "Nothing is hanging on The wall" in ui.text()
+    expect(ui.view).to_contain_text("Nothing is hanging on The wall", use_inner_text=True)
     # And the fact the MCP surface states after an unhang, which the human
     # surface withheld: taking a theme down rewrites no manifest, so the set goes
     # on showing the picture. Without this line the empty wall reads as a failed
     # take-down, and the curator's next move is to do it again.
-    assert "goes on showing what it was showing until a theme is hung" in ui.text()
+    expect(ui.view).to_contain_text("goes on showing what it was showing until a theme is hung", use_inner_text=True)
 
 
 def test_the_take_down_note_is_said_once_however_many_walls_are_empty(ui, services):
@@ -227,11 +237,11 @@ def test_the_take_down_note_is_said_once_however_many_walls_are_empty(ui, servic
     ui.open("#walls")
     ui.page.wait_for_selector("h1")
 
-    assert ui.page.locator("p", has_text="goes on showing what it was showing").count() == 1
+    expect(ui.page.locator("p", has_text="goes on showing what it was showing")).to_have_count(1)
     # Both rooms are named, so the one note is standing for two walls rather
     # than one of them having gone missing.
-    assert "Nothing is hanging on The wall" in ui.text()
-    assert "Nothing is hanging on Study" in ui.text()
+    expect(ui.view).to_contain_text("Nothing is hanging on The wall", use_inner_text=True)
+    expect(ui.view).to_contain_text("Nothing is hanging on Study", use_inner_text=True)
 
 
 def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_theme, services):
@@ -261,20 +271,23 @@ def test_each_walls_panels_nest_under_that_wall_rather_than_beside_it(ui, a_them
     # One h2 per wall, and every panel heading a rank below it. The theme is on
     # the line under the heading now, not in it. The Scene is no longer an h2 on
     # the page: assembling one is the Scene… dialog's (ruling 5 of 2026-10-27).
-    assert sorted(ui.page.locator("h2").all_text_contents()) == ["Study", "The wall"]
-    assert ui.page.locator("h2.wall-title").count() == 2
-    assert ui.page.locator(".panel h2").count() == 0
+    # In either order, as `sorted` compared them: two, and each one's whole text.
+    expect(ui.page.locator("h2")).to_have_count(2)
+    for name in ("Study", "The wall"):
+        expect(ui.page.locator("h2", has_text=re.compile("^" + re.escape(name) + "$"))).to_have_count(1)
+    expect(ui.page.locator("h2.wall-title")).to_have_count(2)
+    expect(ui.page.locator(".panel h2")).to_have_count(0)
     # The panels left the cards for each wall's Edit… dialog (ruling 4 of
     # 2026-10-27), so none sits beside another wall's on the page; opened, one
     # wall's dialog has its own title and its seven panels a rank below it.
-    assert ui.page.locator("#view .panel h3").count() == 0
+    expect(ui.page.locator("#view .panel h3")).to_have_count(0)
     ui.page.locator(f"section.wall[data-wall='{the_wall.id}'] button.wall-edit").click()
     dialog = ui.page.locator("dialog.panel-dialog")
     dialog.wait_for()
-    assert dialog.locator("h2").all_text_contents() == [f"Edit {the_wall.name}"]
+    expect(dialog.locator("h2")).to_have_text([f"Edit {the_wall.name}"])
     # Name, where it shows, label panel, rotation, shapes, mat and Delete.
-    assert dialog.locator(".panel h3").count() == 7
+    expect(dialog.locator(".panel h3")).to_have_count(7)
     # And with nothing empty there is no take-down note: a caption with nothing
     # to caption. This is the other half of the guard the sibling test above
     # exercises, and without it the guard could be deleted with the suite green.
-    assert ui.page.locator("p", has_text="goes on showing what it was showing").count() == 0
+    expect(ui.page.locator("p", has_text="goes on showing what it was showing")).to_have_count(0)

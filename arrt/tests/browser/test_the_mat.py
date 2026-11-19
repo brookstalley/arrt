@@ -19,6 +19,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.library.acquisition.mat import MAT_PRESETS, derive
 from arrt.persistence.records import MatMethod
 
@@ -160,15 +162,17 @@ def test_a_work_with_no_mat_is_shown_without_one_and_says_so(ui, work_with_an_im
     ui.open(f"#work/{work.id}")
     ui.page.wait_for_selector(".work-hero .matted[data-layout]")
 
-    assert ui.page.locator(".work-hero .mat-surround").is_hidden()
-    assert ui.page.locator(".work-hero .no-mat").inner_text() == "No mat has been chosen for it yet, so it is shown without one."
+    expect(ui.page.locator(".work-hero .mat-surround")).to_be_hidden()
+    expect(ui.page.locator(".work-hero .no-mat")).to_have_text(
+        "No mat has been chosen for it yet, so it is shown without one.", use_inner_text=True
+    )
 
 
 def test_a_work_with_a_mat_says_nothing_about_one(ui, matted):
     open_matted(ui, matted(1600, 1200))
 
-    assert ui.page.locator(".work-hero .mat-surround").is_visible()
-    assert ui.page.locator(".work-hero .no-mat").count() == 0
+    expect(ui.page.locator(".work-hero .mat-surround")).to_be_visible()
+    expect(ui.page.locator(".work-hero .no-mat")).to_have_count(0)
 
 
 def detail_rewritten(ui, work, change):
@@ -208,7 +212,7 @@ def test_a_work_with_no_recorded_master_is_matted_at_its_pictures_shape(ui, matt
 
     width, height = mat_shape(ui)
     assert height > width
-    assert ui.page.locator(".work-hero .mat-surround").is_visible()
+    expect(ui.page.locator(".work-hero .mat-surround")).to_be_visible()
 
 
 # -- the mat control (#91) --------------------------------------------------------
@@ -217,9 +221,9 @@ def test_a_work_with_no_recorded_master_is_matted_at_its_pictures_shape(ui, matt
 def open_control(ui, work):
     """Open the folded control, as a curator does, once it has read the mat."""
     open_matted(ui, work)
-    mat_fact(ui)
-    assert ui.page.locator(".mat-control").is_hidden(), "the choices start open"
-    assert ui.page.get_attribute(MAT, "aria-expanded") == "false"
+    expect(ui.page.locator(MAT).first).to_be_enabled()
+    expect(ui.page.locator(".mat-control"), "the choices start open").to_be_hidden()
+    expect(ui.page.locator(MAT).first).to_have_attribute("aria-expanded", "false")
     ui.page.click(MAT)
     ui.page.wait_for_selector(".mat-control .mat-option")
 
@@ -229,10 +233,15 @@ def open_control(ui, work):
 MAT = ".work-facts button.mat-trigger"
 
 
-def mat_fact(ui):
-    """What the mat's fact says, once it has read the mat: its accessible name."""
-    ui.page.wait_for_selector(f"{MAT}:not(:disabled)")
-    return ui.page.get_attribute(MAT, "aria-label")
+def expect_mat_fact(ui, words):
+    """The mat's fact says `words`, once it has read the mat: its accessible name.
+
+    It returned the name read once, as soon as the control was enabled, and the
+    callers compared it; the name is now asserted, retried, as each caller did.
+    """
+    trigger = ui.page.locator(MAT).first
+    expect(trigger).to_be_enabled()
+    expect(trigger).to_have_attribute("aria-label", words)
 
 
 def option(ui, label):
@@ -251,7 +260,7 @@ def test_a_preset_is_previewed_on_the_picture_and_recorded_only_when_used(ui, se
     option(ui, second.label).click()
 
     assert hero_colour(ui) == rgb(second.hex_rgb)
-    assert ui.page.locator(".mat-confirm").is_visible()
+    expect(ui.page.locator(".mat-confirm")).to_be_visible()
     assert service.current_mat_color(work.id).hex_rgb == CURRENT, "a preview recorded the colour"
 
     ui.page.click(".mat-confirm button.mat-use")
@@ -259,10 +268,10 @@ def test_a_preset_is_previewed_on_the_picture_and_recorded_only_when_used(ui, se
 
     assert service.current_mat_color(work.id).hex_rgb == second.hex_rgb
     assert hero_colour(ui) == rgb(second.hex_rgb)
-    assert option(ui, f"{second.label} (current)").is_disabled()
+    expect(option(ui, f"{second.label} (current)")).to_be_disabled()
     # Kept: the choices fold, and the fact, now naming the new mat, has the keyboard.
-    assert ui.page.locator(".mat-control").is_hidden()
-    assert mat_fact(ui) == f"Mat: {second.label}"
+    expect(ui.page.locator(".mat-control")).to_be_hidden()
+    expect_mat_fact(ui, f"Mat: {second.label}")
     assert ui.page.evaluate("() => document.activeElement.classList.contains('mat-trigger')")
 
 
@@ -274,7 +283,7 @@ def test_keeping_the_current_mat_puts_the_picture_back(ui, service, matted):
     ui.page.click(".mat-confirm button.mat-keep")
 
     assert hero_colour(ui) == rgb(CURRENT)
-    assert ui.page.locator(".mat-confirm").is_hidden()
+    expect(ui.page.locator(".mat-confirm")).to_be_hidden()
     assert service.current_mat_color(work.id).hex_rgb == CURRENT
 
 
@@ -295,14 +304,14 @@ def test_a_refused_choice_is_said_beside_the_control(ui, service, matted):
 
     failure = ui.page.locator(".mat-confirm button.mat-use + .act-failure")
     failure.wait_for()
-    assert "darker than the mat floor" in failure.inner_text()
-    assert "Nothing was changed." in failure.inner_text()
+    expect(failure).to_contain_text("darker than the mat floor", use_inner_text=True)
+    expect(failure).to_contain_text("Nothing was changed.", use_inner_text=True)
 
 
 def test_the_derivation_is_offered_when_it_would_change_the_mat(ui, matted):
     open_control(ui, matted(1600, 1200))
 
-    assert option(ui, "From the picture").count() == 1
+    expect(option(ui, "From the picture")).to_have_count(1)
 
 
 def test_the_derivation_is_not_offered_when_it_is_already_the_mat(ui, service, settings, matted):
@@ -315,8 +324,8 @@ def test_the_derivation_is_not_offered_when_it_is_already_the_mat(ui, service, s
     )
     open_control(ui, work)
 
-    assert option(ui, "From the picture").count() == 0
-    assert mat_fact(ui) == "Mat: From the picture"
+    expect(option(ui, "From the picture")).to_have_count(0)
+    expect_mat_fact(ui, "Mat: From the picture")
 
 
 def test_from_the_picture_is_recorded_as_derived_when_used(ui, service, settings, matted):
@@ -334,22 +343,22 @@ def test_from_the_picture_is_recorded_as_derived_when_used(ui, service, settings
 
     current = service.current_mat_color(work.id)
     assert (current.hex_rgb, current.method) == (derived, MatMethod.DERIVED)
-    assert mat_fact(ui) == "Mat: From the picture"
+    expect_mat_fact(ui, "Mat: From the picture")
 
 
 def test_a_works_first_mat_takes_away_the_line_saying_it_has_none(ui, service, work_with_an_image):
     work = work_with_an_image("Not yet prepared")
     ui.open(f"#work/{work.id}")
     ui.page.wait_for_selector(".work-hero .no-mat")
-    assert mat_fact(ui) == "Mat: None chosen yet"
+    expect_mat_fact(ui, "Mat: None chosen yet")
     ui.page.click(MAT)
 
     option(ui, MAT_PRESETS[0].label).click()
     ui.page.click(".mat-confirm button.mat-use")
     ui.page.wait_for_selector(".mat-status:has-text('The mat is now')")
 
-    assert ui.page.locator(".work-hero .no-mat").count() == 0
-    assert ui.page.locator(".work-hero .mat-surround").is_visible()
+    expect(ui.page.locator(".work-hero .no-mat")).to_have_count(0)
+    expect(ui.page.locator(".work-hero .mat-surround")).to_be_visible()
     assert service.current_mat_color(work.id).hex_rgb == MAT_PRESETS[0].hex_rgb
 
 
@@ -360,12 +369,12 @@ def test_a_control_that_cannot_read_its_choices_says_so_in_place(ui, matted):
         lambda route: route.fulfill(status=500, json={"error": "boom"}) if route.request.method == "GET" else route.continue_(),
     )
     open_matted(ui, work)
-    assert mat_fact(ui) == "Mat: unknown"
+    expect_mat_fact(ui, "Mat: unknown")
     ui.page.click(MAT)
 
     ui.page.wait_for_selector(".mat-control .note:has-text('could not be read just now')")
-    assert "Reading" not in ui.page.inner_text(".work-facts")
-    assert ui.page.locator("#error").is_hidden(), "the page's banner is another act's"
+    expect(ui.page.locator(".work-facts").first).not_to_contain_text("Reading", use_inner_text=True)
+    expect(ui.page.locator("#error"), "the page's banner is another act's").to_be_hidden()
 
 
 def test_a_mat_set_by_hand_is_named_so(ui, service, work_with_an_image):
@@ -373,7 +382,7 @@ def test_a_mat_set_by_hand_is_named_so(ui, service, work_with_an_image):
     service.record_mat_color(artwork_id=work.id, hex_rgb="#3a5f7d", method=MatMethod.MANUAL)
     open_matted(ui, work)
 
-    assert mat_fact(ui) == "Mat: Set by hand"
+    expect_mat_fact(ui, "Mat: Set by hand")
 
 
 def test_a_method_the_client_does_not_know_is_not_passed_off_as_a_persons(ui, matted):
@@ -390,4 +399,4 @@ def test_a_method_the_client_does_not_know_is_not_passed_off_as_a_persons(ui, ma
     )
     open_matted(ui, work)
 
-    assert mat_fact(ui) == "Mat: Chosen another way"
+    expect_mat_fact(ui, "Mat: Chosen another way")
