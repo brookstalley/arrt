@@ -422,8 +422,15 @@ class TestHanging:
         The dialog names the theme *and* the wall, even in a house with one wall:
         a question that reads correctly today only because there is one possible
         target is the last place a mistake could have been caught.
+
+        The wall is given a Player: since 2026-11-19 the question promises
+        "Everyone in the house sees" only of a wall a Player shows (chunk 06 of
+        `build-plan-audit-wave-1.md`, audit 6 finding 19), and the wall with no
+        Player is `test_setting_up_a_wall.py`'s case.
         """
         wall = services.display.survey_walls()[0].wall
+        hall = services.clients.add_client(name="Hall Pi")
+        services.clients.assign_wall(wall.id, client_id=hall.id, output="hdmi-a-1")
         ui.open(f"#theme/{winter.id}")
         _painted(ui)
 

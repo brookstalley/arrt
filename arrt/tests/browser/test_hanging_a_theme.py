@@ -126,10 +126,17 @@ def test_a_hung_theme_can_be_taken_down_from_the_wall_it_is_on(ui, a_theme, serv
 
 
 def test_one_hang_puts_it_up_on_one_wall_and_takes_it_down_from_another(ui, a_theme, services):
-    """Two changes, one question naming both walls, and only the changed walls sent."""
+    """Two changes, one question naming both walls, and only the changed walls sent.
+
+    Both changed walls are given a Player: since 2026-11-19 the question says
+    "Everyone in the house sees" only of walls a Player shows (chunk 06 of
+    `build-plan-audit-wave-1.md`, audit 6 finding 19)."""
     the_wall = services.display.survey_walls()[0].wall
     study = services.display.add_wall(name="Study")
     landing = services.display.add_wall(name="Landing")
+    hall = services.clients.add_client(name="Hall Pi")
+    services.clients.assign_wall(the_wall.id, client_id=hall.id, output="hdmi-a-1")
+    services.clients.assign_wall(study.id, client_id=hall.id, output="hdmi-a-2")
     services.display.activate_theme(a_theme.id, wall_id=the_wall.id)
     services.display.activate_theme(a_theme.id, wall_id=landing.id)
 
@@ -153,6 +160,7 @@ def test_one_hang_puts_it_up_on_one_wall_and_takes_it_down_from_another(ui, a_th
     consequence = ui.page.inner_text("dialog.confirm .confirm-consequence")
     assert consequence.startswith("Study: ")
     assert f"Everyone in the house sees Study and {the_wall.name} change." in consequence
+    assert "No Player shows" not in consequence
     assert "Landing" not in consequence
     ui.page.click("dialog.confirm .confirm-actions button:has-text('Hang')")
     ui.page.wait_for_selector("#view .theme-facts a:text-is('Study')")
