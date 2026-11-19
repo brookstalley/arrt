@@ -593,7 +593,13 @@ copies pruned; INFO `catalogue.snapshot_kept` that an earlier copy stands, taken
 the same second or before the migrations a failed start left unfinished; WARNING
 `catalogue.snapshot_prune_failed` that an older copy could not be removed, which
 stops nothing; and ERROR `catalogue.snapshot_failed` that the copy could
-not be written, which stops the start with the catalogue as it was. The receipt
+not be written, which stops the start with the catalogue as it was. Each pass
+that succeeds logs INFO `backup.completed` with the generation's `path`, its
+`bytes`, the generations `kept` and how many were `removed`, and, since
+2026-11-19, `copy_seconds`: the monotonic time its `VACUUM INTO` took, which is
+how long the server's commits could have waited on the copy's lock, and the
+figure that would reopen the rollback-journal-over-WAL decision
+(`build-plan-audit-wave-2.md`, Goals). The receipt
 and the panel's age are the generations' alone: a copy before a migration is not a
 backup and does not move the age.
 

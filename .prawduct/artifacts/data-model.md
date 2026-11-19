@@ -2347,6 +2347,35 @@ and by wall (`GET /api/history`, `art_catalogue(action='history')`).
 > **after** its own change commits (after a split there is no shared transaction,
 > and a history line for a hang that rolled back would be false).
 
+### CatalogueOpened
+
+> **The file's own**, neither the Library's nor Programming's: one row in the
+> catalogue file's `catalogue_opened` table, declared in `persistence/file.py`
+> (`OPENED_SCHEMA`) beside the two adapters' schemas, and read and written only
+> by the open. *Built 2026-11-19, `build-plan-audit-wave-2.md` Chunk 06.*
+
+Which release last opened the file, when, and whether that open finished its
+migrations. It answers three questions and holds nothing else: the operator's
+before a rollback (which release last opened this, and when), the server's at
+start (was this file opened by a newer release than me), and support's after a
+failed upgrade (did the last open finish migrating).
+
+| Field | Type | Constraints | Description |
+|---|---|---|---|
+| `id` | integer | PK, `CHECK (id = 1)` | One row at most; the store enforces "at most one", and every open through `open_catalogue_file` writes it, so a file any release from 2026-11-19 on has opened has exactly one. |
+| `release` | string | required | The opening release's version as its installed package states it (`importlib.metadata.version("arrt")`, which is `pyproject.toml`'s `version`). Compared by its first three numbers. |
+| `opened_at` | datetime | required | When that open began, by the open's clock. |
+| `migrations_completed` | boolean | required | Written false before the first migration and true after the last, so an open killed mid-migration leaves it false. |
+
+> **Not `PRAGMA user_version`**, which marks a migration in progress from its
+> pre-migration copy until its last step (`backup.MIGRATION_BEGUN`). **A file
+> whose row names a newer release is refused** before anything touches it
+> (`NewerRelease`, naming both releases; a version this code cannot read counts
+> as newer), and a file with no row opens. The guard protects a downgrade only
+> to a release that carries it: v0.11.0 and older ignore the table and start
+> (`operational-spec.md` § Backup and Restore). Additive: no copy is taken for
+> it, and a release from before it ignores the table.
+
 ### TvBinding *(display plane only)*
 
 Everything about one specific television. **Not part of the catalogue** — this is
