@@ -644,6 +644,7 @@ def search_registry(
                     else RegistryCreatorOut(qid=w.creator.qid, name=w.creator.name, artist_id=held_artists.get(w.creator.qid))
                 ),
                 held_artwork_ids=list(held_works.get(w.qid, ())),
+                pictured_artwork_id=found.pictured_works.get(w.qid),
                 wanted=w.qid in found.wanted_works,
                 in_review=_in_review(found.waiting_works.get(w.qid)),
             )

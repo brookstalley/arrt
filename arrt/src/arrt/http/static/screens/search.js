@@ -312,8 +312,10 @@ function artistRow(row) {
  * (audit 6, finding 14: a Held heading, a Works heading, then ● Held on every
  * row). What a held row does say is whether there is a picture of it: "Do I
  * have it?" answered yes for a work with nothing to hang, while its own page
- * said *No picture*. So a library row with no master says *No picture* in its
- * picture's place, as a tile does. */
+ * said *No picture*. So a held row with no master says *No picture* in its
+ * picture's place, as a tile does: the library's own by its listing's
+ * `image.available`, one folded in from Wikidata's results by the search's
+ * `pictured_artwork_id`. */
 function workRows(library, found, selection) {
   const shown = new Set(library.works.map((work) => work.artwork_id));
   const held = library.works.map((work) => ({
@@ -333,7 +335,8 @@ function workRows(library, found, selection) {
       const row = {
         title: named(work.title, work.qid),
         by: work.creator ? named(work.creator.name, work.creator.qid) : null,
-        picture: statePicture(work),
+        // A held row with no master says so, as the library's own rows do.
+        picture: statePicture(work) || (isHeld ? absentPicture() : null),
         // Under Held, the group says it; a row says only what the group does
         // not, which is two held works naming one item (*Held ×2*).
         mark: isHeld && work.held_artwork_ids.length === 1 ? null : workState(work, { opens: false, grouped: true, picture: false }),

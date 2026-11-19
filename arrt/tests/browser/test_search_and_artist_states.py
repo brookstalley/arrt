@@ -18,6 +18,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     RegistryArtist,
@@ -27,6 +28,7 @@ from arrt.library.registry import (
     RegistryWorkMatch,
 )
 from arrt.persistence.discovery_records import ResolutionStatus
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 BRUEGEL = "Q43270"
 HUNTERS = "Q500985"
@@ -114,6 +116,46 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
     rows.locator("input[type='checkbox']").check()
     assert ui.page.locator("#view .selection button.selection-archive").is_enabled()
     assert ui.page.locator("#view .selection button.get-open").is_disabled()
+
+
+def test_a_folded_held_row_asks_for_the_picture_of_the_work_that_has_one_and_no_other(ui, hunters_held_by_title, service):
+    """The row's picture is the server's `pictured_artwork_id`, never a guess.
+
+    *The Hunters in the Snow* with no master asks for no thumbnail (one would be
+    refused) and says *No picture*; given a master, the row asks for that work's
+    thumbnail and says nothing of its absence."""
+    _results(ui, "bruegel")
+    row = _row(ui, "#view .results-list li", "The Hunters in the Snow")
+    expect(row.locator(".work-pic-absent")).to_have_count(1)
+    assert not [url for url in ui.requests if url.endswith("/thumbnail")], "a work with no picture was asked for one"
+
+    _give_a_master(service, hunters_held_by_title)
+    _results(ui, "bruegel")
+    expect(row.locator(".work-pic-held img")).to_have_attribute("src", f"/api/works/{hunters_held_by_title.id}/thumbnail")
+    expect(row.locator(".work-pic-absent")).to_have_count(0)
+
+
+def _give_a_master(service, work):
+    """A work's master on record, as a finished fetch leaves it; no file, so its thumbnail is refused."""
+    source = service.add_source(
+        artwork_id=work.id,
+        url=f"https://museum.example/{work.id}",
+        provider="artic",
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DEZOOMIFY,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    service.record_original(
+        artwork_id=work.id,
+        source_id=source.id,
+        path=f"raw/{work.id}.tif",
+        width=6000,
+        height=4000,
+        byte_size=90_000_000,
+        content_hash=f"hash-{work.id}",
+        fetch_status=FetchStatus.OK,
+    )
 
 
 def test_a_work_in_review_says_so_links_to_the_review_and_offers_no_get(ui, harvesters_waiting):

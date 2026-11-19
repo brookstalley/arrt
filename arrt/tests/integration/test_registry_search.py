@@ -10,6 +10,7 @@ import pytest
 from fakes import FakeRegistry
 
 from arrt.library.registry import RegistryCreator, RegistryPerson, RegistryWorkMatch
+from arrt.persistence.records import AcquisitionMethod, FetchStatus, RightsStatus, SourceClass
 
 ROTHKO = "Q160149"
 DALI = "Q5577"
@@ -203,3 +204,50 @@ def test_a_works_maker_the_library_holds_links_there_though_the_name_search_foun
 
     assert found["artists"] == []
     assert found["works"][0]["creator"] == {"qid": DALI, "name": "Salvador Dalí", "artist_id": dali.id}
+
+
+def test_a_held_work_names_the_held_work_there_is_a_picture_of_and_none_without_one(http, held, services, service):
+    """The search says which held work there is a picture of (audit 6, finding 14).
+
+    A held row folded in from Wikidata's results is drawn without the library's
+    own listing, so the page cannot read `image.available` for it; without this
+    it asked for a thumbnail the server refuses instead of saying *No picture*.
+    Two held works name one item here and only the second holds a master: the
+    answer names it, not the first of `held_artwork_ids`.
+    """
+    rothko, kept = held
+
+    assert [w["pictured_artwork_id"] for w in _search(http, "rothko")["works"]] == [None, None]
+
+    twin = service.add_artwork(title="Untitled (Purple, White, and Red)", artist_id=rothko.id)
+    services.identity.set_work_identity(twin.id, HELD_ROTHKO)
+    _give_a_master(service, twin)
+
+    works = _search(http, "rothko", wide="true")["works"]
+    assert [(sorted(w["held_artwork_ids"]), w["pictured_artwork_id"]) for w in works] == [
+        ([], None),
+        (sorted([kept.id, twin.id]), twin.id),
+    ]
+
+
+def _give_a_master(service, work):
+    """A work's master on record, as a finished fetch leaves it."""
+    source = service.add_source(
+        artwork_id=work.id,
+        url=f"https://museum.example/{work.id}",
+        provider="artic",
+        source_class=SourceClass.INSTITUTIONAL,
+        acquisition_method=AcquisitionMethod.DEZOOMIFY,
+        rights_status=RightsStatus.PUBLIC_DOMAIN,
+        is_primary=True,
+    )
+    service.record_original(
+        artwork_id=work.id,
+        source_id=source.id,
+        path=f"raw/{work.id}.tif",
+        width=6000,
+        height=4000,
+        byte_size=90_000_000,
+        content_hash=f"hash-{work.id}",
+        fetch_status=FetchStatus.OK,
+    )
