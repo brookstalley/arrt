@@ -507,7 +507,7 @@ async def test_a_full_disk_pauses_the_queue_and_names_its_remedy(server_url, ser
 
     assert state["phase"] == "paused"
     assert state["condition"] == "NotEnoughSpace"
-    assert "MIN_FREE_BYTES" in state["remedy"]
+    assert "Free some space on it" in state["remedy"]
 
 
 def _a_work_with_an_original(services, settings, *, width=2400, height=1800):

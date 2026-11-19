@@ -107,7 +107,8 @@ def test_the_listing_carries_a_failure_s_next_try_and_a_pause_s_remedy(http, acc
     members = http.get("/api/acquisitions/causes/works", params={"cause": "reset."}).json()
 
     assert body["pause"]["condition"] == "NotEnoughSpace"
-    assert "MIN_FREE_BYTES" in body["pause"]["remedy"]
+    assert "Free some space on it" in body["pause"]["remedy"]
+    assert "MIN_FREE_BYTES" not in body["pause"]["remedy"], "the Queue is a household page, which names no setting"
     assert [entry["acquisition"]["phase"] for entry in body["works"] if entry["title"] == "Due now"] == ["paused"]
     entry = next(entry for entry in members["works"] if entry["title"] == "Failed once")
     assert entry["acquisition"]["phase"] == "failed"

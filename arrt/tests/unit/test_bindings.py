@@ -379,12 +379,14 @@ def test_a_retry_into_a_queue_paused_by_a_surprise_points_at_the_journal():
 # (`test_acquisition_service.py`) by driving `acquire()` with no surface in the
 # picture.
 
-#: The environment variable each condition's remedy must name, keyed by the
-#: condition. A table rather than three literals in the parametrisation, so the
+#: What each condition's remedy must say is changed, keyed by the condition: the
+#: setting to set where only the operator can act, and the household's words for
+#: freeing the disk. A table rather than three literals in the parametrisation, so the
 #: test below can be driven from `DEPLOYMENT_FAULTS` itself while still
 #: asserting the one thing that differs per condition — what an operator changes.
 _REMEDY_FOR = {
-    NotEnoughSpace: "MIN_FREE_BYTES",
+    # Not a variable: the disk is freed by whoever reads the Work page, in their words.
+    NotEnoughSpace: "Free some space on it",
     DezoomifyUnavailable: "DEZOOMIFY_PATH",
     SourcePluginUnavailable: "ARTIC_USER_AGENT",
 }
@@ -406,9 +408,9 @@ def test_every_raise_rather_than_record_condition_has_a_remedy_of_its_own():
     assert set(DEPLOYMENT_REMEDIES) == {condition.__name__ for condition in DEPLOYMENT_FAULTS} | set(_HOST_CONDITIONS)
 
 
-@pytest.mark.parametrize("condition", _HOST_CONDITIONS)
+@pytest.mark.parametrize("condition", [NotEnoughSpace.__name__, *_HOST_CONDITIONS])
 def test_each_pause_on_the_hosts_fault_has_a_remedy_in_the_households_words(condition):
-    """The queue pauses on a full or read-only disk and on a database fault; each says what to do, naming no setting.
+    """The queue pauses on a short, full or read-only disk and on a database fault; each says what to do, naming no setting.
 
     Whoever reads these looks after the disk, not the configuration, so no
     environment variable is named (an upper-case word with an underscore).
