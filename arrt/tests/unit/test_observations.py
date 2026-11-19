@@ -233,6 +233,17 @@ class TestTheTwoReadings:
 
         assert "4 days ago" in heartbeat.read(path, now=NOW).describe()
 
+    def test_a_heartbeat_is_said_to_come_from_the_walls_player(self, tmp_path):
+        """What reports is a Player; "the display plane" named an architecture this server no longer has."""
+        path = heartbeat.heartbeat_path_in(tmp_path, "a-wall")
+        absent = heartbeat.read(path, now=NOW).describe()
+        path.write_text(json.dumps({"reported_at": (NOW - timedelta(minutes=3)).isoformat()}), encoding="utf-8")
+        present = heartbeat.read(path, now=NOW).describe()
+
+        assert absent == f"No heartbeat file exists at {path}; this wall's Player has not reported yet."
+        assert present == "This wall's Player last reported 3 minutes ago."
+        assert not any("plane" in sentence for sentence in (absent, present))
+
     @pytest.mark.parametrize("reading", [heartbeat, backup])
     def test_neither_reading_ever_states_a_verdict(self, reading, tmp_path):
         """Never a green dot, in any of the three states either can be in.

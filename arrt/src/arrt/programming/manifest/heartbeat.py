@@ -108,10 +108,10 @@ class HeartbeatReading:
         not have to — and `observability-strategy.md` states the target wording.
         """
         if self.absent:
-            return f"No heartbeat file exists at {self.path}; the display plane has not reported yet."
+            return f"No heartbeat file exists at {self.path}; this wall's Player has not reported yet."
         if self.problem is not None:
             return f"The heartbeat file at {self.path} could not be read: {self.problem}"
-        return f"The display plane last reported {observations.ago(self.age_seconds)}."
+        return f"This wall's Player last reported {observations.ago(self.age_seconds)}."
 
 
 def heartbeat_path_in(art_root: Path, wall_id: str) -> Path:
