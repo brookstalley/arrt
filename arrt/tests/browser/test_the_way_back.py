@@ -12,12 +12,16 @@ previous page painted under the new title, and that a fresh load of a dead
 work's address sat on "Loading the catalogue…" for good.
 """
 
+import re
+
 import pytest
 
 pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 BACK = "#view > p:first-child a"
 
@@ -26,10 +30,6 @@ def back_link(ui):
     """The page's way back, once the page has painted one."""
     ui.page.wait_for_selector(BACK)
     return ui.page.locator(BACK).first
-
-
-def hash_now(ui) -> str:
-    return ui.page.evaluate("() => window.location.hash")
 
 
 @pytest.fixture
@@ -58,10 +58,10 @@ def test_a_work_opened_from_an_artist_returns_to_that_artist(ui, varo, pablum):
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
 
     back = back_link(ui)
-    assert back.inner_text() == "← Remedios Varo"
+    expect(back).to_have_text("← Remedios Varo", use_inner_text=True)
     back.click()
     ui.page.wait_for_function("() => document.title === 'Remedios Varo - Arrt'")
-    assert hash_now(ui) == f"#artist/{varo.id}"
+    expect(ui.page).to_have_url(re.compile(re.escape(f"#artist/{varo.id}") + "$"))
 
 
 def test_an_artist_opened_from_a_work_returns_to_that_work(ui, varo, pablum):
@@ -70,10 +70,10 @@ def test_an_artist_opened_from_a_work_returns_to_that_work(ui, varo, pablum):
     ui.page.wait_for_function("() => document.title === 'Remedios Varo - Arrt'")
 
     back = back_link(ui)
-    assert back.inner_text() == "← Celestial Pablum"
+    expect(back).to_have_text("← Celestial Pablum", use_inner_text=True)
     back.click()
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
-    assert hash_now(ui).startswith(f"#work/{pablum.id}")
+    expect(ui.page).to_have_url(re.compile(re.escape(f"#work/{pablum.id}")))
 
 
 def test_a_theme_opened_from_a_work_returns_to_that_work(ui, pablum, a_theme_holding_it):
@@ -82,7 +82,7 @@ def test_a_theme_opened_from_a_work_returns_to_that_work(ui, pablum, a_theme_hol
     ui.page.wait_for_function("() => document.title === 'Night kitchens - Arrt'")
 
     back = back_link(ui)
-    assert back.inner_text() == "← Celestial Pablum"
+    expect(back).to_have_text("← Celestial Pablum", use_inner_text=True)
     back.click()
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
 
@@ -94,10 +94,10 @@ def test_a_work_opened_from_search_results_returns_to_them_with_the_query(ui, pa
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
 
     back = back_link(ui)
-    assert back.inner_text() == "← Results for “Pablum”"
+    expect(back).to_have_text("← Results for “Pablum”", use_inner_text=True)
     back.click()
     ui.page.wait_for_function("() => document.title.startsWith('Results for')")
-    assert "q=Pablum" in hash_now(ui)
+    expect(ui.page).to_have_url(re.compile(re.escape("q=Pablum")))
 
 
 def test_search_results_opened_from_an_artist_return_to_that_artist(ui, varo):
@@ -109,7 +109,7 @@ def test_search_results_opened_from_an_artist_return_to_that_artist(ui, varo):
     ui.page.wait_for_function("() => document.title.startsWith('Results for')")
 
     back = back_link(ui)
-    assert back.inner_text() == "← Remedios Varo"
+    expect(back).to_have_text("← Remedios Varo", use_inner_text=True)
     back.click()
     ui.page.wait_for_function("() => document.title === 'Remedios Varo - Arrt'")
 
@@ -118,13 +118,13 @@ def test_a_page_opened_from_a_link_elsewhere_still_names_where_it_returns(ui, va
     """A bookmark that carries its opener knows where it goes, if not yet its name."""
     ui.open(f"#work/{pablum.id}?from=artist%2F{varo.id}")
     back = back_link(ui)
-    assert back.inner_text() == "← Artist"
-    assert back.get_attribute("href") == f"#artist/{varo.id}"
+    expect(back).to_have_text("← Artist", use_inner_text=True)
+    expect(back).to_have_attribute("href", f"#artist/{varo.id}")
 
 
 def test_a_page_opened_cold_returns_to_its_index(ui, pablum):
     ui.open(f"#work/{pablum.id}")
-    assert back_link(ui).inner_text() == "← Artworks"
+    expect(back_link(ui)).to_have_text("← Artworks", use_inner_text=True)
 
 
 # -- an address that names nothing -------------------------------------------------------
@@ -146,14 +146,16 @@ def test_a_dead_address_reached_from_a_live_page_shows_nothing_of_that_page(ui, 
     ui.page.evaluate("(address) => { window.location.hash = address; }", address)
 
     ui.page.wait_for_selector("#view .not-found")
-    assert "Celestial Pablum" not in ui.page.locator("#view").inner_text()
-    assert ui.page.locator("#view .not-found a", has_text=index).count() == 1
+    # Anchored by the not-found panel above, which only the new address paints.
+    expect(ui.view).not_to_contain_text("Celestial Pablum", use_inner_text=True)
+    expect(ui.page.locator("#view .not-found a", has_text=index)).to_have_count(1)
 
 
 def test_a_fresh_load_of_a_dead_works_address_says_so(ui):
     ui.open(f"#work/{DEAD}")
     ui.page.wait_for_selector("#view .not-found")
-    assert "Loading" not in ui.page.locator("#view").inner_text()
+    # Anchored by the not-found panel above.
+    expect(ui.view).not_to_contain_text("Loading", use_inner_text=True)
 
 
 # -- a topic, both ways ------------------------------------------------------------------
@@ -177,7 +179,7 @@ def test_a_topic_opened_from_a_work_returns_to_that_work(ui, a_wintry_work):
     ui.page.wait_for_function("() => document.title === 'Winter - Arrt'")
 
     back = back_link(ui)
-    assert back.inner_text() == "← Celestial Pablum"
+    expect(back).to_have_text("← Celestial Pablum", use_inner_text=True)
     back.click()
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
 
@@ -187,9 +189,9 @@ def test_a_work_opened_from_a_topic_returns_to_that_topic(ui, a_wintry_work):
     ui.page.click(f"#view a:text-is('{a_wintry_work.title}')")
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
 
-    assert f"from=topic%2F{WINTER}" in hash_now(ui)
+    expect(ui.page).to_have_url(re.compile(re.escape(f"from=topic%2F{WINTER}")))
     back = back_link(ui)
-    assert back.get_attribute("href") == f"#topic/{WINTER}"
+    expect(back).to_have_attribute("href", f"#topic/{WINTER}")
     back.click()
     ui.page.wait_for_function("(qid) => window.location.hash === `#topic/${qid}`", arg=WINTER)
 
@@ -202,8 +204,8 @@ def test_a_dead_reviews_address_says_so(ui, pablum):
     ui.page.wait_for_function("() => document.title === 'Celestial Pablum - Arrt'")
     ui.page.evaluate("(address) => { window.location.hash = address; }", f"#review/{DEAD}")
     ui.page.wait_for_selector("#view .not-found")
-    assert ui.page.locator("#view h1").inner_text() == "That review is not here"
-    assert "Celestial Pablum" not in ui.page.locator("#view").inner_text()
+    expect(ui.page.locator("#view h1")).to_have_text("That review is not here", use_inner_text=True)
+    expect(ui.view).not_to_contain_text("Celestial Pablum", use_inner_text=True)
 
 
 # -- a page that could not be read -------------------------------------------------------
@@ -220,10 +222,11 @@ def test_a_page_whose_read_fails_on_arrival_shows_nothing_of_the_last(ui, pablum
     ui.page.evaluate("(address) => { window.location.hash = address; }", f"#artist/{varo.id}")
 
     ui.page.wait_for_selector("#view .not-shown")
-    assert ui.page.locator("#error").inner_text() == "boom"
-    assert "Celestial Pablum" not in ui.page.locator("#view").inner_text()
+    expect(ui.page.locator("#error")).to_have_text("boom", use_inner_text=True)
+    # Anchored by the not-shown panel above and the banner's words.
+    expect(ui.view).not_to_contain_text("Celestial Pablum", use_inner_text=True)
     # A fault is not an absence: no page says the artist is gone.
-    assert ui.page.locator("#view .not-found").count() == 0
+    expect(ui.page.locator("#view .not-found")).to_have_count(0)
 
 
 def test_a_failed_repaint_of_the_page_showing_keeps_it(ui, pablum, varo):
@@ -243,5 +246,6 @@ def test_a_failed_repaint_of_the_page_showing_keeps_it(ui, pablum, varo):
     ui.page.evaluate("(address) => { window.location.hash = address; }", f"#work/{pablum.id}?from=artist%2F{varo.id}")
 
     ui.page.wait_for_selector("#error:not([hidden])")
-    assert ui.page.locator("#view h1").inner_text() == "Celestial Pablum"
-    assert ui.page.locator("#view .not-shown").count() == 0
+    expect(ui.page.locator("#view h1")).to_have_text("Celestial Pablum", use_inner_text=True)
+    # Anchored by the banner above: the failed repaint has been reported.
+    expect(ui.page.locator("#view .not-shown")).to_have_count(0)

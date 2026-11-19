@@ -121,7 +121,6 @@ UNCONVERTED: dict[str, tuple[int, int]] = {
     "test_the_themes_index.py": (33, 2),
     "test_the_toolbar.py": (21, 0),
     "test_the_walls.py": (91, 1),
-    "test_the_way_back.py": (20, 0),
     "test_the_work_page.py": (50, 0),
     "test_tiles_show_the_art.py": (2, 0),
     "test_to_review.py": (9, 0),
