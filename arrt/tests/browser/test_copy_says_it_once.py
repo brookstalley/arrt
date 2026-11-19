@@ -19,6 +19,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 from arrt.persistence.records import EventKind
 
 QID = re.compile(r"\bQ\d+\b")
@@ -32,12 +34,11 @@ def test_status_has_one_name_and_the_masthead_says_a_state(ui, a_health_reading)
     ui.open("#health")
     ui.page.wait_for_selector(".wall-reading")
 
-    heading = ui.page.locator("#view h1").inner_text()
-    page_link = ui.page.locator("#sidebar a[href='#health']").last.inner_text().strip()
-    assert heading == "Status"
-    assert page_link == "Status"
-    assert ui.page.locator("#status").get_attribute("data-state") in {"well", "unwell"}
-    assert "Status" not in ui.page.locator("#status").inner_text()
+    expect(ui.page.locator("#view h1")).to_have_text("Status", use_inner_text=True)
+    expect(ui.page.locator("#sidebar a[href='#health']").last).to_have_text("Status", use_inner_text=True)
+    expect(ui.page.locator("#status")).to_have_attribute("data-state", re.compile(r"^(well|unwell)$"))
+    # After the masthead has said a state, which is what shows it is drawn.
+    expect(ui.page.locator("#status")).not_to_contain_text("Status", use_inner_text=True)
 
 
 def test_status_says_when_a_wall_was_last_heard_from_once(ui, a_health_reading):
@@ -46,11 +47,13 @@ def test_status_says_when_a_wall_was_last_heard_from_once(ui, a_health_reading):
     panel = ui.page.locator(".wall-reading").first
     panel.wait_for()
 
-    text = ui.page.locator("#view").inner_text()
-    assert panel.locator(".reading-sentence").inner_text().startswith("Last heard from ")
-    assert "display plane" not in text
-    assert "Every wall has reported." not in text, "with one wall the summary is its panel said twice"
-    assert "Last reported" not in text
+    expect(panel.locator(".reading-sentence")).to_have_text(re.compile("^" + re.escape("Last heard from ")), use_inner_text=True)
+    # After the panel's sentence, which is what shows the page is drawn.
+    expect(ui.view).not_to_contain_text("display plane", use_inner_text=True)
+    expect(ui.view, "with one wall the summary is its panel said twice").not_to_contain_text(
+        "Every wall has reported.", use_inner_text=True
+    )
+    expect(ui.view).not_to_contain_text("Last reported", use_inner_text=True)
 
 
 def test_status_keeps_the_summary_over_more_than_one_wall(ui, a_health_reading, a_wall_reading):
@@ -58,7 +61,7 @@ def test_status_keeps_the_summary_over_more_than_one_wall(ui, a_health_reading, 
     ui.serve("**/api/health", reading)
     ui.open("#health")
     ui.page.wait_for_selector(".wall-reading")
-    assert "Every wall has reported." in ui.page.locator("#view").inner_text()
+    expect(ui.view).to_contain_text("Every wall has reported.", use_inner_text=True)
 
 
 # -- Topic and Artist ------------------------------------------------------------------
@@ -68,9 +71,9 @@ def test_no_topic_title_or_heading_carries_a_bare_item(ui):
     ui.open("#topic/Q99999999")
     ui.page.wait_for_selector("#view h1")
     ui.page.wait_for_load_state("networkidle")
-    heading = ui.page.locator("#view h1").inner_text()
-    assert not QID.search(heading), heading
-    assert not QID.search(ui.page.title()), ui.page.title()
+    # The page is quiet, so what the heading and the title were going to become they have become.
+    expect(ui.page.locator("#view h1")).not_to_have_text(QID, use_inner_text=True)
+    expect(ui.page).not_to_have_title(QID)
 
 
 def test_an_unmatched_artist_is_told_so_once(ui, service):
@@ -79,8 +82,9 @@ def test_an_unmatched_artist_is_told_so_once(ui, service):
     ui.open(f"#artist/{painter.id}")
     ui.page.wait_for_selector("section[aria-labelledby='their-work'] p.note")
 
-    text = ui.page.locator("#view").inner_text()
-    assert len(re.findall(r"not matched", text)) == 1, text
+    # "Not matched" once: the view's words hold it exactly once.
+    exactly_once = re.compile(r"^(?:(?!not matched).)*not matched(?:(?!not matched).)*$", re.DOTALL)
+    expect(ui.view).to_have_text(exactly_once, use_inner_text=True)
 
 
 # -- Artworks' rail ----------------------------------------------------------------------
@@ -116,14 +120,14 @@ def test_a_run_of_verdicts_from_one_get_is_one_row_with_its_works_a_click_away(u
     ui.page.wait_for_selector("ol.history-events > li")
 
     rows = ui.page.locator("ol.history-events > li")
-    assert rows.count() == 2
+    expect(rows).to_have_count(2)
     run = ui.page.locator("ol.history-events > li.verdict-run")
-    assert "Turned down 5 works from its Get" in run.inner_text()
+    expect(run).to_contain_text("Turned down 5 works from its Get", use_inner_text=True)
     links = run.locator("a", has_text="its Get")
-    assert links.count() == 1, "the Get is the line's, not each work's"
-    assert links.get_attribute("href").startswith(f"#get/{run_id}")
+    expect(links, "the Get is the line's, not each work's").to_have_count(1)
+    expect(links).to_have_attribute("href", re.compile("^" + re.escape(f"#get/{run_id}")))
     run.locator("summary").click()
-    assert run.locator(".verdict-run-works li").count() == 5
+    expect(run.locator(".verdict-run-works li")).to_have_count(5)
 
 
 def test_two_verdicts_read_one_by_one(ui, service):
@@ -133,8 +137,9 @@ def test_two_verdicts_read_one_by_one(ui, service):
         service.record_event(EventKind.REJECTED, work_id=work.id, run_id=run_id, detail={"title": title})
     ui.open("#history")
     ui.page.wait_for_selector("ol.history-events > li")
-    assert ui.page.locator("ol.history-events > li").count() == 2
-    assert ui.page.locator("li.verdict-run").count() == 0
+    expect(ui.page.locator("ol.history-events > li")).to_have_count(2)
+    # After both rows are in, so a fold that was going to be drawn would be.
+    expect(ui.page.locator("li.verdict-run")).to_have_count(0)
 
 
 def _verdicts(service, run_id, kind, titles):
@@ -151,10 +156,14 @@ def test_exactly_three_verdicts_fold_and_accepted_works_are_links(ui, service):
     ui.open("#history")
     run = ui.page.locator("ol.history-events > li.verdict-run")
     run.wait_for()
-    assert "Accepted 3 works from its Get" in run.inner_text()
+    expect(run).to_contain_text("Accepted 3 works from its Get", use_inner_text=True)
     run.locator("summary").click()
-    hrefs = run.locator(".verdict-run-works a").evaluate_all("(links) => links.map((a) => a.getAttribute('href'))")
-    assert sorted(href.split("?")[0] for href in hrefs) == sorted(f"#work/{work.id}" for work in accepted)
+    # Three links, and each accepted work has exactly one, up to its query: the set the sorted lists compared.
+    expect(run.locator(".verdict-run-works a")).to_have_count(len(accepted))
+    for work in accepted:
+        expect(
+            run.locator(f".verdict-run-works a[href='#work/{work.id}'], .verdict-run-works a[href^='#work/{work.id}?']")
+        ).to_have_count(1)
 
 
 def test_a_run_is_broken_by_another_verdict_or_another_get(ui, service):
@@ -165,7 +174,11 @@ def test_a_run_is_broken_by_another_verdict_or_another_get(ui, service):
     ui.open("#history")
     ui.page.wait_for_selector("ol.history-events > li")
     rows = ui.page.locator("ol.history-events > li")
-    assert rows.count() == 3
-    assert ui.page.locator("li.verdict-run").count() == 2
-    hrefs = ui.page.locator("li.verdict-run > span > a").evaluate_all("(links) => links.map((a) => a.getAttribute('href'))")
-    assert sorted(href.split("?")[0] for href in hrefs) == ["#get/get-one", "#get/get-two"]
+    expect(rows).to_have_count(3)
+    expect(ui.page.locator("li.verdict-run")).to_have_count(2)
+    # Two links, one to each Get, up to its query: the set the sorted lists compared.
+    expect(ui.page.locator("li.verdict-run > span > a")).to_have_count(2)
+    for get in ("get-one", "get-two"):
+        expect(
+            ui.page.locator(f"li.verdict-run > span > a[href='#get/{get}'], li.verdict-run > span > a[href^='#get/{get}?']")
+        ).to_have_count(1)
