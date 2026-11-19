@@ -364,8 +364,7 @@ convenience would otherwise make that split a migration.
 > remote-shaped answers (rule 2), the count of foreign keys crossing the seam,
 > held at `theme_memberships.artwork_id` (rule 3's tested half), and events after
 > commit with reconciliation at start (rule 4). The interim rule above, no new
-> cross-seam foreign keys, still binds new code. The Status line's "for rule 3
-> by #216" now names work that has no wave.
+> cross-seam foreign keys, still binds new code.
 
 ## Overview & Topology
 
