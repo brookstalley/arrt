@@ -24,7 +24,8 @@ the root ownership in number 7", and a qualification on number 8. As ruled:
    drift shows again. They are not each investigated by hand.
 6. **Five calls made in wave 1 are confirmed:** "copy for the walls" is the
    household's word for the presentation master; Select stands last on a list
-   screen's toolbar, on the right; `arrt.local` is an example name; a guesser with
+   screen's toolbar, on the right; the `.local` name the Player's settings page and
+   its tests use is an example, not a real host; a guesser with
    two addresses can hold a device that has never signed in out of a Player's
    settings page for as long as the guessing continues; a "database is locked"
    error pauses the acquisition queue and is not counted against the work.
