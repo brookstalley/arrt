@@ -43,14 +43,11 @@ nobody reads a promise here that the code does not carry.
   name: `transaction()` below is the same capability with the handle left
   implicit, and it is what a rule spanning rows is applied inside.
 - `upsert` also takes `cas`, an optimistic-lock fence against a row's previous
-  `date_updated`. Nothing here has that column, and leaving the fence out is
-  safe **only where the row a write replaces was read inside the same
-  `transaction()`**: the lock is then held across the whole read-modify-write,
-  and no other thread can commit between the read and the write. A serialised
-  connection does not make that true by itself. Each method takes the lock for
-  its own statement and lets it go, so a row read outside a transaction and
-  written back whole inside one puts back whatever another thread changed in
-  between. That precondition is the callers' to keep, and nothing here checks it.
+  `date_updated`. Nothing here has that column, and the fence is left out on a
+  rule the callers keep. Every statement is serialised, but a read taken outside
+  `transaction()` and written back inside one can lose a concurrent write; a
+  whole-row write is read inside the transaction that makes it, which holds the
+  lock across the whole read-modify-write. Nothing here checks that rule.
 - `pk` is required here and optional there, because the framework permits a
   backend that already knows a table's key; this one takes it and then checks it
   against the key the file actually declares.
