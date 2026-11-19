@@ -99,7 +99,12 @@ def test_a_held_work_appears_once_on_the_results_page(ui, hunters_held_by_title)
 
     rows = ui.page.locator("#view .results-list li:has(.row-title:text-is('The Hunters in the Snow'))")
     assert rows.count() == 1, "the library's row and Wikidata's are one work"
-    assert " ".join(rows.inner_text().split()).endswith("● Held")
+    # Under *Held*, the group's heading is the only "Held", and this work, held
+    # with no master yet, says so in its picture's place (audit 6, finding 14;
+    # until 2026-11-19 the row ended "● Held" and said nothing of its picture).
+    text = " ".join(rows.inner_text().split())
+    assert text.startswith("No picture The Hunters in the Snow"), text
+    assert "Held" not in text, text
     # A held work is never offered a Get. Its tick, since #317, is the held
     # half's, to add to a theme or archive: ticked, it lights those and leaves
     # Get dark. (This line asserted no tick at all until then, which was the
