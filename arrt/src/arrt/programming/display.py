@@ -30,7 +30,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, Final
 
-from arrt import observations
+from arrt import atomic, observations
 from arrt.library.facade import (
     EventKind,
     LibraryFacade,
@@ -518,7 +518,7 @@ class DisplayService:
         The first pass is the one that can fail (a full disk, a directory gone
         read-only), and a failure there removes what it wrote and raises, so no
         wall's feed has changed. The second is one rename per wall, within one
-        directory. The staging name is fixed per wall: every write is made under
+        directory, each made durable by `atomic.promote`. The staging name is fixed per wall: every write is made under
         the store's lock, so no two can meet on it.
         """
         ready: list[tuple[Path, Path]] = []
@@ -533,7 +533,9 @@ class DisplayService:
                 beside.unlink(missing_ok=True)
             raise
         for beside, path in ready:
-            beside.replace(path)
+            # Each staged feed is whole and synced (`write_atomically`); the
+            # shared writer's last step renames it and syncs the directory.
+            atomic.promote(beside, path)
 
     # -- reads: themes --------------------------------------------------------
 
