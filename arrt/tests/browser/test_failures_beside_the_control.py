@@ -14,6 +14,8 @@ three of the acts that use it — a verdict, a theme hang, and (in
   success takes the sentence away.
 """
 
+import re
+
 import pytest
 from payloads import a_candidate, a_candidate_page, a_card, a_verdict, an_instance_listing
 
@@ -23,6 +25,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 RUN_ID = "run-under-test"
 TITLE = "The Persistence of Memory"
@@ -47,11 +51,11 @@ def test_a_refused_verdict_is_said_beside_reject_and_the_retry_is_one_press(revi
     reject.click()
 
     assert review.said_beside(reject) == f"Couldn't reject {TITLE}: {REFUSAL} Nothing was changed."
-    assert reject.is_enabled()
+    expect(reject).to_be_enabled()
 
     reject.click()
     review.page.wait_for_selector("li.card[data-work='work-1'] .badge:has-text('rejected')")
-    assert review.page.locator(".act-failure").count() == 0
+    expect(review.page.locator(".act-failure")).to_have_count(0)
 
 
 def test_a_verdict_that_got_no_answer_does_not_claim_nothing_changed(review):
@@ -99,8 +103,8 @@ def test_a_refused_hang_is_said_beside_the_hang_control(ui, services):
 
     assert ui.said_beside(hang) == f"Couldn't hang Late night on The wall: {refusal} Nothing was changed."
     # The screen stayed: a refused hang is not a reason to leave for the walls.
-    assert ui.page.url.endswith(f"#theme/{late.id}")
-    assert hang.is_enabled()
+    expect(ui.page).to_have_url(re.compile(re.escape(f"#theme/{late.id}") + "$"))
+    expect(hang).to_be_enabled()
 
 
 def test_a_hang_refused_part_way_says_which_wall_and_shows_what_changed(ui, services):
@@ -137,5 +141,7 @@ def test_a_hang_refused_part_way_says_which_wall_and_shows_what_changed(ui, serv
     ui.page.wait_for_function("() => document.querySelector('#failures-elsewhere p').textContent.includes('Couldn')")
     ui.page.wait_for_selector("#view .theme-facts a")
     assert [wall.name for wall in services.display.walls_hanging(late.id)] == [study.name]
-    assert f"Couldn't hang Late night on The wall: {refusal}" in elsewhere.inner_text()
-    assert ui.page.locator("#view .theme-facts").inner_text().endswith("Hanging on Study")
+    expect(elsewhere).to_contain_text(f"Couldn't hang Late night on The wall: {refusal}", use_inner_text=True)
+    expect(ui.page.locator("#view .theme-facts")).to_have_text(
+        re.compile(re.escape("Hanging on Study") + "$"), use_inner_text=True
+    )

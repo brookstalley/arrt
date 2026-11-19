@@ -21,6 +21,8 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from playwright.sync_api import expect
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
 import ux_walk  # tools/ is not a package; the path is inserted above
@@ -57,10 +59,10 @@ def test_every_card_opens_its_work_through_a_link(ui, a_long_artworks):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     first = ui.page.locator("ul.grid li.card").first
-    work_id = first.get_attribute("data-artwork")
+    work_id = first.get_attribute("data-artwork")  # one-shot: the id the link must carry, read once the grid painted
 
-    assert first.locator(".card-title a").get_attribute("href") == f"#work/{work_id}"
-    assert ui.page.locator("li.card .card-title button, li.card button.card-image").count() == 0
+    expect(first.locator(".card-title a")).to_have_attribute("href", f"#work/{work_id}")
+    expect(ui.page.locator("li.card .card-title button, li.card button.card-image")).to_have_count(0)
 
 
 def test_a_cards_picture_opens_its_work_through_a_link(ui, work_with_an_image):
@@ -68,7 +70,7 @@ def test_a_cards_picture_opens_its_work_through_a_link(ui, work_with_an_image):
     work = work_with_an_image()
     ui.open("#collection")
     ui.page.wait_for_selector(f"li.card[data-artwork='{work.id}'] img")
-    assert ui.page.locator(f"li.card[data-artwork='{work.id}'] a.card-image").get_attribute("href") == f"#work/{work.id}"
+    expect(ui.page.locator(f"li.card[data-artwork='{work.id}'] a.card-image")).to_have_attribute("href", f"#work/{work.id}")
 
 
 def test_a_work_opened_from_card_20_opens_at_its_title(ui, a_long_artworks):
@@ -80,7 +82,7 @@ def test_a_work_opened_from_card_20_opens_at_its_title(ui, a_long_artworks):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     target = card_link(ui, CARD)
-    title = target.inner_text()
+    title = target.inner_text()  # one-shot: the heading the work page will carry, read once the grid painted
     target.scroll_into_view_if_needed()
     assert ui.page.evaluate("() => window.scrollY") > 0, "card 20 was above the fold, so this test cannot see a scroll kept"
 
@@ -102,7 +104,7 @@ def test_back_returns_to_card_20_with_focus_on_it(ui, a_long_artworks):
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     target = card_link(ui, CARD)
-    title = target.inner_text()
+    title = target.inner_text()  # one-shot: the heading the work page will carry, read once the grid painted
     target.scroll_into_view_if_needed()
     left_at = ui.page.evaluate("() => window.scrollY")
 
@@ -116,7 +118,7 @@ def test_back_returns_to_card_20_with_focus_on_it(ui, a_long_artworks):
     )
 
     assert ui.page.evaluate("() => window.scrollY") == left_at
-    box = card_link(ui, CARD).bounding_box()
+    box = card_link(ui, CARD).bounding_box()  # one-shot: geometry, read once focus is on the card
     assert box is not None
     assert 0 <= box["y"] < ui.page.viewport_size["height"], "card 20 has focus but is off screen"
 
@@ -139,15 +141,15 @@ def test_back_returns_to_card_900_with_the_pages_it_was_on(ui, service, seed_the
     # No page half-arrived while the card is read and opened.
     ui.page.wait_for_function("() => !document.querySelector('#view .grid-skeleton')")
     tile = ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1)
-    work_id = tile.get_attribute("data-artwork")
-    title = tile.locator(".tile-title").inner_text()
+    work_id = tile.get_attribute("data-artwork")  # one-shot: the card to come back to, read with no page arriving
+    title = tile.locator(".tile-title").inner_text()  # one-shot: the heading the work page will carry
     target = tile.locator("a.card-image")
     target.scroll_into_view_if_needed()
     # Opened from the keyboard: a Posters tile's caption lies over its picture
     # once pointed at, and the picture link is the tile's one Tab stop.
     target.focus()
     left_at = ui.page.evaluate("() => window.scrollY")
-    loaded = ui.page.locator("ul.grid li.tile").count()
+    loaded = ui.page.locator("ul.grid li.tile").count()  # one-shot: how many were loaded when it was left
 
     ui.page.keyboard.press("Enter")
     ui.page.wait_for_selector(f"#view h1:text-is('{title}')")
@@ -160,10 +162,10 @@ def test_back_returns_to_card_900_with_the_pages_it_was_on(ui, service, seed_the
     )
 
     # The same card at the same place in the same grid.
-    assert ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1).get_attribute("data-artwork") == work_id
-    assert ui.page.locator("ul.grid li.tile").count() >= loaded
+    expect(ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1)).to_have_attribute("data-artwork", work_id)
+    expect(ui.page.locator("ul.grid li.tile").nth(loaded - 1)).to_be_attached()
     assert ui.page.evaluate("() => window.scrollY") == left_at
-    box = ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1).bounding_box()
+    box = ui.page.locator("ul.grid li.tile").nth(FAR_CARD - 1).bounding_box()  # one-shot: geometry, read once focus is on it
     assert box is not None
     assert 0 <= box["y"] < ui.page.viewport_size["height"], "card 900 has focus but is off screen"
 
@@ -174,7 +176,7 @@ def test_a_new_arrival_at_artworks_loads_one_page_not_the_last_visits(ui, seed_t
     seed_the_served_catalogue(size=200)
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid > li")
-    first = ui.page.locator("ul.grid > li").count()
+    first = ui.page.locator("ul.grid > li").count()  # one-shot: the size of one page, the comparison's other side
     ui.show_more(until=first * 3)
 
     ui.page.click("nav.sidebar a.section-link[data-view='walls']")
@@ -185,7 +187,7 @@ def test_a_new_arrival_at_artworks_loads_one_page_not_the_last_visits(ui, seed_t
     ui.page.wait_for_selector("ul.grid > li")
     ui.page.wait_for_function("() => document.activeElement && document.activeElement.id === 'view'")
 
-    assert ui.page.locator("ul.grid > li").count() == first
+    expect(ui.page.locator("ul.grid > li")).to_have_count(first)
 
 
 def test_the_way_back_link_returns_to_card_20_as_back_does(ui, a_long_artworks):
@@ -194,7 +196,7 @@ def test_the_way_back_link_returns_to_card_20_as_back_does(ui, a_long_artworks):
     ui.open("#collection?sort=newest")
     ui.page.wait_for_selector("ul.grid li.card")
     target = card_link(ui, CARD)
-    title = target.inner_text()
+    title = target.inner_text()  # one-shot: the heading the work page will carry, read once the grid painted
     target.scroll_into_view_if_needed()
     left_at = ui.page.evaluate("() => window.scrollY")
     target.click()
@@ -207,7 +209,7 @@ def test_the_way_back_link_returns_to_card_20_as_back_does(ui, a_long_artworks):
         arg=title,
     )
 
-    assert ui.page.url.endswith("#collection?sort=newest")
+    expect(ui.page).to_have_url(re.compile(re.escape("#collection?sort=newest") + "$"))
     assert ui.page.evaluate("() => window.scrollY") == left_at
 
 
@@ -218,7 +220,7 @@ def test_the_way_back_link_from_a_bookmark_is_a_plain_link(ui, service, seeded_s
     ui.page.wait_for_selector("#view h1:text-is('Bookmarked')")
     ui.page.click("#view a:text-is('← Artworks')")
     ui.page.wait_for_selector("ul.grid li.card")
-    assert ui.page.url.endswith("#collection")
+    expect(ui.page).to_have_url(re.compile(r"#collection$"))
 
 
 def test_a_new_arrival_starts_at_the_top_and_does_not_restore(ui, a_long_artworks):
@@ -230,7 +232,7 @@ def test_a_new_arrival_starts_at_the_top_and_does_not_restore(ui, a_long_artwork
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
     target = card_link(ui, CARD)
-    title = target.inner_text()
+    title = target.inner_text()  # one-shot: the heading the work page will carry, read once the grid painted
     target.scroll_into_view_if_needed()
     target.click()
     ui.page.wait_for_selector(f"#view h1:text-is('{title}')")
@@ -247,18 +249,21 @@ def test_a_link_opened_with_a_modifier_is_left_to_the_browser(ui, a_long_artwork
     """Ctrl-click or Cmd-click is a new tab, so this page stays where it is."""
     ui.open("#collection")
     ui.page.wait_for_selector("ul.grid li.card")
-    target = card_link(ui, 1)
+    # The work is read from the card the click is on, before the click: read
+    # after it, from the grid's first card, it named whichever card was first
+    # by then.
+    first = ui.page.locator("ul.grid li.card").first
+    work_id = first.get_attribute("data-artwork")  # one-shot: the card about to be opened, read once the grid painted
     with ui.page.context.expect_page() as opened:
-        target.click(modifiers=["ControlOrMeta"])
-    work_id = ui.page.locator("ul.grid li.card").first.get_attribute("data-artwork")
+        first.locator(".card-title a").click(modifiers=["ControlOrMeta"])
     # The tab is announced when it is created, still at about:blank; under a
-    # loaded machine it can be read before it has navigated.
-    # Waited on the address itself, which is the claim: about:blank has a load
-    # state of its own that is already reached.
-    opened.value.wait_for_url(re.compile(rf"#work/{re.escape(work_id)}$"))
-
-    assert opened.value.url.endswith(f"#work/{work_id}")
-    assert ui.page.url.endswith("#collection")
+    # loaded machine it can be read before it has navigated. Asserted on the
+    # address itself, which is the claim, and retried: `wait_for_url` also
+    # waited for the new tab's load event, which is not.
+    expect(opened.value).to_have_url(re.compile(re.escape(f"#work/{work_id}") + "$"))
+    # The click's own handler runs inside the click, so a page that had taken
+    # the link would have its new address by now.
+    expect(ui.page).to_have_url(re.compile(r"#collection$"))
 
 
 # -- titles and headings ------------------------------------------------------
@@ -305,7 +310,7 @@ def test_each_page_heading_is_its_one_h1(ui, route):
     """The screen's own heading is the document's only `h1`; the product name is not one."""
     ui.open(address(route))
     ui.page.wait_for_selector("#view h1")
-    assert ui.page.locator("h1").count() == 1
+    expect(ui.page.locator("h1")).to_have_count(1)
     assert ui.page.locator(".topbar .brand").evaluate("(node) => node.tagName") != "H1"
 
 
@@ -314,7 +319,7 @@ def test_a_work_page_is_titled_by_the_work(ui, a_long_artworks):
     ui.page.wait_for_selector("ul.grid li.card")
     ui.page.click("li.card .card-title a:text-is('Nighthawks')")
     ui.page.wait_for_function("() => document.title === 'Nighthawks - Arrt'")
-    assert ui.page.locator("#view h1").inner_text() == "Nighthawks"
+    expect(ui.page.locator("#view h1")).to_have_text("Nighthawks", use_inner_text=True)
 
 
 def test_an_artist_page_is_titled_by_the_artist(ui, seeded_service):
@@ -341,9 +346,10 @@ def test_a_paint_that_lost_its_view_does_not_retitle_the_next(ui, service, seede
 
     with ui.page.expect_response(f"**/api/works/{work.id}"):
         held[0].continue_()
-    # The response has landed; give its paint the turn it would take.
-    ui.page.evaluate("() => new Promise((resolve) => setTimeout(resolve, 100))")
-    assert ui.page.title() == "Walls - Arrt"
+    # The response has landed; give its paint the turn it would take. Nothing
+    # on the page changes if the guard holds, so there is no condition to wait on.
+    ui.page.evaluate("() => new Promise((resolve) => setTimeout(resolve, 100))")  # sleep: proves the late paint retitles nothing
+    expect(ui.page).to_have_title("Walls - Arrt")
 
 
 @pytest.mark.parametrize("ask_model", [ScriptedModel(replies=[])], ids=["a-server-with-a-key"])

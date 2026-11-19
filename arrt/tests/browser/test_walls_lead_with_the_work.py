@@ -16,6 +16,7 @@ heartbeat as a Player before minor 3 does (`current_work_id` alone);
 `unassigned` whatever its heartbeat file says.
 """
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -24,6 +25,8 @@ pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
+
+from playwright.sync_api import expect
 
 from arrt.persistence.records import ArtworkStatus, MatMethod, RenditionKind
 
@@ -114,21 +117,21 @@ def test_the_work_the_heartbeat_names_leads_the_card(ui, services, the_wall, win
 
     lead = card(ui, the_wall).locator(".wall-now")
     lead.wait_for()
-    assert lead.locator(".wall-now-when").inner_text() == "On the wall now"
+    expect(lead.locator(".wall-now-when")).to_have_text("On the wall now", use_inner_text=True)
     # The work named, not the theme's first: the fixture puts Nighthawks first.
     title = lead.get_by_role("link", name="Automat")
-    assert title.get_attribute("href").startswith(f"#work/{automat.id}")
-    assert lead.locator("h3").inner_text() == "Automat"
-    assert lead.get_by_alt_text("Automat").count() == 1
-    assert "Nighthawks" not in lead.inner_text()
+    expect(title).to_have_attribute("href", re.compile("^" + re.escape(f"#work/{automat.id}")))
+    expect(lead.locator("h3")).to_have_text("Automat", use_inner_text=True)
+    expect(lead.get_by_alt_text("Automat")).to_have_count(1)
+    expect(lead).not_to_contain_text("Nighthawks", use_inner_text=True)
     # And it leads: the first thing in the card after the wall's name.
-    assert card(ui, the_wall).locator("> *").nth(1).get_attribute("class") == "wall-now"
+    expect(card(ui, the_wall).locator("> *").nth(1)).to_have_attribute("class", "wall-now")
     # What it hangs: the Hanging fact, whose value is the control that hangs
     # another (ruling 3 of 2026-10-27; it read "Drawing from Winter, until
     # changed." with a separate Change, and "until changed" is gone).
     picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
-    assert picker.input_value() == winter.id
-    assert "until changed" not in card(ui, the_wall).inner_text()
+    expect(picker).to_have_value(winter.id)
+    expect(card(ui, the_wall)).not_to_contain_text("until changed", use_inner_text=True)
 
 
 def test_an_old_heartbeat_still_leads_with_its_work_under_when_it_was_last_heard_from(ui, services, the_wall, winter, two_works):
@@ -142,11 +145,11 @@ def test_an_old_heartbeat_still_leads_with_its_work_under_when_it_was_last_heard
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    when = lead.locator(".wall-now-when").inner_text()
-    assert when.startswith("Not heard from since ")
-    assert when.endswith("(5 hours ago), so this may have changed since")
-    assert "On the wall now" not in card(ui, the_wall).inner_text()
-    assert lead.get_by_role("link", name="Nighthawks").count() == 1
+    when = lead.locator(".wall-now-when")
+    expect(when).to_have_text(re.compile(r"^Not heard from since "), use_inner_text=True)
+    expect(when).to_have_text(re.compile(re.escape("(5 hours ago), so this may have changed since") + "$"), use_inner_text=True)
+    expect(card(ui, the_wall)).not_to_contain_text("On the wall now", use_inner_text=True)
+    expect(lead.get_by_role("link", name="Nighthawks")).to_have_count(1)
 
 
 def test_a_selection_is_drawn_from_as_a_selection(ui, services, the_wall, two_works):
@@ -158,9 +161,10 @@ def test_a_selection_is_drawn_from_as_a_selection(ui, services, the_wall, two_wo
     # The Hanging fact names it a selection (ruling 3 of 2026-10-27 made the fact
     # the control; it read "Drawing from a selection, until changed."). With no
     # theme to hang instead there is no picker, and it is said in words.
-    assert card(ui, the_wall).locator(".wall-hanging").inner_text().startswith("Hanging a selection.")
-    assert "until changed" not in card(ui, the_wall).inner_text()
-    assert "Selection for" not in ui.page.locator("#view").text_content()
+    expect(card(ui, the_wall).locator(".wall-hanging")).to_have_text(re.compile(r"^Hanging a selection\."), use_inner_text=True)
+    expect(card(ui, the_wall)).not_to_contain_text("until changed", use_inner_text=True)
+    # textContent, as it was: the theme's made-up name hidden from view counts too.
+    expect(ui.view).not_to_contain_text("Selection for")
 
 
 def test_a_selection_with_a_theme_to_hang_instead_is_the_pickers_unchoosable_first(ui, services, the_wall, winter, two_works):
@@ -169,10 +173,10 @@ def test_a_selection_with_a_theme_to_hang_instead_is_the_pickers_unchoosable_fir
     open_walls(ui)
 
     picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
-    assert picker.locator("option").all_inner_texts() == ["A selection", "Winter"]
-    assert picker.locator("option").first.get_attribute("disabled") is not None
-    assert picker.input_value() == ""
-    assert "Selection for" not in ui.page.locator("#view").text_content()
+    expect(picker.locator("option")).to_have_text(["A selection", "Winter"], use_inner_text=True)
+    expect(picker.locator("option").first).to_have_attribute("disabled")
+    expect(picker).to_have_value("")
+    expect(ui.view).not_to_contain_text("Selection for")
 
 
 def test_change_offers_themes_and_never_a_selection(ui, services, the_wall, winter, two_works):
@@ -183,9 +187,9 @@ def test_change_offers_themes_and_never_a_selection(ui, services, the_wall, wint
     # Change became the Hanging picker (ruling 3 of 2026-10-27). It offers the
     # themes and never a selection, whichever wall is hanging one.
     picker = card(ui, the_wall).locator(f"select#hang-{the_wall.id}")
-    assert picker.locator("option").all_inner_texts() == ["Winter"]
+    expect(picker.locator("option")).to_have_text(["Winter"], use_inner_text=True)
     study = card(ui, other).locator(f"select#hang-{other.id}")
-    assert study.locator("option:not([disabled])").all_inner_texts() == ["Winter"]
+    expect(study.locator("option:not([disabled])")).to_have_text(["Winter"], use_inner_text=True)
 
 
 def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reported(ui, services, the_wall, winter, two_works):
@@ -196,15 +200,21 @@ def test_skip_republishes_the_wall_and_the_card_shows_the_next_work_once_reporte
 
     ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
     said = card(ui, the_wall).locator(".wall-said")
-    said.filter(has_text="Skipped.").wait_for()
+    # Asserted rather than waited for, and on the whole card first, so a red
+    # prints everything the card says, a failure beside Skip included (#442).
+    expect(card(ui, the_wall)).to_contain_text("Skipped.", use_inner_text=True)
+    expect(said).to_contain_text("Skipped.", use_inner_text=True)
     assert services.display.published_manifest_v2(the_wall.id) != before
-    # Until the Player reports, the card still leads with what it last said.
-    assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Nighthawks"
+    # Until the Player reports, the card still leads with what it last said: the
+    # report below is what the watch waits for, and it has not been written.
+    expect(card(ui, the_wall).locator(".wall-now h3")).to_have_text("Nighthawks", use_inner_text=True)
 
     report(services, the_wall, automat.id)
-    said.filter(has_text=f"{the_wall.name} now shows Automat.").wait_for(timeout=10_000)
-    assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Automat"
-    assert card(ui, the_wall).locator(".wall-now .wall-now-when").inner_text() == "On the wall now"
+    # As long as any assertion here waits: the watch asks every two seconds and
+    # goes on for minutes, so ten seconds was a bound on the runner, not the claim.
+    expect(said).to_contain_text(f"{the_wall.name} now shows Automat.", use_inner_text=True)
+    expect(card(ui, the_wall).locator(".wall-now h3")).to_have_text("Automat", use_inner_text=True)
+    expect(card(ui, the_wall).locator(".wall-now .wall-now-when")).to_have_text("On the wall now", use_inner_text=True)
 
 
 @pytest.mark.parametrize("scope", ["theme", "every_wall"])
@@ -217,11 +227,11 @@ def test_not_this_one_again_asks_where_and_does_that(ui, services, the_wall, win
     # Named Remove… by the owner's ruling 2 of 2026-10-27 ("Not this one again"
     # was too cute and too close to Skip); the question is now a dialog.
     opener = ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…")
-    assert opener.inner_text() == "Remove…"
-    assert opener.get_attribute("aria-haspopup") == "dialog"
+    expect(opener).to_have_text("Remove…", use_inner_text=True)
+    expect(opener).to_have_attribute("aria-haspopup", "dialog")
     opener.click()
     choice = ui.page.locator("dialog.panel-dialog")
-    assert choice.locator("h2").inner_text() == f"Remove Nighthawks from {the_wall.name}"
+    expect(choice.locator("h2")).to_have_text(f"Remove Nighthawks from {the_wall.name}", use_inner_text=True)
 
     if scope == "theme":
         choice.locator("button", has_text="Take it out of Winter").click()
@@ -242,8 +252,10 @@ def test_not_this_one_again_is_not_offered_without_a_work_named(ui, services, th
     services.display.record_heartbeat(the_wall.id, {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")})
     open_walls(ui)
 
-    assert ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…").count() == 0
-    assert "has not said which work it is showing" in card(ui, the_wall).inner_text()
+    # The sentence first: it is what shows the card has painted, so the absence
+    # after it is not met by a card still on its way.
+    expect(card(ui, the_wall)).to_contain_text("has not said which work it is showing", use_inner_text=True)
+    expect(ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…")).to_have_count(0)
 
 
 def test_the_walls_history_opens_from_its_card(ui, services, the_wall, winter, two_works):
@@ -251,10 +263,10 @@ def test_the_walls_history_opens_from_its_card(ui, services, the_wall, winter, t
     open_walls(ui)
 
     history = card(ui, the_wall).get_by_role("link", name=f"History of {the_wall.name}")
-    assert history.get_attribute("href") == f"#history?wall={the_wall.id}"
+    expect(history).to_have_attribute("href", f"#history?wall={the_wall.id}")
     history.click()
     ui.page.wait_for_selector(f"#view h1:text-is('History of {the_wall.name}')")
-    assert f"Hung Winter on {the_wall.name}" in ui.text()
+    expect(ui.view).to_contain_text(f"Hung Winter on {the_wall.name}", use_inner_text=True)
 
 
 def test_a_lead_whose_image_cannot_be_loaded_says_so(ui, services, the_wall, winter, two_works):
@@ -264,8 +276,8 @@ def test_a_lead_whose_image_cannot_be_loaded_says_so(ui, services, the_wall, win
     ui.open("#walls")
     ui.page.wait_for_selector(".wall-now .card-image-absent")
 
-    assert "Its image could not be loaded just now." in ui.text()
-    assert ui.page.locator(".wall-now img").count() == 0
+    expect(ui.view).to_contain_text("Its image could not be loaded just now.", use_inner_text=True)
+    expect(ui.page.locator(".wall-now img")).to_have_count(0)
 
 
 def test_the_lead_asks_for_the_large_bare_work_not_the_tile(ui, services, the_wall, winter, two_works):
@@ -274,7 +286,7 @@ def test_the_lead_asks_for_the_large_bare_work_not_the_tile(ui, services, the_wa
     open_walls(ui)
     image = card(ui, the_wall).locator(".wall-now img")
     image.wait_for()
-    assert image.get_attribute("src") == f"/api/works/{two_works[0].id}/thumbnail?size=large"
+    expect(image).to_have_attribute("src", f"/api/works/{two_works[0].id}/thumbnail?size=large")
 
 
 def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, winter, two_works):
@@ -285,7 +297,7 @@ def test_a_lead_whose_image_loads_keeps_its_picture(ui, services, the_wall, wint
         "() => [...document.querySelectorAll('.wall-now img')].every((i) => i.complete && i.naturalWidth > 0)"
     )
 
-    assert "Its image could not be loaded just now." not in ui.text()
+    expect(ui.view).not_to_contain_text("Its image could not be loaded just now.", use_inner_text=True)
 
 
 # -- the states that are not a work -------------------------------------------------------
@@ -312,24 +324,24 @@ def test_a_screen_not_showing_art_leads_with_what_it_is_doing(ui, services, the_
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.get_attribute("data-state") == ("unreachable" if state == "dimmed" else state)
-    assert lead.locator(".wall-now-state").inner_text() == words
-    assert "Since " in lead.inner_text()
+    expect(lead).to_have_attribute("data-state", "unreachable" if state == "dimmed" else state)
+    expect(lead.locator(".wall-now-state")).to_have_text(words, use_inner_text=True)
+    expect(lead).to_contain_text("Since ", use_inner_text=True)
     # The sentence for a Player before display state is not said of one that
     # reports state: an unreachable Frame has lost its set, not its words.
-    assert "has not said which work it is showing" not in lead.inner_text()
+    expect(lead).not_to_contain_text("has not said which work it is showing", use_inner_text=True)
     # The server reads a state it has no name for as unreachable, so the
     # sentence is one true of both: never "cannot reach its screen", which
     # would be false of a screen in a state this server cannot name.
     if state in ("unreachable", "dimmed"):
-        assert "cannot say what its screen is showing" in lead.inner_text()
-    assert "cannot reach its screen" not in lead.inner_text()
-    assert lead.locator("img").count() == 0
-    assert "On the wall now" not in lead.inner_text()
+        expect(lead).to_contain_text("cannot say what its screen is showing", use_inner_text=True)
+    expect(lead).not_to_contain_text("cannot reach its screen", use_inner_text=True)
+    expect(lead.locator("img")).to_have_count(0)
+    expect(lead).not_to_contain_text("On the wall now", use_inner_text=True)
     # The lead still leads the card.
-    assert card(ui, the_wall).locator("> *").nth(1).get_attribute("class") == "wall-now"
+    expect(card(ui, the_wall).locator("> *").nth(1)).to_have_attribute("class", "wall-now")
     # Nothing on screen to be tired of.
-    assert ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…").count() == 0
+    expect(ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…")).to_have_count(0)
 
 
 def test_minor_3_is_read_over_current_work_id(ui, services, the_wall, winter, two_works):
@@ -346,8 +358,8 @@ def test_minor_3_is_read_over_current_work_id(ui, services, the_wall, winter, tw
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.locator(".wall-now-state").inner_text() == "Somebody is using the screen"
-    assert "Nighthawks" not in lead.inner_text()
+    expect(lead.locator(".wall-now-state")).to_have_text("Somebody is using the screen", use_inner_text=True)
+    expect(lead).not_to_contain_text("Nighthawks", use_inner_text=True)
 
 
 def test_a_minor_3_wall_showing_a_work_leads_with_it(ui, services, the_wall, winter, two_works):
@@ -356,8 +368,8 @@ def test_a_minor_3_wall_showing_a_work_leads_with_it(ui, services, the_wall, win
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.locator(".wall-now-when").inner_text() == "On the wall now"
-    assert lead.locator("h3").inner_text() == "Automat"
+    expect(lead.locator(".wall-now-when")).to_have_text("On the wall now", use_inner_text=True)
+    expect(lead.locator("h3")).to_have_text("Automat", use_inner_text=True)
 
 
 def test_a_picture_this_wall_did_not_put_there_reads_as_one(ui, services, the_wall, winter):
@@ -366,10 +378,10 @@ def test_a_picture_this_wall_did_not_put_there_reads_as_one(ui, services, the_wa
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.locator(".wall-now-when").inner_text() == "On the wall now"
-    assert lead.locator(".wall-now-state").inner_text() == f"A picture {the_wall.name} did not put there"
-    assert lead.locator("img").count() == 0
-    assert ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…").count() == 0
+    expect(lead.locator(".wall-now-when")).to_have_text("On the wall now", use_inner_text=True)
+    expect(lead.locator(".wall-now-state")).to_have_text(f"A picture {the_wall.name} did not put there", use_inner_text=True)
+    expect(lead.locator("img")).to_have_count(0)
+    expect(ui.page.get_by_role("button", name=f"Remove the work on {the_wall.name}…")).to_have_count(0)
 
 
 def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, services, the_wall, winter, two_works):
@@ -378,15 +390,15 @@ def test_a_wall_no_client_shows_leads_with_that_whatever_its_heartbeat_says(ui, 
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.get_attribute("data-state") == "unassigned"
+    expect(lead).to_have_attribute("data-state", "unassigned")
     # Said once, in the badge, with the problem line's way to fix it (a state is
     # worded once: the page rules of 2026-10-27). It read "Not assigned to a
     # screen" in the lead as well, and the work it last reported is not led with.
-    assert lead.is_hidden()
-    assert card(ui, the_wall).locator("figure").count() == 0
-    assert card(ui, the_wall).locator(".wall-badge-unassigned").inner_text().strip().endswith("No Player")
-    assert "Not assigned to a screen" not in card(ui, the_wall).inner_text()
-    assert card(ui, the_wall).get_by_role("button", name=f"Choose the Player for {the_wall.name}…").count() == 1
+    expect(lead).to_be_hidden()
+    expect(card(ui, the_wall).locator("figure")).to_have_count(0)
+    expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_text(re.compile(r"No Player\s*$"), use_inner_text=True)
+    expect(card(ui, the_wall)).not_to_contain_text("Not assigned to a screen", use_inner_text=True)
+    expect(card(ui, the_wall).get_by_role("button", name=f"Choose the Player for {the_wall.name}…")).to_have_count(1)
 
 
 def test_a_silent_wall_says_when_it_was_last_heard_from_and_what_it_said(ui, services, the_wall, winter):
@@ -394,11 +406,11 @@ def test_a_silent_wall_says_when_it_was_last_heard_from_and_what_it_said(ui, ser
     open_walls(ui)
 
     lead = card(ui, the_wall).locator(".wall-now")
-    assert lead.get_attribute("data-state") == "silent"
-    when = lead.locator(".wall-now-when").inner_text()
-    assert when.startswith("Not heard from since ")
-    assert when.endswith("(2 hours ago)")
-    assert "When it last reported: Its screen is off." in lead.inner_text()
+    expect(lead).to_have_attribute("data-state", "silent")
+    when = lead.locator(".wall-now-when")
+    expect(when).to_have_text(re.compile(r"^Not heard from since "), use_inner_text=True)
+    expect(when).to_have_text(re.compile(re.escape("(2 hours ago)") + "$"), use_inner_text=True)
+    expect(lead).to_contain_text("When it last reported: Its screen is off.", use_inner_text=True)
 
 
 def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter, two_works):
@@ -409,23 +421,29 @@ def test_a_skip_watched_through_a_minor_3_report(ui, services, the_wall, winter,
 
     ui.page.get_by_role("button", name=f"Skip the work on {the_wall.name}").click()
     said = card(ui, the_wall).locator(".wall-said")
-    said.filter(has_text="Skipped.").wait_for()
+    # Asserted rather than waited for, and on the whole card first, so a red
+    # prints everything the card says, a failure beside Skip included (#442).
+    expect(card(ui, the_wall)).to_contain_text("Skipped.", use_inner_text=True)
+    expect(said).to_contain_text("Skipped.", use_inner_text=True)
     report_state(services, the_wall, "showing_art", automat.id)
-    said.filter(has_text=f"{the_wall.name} now shows Automat.").wait_for(timeout=10_000)
-    assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Automat"
+    expect(said).to_contain_text(f"{the_wall.name} now shows Automat.", use_inner_text=True)
+    expect(card(ui, the_wall).locator(".wall-now h3")).to_have_text("Automat", use_inner_text=True)
 
 
 def test_the_mat_is_chosen_from_the_cards_setup_and_handed_back_to_the_player(ui, services, the_wall, winter):
     open_walls(ui)
     setup = open_edit(ui, the_wall)
     picker = setup.get_by_label(f"Mat on {the_wall.name}", exact=True)
-    assert picker.locator("option").all_inner_texts() == [
-        "Player's own choice",
-        "Mat around the work",
-        "Mat to the edges",
-        "No mat",
-    ]
-    assert picker.input_value() == ""
+    expect(picker.locator("option")).to_have_text(
+        [
+            "Player's own choice",
+            "Mat around the work",
+            "Mat to the edges",
+            "No mat",
+        ],
+        use_inner_text=True,
+    )
+    expect(picker).to_have_value("")
     button = setup.get_by_role("button", name=f"Set the mat on {the_wall.name}")
     said = setup.locator(".wall-said")
 
@@ -433,7 +451,7 @@ def test_the_mat_is_chosen_from_the_cards_setup_and_handed_back_to_the_player(ui
     button.click()
     said.filter(has_text=f"Mat on {the_wall.name}: to the edges.").wait_for()
     assert services.display.get_wall(the_wall.id).mat_mode == "full"
-    assert setup.get_attribute("open") is not None, "the panel stays open after setting the mat"
+    expect(setup, "the panel stays open after setting the mat").to_have_attribute("open")
 
     picker.select_option("")
     button.click()
@@ -446,7 +464,7 @@ def test_a_chosen_mat_is_the_one_the_picker_shows(ui, services, the_wall, winter
     open_walls(ui)
     setup = open_edit(ui, the_wall)
 
-    assert setup.get_by_label(f"Mat on {the_wall.name}", exact=True).input_value() == "none"
+    expect(setup.get_by_label(f"Mat on {the_wall.name}", exact=True)).to_have_value("none")
 
 
 def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, winter):
@@ -455,8 +473,9 @@ def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, win
     setup = open_edit(ui, the_wall)
     minutes = setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)
     order = setup.get_by_label(f"Order on {the_wall.name}", exact=True)
-    assert order.locator("option").all_inner_texts() == ["Default", "As curated", "Shuffled"]
-    assert (minutes.input_value(), order.input_value()) == ("", "")
+    expect(order.locator("option")).to_have_text(["Default", "As curated", "Shuffled"], use_inner_text=True)
+    expect(minutes).to_have_value("")
+    expect(order).to_have_value("")
     button = setup.get_by_role("button", name=f"Set the rotation on {the_wall.name}")
     said = setup.locator(".wall-said")
 
@@ -468,8 +487,8 @@ def test_the_rotation_is_chosen_from_the_cards_setup(ui, services, the_wall, win
     said.filter(has_text=f"Rotation on {the_wall.name}: each work for 90 seconds, as curated.").wait_for()
     wall = services.display.get_wall(the_wall.id)
     assert (wall.rotation_interval_seconds, wall.shuffle) == (90, False)
-    assert "90 seconds" in setup.locator("dl.facts").first.inner_text()
-    assert setup.get_attribute("open") is not None, "the panel stays open after setting the rotation"
+    expect(setup.locator("dl.facts").first).to_contain_text("90 seconds", use_inner_text=True)
+    expect(setup, "the panel stays open after setting the rotation").to_have_attribute("open")
 
     minutes.fill("")
     order.select_option("")
@@ -512,8 +531,8 @@ def test_a_chosen_rotation_is_the_one_the_fields_show(ui, services, the_wall, wi
     services.display.set_playback(the_wall.id, rotation_interval_seconds=seconds, shuffle=True)
     open_walls(ui)
     setup = open_edit(ui, the_wall)
-    assert setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True).input_value() == shown
-    assert setup.get_by_label(f"Order on {the_wall.name}", exact=True).input_value() == "true"
+    expect(setup.get_by_label(f"Minutes each work stays up on {the_wall.name}", exact=True)).to_have_value(shown)
+    expect(setup.get_by_label(f"Order on {the_wall.name}", exact=True)).to_have_value("true")
 
 
 def open_setup(ui, wall):
@@ -527,14 +546,19 @@ def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, wint
     picker = setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)
     tallest = setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True)
     widest = setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True)
-    assert picker.locator("option").all_inner_texts() == ["Any shape", "Portrait and square", "Landscape and square", "Custom"]
-    assert (picker.input_value(), tallest.input_value(), widest.input_value()) == ("any", "", "")
-    assert "has not said its size" in setup.locator("dl.facts").nth(1).inner_text()
+    expect(picker.locator("option")).to_have_text(
+        ["Any shape", "Portrait and square", "Landscape and square", "Custom"], use_inner_text=True
+    )
+    expect(picker).to_have_value("any")
+    expect(tallest).to_have_value("")
+    expect(widest).to_have_value("")
+    expect(setup.locator("dl.facts").nth(1)).to_contain_text("has not said its size", use_inner_text=True)
     button = setup.get_by_role("button", name=f"Set the shapes on {the_wall.name}")
     said = setup.locator(".wall-said")
 
     picker.select_option("landscape")
-    assert (tallest.input_value(), widest.input_value()) == ("1:1", "")
+    expect(tallest).to_have_value("1:1")
+    expect(widest).to_have_value("")
     button.click()
     said.filter(has_text=f"{the_wall.name} shows nothing taller than 1:1. All 2 works in this theme are on the wall.").wait_for()
     wall = services.display.get_wall(the_wall.id)
@@ -545,8 +569,8 @@ def test_the_shapes_are_chosen_from_the_cards_setup(ui, services, the_wall, wint
     said.filter(has_text="2 are outside this wall's shapes, so the wall is dark.").wait_for()
     wall = services.display.get_wall(the_wall.id)
     assert (wall.min_aspect_ratio, wall.max_aspect_ratio) == (None, 1.0)
-    assert "nothing wider than 1:1" in setup.locator("dl.facts").nth(1).inner_text()
-    assert setup.get_attribute("open") is not None, "the panel stays open after setting the shapes"
+    expect(setup.locator("dl.facts").nth(1)).to_contain_text("nothing wider than 1:1", use_inner_text=True)
+    expect(setup, "the panel stays open after setting the shapes").to_have_attribute("open")
 
 
 def test_typing_a_bound_makes_the_picker_say_custom(ui, the_wall, winter):
@@ -554,9 +578,9 @@ def test_typing_a_bound_makes_the_picker_say_custom(ui, the_wall, winter):
 
     setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("4:5")
 
-    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
+    expect(setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)).to_have_value("custom")
     setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).fill("1:1")
-    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "portrait"
+    expect(setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)).to_have_value("portrait")
 
 
 def test_setting_the_rotation_after_the_shapes_keeps_the_shapes(ui, services, the_wall, winter):
@@ -590,17 +614,17 @@ def test_chosen_shapes_are_the_ones_the_fields_show(ui, services, the_wall, wint
     services.display.set_playback(the_wall.id, tallest="4:5", widest="16:9")
     setup = open_setup(ui, the_wall)
 
-    assert setup.get_by_label(f"Shapes on {the_wall.name}", exact=True).input_value() == "custom"
-    assert setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True).input_value() == "4:5"
-    assert setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True).input_value() == "16:9"
-    assert "works from 4:5 to 16:9" in setup.locator("dl.facts").nth(1).inner_text()
+    expect(setup.get_by_label(f"Shapes on {the_wall.name}", exact=True)).to_have_value("custom")
+    expect(setup.get_by_label(f"Tallest on {the_wall.name}, as width:height", exact=True)).to_have_value("4:5")
+    expect(setup.get_by_label(f"Widest on {the_wall.name}, as width:height", exact=True)).to_have_value("16:9")
+    expect(setup.locator("dl.facts").nth(1)).to_contain_text("works from 4:5 to 16:9", use_inner_text=True)
 
 
 def test_the_screens_own_shape_is_shown_beside_the_walls_as_a_hint(ui, services, the_wall, winter, two_works):
     report_with_screen(services, the_wall, two_works[0].id, width=1080, height=1920)
     setup = open_setup(ui, the_wall)
 
-    assert "9:16" in setup.locator("dl.facts").nth(1).inner_text()
+    expect(setup.locator("dl.facts").nth(1)).to_contain_text("9:16", use_inner_text=True)
     # A hint only: nothing was set from it.
     assert services.display.get_wall(the_wall.id).max_aspect_ratio is None
 
@@ -612,16 +636,22 @@ def test_a_wall_its_shapes_have_darkened_says_so_at_the_top_of_its_card(ui, serv
     # The summary's own words: with its Player not yet reporting, the card says
     # that in the same notice, after it (audit 2026-11-19, finding 6).
     warning = card(ui, the_wall).locator(".wall-dark .wall-dark-summary")
-    assert warning.inner_text().endswith("2 are outside this wall's shapes, so the wall is dark.")
+    expect(warning).to_have_text(
+        re.compile(re.escape("2 are outside this wall's shapes, so the wall is dark.") + "$"), use_inner_text=True
+    )
     # The works it cannot show open from the card's foot (the page rules of
     # 2026-10-27); they were a table in the setup disclosure.
     card(ui, the_wall).locator("button.wall-kept").click()
     reasons = ui.page.locator("dialog.panel-dialog table tbody tr")
-    assert set(reasons.all_inner_texts()) == {
-        f"{title}\tOutside this wall's shapes\tThis wall shows nothing wider than 1:1, and this work is 4:3. "
-        "Change the wall's shapes on Walls to put it back."
-        for title in ("Nighthawks", "Automat")
-    }
+    # Two rows, in either order, as the set they were compared as; each matched
+    # whole as a pattern, so the tabs between its cells are matched as they are.
+    expect(reasons).to_have_count(2)
+    for title in ("Nighthawks", "Automat"):
+        row = (
+            f"{title}\tOutside this wall's shapes\tThis wall shows nothing wider than 1:1, and this work is 4:3. "
+            "Change the wall's shapes on Walls to put it back."
+        )
+        expect(reasons.filter(has_text=title)).to_have_text(re.compile("^" + re.escape(row) + "$"), use_inner_text=True)
 
 
 def test_a_wall_showing_works_carries_no_dark_warning(ui, the_wall, winter):
@@ -631,8 +661,8 @@ def test_a_wall_showing_works_carries_no_dark_warning(ui, the_wall, winter):
     # it is (an exception stays quiet until it blocks, 2026-10-27); it says so
     # only when none of it is, and then as the dark warning.
     card(ui, the_wall).locator(".wall-controls").wait_for()
-    assert card(ui, the_wall).locator(".wall-dark").count() == 0
-    assert card(ui, the_wall).locator("button.wall-kept").count() == 0
+    expect(card(ui, the_wall).locator(".wall-dark")).to_have_count(0)
+    expect(card(ui, the_wall).locator("button.wall-kept")).to_have_count(0)
 
 
 @pytest.fixture
@@ -689,7 +719,7 @@ def test_a_work_too_small_for_the_walls_screen_says_so_under_it(ui, services, th
 
     note = card(ui, the_wall).locator(".wall-now .wall-now-small")
     expected = f"Too small for {the_wall.name}: it fills less than half of the space inside the mat. A larger scan would fix it."
-    assert note.inner_text() == expected
+    expect(note).to_have_text(expected, use_inner_text=True)
 
 
 def test_a_work_large_enough_carries_no_note(ui, services, the_wall, two_works, small_and_large):
@@ -697,8 +727,8 @@ def test_a_work_large_enough_carries_no_note(ui, services, the_wall, two_works, 
     report_with_screen(services, the_wall, automat.id)
     open_walls(ui)
 
-    assert card(ui, the_wall).locator(".wall-now h3").inner_text() == "Automat"
-    assert card(ui, the_wall).locator(".wall-now-small").count() == 0
+    expect(card(ui, the_wall).locator(".wall-now h3")).to_have_text("Automat", use_inner_text=True)
+    expect(card(ui, the_wall).locator(".wall-now-small")).to_have_count(0)
 
 
 def test_the_theme_page_marks_a_work_too_small_for_the_wall_hanging_it(ui, services, the_wall, two_works, small_and_large):
@@ -710,8 +740,8 @@ def test_the_theme_page_marks_a_work_too_small_for_the_wall_hanging_it(ui, servi
     rows = ui.page.locator("table tbody tr")
     small_row = rows.filter(has_text="Nighthawks")
     large_row = rows.filter(has_text="Automat")
-    assert small_row.locator(".badge", has_text=f"too small for {the_wall.name}").count() == 1
-    assert large_row.locator(".badge", has_text="too small").count() == 0
+    expect(small_row.locator(".badge", has_text=f"too small for {the_wall.name}")).to_have_count(1)
+    expect(large_row.locator(".badge", has_text="too small")).to_have_count(0)
 
 
 def test_the_walls_api_says_what_the_judgement_was_made_against(ui, services, the_wall, two_works, small_and_large):
@@ -734,8 +764,8 @@ def test_a_wall_showing_art_says_so_in_its_badge(ui, services, the_wall, winter,
     open_walls(ui)
 
     badge = card(ui, the_wall).locator("header.wall-head .wall-badge")
-    assert badge.inner_text().strip().endswith("Showing")
-    assert card(ui, the_wall).locator(".wall-badge-unassigned").count() == 0
+    expect(badge).to_have_text(re.compile(r"Showing\s*$"), use_inner_text=True)
+    expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_count(0)
 
 
 def test_an_assigned_wall_carries_no_no_player_badge_and_an_unassigned_one_does(ui, services, the_wall, winter, two_works):
@@ -746,10 +776,14 @@ def test_an_assigned_wall_carries_no_no_player_badge_and_an_unassigned_one_does(
     report(services, the_wall, two_works[0].id)
     open_walls(ui)
 
-    assert card(ui, the_wall).locator(".wall-badge-unassigned").count() == 0
-    assert card(ui, the_wall).locator(".wall-problem").count() == 0
-    assert card(ui, study).locator(".wall-badge-unassigned").inner_text().strip().endswith("No Player")
-    assert card(ui, study).locator(".wall-problem").inner_text().startswith("No Player shows this wall.")
+    # The study's badge first: the cards paint together, so it anchors the
+    # absences on the other card.
+    expect(card(ui, study).locator(".wall-badge-unassigned")).to_have_text(re.compile(r"No Player\s*$"), use_inner_text=True)
+    expect(card(ui, study).locator(".wall-problem")).to_have_text(
+        re.compile(r"^No Player shows this wall\."), use_inner_text=True
+    )
+    expect(card(ui, the_wall).locator(".wall-badge-unassigned")).to_have_count(0)
+    expect(card(ui, the_wall).locator(".wall-problem")).to_have_count(0)
 
 
 # -- the keyboard (Done-when 3 of `build-plan-ui-pass-walls.md` Chunk 03) ------------------
@@ -803,4 +837,4 @@ def test_the_pages_facts_count_the_walls_and_those_showing_art(ui, services, the
     report(services, the_wall, two_works[0].id)
     open_walls(ui)
 
-    assert ui.page.locator("#view .page-facts").inner_text() == "2 walls · 1 showing art now"
+    expect(ui.page.locator("#view .page-facts")).to_have_text("2 walls · 1 showing art now", use_inner_text=True)

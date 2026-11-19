@@ -8,6 +8,7 @@ installed where the entry point builds Wikidata's; its makers' answer is held
 back by an event, so the page is seen between the two answers.
 """
 
+import re
 import threading
 
 import pytest
@@ -18,6 +19,7 @@ pytest.importorskip(
 )
 
 from fakes import FakeRegistry
+from playwright.sync_api import expect
 
 from arrt.library.registry import (
     ItemId,
@@ -70,18 +72,21 @@ def test_an_empty_library_reaches_the_16th_century_without_typing(ui):
     ui.open("#topics")
     ui.page.wait_for_selector(f"{PERIODS} h3")
 
-    assert ui.page.locator(f"{PERIODS} h3").inner_text() == "Centuries"
-    centuries = ui.page.locator(f"{PERIODS} ul.topic-offered li").all_inner_texts()
-    assert centuries == [f"{n}{'st' if n == 21 else 'th'} century" for n in range(13, 22)]
-    assert ui.page.locator(f"{MOVEMENTS} h3").inner_text() == "Major movements"
-    movements = ui.page.locator(f"{MOVEMENTS} ul.topic-offered li").all_inner_texts()
+    expect(ui.page.locator(f"{PERIODS} h3")).to_have_text("Centuries", use_inner_text=True)
+    expect(ui.page.locator(f"{PERIODS} ul.topic-offered li")).to_have_text(
+        [f"{n}{'st' if n == 21 else 'th'} century" for n in range(13, 22)], use_inner_text=True
+    )
+    expect(ui.page.locator(f"{MOVEMENTS} h3")).to_have_text("Major movements", use_inner_text=True)
+    # The names as a set: membership and their case, which no assertion on the
+    # list asks. Read once the heading above them has painted.
+    movements = ui.page.locator(f"{MOVEMENTS} ul.topic-offered li").all_inner_texts()  # one-shot: a set, read after its heading
     assert "Impressionism" in movements
     # Wikidata writes "realism" lower-case; a list of names is in one case.
     assert "Realism" in movements
     assert all(name[0].isupper() for name in movements)
     # Said once for the whole library, not once per kind.
-    assert "None of your works is in a topic yet." in ui.text()
-    assert ui.page.locator(f"{PERIODS} p").count() == 0
+    expect(ui.view).to_contain_text("None of your works is in a topic yet.", use_inner_text=True)
+    expect(ui.page.locator(f"{PERIODS} p")).to_have_count(0)
 
     # Navigation, so a link.
     ui.page.get_by_role("link", name="16th century", exact=True).click()
@@ -96,12 +101,12 @@ def test_a_held_century_is_listed_once_with_its_count(ui, service, services):
     ui.open("#topics")
     ui.page.wait_for_selector(f"{PERIODS} ul.topic-held li")
 
-    assert [" ".join(row.split()) for row in ui.page.locator(f"{PERIODS} ul.topic-held li").all_inner_texts()] == [
-        "16th century · 1 work"
-    ]
-    assert ui.page.locator(f"{PERIODS} h3").inner_text() == "Other centuries"
-    assert "16th century" not in ui.page.locator(f"{PERIODS} ul.topic-offered li").all_inner_texts()
-    assert ui.page.locator("#view a", has_text="16th century").count() == 1
+    # Whitespace-normalised, as the join over `split()` was.
+    expect(ui.page.locator(f"{PERIODS} ul.topic-held li")).to_have_text(["16th century · 1 work"], use_inner_text=True)
+    expect(ui.page.locator(f"{PERIODS} h3")).to_have_text("Other centuries", use_inner_text=True)
+    # No offered item is the century itself: an item whose whole text is it.
+    expect(ui.page.locator(f"{PERIODS} ul.topic-offered li", has_text=re.compile(r"^16th century$"))).to_have_count(0)
+    expect(ui.page.locator("#view a", has_text="16th century")).to_have_count(1)
 
 
 def test_a_topic_page_shows_its_first_works_before_wikidata_has_said_who_made_them(ui, registry):
@@ -110,20 +115,22 @@ def test_a_topic_page_shows_its_first_works_before_wikidata_has_said_who_made_th
         ui.open(f"#topic/{SIXTEENTH}")
         ui.page.wait_for_selector(f"{WORKS} tbody tr")
 
-        titles = ui.page.locator(f"{WORKS} tbody td.work-title > a").all_inner_texts()
-        assert titles == ["The Hunters in the Snow", "The Harvesters"]
-        assert ui.page.locator(f"{WORKS} [aria-live]").inner_text() == "Still asking Wikidata who made them…"
-        assert ui.page.locator(f"{WORKS} td.by-col").all_inner_texts() == ["Still asking…", "Still asking…"]
-        # Nothing to tick yet, so nothing ticked is lost when the whole list arrives.
-        assert ui.page.locator(f"{WORKS} input[type='checkbox']").count() == 0
-        assert "Pieter Bruegel the Elder" not in ui.page.locator(WORKS).inner_text()
+        expect(ui.page.locator(f"{WORKS} tbody td.work-title > a")).to_have_text(
+            ["The Hunters in the Snow", "The Harvesters"], use_inner_text=True
+        )
+        expect(ui.page.locator(f"{WORKS} [aria-live]")).to_have_text("Still asking Wikidata who made them…", use_inner_text=True)
+        expect(ui.page.locator(f"{WORKS} td.by-col")).to_have_text(["Still asking…", "Still asking…"], use_inner_text=True)
+        # Nothing to tick yet, so nothing ticked is lost when the whole list
+        # arrives. Held so by the gate, which the makers' answer waits on.
+        expect(ui.page.locator(f"{WORKS} input[type='checkbox']")).to_have_count(0)
+        expect(ui.page.locator(WORKS)).not_to_contain_text("Pieter Bruegel the Elder", use_inner_text=True)
     finally:
         registry.makers_gate.set()
 
     ui.page.wait_for_selector(f"{WORKS} td.by-col a:text-is('Pieter Bruegel the Elder')")
-    assert "Still asking" not in ui.page.locator(WORKS).inner_text()
-    assert ui.page.locator(f"{WORKS} tbody tr").count() == 2
-    assert ui.page.locator(f"{WORKS} input[type='checkbox']").count() == 2
+    expect(ui.page.locator(WORKS)).not_to_contain_text("Still asking", use_inner_text=True)
+    expect(ui.page.locator(f"{WORKS} tbody tr")).to_have_count(2)
+    expect(ui.page.locator(f"{WORKS} input[type='checkbox']")).to_have_count(2)
 
 
 def test_the_get_column_shows_only_while_there_are_ticks_to_show(ui, registry):
@@ -133,13 +140,13 @@ def test_the_get_column_shows_only_while_there_are_ticks_to_show(ui, registry):
     try:
         ui.open(f"#topic/{SIXTEENTH}")
         ui.page.wait_for_selector(f"{WORKS} tbody tr")
-        assert not ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+        expect(ui.page.locator(f"{WORKS} th", has_text="Get")).to_be_hidden()
     finally:
         registry.makers_gate.set()
     ui.page.wait_for_selector(f"{WORKS} td.by-col a:text-is('Pieter Bruegel the Elder')")
-    assert not ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+    expect(ui.page.locator(f"{WORKS} th", has_text="Get")).to_be_hidden()
 
     ui.page.click("button.select-toggle")
-    assert ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+    expect(ui.page.locator(f"{WORKS} th", has_text="Get")).to_be_visible()
     ui.page.click("button.select-toggle")
-    assert not ui.page.locator(f"{WORKS} th", has_text="Get").is_visible()
+    expect(ui.page.locator(f"{WORKS} th", has_text="Get")).to_be_hidden()
