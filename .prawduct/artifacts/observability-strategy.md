@@ -613,6 +613,16 @@ the panel names every installed plugin and what became of it.
   failures and decline reason at the containment (they reach the health panel),
   and a recorded acquisition failure in `_record_failure` (it reaches the Work
   page and MCP).
+- **A Player's successful request writes no access line** (2026-11-19, audit-8 F3).
+  uvicorn writes one `uvicorn.access` line per request, and a wall's Player asks for
+  its manifest and its label every second, so one wall wrote about 170,000 lines a
+  day (an estimate from the intervals, not a measurement) and buried the `run_id`
+  lines this shape exists for. `logs.QuietPlayerPolls`, attached to that logger by
+  `logs.configure`, drops a `2xx` or `304` answer to a Player route; a refusal, a
+  missing feed and every other route keep their line, because those are what the
+  log is read for. A Player's liveness is its heartbeat on the Walls and Status
+  pages, never its access lines. The container's own log is bounded as well
+  (`deploy/nas/compose.example.yaml`).
 - **The System badge counts a failed plugin and a faulting one**, never a
   declined one, which is a choice and not a problem.
 - **Pages a search found are journalled by what became of them** (2026-10-03,

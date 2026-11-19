@@ -74,6 +74,14 @@ place of Arrt's.
   the conflict. Fix such a plugin, not the constraint.
 - **`USER root` for the install, then back.** Arrt's image runs as 568 and its
   venv is root's. Change the last line if the compose file runs another user.
+- **The plugin's own lock is held the same way.** The constraint above keeps
+  Arrt's versions; the plugin's dependencies Arrt does not already carry
+  still resolve to whatever is newest on the day of the build, so two builds of
+  one commit may differ. The private source plugins' repository found a second step
+  necessary for a reproducible image: it exports the plugin's own `uv.lock` as a
+  constraints file (`plugin_constraints.py`, there) and passes it to the install
+  beside Arrt's. Its `arrt-sources:deploy/Dockerfile` is the recipe to copy; the snippet above
+  is the part that protects Arrt, not the whole of a reproducible build.
 - **The plugin names no `arrt` dependency** (`docs/source-plugins.md` § A plugin
   is a distribution with one entry point), so nothing here can fetch an `arrt`
   from PyPI.
@@ -85,9 +93,42 @@ the reason it declined, and the health panel lists it. Run once with
 `--entrypoint python` and the snippet in `docs/source-plugins.md` § Testing to
 see the same answer before deploying. Verified 2026-10-03 against `arrt:0e10e6d`,
 with the guide's example reader: the plugin read `loaded` beside
-the three built-ins, as uid 568.
+the three built-ins that existed then, as uid 568. There are ten today: the
+`arrt.sources` entry points in `arrt/pyproject.toml` are the list.
 
 What installing a plugin trusts is `security-model.md` § Source plugins.
+
+### What is reachable, and what is logged (2026-11-19)
+
+**The boundary is every network that can route to the published port**, not the
+reverse proxy. The server asks no one who they are, and its host check admits any
+IP address as the name asked for (`security-model.md` § Trust Boundary), so a
+port published on every NAS interface lets a guest network, an IoT network or a
+VPN reach everything the proxy does, without it. `deploy/nas/compose.example.yaml`
+now publishes the port to one address (the proxy's, or loopback) and bounds
+Docker's log. **Before deploying**, set the real file's `ports:` to the address
+only the proxy reaches, then check from a machine on another network that
+`curl -s -o /dev/null -w '%{http_code}' http://<NAS address>:<host port>/healthz`
+does not answer.
+
+Four more things changed at the server's edges:
+
+- **A Player's successful requests write no access line.** A manifest, label,
+  media or heartbeat request answered `2xx` or `304` is not logged; a refusal
+  (`401`, `403`, `404`) still is, and so is every request to any other route.
+  Before this, one wall wrote about 170,000 lines a day.
+- **A request the browser marks `Sec-Fetch-Site: cross-site` is refused** on
+  `/api` and `/mcp` (`403`): a page elsewhere can no longer start a look by a
+  `GET` that carries no `Origin`. The interface's own requests, an MCP client
+  (which sends no such header) and a Player are unaffected, and so is a link to
+  a page of the interface from anywhere.
+- **The browser interface cannot be framed** (`frame-ancestors 'none'`,
+  `X-Frame-Options: DENY`). A reverse proxy that serves the interface inside
+  another page needs its own header to say so.
+- **A Player's request body over 256 KiB is refused with `413`.** A heartbeat
+  is a few kilobytes.
+
+**The way back** is the previous image. Nothing in the catalogue changed.
 
 ## Clients (2026-10-02, `build-plan-clients.md`)
 
@@ -264,13 +305,7 @@ so its month's spend fails once Ask has written one:
 That forgets only what Ask spent since the upgrade, which the earlier server
 never counted.
 
-## `curation.service`
-
-`deploy/curation.service` runs the server under systemd rather than in a
-container. It ran the server on the Pi from 2026-08-11 until the server moved to
-the NAS on 2026-10-02, and has been stopped and disabled there since. The
-service account, the paths and the cutover it was installed in are recorded in
-Arrt Player's `deploy/README.md`, beside the Pi's own unit.
+## Restarting the server
 
 **A restart is not a way to force a republish.** At every start the server
 reconciles each published feed against the Library (`DisplayService.reconcile`)
