@@ -180,6 +180,14 @@ export function installDrawer() {
       if (first) first.focus();
     }
   });
+  // The budget's line is a plain link (`core/spend.js`), so the router's pick
+  // never sees it: following it closes the drawer here, as every other link in
+  // it does. Not closed for a modifier click, which opens a new tab and leaves
+  // this page where it is.
+  nav.addEventListener("click", (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    if (event.target.closest && event.target.closest(".budget a")) set(false);
+  });
   nav.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !nav.hasAttribute("data-open")) return;
     set(false);

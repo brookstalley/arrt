@@ -177,7 +177,7 @@ def _failed(store, work, detail, *, failures=1):
     )
 
 
-def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_its_own_retry(ui, accepted, store):
+def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_no_retry_on_its_row(ui, accepted, store):
     accepted("Waiting")
     failed = accepted("Failed once")
     _failed(store, failed, "refused.")
@@ -200,7 +200,9 @@ def test_a_failed_work_is_under_its_cause_and_opens_into_its_title_with_its_own_
     assert "Try 1 of 4 failed. It tries again at" in row, "the cause is the group's heading, not repeated per work"
     href = ui.page.locator(".failure-cause-works a:has-text('Failed once')").get_attribute("href")
     assert href.startswith(f"#work/{failed.id}")
-    assert ui.page.locator(".failure-cause-works button:has-text('Retry now')").count() == 1
+    # One Retry for the group; a row has none (design direction: never one button
+    # per row, audit-6 finding 11). A single work is retried on its own page.
+    assert ui.page.locator(".failure-cause-works button").count() == 0
     assert "cause=refused." in ui.page.url, "opening a group is an address"
 
 

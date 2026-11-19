@@ -24,6 +24,7 @@ pytest.importorskip(
 
 from fakes import FakeRegistry
 from payloads import a_run
+from scripted_model import ScriptedModel
 
 from arrt.library.registry import (
     CommonsFile,
@@ -66,6 +67,12 @@ def ref(qid: str, label: str, kind: TopicKind) -> RegistryTopicRef:
 
 def topic(qid: str, label: str, *kinds: TopicKind, **fields) -> RegistryTopic:
     return RegistryTopic(qid=ItemId(qid), label=RegistryText(label), kinds=kinds, **fields)
+
+
+@pytest.fixture
+def ask_model():
+    """A server with a key: the dropdown offers Ask only where Ask can answer (audit-6 finding 9)."""
+    return ScriptedModel(replies=[])
 
 
 @pytest.fixture
@@ -737,7 +744,9 @@ class TestWithNoRegistryConfigured:
         ui.open("#topics")
         ui.page.wait_for_selector("#view h1:text-is('Topics')")
 
-        assert "WIKIDATA_USER_AGENT" in ui.page.locator("#view p.note").first.inner_text()
+        note = ui.page.locator("#view p.note").first.inner_text()
+        assert "not set up" in note
+        assert "WIKIDATA_USER_AGENT" not in note
         assert ui.page.locator("#view").get_by_label("Find a topic", exact=True).count() == 0
 
     def test_a_topic_page_says_topics_need_it(self, ui):
@@ -749,6 +758,8 @@ class TestWithNoRegistryConfigured:
         head = ui.page.locator("#view .panel").first
         # No name to give it, so the route's own word, never the bare item (#359).
         assert head.locator("h1").inner_text() == "Topic"
-        assert "WIKIDATA_USER_AGENT" in head.locator("p.note").inner_text()
+        assert "not set up" in head.locator("p.note").inner_text()
+        assert "WIKIDATA_USER_AGENT" not in head.locator("p.note").inner_text()
         for where in (WORKS, ARTISTS):
-            assert "WIKIDATA_USER_AGENT" in ui.page.locator(f"{where} p.note").inner_text()
+            assert "not set up" in ui.page.locator(f"{where} p.note").inner_text()
+            assert "WIKIDATA_USER_AGENT" not in ui.page.locator(f"{where} p.note").inner_text()

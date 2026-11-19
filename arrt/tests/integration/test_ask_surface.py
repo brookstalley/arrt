@@ -238,7 +238,8 @@ class TestWithNoKey:
         response = httpx.post(f"{server_url}/api/ask/threads/{thread_id}/replies", json={"words": "hello"})
 
         assert response.status_code == 503
-        assert "OPENROUTER_API_KEY" in response.json()["error"]
+        assert "OpenRouter key" in response.json()["error"]
+        assert "OPENROUTER_API_KEY" not in response.json()["error"]
         assert httpx.get(f"{server_url}/api/ask/threads/{thread_id}").json()["available"] is False
         assert httpx.get(f"{server_url}/api/ask").json() == {"available": False}
 

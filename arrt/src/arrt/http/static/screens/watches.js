@@ -72,7 +72,7 @@ function newWatch() {
     el("h2", { text: "New Watch" }),
     el("dl", { class: "facts settings-general" }, [
       el("dt", {}, [el("label", { for: "new-watch-words", text: "Look for" })]),
-      el("dd", {}, [words, el("p", { class: "muted setting-description", text: "In words, as you would ask Discover for it." })]),
+      el("dd", {}, [words, el("p", { class: "muted setting-description", text: "In words, as you would put it to Ask." })]),
       el("dt", {}, [el("label", { for: "new-watch-cadence", text: "How often" })]),
       el("dd", {}, [cadence]),
       el("dt", {}, [el("label", { for: "new-watch-cap", text: "Monthly cap" })]),

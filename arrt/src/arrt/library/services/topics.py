@@ -52,10 +52,10 @@ WORKS_SHOWN: Final[int] = 50
 ARTISTS_SHOWN: Final[int] = 12
 
 #: What every topic section says when `WIKIDATA_USER_AGENT` is unset: topics
-#: exist only in the registry, so without it there are none.
-TOPICS_NOT_CONFIGURED_NOTE: Final[str] = (
-    "Topics come from Wikidata, which is not configured on this server (WIKIDATA_USER_AGENT is unset)."
-)
+#: exist only in the registry, so without it there are none. In the household's
+#: words: the setting is named on Settings › Sources and Status, the operator's
+#: pages, and not here.
+TOPICS_NOT_CONFIGURED_NOTE: Final[str] = "Topics come from Wikidata, which is not set up on this server."
 
 #: What a section says when the registry was asked and could not answer.
 UNAVAILABLE_NOTE: Final[str] = "Wikidata could not be asked just now. Try again later."

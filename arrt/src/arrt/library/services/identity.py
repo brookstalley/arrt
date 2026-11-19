@@ -141,7 +141,7 @@ class IdentityService:
         """Fill every identity nobody has set that the registry answers unambiguously."""
         registry = self._registry
         if registry is None:
-            raise ServiceError("No registry is configured, so nothing can be matched. Set WIKIDATA_USER_AGENT.")
+            raise ServiceError("Wikidata is not set up on this server, so nothing can be matched.")
         work_report = self._match_works(registry, [work for work in self._all_works() if open_to_match(work)])
         # Read again, so the artists see the works this pass just identified.
         artist_report = self._match_artists(registry, self._all_works())

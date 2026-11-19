@@ -13,6 +13,7 @@
 
 import { api } from "./api.js";
 import { el, fill } from "./render.js";
+import { formatRoute } from "./route.js";
 
 /* Each tier as a control shows it, and what a reader hears before it. Keyed on
  * `CostTier`, held to it by the vocabulary test, so a fifth tier fails there
@@ -67,6 +68,18 @@ export function budgetWords(budget) {
   }
 }
 
+/* The budget's line, as the way to where spending is checked: History of the
+ * Gets, which is every spend the household makes (a reply of Ask's apart).
+ *
+ * A plain anchor, not `link()`: the router imports the sidebar, which imports
+ * this module, and the sidebar closes its own drawer when this is followed
+ * (`installDrawer`), as it does for its other links. Without a modifier the
+ * click is the browser's, which changes the address and so goes through the
+ * router's `hashchange` like any typed address; a modifier opens a new tab. */
+function budgetLink(line) {
+  return el("a", { class: "budget-line", href: formatRoute("history", null, { kind: "gets" }), text: line });
+}
+
 /* How long a read stands before a navigation asks again. The server keeps its
  * answer a minute too, so asking more often only reads the same figure. */
 const FRESH_MS = 60_000;
@@ -89,6 +102,6 @@ export async function paintBudget({ force = false } = {}) {
   const budget = await reading;
   reading = null;
   const { line, note } = budgetWords(budget);
-  fill(slot, el("p", { class: "budget-line", text: line }), note ? el("p", { class: "budget-note", text: note }) : null);
+  fill(slot, budgetLink(line), note ? el("p", { class: "budget-note", text: note }) : null);
   slot.dataset.state = budget.state;
 }

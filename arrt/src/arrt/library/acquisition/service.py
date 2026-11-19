@@ -629,7 +629,10 @@ class AcquisitionService:
     def _select_source(self, artwork_id: str, *, source_id: str | None) -> Source:
         sources = self._catalogue.list_sources(artwork_id)
         if not sources:
-            raise ServiceError(f"Artwork {artwork_id!r} has no source to acquire from.")
+            # No id in it: this sentence is stored as the work's last failure and
+            # read on its Work page. The queue groups it with the older
+            # "Artwork 'x' …" rows as one cause (`queue._unnamed`).
+            raise ServiceError("The work has no source to acquire from.")
         if source_id is not None:
             for source in sources:
                 if source.id == source_id:

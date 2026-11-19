@@ -15,10 +15,10 @@ from payloads import a_candidate, a_run, a_run_view, an_estimate
 from arrt.http.models import BudgetOut, CostTiersOut
 from arrt.persistence.discovery_records import RunStatus
 
-pytest.importorskip(
+expect = pytest.importorskip(
     "playwright.sync_api",
     reason="the browser suite needs its own dependency group: uv sync --group browser",
-)
+).expect
 
 RUN_ID = "run-under-test"
 TIERS = CostTiersOut(cents_below_usd="0.05", dimes_below_usd="0.50")
@@ -32,7 +32,12 @@ def a_budget(state, *, remaining=None, budget=None, spent=None, note=None) -> di
 
 def _budget_said(ui) -> list[str]:
     ui.page.wait_for_selector("#sidebar .budget .budget-line")
-    return [" ".join(text.split()) for text in ui.page.locator("#sidebar .budget p").all_inner_texts()]
+    # The line is a link since audit-6 finding 10 and its note a paragraph; one
+    # union locator keeps them in the order they are drawn.
+    return [
+        " ".join(text.split())
+        for text in ui.page.locator("#sidebar .budget .budget-line, #sidebar .budget .budget-note").all_inner_texts()
+    ]
 
 
 # -- the sidebar's budget ---------------------------------------------------------
@@ -87,6 +92,46 @@ def test_the_real_server_without_a_key_says_nothing_spends(ui):
     ui.open("")
 
     assert _budget_said(ui)[0] == "Nothing spends"
+
+
+@pytest.mark.parametrize("state", ["known", "uncapped", "not_configured", "unavailable"])
+def test_the_budget_line_is_a_link_to_the_history_of_gets_in_every_state(ui, state):
+    """Checking spend has somewhere to go (audit-6 finding 10): History, filtered to Gets."""
+    ui.serve("**/api/budget", a_budget(state, remaining="12.4" if state == "known" else None))
+    ui.open("#collection")
+    line = ui.page.locator("#sidebar .budget a.budget-line")
+    expect(line).to_have_count(1)
+    expect(line).to_have_attribute("href", "#history?kind=gets")
+
+    line.click()
+
+    ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
+    expect(ui.page.locator("#view ul.history-kinds a[aria-current='page']")).to_have_text("Gets")
+
+
+def test_the_budget_line_is_a_tab_stop_after_the_sidebar_s_pages(ui):
+    ui.serve("**/api/budget", a_budget("known", remaining="12.4", budget="20", spent="7.6"))
+    ui.open("#collection")
+    expect(ui.page.locator("#sidebar .budget a.budget-line")).to_be_visible()
+
+    ui.page.locator("#sidebar ul a:visible").last.focus()
+    ui.page.keyboard.press("Tab")
+
+    focused = ui.page.evaluate("() => document.activeElement.className + ' ' + document.activeElement.getAttribute('href')")
+    assert focused == "budget-line #history?kind=gets"
+
+
+def test_following_the_budget_line_on_a_phone_closes_the_drawer_it_was_in(ui):
+    ui.serve("**/api/budget", a_budget("known", remaining="12.4", budget="20", spent="7.6"))
+    ui.page.set_viewport_size({"width": 390, "height": 844})
+    ui.open("#collection")
+    ui.page.click("button.menu-button")
+    expect(ui.page.locator("#sidebar")).to_have_attribute("data-open", "")
+
+    ui.page.click("#sidebar .budget a.budget-line")
+
+    ui.page.wait_for_function("() => window.location.hash === '#history?kind=gets'")
+    expect(ui.page.locator("#sidebar")).not_to_have_attribute("data-open", "")
 
 
 def test_a_budget_that_cannot_be_read_says_so_and_is_asked_again(ui):

@@ -16,7 +16,15 @@ pytest.importorskip(
     reason="the browser suite needs its own dependency group: uv sync --group browser",
 )
 
+from scripted_model import ScriptedModel
+
 LISTBOX = "#search-suggestions"
+
+
+@pytest.fixture
+def ask_model():
+    """A server with a key: the dropdown offers Ask only where Ask can answer (audit-6 finding 9)."""
+    return ScriptedModel(replies=[])
 
 
 def type_into_search(ui, words: str) -> None:

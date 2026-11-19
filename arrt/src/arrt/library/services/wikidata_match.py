@@ -92,7 +92,7 @@ class WikidataMatchService:
             return WorkMatches(
                 work=work,
                 state=WorkMatchState.NOT_CONFIGURED,
-                note="Matching a work to Wikidata needs WIKIDATA_USER_AGENT, which this deployment has not set.",
+                note="Wikidata is not set up on this server, so a work cannot be matched to one of its items.",
             )
         title = _TRAILING_YEAR.sub("", work.proposed_title)
         artist = work.proposed_artist or ""

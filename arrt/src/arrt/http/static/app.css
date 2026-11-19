@@ -2769,6 +2769,27 @@ dl.facts dd {
   overflow-wrap: anywhere;
 }
 
+/* A dollar sign and its field stay on one line, however narrow the column. */
+.money-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Settings › General is a form, not a list of facts: on a phone a label above
+   its field, so the field keeps the page's width. Beside each other they left
+   a field about 210px wide, and the "$" of a money field above its input. */
+@media (max-width: 40rem) {
+  dl.facts.settings-general {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1) 0;
+  }
+
+  dl.facts.settings-general dd {
+    margin-bottom: var(--space-4);
+  }
+}
+
 .detail-image {
   display: block;
   margin: 0 auto var(--space-4);
@@ -3416,6 +3437,25 @@ section.offered + section.offered {
 
 .sidebar .budget p {
   margin: 0;
+}
+
+/* The line is the way to where spending is checked (History of the Gets), so it
+   is a link: set in the sidebar's ink, underlined so it reads as one, and
+   stripped of the padding `nav.sidebar a` gives a page's link, since the budget
+   block already insets it. */
+.sidebar .budget a.budget-line {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border-left: 0;
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 0.2em;
+}
+
+.sidebar .budget a.budget-line:hover {
+  color: var(--text-strong);
 }
 
 .sidebar .budget .budget-note {

@@ -62,6 +62,26 @@ export function asksWikidata(query) {
   return (query.match(/[\p{L}\p{N}]/gu) || []).length >= REGISTRY_SHORTEST;
 }
 
+/* Whether Ask can answer on this server, read once: a key is set when the
+ * server starts and cannot change under a page. A read that fails says yes, so
+ * a hiccup never takes Ask from a server that has it; Ask's own page says it
+ * plainly if it cannot answer. */
+let askReading = null;
+function askAnswers() {
+  if (!askReading) askReading = api("/api/ask").then((status) => status.available !== false, () => true);
+  return askReading;
+}
+
+/* What the dropdown says of one of Wikidata's searches that could not be made.
+ * A server with no registry is said in the household's words here, whatever
+ * the server's own sentence says: the setting it names is the operator's, on
+ * Sources and Status, and not the dropdown's to read out. */
+const WIKIDATA_OFF = "Wikidata is not set up on this server, so only your library is searched.";
+function unsaidOf(answer) {
+  if (!answer) return null;
+  return answer.state === "not_configured" ? WIKIDATA_OFF : answer.note || null;
+}
+
 /* Case and accents, ignored, as the library's search ignores them. */
 export function fold(text) {
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -114,6 +134,10 @@ function installSuggestions(field) {
   let active = -1;
   let asked = 0;
   let timer = null;
+  // Whether Ask is offered: not on a server with no key, where the row would
+  // open a page that can only refuse (`information-architecture.md` § A control
+  // never offers a dead end).
+  let canAsk = true;
 
   const close = () => {
     list.hidden = true;
@@ -256,7 +280,7 @@ function installSuggestions(field) {
       ...notHeldArtists,
       ...notHeldWorks,
       ...notHeldTopics,
-      ask,
+      ...(canAsk ? [ask] : []),
       everything,
     ];
 
@@ -287,7 +311,7 @@ function installSuggestions(field) {
     // that matched nothing must not read as everything having been searched.
     // One note however many of Wikidata's searches could not be made: the
     // search's own when it has one, else the topic search's.
-    const unsaid = (found && found.note) || (named && named.note) || null;
+    const unsaid = unsaidOf(found) || unsaidOf(named);
     const registryNote = unsaid
       ? [el("li", { role: "presentation", class: "search-suggestions-registry-note", text: unsaid })]
       : [];
@@ -309,7 +333,7 @@ function installSuggestions(field) {
       ...(wikidata ? [heading("Not held"), ...notHeldGroups, ...registryNote, ...asking, ...nothingMore] : []),
       // Named for the page the row opens, as Sonarr names its group "Add New
       // Series" for its page. Here that page is Ask (ruling 3).
-      group("suggestions-ask", "Ask", [ask]),
+      ...(canAsk ? [group("suggestions-ask", "Ask", [ask])] : []),
       group("suggestions-all-results", "Search", [everything]),
     );
     list.hidden = false;
@@ -352,12 +376,14 @@ function installSuggestions(field) {
     // failure must not cost the work matches. Only the works lookup failing says
     // the library could not be searched, because that one guards a paid search
     // below it.
-    const [page, people, placed, held] = await Promise.allSettled([
+    const [page, people, placed, held, askable] = await Promise.allSettled([
       api(`/api/works?q=${encodeURIComponent(query)}&limit=${SUGGESTIONS}`),
       api(`/api/artists?q=${encodeURIComponent(query)}`),
       api("/api/themes"),
       api("/api/topics"),
+      askAnswers(),
     ]);
+    canAsk = askable.status !== "fulfilled" || askable.value;
     if (people.status === "fulfilled") artists = people.value.artists;
     if (placed.status === "fulfilled") {
       const wanted = fold(query);
@@ -399,7 +425,7 @@ function installSuggestions(field) {
   const announce = ({ found, named }) => {
     const topicsFound = named.state === "known" ? Math.min(named.topics.length, TOPICS_SHOWN) : 0;
     const count = (found.state === "known" ? found.artists.length + found.works.length : 0) + topicsFound;
-    arrived.textContent = found.state === "known" ? `Wikidata: ${count} ${count === 1 ? "match" : "matches"}.` : found.note || "";
+    arrived.textContent = found.state === "known" ? `Wikidata: ${count} ${count === 1 ? "match" : "matches"}.` : unsaidOf(found) || "";
   };
 
   field.addEventListener("input", () => {

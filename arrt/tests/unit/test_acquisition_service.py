@@ -447,8 +447,10 @@ class TestChoosingTheSource:
 
     def test_a_work_with_no_source_is_refused_by_name(self, service, acq_settings):
         work = service.add_artwork(title="Nighthawks")
-        with pytest.raises(ServiceError, match="no source"):
+        with pytest.raises(ServiceError, match="no source") as refused:
             _acquisition(service, acq_settings, _serves(b"")).acquire(work.id)
+        # Stored as the work's last failure and read on its Work page: no id in it.
+        assert work.id not in str(refused.value)
 
     def test_a_source_belonging_to_another_work_is_refused(self, service, acq_settings):
         work, _ = _work_with_source(service)
