@@ -12,7 +12,9 @@ hold it. Works are held here as ids, and the facade says whether each can go on 
 wall. **The Library tells this service when a work changes**, and this service
 decides what that means for a wall: `on_work_changed` takes a work the Library
 now refuses off every published feed. Every rule about what a republish keeps —
-the slot on the wall now, or a fresh start — lives here.
+the slot on the wall now, or a fresh start — lives in `feeds.py`: this service
+composes its `FeedPublisher`, and every act here that changes a wall's feed
+publishes through it, in the publisher's transaction.
 
 Methods are synchronous, for the reason `catalogue.py` gives.
 """
@@ -832,7 +834,7 @@ class DisplayService:
         **Nothing is published here.** A work is offered when it is accepted,
         before it is prepared, so it has nothing a feed could send yet: the
         announcement of its master puts it on any wall hanging its theme, and
-        failing that the next roll does (`_roll_v2`).
+        failing that the next roll does (`FeedPublisher.roll_v2`).
         """
         already = self._store.offered_work_ids()
         unoffered = [work_id for work_id in dict.fromkeys(work_ids) if work_id not in already]
@@ -911,7 +913,7 @@ class DisplayService:
         """
         self.get_theme(theme_id)
         # One act around the hang, the publish and the retirement, and it holds
-        # both ways (`_publishing`). A feed that cannot be written takes the hang
+        # both ways (`FeedPublisher.publishing`). A feed that cannot be written takes the hang
         # back: recording the hang and then failing to publish left the
         # catalogue naming a theme the wall was not showing, with nothing to say
         # the two disagreed. And a step after the publish that raises (the
@@ -1421,7 +1423,7 @@ class DisplayService:
         happens to `show_now` and `next`). One wall's step leaves every other
         wall's picture alone, so a `next` aimed at the living room never moves
         the study; a wall sharing works with it has its slots to come rebuilt
-        beside it (`_write_v2`).
+        beside it (`FeedPublisher._write_v2`).
         """
         self.get_wall(wall_id)
         with self._feeds.publishing():
@@ -1450,7 +1452,7 @@ class DisplayService:
     # on its wall, so a Frame has its upload done before Apply and the walls
     # switch together. Every act writes the store, then patches each wall it
     # touched: the schedule is republished exactly as it stands, and the one
-    # feed writer derives the control layer (`_publish_feed`). Expiry is
+    # feed writer derives the control layer (`FeedPublisher._publish_feed`). Expiry is
     # observed, not scheduled: a Player returns to its schedule at `until` on
     # its own, so the server keeps no timer.
 
@@ -1458,7 +1460,7 @@ class DisplayService:
         """The scene being assembled: the one already started, else a new empty one.
 
         One draft at a time, because the builder on Walls holds one; the store
-        would take more, and only the newest stages anything (`_current_draft`).
+        would take more, and only the newest stages anything (`FeedPublisher.current_draft`).
         """
         with self._store.transaction():
             ended = self._settle_scenes()

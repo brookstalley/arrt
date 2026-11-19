@@ -102,7 +102,7 @@ class Reconciliation:
 
 @dataclass(frozen=True, slots=True)
 class _Control:
-    """One wall's control layer, as its next feed carries it (`DisplayService._control_layer`)."""
+    """One wall's control layer, as its next feed carries it (`FeedPublisher._control_layer`)."""
 
     scene: SceneEntry | None
     staging: tuple[str, ...]
