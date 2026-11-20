@@ -7,6 +7,7 @@ rather than a fault, and what the catalogue holds afterwards.
 
 import errno
 import logging
+import sqlite3
 import stat
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,12 +23,14 @@ from arrt.library.acquisition.service import (
     SourcePluginUnavailable,
 )
 from arrt.library.acquisition.space import NotEnoughSpace
-from arrt.library.discovery.images import ImageSearchFailure
+from arrt.library.discovery.images import ImageSearchFailure, LinkGone
 from arrt.library.sources.artic import claims as artic_claims
 from arrt.library.sources.loading import Route, SourceRoster
 from arrt.library.sources.reading import FetchLocator
+from arrt.persistence import sqlite as sqlite_store
 from arrt.persistence.records import (
     AcquisitionMethod,
+    FetchOutcome,
     FetchStatus,
     RightsStatus,
     SourceClass,
@@ -1165,3 +1168,154 @@ class TestResolvingTheTileTargetBeforeFetching:
 
         assert result.outcome is AcquisitionOutcome.FAILED
         assert not argv_log.exists()
+
+
+# -- what a fetch said, kept beside the coarse status (wave 2b, Chunk 32) --------------
+
+#: v0.11.0's `FetchStatus`, frozen here as that release shipped it: what an older
+#: release reads `last_fetch_status` with (`FetchStatus(value)`, which refuses
+#: any other word). A copy on purpose: the point is that the code here may not
+#: grow it.
+_V0_11_FETCH_STATUS = frozenset({"ok", "partial_tiles", "failed"})
+
+_ARTIC_PAGE = "https://www.artic.edu/artworks/27992"
+
+
+def _artic_work(service):
+    return _work_with_source(service, method=AcquisitionMethod.DEZOOMIFY, url=_ARTIC_PAGE)
+
+
+def _source_of(service, work):
+    (source,) = service.list_sources(work.id)
+    return source
+
+
+class TestWhatTheFetchSaid:
+    @pytest.mark.parametrize(
+        ("answer", "outcome"),
+        [
+            (FetchLocator.none("the page shows no image"), FetchOutcome.NONE_HELD),
+            (LinkGone("the Art Institute answered 410 for the page"), FetchOutcome.LINK_GONE),
+            (ImageSearchFailure("the Art Institute could not be asked"), FetchOutcome.UNASKED),
+            pytest.param(
+                RuntimeError("a field the page no longer has"),
+                FetchOutcome.FAULTED,
+                marks=pytest.mark.plugin_fault_expected,
+                id="a-fault",
+            ),
+        ],
+        ids=["none-held", "link-gone", "unasked", "a-fault"],
+    )
+    def test_each_answer_a_reader_gives_is_recorded_as_itself_beside_failed(self, service, acq_settings, answer, outcome):
+        work, _ = _artic_work(service)
+        acquisition = _acquisition(service, acq_settings, _serves(b""), route=_artic_reads(answer))
+
+        result = acquisition.acquire(work.id)
+
+        assert (result.outcome, result.fetch_outcome, result.plugin) == (AcquisitionOutcome.FAILED, outcome, "artic")
+        source = _source_of(service, work)
+        assert (source.last_fetch_status, source.last_fetch_outcome) == (FetchStatus.FAILED, outcome)
+
+    @pytest.mark.plugin_fault_expected
+    def test_a_fault_is_worded_as_a_fault_and_not_as_could_not_be_asked(self, service, acq_settings, caplog):
+        work, _ = _artic_work(service)
+        acquisition = _acquisition(service, acq_settings, _serves(b""), route=_artic_reads(KeyError("image_id")))
+
+        with caplog.at_level(logging.ERROR):
+            detail = acquisition.acquire(work.id).detail
+
+        assert detail == "the Art Institute of Chicago plugin faulted while reading this source: KeyError"
+
+    def test_a_fetch_that_holds_the_image_records_ok(self, service, acq_settings):
+        work, _ = _work_with_source(service)
+
+        result = _acquisition(service, acq_settings, _serves(_jpeg_bytes())).acquire(work.id)
+
+        assert result.fetch_outcome is FetchOutcome.OK
+        source = _source_of(service, work)
+        assert (source.last_fetch_status, source.last_fetch_outcome) == (FetchStatus.OK, FetchOutcome.OK)
+
+    def test_a_fetch_failing_after_an_unasked_one_replaces_its_outcome(self, service, acq_settings):
+        """The outcome is the last fetch's: a later failure of another kind does not leave the earlier one standing."""
+        work, _ = _artic_work(service)
+        _acquisition(service, acq_settings, _serves(b""), route=_artic_reads(ImageSearchFailure("down"))).acquire(work.id)
+
+        _acquisition(service, acq_settings, _serves(b""), route=_artic_reads(FetchLocator.none("none"))).acquire(work.id)
+
+        assert _source_of(service, work).last_fetch_outcome is FetchOutcome.NONE_HELD
+
+
+@pytest.mark.parametrize("outcome", list(FetchOutcome))
+def test_every_outcome_leaves_a_coarse_status_an_older_release_reads(service, settings, outcome):
+    """A row with an outcome holds one of v0.11.0's three statuses, `failed` for every non-success."""
+    _work, source = _work_with_source(service)
+
+    service.record_fetch(source.id, status=outcome.fetch_status, outcome=outcome)
+
+    connection = sqlite3.connect(settings.catalogue_path)
+    try:
+        ((status, said),) = connection.execute(
+            'SELECT "last_fetch_status", "last_fetch_outcome" FROM sources WHERE "id" = ?', (source.id,)
+        ).fetchall()
+    finally:
+        connection.close()
+    assert said == str(outcome)
+    assert status in _V0_11_FETCH_STATUS
+    assert (status == "failed") == (outcome not in (FetchOutcome.OK, FetchOutcome.PARTIAL_TILES))
+
+
+def test_an_outcome_whose_coarse_status_disagrees_is_refused(service):
+    _work, source = _work_with_source(service)
+
+    with pytest.raises(ValueError, match="has status failed, not ok"):
+        service.record_fetch(source.id, status=FetchStatus.OK, outcome=FetchOutcome.UNASKED)
+
+
+def test_a_fetch_recorded_with_no_outcome_clears_the_last_one(service):
+    _work, source = _work_with_source(service)
+    service.record_fetch(source.id, status=FetchStatus.FAILED, outcome=FetchOutcome.LINK_GONE)
+
+    updated = service.record_fetch(source.id, status=FetchStatus.FAILED)
+
+    assert updated.last_fetch_outcome is None
+
+
+class TestReadingAnOutcomeBack:
+    """The column is built to grow, and an older release writes the coarse one alone: both are read for what they are."""
+
+    @staticmethod
+    def _row(**columns):
+        return {
+            "id": "s1",
+            "artwork_id": "a1",
+            "url": "https://gallery.example.com/a.jpg",
+            "provider": "gallery_site",
+            "source_class": "institutional",
+            "acquisition_method": "direct_http",
+            "rights_status": "unknown",
+            "is_primary": 1,
+            "confidence": None,
+            "selection_rationale": None,
+            "last_fetched_at": None,
+            **columns,
+        }
+
+    def test_an_outcome_beside_a_coarse_status_written_after_it_is_not_read(self):
+        """Rolled back, a release that writes no outcome fetched it ok; rolled forward, `unasked` is an older fetch's."""
+        source = sqlite_store._source(self._row(last_fetch_status="ok", last_fetch_outcome="unasked"))
+
+        assert (source.last_fetch_status, source.last_fetch_outcome) == (FetchStatus.OK, None)
+
+    def test_an_outcome_a_newer_release_wrote_reads_as_unclassified(self):
+        source = sqlite_store._source(self._row(last_fetch_status="failed", last_fetch_outcome="throttled"))
+
+        assert (source.last_fetch_status, source.last_fetch_outcome) == (FetchStatus.FAILED, None)
+
+    def test_a_stored_outcome_that_is_not_text_is_refused(self):
+        with pytest.raises(TypeError, match="is text"):
+            sqlite_store._source(self._row(last_fetch_status="failed", last_fetch_outcome=3))
+
+    def test_a_row_from_before_the_column_reads_as_no_outcome(self):
+        source = sqlite_store._source(self._row(last_fetch_status="failed"))
+
+        assert source.last_fetch_outcome is None

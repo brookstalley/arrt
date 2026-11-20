@@ -114,6 +114,82 @@ class FetchStatus(StrEnum):
     FAILED = "failed"
 
 
+class FetchOutcome(StrEnum):
+    """What the last fetch from a source said, finer than `FetchStatus`: kept beside it, never in its place.
+
+    **Its own column, beside the coarse status, which keeps its three values.**
+    An older release reads `last_fetch_status` as `FetchStatus(value)` and would
+    fail on any new word there, which the catalogue's shape generation cannot see
+    (`persistence/file.py`). So every outcome has one coarse status
+    (`fetch_status`), the coarse column is written from it, and an older release
+    reads every non-success as `failed`, as it always has. The two columns are
+    one fact; `fetch_status` is the only rule joining them.
+
+    **What each tells a curator, and what the queue does** (`queue.RETRY_RULES`):
+
+    - `OK`, `PARTIAL_TILES`: the image is held. Not a failure.
+    - `NONE_HELD`: the reader read the page and it shows no image. Settled until
+      the work's Wikidata item changes.
+    - `LINK_GONE`: the holder says the page is gone (source interface 1.6).
+      Settled until the work's Wikidata item changes.
+    - `UNASKED`: the holder could not be asked, or its plugin did not answer in
+      time. Nothing is known about the image; tried again on the queue's next pass.
+    - `FAULTED`: the plugin answered outside its interface. Tried again once
+      Arrt next loads its plugins.
+    - `FAILED`: anything else, and every failure recorded before outcomes were
+      (a row whose outcome is null). On the queue's schedule: 1 h, 1 d, 3 d,
+      then given up.
+    """
+
+    OK = "ok"
+    PARTIAL_TILES = "partial_tiles"
+    NONE_HELD = "none_held"
+    UNASKED = "unasked"
+    FAULTED = "faulted"
+    LINK_GONE = "link_gone"
+    FAILED = "failed"
+
+    @property
+    def fetch_status(self) -> FetchStatus:
+        """The coarse status written beside this outcome, which is all an older release reads."""
+        return _COARSE_STATUS[self]
+
+    @classmethod
+    def read(cls, value: object) -> FetchOutcome | None:
+        """A stored outcome, or `None` for one this release does not know.
+
+        **The one lenient read, and why.** This column is the one built to grow:
+        the next release may add a word to it, and a rollback to this one would
+        then meet it. Reading that as unclassified is what the coarse status
+        beside it already says (`failed`), where refusing it would break the
+        rollback this column exists to keep. A value that is not text at all is
+        not a word from any release, and is refused.
+        """
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise TypeError(f"A stored fetch outcome is text, not {value!r}.")
+        try:
+            return cls(value)
+        except ValueError:
+            return None
+
+
+#: Every outcome's coarse status. Built whole and checked at import: an outcome
+#: added without one fails here, by name, rather than reading as a default.
+_COARSE_STATUS: dict[FetchOutcome, FetchStatus] = {
+    FetchOutcome.OK: FetchStatus.OK,
+    FetchOutcome.PARTIAL_TILES: FetchStatus.PARTIAL_TILES,
+    FetchOutcome.NONE_HELD: FetchStatus.FAILED,
+    FetchOutcome.UNASKED: FetchStatus.FAILED,
+    FetchOutcome.FAULTED: FetchStatus.FAILED,
+    FetchOutcome.LINK_GONE: FetchStatus.FAILED,
+    FetchOutcome.FAILED: FetchStatus.FAILED,
+}
+if _missing := set(FetchOutcome) - set(_COARSE_STATUS):
+    raise RuntimeError(f"Fetch outcomes with no coarse status: {', '.join(sorted(_missing))}.")
+
+
 class RenditionKind(StrEnum):
     """What a derived image is for.
 
@@ -350,6 +426,10 @@ class Source:
     selection_rationale: str | None = None
     last_fetch_status: FetchStatus | None = None
     last_fetched_at: datetime | None = None
+    #: What that fetch said, finer than `last_fetch_status` (`FetchOutcome`).
+    #: Null for a fetch recorded before outcomes were, and for one whose outcome
+    #: this release does not know: both read as the coarse status alone.
+    last_fetch_outcome: FetchOutcome | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,6 +496,23 @@ class QueuedAcquisition:
     #: The source the next fetch must use, when someone named one. Cleared once a
     #: fetch from it has been made.
     source_id: str | None = None
+    #: What the last failed fetch said (`FetchOutcome`), which decides when the
+    #: work is tried again (`queue.RETRY_RULES`). Null for a failure that was no
+    #: fetch's (no source, a preparation that refused, an unexpected error), for
+    #: one recorded before outcomes were, and for one this release does not know:
+    #: each is tried on the schedule, as every failure was before.
+    outcome: FetchOutcome | None = None
+    #: The source plugin that answered it, by its name, when one did: with
+    #: `outcome`, what Activity › Queue groups the work's failure under.
+    plugin: str | None = None
+    #: The work's Wikidata item when an outcome settled it (`none_held`,
+    #: `link_gone`); the work is tried again once its item is another. Null for
+    #: a work with no item, which stays settled until Retry.
+    settled_qid: str | None = None
+    #: When the last failure was recorded, the one the queue gave up on
+    #: included. Null for a work that has not failed since its last Retry, and
+    #: for a failure recorded before this was (not recorded, never guessed).
+    failed_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
