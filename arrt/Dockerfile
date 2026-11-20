@@ -12,8 +12,18 @@
 #
 # The test target needs the repository root as a second context (`repo`): the
 # contract tests read `contract/`, the seed and mat-corpus tests read the 2024
-# index `all.json`, and the UX walk's tests read `.env.example`, all of which sit
-# beside `arrt/`, not in it. The app image needs none of them.
+# index `all.json`, the UX walk's tests read `.env.example`, and the plugin
+# tests read `docs/source-plugins.md`, all of which sit beside `arrt/`, not in
+# it. The app image needs none of them.
+#
+# CI builds the test target only on a pull request into `main` and by hand
+# (`.github/workflows/image.yml`). Before that, on every pull request,
+# `tests/test_the_image_carries_what_tests_read.py` reads the test stage's COPY
+# lines, and the stages it is built on, against every path the server's tests
+# and tools build from their own location: a test that reads a file this stage
+# does not carry fails there, naming the file and the COPY it needs. Keep the
+# layout a mirror of the repository's (`/app` is `arrt/`, `/` its root), one
+# COPY a line, as that test reads them.
 #
 # The art root is a volume at /art: the catalogue, the masters and every derived
 # file live there, so the image holds code only and a rollback is a different tag.

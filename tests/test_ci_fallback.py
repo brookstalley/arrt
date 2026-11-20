@@ -498,6 +498,17 @@ def check_the_fallback(workflow: dict, manifest: dict) -> None:
         ran.append(name)
     assert sorted(ran) == sorted(reports), f"the fallback runs {sorted(ran)}, and the manifest asks for {sorted(reports)}"
 
+    # A suite's red, in either mode, reaches the job only as a step's exit code: the guard checks
+    # that suites ran, not that they passed. So no step that carries one may let it go.
+    guard = [s for s in steps if "assert_tests_ran.py" in str(s.get("run", ""))]
+    assert len(guard) == 1, "no single step runs the guard, assert_tests_ran.py"
+    for step in [pool[0], *fallback, *guard]:
+        assert not step.get(
+            "continue-on-error"
+        ), f"`{step.get('name') or step.get('id')}` carries continue-on-error, so its failure would not fail the job"
+        swallowing = [w for w in ("|| true", "|| :", "set +e", "exit 0", "trap ") if w in str(step["run"])]
+        assert not swallowing, f"`{step.get('name') or step.get('id')}` swallows its exit code ({swallowing})"
+
     summary = [s for s in steps if "pool_or_fallback.py summary --out" in str(s.get("run", ""))]
     assert summary, "no step writes the summary, so a fallback run would not say the browser suite did not run"
     assert summary[0].get("if") == "always()", "the summary step does not run on every path"
@@ -597,6 +608,45 @@ def test_a_fallback_step_without_a_time_limit_of_its_own_is_refused():
     workflow = _workflow()
     del _step_for(workflow, "contract")["timeout-minutes"]
     with pytest.raises(AssertionError, match="no time limit of its own"):
+        check_the_fallback(workflow, MANIFEST)
+
+
+def _guard_step(workflow):
+    return next(s for s in _steps(workflow) if "assert_tests_ran.py" in str(s.get("run", "")))
+
+
+#: In fallback mode the guard passes over a report that holds a failure: it checks that each
+#: suite ran something and skipped nothing it should not, not that it passed (observed by the
+#: integration of Chunk 52, running the fallback locally: curation 6,930 passed, 1 failed, guard
+#: green). So the fallback step's own exit code is what turns the job red, and these hold that
+#: nothing in the workflow lets it go.
+@pytest.mark.parametrize("which", ["governance", "curation", "contract", "pool", "guard"])
+def test_a_step_whose_failure_must_end_the_job_may_not_continue_on_error(which):
+    workflow = _workflow()
+    if which == "pool":
+        step = next(s for s in _steps(workflow) if s.get("id") == "pool")
+    elif which == "guard":
+        step = _guard_step(workflow)
+    else:
+        step = _step_for(workflow, which)
+    step["continue-on-error"] = True
+    with pytest.raises(AssertionError, match="continue-on-error"):
+        check_the_fallback(workflow, MANIFEST)
+
+
+@pytest.mark.parametrize("tail", [" || true", " || :", "; exit 0", "\nexit 0"])
+def test_a_fallback_step_that_swallows_its_suites_exit_code_is_refused(tail):
+    workflow = _workflow()
+    _step_for(workflow, "curation")["run"] += tail
+    with pytest.raises(AssertionError, match="of its own"):
+        check_the_fallback(workflow, MANIFEST)
+
+
+@pytest.mark.parametrize("change", ["set +e\n", "trap 'exit 0' EXIT\n"])
+def test_a_guard_step_that_swallows_its_exit_code_is_refused(change):
+    workflow = _workflow()
+    _guard_step(workflow)["run"] = change + _guard_step(workflow)["run"]
+    with pytest.raises(AssertionError, match="swallows"):
         check_the_fallback(workflow, MANIFEST)
 
 

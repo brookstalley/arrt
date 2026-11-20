@@ -221,169 +221,185 @@ def test_a_test_root_no_suite_selects_is_named():
 
 
 IMAGE_WORKFLOW = REPO / ".github" / "workflows" / "image.yml"
-DOCKERFILE = REPO / "arrt" / "Dockerfile"
+WORKFLOWS = REPO / ".github" / "workflows"
 
-#: What the image copies in that `image.yml` deliberately does not watch, because the
-#: pool's suites run it on every pull request: the server's code, tests and tools, the
-#: contract package's source and the documents its tests read (`.env.example` is the
-#: UX walk's tests'; `docs/source-plugins.md` the plugin guide `test_source_plugins.py`
-#: holds to the code). The contract's own dependency declarations are watched, since
-#: they change what the image installs.
-_RUN_BY_THE_POOL = {
-    "arrt/src",
-    "arrt/tests",
-    "arrt/tools",
-    "contract",
-    ".prawduct/artifacts/player-contract.md",
-    "all.json",
-    ".env.example",
-    "docs/source-plugins.md",
-}
+# -- the image is built on GitHub's runner only for a release (build-plan-audit-wave-2b, Chunk 56) --
+#
+# The owner, 2026-11-20 (`.prawduct/owner-rulings.md`): CI is kept small, GitHub's minutes are
+# nearly spent. The image's test stage, about seven minutes of build per pull request, runs on a
+# pull request into `main` and by hand only; the one class it caught that nothing else did is
+# held on every pull request by `tests/test_the_image_carries_what_tests_read.py`.
+
+#: The base of an ordinary pull request: everything merges into `develop` first.
+ORDINARY_BASE = "develop"
+
+#: A step that builds a container image: an action that builds, or a shell line that does.
+_BUILDING_ACTIONS = ("docker/build-push-action", "docker/setup-buildx-action", "docker/bake-action")
+_BUILDING_LINE = re.compile(
+    r"\b(docker\s+(buildx\s+)?(image\s+)?build|docker\s+buildx\s+bake|docker\s+compose\s+build|podman\s+build|buildah)\b"
+)
 
 
-def _copied_sources(dockerfile: str) -> set[str]:
-    """Every repository path a `COPY` brings into the image, as a path from the repo root.
+def _triggers(workflow: dict) -> dict:
+    """The `on:` block, which YAML 1.1 reads as the key `True`; a bare string or list is normalised."""
+    on = workflow.get(True, workflow.get("on"))
+    if isinstance(on, str):
+        return {on: None}
+    if isinstance(on, list):
+        return {name: None for name in on}
+    return dict(on or {})
 
-    The build context is `arrt/`; `--from=repo` is the repository root (`image.yml`'s
-    `build-contexts`); any other `--from` names an earlier stage, which copies nothing
-    from the repository.
+
+def _runs_on_an_ordinary_pull_request(workflow: dict) -> bool:
+    """Whether a pull request into `develop` starts this workflow, by its triggers' branch filters.
+
+    A filter is read as GitHub reads one only for plain names; any pattern with a wildcard is
+    taken to match, so a glob cannot hide a trigger from the check.
     """
-    stages = {line.split()[-1] for line in dockerfile.splitlines() if line.startswith("FROM ") and " AS " in line}
-    found = set()
-    for line in dockerfile.splitlines():
-        stripped = line.strip()
-        # Shapes this reader does not parse are refused by name rather than skipped, so a
-        # Dockerfile that grows one cannot slip a source past the filter.
-        assert not stripped.startswith("ADD "), f"arrt/Dockerfile uses ADD, which this check does not read: {stripped}"
-        assert not (stripped.startswith("COPY ") and stripped.endswith("\\")), f"a COPY continues onto the next line: {stripped}"
-        assert "type=bind" not in stripped, f"a RUN binds a source this check does not read: {stripped}"
-        assert not (stripped.startswith("COPY ") and line != stripped), f"an indented COPY this check does not read: {stripped}"
-        assert not stripped.startswith("COPY ["), f"an exec-form COPY this check does not read: {stripped}"
-        if not line.startswith("COPY "):
+    triggers = _triggers(workflow)
+    for event in ("pull_request", "pull_request_target", "merge_group"):
+        if event not in triggers:
             continue
-        words = line.split()[1:]
-        source = next((w.split("=", 1)[1] for w in words if w.startswith("--from=")), None)
-        paths = [w for w in words if not w.startswith("--")][:-1]
-        if source in stages:
+        config = triggers[event] or {}
+        branches = config.get("branches")
+        if branches is not None:
+            if any(b == ORDINARY_BASE or not re.fullmatch(r"[\w./-]+", b) for b in branches):
+                return True
             continue
-        root = "" if source == "repo" else "arrt/"
-        found |= {f"{root}{p}".rstrip("/") for p in paths}
+        if ORDINARY_BASE in (config.get("branches-ignore") or []):
+            continue
+        return True
+    return False
+
+
+def _image_building_steps(workflow: dict) -> list[str]:
+    """`job: step` for every step that builds an image."""
+    found = []
+    for job_name, job in (workflow.get("jobs") or {}).items():
+        for step in job.get("steps") or []:
+            uses = str(step.get("uses", ""))
+            if uses.startswith(_BUILDING_ACTIONS) or _BUILDING_LINE.search(str(step.get("run", ""))):
+                found.append(f"{job_name}: {step.get('name') or uses}")
     return found
 
 
-def check_the_image_filter(copied: set[str], watched: list[str]) -> None:
-    """Raise unless every copied path is watched by the filter or run by the pool."""
-    unwatched = sorted(
-        path for path in copied if path not in _RUN_BY_THE_POOL and path not in watched and f"{path}/**" not in watched
-    )
-    assert not unwatched, (
-        f"arrt/Dockerfile copies {unwatched}, which image.yml's paths filter does not watch and the pool "
-        "does not run: add each to the filter, or to _RUN_BY_THE_POOL with the reason the pool covers it"
+def check_no_ordinary_pull_request_builds_an_image(workflows: dict[str, dict]) -> None:
+    """Raise, naming each, unless no workflow a pull request into `develop` starts builds an image."""
+    building = [
+        f"{name} ({step})"
+        for name, workflow in sorted(workflows.items())
+        if _runs_on_an_ordinary_pull_request(workflow)
+        for step in _image_building_steps(workflow)
+    ]
+    assert not building, (
+        f"a pull request into {ORDINARY_BASE} builds an image on GitHub's runner: {building}. "
+        "The owner's ruling of 2026-11-20 keeps that to a pull request into main and a run by hand"
     )
 
 
-def _image_inputs(workflow: dict) -> list[str]:
-    """The paths `image.yml`'s decide step builds for outside a pull request into `main`: its `IMAGE_INPUTS`."""
-    steps = workflow["jobs"]["image"]["steps"]
-    decide = next((step for step in steps if step.get("id") == "decide"), None)
-    assert decide is not None, "image.yml has no step with id `decide`, so nothing decides whether a pull request builds"
-    inputs = str((decide.get("env") or {}).get("IMAGE_INPUTS", "")).split()
-    assert inputs, "the decide step's IMAGE_INPUTS names no path, so a pull request that changes the image builds nothing"
-    return inputs
+def _all_workflows() -> dict[str, dict]:
+    return {path.name: yaml.safe_load(path.read_text(encoding="utf-8")) for path in sorted(WORKFLOWS.glob("*.y*ml"))}
+
+
+def test_no_workflow_an_ordinary_pull_request_starts_builds_an_image():
+    workflows = _all_workflows()
+    assert {"image.yml", "tests.yml"} <= set(workflows), f"the workflows read are {sorted(workflows)}"
+    assert _image_building_steps(workflows["image.yml"]), "image.yml builds nothing, so this check reads nothing"
+    assert _runs_on_an_ordinary_pull_request(workflows["tests.yml"]), "tests.yml is not read as running on every pull request"
+    check_no_ordinary_pull_request_builds_an_image(workflows)
+
+
+@pytest.mark.parametrize(
+    "on",
+    [
+        {"pull_request": None, "workflow_dispatch": None},
+        {"pull_request": {"branches": ["main", "develop"]}},
+        {"pull_request": {"branches": ["release/**"]}},
+        {"pull_request": {"paths": ["arrt/Dockerfile"]}},
+        {"pull_request": {"branches-ignore": ["main"]}},
+        {"pull_request_target": None},
+        "pull_request",
+        ["pull_request", "workflow_dispatch"],
+    ],
+    ids=["unfiltered", "develop-named", "a-glob", "a-paths-filter", "ignoring-main", "target", "a-string", "a-list"],
+)
+def test_an_image_build_an_ordinary_pull_request_reaches_is_refused(on):
+    workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    workflow[True] = on
+    with pytest.raises(AssertionError, match=r"image\.yml \(image: Build the test stage\)"):
+        check_no_ordinary_pull_request_builds_an_image({"image.yml": workflow})
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"name": "build", "run": "docker build -t x arrt"},
+        {"name": "build", "run": "set -e\ndocker buildx build --target test arrt"},
+        {"name": "build", "run": "docker compose build"},
+        {"name": "build", "uses": "docker/build-push-action@0000000000000000000000000000000000000000"},
+    ],
+    ids=["docker-build", "buildx", "compose", "the-action"],
+)
+def test_an_image_built_by_the_suites_workflow_is_refused(step):
+    """`tests.yml` runs on every pull request, so an image built there is what the ruling forbids."""
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    workflow["jobs"]["pool"]["steps"].append(step)
+    with pytest.raises(AssertionError, match=r"tests\.yml \(pool: build\)"):
+        check_no_ordinary_pull_request_builds_an_image({"tests.yml": workflow})
 
 
 def check_the_image_triggers(workflow: dict) -> None:
-    """Raise unless a pull request reaches the decide step unfiltered, and the step builds for `main`.
+    """Raise unless image.yml runs on a pull request into `main`, unfiltered by path, and by hand, and on nothing else.
 
-    A `paths` or `branches` filter on the trigger would decide before the step does, so a
-    pull request into `main` that changes no image input would never build, which is what
-    the release build is for (audit-7 S4). The step must also name `main`, and the build
-    steps must wait on its answer.
+    Unfiltered by path because a release builds whatever it changes (audit-7 S4: two of the
+    image's first three reds were tests, which no path filter on the image's inputs watched).
     """
-    pull_request = workflow[True].get("pull_request")
-    assert pull_request is not None or "pull_request" in workflow[True], "image.yml does not run on a pull request"
-    filtered = sorted(set(pull_request or {}) & {"paths", "paths-ignore", "branches", "branches-ignore"})
-    assert not filtered, f"the pull_request trigger carries {filtered}, which decides before the step that builds for main"
-    steps = workflow["jobs"]["image"]["steps"]
-    decide = next((step for step in steps if step.get("id") == "decide"), None)
-    assert decide is not None, "image.yml has no step with id `decide`"
-    assert re.search(r'"\$BASE" = main', decide["run"]), "the decide step does not build for a pull request whose base is main"
-    gated = [step for step in steps if "steps.decide.outputs.build" in str(step.get("if", ""))]
-    assert len(gated) >= 2, "the build steps do not wait on the decide step's answer"
+    triggers = _triggers(workflow)
+    assert set(triggers) == {
+        "pull_request",
+        "workflow_dispatch",
+    }, f"image.yml runs on {sorted(triggers)}; it runs on a pull request into main and by hand, nothing else"
+    config = triggers["pull_request"] or {}
+    assert config.get("branches") == [
+        "main"
+    ], f"image.yml's pull_request trigger has branches {config.get('branches')!r}: a release, `main`, and no other base"
+    filtered = sorted(set(config) - {"branches"})
+    assert not filtered, f"the pull_request trigger carries {filtered}, so a release could merge with no image built"
 
 
-def test_the_image_builds_unfiltered_into_main_and_filtered_elsewhere():
+def test_the_image_builds_for_a_release_and_by_hand():
     check_the_image_triggers(yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8")))
 
 
-def _image_workflow_with(trigger: dict | None = None, run: str | None = None) -> dict:
-    workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
-    if trigger is not None:
-        workflow[True]["pull_request"] = trigger
-    if run is not None:
-        next(step for step in workflow["jobs"]["image"]["steps"] if step.get("id") == "decide")["run"] = run
-    return workflow
-
-
 @pytest.mark.parametrize(
-    "trigger",
-    [{"paths": ["arrt/Dockerfile"]}, {"paths-ignore": ["docs/**"]}, {"branches": ["main"]}, {"branches-ignore": ["main"]}],
-)
-def test_a_trigger_filter_that_would_skip_a_pull_request_into_main_is_refused(trigger):
-    with pytest.raises(AssertionError, match="decides before the step"):
-        check_the_image_triggers(_image_workflow_with(trigger=trigger))
-
-
-def test_a_decide_step_that_does_not_build_for_main_is_refused():
-    with pytest.raises(AssertionError, match="base is main"):
-        check_the_image_triggers(_image_workflow_with(run="echo build=true >> $GITHUB_OUTPUT"))
-
-
-def test_the_image_build_watches_everything_the_image_is_built_from():
-    workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
-    watched = _image_inputs(workflow)
-    copied = _copied_sources(DOCKERFILE.read_text(encoding="utf-8"))
-    assert copied, "no COPY read from arrt/Dockerfile, so this checks nothing"
-
-    check_the_image_filter(copied, watched)
-
-
-def test_a_copied_file_the_filter_misses_is_named():
-    try:
-        check_the_image_filter({"arrt/uv.lock", "arrt/requirements.txt"}, ["arrt/uv.lock"])
-    except AssertionError as e:
-        assert "arrt/requirements.txt" in str(e)
-        assert "arrt/uv.lock'" not in str(e)
-    else:
-        raise AssertionError("a copied file outside the filter passed")
-
-
-def test_copy_sources_are_read_from_the_right_context():
-    dockerfile = "\n".join(
-        [
-            "FROM uv:1 AS uv",
-            "FROM debian AS base",
-            "COPY --from=uv /uv /uvx /usr/local/bin/",
-            "COPY pyproject.toml uv.lock ./",
-            "COPY --from=repo contract /contract",
-        ]
-    )
-    assert _copied_sources(dockerfile) == {"arrt/pyproject.toml", "arrt/uv.lock", "contract"}
-
-
-@pytest.mark.parametrize(
-    "line",
+    "on,refusal",
     [
-        "ADD src ./src",
-        "COPY pyproject.toml \\",
-        "RUN --mount=type=bind,source=x,target=/x true",
-        "  COPY a ./",
-        'COPY ["a", "./"]',
+        ({"pull_request": None, "workflow_dispatch": None}, "branches None"),
+        ({"pull_request": {"branches": ["main"]}}, "nothing else"),
+        ({"pull_request": {"branches": ["main"], "paths": ["arrt/**"]}, "workflow_dispatch": None}, r"carries \['paths'\]"),
+        ({"pull_request": {"branches": ["main", "develop"]}, "workflow_dispatch": None}, "no other base"),
+        ({"pull_request": {"branches": ["main"]}, "workflow_dispatch": None, "push": None}, "nothing else"),
     ],
+    ids=["every-pull-request", "not-by-hand", "path-filtered", "develop-too", "on-push"],
 )
-def test_a_dockerfile_shape_the_reader_cannot_parse_is_refused(line):
-    with pytest.raises(AssertionError, match="does not read|continues"):
-        _copied_sources(f"FROM debian AS base\n{line}\n")
+def test_an_image_trigger_other_than_a_release_and_by_hand_is_refused(on, refusal):
+    workflow = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))
+    workflow[True] = on
+    with pytest.raises(AssertionError, match=refusal):
+        check_the_image_triggers(workflow)
+
+
+def test_the_image_job_builds_on_every_run_it_starts():
+    """With the trigger narrowed, no step may decide not to build: a release builds whatever it changes."""
+    job = yaml.safe_load(IMAGE_WORKFLOW.read_text(encoding="utf-8"))["jobs"]["image"]
+    conditional = [step.get("name") or step.get("uses") for step in job["steps"] if step.get("if", "always()") != "always()"]
+    assert "if" not in job and not conditional, f"the image job's build is conditional: {conditional}"
+
+
+def test_the_required_check_and_the_browsers_mark_keep_their_names():
+    """Branch protection requires the first by name; the second is the browser suite's mark (`tests.yml`)."""
+    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    assert (jobs["pool"]["name"], jobs["browser"]["name"]) == ("Lint, then every suite", "The browser suite ran on the pool")
 
 
 # -- the real-Player test: its own suite, and nowhere else (build-plan-audit-wave-2b, Chunk 29) --

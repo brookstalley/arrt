@@ -50,8 +50,11 @@
 #   CI"), so it is the version the pool runs and the CI key is the only credential.
 # - Not on a push to `main` or `develop`: the pull request already ran this on the tree it
 #   merges. The drift-freshness check, which only makes sense on `main`, has its own file.
-# - The server image's test target is `image.yml`, and runs only when what the image is
-#   built from changes.
+# - The server image's test target is `image.yml`, and runs only on a pull request into
+#   `main` and by hand: this workflow builds no image (build-plan-audit-wave-2b, Chunk 56).
+#   What the image caught that nothing else did, a test reading a file the image does not
+#   carry, is the governance suite's `tests/test_the_image_carries_what_tests_read.py`, so
+#   it runs here, on the pool, on every pull request.
 name: tests
 
 on:
@@ -169,6 +172,10 @@ jobs:
         # A suite that skipped itself reports green. This reads the record of where the suites
         # ran and the reports they wrote, and fails on any skip that is not an expected
         # failure, on a suite that ran nothing, and on a fallback the record does not earn.
+        # It does not fail on a failed test: after a fallback it passes over a report that
+        # holds one (seen when Chunk 52 was integrated). What turns the job red then is the
+        # fallback step's own exit code, so no fallback step, nor the pool step nor this one,
+        # may carry `continue-on-error` or swallow its code (`tests/test_ci_fallback.py`).
         if: always()
         timeout-minutes: 1
         run: |
