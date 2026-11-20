@@ -397,6 +397,7 @@ class AcquisitionQueue:
         *,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         loaded_at: datetime | None = None,
+        museum_of: Callable[[str], str] = museum_name,
     ) -> None:
         self._store = store
         self._catalogue = catalogue
@@ -407,6 +408,12 @@ class AcquisitionQueue:
         #: on before it is due again (`RetryRule.NEXT_LOAD`). The queue is made
         #: once the plugins are loaded, so its making stands for their load.
         self._loaded_at = loaded_at if loaded_at is not None else clock()
+        #: The museum a plugin is named by in a failure cause's sentence: the
+        #: wiring hands in the one owner a surface's `museum` beside the cause
+        #: quotes (`HealthService.museum_of`, from the plugin's own reading), so
+        #: the sentence and the field cannot name one plugin two ways. The
+        #: default, the latest load's names, is for a queue built by hand.
+        self._museum_of = museum_of
         #: Set by `nudge`, so a waiting loop runs a pass now rather than later.
         self._wake = threading.Event()
         #: One pass at a time: a nudge arriving mid-pass runs the next one.
@@ -618,7 +625,7 @@ class AcquisitionQueue:
                     pause=pause,
                     wait=self._wait(work.queued, now, artwork.wikidata_qid),
                 )
-                entries.append(_entry(artwork.title, state))
+                entries.append(_entry(artwork.title, state, self._museum_of))
         return QueueListing(pause=pause, entries=tuple(entries))
 
     def failed_states(self) -> tuple[AcquisitionState, ...]:
@@ -1064,18 +1071,19 @@ def _unnamed(text: str, artwork_id: str, title: str) -> str:
     return _renamed(text, artwork_id, title, first="The work", rest="the work")
 
 
-def _entry(title: str, state: AcquisitionState) -> QueueEntry:
+def _entry(title: str, state: AcquisitionState, museum_of: Callable[[str], str]) -> QueueEntry:
     """One work's place, named by its title, with its cause when it failed or was given up on.
 
     A classified fetch's cause is its outcome's words at its plugin
     (`OUTCOME_CAUSES`), whatever the holder's own words were, so one cause is
-    one group however each holder phrased it (#318).
+    one group however each holder phrased it (#318). The plugin's museum is
+    `museum_of`'s: the queue's own (`AcquisitionQueue._museum_of`).
     """
     artwork_id = state.artwork_id
     cause = None
     if state.phase in (AcquisitionPhase.FAILED, AcquisitionPhase.GAVE_UP):
         if state.outcome is not None and state.outcome in OUTCOME_CAUSES:
-            cause = OUTCOME_CAUSES[state.outcome].format(museum=museum_name(state.plugin or "unnamed"))
+            cause = OUTCOME_CAUSES[state.outcome].format(museum=museum_of(state.plugin or "unnamed"))
         else:
             cause = _unnamed(state.detail, artwork_id, title) if state.detail else _NO_REASON
     detail = None if state.detail is None else _named(state.detail, artwork_id, title)
