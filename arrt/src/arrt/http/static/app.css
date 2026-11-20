@@ -2300,7 +2300,6 @@ section.wall > * {
   background: var(--good-quiet);
 }
 
-.wall-badge-unassigned,
 .wall-badge-no_screen,
 .wall-badge-silent {
   color: var(--warn);

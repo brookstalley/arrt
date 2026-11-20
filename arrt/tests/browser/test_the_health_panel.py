@@ -78,6 +78,7 @@ def test_the_panel_names_every_wall_it_is_reporting_on(ui, settings, two_walls):
 def _on_a_player(services, *walls) -> None:
     """Put each wall on one of a Player's screens, as Walls › Edit… does: only then is a report expected of it."""
     player = services.clients.add_client(name="The Pi in the hall")
+    services.access.issue(player.id)
     for index, wall in enumerate(walls, start=1):
         services.clients.assign_wall(wall.id, client_id=player.id, output=f"hdmi-a-{index}")
 
@@ -110,16 +111,25 @@ def test_the_summary_never_names_a_wall_no_player_shows_as_quiet(ui, settings, t
 
     expect(ui.view).to_contain_text("No Player shows a wall yet, so there is no report to read.", use_inner_text=True)
     expect(ui.view).not_to_contain_text(f"{study.name!r} has not reported", use_inner_text=True)
+    # Its own panel says the step, in the contract's word, and the top bar names nothing.
+    panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{study.name}')"))
+    expect(panel.locator(".wall-state")).to_have_text(re.compile(r"No Player yet$"), use_inner_text=True)
+    # Anchored on what the top bar does say of this deployment (no backup has run).
+    expect(ui.page.locator("#status")).to_contain_text("The catalogue has never been backed up", use_inner_text=True)
+    expect(ui.page.locator("#status")).not_to_contain_text(study.name, use_inner_text=True)
 
 
-def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, two_walls):
+def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, services, two_walls):
     """Absent is a true reading, and never a fault or a colour.
 
     A wall no display has been pointed at yet is the state of every second room
     between recording it and configuring the device, and it must read as that
-    rather than as something broken.
+    rather than as something broken: `unassigned`, worded "No Player yet"
+    (`vocabulary.json`), a setup step. The living room is on a Player, since only
+    a Player reports, and its report is four days old.
     """
     living_room, study = two_walls
+    _on_a_player(services, living_room)
     _reported(settings, living_room, ago_seconds=4 * 24 * 60 * 60)
 
     ui.open("#health")
@@ -128,8 +138,15 @@ def test_a_wall_that_has_never_reported_says_so_without_a_verdict(ui, settings, 
     ui.page.wait_for_selector(f".panel h2:has-text('{study.name}')")
 
     # In the household's words (audit 2026-11-19, F5): a Player reports for a
-    # wall; "heartbeat" and "display" for the Player are retired.
-    expect(ui.view).to_contain_text("No Player has ever reported for this wall.", use_inner_text=True)
+    # wall; "heartbeat" and "display" for the Player are retired. It read "No
+    # Player has ever reported for this wall." until audit wave 2b (chunk 31):
+    # that is still said of a wall a Player shows that has never reported
+    # (`test_the_sidebar.py`), and a wall no Player shows has its own state.
+    panel = ui.page.locator(".wall-reading", has=ui.page.locator(f"h2:has-text('{study.name}')"))
+    expect(panel.locator(".wall-state")).to_have_text(re.compile(r"^○\s*No Player yet$"), use_inner_text=True)
+    expect(panel.locator(".wall-state")).to_have_class(re.compile(r"\bsetup\b"))
+    expect(panel).to_contain_text("No Player shows this wall yet, so there is no report to read.", use_inner_text=True)
+    expect(panel).not_to_contain_text("has not reported", use_inner_text=True)
     # The age in the unit a person reads it in, on the wall that *did* report.
     expect(ui.view).to_contain_text("4 days ago", use_inner_text=True)
     # Never a green dot. The panel states what was found and how long ago; whether

@@ -41,6 +41,7 @@ def the_wall(services):
 def hall(services, settings):
     """A Player that has reported its two screens, and shows no wall yet."""
     client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
     document = REPORT | {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
     client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(document), encoding="utf-8")
     return client
@@ -135,7 +136,9 @@ def test_a_placement_the_server_cannot_confirm_is_said_in_the_dialog_which_stays
     ruling 7 of 2026-10-27 took assigning off that page.
     """
     stamp = {"reported_at": datetime.now(UTC).isoformat(timespec="seconds")}
-    for client in (hall, services.clients.add_client(name="Study Mac")):
+    study_mac = services.clients.add_client(name="Study Mac")
+    services.access.issue(study_mac.id)
+    for client in (hall, study_mac):
         document = stamp | {"outputs": [*REPORT["outputs"], FRAME]}
         client_heartbeat_path_in(settings.art_root, client.id).write_text(json.dumps(document), encoding="utf-8")
         services.clients.record_heartbeat(client.id, document)

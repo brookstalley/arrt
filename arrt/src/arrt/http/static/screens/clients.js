@@ -41,7 +41,8 @@ import { confirmAct } from "../core/confirm.js";
 import { agree, counted, listed } from "../core/counting.js";
 import { dated } from "../core/dates.js";
 import { openPanel } from "../core/editing.js";
-import { isStale, screenCell, screenName } from "../core/outputs.js";
+import { outputCell, screenName } from "../core/outputs.js";
+import { playerStateGlyph, playerStateWord } from "../core/states.js";
 import { el, emptyState, render } from "../core/render.js";
 import { wallLink } from "../core/places.js";
 import { refresh } from "../core/router.js";
@@ -136,7 +137,7 @@ function playersTable(players, asked, wallNames) {
               "data-arrive": asked === player.client_id,
             },
             [
-              cell("Player", [el("span", { class: "player-name", text: player.name })]),
+              cell("Player", [el("span", { class: "player-name", text: player.name }), settingsLink(player)]),
               cell("Status", [statusCell(player)]),
               cell("Screens", [screensCell(player)]),
               cell("Label panel", [labelCell(player, wallNames)]),
@@ -149,97 +150,131 @@ function playersTable(players, asked, wallNames) {
   ]);
 }
 
-/* Whether the Player is reporting, in a glyph and a word, and the age of what
- * it last said. A Player with no token is admitted nowhere, so that is its
- * state whatever an old report says. */
+/* Whether the Player is reporting, in a glyph and a word, and what that means
+ * for it: the Player's state as the server states it (`state`,
+ * `programming/player_state.py`), in the contract's words (`core/states.js`).
+ * Nothing here reads the report's age or its problem to decide a state: the
+ * server has, against the contract's threshold, so Players, Walls and Status
+ * cannot disagree about one Player. A Player with no token, or no report yet,
+ * is a step of setting it up, drawn as one and never as a fault. */
 function statusOf(player) {
-  const beat = player.heartbeat;
-  if (!player.token_issued_at) return { glyph: GLYPHS.none, word: "No token", more: "Admitted nowhere until one is issued, in Edit…" };
+  const state = player.state ? player.state.state : null;
+  const status = { glyph: playerStateGlyph(state), word: playerStateWord(state, player.state ? player.state.since : null), more: null, state };
+  if (state === "no_token") return { ...status, more: "Admitted nowhere until one is issued, in Edit…" };
   // A token and no report yet: the page is waiting for it, and the words say so
   // and what it waits on, rather than "Never reported", which read as a fault
   // on the evening the Player was added (audit 2026-11-19, finding 2).
-  if (beat.absent) {
-    return {
-      // Waiting on the machine, which is ◌'s one meaning (`core/glyphs.js`).
-      glyph: GLYPHS.waiting,
-      word: "Waiting for it to report",
-      more: "Once it is running with its token, it reports here within a minute or so.",
-      waiting: true,
-    };
+  if (state === "awaiting_report") {
+    return { ...status, more: "Once it is running with its token, it reports here within a minute or so.", waiting: true };
   }
-  if (beat.problem) return { glyph: GLYPHS.problem, word: "Report unreadable", more: beat.description };
-  if (isStale(beat)) return { glyph: GLYPHS.waiting, word: `Not heard from since ${dated(beat.reported_at)}`, more: null };
-  return { glyph: GLYPHS.good, word: "Reporting", more: beat.description, reporting: true };
+  if (state === "report_unreadable") return { ...status, more: player.heartbeat.description };
+  if (state === "reporting") return { ...status, more: player.heartbeat.description, reporting: true };
+  return status;
 }
 
 function statusCell(player) {
   const status = statusOf(player);
-  return el("div", { class: "player-status" }, [
+  return el("div", { class: "player-status", "data-state": status.state || "" }, [
     el("span", { text: `${status.glyph} ${status.word}` }),
     status.more ? el("span", { class: "muted", text: status.more }) : null,
   ]);
 }
 
-/* Each screen the Player reported, its state, and the wall on it; and a wall
- * set on a screen the report does not list, which still shows nothing there.
- * Said in a sentence where there is nothing to list. */
-function screensCell(player) {
+/* The address of the Player's own settings page, as a link, only where the
+ * server served one (`settings_url`, which it serves only when it passes
+ * `client-heartbeat.v1`'s check, and null otherwise). Set as the `href` exactly
+ * as given, never assembled or mended here; its words are this page's, set as
+ * text, and it opens no reference back to this page (`rel`). */
+function settingsLink(player) {
+  if (typeof player.settings_url !== "string" || !player.settings_url) return null;
+  return el("a", {
+    class: "link player-settings",
+    href: player.settings_url,
+    rel: "noopener noreferrer",
+    text: "Its settings page",
+    "aria-label": `${player.name}'s settings page`,
+  });
+}
+
+/* A Player's outputs of one kind, as the server states them, in its order. */
+function outputsOf(player, kind) {
+  const outputs = player.state && Array.isArray(player.state.outputs) ? player.state.outputs : [];
+  return outputs.filter((output) => output.kind === kind);
+}
+
+/* What the Player's last readable report said of each output, by name: its
+ * size, and whether it was connected, for an output the server no longer
+ * speaks of as now (`outputCell`'s "was"). Facts of the report, never a state. */
+function reportedOf(player, field) {
   const beat = player.heartbeat;
-  const readable = !beat.absent && !beat.problem;
-  const reported = readable ? beat.outputs : [];
-  const stale = isStale(beat);
+  const readable = beat && !beat.absent && !beat.problem;
+  return new Map((readable ? beat[field] || [] : []).map((each) => [each.name, each]));
+}
+
+/* Where there is no output of a kind to list, why, from the Player's state:
+ * `none` (it reported none), `unreadable`, `stale`, or null (not reported yet). */
+function noneWhy(player) {
+  const state = player.state ? player.state.state : null;
+  if (state === "reporting") return "none";
+  if (state === "report_unreadable") return "unreadable";
+  if (state === "not_heard_from") return "stale";
+  return null;
+}
+
+const NO_SCREEN_WORDS = {
+  none: "It reported no screen.",
+  unreadable: "Not known: its last report could not be read.",
+  stale: "Not known now: it has not been heard from.",
+};
+
+/* Each screen the Player has, its state, and the wall on it; and a wall set on
+ * a screen the report does not list, which still shows nothing there. Said in
+ * a sentence where there is nothing to list. */
+function screensCell(player) {
   const wallsOn = new Map();
   for (const wall of player.walls) wallsOn.set(wall.output, [...(wallsOn.get(wall.output) || []), wall]);
-  const names = [...new Set([...reported.map((each) => each.name), ...wallsOn.keys()])];
-  if (!names.length) {
-    const why = beat.absent
-      ? "Not reported yet."
-      : beat.problem
-        ? "Not known: its last report could not be read."
-        : "It reported no screen.";
-    return el("p", { class: "muted", text: why });
-  }
-  const byName = new Map(reported.map((each) => [each.name, each]));
+  const states = new Map(outputsOf(player, "display").map((output) => [output.name, output]));
+  const names = [...new Set([...states.keys(), ...wallsOn.keys()])];
+  if (!names.length) return el("p", { class: "muted", text: NO_SCREEN_WORDS[noneWhy(player)] || "Not reported yet." });
+  const reported = reportedOf(player, "outputs");
   return el(
     "ul",
     { class: "player-list" },
     names.map((name) => {
-      const output = byName.get(name);
-      const size = output && output.screen ? `, ${output.screen[0]} × ${output.screen[1]}` : "";
-      const state = output ? screenCell(output, stale) : `${GLYPHS.waiting} not in its last report`;
+      const said = reported.get(name);
+      const output = states.get(name) || { kind: "display", name, state: "awaiting_report", connected: null };
+      const size = said && said.screen ? `, ${said.screen[0]} × ${said.screen[1]}` : "";
       const walls = wallsOn.get(name) || [];
       return el("li", {}, [
-        el("span", { text: `${screenName(name, output ? output.kind : null)}${size} · ${state}` }),
+        el("span", { text: `${screenName(name, said ? said.kind : null)}${size} · ${outputCell(output, player, said ? said.connected : null)}` }),
         el("span", {}, walls.length ? ["Shows ", ...joined(walls.map((wall) => wallLink(wall.wall_id, wall.name)))] : ["No wall"]),
       ]);
     }),
   );
 }
 
-/* Each label panel, whether it is answering, and the wall it captions. Named by
- * its port only where the Player has several, as Walls names it. */
+/* Each label panel, its state, and the wall it captions: any number of them,
+ * on a Player with screens or with none (the owner's ruling 8 of 2026-11-19).
+ * Named by its port only where the Player has several, as Walls names it. */
 function labelCell(player, wallNames) {
-  const beat = player.heartbeat;
-  const readable = !beat.absent && !beat.problem;
-  const reported = readable ? beat.label_outputs || [] : [];
-  const stale = isStale(beat);
   const records = new Map(player.label_outputs.map((record) => [record.output, record]));
-  const names = [...new Set([...reported.map((each) => each.name), ...records.keys()])];
+  const states = new Map(outputsOf(player, "label").map((output) => [output.name, output]));
+  const names = [...new Set([...states.keys(), ...records.keys()])];
   if (!names.length) {
-    return el("p", { class: "muted", text: readable ? "None reported." : "Not known until it reports." });
+    return el("p", { class: "muted", text: noneWhy(player) === "none" ? "None reported." : "Not known until it reports." });
   }
-  const byName = new Map(reported.map((each) => [each.name, each]));
+  const reported = reportedOf(player, "label_outputs");
   return el(
     "ul",
     { class: "player-list" },
     names.map((name) => {
-      const each = byName.get(name);
+      const said = reported.get(name);
       const record = records.get(name);
+      const output = states.get(name) || { kind: "label", name, state: "awaiting_report", connected: null };
       const port = names.length > 1 ? `${name} · ` : "";
-      const size = each && each.size ? `, ${each.size[0]} × ${each.size[1]}` : "";
-      const state = each ? panelState(each, stale) : `${GLYPHS.waiting} not in its last report`;
+      const size = said && said.size ? `, ${said.size[0]} × ${said.size[1]}` : "";
       return el("li", {}, [
-        el("span", { text: `${port}${state}${size}` }),
+        el("span", { text: `${port}${outputCell(output, player, said ? said.connected : null)}${size}` }),
         el("span", {}, record && record.wall_id ? ["Captions ", captionedWall(record.wall_id, wallNames)] : ["No wall"]),
       ]);
     }),
@@ -251,13 +286,6 @@ function labelCell(player, wallNames) {
  * as a link with no words in it. */
 function captionedWall(wallId, wallNames) {
   return wallNames.has(wallId) ? wallLink(wallId, wallNames.get(wallId)) : "a wall this page could not name";
-}
-
-/* A panel's state. Not answering is a panel that would not open or whose last
- * draw failed, which is a fault, unlike a television switched off. */
-function panelState(output, stale) {
-  if (stale) return `${GLYPHS.waiting} not known now (was ${output.connected ? "answering" : "not answering"})`;
-  return output.connected ? `${GLYPHS.good} answering` : `${GLYPHS.problem} not answering`;
 }
 
 function joined(nodes) {

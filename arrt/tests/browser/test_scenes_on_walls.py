@@ -139,6 +139,7 @@ def test_a_wall_somebody_is_watching_television_on_says_it_is_waiting(ui, two_wa
     display = services.display
     # On a client's output, as a real wall is: a wall on no screen is unassigned, not in use.
     client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
     services.clients.assign_wall(walls["The wall"], client_id=client.id, output="hdmi-a-1")
     draft = display.draft_scene().scene
     display.pin_scene(draft.id, walls["The wall"], persistence.id)
@@ -239,6 +240,7 @@ def test_a_wall_the_scene_reached_says_scene_in_its_badge_and_one_not_reached_do
     walls, persistence, golconda = two_walls
     display = services.display
     client = services.clients.add_client(name="Hall Pi")
+    services.access.issue(client.id)
     services.clients.assign_wall(walls["The wall"], client_id=client.id, output="hdmi-a-1")
     draft = display.draft_scene().scene
     display.pin_scene(draft.id, walls["The wall"], persistence.id)
