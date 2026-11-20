@@ -6,7 +6,7 @@ date: 2026-11-20
 title: "The audit's second wave, second part: one story about the walls and Players, the plugin host's answers kept apart, hang on any selection, spend that says what it does not know, not found as 404, and the MCP surface's one break"
 ---
 This is the second part of the audit's second wave (`build-plan-audit-wave-2b.md`,
-chunks 28 to 65, 55 the integration). Where the first part changed what is checked, this
+chunks 28 to 66, 55 the integration). Where the first part changed what is checked, this
 part changes behaviour: what Status, Walls and the top bar say, what the acquisition queue
 does with each answer a plugin gives, what a failed paid call is recorded as, which
 status `/api` answers for a thing that is not there, and where an agent finds every act on
@@ -41,8 +41,12 @@ walls it shows are one trouble, named on the Player. **One step for one cause** 
 Player with no token, or awaiting its first report, is one step naming the walls that wait
 for it, and those walls make no step and no trouble; a waiting wall's `display_state`
 stays `silent` (a new state would be a contract change) and `GET /api/health` says
-beside it whom it waits for (`waiting_for`). A wall waits only while nothing was ever
-written for it; one whose reports came and stopped is a trouble. Works the queue holds as failed are a
+beside it whom it waits for (`waiting_for`), as `GET /api/walls`, MCP's `walls` and
+`status` do since 66, from one function (`walls_waiting`). The question asked before a
+hang says the server's words for a waiting wall ("The hall waits for The living room Pi,
+which has no token yet.") and still says everyone sees a wall a Player shows change (66).
+A wall waits only while nothing was ever written for it; one whose reports came and
+stopped is a trouble. Works the queue holds as failed are a
 trouble too, with their count and the newest's age, linking to Queue (`failed_fetches`;
 the instant is the queue's new `failed_at`, and a failure from before it reads "not
 known", never guessed). `GET /api/clients` serves each Player's state and its settings
@@ -75,7 +79,10 @@ cost is unknown (`spend_records.cost_status`); every figure that sums the ledger
 those calls apart, worded by one function as "at least $X, and N calls whose cost is
 unknown", on runs, months, the unattended allowance and Watches. Since 62 every cost a
 person reads is those words, shown as the server sent them, so a cost under a dollar is
-said to a hundredth of a cent ("$0.0024" where a screen said "under $0.01"); Ask
+said to a hundredth of a cent ("$0.0024" where a screen said "under $0.01"), something
+spent below that reads "under $0.0001" (beside unknown calls, "more than $0.00, and N
+calls whose cost is unknown"), never "$0.00", and a figure from a thousand dollars is
+grouped ("$1,234.56") (66); Ask
 records a call of unknown cost as unknown, never a known zero; a guard
 (`arrt/tests/unit/test_one_cost_formatter.py`) refuses a dollar formatted in a screen.
 System › Spend
@@ -215,13 +222,21 @@ prototype-scale test's `build_large_catalogue`; the browser tests that seed a ti
 `datetime.now`; about 28 client strings that say "your library" (the owner is asked
 whether the Library's capital belongs there too); the run's not-found page drawing the
 router's words; `walls.js` joining `waiting_for` from `/api/health` rather than reading it
-on the walls answer; and a guard for the fixtures that write a wall's report, which chunk
+on the walls answer, which carries it since 66; the hang question's way in from the Work
+page, whose waiting-wall words have a test still being added; and a guard for the fixtures that write a wall's report, which chunk
 63 measured (about thirty lines, two exemptions and a marker) and did not add.
 
-**For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`; one
-thing that ruling settles is not done: `.github/workflows/api-drift.yml` still schedules the
-paid OpenRouter probe on the 1st of each month, where the ruling says no workflow reaches a
-paid service, and #150 stays open until it stops): Q1 (the four norm texts in `project-preferences.md`, and with it the
+**No workflow holds a model key** (66), as the owner's ruling of 2026-11-20 says: CI makes
+no paid call. `api-drift.yml` has no paid job, no monthly schedule and no input that asks
+for one; `drift-freshness.yml` watches the free tier alone; and
+`tests/test_ci_makes_no_paid_call.py` allows CI exactly the secrets it names (the pool's
+client key) and fails by name for any other a workflow reads, on any event. The paid
+probe is run by hand, `cd arrt && uv run pytest tests/live -m live_api -n0`. That answers
+the standing question of #150 as the ruling answered it; the issue, opened by the drift
+job, asks to be closed once someone has reconciled the findings against what the API
+returns now, which is a hand run's to settle, so it is not closed here.
+
+**For the owner** (Q2 and Q4 were ruled on 2026-11-20, `.prawduct/owner-rulings.md`): Q1 (the four norm texts in `project-preferences.md`, and with it the
 forbidden-columns check in `test_catalogue_store.py`), and Q3 (which household settings are set
 where). The host executor and the one scratch pull request were ruled (rulings 1 and 3 of
 "six answers"). **An assumption to see at that scratch pull request:** that CI's key
@@ -237,6 +252,8 @@ waits for the real-Player pair and that a fork's pull request can never pass it;
 `live_binary` dezoomify probe on this machine; one manual `drift-freshness.yml` dispatch
 after this reaches `main`; the real-Player test's docker path, first seen on the release's
 pull request into `main`; the one scratch pull request for the fallback, closed unmerged;
+deleting the repository's `OPENROUTER_API_KEY` secret on GitHub, which nothing reads any
+more; the paid probe by hand when the OpenRouter findings are to be re-checked (#150);
 and the entries in `.prawduct/operator-verification.md`.
 
 ## Consumer note
@@ -295,7 +312,9 @@ What an agent can now ask, all additive: `art_display(action='status')` answers 
 counts; a run, the unattended allowance and a Watch carry `summary`, their cost in words
 with any unknown calls counted inside them, and `art_discovery(action='spend')` and
 `art_spend`'s totals carry `unknown_cost_calls` beside it. `art_watches`' delete is
-described as forgetting a Watch. A refusal names the Library, not the catalogue.
+described as forgetting a Watch. `art_display`'s `walls` and `status` say whom a wall
+waits for (`waiting_for`), as the walls answer and Status do. A refusal names the
+Library, not the catalogue.
 
 **For Arrt Player: nothing to change now.** Contract **1.3.0 is not released**; `contract-v1.3.0`
 is cut after this merges. When the Player moves its pin it must give a reason to each new
