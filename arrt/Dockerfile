@@ -92,6 +92,9 @@ COPY --from=repo .env.example /.env.example
 # Where the tests look for it: three levels above a test file, which in the
 # image is the filesystem root.
 COPY --from=repo all.json /all.json
+# The plugin author's guide, whose tables `test_source_plugins.py` holds to the
+# code; read the same way, three levels above the test file.
+COPY --from=repo docs/source-plugins.md /docs/source-plugins.md
 # As the app stage's user, not root: root reads a file whatever its mode, so the
 # tests that make a file unreadable to prove it is reported would fail here, and
 # a suite run as root would vouch for permissions the app never has. It owns

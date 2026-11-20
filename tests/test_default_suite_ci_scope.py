@@ -226,7 +226,8 @@ DOCKERFILE = REPO / "arrt" / "Dockerfile"
 #: What the image copies in that `image.yml` deliberately does not watch, because the
 #: pool's suites run it on every pull request: the server's code, tests and tools, the
 #: contract package's source and the documents its tests read (`.env.example` is the
-#: UX walk's tests'). The contract's own dependency declarations are watched, since
+#: UX walk's tests'; `docs/source-plugins.md` the plugin guide `test_source_plugins.py`
+#: holds to the code). The contract's own dependency declarations are watched, since
 #: they change what the image installs.
 _RUN_BY_THE_POOL = {
     "arrt/src",
@@ -236,6 +237,7 @@ _RUN_BY_THE_POOL = {
     ".prawduct/artifacts/player-contract.md",
     "all.json",
     ".env.example",
+    "docs/source-plugins.md",
 }
 
 
