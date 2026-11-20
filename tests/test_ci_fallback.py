@@ -4,7 +4,8 @@ Ruling 4 of 2026-11-19 makes CI required to merge once the pool has a fallback, 
 the 2026-11-18 ruling keeps the suites off GitHub's runners. The two meet in
 `.github/scripts/pool_or_fallback.py`, which `tests.yml` calls: it retries a pool that
 cannot answer for ten minutes, then sends the job to the fallback steps, which run
-every suite needing no labelled runner here, without the browser suite.
+every suite needing no labelled runner here, without the browser suite, and without
+the real-Player suite, the pool's alone by the owner's ruling of 2026-11-20.
 
 What the old `--no-fallback`-only job guaranteed without saying so, and what holds it now:
 
@@ -208,9 +209,10 @@ def test_a_pool_unavailable_for_ten_minutes_falls_back_without_the_browser_suite
     assert (decision.mode, decision.exit_code) == ("fallback", 0)
     assert sum(slept) == pof.BUDGET_S and slept[:4] == [15, 30, 60, 120]
     assert decision.reports == {s: f"fallback/{s}.xml" for s in ("governance", "curation", "contract")}
-    assert list(decision.not_run) == ["browser"]
+    assert sorted(decision.not_run) == ["browser", "player"]
     assert pof.fallback_is_earned(decision.attempts)
-    assert "without the browser suite" in said[-1]
+    assert "without the browser and real-Player suites" in said[-1]
+    assert said[-1].endswith("not run: browser, player.")
 
 
 def test_a_console_that_answers_503_for_ten_minutes_falls_back_and_never_runs(tmp_path):
@@ -346,11 +348,32 @@ def test_a_record_holding_a_verdict_never_earns_the_fallback(tmp_path):
     assert not pof.fallback_is_earned([])
 
 
-def test_the_fallback_plan_is_the_manifest_less_the_suites_that_need_a_labelled_runner():
+def test_the_fallback_plan_is_the_manifest_less_the_suites_that_need_a_labelled_runner_or_are_the_pools_alone():
     reports, not_run = pof.fallback_plan(MANIFEST)
+    labelled = {name for name, suite in MANIFEST["suites"].items() if suite.get("requires")}
 
     assert set(reports) | set(not_run) == set(MANIFEST["suites"])
-    assert set(not_run) == {name for name, suite in MANIFEST["suites"].items() if suite.get("requires")} == {"browser"}
+    assert labelled == {"browser"}
+    assert set(not_run) == labelled | set(pof.POOL_ONLY) == {"browser", "player"}
+    assert not_run["player"] == pof.POOL_ONLY["player"] and "2026-11-20" in not_run["player"]
+
+
+def test_the_suites_the_pool_keeps_to_itself_are_suites_it_would_otherwise_run_here():
+    """A name in `POOL_ONLY` the manifest no longer declares, or that a `requires` already keeps off this runner, is stale."""
+    for name in pof.POOL_ONLY:
+        assert name in MANIFEST["suites"], f"POOL_ONLY names {name!r}, which .testament.toml does not declare"
+        assert not MANIFEST["suites"][name].get("requires"), f"{name!r} needs a labelled runner; POOL_ONLY adds nothing"
+
+
+def test_the_words_for_the_suites_left_out_are_the_suites_the_fallback_leaves_out():
+    """`LEFT_OUT` quotes the manifest and `POOL_ONLY`: every headline and the second job's message name exactly those."""
+    _, not_run = pof.fallback_plan(MANIFEST)
+
+    assert sorted(pof.LEFT_OUT) == sorted(not_run)
+    for name, words in pof.LEFT_OUT.items():
+        for text in (pof.HEADLINES["pool"], pof.HEADLINES["fallback"], pof.BROWSER_NO_VERDICT):
+            assert words in text, f"{text!r} does not name the {name} suite"
+        assert f"--suite {name}" in pof.BROWSER_NO_VERDICT
 
 
 # -- the summary --------------------------------------------------------------------------
@@ -374,17 +397,19 @@ def test_the_summary_opens_with_the_pool_when_the_pool_ran(tmp_path):
     decision, _, _ = drive(ScriptedPool([install()], [run_attempt(FAILED, tmp=tmp_path)]))
     lines, notes = _summary(tmp_path, decision, FAILED)
 
-    assert lines[0] == "### Ran on the pool: every suite, the browser suite included."
+    assert lines[0] == "### Ran on the pool: every suite, the browser and real-Player suites included."
     assert any("tests/test_red.py::test_red" in line for line in lines)
     assert notes and notes[0].startswith("::error title=tests/test_red.py%3A%3Atest_red::")
 
 
-def test_the_summary_opens_with_the_fallback_and_names_the_browser_suite_as_not_run(tmp_path):
+def test_the_summary_opens_with_the_fallback_and_names_the_browser_and_real_player_suites_as_not_run(tmp_path):
     decision, _, _ = drive(ScriptedPool([CONSOLE_503], []))
     lines, _ = _summary(tmp_path, decision, reports=("governance", "curation", "contract"))
 
-    assert lines[0] == "### The pool was unavailable; ran here, on GitHub's runner, without the browser suite."
+    assert lines[0] == "### The pool was unavailable; ran here, on GitHub's runner, without the browser and real-Player suites."
     assert any(line.startswith("| **not run** | the browser suite") for line in lines)
+    assert f"| **not run** | the player suite: {pof.POOL_ONLY['player']}. |" in lines
+    assert not any(line.startswith("| GitHub's runner | the player suite") for line in lines)
     for suite in ("governance", "curation", "contract"):
         assert f"| GitHub's runner | the {suite} suite: 3 collected, 0 failed, 0 errored, 0 skipped |" in lines
     assert any("HTTP 503" in line for line in lines)
@@ -552,6 +577,32 @@ def test_a_manifest_suite_the_fallback_forgets_is_refused():
         check_the_fallback(_workflow(), manifest)
 
 
+#: The fallback step the real-Player suite would need, by the project's command: what the
+#: owner's ruling of 2026-11-20 keeps off GitHub's runner.
+_A_PLAYER_STEP = {
+    "name": "Fallback: the real-Player suite, here",
+    "if": FALLBACK_IF,
+    "timeout-minutes": 10,
+    "run": 'OUT="$RUNNER_TEMP/$OUT_DIR"\ncd arrt\nuv run --frozen pytest tests/system/test_a_real_player.py -m player_e2e '
+    '-n 0 -q -o junit_suite_name=player --junitxml "$OUT/fallback/player.xml"\n',
+}
+
+
+def test_a_fallback_that_runs_the_real_player_suite_on_githubs_runner_is_refused():
+    workflow = _workflow()
+    steps = _steps(workflow)
+    steps.insert(steps.index(_fallback_steps(workflow)[-1]) + 1, _A_PLAYER_STEP)
+    with pytest.raises(AssertionError, match="writes a report for 'player', which is no suite the fallback runs"):
+        check_the_fallback(workflow, MANIFEST)
+
+
+def test_without_the_ruling_the_manifests_real_player_suite_would_be_owed_a_fallback_step(monkeypatch):
+    """The other side of the refusal above: what `POOL_ONLY` holds back is a suite the workflow would otherwise owe."""
+    monkeypatch.setattr(pof, "POOL_ONLY", {})
+    with pytest.raises(AssertionError, match=r"the manifest asks for \['contract', 'curation', 'governance', 'player'\]"):
+        check_the_fallback(_workflow(), MANIFEST)
+
+
 # -- time: no attempt outlives the step (finding 1 of the wave-2 boundary review) ------------
 
 
@@ -672,6 +723,106 @@ def test_progress_is_read_in_both_shapes_the_client_prints(shape):
     assert progress.requests == [accepted.split("request ")[1].split()[0]]
     assert progress.collected == int(collected.split("collected ")[1].split()[0])
     assert progress.failures == [failed.split("FAILED")[1].split()[0]]
+
+
+#: The first lines `testament run --json=summary --junit-xml … --no-fallback` printed with the
+#: five suites of Chunk 29's manifest, copied from the observed run of 2026-11-19 (testament
+#: 0.58.0, requests 96f5041e…, e861507f…, b08c7d62…, 4deff0eb…, 1a644963…), two of its nine
+#: FAILED lines kept, the runner's name replaced. Before the real-Player suite, a pull
+#: request's run printed four `accepted` lines; it prints five.
+OBSERVED_FIVE_SUITES = """\
+[browser] request b08c7d620c414c659e3bde6d33b6dc18 accepted for arrt at tree 1cf5b8ec5e36
+[player] request 4deff0ebac4348fcb9ebe17fe460e9c5 accepted for arrt at tree 1cf5b8ec5e36
+[governance] request 96f5041e28f4441b880ae59922e241d9 accepted for arrt at tree 1cf5b8ec5e36
+[curation] request e861507f10c3443b84eb8122fb40fb4f accepted for arrt at tree 1cf5b8ec5e36
+[contract] request 1a64496325204139a6cf35e1eaecf9b3 accepted for arrt at tree 1cf5b8ec5e36
+[governance] collected 841 items
+[contract] collected 474 items
+[player] collected 1 items
+[governance] FAILED   tests/test_ci_fallback.py::test_the_workflow_falls_back_only_on_the_decision  [runner-a]
+[governance] FAILED   tests/test_assert_tests_ran.py::test_a_pool_run_with_every_suite_passes  [runner-a]
+[curation] collected 6580 items
+[curation] … 1000 results
+[curation] … 2000 results
+[browser] collected 1582 items
+[curation] … 3000 results
+[browser] … 1000 results
+"""
+#: `testament run --json=summary --suite player` alone, observed 2026-11-19 (request 841de9fe…): bare lines.
+OBSERVED_PLAYER_ALONE = """\
+request 841de9fe17424ab0b29c10c4477f0fb5 accepted for arrt at tree 1cf5b8ec5e36
+collected 1 items
+"""
+
+
+def test_a_run_of_the_five_suites_is_read_as_accepted_with_every_request_and_count():
+    progress = pof.Progress(echo=lambda line: None)
+
+    progress.read(iter(OBSERVED_FIVE_SUITES.splitlines(keepends=True)))
+
+    assert progress.accepted.is_set()
+    assert progress.requests == [
+        "b08c7d620c414c659e3bde6d33b6dc18",
+        "4deff0ebac4348fcb9ebe17fe460e9c5",
+        "96f5041e28f4441b880ae59922e241d9",
+        "e861507f10c3443b84eb8122fb40fb4f",
+        "1a64496325204139a6cf35e1eaecf9b3",
+    ]
+    assert progress.collected == 841 + 474 + 1 + 6580 + 1582
+    assert progress.failures == [
+        "tests/test_ci_fallback.py::test_the_workflow_falls_back_only_on_the_decision",
+        "tests/test_assert_tests_ran.py::test_a_pool_run_with_every_suite_passes",
+    ]
+
+
+def test_the_real_player_suite_run_alone_is_read_as_accepted():
+    progress = pof.Progress(echo=lambda line: None)
+
+    progress.read(iter(OBSERVED_PLAYER_ALONE.splitlines(keepends=True)))
+
+    assert (progress.accepted.is_set(), progress.requests, progress.collected) == (
+        True,
+        ["841de9fe17424ab0b29c10c4477f0fb5"],
+        1,
+    )
+
+
+#: The merged report the same five-suite run wrote (`--junit-xml`), its `<testsuite>` elements
+#: as observed with their test cases, timestamps and host left out.
+OBSERVED_ALL_XML = (
+    '<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests" time="429.990">'
+    '<testsuite name="governance" errors="0" failures="9" skipped="0" tests="841" time="14.612" />'
+    '<testsuite name="curation" errors="0" failures="0" skipped="2" tests="6580" time="278.691" />'
+    '<testsuite name="browser" errors="0" failures="0" skipped="0" tests="1582" time="428.796" />'
+    '<testsuite name="player" errors="0" failures="0" skipped="0" tests="1" time="70.697" />'
+    '<testsuite name="contract" errors="0" failures="0" skipped="0" tests="474" time="9.770" />'
+    "</testsuites>"
+)
+
+
+def test_the_pool_summary_names_each_suite_the_merged_report_holds(tmp_path):
+    decision, _, _ = drive(ScriptedPool([install()], [run_attempt(PASSED, tmp=tmp_path)]))
+    (tmp_path / "all.xml").write_text(OBSERVED_ALL_XML, encoding="utf-8")
+    lines, _ = _summary(tmp_path, decision, PASSED)
+
+    assert "- the player suite, on the pool: 1 collected, 0 failed, 0 errored, 0 skipped" in lines
+    assert "- the governance suite, on the pool: 841 collected, 9 failed, 0 errored, 0 skipped" in lines
+    assert [
+        line.split(" suite,")[0].removeprefix("- the ") for line in lines if line.endswith("skipped") and "on the pool" in line
+    ] == [
+        "governance",
+        "curation",
+        "browser",
+        "player",
+        "contract",
+    ]
+
+
+def test_the_pool_summary_says_so_when_there_is_no_merged_report(tmp_path):
+    decision, _, _ = drive(ScriptedPool([install()], [run_attempt(PASSED, tmp=tmp_path)]))
+    lines, _ = _summary(tmp_path, decision, PASSED)
+
+    assert any(line.startswith("**No merged report**") for line in lines)
 
 
 def test_the_real_pool_stops_a_run_the_pool_never_accepts_and_calls_it_could_not_answer(tmp_path):
@@ -849,7 +1000,9 @@ def test_the_browser_job_is_green_when_the_pool_gave_the_verdict_and_red_after_a
 
     assert passed.returncode == 0, passed.stdout + passed.stderr
     assert fell_back.returncode == 1 and "no verdict for this tree" in fell_back.stdout, fell_back.stdout
-    assert "testament run --json=summary --suite browser" in fell_back.stdout
+    assert "testament run --json=summary --suite browser --suite player" in fell_back.stdout
+    assert "The browser and real-Player suites have no verdict" in fell_back.stdout
+    assert "The browser and real-Player suites ran on the pool" in passed.stdout
     assert no_mode.returncode == 1 and "no mode" in no_mode.stdout
 
 

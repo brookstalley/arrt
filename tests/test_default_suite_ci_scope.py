@@ -14,9 +14,11 @@ shrink it while the run still reports green:
   run, when the pool cannot answer, is `tests/test_ci_fallback.py`'s.
 """
 
+import importlib.util
 import pathlib
 import re
 import shlex
+import subprocess
 import tomllib
 
 import pytest
@@ -380,3 +382,123 @@ def test_copy_sources_are_read_from_the_right_context():
 def test_a_dockerfile_shape_the_reader_cannot_parse_is_refused(line):
     with pytest.raises(AssertionError, match="does not read|continues"):
         _copied_sources(f"FROM debian AS base\n{line}\n")
+
+
+# -- the real-Player test: its own suite, and nowhere else (build-plan-audit-wave-2b, Chunk 29) --
+#
+# What the old arrangement (deselected by the addopts, run unasked only by `image.yml`)
+# guaranteed without saying so, and what holds each now:
+#
+# (a) the curation suite never needs GitHub: its command, over the test's file,
+#     collects nothing (`test_the_player_suite_selects_the_one_test_and_the_curation_suite_none`);
+# (b) a pool outage never blocks a merge: the fallback leaves the suite out by name
+#     (`tests/test_ci_fallback.py`, `POOL_ONLY`), so it never waits on GitHub there;
+# (c) the image's test stage never runs it, having no git: that stage runs the addopts
+#     with no `-m` of its own (`test_the_image_test_stage_keeps_the_addopts_marker_expression`);
+# (d) a bare `cd arrt && uv run pytest` reaches no network: the addopts exclude
+#     `player_e2e`, which (a)'s collection runs and the test below reads.
+
+ARRT = REPO / "arrt"
+PLAYER_TEST = "arrt/tests/system/test_a_real_player.py"
+
+
+def _suites() -> dict:
+    return tomllib.loads((REPO / ".testament.toml").read_text(encoding="utf-8"))["suites"]
+
+
+def test_the_player_suite_is_the_curation_suites_command_with_its_marker():
+    suites = _suites()
+    player, curation = suites["player"], suites["curation"]
+
+    assert player["command"] == [
+        *curation["command"],
+        "-m",
+        "player_e2e",
+    ], f"the player suite runs {player['command']}, not the curation suite's command with -m player_e2e"
+    assert player["default_selection"] == [PLAYER_TEST]
+    assert any(PLAYER_TEST.startswith(f"{path.rstrip('/')}/") for path in curation["default_selection"]), (
+        "the curation suite's selection does not hold the real-Player test's file, so the check that its command "
+        "deselects the test would pass on a file it never looks at"
+    )
+
+
+def _collected(command: list[str], selection: list[str]) -> tuple[list[str], subprocess.CompletedProcess]:
+    """The test ids a suite's pytest command collects over `selection`, run from the root as testament runs it.
+
+    The manifest's `uv run --frozen` is run as `uv run --no-sync`: the environment is the
+    one `[setup]` (or the fallback's governance step) made, with groups a plain sync would
+    remove (`tests/preferences/test_type_gate.py` does the same).
+    """
+    assert command[:2] == ["uv", "run"] and "pytest" in command, f"not a uv-run pytest command: {command}"
+    pytest_args = command[command.index("pytest") + 1 :]
+    project = command[command.index("--project") + 1]
+    argv = ["uv", "run", "--no-sync", "--project", project, "pytest", *pytest_args, "-p", "no:cacheprovider"]
+    done = subprocess.run(
+        [*argv, "--collect-only", *selection], cwd=REPO, capture_output=True, text=True, check=False, timeout=300
+    )
+    assert done.returncode in (0, 5), (
+        f"collecting with {argv} ended {done.returncode} (no tests collected is 5); if uv could not start, make "
+        f"the environment first (`cd arrt && uv sync --group dev --group browser`):\n{done.stdout[-2000:]}\n{done.stderr[-2000:]}"
+    )
+    return [line for line in done.stdout.splitlines() if "::" in line and not line.startswith(" ")], done
+
+
+def test_the_player_suite_selects_the_one_test_and_the_curation_suite_none():
+    suites = _suites()
+
+    player, _ = _collected(suites["player"]["command"], suites["player"]["default_selection"])
+    curation, done = _collected(suites["curation"]["command"], [PLAYER_TEST])
+
+    assert len(player) == 1 and player[0].startswith(f"{PLAYER_TEST}::"), f"the player suite collects {player}"
+    assert curation == [], f"the curation suite's command collects the real-Player test: {curation}"
+    assert "1 deselected" in done.stdout, f"the curation command did not deselect the test, it never saw it:\n{done.stdout}"
+
+
+def test_the_addopts_exclude_the_real_player_test():
+    addopts = shlex.split(
+        tomllib.loads((ARRT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["pytest"]["ini_options"]["addopts"]
+    )
+    expression = addopts[addopts.index("-m") + 1]
+
+    assert "not player_e2e" in expression.split(" and "), f"the addopts' -m {expression!r} does not exclude player_e2e"
+
+
+def _image_test_stage_pytest(dockerfile: str) -> list[str]:
+    runs = [line for line in dockerfile.splitlines() if line.startswith("RUN ") and " pytest" in line]
+    assert len(runs) == 1, f"expected the test stage's one pytest RUN in arrt/Dockerfile, found {runs}"
+    return shlex.split(runs[0])
+
+
+def check_the_image_test_stage(words: list[str]) -> None:
+    """Raise unless the image's pytest leaves the addopts' marker expression alone: a `-m` of its own replaces it."""
+    overriding = [w for w in words if w == "-m" or w.startswith("-m") and len(w) > 2 or w.startswith("--markexpr")]
+    assert not overriding, f"the image's test stage passes {overriding}, which replaces the addopts' exclusion of player_e2e"
+
+
+def test_the_image_test_stage_keeps_the_addopts_marker_expression():
+    check_the_image_test_stage(_image_test_stage_pytest((ARRT / "Dockerfile").read_text(encoding="utf-8")))
+
+
+@pytest.mark.parametrize("extra", ["-m player_e2e", "-m 'not browser'", "--markexpr=player_e2e", "-mplayer_e2e"])
+def test_an_image_test_stage_with_a_marker_expression_of_its_own_is_refused(extra):
+    words = _image_test_stage_pytest((ARRT / "Dockerfile").read_text(encoding="utf-8")) + shlex.split(extra)
+    with pytest.raises(AssertionError, match="replaces the addopts"):
+        check_the_image_test_stage(words)
+
+
+def _header_module():
+    spec = importlib.util.spec_from_file_location("player_e2e_header", ARRT / "tests" / "player_e2e_header.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_curation_runs_header_quotes_the_manifests_player_suite():
+    """`player_e2e_header.py` tells every curation run where the test runs; the manifest owns that."""
+    header = _header_module()
+    suites = _suites()
+
+    assert header.SUITE in suites, f"the header names the suite {header.SUITE!r}, which .testament.toml does not declare"
+    assert suites[header.SUITE]["default_selection"] == [str(header.TEST_MODULE.relative_to(REPO))]
+    assert header.ON_THE_POOL == f"testament run --json=summary --suite {header.SUITE}"
+    assert "-m player_e2e" in header.BY_HAND and str(header.TEST_MODULE.relative_to(ARRT)) in header.BY_HAND
