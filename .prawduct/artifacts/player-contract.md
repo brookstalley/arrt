@@ -385,7 +385,8 @@ a `GET` as a configuration error, and on a `POST` as that route's `400`.
   at most 32 outputs and at most 32 label outputs** (since 1.3.0; the package's
   `MAX_OUTPUTS_PER_REPORT`), because the server keeps a row for each one a report
   names; a schema does not state it either, and the server refuses a report past
-  it whole. An output of one client shows at most one wall.
+  it whole. Both rules are the package's `semantic_errors(document, schema="schemas/client-heartbeat.v1.schema.json")`, with
+  a fixture breaking each. An output of one client shows at most one wall.
 - **A display is a record, and its identity is what the client reads from the
   device.** A display output that can say who it is reports `identity`: a Frame
   gives its device id from its REST device description (`/api/v2/`,
