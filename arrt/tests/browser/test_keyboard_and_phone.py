@@ -356,3 +356,45 @@ def test_a_table_wider_than_its_box_takes_the_keyboard(ui, a_health_reading):
     ui.page.wait_for_function("() => document.querySelector('#view .table-scroll').getAttribute('tabindex') === '0'")
     expect(box).to_have_attribute("role", "region")
     expect(box).to_have_attribute("aria-label", "Every Get with works waiting for your verdict, newest first.")
+
+
+def chrome_above(ui) -> str:
+    """Where each part of Artworks above its first title sits, to name in a failure."""
+    return ui.page.evaluate("""() => ['header.topbar', '#view h1', '#view .page-facts', '#view aside.rails',
+          '#view .page-toolbar', 'ul.grid']
+          .map((s) => { const n = document.querySelector(s); if (!n) return `${s} absent`;
+            const r = n.getBoundingClientRect(); return `${s} at ${Math.round(r.top)}, ${Math.round(r.height)} tall`; })
+          .join('; ')""")
+
+
+FACETS = [("movement", "Precisionism"), ("era", "Modern"), ("subject", "City"), ("medium", "Oil"), ("palette", "Warm")]
+
+
+@pytest.mark.parametrize("view", ["catalogue", "contact"], ids=["overview", "posters"])
+def test_artworks_first_title_is_on_the_first_screen_of_a_phone(ui, services, seeded_service, view):
+    """At 390 × 844 the first work's title is whole on the screen on load, with no scrolling.
+
+    The audit measured about 450 px of chrome above the first tile on a phone,
+    so a curator opening Artworks met controls and no art. The title is what is
+    asked for rather than the picture's top, because a tile is read as a work
+    by its label. Both picture views are measured: Overview is what a household
+    of a few hundred works opens on, Posters what a larger one does.
+
+    The rails hold what a household's do, a theme and a value of every facet
+    kind, because a rail of chips stands taller than the note an empty one shows.
+    """
+    works = [entry.artwork for entry in seeded_service.list_artworks().entries]
+    theme = services.display.add_theme(name="Late night")
+    for work in works:
+        services.display.add_to_theme(theme_id=theme.id, artwork_id=work.id)
+        for kind, value in FACETS:
+            seeded_service.record_facet(artwork_id=work.id, kind=kind, value=value, derivation="sourced")
+    ui.page.set_viewport_size(PHONE)
+    ui.open(f"#collection?density={view}")
+    title = ui.page.locator("ul.grid > li :is(.card-title, .tile-title)").first
+    title.wait_for()
+    chips = ui.page.locator("aside.rails button.facet-option")
+    expect(chips.first, "the rails drew no chips, so this measured a short rail").to_be_visible()
+    assert ui.page.evaluate("() => window.scrollY") == 0, "the page arrived scrolled, so this measured nothing"
+    bottom = title.evaluate("(n) => n.getBoundingClientRect().bottom")
+    assert bottom <= PHONE["height"], f"the first title ends at {round(bottom)} px, below the screen: {chrome_above(ui)}"
