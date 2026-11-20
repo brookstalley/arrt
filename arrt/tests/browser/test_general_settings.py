@@ -153,7 +153,7 @@ def test_unattended_work_is_its_own_section_off_and_saying_so(ui):
     expect(ui.page.locator(STANDING)).to_have_text(
         "Unattended work is off, so nothing runs with nobody watching.", use_inner_text=True
     )
-    expect(ui.page.locator(SPEND)).to_have_text("$0.00 spent this month of a $0.00 allowance; $0.00 left.", use_inner_text=True)
+    expect(ui.page.locator(SPEND)).to_have_text("Spent this month: $0.00, of a $0.00 allowance; $0.00 left.", use_inner_text=True)
     expect(
         ui.page.locator("[data-section='Unattended work'] #setting-label_units"), "label units is the page's own"
     ).to_have_count(0)
@@ -175,7 +175,7 @@ def test_switched_on_with_an_allowance_but_no_key_it_says_the_key_is_missing(ui,
     expect(ui.page.locator(STANDING)).to_have_text(
         "There is no model key, so unattended work has nothing to spend with.", use_inner_text=True
     )
-    expect(ui.page.locator(SPEND)).to_have_text("$0.00 spent this month of a $2.50 allowance; $2.50 left.", use_inner_text=True)
+    expect(ui.page.locator(SPEND)).to_have_text("Spent this month: $0.00, of a $2.50 allowance; $2.50 left.", use_inner_text=True)
 
 
 class TestWithAModelKey:
@@ -195,7 +195,7 @@ class TestWithAModelKey:
         ui.page.wait_for_function("document.querySelector('#setting-unattended_allowance_usd').value === '2.50'")
 
         expect(ui.page.locator(STANDING)).to_have_text(
-            "Unattended work may run: $0.00 of this month's $2.50 is spent.", use_inner_text=True
+            "Unattended work may run: this month's allowance is $2.50, of which it has spent $0.00.", use_inner_text=True
         )
 
 
