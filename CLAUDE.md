@@ -100,8 +100,8 @@ Each is an instruction. Why it holds is in `docs/testing.md`.
 - In `arrt/`, sync with the groups the run needs (`uv sync --group browser`),
   never a bare `uv sync`.
 - After touching `arrt/src/arrt/http/static/`, run the browser tests for the
-  screens you changed, and, for a new or changed browser test, the two curation
-  guards that read it: `arrt/tests/unit/test_browser_reads_retry.py` and
+  screens you changed, and the two curation guards that read the client and its
+  browser tests: `arrt/tests/unit/test_browser_reads_retry.py` and
   `arrt/tests/unit/test_client_vocabulary.py`. The whole browser suite runs on the integrated branch, by
   the coordinator (`project-preferences.md` § Workflow, `Delegate verification`).
 - The root suite is not optional, even for a change made entirely inside `arrt/`.
