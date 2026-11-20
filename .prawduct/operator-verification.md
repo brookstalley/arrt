@@ -20,9 +20,9 @@ panel on Status says; check those when its entry is added here.*
 
 - **Walls, one card per wall (Chunk 31).** A wall no Player shows has the badge *No
   Player yet*, in the setup style, not the problem one; a card carries at most one
-  notice and one filled act. A wall whose Player serves its settings page has a link to
-  it, opening in a new tab; one whose Player does not has none. Does a card still read
-  top to bottom as what hangs, what shows, what to do?
+  notice and one filled act. Does a card still read top to bottom as what hangs, what
+  shows, what to do? On Settings › Players, a Player whose heartbeat names its settings
+  page has a link to it, opening in a new tab; one that names none has no link.
 - **Status, the one health model (Chunks 31 and 41).** *Needs attention* lists only
   faults, *Still to set up* the steps not taken; each wall's state uses the same words
   as Walls; the Players panel lists every output of every Player; failed fetches show
