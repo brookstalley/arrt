@@ -368,17 +368,68 @@ def _callers_of(name: str) -> set[str]:
     return found
 
 
+#: The function that spells a feed, where it is defined: every name a module binds it to is a speller.
+_SPELLER: tuple[str, str] = ("arrt.programming.manifest.v2", "as_document")
+
+
+def _feed_spellers(trees: list[ast.Module]) -> set[str]:
+    """The functions in `trees` that spell a feed, however they reach the speller.
+
+    By its own name and by every alias an import binds it to (`feeds.py` imports
+    it as `as_v2_document`), called bare or as a module's attribute
+    (`feeds.as_v2_document(...)`, `v2.as_document(...)`). Until 2026-11-20 this
+    matched only a bare call of the alias, so a second writer reaching the speller
+    any other way was invisible to it.
+    """
+    module, name = _SPELLER
+    names = {name}
+    for tree in trees:
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and module.endswith(node.module.lstrip(".")):
+                names |= {alias.asname or alias.name for alias in node.names if alias.name == name}
+
+    def spells(call: ast.AST) -> bool:
+        if not isinstance(call, ast.Call):
+            return False
+        callee = call.func
+        return (isinstance(callee, ast.Name) and callee.id in names) or (
+            isinstance(callee, ast.Attribute) and callee.attr in names
+        )
+
+    return {
+        node.name
+        for tree in trees
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        for call in ast.walk(node)
+        if spells(call)
+    }
+
+
+def _source_trees() -> list[ast.Module]:
+    """Every module of the plane's source: a second writer need not live in `programming/`."""
+    package = Path(feeds_module.__file__).parents[1]
+    return [ast.parse(path.read_text(encoding="utf-8")) for path in sorted(package.rglob("*.py"))]
+
+
 def test_one_function_writes_a_feed():
     """The control layer is added in `_publish_feed`; a second writer would be a path that could drop a live scene."""
-    spellers = {
-        node.name
-        for tree in _programming_trees()
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef)
-        for call in ast.walk(node)
-        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id == "as_v2_document"
-    }
-    assert spellers == {"_publish_feed"}
+    assert _feed_spellers(_source_trees()) == {"_publish_feed"}
+
+
+@pytest.mark.parametrize(
+    "second_writer",
+    [
+        "from arrt.programming import feeds\ndef second(feed):\n    return feeds.as_v2_document(feed)\n",
+        "from arrt.programming.manifest import v2\ndef second(feed):\n    return v2.as_document(feed)\n",
+        "from arrt.programming.manifest.v2 import as_document as spell\ndef second(feed):\n    return spell(feed)\n",
+        "from .manifest.v2 import as_document\nasync def second(feed):\n    return as_document(feed)\n",
+    ],
+    ids=["feeds-module-attribute", "v2-module-attribute", "another-alias", "relative-import-async"],
+)
+def test_a_second_writer_is_seen_however_it_reaches_the_speller(second_writer):
+    """The check above, held to a writer it must see: each of these is a second path to a feed."""
+    assert "second" in _feed_spellers([*_source_trees(), ast.parse(second_writer)])
 
 
 def _sync(display, hall, study, mastered, wall_settings, services):

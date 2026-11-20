@@ -1142,7 +1142,7 @@ def build_catalogue(tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
-def every_feed_keeps_the_contract(monkeypatch):
+def every_feed_keeps_the_contract() -> Iterator[None]:
     """Every major 2 feed any test publishes is checked against the contract as it is built (`feed_guard.py`).
 
     **Patched where the publisher looks the builder up**, `feeds.py`'s namespace.
@@ -1153,6 +1153,16 @@ def every_feed_keeps_the_contract(monkeypatch):
     every publish, `atomic.promote`, which is looked up on the module and so
     reaches every caller) while the guard checked no feed fails at teardown,
     naming the feeds it never saw.
+
+    **Its patches are its own, not the test's `monkeypatch`.** Until 2026-11-20
+    they were made through the test's `monkeypatch`, so a test calling
+    `monkeypatch.undo()` to lift its own patch mid-test lifted the guard's too, and
+    every feed it published afterwards went unchecked. A test that replaces
+    either guarded name itself fails at teardown by name, rather than leaving a
+    patch the guard's own undo cannot order against.
+
+    A server run as a process is out of this patch's reach: `tests/system/conftest.py`
+    checks the feeds it leaves on disk, in addition to this, never instead.
     """
     from fnmatch import fnmatch
     from pathlib import Path
@@ -1176,9 +1186,23 @@ def every_feed_keeps_the_contract(monkeypatch):
         if fnmatch(Path(destination).name, a_feed):
             promoted.append(Path(destination).name)
 
-    monkeypatch.setattr(feeds_module, "as_v2_document", counted)
-    monkeypatch.setattr(atomic, "promote", promote)
-    yield
+    patches = pytest.MonkeyPatch()
+    patches.setattr(feeds_module, "as_v2_document", counted)
+    patches.setattr(atomic, "promote", promote)
+    try:
+        yield
+        replaced = [
+            name
+            for name, held, ours in (
+                ("feeds.as_v2_document", feeds_module.as_v2_document, counted),
+                ("atomic.promote", atomic.promote, promote),
+            )
+            if held is not ours
+        ]
+    finally:
+        patches.undo()
+    if replaced:
+        pytest.fail(f"the test replaced {', '.join(replaced)}, which the feed guard patches; patch what it calls instead")
     if promoted and not checked:
         pytest.fail(
             f"The feed guard checked no feed, yet {len(promoted)} feed(s) were published ({', '.join(sorted(set(promoted)))}): "

@@ -62,3 +62,21 @@ def test_a_feed_the_publisher_spells_that_breaks_the_contract_fails_the_test(dis
 
     assert "'media' is a required property" in str(stopped.value)
     assert display.hanging_on(wall_id) is None, "the act the guard stopped was rolled back"
+
+
+def test_a_test_that_lifts_its_own_patches_still_has_its_feeds_checked(display, ready_work, wall_id, monkeypatch):
+    """`monkeypatch.undo()` lifts the test's patches, never the guard's: a broken feed published after it is still stopped.
+
+    Red while the guard patched through the test's own `monkeypatch` (until
+    2026-11-20): the undo lifted it, and the hang below published a feed lacking
+    `media` with nothing raised.
+    """
+    monkeypatch.setattr(feeds_module, "write_atomically", feeds_module.write_atomically)
+    monkeypatch.undo()
+    theme = display.add_theme(name="Late night")
+    display.add_to_theme(theme_id=theme.id, artwork_id=ready_work().id)
+    spelled = feeds_module.work_document
+    monkeypatch.setattr(feeds_module, "work_document", lambda work: {k: v for k, v in spelled(work).items() if k != "media"})
+
+    with pytest.raises(AssertionError, match="breaks the Player contract"):
+        display.activate_theme(theme.id, wall_id=wall_id)
