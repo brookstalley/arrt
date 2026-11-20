@@ -295,18 +295,28 @@ function scheduleRunPoll(runId, generation, { done }) {
 
 /* The Cost row's words: this Get's own spend, and the family's where it
  * differs. A finished Get with nothing recorded says so; one still running and
- * not yet billed leaves the row out, its estimate standing below. */
+ * not yet billed leaves the row out, its estimate standing below.
+ *
+ * **The family's figure is the server's sentence** (`SpendOut.summary`), never
+ * one formatted here from `cost_usd`: with a call whose cost is unknown it reads
+ * "at least $0.42, and 2 calls whose cost is unknown", and a client that worded
+ * the figure itself would say the Get cost less than the server knows it may
+ * have. The Get's own figure is the run record's, which carries no count of
+ * unknown calls, so it is said alone only where the family has none: otherwise
+ * the server's sentence stands for the whole. */
 function costWords(own, family, finished) {
-  const retried = family && Number(family.cost_usd) > 0 ? dollars(family.cost_usd) : null;
+  const unknown = family ? family.unknown_cost_calls > 0 : false;
+  const retriedCost = family && Number(family.cost_usd) > 0;
   if (own === null || own === undefined) {
     // A cancelled Get can record nothing of its own while the Gets that retried
     // it spent; that total must not vanish with the empty row.
-    if (retried) return `None recorded for this Get, ${retried} with the Gets that retried it`;
+    if (retriedCost) return `None recorded for this Get, ${family.summary} with the Gets that retried it`;
+    if (unknown) return family.summary;
     return finished ? "None recorded" : null;
   }
-  const mine = dollars(own);
-  if (!family || dollars(family.cost_usd) === mine) return mine;
-  return `${mine}, ${dollars(family.cost_usd)} with the Gets that retried it`;
+  if (!family) return dollars(own);
+  if (Number(family.cost_usd) === Number(own)) return unknown ? family.summary : dollars(own);
+  return `${dollars(own)}, ${family.summary} with the Gets that retried it`;
 }
 
 /* The Get's works section this screen last painted, and under which navigation.

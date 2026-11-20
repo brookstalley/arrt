@@ -1894,6 +1894,74 @@ class SpendOut(BaseModel):
     summary: str
 
 
+class SpendByCategoryOut(BaseModel):
+    """What one kind of spending cost in a month (`SpendCategory`)."""
+
+    category: str
+    #: The calls the ledger holds under it, the unknown ones included.
+    calls: int
+    cost_usd: str
+    unknown_cost_calls: int
+    #: The figure in words, the server's (`SpendTotal.words`): the only form a screen shows.
+    summary: str
+
+
+class SpendOnGetOut(BaseModel):
+    """What one Get spent itself in a month: its own calls, never its family's.
+
+    A re-search is a Get of its own and a family can span months, so a figure
+    that rolled the family up would count one call under two months. A Get's
+    whole cost is `GET /api/runs/{id}/spend`.
+    """
+
+    run_id: str
+    #: `discovery`, `resolve` or `get`, as `RunOut.kind` says it.
+    kind: str
+    intent: str | None
+    watch_id: str | None
+    started_at: str
+    calls: int
+    cost_usd: str
+    unknown_cost_calls: int
+    summary: str
+
+
+class UnknownCostCallOut(BaseModel):
+    """A call that was sent and never said what it cost: the provider may have billed it."""
+
+    spend_id: str
+    category: str
+    occurred_at: str
+    model_id: str | None
+    #: The Get it belonged to; null for one that belonged to none (an Ask reply, a mat).
+    run_id: str | None
+
+
+class SpendMonthOut(BaseModel):
+    """One UTC calendar month of spending, and what is not known about it."""
+
+    year: int
+    month: int
+    cost_usd: str
+    unknown_cost_calls: int
+    summary: str
+    categories: list[SpendByCategoryOut]
+    gets: list[SpendOnGetOut]
+    unknown_calls: list[UnknownCostCallOut]
+
+
+class SpendHistoryOut(BaseModel):
+    """The months of spending, newest first, the current one always the first.
+
+    **Attribution and history, never a ceiling**: the limit on spending is the
+    provider's, set on the key, and nothing here reads one or offers one.
+    """
+
+    months: list[SpendMonthOut]
+    #: Earlier months that spent something and are not listed.
+    older_months: int
+
+
 class InstanceOut(BaseModel):
     """One image instance as a curator judging it needs to see it.
 
